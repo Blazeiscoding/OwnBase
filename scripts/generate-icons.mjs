@@ -31,9 +31,23 @@ try {
   header.writeUInt32LE(22, 18);
   await writeFile(new URL("icon.ico", destination), Buffer.concat([header, png]));
 
+  // macOS sets app icons on a 1024px canvas, the mark in the middle 824px with
+  // its corner radius; a mark that fills the canvas is shrunk onto a grey plate.
+  const svg = await readFile(source, "utf8");
+  const macSvg = svg.replace('rx="12"', 'rx="9"');
+  if (macSvg === svg) throw new Error('tandem.svg no longer has rx="12"; update the macOS icon.');
+  const mac = await browser.newPage({ viewport: { width: 1024, height: 1024 } });
+  await mac.setContent(
+    `<style>body{margin:0;display:grid;place-items:center;width:1024px;height:1024px}svg{width:824px;height:824px;display:block}</style>${macSvg}`,
+  );
+  await writeFile(
+    new URL("icon-mac.png", destination),
+    await mac.screenshot({ omitBackground: true }),
+  );
+  await mac.close();
+
   // The browser client's home-screen icons. The maskable one fills its square
   // and keeps the mark inside the middle 80%, where every launcher shape shows it.
-  const svg = await readFile(source, "utf8");
   const web = new URL("apps/web/public/", root);
   const shots = [
     { file: "icon-192.png", size: 192, maskable: false },

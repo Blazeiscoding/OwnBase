@@ -26,6 +26,7 @@ nsis:
   oneClick: true
   deleteAppDataOnUninstall: false
 mac:
+  icon: build/icon-mac.png
   target:
     - dmg
   category: public.app-category.productivity

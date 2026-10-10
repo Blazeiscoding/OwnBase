@@ -10,6 +10,7 @@
     "dev": "turbo dev",
     "build": "turbo build",
     "build:win": "pnpm --filter @slackoss/desktop package --win",
+    "build:mac": "pnpm --filter @slackoss/desktop package --mac",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "playwright test",
