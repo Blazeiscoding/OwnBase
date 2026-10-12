@@ -92,6 +92,12 @@ const MembersPanel = lazy(() =>
 const ScheduledPanel = lazy(() =>
   import("../components/ScheduledPanel.js").then((module) => ({ default: module.ScheduledPanel })),
 );
+/** Which microphone and camera to use, asked once before a first huddle. */
+const DeviceCheckDialog = lazy(() =>
+  import("../components/DeviceCheckDialog.js").then((module) => ({
+    default: module.DeviceCheckDialog,
+  })),
+);
 /** The bar for a call in progress, fetched when one starts. */
 const HuddleBar = lazy(() =>
   import("../components/HuddleBar.js").then((module) => ({ default: module.HuddleBar })),
@@ -1202,6 +1208,11 @@ function WorkspaceInner({
                 />
               </div>
             </div>
+            {calls.checkingDevices && (
+              <Suspense fallback={null}>
+                <DeviceCheckDialog />
+              </Suspense>
+            )}
             {inHuddle && (
               <Suspense fallback={null}>
                 <HuddleBar

@@ -319,9 +319,17 @@
         "A per-Platform shared Zustand store loads the device preference strictly and validates its boolean shape. Unknown or damaged preferences expose retry and keep the microphone off.",
         "Join waits while initialization or saving is pending, then checks whether the caller still wants this channel and whether the client remains usable. N04 fences old reads with a load version so a retry or acknowledged explicit choice wins.",
         "A confirmed absent record is handled as a first-use default; the conservative muted state applies while the record is unresolved or unreadable.",
-        "The same record keeps the chosen microphone, camera and speaker ids and how the microphone is processed: echo cancellation, automatic volume, and noise suppression as Strong (noiseFilter), Standard or Off, Strong unless chosen otherwise. Only keys that were chosen are written; on load a field of the wrong type is dropped rather than making the whole record unreadable. joinHuddle passes the microphone and camera choices, and the strong noise filter, to the session."
+        "The same record keeps the chosen microphone, camera and speaker ids and how the microphone is processed: echo cancellation, automatic volume, and noise suppression as Strong (noiseFilter), Standard or Off, Strong unless chosen otherwise. Only keys that were chosen are written; on load a field of the wrong type is dropped rather than making the whole record unreadable. joinHuddle passes the microphone and camera choices, and the strong noise filter, to the session.",
+        "The first join on a device with more than one microphone or camera and nothing chosen waits on a question (checkingDevices) that DeviceCheckDialog answers through finishDeviceCheck; the answer, or a choice made in settings, is kept as devicesChecked so it is asked once. The device listing is imported only by a join that may ask, which keeps client-core's device code out of the script every visit downloads, and the join checks again that it is still wanted once the listing and the answer are in."
       ],
-      "concepts": ["join preferences", "latest intent", "async fencing", "N04", "device choices"]
+      "concepts": [
+        "join preferences",
+        "latest intent",
+        "async fencing",
+        "N04",
+        "device choices",
+        "first-call device check"
+      ]
     },
     {
       "path": "packages/ui/src/lib/callVolumes.ts",
@@ -338,7 +346,7 @@
       "path": "packages/ui/src/lib/mediaDevices.ts",
       "summary": "Lists devices for the pickers and applies a device choice to a call in progress.",
       "details": [
-        "useMediaDevices lists microphones, cameras and speakers, again on devicechange and on demand once a permission grant makes names available.",
+        "useMediaDevices lists microphones, cameras and speakers, again on devicechange and on demand once a permission grant makes names available. hasDeviceChoice says whether there is more than one microphone or camera, for the question a first huddle asks.",
         "chooseDevices switches the live huddle first (microphone or camera) and saves the choice only once the device opened, so a failed choice rejects and changes nothing. useSpeaker routes an audio element through the chosen speaker with setSinkId."
       ],
       "concepts": ["device lists", "switch then save", "audio output routing"]
@@ -1138,7 +1146,7 @@
       "path": "packages/ui/src/components/MicrophoneCheck.tsx",
       "summary": "Lets the user test local microphone level before joining a huddle.",
       "details": [
-        "Opens the chosen microphone with the chosen processing through client-core's testMicrophone, the strong noise filter included, so what plays back is what a call would send; if the filter cannot start it says the browser's own suppression is standing in. It shows the microphone's name and level, and opens it again when the choice changes. An optional playback sends the voice to the chosen speaker.",
+        "Opens the chosen microphone with the chosen processing through client-core's testMicrophone, the strong noise filter included, so what plays back is what a call would send; if the filter cannot start it says the browser's own suppression is standing in. It shows the microphone's name and level, and opens it again when the choice changes; autoStart listens at once, as the first-huddle question does. An optional playback sends the voice to the chosen speaker.",
         "Nothing is sent to peers or the server. Stopping the check or closing settings stops the captured tracks."
       ],
       "concepts": ["local microphone test", "hardware lifetime"]
@@ -1151,6 +1159,15 @@
         "Noise suppression as Strong, Standard or Off (Discord's choice; Strong unless chosen otherwise, and Off for anyone who had turned suppression off), echo cancellation and automatic volume switches, a microphone test with playback, a two-tone speaker test, a mirrored camera preview, and join-muted. When the browser keeps device names back it offers to ask for the microphone once."
       ],
       "concepts": ["device settings", "local media tests"]
+    },
+    {
+      "path": "packages/ui/src/components/DeviceCheckDialog.tsx",
+      "summary": "Asks once, before a first huddle, which microphone and camera to use.",
+      "details": [
+        "callPreferences.joinHuddle asks when this device has not been asked (devicesChecked), nothing is chosen, and the browser lists more than one microphone or camera; a browser that keeps names back lists none, so it is asked on the first join after it gives them. Choosing a microphone or camera in settings counts as an answer.",
+        "The dialog, loaded on first use from WorkspaceScreen, listens through MicrophoneCheck and shows the camera through CameraPreview at once. Join huddle keeps the choice and joins with it; Cancel, or the workspace closing, joins nothing and asks again next time. Only a dialog that went without an answer calls the waiting join off."
+      ],
+      "concepts": ["device settings", "first-call device check"]
     },
     {
       "path": "packages/ui/src/components/DiagnosticsDialog.tsx",

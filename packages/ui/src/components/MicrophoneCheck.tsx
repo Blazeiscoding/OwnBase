@@ -28,12 +28,15 @@ export function MicrophoneCheck({
   settings = {},
   speakerId = "",
   onOpened,
+  autoStart = false,
 }: {
   settings?: MicrophoneSettings;
   /** Where to play the voice back; "" for the system's default. */
   speakerId?: string;
   /** Told once a microphone opens, as the browser then gives devices' names. */
   onOpened?: () => void;
+  /** Listens at once rather than waiting to be asked. */
+  autoStart?: boolean;
 }) {
   const [check, setCheck] = useState<Check>({ phase: "idle" });
   const [playback, setPlayback] = useState(false);
@@ -45,12 +48,15 @@ export function MicrophoneCheck({
 
   useEffect(() => {
     alive.current = true;
+    if (autoStart) void start();
     return () => {
       alive.current = false;
       attempt.current++;
       test.current?.stop();
       test.current = null;
     };
+    // Only on opening.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function start() {

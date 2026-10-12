@@ -1,4 +1,4 @@
-import { act, render, screen } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, User } from "@slackoss/protocol";
@@ -97,12 +97,13 @@ describe("the phone's menu button", () => {
     act(() => client.store.setState({ mentionCounts: { [general.id]: 3 } }));
     expect(toggle()).not.toHaveAccessibleDescription();
 
+    // The screen is still fetching parts of itself, so a change can show a moment later.
     act(() => client.store.setState({ mentionCounts: { [general.id]: 3, [design.id]: 2 } }));
-    expect(toggle()).toHaveAccessibleDescription("2 mentions elsewhere");
+    await waitFor(() => expect(toggle()).toHaveAccessibleDescription("2 mentions elsewhere"));
     expect(toggle()).toHaveTextContent("2");
 
     act(() => client.store.setState({ mentionCounts: {}, channelLastSeq: { [design.id]: 5 } }));
-    expect(toggle()).toHaveAccessibleDescription("Unread messages elsewhere");
+    await waitFor(() => expect(toggle()).toHaveAccessibleDescription("Unread messages elsewhere"));
   });
 
   it("stays quiet for a muted channel", async () => {

@@ -261,7 +261,7 @@ async function revealNames(refresh: () => void) {
  * before and not connected now stays listed as such, so the choice is not
  * silently shown as another.
  */
-function DeviceSelect({
+export function DeviceSelect({
   label,
   options,
   value = "",
@@ -365,10 +365,21 @@ function SpeakerTest({ speakerId }: { speakerId: string }) {
   );
 }
 
-/** The chosen camera's picture, as others would see it but mirrored like a mirror. */
-function CameraPreview({ cameraId, onOpened }: { cameraId?: string; onOpened: () => void }) {
+/**
+ * The chosen camera's picture, as others would see it but mirrored like a
+ * mirror; `autoStart` shows it at once rather than waiting to be asked.
+ */
+export function CameraPreview({
+  cameraId,
+  onOpened,
+  autoStart = false,
+}: {
+  cameraId?: string;
+  onOpened: () => void;
+  autoStart?: boolean;
+}) {
   const video = useRef<HTMLVideoElement>(null);
-  const [on, setOn] = useState(false);
+  const [on, setOn] = useState(autoStart);
   const [state, setState] = useState<"idle" | "starting" | "showing">("idle");
   const [failure, setFailure] = useState<string | null>(null);
   const descriptionId = useId();
