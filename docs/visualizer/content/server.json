@@ -1,6 +1,6 @@
 {
   "area": "server",
-  "overview": "The server is the authority for accounts, conversation visibility, messages and durable events. One workspace folder holds SQLite plus attachment blobs; an exclusive writer hold keeps schedulers and storage accounting consistent. The protocol package supplies shared data shapes, request validation and small policies so web, desktop and server agree. Recent work removes redundant private content, contains malformed logging, bounds callback lifetimes and protects delayed replies. The further review's Q01 restore publication race is documented and remains open.",
+  "overview": "The server is the authority for accounts, conversation visibility, messages and durable events. One workspace folder holds SQLite plus attachment blobs; an exclusive writer hold keeps schedulers and storage accounting consistent. The protocol package supplies shared data shapes, request validation and small policies so web, desktop and server agree. Recent work removes redundant private content, contains malformed logging, bounds callback lifetimes and protects delayed replies. The further review's Q01 restore publication race is closed by a path lock held through the folder swap.",
   "entries": [
     {
       "path": "packages/server/src/auth.ts",
@@ -22,9 +22,9 @@
         "A staged capture is checked before publication. The manifest records schema, counts, SHA-256 checksums and attachment sizes; verification also checks integrity, foreign keys, duplicate names and containment.",
         "inventoryBackup reads older schemas without upgrading them and explains external app destinations, waiting schedules, undelivered events and surviving sessions before a copy is started.",
         "Restore verifies source and staged bytes, moves the old workspace to a superseded folder and publishes the replacement. It preserves the old copy for recovery instead of deleting it.",
-        "OPEN Q01: the target hold is released before folder rename on Windows. Another server can claim the temporarily absent target; failed publication can leave that new workspace at the target while the original survives moved aside. Continuous admission through publication and rollback is follow-up work."
+        "Q01: restore holds a path lock beside the target through staging, both renames and rollback. The in-folder hold is still released before the renames, since Windows cannot rename a folder with an open file in it, but a concurrent server start or second restore is refused without creating the target."
       ],
-      "concepts": ["backup", "checksum", "WAL snapshot", "Q01 open finding"]
+      "concepts": ["backup", "checksum", "WAL snapshot", "path lock"]
     },
     {
       "path": "packages/server/src/blockKit.ts",
@@ -227,9 +227,9 @@
         "OS file locking releases the hold after a crash; no stale PID heuristic is needed. Alternate spellings or filesystem aliases reach the same underlying lock.",
         "A separate owner description supplies useful process/host/purpose/port information when a second writer is refused; the description is not the locking authority.",
         "release is safe to repeat. The guarantee depends on filesystem lock behavior, so a network share that does not honor SQLite locking cannot provide it.",
-        "This protects a folder while held; Q01 concerns admission when restore releases the hold to rename that folder."
+        "holdWorkspacePath locks a sibling <folder>.lock, so the path stays held while restore renames folders; holdWorkspace takes it before making or locking the folder. The file is removed on release, and acquisition compares the file's identity before and after locking so a file its last holder removed is not taken for the lock."
       ],
-      "concepts": ["exclusive writer", "resource ownership", "Q01 open finding"]
+      "concepts": ["exclusive writer", "resource ownership", "path lock"]
     },
     {
       "path": "packages/server/src/recover.ts",
@@ -741,10 +741,10 @@
           "detail": "Restore refuses an already held workspace, copies the verified backup beside the target and verifies staged bytes. The old workspace is moved to a superseded folder for recovery."
         },
         {
-          "title": "Another server can slip in while folders swap",
-          "description": "On Windows, restore briefly lets go of the workspace to rename its folder, and a server started in that moment can create a new workspace there. The restore then cannot roll back, though the original stays safe in the set-aside folder. Keeping hold through the swap is a proposed fix, not yet built.",
+          "title": "No other server can slip in while folders swap",
+          "description": "Restore has to let go of the workspace folder for a moment to rename it, because Windows will not rename a folder with a file open inside it. It keeps a second claim beside the folder the whole time, so a server started in that moment is refused and makes no workspace of its own there. If the swap fails, the original goes back where it was.",
           "files": ["packages/server/src/backup.ts"],
-          "detail": "Current Windows code releases its hold to rename the folder. A concurrent server can create a fresh target during that gap; failed publication then cannot roll back over the new target. The original survives aside. A stable admission identity outside the renamed folder is proposed follow-up, not implemented here."
+          "detail": "Restore holds a sibling path lock from before staging until publication or rollback is complete, and releases the in-folder hold only for the renames. holdWorkspace takes the path lock before mkdir, so a concurrent start gets WorkspaceInUseError and the target stays absent until the staged copy is renamed in."
         },
         {
           "title": "Start the restored workspace as usual",
@@ -758,7 +758,7 @@
           "detail": "A subsequent server opens with the exclusive writer hold and atomic migrations, taking pre-upgrade copies when needed. Local host settings such as public URL, retention and ICE configuration must be applied separately."
         }
       ],
-      "detail": "Backups are staged and validated before publication; restore preserves the original but has a documented Q01 admission gap during folder replacement."
+      "detail": "Backups are staged and validated before publication; restore preserves the original and holds the target's path through folder replacement."
     }
   ]
 }

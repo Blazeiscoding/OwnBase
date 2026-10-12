@@ -19,7 +19,12 @@ import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { z } from "zod";
 import { SCHEMA_VERSION } from "./db.js";
-import { holdWorkspace, WorkspaceInUseError } from "./ownership.js";
+import {
+  holdFolder,
+  holdWorkspacePath,
+  WorkspaceInUseError,
+  type WorkspaceHold,
+} from "./ownership.js";
 import { SERVER_VERSION } from "./version.js";
 
 /** What a backup directory contains, and what it must still look like on restore. */
@@ -173,7 +178,7 @@ async function discardInterruptedCaptures(parent: string, dataDir: string): Prom
     }
     let hold;
     try {
-      hold = holdWorkspace(operation, "a backup cleanup");
+      hold = holdFolder(operation, "a backup cleanup");
     } catch (error) {
       if (error instanceof WorkspaceInUseError) continue;
       throw error;
@@ -228,12 +233,12 @@ export async function backupWorkspace(opts: {
   const operation = join(parent, `${CAPTURE_PREFIX}${id}`);
   const staged = join(operation, "capture");
   await mkdir(operation);
-  let hold: ReturnType<typeof holdWorkspace> | undefined;
+  let hold: WorkspaceHold | undefined;
   let removedEmpty = false;
   let published = false;
   let failure: unknown;
   try {
-    hold = holdWorkspace(operation, "a backup");
+    hold = holdFolder(operation, "a backup");
     await writeFile(
       join(operation, CAPTURE_RECORD),
       JSON.stringify({
@@ -505,19 +510,25 @@ export async function restoreWorkspace(opts: {
   await separateDirectories(dataDir, source);
   const manifest = await verifyBackup(source);
   await mkdir(dirname(dataDir), { recursive: true });
-  // A workspace something still has open cannot be replaced: the server would
-  // go on writing to the copy moved aside, or on Windows stop the move. Held
-  // while the backup is staged, so none starts on the old one meanwhile, and
-  // let go just before the swap, since on Windows a folder with an open file
-  // in it cannot be renamed.
-  const hold = existsSync(dataDir) ? holdWorkspace(dataDir, "a restore") : null;
+  // Nothing else may take this path until the restored copy is in it. A server
+  // that started on it between the two renames below would make itself a new
+  // workspace there, and the restore could neither finish nor put the original
+  // back.
+  const path = holdWorkspacePath(dataDir);
   // Everything from here on is inside the try, the staging folder's creation
   // too: whatever fails once the workspace is held must let go of it before
   // the failure is reported, or this process could not restore or serve it
   // again until it exits.
+  let hold: WorkspaceHold | null = null;
   let staged: string | null = null;
   let supersededDir: string | null = null;
   try {
+    // A workspace something still has open cannot be replaced: the server
+    // would go on writing to the copy moved aside, or on Windows stop the
+    // move. The folder is held while the backup is staged and let go just
+    // before the swap, since on Windows a folder with an open file in it
+    // cannot be renamed. The path stays held through the swap.
+    hold = existsSync(dataDir) ? holdFolder(dataDir, "a restore") : null;
     staged = await mkdtemp(`${dataDir}.restoring-`);
     await mkdir(join(staged, FILES));
     await copyFile(join(source, DATABASE), join(staged, DATABASE));
@@ -535,8 +546,12 @@ export async function restoreWorkspace(opts: {
     await rename(staged, dataDir);
   } catch (err) {
     hold?.release();
-    // Put the original back before reporting, so a failed swap changes nothing.
-    if (supersededDir && !existsSync(dataDir)) await rename(supersededDir, dataDir);
+    try {
+      // Put the original back before reporting, so a failed swap changes nothing.
+      if (supersededDir && !existsSync(dataDir)) await rename(supersededDir, dataDir);
+    } finally {
+      path.release();
+    }
     if (staged) {
       try {
         await rm(staged, { recursive: true, force: true });
@@ -547,5 +562,6 @@ export async function restoreWorkspace(opts: {
     }
     throw err;
   }
+  path.release();
   return { manifest, supersededDir };
 }

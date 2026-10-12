@@ -1,11 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
-import { existsSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } from "node:fs";
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { backupWorkspace, restoreWorkspace } from "../src/backup.js";
-import { holdWorkspace, WORKSPACE_OWNER, WorkspaceInUseError } from "../src/ownership.js";
+import {
+  holdFolder,
+  holdWorkspace,
+  holdWorkspacePath,
+  WORKSPACE_OWNER,
+  WORKSPACE_PATH_LOCK,
+  WorkspaceInUseError,
+} from "../src/ownership.js";
 import { listAccounts } from "../src/recover.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
@@ -134,7 +141,8 @@ describe("one workspace folder, one server", () => {
         `import { holdWorkspace } from ${JSON.stringify(
           new URL("../src/ownership.ts", import.meta.url).href,
         )};
-         holdWorkspace(${JSON.stringify(dataDir)}, "a test holder");
+         // Kept, as a server keeps it: a hold nothing refers to is closed when collected.
+         globalThis.hold = holdWorkspace(${JSON.stringify(dataDir)}, "a test holder");
          console.log("held");
          setInterval(() => {}, 1000);`,
       ],
@@ -184,5 +192,89 @@ describe("one workspace folder, one server", () => {
     hold.release();
     hold.release();
     holdWorkspace(dataDir, "another").release();
+  });
+});
+
+describe("the path a workspace folder is at", () => {
+  it("is held with no folder there, and nothing asking for the folder makes one", () => {
+    const path = holdWorkspacePath(dataDir);
+    expect(() => holdWorkspace(dataDir, "a test")).toThrow(WorkspaceInUseError);
+    expect(() => holdWorkspacePath(dataDir)).toThrow(WorkspaceInUseError);
+    expect(existsSync(dataDir)).toBe(false);
+
+    path.release();
+    path.release();
+    holdWorkspace(dataDir, "a test").release();
+  });
+
+  it("leaves nothing beside the folder once it is let go", async () => {
+    const lock = `${dataDir}${WORKSPACE_PATH_LOCK}`;
+    const path = holdWorkspacePath(dataDir);
+    expect(existsSync(lock)).toBe(true);
+    path.release();
+    expect(readdirSync(root)).toEqual([]);
+
+    // Nor does taking the folder, which asks for the path on its way.
+    const server = await start();
+    expect(readdirSync(root)).toEqual(["workspace"]);
+    await stop(server);
+    expect(readdirSync(root)).toEqual(["workspace"]);
+  });
+
+  // What letting go relies on there: nobody can lock a file already removed.
+  it.runIf(process.platform === "win32")("cannot have its file removed while held", () => {
+    const lock = `${dataDir}${WORKSPACE_PATH_LOCK}`;
+    const path = holdWorkspacePath(dataDir);
+    expect(() => rmSync(lock)).toThrow();
+    expect(() => holdWorkspacePath(dataDir)).toThrow(WorkspaceInUseError);
+    path.release();
+    expect(existsSync(lock)).toBe(false);
+  });
+
+  it("leaves a folder already held to its holder", () => {
+    const hold = holdWorkspace(dataDir, "a test");
+    // Asking for the path is not asking for the folder: a restore takes both.
+    const path = holdWorkspacePath(dataDir);
+    expect(() => holdFolder(dataDir, "a restore")).toThrow(WorkspaceInUseError);
+    path.release();
+    hold.release();
+  });
+
+  it("refuses a server while another process holds it, until that process is gone", async () => {
+    const holder = spawn(
+      process.execPath,
+      [
+        "--input-type=module",
+        "-e",
+        `import { holdWorkspacePath } from ${JSON.stringify(
+          new URL("../src/ownership.ts", import.meta.url).href,
+        )};
+         globalThis.hold = holdWorkspacePath(${JSON.stringify(dataDir)});
+         console.log("held");
+         setInterval(() => {}, 1000);`,
+      ],
+      { stdio: ["ignore", "pipe", "inherit"] },
+    );
+    try {
+      await new Promise<void>((done, fail) => {
+        holder.stdout!.once("data", () => done());
+        holder.once("exit", (code) => fail(new Error(`holder exited with ${code}`)));
+      });
+      await expect(start()).rejects.toBeInstanceOf(WorkspaceInUseError);
+      expect(existsSync(dataDir)).toBe(false);
+    } finally {
+      holder.kill("SIGKILL");
+      await new Promise((done) => holder.once("exit", done));
+    }
+    await expect(start()).resolves.toBeDefined();
+    // The file the killed holder left is gone with the next to hold the path.
+    expect(readdirSync(root)).toEqual(["workspace"]);
+  });
+
+  it("does not stop a server where its lock cannot be kept", async () => {
+    // Something else is where the lock's file would go.
+    mkdirSync(`${dataDir}${WORKSPACE_PATH_LOCK}`, { recursive: true });
+    await start();
+    await expect(start()).rejects.toBeInstanceOf(WorkspaceInUseError);
   });
 });

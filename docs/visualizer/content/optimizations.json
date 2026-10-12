@@ -1287,7 +1287,7 @@
       ],
       "metrics": [],
       "limits": [
-        "This fixes how the app picks up folders. A separate open problem remains, where a server starting during a restore can take the workspace folder."
+        "This fixes how the app picks up folders. Keeping other servers out while a restore swaps folders was a separate repair."
       ],
       "technical": {
         "title": "Preserve restored-copy holds despite damaged registry metadata",
@@ -1295,7 +1295,7 @@
         "before": "A damaged name, port or timestamp could discard a registry row and lose the protection that kept a restored copy isolated.",
         "after": "Hold state survives recoverable display damage; uncertain held identities remain blocked while ordinary new-folder adoption stays supported.",
         "limits": [
-          "This closes registry-adoption behavior; Q01's restore publication lock gap remains separate."
+          "This closes registry-adoption behavior; Q01 separately closed the restore publication lock gap."
         ]
       }
     },
@@ -1534,28 +1534,47 @@
     },
     {
       "id": "Q01",
-      "title": "A server starting mid-restore can take the workspace folder",
+      "title": "A server starting mid-restore can no longer take the workspace folder",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "Restoring a backup lets go of the workspace folder just before it swaps in the restored copy. A server that starts at that moment can create a new, unrelated workspace in that folder.",
-      "before": "In a test, a server was started at that moment on purpose. The restore then failed, and the original workspace was left in a folder renamed as replaced.",
-      "after": "The restore should keep its claim on the folder until the swap, or undoing a failed swap, is complete. That claim should be kept outside the folder being renamed.",
-      "mechanism": "Hold ownership until publication/rollback is complete; cover concurrent server start, two restores and failed rename without overwriting another target.",
-      "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"],
-      "evidence": [],
+      "status": "implemented",
+      "summary": "Restoring a backup has to let go of the workspace folder for a moment to swap in the restored copy. It now keeps a second claim, held beside the folder, until the swap is done, so nothing else can start there meanwhile.",
+      "before": "Restore let go of the folder just before the swap. A server that started at that moment made a new, empty workspace in its place. The restore then failed, and the original workspace was left in a set-aside folder.",
+      "after": "A server or a second restore that asks for the folder during a restore is refused, also when the folder is not there yet. If the swap fails, the original goes back where it was. The extra claim leaves nothing beside the folder once it is let go.",
+      "mechanism": "Hold a path lock beside the target through staging, both renames and rollback; every folder hold asks for it before making or locking the folder; its file is removed on release by a holder certain of the file's identity.",
+      "files": [
+        "packages/server/src/backup.ts",
+        "packages/server/src/ownership.ts",
+        "packages/server/test/restoreSwap.test.ts",
+        "packages/server/test/ownership.test.ts"
+      ],
+      "evidence": [
+        {
+          "path": "packages/server/test/restoreSwap.test.ts",
+          "label": "A server start and a second restore at each point of the swap, and a failed swap"
+        },
+        {
+          "path": "packages/server/test/ownership.test.ts",
+          "label": "The path held with no folder, by another process, and cleaned up after"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "The original workspace survives. The test does not show that anything is lost for good.",
-        "This concerns a restore run on the host's own computer, not something a person elsewhere can start."
+        "A server from a version before this one does not ask for the new claim, so it can still slip in during a swap.",
+        "Where the server may not write beside its folder, as in the container image, the extra claim is skipped. A restore cannot swap folders there either.",
+        "The claim goes by the folder's address, so the same folder reached through a link has a separate one.",
+        "A power cut between the two moves of the swap still leaves no folder at the address, with the original set aside."
       ],
       "technical": {
-        "title": "Keep exclusive restore ownership through folder publication",
-        "summary": "Restore drops target ownership before swapping folders, allowing a concurrent real host to create an unrelated workspace at that path.",
-        "before": "A controlled concurrent start causes restore publication to fail and leaves the original in a superseded folder.",
-        "after": "Follow-up: retain exclusive admission throughout publication and rollback, using a stable lock identity outside the folder being renamed.",
+        "title": "Keep exclusive restore admission through folder publication",
+        "summary": "Restore holds a sibling path lock across staging, both renames and rollback, and holdWorkspace takes the same lock before it makes or locks the folder.",
+        "before": "Restore released the in-folder lock before renaming. A concurrent createWorkspaceServer could mkdir the absent target; publication then failed and rollback could not overwrite the new target.",
+        "after": "holdWorkspacePath locks <dataDir>.lock with SQLite BEGIN IMMEDIATE and an in-memory journal. Concurrent starts and restores get WorkspaceInUseError without creating the folder, including for a target that does not exist yet; a failed install renames the superseded folder back while the path is still held. The lock file is removed on release: after close on Windows, where an open file cannot be removed, and under the lock elsewhere, with a dev/inode/birthtime comparison on acquisition that rejects a file its last holder already removed.",
         "limits": [
-          "The original survives; the evidence does not prove irrecoverable deletion.",
-          "This is a local restore concurrency boundary, not a public remote restore endpoint."
+          "Older binaries take only the in-folder lock.",
+          "An unwritable parent directory disables the path lock.",
+          "Identity is by path: a symlinked spelling of the folder has its own lock, while the in-folder lock is still shared.",
+          "Crash safety between the two renames is unchanged.",
+          "The removed-file comparison is reasoned from POSIX unlink semantics; no test opens the file before another holder removes it."
         ]
       }
     },

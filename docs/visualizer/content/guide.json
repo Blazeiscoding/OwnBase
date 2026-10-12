@@ -159,8 +159,8 @@
       "detail": "Benchmarks belong to their recorded revision, hardware, sample count and fixture. A smaller archive does not establish faster startup. Bundle-entry limits do not measure the full import closure or decoded media memory."
     },
     {
-      "text": "The N records are finished repairs. The Q records are problems that were found and reproduced but are not fixed yet. Fixing one part does not fix every part that relies on it.",
-      "detail": "N01–N12 are completed scoped repairs. Q01–Q13 are reproduced follow-up findings. A repaired storage backend does not automatically fix its callers' preference races; bounded controller cleanup does not establish every adapter owns a partially started server."
+      "text": "The N records are finished repairs. The Q records are problems that were found and reproduced, and each says whether it is fixed yet. Fixing one part does not fix every part that relies on it.",
+      "detail": "N01–N12 are completed scoped repairs. Q01–Q13 are reproduced findings; each record's status says whether it is implemented or still a follow-up. A repaired storage backend does not automatically fix its callers' preference races; bounded controller cleanup does not establish every adapter owns a partially started server."
     },
     {
       "text": "Some things were never tried for real: installing and removing the app, unplugging a microphone, a power cut, signing out of the computer, and reaching a workspace from another device over the internet. Deleting old messages does not remove them from older backups.",
