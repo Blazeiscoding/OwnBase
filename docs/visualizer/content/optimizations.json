@@ -1323,7 +1323,7 @@
       "metrics": [],
       "limits": [
         "The tests faked these failures on this computer. They do not show how often a real public link is left running.",
-        "Two related problems stay open. A server can keep running unseen after its invite setting fails, and stopping can wait behind a backup before cleanup begins."
+        "Two related problems were repaired separately. A server could keep running unseen after its invite setting failed, and stopping could wait behind a backup before cleanup began."
       ],
       "technical": {
         "title": "Retain connector/server ownership until cleanup actually succeeds",
@@ -1332,7 +1332,7 @@
         "after": "Failed cleanup stays pending, resource handles remain owned and reopening is gated until retry establishes cleanup.",
         "limits": [
           "Loopback/injected connector failures do not establish a real Cloudflare orphan frequency.",
-          "Q12 remains a separate main-adapter handle gap after listening; Q13 remains a pre-cleanup queue wait gap."
+          "Q12 and Q13 separately closed the main-adapter handle gap after listening and the pre-cleanup queue wait."
         ]
       }
     },
@@ -1481,7 +1481,7 @@
       "metrics": [],
       "limits": [
         "A change already on its way to the server cannot be called back. Keeping changes from two devices in order still needs help from the server.",
-        "Following a thread has its own open problem, where Follow then Unfollow can end followed, and this fix does not cover it."
+        "Following a thread had its own problem, where Follow then Unfollow could end followed. This fix does not cover it, and it was repaired separately."
       ],
       "technical": {
         "title": "Serialize local choice writes and stop queued work after destruction",
@@ -1490,7 +1490,7 @@
         "after": "Latest intent waits behind the in-flight request; destroy drops queued/repair work and refuses new writes.",
         "limits": [
           "An already-delivered request cannot be recalled; cross-device ordering still needs a server revision contract.",
-          "Q09 shows Follow has a different unfixed ordering boundary and is not covered by this pin/save/snooze implementation."
+          "Follow has a different ordering boundary, not covered by this pin/save/snooze implementation; Q09 closed it separately."
         ]
       }
     },
@@ -1788,146 +1788,171 @@
     },
     {
       "id": "Q09",
-      "title": "Follow then Unfollow can leave a thread followed",
+      "title": "Follow then Unfollow now ends unfollowed",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "Two opposite Follow requests for a thread can arrive at the server in either order.",
-      "before": "If you click Follow then Unfollow, the thread can end up followed when the older request reaches the server last. Done one after the other, it ends unfollowed.",
-      "after": "The app should send one Follow change at a time for each thread and end on your latest choice, or the server should track which change is newest.",
-      "mechanism": "Keep one request active, send the latest queued choice, reconcile authoritative echoes and ensure failed older completion cannot roll back newer intent.",
-      "files": ["packages/client-core/src/workspace.ts", "packages/server/src/store.ts"],
-      "evidence": [],
+      "status": "implemented",
+      "summary": "The app now sends its Follow and Unfollow requests for a thread one at a time, in the order you chose them.",
+      "before": "If you clicked Follow then Unfollow, both requests went out together. The thread could end up followed when the older request reached the server last.",
+      "after": "The second request waits until the first is answered, so the server ends on your latest choice. Marking a thread unread, which also follows it, waits its turn the same way. Reading a thread does not wait.",
+      "mechanism": "Chain follow-changing requests per thread so each is sent after the previous one settles; leave forward-only thread reads unqueued; send nothing queued once the client is destroyed.",
+      "files": [
+        "packages/client-core/src/workspace.ts",
+        "packages/client-core/test/unread.test.ts"
+      ],
+      "evidence": [
+        {
+          "path": "packages/client-core/test/unread.test.ts",
+          "label": "A slow Follow, a failed Follow and a closed client, against a real server"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "The tests forced the requests out of order. How often this happens in real use is not measured.",
-        "The fix that does this for pins, saves and snoozes does not cover Follow."
+        "A request that gets no answer holds back later Follow changes for that thread until the connection gives up on it.",
+        "Changes made on two of your devices at once are still settled by the server, not by this ordering."
       ],
       "technical": {
         "title": "Order Follow/Unfollow by latest local intent",
-        "summary": "Opposite Follow requests can race on the network/server.",
-        "before": "Follow then Unfollow can finish followed when the older request reaches the server last; sequential calls finish unfollowed.",
-        "after": "Follow-up: serialize/coalesce per-thread follow intent or use an explicit server revision contract.",
+        "summary": "Follow-changing requests for one thread are serialized in the order they were made.",
+        "before": "setThreadFollow sent each request at once; a Follow overtaken on the way by the Unfollow after it left the thread followed.",
+        "after": "inFollowOrder chains setThreadFollow and markThreadUnread per root id, sending each when the previous one settles, accepted or not. markThreadRead stays unqueued because its cursor only moves forward. A queued request is rejected unsent once the client is destroyed, and that rejection triggers no rollback.",
         "limits": [
-          "Actual HTTP/socket controls inject request ordering; natural frequency is unmeasured.",
-          "The completed pin/save/snooze queue does not cover Follow."
+          "Head-of-line blocking: these requests carry no timeout, as with the pin/save/snooze queue.",
+          "Cross-device ordering still relies on the server's revision."
         ]
       }
     },
     {
       "id": "Q10",
-      "title": "A failed Mark unread can undo one that worked",
+      "title": "A failed Mark unread no longer undoes one that worked",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "Marking the same message unread twice looks like the same change to the app, so it cannot tell the two attempts apart.",
-      "before": "If the first attempt fails after the second has succeeded, the app undoes the mark and shows the conversation as read. The server still has it marked unread.",
-      "after": "Only the attempt that failed should undo its own change, and only if nothing newer has replaced it. The app should then follow what the server reports.",
-      "mechanism": "Only the still-owning failed request may restore its prior cursor; test repeated equal values, held failure, reconnect and multi-device updates.",
+      "status": "implemented",
+      "summary": "The app now tells one Mark unread attempt from another, even when both are for the same message.",
+      "before": "Marking the same message unread twice looked like one change. If the first attempt failed after the second had succeeded, the app undid the mark and showed the conversation as read, while the server still had it unread.",
+      "after": "Only the latest attempt can undo the mark, and only if nothing has moved the reading position since. If every attempt fails, the position goes back to where it was before the first. If an earlier one worked and a later one fails, it goes back to the one that worked.",
+      "mechanism": "Track the latest unanswered mark per conversation with the cursor it rolls back to; a superseded failure does nothing, and a success becomes the target a later failure returns to.",
       "files": [
         "packages/client-core/src/workspace.ts",
         "packages/client-core/test/unread.test.ts"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "packages/client-core/test/unread.test.ts",
+          "label": "Repeated marks answered in each order: the older fails, both fail, the later fails"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "Only this device shows the wrong thing. The server keeps the correct unread mark."
+        "With three or more attempts unanswered at once, the position it returns to can be one step out until the server next reports it."
       ],
       "technical": {
         "title": "Identify unread rollback by request rather than cursor equality",
-        "summary": "Repeated identical Mark unread actions share the same optimistic cursor value.",
-        "before": "An older failure rolls local state back after a newer identical request succeeds, while SQLite remains unread.",
-        "after": "Follow-up: associate rollback ownership with a request identity/generation and current authoritative echo.",
+        "summary": "Each Mark unread owns its rollback through a per-conversation record of the latest unanswered mark.",
+        "before": "The failure handler compared only the cursor value, so an older failure rolled back after a newer identical request had succeeded.",
+        "after": "unreadMarks keeps the seq and rollback cursor of the latest unanswered mark. A failure acts only while its mark is still the latest and the cursor is where it put it. A repeat made while the earlier mark still shows inherits that mark's rollback cursor; an earlier success moves a later mark's rollback cursor to the confirmed one.",
         "limits": [
-          "The reproduced disagreement is local rollback; the server's stored unread state is correct."
+          "Rollback cursors are exact for two overlapping marks; longer overlapping chains settle on the next authoritative snapshot."
         ]
       }
     },
     {
       "id": "Q11",
-      "title": "A closed profile can still pull you into a direct message",
+      "title": "A closed profile no longer pulls you into a direct message",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "Clicking Message on someone's profile keeps going after you close the profile.",
-      "before": "After you close the profile and go to another channel, the old click still opens your direct message with that person.",
-      "after": "Closing the profile should cancel the action, whether it would succeed or fail, as New message already does.",
-      "mechanism": "Dismiss/unmount increments action ownership; a late direct-message result must not navigate or contaminate the replacement view.",
+      "status": "implemented",
+      "summary": "Clicking Message on someone's profile now ends with the profile. Close it, and the click is dropped.",
+      "before": "After you closed the profile and went to another channel, the old click still opened your direct message with that person.",
+      "after": "Once the profile is closed, or shows someone else, a late answer opens nothing and changes nothing on the card.",
+      "mechanism": "Count presses in a ref, invalidate the count on unmount or a change of person, and let only the current press navigate or set state.",
       "files": [
         "packages/ui/src/components/ProfileDialog.tsx",
-        "packages/ui/src/screens/WorkspaceScreen.tsx"
+        "packages/ui/test/profile.dom.test.tsx"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "packages/ui/test/profile.dom.test.tsx",
+          "label": "A conversation that arrives after the card closed, and after it changed person"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "Tests with the real profile and workspace screens show where the problem is. The New message button already cancels when you close it."
+        "The direct message may still be created on the server. Only the jump into it is dropped."
       ],
       "technical": {
         "title": "Cancel Profile Message navigation ownership on dismissal",
-        "summary": "A Profile Message action keeps its navigation completion alive after the dialog closes.",
-        "before": "The old action opens its DM after the reader has navigated to another channel.",
-        "after": "Follow-up: lifetime-guard Profile action completion and rejection, matching the working New message cancellation behavior.",
-        "limits": [
-          "Real component/full WorkspaceScreen control establishes the action boundary; ordinary New message already has a dismissal guard."
-        ]
+        "summary": "A Profile Message completion navigates only while its press is still the card's current one.",
+        "before": "The awaited openDm completion called onOpenDm after the dialog had unmounted.",
+        "after": "A press counter ref is bumped by each press and by the cleanup of an effect keyed on userId. Completion, error and busy state apply only while the counter still matches; a change of user also resets the busy and error state.",
+        "limits": ["openDm is not aborted, so the server may still create the conversation."]
       }
     },
     {
       "id": "Q12",
-      "title": "A failed invite setting can leave a server running unseen",
+      "title": "A failed invite setting no longer leaves a server running unseen",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "When the desktop app starts hosting, the server starts accepting connections before the app applies the invite setting.",
-      "before": "If saving that setting fails, the app loses track of the server it started. Stopping hosting then reports success, but the server still answers and the workspace folder stays locked.",
-      "after": "The app should keep hold of the new server until startup has fully worked. If any step fails, the app should shut that server down.",
-      "mechanism": "Acquire the handle immediately after create/listen, run policy checks inside a cleanup-protected block and transfer it to the controller only after complete success.",
+      "status": "implemented",
+      "summary": "When the desktop app starts hosting, the server accepts connections before the app applies the invite setting. If that step fails, the app now stops the server it just started.",
+      "before": "If saving that setting failed, the app lost track of the server. Stopping hosting reported success, but the server still answered and the workspace folder stayed locked.",
+      "after": "The app keeps hold of the new server until startup has fully worked. If a step fails, the server is stopped and the workspace is reported as not started, so it can be started again.",
+      "mechanism": "Move the start adapter into its own module and run the setup that follows listening in a protected block, which stops the server and clears relay tracking before the failure is reported.",
       "files": [
+        "apps/desktop/src/main/hostedServer.ts",
         "apps/desktop/src/main/index.ts",
         "apps/desktop/src/main/hosting.ts",
-        "packages/server/src/server.ts"
+        "apps/desktop/test/hostedServer.test.ts"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "apps/desktop/test/hostedServer.test.ts",
+          "label": "A real server whose database refuses the invite write, then starts once it takes it"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "The test used the real startup steps, a database set up to refuse the write, and a server only this computer could reach.",
-        "This sits next to the fixes for closing a public link, which stay in place."
+        "The test makes the database refuse the write on purpose. A real disk failure was not staged.",
+        "If the server also fails to stop, the app says so and asks to be reopened. It can do no more from there."
       ],
       "technical": {
         "title": "Close a created listener when post-start invite setup fails",
-        "summary": "Main's startup adapter starts listening before configured invite policy is enforced.",
-        "before": "A failed policy write loses the server handle before returning it to the controller; shutdown reports success while health still answers and ownership remains locked.",
-        "after": "Follow-up: retain the newly created server in a protected try/finally until startup either transfers ownership or closes it.",
+        "summary": "startHostedServer owns the server between its creation and its handover.",
+        "before": "The adapter inline in index.ts threw from setInviteOnly after createWorkspaceServer had resolved, dropping the only reference to a listening server that held its folder lock.",
+        "after": "The adapter lives in hostedServer.ts with its dependencies passed in. relayServers.add and setInviteOnly run in a try block whose catch deletes the relay entry and awaits server.stop() before rethrowing; a stop that fails too surfaces as an AggregateError of both errors.",
         "limits": [
-          "Actual extracted startup callback, real SQLite write-refusing trigger and loopback listener establish the controlled failure.",
-          "This is adjacent to N12's controller/connector fixes, which remain in place."
+          "Real SQLite with a write-refusing trigger and a loopback listener establish the failure; the failed-stop branch uses a stub server.",
+          "N12's controller and connector cleanup is unchanged."
         ]
       }
     },
     {
       "id": "Q13",
-      "title": "A stuck backup can keep the server from stopping",
+      "title": "Quitting no longer waits without limit behind a stuck backup",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "Stopping the server waits in line behind a backup that is still running.",
-      "before": "If a backup hangs, the server keeps running long past the time limit for stopping, because the timed cleanup has not started yet. In a test, it was still running after six times that limit.",
-      "after": "Stopping should have an overall time limit that starts right away. The app should tell work it can call off from work that must finish, and keep hold of each piece until it has stopped or been cleaned up.",
-      "mechanism": "Start an overall shutdown policy before queue wait, distinguish accepted durable work from abortable work and retain handles until each cancellation/cleanup outcome is established.",
-      "files": [
-        "apps/desktop/src/main/hosting.ts",
-        "apps/desktop/src/main/index.ts",
-        "apps/desktop/src/main/backupWorker.ts"
+      "status": "implemented",
+      "summary": "Quitting the desktop app waits in line behind a backup that is still running. That wait now has a time limit.",
+      "before": "If a backup hung, quitting waited with no limit, because the timed part of stopping had not started yet. In a test, the server was still running after six times that limit, and the choice to keep the app open or quit anyway never came up.",
+      "after": "After the limit, the app says it could not finish stopping and offers to keep it open or quit anyway. The backup carries on, the server stays under the app's control, and nothing stops later by surprise.",
+      "mechanism": "Give the queued stop a deadline for reaching its turn, equal to the cleanup timeout. On expiry the turn is given up, so the queued operation does nothing when reached, and shutdown is rejected.",
+      "files": ["apps/desktop/src/main/hosting.ts", "apps/desktop/test/hosting.test.ts"],
+      "evidence": [
+        {
+          "path": "apps/desktop/test/hosting.test.ts",
+          "label": "A quit behind a held backup gives up, stops nothing later, then stops on the next try"
+        }
       ],
-      "evidence": [],
       "metrics": [],
       "limits": [
-        "The test held a backup open on purpose. It did not show a real backup stuck on a network drive, or the app failing to quit.",
-        "A time limit must not walk away from a still-running backup or server, or report an unfinished backup as done."
+        "The test held a backup open on purpose. It did not show a real backup stuck on a network drive.",
+        "The backup is not called off. Quitting anyway ends it, and the next backup clears away what it left.",
+        "The Stop hosting button still waits behind a running backup with no limit."
       ],
       "technical": {
         "title": "Bound shutdown waiting before it reaches cleanup",
-        "summary": "Shutdown joins the hosting operation queue behind an outstanding backup.",
-        "before": "A held backup leaves the listener running beyond six injected cleanup deadline intervals because timed cleanup has not begun.",
-        "after": "Follow-up: define bounded cancellation/settlement for preceding queued/in-flight work while retaining resource ownership.",
+        "summary": "shutdown() waits cleanupTimeoutMs for its turn in the operation queue, then abandons the turn.",
+        "before": "serialized(stopCurrent) joined the queue behind an outstanding backup with no deadline, so finishCleanup's timer never started.",
+        "after": "The queued stop and a timer share a three-state turn: waiting, taken, given up. The timer rejects shutdown and marks the turn given up, so the queued operation returns without stopping when it is finally reached. If the turn comes first, the timer is cleared and stopCurrent runs with its own deadlines. A rejection resets closing, as a failed stop does.",
         "limits": [
-          "A held adapter proves queue behavior; it does not establish a real blocked network-share backup or observed native exit hang.",
-          "A timeout must not abandon the worker/server resource or silently claim unfinished backup success."
+          "A held adapter proves the queue behavior, not a real blocked network-share backup.",
+          "Preceding work is not cancelled; ownership of the worker and the server is unchanged.",
+          "stop() outside a quit is still unbounded behind queued work."
         ]
       }
     }
