@@ -1,10 +1,11 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { FileMeta, ID } from "@slackoss/protocol";
+import type { FileMeta, ID, ReplyReference } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Composer } from "./Composer.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useRovingMessages } from "../lib/useRovingMessages.js";
 import { MessageItem } from "./MessageItem.js";
+import { ReplyQuote } from "./ReplyQuote.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -293,7 +294,10 @@ export function ThreadPanel({
         {(replies ?? []).map((msg, i) => {
           const prev = replies![i - 1];
           const compact =
-            !!prev && prev.userId === msg.userId && msg.createdAt - prev.createdAt < 300_000;
+            !!prev &&
+            prev.userId === msg.userId &&
+            msg.createdAt - prev.createdAt < 300_000 &&
+            !msg.replyTo;
           return (
             <div key={msg.id} data-reply={msg.id}>
               <MessageItem
@@ -320,6 +324,7 @@ export function ThreadPanel({
         )}
         {pending.map((p) => (
           <div key={p.nonce} className="px-5 py-1 text-[15px] opacity-60">
+            {p.replyTo && <PendingQuote quote={p.replyTo} />}
             {p.text}
             <PendingAttachments attachments={p.attachments} progress={p.uploadProgress} />
             <span className="ml-2 font-mono text-[11px] text-ink-faint">
@@ -340,4 +345,11 @@ export function ThreadPanel({
       {lightboxFile && <Lightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
     </aside>
   );
+}
+
+/** What a reply still sending answers, named from the replica. */
+function PendingQuote({ quote }: { quote: ReplyReference }) {
+  const users = useWorkspace((s) => s.users);
+  const channels = useWorkspace((s) => s.channels);
+  return <ReplyQuote quote={quote} users={users} channels={channels} bare />;
 }

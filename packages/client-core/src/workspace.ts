@@ -12,14 +12,17 @@ import {
   type ModalView,
   type Presence,
   type ReadySnapshot,
+  type ReplyReference,
   type SendMessageBody,
   type ServerToClient,
   type ThreadFollow,
   type User,
+  type WorkspaceEvent,
 } from "@slackoss/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
 import { FileCache } from "./fileCache.js";
 import { captureFailure } from "./capture.js";
+import { quoteChanges, requote } from "./replies.js";
 import type { CallLogLine, HuddleSession, HuddleState } from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
 
@@ -50,6 +53,8 @@ export interface PendingMessage {
   threadRootId: ID | null;
   /** A reply the author also chose to show in the channel. */
   broadcast?: boolean;
+  /** The message this one answers in place, as it was when the reply was sent. */
+  replyTo?: ReplyReference;
   text: string;
   userId: ID;
   createdAt: number;
@@ -75,6 +80,7 @@ export interface StoredPending {
   channelId: ID;
   threadRootId: ID | null;
   broadcast?: boolean;
+  replyTo?: ReplyReference;
   text: string;
   userId: ID;
   createdAt: number;
@@ -149,6 +155,8 @@ function sendFailureReason(error: unknown): string {
       return "You no longer have access to this conversation.";
     case "bad_thread_root":
       return "The message this replies to is gone.";
+    case "bad_reply_target":
+      return "The message this answers is not in this conversation.";
     case "invalid_attachments":
       return "The attached files are no longer available.";
     case "attachments_scheduled":
@@ -308,6 +316,9 @@ function updateTimeline(timeline: ChannelTimeline, envelopes: EventEnvelope[]): 
         return { ...message, reactions };
       });
     }
+    // Replies quoting a message edited or deleted show it as it now is.
+    const changes = quoteChanges(event);
+    if (changes) items = requote(items, changes, newer);
   }
   return { ...timeline, items, readThroughSeq };
 }
@@ -354,6 +365,11 @@ function updateThread(
         if (userIds.length) reactions.push({ emoji: event.emoji, userIds });
         return { ...message, reactions };
       });
+    }
+    const changes = quoteChanges(event);
+    if (changes) {
+      items = requote(items, changes);
+      if (root) root = requote([root], changes)[0]!;
     }
   }
   return { root, items };
@@ -461,6 +477,8 @@ export interface WorkspaceState {
   workspaceName: string;
   /** Authenticated storage identity; null when an older server does not expose it. */
   workspaceId: ID | null;
+  /** The server keeps inline replies; an older one would post one as a plain message. */
+  inlineReplies: boolean;
   self: User | null;
   users: Record<ID, User>;
   channels: Record<ID, Channel>;
@@ -524,6 +542,7 @@ const initialState: WorkspaceState = {
   status: "connecting",
   workspaceName: "",
   workspaceId: null,
+  inlineReplies: false,
   self: null,
   users: {},
   channels: {},
@@ -909,6 +928,7 @@ export class WorkspaceClient {
       status: snap.replayFrom === undefined ? "online" : "connecting",
       workspaceName: snap.workspaceName,
       workspaceId: snap.workspaceId ?? prev.workspaceId,
+      inlineReplies: snap.inlineReplies === true,
       self: snap.self,
       users,
       channels,
@@ -1167,6 +1187,7 @@ export class WorkspaceClient {
           seq,
         );
         patch.threads = this.patchThreadMessage(s, event.message.id, () => ({ ...event.message }));
+        this.requoteHeld(s, patch, event.message.channelId, event, seq);
         break;
       }
       case "history.removed": {
@@ -1195,6 +1216,7 @@ export class WorkspaceClient {
         }
         Object.assign(patch, { threads, threadPages, threadFollows, saved });
         patch.removedHistory = { ...s.removedHistory, [event.channelId]: seq };
+        this.requoteHeld(s, patch, event.channelId, event, seq);
         break;
       }
       case "message.deleted": {
@@ -1232,6 +1254,7 @@ export class WorkspaceClient {
           threadsChanged = true;
         }
         if (threadsChanged) patch.threads = threads;
+        this.requoteHeld(s, patch, event.channelId, event, seq);
         break;
       }
       case "reaction.added":
@@ -1384,6 +1407,41 @@ export class WorkspaceClient {
       ...s.timelines,
       [channelId]: { ...tl, items: tl.items.map((m) => (m.id === messageId ? fn(m) : m)) },
     };
+  }
+
+  /**
+   * Replies held for a conversation, in its timeline and its threads, quoting
+   * a message this event edits or removes: they show it as it now is.
+   */
+  private requoteHeld(
+    s: WorkspaceState,
+    patch: Partial<WorkspaceState>,
+    channelId: ID,
+    event: WorkspaceEvent,
+    seq: number,
+  ): void {
+    const changes = quoteChanges(event);
+    if (!changes) return;
+    const timelines = patch.timelines ?? s.timelines;
+    const tl = timelines[channelId];
+    if (tl?.loaded) {
+      const items = requote(tl.items, changes, (id) => seq > (tl.messageSnapshots?.[id] ?? 0));
+      if (items !== tl.items) patch.timelines = { ...timelines, [channelId]: { ...tl, items } };
+    }
+    const threads = patch.threads ?? s.threads;
+    let nextThreads: Record<ID, Message[]> | null = null;
+    for (const [rootId, replies] of Object.entries(threads)) {
+      const items = requote(replies, changes);
+      if (items !== replies) (nextThreads ??= { ...threads })[rootId] = items;
+    }
+    if (nextThreads) patch.threads = nextThreads;
+    const pages = patch.threadPages ?? s.threadPages;
+    let nextPages: Record<ID, ThreadPage> | null = null;
+    for (const [rootId, page] of Object.entries(pages)) {
+      if (!page.root?.replyTo || !changes.has(page.root.replyTo.id)) continue;
+      (nextPages ??= { ...pages })[rootId] = { ...page, root: requote([page.root], changes)[0]! };
+    }
+    if (nextPages) patch.threadPages = nextPages;
   }
 
   private patchThreadMessage(
@@ -2125,6 +2183,8 @@ export class WorkspaceClient {
       threadRootId?: ID;
       files?: File[];
       alsoSendToChannel?: boolean;
+      /** The message this one answers in place; see `quoteOf`. */
+      replyTo?: ReplyReference;
       /** Told the nonce of the message queued, for its author to follow (F01). */
       onQueued?: (nonce: string) => void;
     } = {},
@@ -2158,6 +2218,9 @@ export class WorkspaceClient {
       channelId,
       threadRootId: opts.threadRootId ?? null,
       broadcast: !!opts.threadRootId && !!opts.alsoSendToChannel,
+      // Only a server that keeps the answer is asked to; an older one would
+      // post it as a plain message, which is what it would then show.
+      ...(opts.replyTo && this.state.inlineReplies ? { replyTo: opts.replyTo } : {}),
       text,
       userId: self.id,
       createdAt: Date.now(),
@@ -2170,7 +2233,7 @@ export class WorkspaceClient {
     if (files.length > 0) this.retryFiles.set(nonce, files);
     opts.onQueued?.(nonce);
 
-    void this.deliver(channelId, text, files, nonce, opts.threadRootId, opts.alsoSendToChannel);
+    void this.deliver(pendingMsg, files);
     return true;
   }
 
@@ -2181,13 +2244,13 @@ export class WorkspaceClient {
   }
 
   private async deliver(
-    channelId: ID,
-    text: string,
+    send: Pick<
+      PendingMessage,
+      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "text"
+    >,
     files: File[],
-    nonce: string,
-    threadRootId?: ID,
-    alsoSendToChannel?: boolean,
   ): Promise<void> {
+    const { nonce, channelId, text, threadRootId, replyTo } = send;
     const setProgress = (fraction: number) =>
       this.store.setState((s) => ({
         pending: s.pending.map((p) => (p.nonce === nonce ? { ...p, uploadProgress: fraction } : p)),
@@ -2211,8 +2274,9 @@ export class WorkspaceClient {
         text,
         nonce,
         ...(threadRootId ? { threadRootId } : {}),
-        ...(threadRootId && alsoSendToChannel ? { alsoSendToChannel: true } : {}),
+        ...(threadRootId && send.broadcast ? { alsoSendToChannel: true } : {}),
         ...(fileIds.length > 0 ? { fileIds } : {}),
+        ...(replyTo ? { replyToId: replyTo.id, replyPing: replyTo.ping } : {}),
       };
       const { message } = await this.api.sendMessage(channelId, body);
       if (!this.stopped && this.state.status !== "auth_failed") {
@@ -2258,7 +2322,7 @@ export class WorkspaceClient {
           : item,
       ),
     }));
-    void this.deliver(p.channelId, p.text, files, nonce, p.threadRootId ?? undefined, p.broadcast);
+    void this.deliver(p, files);
   }
 
   /**
@@ -2271,6 +2335,7 @@ export class WorkspaceClient {
       channelId: p.channelId,
       threadRootId: p.threadRootId,
       broadcast: p.broadcast,
+      ...(p.replyTo ? { replyTo: p.replyTo } : {}),
       text: p.text,
       userId: p.userId,
       createdAt: p.createdAt,
@@ -2320,14 +2385,7 @@ export class WorkspaceClient {
     this.store.setState((s) => ({ pending: [...s.pending, ...restored] }));
     for (const entry of restored) {
       if (entry.failed) continue;
-      void this.deliver(
-        entry.channelId,
-        entry.text,
-        [],
-        entry.nonce,
-        entry.threadRootId ?? undefined,
-        entry.broadcast,
-      );
+      void this.deliver(entry, []);
     }
   }
 

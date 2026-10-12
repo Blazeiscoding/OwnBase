@@ -41,7 +41,10 @@ export function decideNotification(
   if (prefs.muted) return { notify: false, reason: "muted" };
   if (prefs.notifyLevel === "nothing") return { notify: false, reason: "level" };
 
-  const named = message.text.includes(`<@${self.id}>`);
+  // A reply that chose to notify the author of what it answers names them.
+  const named =
+    message.text.includes(`<@${self.id}>`) ||
+    (message.replyTo?.ping === true && message.replyTo.userId === self.id);
   const broadcasts = broadcastsIn(message.text);
   // A room-wide mention only reaches a room: in a DM it is just words.
   const isDm = channel.type === "dm" || channel.type === "group_dm";

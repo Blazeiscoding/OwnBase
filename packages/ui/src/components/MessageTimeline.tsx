@@ -4,6 +4,7 @@ import type { EphemeralMessage, PendingMessage } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, sameDay } from "../lib/format.js";
 import { MessageItem } from "./MessageItem.js";
+import { ReplyQuote } from "./ReplyQuote.js";
 import { Avatar } from "./Avatar.js";
 import { ListStatus } from "./ListStatus.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
@@ -182,6 +183,14 @@ export const MessageTimeline = memo(function MessageTimeline({
   const typers = Object.keys(typing ?? {})
     .filter((id) => id !== selfId)
     .map((id) => users[id]?.displayName ?? "someone");
+
+  // Sending brings you down to what you sent, as Discord and Slack do: a reply
+  // to something far up would otherwise land out of sight, and stay unread.
+  const sends = useRef(channelPending.length);
+  useLayoutEffect(() => {
+    if (channelPending.length > sends.current) pinnedToBottom.current = true;
+    sends.current = channelPending.length;
+  }, [channelPending.length]);
 
   // Keep the view pinned to the newest message unless the user scrolled up.
   // An anchored view must never be yanked to the bottom: that both loses the
@@ -437,7 +446,9 @@ export const MessageTimeline = memo(function MessageTimeline({
             !!prev &&
             prev.userId === msg.userId &&
             msg.createdAt - prev.createdAt < GROUP_WINDOW_MS &&
-            prev.replyCount === 0;
+            prev.replyCount === 0 &&
+            // A reply shows what it answers above its author, as Discord does.
+            !msg.replyTo;
           return (
             <div
               key={msg.id}
@@ -736,6 +747,7 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
   const channels = useWorkspace((s) => s.channels);
   return (
     <div className="py-0.5 pl-5 pr-12 opacity-60">
+      {pending.replyTo && <ReplyQuote quote={pending.replyTo} users={users} channels={channels} />}
       <div className="flex gap-3.5">
         <div className="w-10 shrink-0" />
         <div className="min-w-0 flex-1 text-[15px]">

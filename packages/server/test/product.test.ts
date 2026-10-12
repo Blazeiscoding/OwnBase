@@ -272,6 +272,9 @@ describe("self-hosted product", () => {
     const db = new DatabaseSync(join(dir, "workspace.db"));
     const historical = openDbAtVersion(":memory:", 8);
     try {
+      db.exec("DROP INDEX idx_messages_reply_to");
+      db.exec("ALTER TABLE messages DROP COLUMN reply_ping");
+      db.exec("ALTER TABLE messages DROP COLUMN reply_to_id");
       db.exec("DROP INDEX idx_channel_managers");
       db.exec("ALTER TABLE thread_follows DROP COLUMN unread_hold");
       db.exec("DROP TABLE purged_message_requests");

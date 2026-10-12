@@ -554,6 +554,16 @@ const MIGRATIONS: string[] = [
       );
   UPDATE scheduled_messages SET text = '', file_ids = '[]' WHERE status = 'sent';
   `,
+  // v38 — inline replies: the message one answers in place, as Discord does
+  // beside Slack's threads, and whether its author was notified. No foreign
+  // key: the original can be removed with older history while its replies
+  // stay, and they then say it is gone. Indexed for the replies of one
+  // message, which an edit or deletion of it has to find.
+  `
+  ALTER TABLE messages ADD COLUMN reply_to_id TEXT;
+  ALTER TABLE messages ADD COLUMN reply_ping INTEGER NOT NULL DEFAULT 0;
+  CREATE INDEX idx_messages_reply_to ON messages(reply_to_id) WHERE reply_to_id IS NOT NULL;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

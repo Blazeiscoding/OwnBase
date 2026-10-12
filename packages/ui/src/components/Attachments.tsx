@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import type { FileMeta, ID } from "@slackoss/protocol";
 import { ApiError, type LocalAttachment } from "@slackoss/client-core";
 import { useClient, usePlatform } from "../context.js";
 import { formatBytes } from "../lib/format.js";
 import { Icon, type IconName } from "./Icon.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Modal } from "./Modal.js";
 
 /** Largest an inline image is drawn at; the real file opens in the lightbox. */
@@ -224,7 +225,7 @@ export function iconFor(mime: string, name: string): IconName {
   return "file";
 }
 
-function saveUrl(url: string, name: string) {
+export function saveUrl(url: string, name: string) {
   const a = document.createElement("a");
   a.href = url;
   a.download = name;
@@ -248,7 +249,7 @@ function fileError(err: unknown): string {
 }
 
 /** An explicit recoverable state, scoped to the current workspace and file. */
-function useFileResource(fileId: ID, enabled = true) {
+export function useFileResource(fileId: ID, enabled = true) {
   const client = useClient();
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState(() => ({
@@ -339,67 +340,28 @@ export function PendingAttachments({
   );
 }
 
-/** Full-size image viewer. Esc or a click outside closes it. */
-export function Lightbox({ file, onClose }: { file: FileMeta; onClose: () => void }) {
-  const { url, error, retry } = useFileResource(file.id);
-  const [decodeFailed, setDecodeFailed] = useState(false);
-  useEffect(() => setDecodeFailed(false), [url, file.id]);
+const LightboxView = lazy(() =>
+  import("./Lightbox.js").then((module) => ({ default: module.LightboxView })),
+);
 
+/**
+ * Full-size image viewer. Opening a picture is now and then, so the viewer
+ * loads on first use; the moment that takes shows nothing new.
+ */
+export function Lightbox(props: { file: FileMeta; onClose: () => void }) {
   return (
-    <Modal
-      title={`Image ${file.name}`}
-      onClose={onClose}
-      backdropClassName="flex items-center justify-center bg-black/85 p-8"
-      className="flex max-h-full max-w-full flex-col items-center gap-3 outline-none"
+    <ErrorBoundary
+      fallback={
+        <Modal title={`Image ${props.file.name}`} onClose={props.onClose}>
+          <p role="alert" className="text-sm text-ink-dim">
+            The image viewer could not load. Reload the app to try again.
+          </p>
+        </Modal>
+      }
     >
-      {error && (
-        <div role="alert" className="text-center text-ink">
-          <p>{error}</p>
-          <button
-            onClick={retry}
-            className="mt-2 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
-          >
-            Retry image
-          </button>
-        </div>
-      )}
-      {!url && !error && (
-        <p role="status" className="text-ink">
-          Loading image…
-        </p>
-      )}
-      {decodeFailed && (
-        <p role="status" className="text-ink">
-          This image cannot be previewed. You can still save the original file.
-        </p>
-      )}
-      {url && !decodeFailed && (
-        <img
-          src={url}
-          alt={file.name}
-          onError={() => setDecodeFailed(true)}
-          className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
-        />
-      )}
-      <div className="flex items-center gap-3 text-sm text-ink-dim">
-        <span className="max-w-[420px] truncate">{file.name}</span>
-        <span className="font-mono text-[11px] text-ink-faint">{formatBytes(file.size)}</span>
-        <button
-          disabled={!url}
-          onClick={() => {
-            if (url) saveUrl(url, file.name);
-          }}
-          className="rounded-lg border border-edge px-3 py-1 transition-colors hover:border-ink-faint/50 hover:text-ink"
-        >
-          Save
-        </button>
-        <button
-          onClick={onClose}
-          className="rounded-lg border border-edge px-3 py-1 transition-colors hover:border-ink-faint/50 hover:text-ink"
-        >
-          Close
-        </button>
-      </div>
-    </Modal>
+      <Suspense fallback={null}>
+        <LightboxView {...props} />
+      </Suspense>
+    </ErrorBoundary>
   );
 }

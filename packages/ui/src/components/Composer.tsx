@@ -1,22 +1,18 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ID, User, ScheduleMessageBody } from "@slackoss/protocol";
-import { ApiError, OUTBOX_LIMIT } from "@slackoss/client-core";
+import { ApiError, OUTBOX_LIMIT, quoteOf } from "@slackoss/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { formatBytes } from "../lib/format.js";
 import { emojiStartingWith } from "../lib/emoji.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
-import {
-  formatScheduleShort,
-  formatScheduleTime,
-  localDateTime,
-  schedulePresets,
-} from "../lib/schedule.js";
+import { formatScheduleTime } from "../lib/schedule.js";
+import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
 import { Icon } from "./Icon.js";
 import { iconFor } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Tooltip } from "./Tooltip.js";
-import { Popover } from "./Popover.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
@@ -33,6 +29,11 @@ import {
   formattingShortcut,
   MESSAGE_LIMIT,
 } from "./FormattingToolbar.js";
+
+// Choosing a time to send is now and then, so its picker loads on first use.
+const SendLaterPopover = lazy(() =>
+  import("./SendLaterPopover.js").then((module) => ({ default: module.SendLaterPopover })),
+);
 
 interface Props {
   channelId: ID;
@@ -67,7 +68,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   // A guest writes, but does not upload, schedule or run an app's commands.
   const guest = useWorkspace((s) => s.self?.role === "guest");
   // Threads keep their own draft slot so a channel draft isn't clobbered.
-  const draftKey = threadRootId ? `${channelId}:${threadRootId}` : channelId;
+  const draftKey = conversationKey(channelId, threadRootId);
+  /** The message the next send answers in place, chosen with Reply. */
+  const replyTarget = useReplyTarget(client, draftKey);
+  const replyName = replyTarget
+    ? (users[replyTarget.message.userId]?.displayName ?? "unknown")
+    : "";
   const scheduleStorageKey = useMemo(
     () => workspaceStorageKey(client.baseUrl, workspaceId, selfId, "schedule-request", draftKey),
     [client, workspaceId, selfId, draftKey],
@@ -86,7 +92,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   const [dragging, setDragging] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const scheduleButton = useRef<HTMLButtonElement>(null);
-  const [customTime, setCustomTime] = useState("");
   const [scheduleNote, setScheduleNote] = useState<string | null>(null);
   const [scheduleError, setScheduleError] = useState<string | null>(null);
   const [scheduling, setScheduling] = useState(false);
@@ -131,7 +136,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     setAttachmentNote(null);
     setSendRefusal(null);
     setScheduleOpen(false);
-    setCustomTime("");
     setScheduleNote(null);
     setScheduleError(null);
     setScheduling(false);
@@ -364,6 +368,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     focusWanted.current = document.activeElement === box.current ? undefined : before;
   }, [autoFocus, channelId, threadRootId]);
 
+  // Choosing Reply, even again on the same message, brings the box to hand.
+  const replyAsked = replyTarget ? `${replyTarget.message.id}:${replyTarget.asked}` : null;
+  useEffect(() => {
+    if (replyAsked) box.current?.focus();
+  }, [replyAsked]);
+
   const blocked = archived || recoveryBlocksSend;
   useEffect(() => {
     if (blocked || focusWanted.current === undefined) return;
@@ -470,6 +480,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       threadRootId,
       files: attached,
       alsoSendToChannel: alsoToChannel,
+      ...(replyTarget ? { replyTo: quoteOf(replyTarget.message, replyTarget.ping) } : {}),
       onQueued: (nonce) => (queued = nonce),
     });
     if (!accepted) {
@@ -484,6 +495,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     setSendRefusal(null);
     // A deliberate choice per reply, not a mode to get stuck in.
     setAlsoToChannel(false);
+    cancelReply(client, draftKey);
     setAttached([]);
     setMentionQuery(null);
     setEmojiQuery(null);
@@ -741,6 +753,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         return;
       }
     }
+    if (e.key === "Escape" && replyTarget) {
+      // Before the panel behind it takes Escape to close.
+      e.preventDefault();
+      e.stopPropagation();
+      cancelReply(client, draftKey);
+      return;
+    }
     if (e.key === "Enter" && !e.shiftKey && !e.altKey && enterSends) {
       // A new line of the code, not half a code block sent; Ctrl/Cmd+Enter sends.
       if (insideCodeBlock(e.currentTarget.value, e.currentTarget.selectionStart)) return;
@@ -948,6 +967,49 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           dragging ? "border-copper bg-copper/5" : "border-[var(--card-edge)]"
         }`}
       >
+        {replyTarget && (
+          <div className="flex items-center gap-2 border-b border-edge py-1 pl-4 pr-1.5 text-[13px] text-ink-dim">
+            <Icon name="reply" size={14} className="shrink-0 text-ink-faint" />
+            <span className="min-w-0 flex-1 truncate">
+              Replying to <span className="font-semibold text-ink">{replyName}</span>
+            </span>
+            {replyTarget.message.userId !== selfId && (
+              <Tooltip
+                label={
+                  replyTarget.ping
+                    ? `${replyName} is notified. Click to reply without notifying them.`
+                    : `${replyName} is not notified. Click to notify them.`
+                }
+              >
+                <button
+                  type="button"
+                  aria-pressed={replyTarget.ping}
+                  aria-label={`Notify ${replyName}`}
+                  onClick={() => setReplyPing(client, draftKey, !replyTarget.ping)}
+                  className={`flex h-6 items-center gap-0.5 rounded-md px-1.5 text-[12px] font-bold transition-colors hover:bg-ink/[0.07] ${
+                    replyTarget.ping ? "text-copper" : "text-ink-faint"
+                  }`}
+                >
+                  <Icon name="at" size={13} strokeWidth={2.4} />
+                  {replyTarget.ping ? "ON" : "OFF"}
+                </button>
+              </Tooltip>
+            )}
+            <Tooltip label="Cancel reply" keys="Esc">
+              <button
+                type="button"
+                aria-label="Cancel reply"
+                onClick={() => {
+                  cancelReply(client, draftKey);
+                  box.current?.focus();
+                }}
+                className="flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </Tooltip>
+          </div>
+        )}
         {preview && (
           <div
             aria-label="Message preview"
@@ -1086,7 +1148,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                     : "Ctrl/Cmd+Enter to send · Enter for a new line"
                   : "")}
             </span>
-            {!guest && (text.trim() || attached.length > 0) && (
+            {/* A scheduled send cannot answer in place, so it is not offered while replying. */}
+            {!guest && !replyTarget && (text.trim() || attached.length > 0) && (
               <Tooltip label="Send later">
                 <button
                   ref={scheduleButton}
@@ -1116,64 +1179,22 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               </button>
             </Tooltip>
           </span>
-          {scheduleOpen && (
-            <Popover
-              label="Send later"
-              anchor={scheduleButton}
-              onClose={() => setScheduleOpen(false)}
-              width={260}
+          {scheduleOpen && !replyTarget && (
+            <ErrorBoundary
+              fallback={
+                <p role="alert" className="px-2 pt-1 text-xs text-ink-dim">
+                  Send later could not load. Reload the app to try again.
+                </p>
+              }
             >
-              <div className="px-3 pb-1 pt-2.5 text-[12px] font-medium text-ink-faint">
-                Send later
-              </div>
-              <ul className="px-1">
-                {schedulePresets().map((p) => (
-                  <li key={p.label}>
-                    <button
-                      onClick={() => void schedule(p.at)}
-                      className="flex w-full items-baseline justify-between gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-ink-dim transition-colors hover:bg-ink/[0.07] hover:text-ink"
-                    >
-                      <span>{p.label}</span>
-                      <span className="tabular text-[12px] text-ink-faint">
-                        {p.at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                      </span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-              <div className="mt-1 border-t border-edge p-3">
-                <form
-                  className="space-y-2"
-                  onSubmit={(e) => {
-                    e.preventDefault();
-                    void schedule(new Date(customTime));
-                  }}
-                >
-                  <label className="block text-[12px] font-medium text-ink-faint">
-                    Choose a date and time
-                    <input
-                      type="datetime-local"
-                      required
-                      value={customTime}
-                      min={localDateTime(new Date())}
-                      onChange={(e) => setCustomTime(e.target.value)}
-                      className="mt-1.5 w-full min-w-0 rounded-lg border border-edge bg-ground px-2.5 py-1.5 text-sm text-ink outline-none focus:border-copper"
-                    />
-                  </label>
-                  <p className="text-[11px] text-ink-faint">Uses your device's time zone.</p>
-                  {/* Named for the time chosen, so the choice is confirmed where it is made. */}
-                  <button
-                    type="submit"
-                    disabled={!customTime}
-                    className="btn-shape h-8 w-full truncate bg-copper px-2 text-[13px] font-semibold text-ground transition-colors hover:bg-copper-deep disabled:opacity-40"
-                  >
-                    {customTime && !Number.isNaN(new Date(customTime).getTime())
-                      ? `Schedule for ${formatScheduleShort(new Date(customTime).getTime())}`
-                      : "Schedule message"}
-                  </button>
-                </form>
-              </div>
-            </Popover>
+              <Suspense fallback={null}>
+                <SendLaterPopover
+                  anchor={scheduleButton}
+                  onClose={() => setScheduleOpen(false)}
+                  onPick={(at) => void schedule(at)}
+                />
+              </Suspense>
+            </ErrorBoundary>
           )}
         </div>
         <input

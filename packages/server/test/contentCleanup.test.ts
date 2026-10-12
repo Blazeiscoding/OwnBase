@@ -7,6 +7,7 @@ import WebSocket from "ws";
 import { PROTOCOL_VERSION, type Message, type ServerToClient } from "@slackoss/protocol";
 import { openDb, openDbAtVersion, SCHEMA_VERSION } from "../src/db.js";
 import { Store } from "../src/store.js";
+import { ulid } from "../src/ids.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 const actions = [
@@ -255,15 +256,18 @@ describe("complete message content cleanup (N06/N07)", () => {
         creatorId: user.id,
         memberIds: [user.id],
       });
-      const make = (text: string) =>
-        store.createMessage({
-          channelId: room.id,
-          userId: user.id,
-          text,
-          threadRootId: null,
-          nonce: null,
-          actions,
-        });
+      // Written as v36 wrote a message: the store's own insert now names
+      // columns added since, which a v36 workspace does not have.
+      const make = (text: string) => {
+        const id = ulid();
+        db!
+          .prepare(
+            `INSERT INTO messages (id, channel_id, user_id, text, thread_root_id, created_at, actions)
+             VALUES (?, ?, ?, ?, NULL, ?, ?)`,
+          )
+          .run(id, room.id, user.id, text, Date.now(), JSON.stringify(actions));
+        return store.getMessage(id)!;
+      };
       const deleted = make("Removed");
       const live = make("Original");
       const purged = make("Expired");

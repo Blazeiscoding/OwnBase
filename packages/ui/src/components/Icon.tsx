@@ -17,6 +17,8 @@ const paths = {
   arrow: "M4 12h16m-6-6 6 6-6 6",
   link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
   thread: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 8h8M8 12h5",
+  /** An arrow turning back: answering a message in place, beside it rather than in a thread. */
+  reply: "m9 17-5-5 5-5M20 18v-2a4 4 0 0 0-4-4H4",
   /** Triangle with an exclamation mark, for failure states. */
   alert: "M12 3 2.5 20h19zM12 10v4M12 17.5h.01",
   /** Three dots, drawn by a round stroke through three points. */
