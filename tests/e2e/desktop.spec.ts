@@ -101,7 +101,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
     { label: "Open Tandem", enabled: true },
     { label: `Hosting Desktop Test · port ${status.port} · 1 connected`, enabled: false },
     { label: "Stop hosting…", enabled: true },
-    { label: "Stop hosting and quit…", enabled: true },
+    { label: "Stop hosting and quit", enabled: true },
   ]);
   const web = await fetch(`http://127.0.0.1:${status.port}/`);
   expect(web.status).toBe(200);
@@ -694,11 +694,19 @@ async function launchApp(prefix: string) {
   return { app, page, data, env };
 }
 
-for (const closing of ["app quit", "stopped-hosting window close"] as const) {
+for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] as const) {
   test(`the last visible composer edit survives ${closing} and profile restart (N03)`, async () => {
     const first = await launchApp("slackoss-desktop-final-draft-");
     let app = first.app;
     let page = first.page;
+    // The tray's menu is rebuilt as hosting starts; the last one is kept to click.
+    await app.evaluate(({ Tray }) => {
+      const setContextMenu = Tray.prototype.setContextMenu;
+      Tray.prototype.setContextMenu = function (menu) {
+        (globalThis as any).trayMenu = menu;
+        return setContextMenu.call(this, menu);
+      };
+    });
     await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
     await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Final Draft Test");
     await page.getByRole("button", { name: "Start hosting", exact: true }).click();
@@ -709,19 +717,21 @@ for (const closing of ["app quit", "stopped-hosting window close"] as const) {
     await expect(page.locator("textarea")).toBeVisible();
     // Only the hosting confirmation is accepted automatically. A saving failure
     // must keep the window open and make this ordinary-close regression fail.
-    await app.evaluate(({ dialog }) => {
+    // The tray's quit already says it stops hosting: asking again is answered
+    // Cancel, which keeps the app open and fails the test too.
+    await app.evaluate(({ dialog }, closing) => {
       dialog.showMessageBox = (async (...args: unknown[]) => {
         const options = args.at(-1) as { title?: string };
         return {
           response:
-            options.title === "Stop hosting and quit?" ||
+            (options.title === "Stop hosting and quit?" && closing === "app quit") ||
             options.title === "Local work could not finish saving"
               ? 1
               : 0,
           checkboxChecked: false,
         };
       }) as unknown as typeof dialog.showMessageBox;
-    });
+    }, closing);
     if (closing === "stopped-hosting window close")
       await page.evaluate(() => (window as any).slackoss.hostingStop());
     const marker = `the last keystroke before ${closing}`;
@@ -733,6 +743,10 @@ for (const closing of ["app quit", "stopped-hosting window close"] as const) {
     await app.evaluate(({ app, BrowserWindow }, closing) => {
       setTimeout(() => {
         if (closing === "app quit") app.quit();
+        else if (closing === "tray quit")
+          (globalThis as any).trayMenu.items
+            .find((item: { label: string }) => item.label === "Stop hosting and quit")
+            .click();
         else BrowserWindow.getAllWindows()[0]!.close();
       }, 0);
     }, closing);
