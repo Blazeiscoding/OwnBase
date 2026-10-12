@@ -1,34 +1,52 @@
 /*
- * The atlas wears Tandem's own look (packages/ui/src/theme.css): Onyx, a warm
- * near-black, and White, warm paper, following the device unless chosen.
- * Orange means one thing here as in the app: what needs you, which in the
+ * The atlas wears Tandem's own look (packages/ui/src/theme.css): Onyx, a
+ * graphite near-black, and White, following the device unless chosen. The
+ * window is the darkest surface and holds the navigation. The page is a card
+ * set into it with one rounded corner, as a conversation is in the app.
+ * Orange means one thing here as it does there: what needs you, which in the
  * atlas is an open finding or the one primary action. Layer colours carry
- * identity in the charts and next to file names; the five hues plus a neutral
- * were checked for colour-vision separation on both surfaces.
+ * identity in the map, the charts and next to file names; the five hues plus
+ * a neutral were checked for colour-vision separation on both surfaces.
+ *
+ * The diagrams take after work collected on vibrant.design: wires and ports
+ * from a node canvas, a dot for every file from a dot-matrix map, thin share
+ * bars from a routing table and the improvements board's panels from a bento
+ * grid. docs/visualizer/README.md names each one.
  */
 :root {
   color-scheme: dark;
-  --deep: #0a0a0a;
-  --ground: #100f0e;
-  --raised: #171513;
-  --lifted: #221f1b;
-  --edge: #2b2722;
-  --edge-strong: #3b352e;
-  --ink: #f6f1e9;
-  --ink-dim: #b3aba0;
-  --ink-faint: #958d82;
+  --deep: #121214;
+  --ground: #1a1a1e;
+  --raised: #202024;
+  --lifted: #2a2a30;
+  --edge: #2c2c33;
+  --edge-strong: #3d3d47;
+  --ink: #f2f3f5;
+  --ink-dim: #b5bac1;
+  --ink-faint: #9a9fa8;
   --accent: #f97316;
   --accent-ink: #fb8a3c;
-  --accent-wash: rgba(249, 115, 22, 0.1);
-  --on-accent: #100f0e;
+  --accent-wash: rgba(249, 115, 22, 0.12);
+  --on-accent: #1a1a1e;
   --cream: #f3d49b;
   --good: #4ade80;
-  --select: rgba(243, 212, 155, 0.09);
+  --select: rgba(255, 255, 255, 0.06);
   --hit: rgba(243, 212, 155, 0.16);
   --hit-current: rgba(249, 115, 22, 0.32);
   --shadow:
-    0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 4px -1px rgb(0 0 0 / 0.2),
-    0 16px 40px -10px rgb(0 0 0 / 0.55);
+    0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 4px -1px rgb(0 0 0 / 0.18),
+    0 16px 40px -10px rgb(0 0 0 / 0.5);
+  /* The vibrant layer, as in the app: light along the top of what is raised,
+     the accent as light for the one primary action, and two washes of colour
+     behind the place people arrive at. */
+  --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --accent-grad: linear-gradient(135deg, #ffa25a 0%, #f97316 48%, #ef5a1a 100%);
+  --accent-glow: rgba(249, 115, 22, 0.45);
+  --aura-1: rgba(249, 115, 22, 0.13);
+  --aura-2: rgba(139, 92, 246, 0.11);
+  --card: var(--raised);
+  --canvas-dot: rgba(255, 255, 255, 0.075);
+  --wire-glow: 0.16;
   --layer-interface: #3987e5;
   --layer-client: #199e70;
   --layer-contract: #9085e9;
@@ -37,7 +55,7 @@
   --layer-support: #7d766c;
   --t-keyword: #f0a46c;
   --t-string: #a9c98b;
-  --t-comment: #8a8278;
+  --t-comment: #8f949d;
   --t-number: #d9a6e8;
   --t-type: #8ec1ee;
   --t-fn: #f3d49b;
@@ -49,6 +67,7 @@
   --font-mono: "Geist Mono Variable", "Cascadia Code", ui-monospace, "SF Mono", Consolas, monospace;
   --topbar: 56px;
   --sidebar: 248px;
+  --corner: 14px;
   --r-sm: 6px;
   --r: 10px;
   --r-lg: 14px;
@@ -56,27 +75,35 @@
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --deep: #f4efe6;
-  --ground: #fffdf9;
-  --raised: #faf6ef;
-  --lifted: #efe8dc;
-  --edge: #e5dccc;
-  --edge-strong: #d3c7b3;
-  --ink: #1c1917;
-  --ink-dim: #57514a;
-  --ink-faint: #6b6359;
-  --accent: #c2410c;
+  --deep: #e9eaee;
+  --ground: #ffffff;
+  --raised: #f6f7f9;
+  --lifted: #ebecf0;
+  --edge: #dfe1e6;
+  --edge-strong: #c6c9d1;
+  --ink: #0f1012;
+  --ink-dim: #4e5058;
+  --ink-faint: #5c5f68;
+  --accent: #a3470c;
   --accent-ink: #a3470c;
-  --accent-wash: rgba(194, 65, 12, 0.08);
-  --on-accent: #fffdf9;
+  --accent-wash: rgba(163, 71, 12, 0.08);
+  --on-accent: #ffffff;
   --cream: #7a4810;
   --good: #116b34;
-  --select: rgba(122, 72, 16, 0.07);
+  --select: rgba(15, 16, 18, 0.05);
   --hit: rgba(234, 179, 8, 0.2);
   --hit-current: rgba(234, 88, 12, 0.28);
   --shadow:
-    0 0 0 1px rgb(28 25 23 / 0.05), 0 2px 4px -1px rgb(28 25 23 / 0.06),
-    0 16px 40px -12px rgb(28 25 23 / 0.2);
+    0 0 0 1px rgb(15 16 18 / 0.05), 0 2px 4px -1px rgb(15 16 18 / 0.06),
+    0 16px 40px -12px rgb(15 16 18 / 0.18);
+  --sheen: inset 0 1px 0 rgb(255 255 255 / 0.8);
+  --accent-grad: linear-gradient(135deg, #b9530f 0%, #a3470c 55%, #8f3e0a 100%);
+  --accent-glow: rgba(163, 71, 12, 0.32);
+  --aura-1: rgba(249, 115, 22, 0.1);
+  --aura-2: rgba(139, 92, 246, 0.08);
+  --card: var(--ground);
+  --canvas-dot: rgba(15, 16, 18, 0.11);
+  --wire-glow: 0.14;
   --layer-interface: #2a78d6;
   --layer-client: #1baf7a;
   --layer-contract: #4a3aa7;
@@ -85,7 +112,7 @@
   --layer-support: #a39a8e;
   --t-keyword: #a3470c;
   --t-string: #3f6b1f;
-  --t-comment: #6b6359;
+  --t-comment: #5c5f68;
   --t-number: #8a3fa0;
   --t-type: #1f5f9e;
   --t-fn: #7a4810;
@@ -95,27 +122,35 @@
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
     color-scheme: light;
-    --deep: #f4efe6;
-    --ground: #fffdf9;
-    --raised: #faf6ef;
-    --lifted: #efe8dc;
-    --edge: #e5dccc;
-    --edge-strong: #d3c7b3;
-    --ink: #1c1917;
-    --ink-dim: #57514a;
-    --ink-faint: #6b6359;
-    --accent: #c2410c;
+    --deep: #e9eaee;
+    --ground: #ffffff;
+    --raised: #f6f7f9;
+    --lifted: #ebecf0;
+    --edge: #dfe1e6;
+    --edge-strong: #c6c9d1;
+    --ink: #0f1012;
+    --ink-dim: #4e5058;
+    --ink-faint: #5c5f68;
+    --accent: #a3470c;
     --accent-ink: #a3470c;
-    --accent-wash: rgba(194, 65, 12, 0.08);
-    --on-accent: #fffdf9;
+    --accent-wash: rgba(163, 71, 12, 0.08);
+    --on-accent: #ffffff;
     --cream: #7a4810;
     --good: #116b34;
-    --select: rgba(122, 72, 16, 0.07);
+    --select: rgba(15, 16, 18, 0.05);
     --hit: rgba(234, 179, 8, 0.2);
     --hit-current: rgba(234, 88, 12, 0.28);
     --shadow:
-      0 0 0 1px rgb(28 25 23 / 0.05), 0 2px 4px -1px rgb(28 25 23 / 0.06),
-      0 16px 40px -12px rgb(28 25 23 / 0.2);
+      0 0 0 1px rgb(15 16 18 / 0.05), 0 2px 4px -1px rgb(15 16 18 / 0.06),
+      0 16px 40px -12px rgb(15 16 18 / 0.18);
+    --sheen: inset 0 1px 0 rgb(255 255 255 / 0.8);
+    --accent-grad: linear-gradient(135deg, #b9530f 0%, #a3470c 55%, #8f3e0a 100%);
+    --accent-glow: rgba(163, 71, 12, 0.32);
+    --aura-1: rgba(249, 115, 22, 0.1);
+    --aura-2: rgba(139, 92, 246, 0.08);
+    --card: var(--ground);
+    --canvas-dot: rgba(15, 16, 18, 0.11);
+    --wire-glow: 0.14;
     --layer-interface: #2a78d6;
     --layer-client: #1baf7a;
     --layer-contract: #4a3aa7;
@@ -124,7 +159,7 @@
     --layer-support: #a39a8e;
     --t-keyword: #a3470c;
     --t-string: #3f6b1f;
-    --t-comment: #6b6359;
+    --t-comment: #5c5f68;
     --t-number: #8a3fa0;
     --t-type: #1f5f9e;
     --t-fn: #7a4810;
@@ -274,8 +309,7 @@ mark {
   height: 100dvh;
   padding: 18px 14px 16px;
   overflow-y: auto;
-  border-right: 1px solid var(--edge);
-  background: var(--deep);
+  background: radial-gradient(140% 26% at 0% 0%, var(--aura-1), transparent 70%), var(--deep);
 }
 .brand {
   display: flex;
@@ -283,16 +317,21 @@ mark {
   gap: 11px;
   padding: 2px 8px;
 }
+/* Tandem's own mark, in its own colours on either theme. */
 .brand-mark {
-  display: grid;
-  place-items: center;
   width: 34px;
   height: 34px;
-  border-radius: 10px 10px 10px 3px;
-  background: var(--accent);
-  color: var(--on-accent);
-  font: 800 19px/1 var(--font-display);
-  letter-spacing: -0.04em;
+  flex: none;
+  filter: drop-shadow(0 6px 14px var(--accent-glow));
+}
+.brand-mark rect {
+  fill: #f97316;
+}
+.brand-mark path {
+  fill: none;
+  stroke: #1a1a1e;
+  stroke-width: 3;
+  stroke-linecap: round;
 }
 .brand-text {
   display: grid;
@@ -321,15 +360,21 @@ mark {
   font-weight: 600;
 }
 .nav a:hover {
-  background: var(--raised);
+  background: var(--select);
   color: var(--ink);
 }
+/* The page that is open: lit with the accent, with a fine accent edge. */
 .nav a[aria-current="page"] {
-  background: var(--lifted);
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent) 17%, transparent),
+    color-mix(in srgb, var(--accent) 5%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 20%, transparent);
   color: var(--ink);
 }
 .nav a[aria-current="page"] .icon {
-  color: var(--cream);
+  color: var(--accent-ink);
 }
 .nav a span {
   flex: 1;
@@ -398,7 +443,7 @@ mark {
 }
 .workspace {
   min-width: 0;
-  background: var(--ground);
+  background: var(--deep);
 }
 .topbar {
   position: sticky;
@@ -410,8 +455,28 @@ mark {
   height: var(--topbar);
   padding: 0 20px;
   border-bottom: 1px solid var(--edge);
-  background: color-mix(in srgb, var(--ground) 86%, transparent);
-  backdrop-filter: blur(14px) saturate(1.2);
+  background: var(--deep);
+}
+/*
+ * The page's rounded corner. It belongs to the bar, not the page, so it stays
+ * put while the page scrolls under it: the window's colour outside the curve,
+ * a hairline along it, and nothing inside.
+ */
+.topbar::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 100%;
+  width: var(--corner);
+  height: var(--corner);
+  background: radial-gradient(
+    circle at 100% 100%,
+    transparent calc(var(--corner) - 1px),
+    var(--edge) calc(var(--corner) - 1px),
+    var(--edge) var(--corner),
+    var(--deep) var(--corner)
+  );
+  pointer-events: none;
 }
 .crumbs {
   display: flex;
@@ -446,7 +511,8 @@ mark {
   padding: 0 8px 0 12px;
   border: 1px solid var(--edge);
   border-radius: var(--r);
-  background: var(--raised);
+  background: var(--ground);
+  box-shadow: var(--sheen);
   color: var(--ink-faint);
   text-align: left;
 }
@@ -490,6 +556,9 @@ mark {
 main {
   min-height: calc(100dvh - var(--topbar));
   overflow-x: clip;
+  border-left: 1px solid var(--edge);
+  border-top-left-radius: var(--corner);
+  background: var(--ground);
 }
 main:focus {
   outline: none;
@@ -551,21 +620,33 @@ main:focus {
   min-height: 40px;
   padding: 8px 16px;
   border: 1px solid var(--edge-strong);
-  border-radius: 12px 12px 12px 4px;
+  border-radius: var(--r);
   background: var(--raised);
+  box-shadow: var(--sheen);
   color: var(--ink);
-  font-weight: 700;
+  font-weight: 650;
 }
 .button:hover {
   background: var(--lifted);
 }
 .button.primary {
-  border-color: var(--accent);
-  background: var(--accent);
+  border-color: transparent;
+  background: var(--accent-grad);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.28),
+    inset 0 -1px 0 rgb(0 0 0 / 0.12),
+    0 6px 20px -8px var(--accent-glow);
   color: var(--on-accent);
+  transition:
+    filter 140ms ease-out,
+    box-shadow 140ms ease-out;
 }
 .button.primary:hover {
-  filter: brightness(1.08);
+  filter: brightness(1.07) saturate(1.05);
+  box-shadow:
+    inset 0 1px 0 rgb(255 255 255 / 0.32),
+    inset 0 -1px 0 rgb(0 0 0 / 0.12),
+    0 10px 28px -8px var(--accent-glow);
 }
 .button.small {
   min-height: 32px;
@@ -627,6 +708,99 @@ main:focus {
 }
 .block {
   margin-top: 32px;
+}
+/* The plain words come first. The technical version, for people reading the
+   code, sits one click below them. */
+.in-code {
+  margin-top: 12px;
+}
+/* On a file's page the plain sentence leads, and this marks where the
+   technical explanation begins. */
+.prose-label {
+  margin: 22px 0 6px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.in-code > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.in-code > summary::-webkit-details-marker {
+  display: none;
+}
+.in-code > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 140ms ease-out;
+}
+.in-code[open] > summary::before {
+  transform: rotate(45deg);
+}
+.in-code > summary:hover {
+  color: var(--ink);
+}
+.in-code > summary small {
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+.in-code-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 2px 0 4px 16px;
+  border-left: 2px solid var(--edge-strong);
+}
+.in-code .in-code-body p,
+.in-code .in-code-body li,
+.in-code .in-code-body dd {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.in-code .in-code-body h3 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.in-code .in-code-body ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.in-code-title {
+  font-weight: 600;
+}
+.in-code .in-code-body p.in-code-title {
+  color: var(--ink);
+}
+.in-code-pair {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.in-code-pair dt {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
 }
 .block > h2,
 .block > h3 {
@@ -851,287 +1025,457 @@ select:hover {
 
 /* ---------- overview ---------- */
 .overview {
-  padding-top: 36px;
-}
-.hero {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: 48px;
-  align-items: start;
+  padding-top: 48px;
 }
-.hero::before {
+/* Two washes of colour behind the place people arrive at, as in the app. */
+.overview::before {
   content: "";
   position: absolute;
-  inset: -36px -40px auto;
-  height: 520px;
+  inset: 0 0 auto;
+  height: 420px;
   z-index: 0;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='56' height='97' viewBox='0 0 56 97'%3E%3Cpath d='M28 0 56 16v32L28 64 0 48V16zM28 64l28 16v32M28 64 0 80v32' fill='none' stroke='%23f3d49b' stroke-opacity='.07'/%3E%3C/svg%3E");
-  mask-image: radial-gradient(ellipse 70% 80% at 20% 10%, #000 20%, transparent 75%);
+  background:
+    radial-gradient(48% 90% at 92% -30%, var(--aura-1), transparent 70%),
+    radial-gradient(42% 80% at 8% -40%, var(--aura-2), transparent 70%);
   pointer-events: none;
 }
-.hero > * {
+.overview > * {
   position: relative;
 }
-.hero-kicker {
-  color: var(--cream);
-  font-weight: 700;
-  font-size: 14px;
+.hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
+  gap: 20px 64px;
+  align-items: end;
 }
 .hero h1 {
-  margin-top: 14px;
-  font: 800 clamp(34px, 4.6vw, 58px) / 1.02 var(--font-display);
+  max-width: 15ch;
+  font: 700 clamp(32px, 4.3vw, 54px) / 1.04 var(--font-display);
   letter-spacing: -0.035em;
   text-wrap: balance;
 }
 .hero-intro {
-  max-width: 58ch;
-  margin-top: 20px;
+  max-width: 56ch;
   color: var(--ink-dim);
-  font-size: 16px;
+  font-size: 15.5px;
   line-height: 1.65;
+  text-wrap: pretty;
 }
 .hero-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-top: 28px;
+  margin-top: 22px;
 }
-.arch {
-  display: grid;
-  gap: 0;
-  padding: 22px;
+
+/*
+ * The map. A canvas darker than the page, dotted like graph paper, with a
+ * card for each area, a dot for each file in it, and wires between the cards.
+ * After the node canvas and the dot-matrix map on vibrant.design.
+ */
+.atlas-map {
+  margin-top: 40px;
+  overflow: hidden;
   border: 1px solid var(--edge);
   border-radius: var(--r-xl);
-  background: color-mix(in srgb, var(--raised) 88%, transparent);
-  box-shadow: var(--shadow);
+  background:
+    radial-gradient(var(--canvas-dot) 1px, transparent 1.2px) 11px 11px / 22px 22px,
+    var(--deep);
+  box-shadow: var(--sheen);
+  container-type: inline-size;
 }
-.arch-row {
-  display: grid;
-  gap: 10px;
-}
-.arch-two {
-  grid-template-columns: 1fr 1fr;
-}
-.arch-server {
-  grid-template-columns: 1fr 1fr;
-}
-.arch-node,
-.arch-store {
+.map-grid {
   position: relative;
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 1px 12px;
-  padding: 11px 14px 11px 17px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r);
-  background: var(--ground);
-  transition: border-color 120ms ease-out;
+  grid-template-columns: 1fr 1.25fr 1fr 1.1fr 1fr;
+  grid-template-areas:
+    "n-web     .     n-protocol    .        n-server-cli"
+    ".         n-ui  n-client-core n-server n-store"
+    "n-desktop .     .             .        ."
+    "n-support n-support n-support n-support n-support";
+  gap: 26px 68px;
+  align-items: center;
+  padding: 28px;
 }
-.arch-node::before,
-.arch-store::before {
-  content: "";
+.map-wires {
   position: absolute;
-  left: 0;
-  top: 10px;
-  bottom: 10px;
-  width: 3px;
-  border-radius: 0 3px 3px 0;
-  background: var(--c);
+  inset: 0;
+  z-index: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
 }
-.arch-node:hover,
-.arch-store:hover {
-  border-color: var(--c);
+.wire,
+.wire-glow {
+  fill: none;
+  stroke-linecap: round;
 }
-.arch-node strong,
-.arch-store strong {
-  font: 700 14.5px/1.3 var(--font-display);
+.wire-glow {
+  opacity: var(--wire-glow);
 }
-.arch-node span,
-.arch-store span {
-  grid-column: 1 / -1;
+.wire.runtime {
+  stroke-dasharray: 0.1 8;
+  animation: wire-flow 1.6s linear infinite;
+}
+.port {
+  stroke: var(--deep);
+  stroke-width: 2.5;
+}
+.draw-in .wire:not(.runtime) {
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: wire-draw 720ms cubic-bezier(0.3, 0.7, 0.2, 1) 120ms forwards;
+}
+.draw-in .wire-glow,
+.draw-in .port {
+  animation: wire-fade 500ms ease-out 520ms backwards;
+}
+@keyframes wire-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes wire-fade {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes wire-flow {
+  to {
+    stroke-dashoffset: -16.2;
+  }
+}
+.wire-label {
+  position: absolute;
+  z-index: 2;
+  padding: 0 7px;
+  border: 1px solid var(--edge);
+  border-radius: 999px;
+  background: var(--deep);
+  color: var(--ink-dim);
+  font-size: 11px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 18px;
+  white-space: nowrap;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+/* A runtime wire carries words, which wrap to stay inside the gap they sit in. */
+.wire-label.runtime {
+  max-width: 76px;
+  padding: 3px 7px;
+  border-radius: 9px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: center;
+  white-space: normal;
+}
+.map-grid.focused .wire,
+.map-grid.focused .wire-glow,
+.map-grid.focused .port,
+.map-grid.focused .wire-label {
+  opacity: 0.16;
+  transition: opacity 140ms ease-out;
+}
+.map-grid.focused .wire.lit,
+.map-grid.focused .port.lit,
+.map-grid.focused .wire-label.lit {
+  opacity: 1;
+}
+.map-grid.focused .wire-glow.lit {
+  opacity: calc(var(--wire-glow) * 2);
+}
+.map-node {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 12px 14px 14px;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-lg);
+  background: var(--card);
+  box-shadow:
+    var(--sheen),
+    0 14px 30px -20px rgb(0 0 0 / 0.55);
+  transition: border-color 140ms ease-out;
+}
+.map-node:hover {
+  border-color: color-mix(in srgb, var(--c) 55%, var(--edge));
+}
+.map-node-head {
+  display: grid;
+  gap: 3px;
+}
+.map-node-head strong,
+.map-store strong {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font: 650 14px/1.3 var(--font-display);
+}
+.map-node-head .dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  box-shadow: 0 0 10px color-mix(in srgb, var(--c) 70%, transparent);
+}
+.map-node-head:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.map-count {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+.map-node-head > span,
+.map-store > span {
   color: var(--ink-dim);
   font-size: 12.5px;
   line-height: 1.4;
 }
-.arch-node code {
+.map-store {
+  gap: 2px;
+  border-style: dashed;
+  border-color: var(--edge-strong);
+  background: var(--deep);
+  box-shadow: none;
+}
+.map-store:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.map-support {
+  grid-template-columns: 230px minmax(0, 1fr) auto;
+  gap: 10px 28px;
+  align-items: center;
+}
+/* A dot is one file. Each takes a 9px cell so the pointer has something to hit. */
+.dots {
+  display: flex;
+  flex-wrap: wrap;
+}
+.d {
+  display: grid;
+  place-items: center;
+  width: 9px;
+  height: 9px;
+  flex: none;
+}
+.d::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c);
+}
+.d.k-test::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--c);
+}
+.d.k-other::before {
+  background: color-mix(in srgb, var(--c) 36%, transparent);
+}
+a.d:hover::before {
+  background: var(--ink);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--ink) 30%, transparent);
+}
+.dot-tip {
+  position: absolute;
+  z-index: 5;
+  display: grid;
+  gap: 1px;
+  max-width: 300px;
+  padding: 7px 11px;
+  border: 1px solid var(--edge-strong);
+  border-radius: var(--r);
+  background: var(--lifted);
+  box-shadow: var(--sheen), var(--shadow);
+  font-size: 12px;
+  line-height: 1.4;
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+.dot-tip[hidden] {
+  display: none;
+}
+.dot-tip strong {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.dot-tip span,
+.dot-tip small {
   overflow: hidden;
+  color: var(--ink-dim);
   text-overflow: ellipsis;
   white-space: nowrap;
-  grid-column: 1 / -1;
+}
+.dot-tip small {
   color: var(--ink-faint);
   font-size: 11.5px;
 }
-.arch-node small {
-  white-space: nowrap;
-  grid-row: 1;
-  grid-column: 2;
-  color: var(--ink-faint);
-  font-size: 11.5px;
-  font-variant-numeric: tabular-nums;
+.dot-tip em {
+  margin: 2px 0;
+  color: var(--ink);
+  font-style: normal;
+  line-height: 1.45;
 }
-.arch-minor {
-  border-style: dashed;
-}
-.arch-store {
-  border-style: solid;
-  background:
-    repeating-linear-gradient(
-      -45deg,
-      transparent 0 7px,
-      color-mix(in srgb, var(--c) 7%, transparent) 7px 8px
-    ),
-    var(--ground);
-}
-.arch-link {
-  position: relative;
-  display: flex;
-  justify-content: center;
-  height: 34px;
-}
-.arch-link.short {
-  height: 16px;
-}
-.arch-link::before {
-  content: "";
+/* What a node feeds, in words: read aloud always, and shown where the wires are not. */
+.map-rel {
   position: absolute;
-  left: 50%;
-  top: 0;
-  bottom: 0;
-  border-left: 1px dashed var(--edge-strong);
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
 }
-.arch-link span {
-  position: relative;
-  align-self: center;
-  padding: 0 8px;
-  background: var(--raised);
+.map-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 22px;
+  padding: 12px 30px 13px;
+  border-top: 1px solid var(--edge);
+  background: color-mix(in srgb, var(--deep) 70%, var(--ground));
   color: var(--ink-faint);
-  font-size: 11.5px;
+  font-size: 12px;
+  --c: var(--ink-dim);
 }
-.arch-wire {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.map-legend span {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
+  gap: 7px;
 }
-.arch-wire .arch-link {
-  height: 46px;
+.wire-sample {
+  width: 22px;
+  height: 2.5px;
+  border-radius: 2px;
+  background: linear-gradient(90deg, var(--layer-interface), var(--layer-client));
 }
-.arch-contract {
-  padding-top: 9px;
-  padding-bottom: 9px;
+.wire-sample.runtime {
+  height: 3px;
+  background: radial-gradient(circle, var(--layer-server) 1.2px, transparent 1.6px) 0 0 / 6px 3px;
+}
+/* Too narrow for wires: the cards stack and say what they feed instead. */
+@container (max-width: 900px) {
+  .map-grid {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    grid-template-areas: none;
+    gap: 10px;
+    align-items: stretch;
+    padding: 14px;
+  }
+  .map-node {
+    grid-area: auto !important;
+    align-content: start;
+  }
+  .map-wires,
+  .legend-wire {
+    display: none !important;
+  }
+  .map-rel {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    color: var(--ink-faint);
+    font-size: 12px;
+    white-space: normal;
+  }
+  .map-support {
+    grid-column: 1 / -1;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .map-legend {
+    padding: 11px 14px;
+  }
 }
 
-/* composition chart */
-.stack {
-  display: flex;
-  gap: 2px;
-  height: 44px;
-  overflow: hidden;
-  border-radius: var(--r);
-}
-.stack-part {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-width: 6px;
-  padding: 0 10px;
-  background: var(--c);
-  color: #0c0b0a;
-  font-size: 12px;
-  font-weight: 800;
-  transition: filter 120ms ease-out;
-}
-.stack-part:first-child {
-  border-radius: 4px 0 0 4px;
-}
-.stack-part:last-child {
-  border-radius: 0 4px 4px 0;
-}
-.stack-part:hover {
-  filter: brightness(1.15);
-}
-.stack-part span {
-  overflow: hidden;
-  padding: 1px 6px;
-  border-radius: 4px;
-  background: var(--ground);
-  color: var(--ink);
-  font-size: 11.5px;
-  white-space: nowrap;
-}
-.stack-part::after {
-  content: attr(data-tip);
-  position: absolute;
-  left: 50%;
-  bottom: calc(100% + 8px);
-  z-index: 5;
-  padding: 6px 10px;
-  border: 1px solid var(--edge-strong);
-  border-radius: var(--r-sm);
-  background: var(--lifted);
-  box-shadow: var(--shadow);
-  color: var(--ink);
-  font-weight: 600;
-  white-space: nowrap;
-  opacity: 0;
-  pointer-events: none;
-  transform: translateX(-50%);
-}
-.stack {
-  overflow: visible;
-}
-.stack-part:hover::after,
-.stack-part:focus-visible::after {
-  opacity: 1;
-}
-/* layers and areas */
-.layer-groups {
+/* layers: a thin bar for each one's share of the lines, then its areas */
+.layer-table {
   display: grid;
-  margin-top: 28px;
 }
-.layer-group {
+.layer-row {
   display: grid;
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 4px 32px;
-  padding: 14px 0;
+  grid-template-columns: 210px minmax(0, 1fr);
+  gap: 4px 36px;
+  padding: 16px 0;
   border-top: 1px solid var(--edge);
 }
-.layer-group h3 {
+.layer-row:first-child {
+  padding-top: 4px;
+  border-top: 0;
+}
+.layer-key {
   display: grid;
   align-content: start;
-  gap: 2px;
+  gap: 7px;
   padding-top: 10px;
+}
+.layer-key h3 {
   font: 700 15px/1.3 var(--font-display);
 }
-.layer-group h3 a {
+.layer-key h3 a {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  width: fit-content;
 }
-.layer-group h3 a:hover {
+.layer-key h3 a:hover {
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
-.layer-group h3 small {
-  margin-left: 18px;
+.share {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.share-bar {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: var(--lifted);
+}
+.share-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  min-width: 3px;
+  border-radius: 2px;
+  background: var(--c);
+}
+.share b {
+  min-width: 34px;
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.layer-key small {
   color: var(--ink-faint);
-  font: 400 12px/1.4 var(--font-sans);
+  font-size: 12px;
   font-variant-numeric: tabular-nums;
 }
-.layer-group ul {
+.layer-row ul {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0 24px;
 }
-.layer-group li a {
+.layer-row li a {
   display: grid;
   gap: 2px;
   padding: 10px 12px;
   margin: 0 -12px;
   border-radius: var(--r);
 }
-.layer-group li a:hover {
+.layer-row li a:hover {
   background: var(--raised);
 }
 .area-name {
@@ -1156,50 +1500,61 @@ select:hover {
   margin: 8px 0 14px;
   color: var(--ink-dim);
 }
-.journey-teasers {
+/* journeys, each drawn small by the layers it passes through */
+.routes {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px 40px;
 }
-.journey-teaser {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 18px;
-  border: 1px solid var(--edge);
-  border-radius: var(--r-lg);
-  background: var(--raised);
-}
-.journey-teaser:hover {
-  border-color: var(--edge-strong);
-  background: var(--lifted);
-}
-.journey-teaser strong {
-  font: 700 15px/1.3 var(--font-display);
-}
-.journey-teaser span {
-  color: var(--ink-dim);
-  font-size: 13px;
-}
-.journey-teaser .teaser-group {
-  color: var(--cream);
-  font-size: 12px;
+.route-group h3 {
+  margin-bottom: 4px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
   font-weight: 700;
 }
-.journey-teaser .teaser-meta {
-  margin-top: auto;
+.route {
+  display: grid;
+  grid-template-columns: 88px minmax(0, 1fr);
+  gap: 1px 16px;
+  align-items: center;
+  padding: 10px 12px;
+  margin: 0 -12px;
+  border-radius: var(--r);
+}
+.route:hover {
+  background: var(--raised);
+}
+.route-glyph {
+  grid-row: 1 / span 2;
+  overflow: visible;
+}
+.route-glyph path {
+  fill: none;
+  stroke: var(--edge-strong);
+  stroke-width: 1.5;
+  stroke-linejoin: round;
+}
+.route:hover .route-glyph path {
+  stroke: var(--ink-faint);
+}
+.route strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.route small {
   color: var(--ink-faint);
   font-size: 12px;
-}
-.journey-teaser.more {
-  background: transparent;
-  border-style: dashed;
 }
 /* ---------- files ---------- */
 .files {
   display: grid;
   grid-template-columns: 300px minmax(0, 1fr);
   min-height: calc(100dvh - var(--topbar));
+}
+/* The page's heading on a narrow screen, where the tree is all there is. */
+.tree-title {
+  display: none;
 }
 .tree-pane {
   position: sticky;
@@ -1929,8 +2284,17 @@ select:hover {
 }
 .graph-lines path {
   fill: none;
-  stroke-width: 1.4;
-  opacity: 0.55;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+  opacity: 0.8;
+}
+.graph-lines path.glow {
+  stroke-width: 8;
+  opacity: var(--wire-glow);
+}
+.graph-lines circle {
+  stroke: var(--ground);
+  stroke-width: 2;
 }
 .graph-col {
   position: relative;
@@ -1968,10 +2332,12 @@ select:hover {
 }
 .graph-self {
   padding: 14px 16px;
-  border-color: var(--c);
+  border-color: color-mix(in srgb, var(--c) 70%, var(--edge));
   border-left-width: 1px;
   background: color-mix(in srgb, var(--c) 10%, var(--raised));
-  box-shadow: var(--shadow);
+  box-shadow:
+    var(--sheen),
+    0 16px 36px -20px color-mix(in srgb, var(--c) 60%, transparent);
 }
 .graph-name {
   overflow: hidden;
@@ -2077,7 +2443,10 @@ select:hover {
   padding: 18px 20px 14px;
   border: 1px solid var(--edge);
   border-radius: var(--r-xl);
-  background: var(--raised);
+  background:
+    radial-gradient(var(--canvas-dot) 1px, transparent 1.2px) 11px 11px / 22px 22px,
+    var(--deep);
+  box-shadow: var(--sheen);
 }
 .handoff figcaption {
   display: flex;
@@ -2123,21 +2492,24 @@ select:hover {
 }
 .map-step:hover .map-hit,
 .map-step:focus-visible .map-hit {
-  fill: var(--lifted);
+  fill: var(--select);
 }
 .map-step:hover .map-head {
   fill: var(--ink);
 }
-.map-path {
+.map-path,
+.map-path-glow {
   fill: none;
-  stroke: var(--ink-dim);
-  stroke-width: 2;
-  stroke-linejoin: round;
-  opacity: 0.55;
+  stroke-width: 2.6;
+  stroke-linecap: round;
+}
+.map-path-glow {
+  stroke-width: 11;
+  opacity: var(--wire-glow);
 }
 .map-dot {
-  stroke: var(--raised);
-  stroke-width: 2;
+  stroke: var(--deep);
+  stroke-width: 2.5;
 }
 .map-dot:not(.primary) {
   opacity: 0.75;
@@ -2238,6 +2610,239 @@ select:hover {
 }
 
 /* ---------- improvements ---------- */
+/* The board: every record as a dot, and the measured changes as bars. After
+   the stats sections and routing tables on vibrant.design. Status is told by
+   shape as well as colour (a ring is open, a target measured, a solid dot
+   implemented), since the measured and implemented colours sit close for
+   red-green colour blindness. */
+.imp-board {
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr);
+  grid-template-areas:
+    "records cuts"
+    "reach   cuts";
+  gap: 1px;
+  margin-bottom: 28px;
+  overflow: hidden;
+  border: 1px solid var(--edge);
+  border-radius: var(--r-xl);
+  background: var(--edge);
+  box-shadow: var(--sheen);
+}
+.board-panel {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+  margin: 0;
+  padding: 20px 22px 22px;
+  background:
+    radial-gradient(var(--canvas-dot) 1px, transparent 1.2px) 11px 11px / 22px 22px,
+    var(--deep);
+}
+.board-records {
+  grid-area: records;
+}
+.board-reach {
+  grid-area: reach;
+}
+.board-cuts {
+  grid-area: cuts;
+}
+.board-panel figcaption h2 {
+  font: 700 15px/1.3 var(--font-display);
+  letter-spacing: -0.01em;
+}
+.board-panel figcaption p {
+  margin-top: 2px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+}
+.board-rows {
+  display: grid;
+  gap: 8px;
+}
+.board-row {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 12px;
+}
+.board-cat {
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+.board-row b {
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.board-dots {
+  display: flex;
+  flex-wrap: wrap;
+}
+/* A record. Each takes a 17px cell so the pointer has something to hit. */
+.r {
+  display: grid;
+  place-items: center;
+  width: 17px;
+  height: 17px;
+  flex: none;
+  transition: opacity 140ms ease-out;
+}
+.r::before {
+  content: "";
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  transition: transform 140ms ease-out;
+}
+.r.s-follow-up::before {
+  box-shadow: inset 0 0 0 2px var(--accent-ink);
+}
+.r.s-measured::before {
+  background: radial-gradient(circle, var(--cream) 0 2.4px, transparent 2.9px);
+  box-shadow: inset 0 0 0 2px var(--cream);
+}
+.r.s-implemented::before {
+  background: var(--good);
+}
+a.r:hover::before {
+  transform: scale(1.3);
+}
+.r.current::before {
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.r.dim,
+.cut-list .dim {
+  opacity: 0.22;
+}
+/* The three counts, each with its mark, are the board's key too. */
+.board-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0;
+  border-block: 1px solid var(--edge);
+}
+/* A label can take two lines, so the numbers line up along the bottom. */
+.board-figures > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 12px 0 12px 14px;
+}
+.board-figures > div:first-child {
+  padding-left: 0;
+}
+.board-figures > div + div {
+  border-left: 1px solid var(--edge);
+}
+.board-figures dt {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: -3px;
+  color: var(--ink-dim);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+.board-figures dd {
+  margin: 4px 0 0;
+  font: 700 30px/1 var(--font-display);
+  letter-spacing: -0.02em;
+}
+.record-tip span {
+  white-space: normal;
+}
+.reach-list {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.reach-list li {
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr) 24px;
+  align-items: center;
+  gap: 12px;
+}
+.reach-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  font-weight: 600;
+}
+.reach-list b {
+  font-size: 12.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.cut-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.cut-list li {
+  transition: opacity 140ms ease-out;
+}
+.cut-list a {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(72px, 1fr) 44px;
+  align-items: center;
+  gap: 14px;
+  margin: 0 -8px;
+  padding: 4px 8px;
+  border-radius: var(--r-sm);
+  color: inherit;
+  text-decoration: none;
+}
+.cut-list a:hover {
+  background: var(--select);
+}
+.cut-name {
+  display: grid;
+  min-width: 0;
+}
+.cut-name span {
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1.35;
+}
+.cut-name small {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+  font-variant-numeric: tabular-nums;
+}
+/* Bars grow from one baseline, square there and rounded at the value. */
+.cut-bar {
+  position: relative;
+  height: 8px;
+  border-radius: 0 4px 4px 0;
+  background: var(--lifted);
+}
+.cut-bar span {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 0 4px 4px 0;
+  background: var(--good);
+}
+.cut-list b {
+  font-size: 12.5px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
 .imp-tools {
   position: sticky;
   top: var(--topbar);
@@ -2660,7 +3265,7 @@ select:hover {
   .hero {
     grid-template-columns: minmax(0, 1fr);
   }
-  .journey-teasers {
+  .routes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .imp-row {
@@ -2677,17 +3282,31 @@ select:hover {
   .shell {
     grid-template-columns: minmax(0, 1fr);
   }
+  main {
+    border-left: 0;
+    border-top-left-radius: 0;
+  }
+  .topbar::after {
+    display: none;
+  }
   .sidebar {
     position: fixed;
     inset: 0 auto 0 0;
     z-index: 40;
     width: min(300px, 86vw);
+    border-right: 1px solid var(--edge);
     box-shadow: var(--shadow);
     transform: translateX(-102%);
-    transition: transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+    /* Hidden once it has slid away, so a closed drawer takes no Tab stops. */
+    visibility: hidden;
+    transition:
+      transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1),
+      visibility 0s linear 180ms;
   }
   .nav-open .sidebar {
     transform: none;
+    visibility: visible;
+    transition: transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
   }
   .scrim {
     position: fixed;
@@ -2731,6 +3350,13 @@ select:hover {
   .files.has-file .tree-pane,
   .files:not(.has-file) .file-pane {
     display: none;
+  }
+  .imp-board {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "records" "reach" "cuts";
+  }
+  .tree-title {
+    display: block;
   }
   .back-to-tree {
     display: inline-flex;
@@ -2795,32 +3421,19 @@ select:hover {
   .principles {
     grid-template-columns: minmax(0, 1fr);
   }
-  .layer-group {
+  .layer-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  .layer-group h3 {
+  .layer-key {
+    max-width: 320px;
     padding-top: 0;
   }
 }
 @media (max-width: 640px) {
-  .layer-group ul,
-  .journey-teasers,
+  .layer-row ul,
+  .routes,
   .first-files {
     grid-template-columns: minmax(0, 1fr);
-  }
-  .arch {
-    padding: 14px;
-  }
-  .arch-two,
-  .arch-server,
-  .arch-wire {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .arch-wire .arch-link {
-    height: 34px;
-  }
-  .arch-contract {
-    width: auto;
   }
   .files-home {
     padding: 32px 20px;
@@ -2828,6 +3441,27 @@ select:hover {
   .imp-row {
     grid-template-columns: 18px minmax(0, 1fr) 18px;
     gap: 2px 10px;
+  }
+  .board-panel {
+    padding: 18px 16px 20px;
+  }
+  .board-row {
+    grid-template-columns: minmax(0, 1fr) 24px;
+    gap: 4px 12px;
+  }
+  .board-dots {
+    grid-column: 1 / -1;
+  }
+  .board-row b {
+    grid-row: 1;
+    grid-column: 2;
+  }
+  .cut-list a {
+    grid-template-columns: minmax(0, 1fr) 44px;
+    gap: 6px 12px;
+  }
+  .cut-name {
+    grid-column: 1 / -1;
   }
   .imp-id {
     grid-column: 2;
@@ -2867,11 +3501,6 @@ select:hover {
     width: 64px;
   }
 }
-@media (hover: none) {
-  .stack-part::after {
-    display: none;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -2882,7 +3511,8 @@ select:hover {
   }
 }
 @media (forced-colors: active) {
-  .stack-part,
+  .d::before,
+  .share-bar span,
   .dot,
   .file-ref-dot {
     forced-color-adjust: none;

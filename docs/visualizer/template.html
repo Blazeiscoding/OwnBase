@@ -6,7 +6,7 @@
     <meta name="color-scheme" content="dark light" />
     <meta
       name="description"
-      content="An offline, interactive guide to Tandem's code: its layers, every file, how requests travel through it and what changed."
+      content="An offline, interactive map of Tandem's code: every file, the wires between its layers, how a request travels through it and what changed."
     />
     <title>Tandem project atlas</title>
     <style>
@@ -18,7 +18,10 @@
     <div class="shell">
       <aside class="sidebar" id="sidebar" aria-label="Atlas navigation">
         <a href="#overview" class="brand">
-          <span class="brand-mark" aria-hidden="true">t.</span>
+          <svg class="brand-mark" viewBox="0 0 40 40" aria-hidden="true" focusable="false">
+            <rect width="40" height="40" rx="12" />
+            <path d="M12 13h16M20 13v14" />
+          </svg>
           <span class="brand-text"><strong>Tandem</strong><span>Project atlas</span></span>
         </a>
         <nav class="nav" id="navigation" aria-label="Sections"></nav>
@@ -36,7 +39,13 @@
             aria-expanded="false"
           ></button>
           <div class="crumbs" id="crumbs"></div>
-          <button class="search-trigger" id="open-search" type="button" aria-haspopup="dialog">
+          <button
+            class="search-trigger"
+            id="open-search"
+            type="button"
+            aria-haspopup="dialog"
+            aria-label="Search files, code and journeys"
+          >
             <span class="search-trigger-icon" aria-hidden="true"></span>
             <span class="search-trigger-label">Search files, code and journeys</span>
             <kbd id="search-shortcut">Ctrl K</kbd>

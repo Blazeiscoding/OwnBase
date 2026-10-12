@@ -1,89 +1,89 @@
 {
-  "title": "A workspace. A few layers. Every file connected.",
-  "intro": "Tandem is a self-hosted chat workspace. The browser and desktop share a React interface and a client replica; a Node server owns the workspace's SQLite database, media and ordered events. This atlas connects the files to that behavior, then explains what changed and the evidence behind it.",
+  "title": "Every file in Tandem, and how they connect",
+  "intro": "Tandem is a team chat app that you run yourself, a bit like a private Slack. People open it in a web browser or in the desktop app, and one computer runs the server that keeps the team's messages and files. On the map below, each dot is one file of code and each line is one part of Tandem relying on another.",
   "areas": [
     {
       "id": "ui",
-      "title": "Shared interface",
-      "summary": "React screens, conversation rows, dialogs, accessibility and device preferences. This layer translates user intent into client operations.",
+      "title": "What you see and click",
+      "summary": "Every conversation, dialog and setting on screen. The web version and the desktop app show the same screens, and each click becomes a request to the app engine.",
       "entry": "packages/ui/src/App.tsx",
       "color": "mint"
     },
     {
       "id": "client-core",
-      "title": "Client state & recovery",
-      "summary": "HTTP, socket replication, drafts, a durable outbox, attachments and WebRTC. Keeps an account's local state coherent across disconnects.",
+      "title": "Keeping the app in sync",
+      "summary": "Keeps the app's copy of the workspace up to date, holds messages waiting to send, handles attachments and runs calls. Your work stays safe when the connection drops.",
       "entry": "packages/client-core/src/workspace.ts",
       "color": "blue"
     },
     {
       "id": "protocol",
-      "title": "Shared contract",
-      "summary": "Entities, REST/socket events, permissions, search grammar and huddle types. Server and client agree on shapes and meaning here.",
+      "title": "The rules both sides follow",
+      "summary": "What a message, a channel, a permission, a search or a call looks like. The app and the server both follow these rules, so they always understand each other.",
       "entry": "packages/protocol/src/index.ts",
       "color": "purple"
     },
     {
       "id": "server",
-      "title": "Workspace authority",
-      "summary": "Validated requests, SQLite transactions, event publication, identity, integrations, files, retention and recovery.",
+      "title": "Keeping the workspace",
+      "summary": "Checks every request, saves messages and files, and tells everyone's app what changed. It also handles accounts, connected apps, removing old messages and restoring backups.",
       "entry": "packages/server/src/server.ts",
       "color": "orange"
     },
     {
       "id": "desktop",
-      "title": "Desktop & local hosting",
-      "summary": "Electron owns native storage, IPC, the embedded host, backup workers, renderer recovery and close preparation.",
+      "title": "The app on your computer",
+      "summary": "Saves your data on your computer, can host a workspace for other people, makes backups, recovers when a window crashes and saves your work before it closes.",
       "entry": "apps/desktop/src/main/index.ts",
       "color": "purple"
     },
     {
       "id": "web",
-      "title": "Browser entry",
-      "summary": "Vite assembles the shared interface for a browser. The server delivers cached compressed assets; device records stay in browser storage.",
+      "title": "Opening Tandem in a browser",
+      "summary": "Packs the screens so they open in any web browser. The server sends them compressed, and each browser remembers its own sign-ins.",
       "entry": "apps/web/src/main.tsx",
       "color": "blue"
     },
     {
       "id": "server-cli",
-      "title": "Standalone host",
-      "summary": "A bundled Node entry can serve the same workspace without Electron. Docker packages this route for self-hosting.",
+      "title": "Running the server on its own",
+      "summary": "The same server without the desktop app, for a home server or a rented one. A ready-made package sets it up on a server.",
       "entry": "apps/server-cli/tsup.config.ts",
       "color": "orange"
     },
     {
       "id": "tooling",
-      "title": "Build & verification",
-      "summary": "Build identity, archive and byte guards, test fixtures, CI, measurement probes and release gates connect shipped artifacts to their inputs.",
+      "title": "Building and checking",
+      "summary": "Scripts that build Tandem, check each build matches its code, run the tests, measure speed and stop a release when something is wrong.",
       "entry": "scripts/build-identity.mjs",
       "color": "mint"
     },
     {
       "id": "docs",
-      "title": "Operations",
-      "summary": "Hosting and backups, CI duration and caching, and the integration contract that the server tests hold to the code.",
+      "title": "Guides for hosts",
+      "summary": "How to host Tandem and keep backups, how the automatic checks run, and how other apps can connect to a workspace.",
       "entry": "docs/DEPLOYMENT.md",
       "color": "blue"
     },
     {
       "id": "root",
-      "title": "Workspace configuration",
-      "summary": "The package manager, dependency lock, shared compiler settings, contribution policy and repository-level commands.",
+      "title": "Project settings",
+      "summary": "The outside code Tandem uses, settings every package shares, how to contribute and the commands that run the whole project.",
       "entry": "package.json",
       "color": "purple"
     },
     {
       "id": "visualizer",
       "title": "This atlas",
-      "summary": "Reviewed explanations and a deterministic generator turn repository files into this portable page. The generated page excludes itself from its own inventory.",
+      "summary": "The written explanations and the script that turns the project's files into this one page. The page leaves itself out of its own list.",
       "entry": "docs/visualizer/README.md",
       "color": "mint"
     }
   ],
   "principles": [
     {
-      "title": "The server decides",
-      "text": "SQLite and authorized event publication define durable workspace truth. Optimistic client state still has to reconcile with the server's reply.",
+      "title": "The server has the final say",
+      "text": "The app shows your change right away, but the server decides what is saved. If the server says no, the app puts things back the way the server has them.",
       "files": [
         "packages/server/src/store.ts",
         "packages/server/src/gateway.ts",
@@ -91,8 +91,8 @@
       ]
     },
     {
-      "title": "Local work needs an owner",
-      "text": "A draft or queued send belongs to an account and conversation. Durable acknowledgements, revisions and tombstones prevent stale windows from silently losing or reviving work.",
+      "title": "Unsent work always has an owner",
+      "text": "A draft or a message waiting to send belongs to one account and one conversation. The app remembers what was sent or thrown away, so an old window cannot lose your work or bring back a message you deleted.",
       "files": [
         "packages/client-core/src/drafts.ts",
         "packages/client-core/src/outbox.ts",
@@ -100,8 +100,8 @@
       ]
     },
     {
-      "title": "A lifetime crosses awaits",
-      "text": "An async reply can arrive after a dialog, microphone intent or host changes. Generation checks, per-view state and retained resource ownership keep the result with the action that started it.",
+      "title": "Answers can arrive late",
+      "text": "A reply from the server can come back after you closed the dialog, changed microphone or the host changed. Before using an answer, the code checks it still belongs to what you are doing now.",
       "files": [
         "packages/ui/src/components/ViewModal.tsx",
         "packages/client-core/src/huddle.ts",
@@ -109,8 +109,8 @@
       ]
     },
     {
-      "title": "Optimize against evidence",
-      "text": "Indexes, bounded work, stable references and import boundaries address specific costs. Read the fixture and limits before treating a historical benchmark as a general speed claim.",
+      "title": "Speed claims need numbers",
+      "text": "Each speed-up goes after a cost that someone measured. Read how and where it was measured before treating an old number as true today.",
       "files": ["scripts/measure-mixed.mts"]
     }
   ],
@@ -134,55 +134,79 @@
   ],
   "validation": [],
   "limits": [
-    "This is a source snapshot, not a live monitor. Its input digest identifies the embedded files; regenerate it after changes. The base commit identifies the checkout, not a claim that all local files were committed there.",
-    "Every tracked file is indexed except this generated HTML itself. Explicit atlas source files are added before their first commit. Ignored builds, node_modules, user data and unrelated untracked directories are not scanned.",
-    "All runtime source files in apps and packages have reviewed file explanations. Test, documentation, configuration and asset descriptions also use structural metadata. Generated symbol and import indexes do not infer every line's intent.",
-    "Imports are static source references, including literal dynamic imports and workspace package entries. They are not a runtime call graph; type-only imports, indirect exports and injected adapters can change how the code runs.",
-    "Text source is complete and paged for responsive reading. Binary assets show metadata. Symbol indexing covers named declarations, class methods and top-level values, not every anonymous closure or generated declaration.",
-    "Benchmarks belong to their recorded revision, hardware, sample count and fixture. A smaller archive does not establish faster startup. Bundle-entry limits do not measure the full import closure or decoded media memory.",
-    "N01–N12 are completed scoped repairs. Q01–Q13 are reproduced follow-up findings. A repaired storage backend does not automatically fix its callers' preference races; bounded controller cleanup does not establish every adapter owns a partially started server.",
-    "Recorded validation excludes genuine installed upgrade/uninstall, physical microphone unplug, power loss or OS logoff, and second-device/public routing. Active database cleanup does not erase old backups or freed disk bytes."
+    {
+      "text": "This is a snapshot of the code at one moment, not a live view. Rebuild it after the code changes.",
+      "detail": "This is a source snapshot, not a live monitor. Its input digest identifies the embedded files; regenerate it after changes. The base commit identifies the checkout, not a claim that all local files were committed there."
+    },
+    {
+      "text": "It covers every file in the project except this page itself. Downloaded outside code, build output and personal data are left out.",
+      "detail": "Every tracked file is indexed except this generated HTML itself. Explicit atlas source files are added before their first commit. Ignored builds, node_modules, user data and unrelated untracked directories are not scanned."
+    },
+    {
+      "text": "Every file of app code has a written explanation that a person checked. Other files, like tests and settings, get a description made from their contents.",
+      "detail": "All runtime source files in apps and packages have reviewed file explanations. Test, documentation, configuration and asset descriptions also use structural metadata. Generated symbol and import indexes do not infer every line's intent."
+    },
+    {
+      "text": "A line between two files means one names the other in its code. It shows what depends on what, not every step the code takes while it runs.",
+      "detail": "Imports are static source references, including literal dynamic imports and workspace package entries. They are not a runtime call graph; type-only imports, indirect exports and injected adapters can change how the code runs."
+    },
+    {
+      "text": "You can read every text file in full. Images and other files that are not text show only their size.",
+      "detail": "Text source is complete and paged for responsive reading. Binary assets show metadata. Symbol indexing covers named declarations, class methods and top-level values, not every anonymous closure or generated declaration."
+    },
+    {
+      "text": "A speed number belongs to the computer, the version and the test it came from. A smaller download does not by itself mean the app starts faster.",
+      "detail": "Benchmarks belong to their recorded revision, hardware, sample count and fixture. A smaller archive does not establish faster startup. Bundle-entry limits do not measure the full import closure or decoded media memory."
+    },
+    {
+      "text": "The N records are finished repairs. The Q records are problems that were found and reproduced but are not fixed yet. Fixing one part does not fix every part that relies on it.",
+      "detail": "N01–N12 are completed scoped repairs. Q01–Q13 are reproduced follow-up findings. A repaired storage backend does not automatically fix its callers' preference races; bounded controller cleanup does not establish every adapter owns a partially started server."
+    },
+    {
+      "text": "Some things were never tried for real: installing and removing the app, unplugging a microphone, a power cut, signing out of the computer, and reaching a workspace from another device over the internet. Deleting old messages does not remove them from older backups.",
+      "detail": "Recorded validation excludes genuine installed upgrade/uninstall, physical microphone unplug, power loss or OS logoff, and second-device/public routing. Active database cleanup does not erase old backups or freed disk bytes."
+    }
   ],
   "glossary": [
     {
       "term": "Replica",
-      "meaning": "The client's account-specific copy of server state, updated through snapshots, HTTP replies and ordered socket events."
+      "meaning": "The app's copy of the workspace on your device. The server sends updates to keep it current."
     },
     {
       "term": "Outbox",
-      "meaning": "Durably queued sends. Revisions resolve newer edits; removal tombstones keep a stale window from restoring an already delivered or discarded send."
+      "meaning": "Messages waiting to send. The app remembers which were sent or thrown away, so an old window cannot send one twice or bring it back."
     },
     {
       "term": "Publication",
-      "meaning": "Making an already committed mutation visible to authorized socket clients and integrations. Its failure must not misreport a successful durable write."
+      "meaning": "Telling everyone's app, and any connected apps, about a change the server already saved. If telling them fails, the change is still saved."
     },
     {
       "term": "Generation / request identity",
-      "meaning": "A token that says which async attempt still owns a result. Equal values alone cannot distinguish an older request from a newer identical one."
+      "meaning": "A label on each request, so the app knows which answer belongs to the latest one. Two identical requests still get different labels."
     },
     {
       "term": "Admission / backpressure",
-      "meaning": "Bounds on work accepted or queued, with recoverable refusal when capacity is unavailable."
+      "meaning": "Limits on how much work the app or the server takes on at once. When it is full it says no, and you can try again."
     },
     {
       "term": "FTS",
-      "meaning": "SQLite full-text search. Query shape and measured index selectivity determine how it combines with channel, author, date and cursor constraints."
+      "meaning": "Full-text search, the way the server finds words inside messages quickly."
     },
     {
       "term": "Retention",
-      "meaning": "Policy-driven removal of old workspace content, including whole-thread cleanup and invalidating copies and attachment caches."
+      "meaning": "Rules a host sets for deleting old messages and files, including every copy and saved preview of them."
     },
     {
       "term": "IPC",
-      "meaning": "The narrow bridge from Electron's renderer to privileged native work in its main process; sensitive calls authenticate the sender."
+      "meaning": "How a desktop app window asks the rest of the app to do something only the app may do, like saving a file. The app checks who is asking."
     },
     {
       "term": "p50 / p95",
-      "meaning": "Median and 95th-percentile latency for one declared sample set. They need workload, hardware, error and spread context."
+      "meaning": "Two ways to describe a time. p50 is the typical time, and half the tries were faster. p95 is a slow case, and 95 tries in 100 were faster."
     },
     {
       "term": "Build identity",
-      "meaning": "Revision and input hashes embedded in an artifact so checks can reject stale, changed or mismatched builds."
+      "meaning": "A fingerprint of the code stamped into each build, so a check can spot a build made from old or changed code."
     }
   ]
 }

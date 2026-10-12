@@ -4,6 +4,7 @@
   "entries": [
     {
       "path": "packages/server/src/auth.ts",
+      "plain": "Scrambles passwords so they are never saved as typed, and makes the secret keys that keep people signed in.",
       "summary": "Derives password credentials and turns bearer tokens into database lookup keys.",
       "details": [
         "Passwords use asynchronous scrypt with a fresh 16-byte random salt and a 64-byte derived key; verification compares equal-length buffers with timingSafeEqual.",
@@ -14,6 +15,7 @@
     },
     {
       "path": "packages/server/src/backup.ts",
+      "plain": "Makes a complete backup of the workspace and its files, checks it, and puts a backup back in place when the host restores one.",
       "summary": "Captures, verifies, inventories and restores portable workspace backups.",
       "details": [
         "VACUUM INTO captures a consistent SQLite snapshot including committed WAL content. Only blobs referenced by that snapshot are copied; a disappearing or wrong-sized referenced blob fails capture.",
@@ -26,6 +28,7 @@
     },
     {
       "path": "packages/server/src/blockKit.ts",
+      "plain": "Turns the text, buttons and forms that Slack-style apps send into what Tandem can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into Tandem's text, buttons and modal fields.",
       "details": [
         "Headers, sections, context and dividers flatten into the existing mrkdwn renderer. Explicit nonempty text wins over blocks, matching the expected fallback behavior.",
@@ -37,6 +40,7 @@
     },
     {
       "path": "packages/server/src/capabilities.ts",
+      "plain": "Briefly remembers which open forms and replies an app is still allowed to use, and forgets them when the server restarts.",
       "summary": "Keeps short-lived app permissions in a bounded in-memory map.",
       "details": [
         "Response URLs, triggers and open views carry expiresAt; get removes expired values before returning them.",
@@ -48,6 +52,7 @@
     },
     {
       "path": "packages/server/src/commands.ts",
+      "plain": "Gives every workspace the built-in /shrug and /me commands, even before any app is added.",
       "summary": "Provides built-in /shrug and /me commands before any integration is installed.",
       "details": [
         "A map holds description, usage hint and a function that returns the message text or null for invalid arguments.",
@@ -58,6 +63,7 @@
     },
     {
       "path": "packages/server/src/config.ts",
+      "plain": "Checks the host's startup settings, such as the port and public address, and says clearly what to fix when one is wrong.",
       "summary": "Rejects unusable startup settings with actionable messages.",
       "details": [
         "Environment settings prefer TANDEM_, then GATHERLINE_, then SLACKOSS_ names, retaining compatibility with earlier deployments.",
@@ -69,6 +75,7 @@
     },
     {
       "path": "packages/server/src/db.ts",
+      "plain": "Sets up the workspace's database and upgrades it to the newest layout, keeping a copy of the old one first.",
       "summary": "Defines the SQLite schema history and safely opens or upgrades a workspace.",
       "details": [
         "SQLite opens with WAL, foreign keys and a busy timeout. All needed migration steps run in one transaction, so failure rolls back to the original schema and releases the file handle.",
@@ -81,6 +88,7 @@
     },
     {
       "path": "packages/server/src/callLog.ts",
+      "plain": "Notes the last 500 huddle joins, leaves and connection problems so owners and admins can look into a failed call.",
       "summary": "Keeps the latest 500 lines of what happened in huddles, in memory, for the host.",
       "details": [
         "Lines are joins, leaves, setups passed on or dropped, and each side's report of its connection; nothing survives a restart, and none is an address, an SDP or anything said in a call.",
@@ -90,6 +98,7 @@
     },
     {
       "path": "packages/server/src/gateway.ts",
+      "plain": "Keeps each app's live connection open, catches it up after a reconnect, and sends each update only to people allowed to see it.",
       "summary": "Authenticates sockets, reconstructs state on reconnect and delivers authorized live events.",
       "details": [
         "An initial hello checks protocol version, token, account state and forced password change before the socket joins fan-out. The ready snapshot is read completely first.",
@@ -104,6 +113,7 @@
     },
     {
       "path": "packages/server/src/ids.ts",
+      "plain": "Creates time-ordered IDs for messages and other records, plus random invite codes and secret keys for apps.",
       "summary": "Creates sortable entity IDs and random invitation/integration secrets.",
       "details": [
         "ULID-style IDs combine a Crockford-base32 timestamp with random characters, letting ordinary lexicographic comparisons support time-ordered history paging.",
@@ -114,6 +124,7 @@
     },
     {
       "path": "packages/server/src/imageSize.ts",
+      "plain": "Reads an uploaded picture's width and height so the conversation can save room for it and not jump while it loads.",
       "summary": "Reads image dimensions from headers without loading a native decoder.",
       "details": [
         "PNG, GIF, WebP variants and JPEG frame headers are recognized; unsupported shapes return null.",
@@ -124,6 +135,7 @@
     },
     {
       "path": "packages/server/src/index.ts",
+      "plain": "The front door to the server's code, which the desktop app uses to run a workspace or make backups.",
       "summary": "Defines the server package's public API for desktop embedding and tooling.",
       "details": [
         "Exports server creation/options, Store, workspace holds, backup/recovery-adjacent operations and shared security policies.",
@@ -134,6 +146,7 @@
     },
     {
       "path": "packages/server/src/integrations.ts",
+      "plain": "Signs what the server sends to outside apps and rewrites workspace events in the form Slack apps expect.",
       "summary": "Signs outbound callbacks and adapts durable native events to Slack's event shape.",
       "details": [
         "HMAC-SHA256 signs v0:timestamp:body and emits both SlackOSS and Slack header names, allowing existing receiver verification libraries to work.",
@@ -145,6 +158,7 @@
     },
     {
       "path": "packages/server/src/limits.ts",
+      "plain": "Slows down password guessing and floods of requests, while still letting an app back from offline send its waiting messages.",
       "summary": "Rations abusive workloads while allowing normal startup and offline-outbox bursts.",
       "details": [
         "Token buckets separate burst allowance from refill per minute and key budgets by account, handle, address or webhook as appropriate.",
@@ -157,6 +171,7 @@
     },
     {
       "path": "packages/server/src/main.ts",
+      "plain": "Starts the server on its own and runs the host's backup, restore and account recovery commands.",
       "summary": "Runs the standalone server and its operator commands.",
       "details": [
         "Parses flags/environment, validates startup values, locates the built web client and chooses LAN or isolated loopback hosting.",
@@ -169,6 +184,7 @@
     },
     {
       "path": "packages/server/src/mdns.ts",
+      "plain": "Announces the workspace on the local network so the app can find it without anyone typing an address.",
       "summary": "Publishes a workspace discovery announcement on the local network.",
       "details": [
         "Bonjour advertises the shared service type, port, workspace name, server/protocol versions and per-start instance ID.",
@@ -180,6 +196,7 @@
     },
     {
       "path": "packages/server/src/netTrust.ts",
+      "plain": "Works out where each connection really comes from, without believing addresses that a visitor could fake.",
       "summary": "Separates trusted connection identity from caller-controlled forwarding headers.",
       "details": [
         "originFromConnection builds an origin from the socket's local address/port, correctly bracketing IPv6 rather than trusting Host.",
@@ -191,6 +208,7 @@
     },
     {
       "path": "packages/server/src/outbound.ts",
+      "plain": "Sends requests to outside apps with time and size limits and, by default, keeps them off the host's private network.",
       "summary": "Makes bounded integration POST requests while protecting the host's private network.",
       "details": [
         "Private IPv4/IPv6 ranges and literal private hosts are blocked by default. DNS checks run inside the actual socket lookup, closing the check/connect gap used by DNS rebinding.",
@@ -202,6 +220,7 @@
     },
     {
       "path": "packages/server/src/ownership.ts",
+      "plain": "Makes sure only one server at a time can open and change a workspace folder.",
       "summary": "Ensures one process owns a writable workspace folder at a time.",
       "details": [
         "A small SQLite lock database holds BEGIN IMMEDIATE for the owner's lifetime before the workspace database and blob accounting are opened.",
@@ -214,6 +233,7 @@
     },
     {
       "path": "packages/server/src/recover.ts",
+      "plain": "Lets the host get someone back into their account with a temporary password, from the computer that holds the workspace.",
       "summary": "Restores access to a human account from the machine that owns the workspace files.",
       "details": [
         "Recovery refuses a workspace already held by a server and opens the database directly under an exclusive hold; no unauthenticated remote recovery endpoint exists.",
@@ -225,6 +245,7 @@
     },
     {
       "path": "packages/server/src/redact.ts",
+      "plain": "Hides invite codes, sign-in keys and other secrets from the server's logs, keeping the rest of each line useful.",
       "summary": "Keeps request logs useful without copying URL and header credentials.",
       "details": [
         "Sensitive path segments cover invitation codes, incoming webhook tokens and command response capabilities. Sensitive query values include download, token, ticket, code and secret.",
@@ -236,6 +257,7 @@
     },
     {
       "path": "packages/server/src/rtc.ts",
+      "plain": "Checks the host's settings for the servers that help huddle calls connect across networks.",
       "summary": "Validates host-supplied STUN/TURN configuration for browser peer connections.",
       "details": [
         "The schema allows bounded STUN, STUNS, TURN and TURNS URLs with optional username/credential, capped numbers of configurations and URLs.",
@@ -246,6 +268,7 @@
     },
     {
       "path": "packages/server/src/relay.ts",
+      "plain": "Sets up a relay, from Cloudflare or elsewhere, that carries huddle audio and video when two networks will not connect directly.",
       "summary": "A TURN relay for calls between networks that will not connect directly: Cloudflare's, or any other.",
       "details": [
         "callRelaySchema accepts a Cloudflare TURN key (ID and API token) or another relay's turn:/turns: addresses, username and password. relayFromEnvironment reads a Cloudflare key from TANDEM_CLOUDFLARE_TURN_KEY_ID and TANDEM_CLOUDFLARE_TURN_API_TOKEN, both or neither.",
@@ -256,6 +279,7 @@
     },
     {
       "path": "packages/server/src/securityHeaders.ts",
+      "plain": "Sets the safety rules a browser follows on Tandem's pages, such as running only Tandem's own code.",
       "summary": "Defines browser and desktop content policies that fit a multi-workspace chat client.",
       "details": [
         "Scripts are restricted to self; object embedding and framing are denied. Blob/data image and worker sources support previews and compiled assets.",
@@ -267,6 +291,7 @@
     },
     {
       "path": "packages/server/src/server.ts",
+      "plain": "The heart of the server, which answers the app, checks who may do what, saves messages and files, and runs background chores.",
       "summary": "Composes the workspace HTTP API, authorization, background work and lifecycle.",
       "details": [
         "Creates the exclusive workspace owner, upgraded Store, Fastify routes, Gateway, attachment budget and timers. Shared validation and permission checks enforce auth, membership, roles and password-change restrictions.",
@@ -283,6 +308,7 @@
     },
     {
       "path": "packages/server/src/socketSchema.ts",
+      "plain": "Checks every live message the app sends, such as typing or huddle signals, before the server acts on it.",
       "summary": "Checks socket payloads at the server boundary before Gateway trusts them.",
       "details": [
         "A discriminated union admits hello, ping, typing, huddle join/leave and signaling with bounded IDs, tokens and cursors.",
@@ -294,6 +320,7 @@
     },
     {
       "path": "packages/server/src/storageBudget.ts",
+      "plain": "Keeps track of how much space uploaded files use and stops uploads before they go over the host's limit.",
       "summary": "Accounts for stored blobs and reserves upload bytes before concurrent writes.",
       "details": [
         "Startup inventories regular blob files; reserve adds each accepted chunk to that file's accounting only if the total remains within the configured ceiling.",
@@ -305,6 +332,7 @@
     },
     {
       "path": "packages/server/src/store.ts",
+      "plain": "Reads and writes everything in the workspace's database, from accounts and channels to messages, search and who can see what.",
       "summary": "Maps workspace rules to transactional SQLite records and authorized query results.",
       "details": [
         "Owns account/session/channel/membership CRUD, per-user read/follow/save state, messages/files, invitations, audit records, integrations and durable queues. Visibility checks remain part of history and search queries.",
@@ -321,6 +349,7 @@
     },
     {
       "path": "packages/server/src/version.ts",
+      "plain": "Names the server's version and the exact code it was built from, for backups and network announcements.",
       "summary": "Names the server version and exposes source identity stamped into builds.",
       "details": [
         "A small standalone module avoids loading HTTP, sockets and discovery just to label a backup or announcement.",
@@ -331,6 +360,7 @@
     },
     {
       "path": "packages/server/src/webClient.ts",
+      "plain": "Tells browsers how long to keep saved copies of the web version's files, so pages load fast and updates arrive cleanly.",
       "summary": "Applies cache rules that keep static delivery fast and upgrades coherent.",
       "details": [
         "Content-hashed assets receive a one-year immutable cache lifetime because changing content produces a different filename.",
@@ -341,6 +371,7 @@
     },
     {
       "path": "packages/protocol/src/discovery.ts",
+      "plain": "The shared rules for finding a workspace on the local network and for building invite links that open in Tandem.",
       "summary": "Shares LAN discovery and invitation-link addressing conventions.",
       "details": [
         "Defines the mDNS service type, default port and TXT fields including the per-start instance ID used by health verification.",
@@ -351,6 +382,7 @@
     },
     {
       "path": "packages/protocol/src/entities.ts",
+      "plain": "The shared rules for what a person, channel, message, file and every other workspace record looks like.",
       "summary": "Defines the shared vocabulary of workspace records and feature metadata.",
       "details": [
         "Models users/roles, room types, memberships, messages, files, actions, invitations, audits, sessions, schedules, apps and forms without coupling the server to React or browser DOM objects.",
@@ -364,6 +396,7 @@
     },
     {
       "path": "packages/protocol/src/events.ts",
+      "plain": "Describes the updates the server sends, both the ones replayed after a reconnect and short-lived ones like typing.",
       "summary": "Defines durable replay events and private/live socket messages.",
       "details": [
         "WorkspaceEvent covers durable message, channel, membership and user changes; EventEnvelope adds monotonically increasing seq for reconnect replay.",
@@ -376,6 +409,7 @@
     },
     {
       "path": "packages/protocol/src/format.ts",
+      "plain": "Shared formatting rules for showing text exactly as typed and spotting @channel, @here and @everyone mentions.",
       "summary": "Shares literal mrkdwn escaping and room-wide mention interpretation.",
       "details": [
         "escapeMrkdwn prefixes formatting delimiters and backslashes so generated text such as /shrug is displayed literally.",
@@ -386,6 +420,7 @@
     },
     {
       "path": "packages/protocol/src/huddle.ts",
+      "plain": "The shared rules for the messages that set up a huddle, including which side starts the call so both do not at once.",
       "summary": "Describes peer-call signaling and deterministic offer ownership.",
       "details": [
         "Offer, answer, ICE and explicit camera/screen/muted messages are plain serializable objects usable by both server and browser.",
@@ -398,6 +433,7 @@
     },
     {
       "path": "packages/protocol/src/index.ts",
+      "plain": "Gathers all the shared rules in one place so the app and the server use exactly the same ones.",
       "summary": "Exports the common protocol modules through one package entry.",
       "details": [
         "Re-exports entity, event, REST validation, discovery, search, formatting, huddle and permission contracts.",
@@ -408,6 +444,7 @@
     },
     {
       "path": "packages/protocol/src/permissions.ts",
+      "plain": "Decides who can manage a channel, such as adding or removing people, with the same rules in the app and on the server.",
       "summary": "Shares channel-management policy between server enforcement and UI affordances.",
       "details": [
         "Owner/admin, creator and delegated member managers receive different management powers; active human status and room type are checked.",
@@ -419,6 +456,7 @@
     },
     {
       "path": "packages/protocol/src/rest.ts",
+      "plain": "Checks the shape and size of everything the app sends the server, such as names, passwords, messages and scheduled sends.",
       "summary": "Validates the shared HTTP request bodies and paging/search parameters.",
       "details": [
         "Zod schemas bound handles, passwords, profile fields, channel types, message text/files, scheduling, integration URLs, form values, administrative updates and cursor formats.",
@@ -431,6 +469,7 @@
     },
     {
       "path": "packages/protocol/src/search.ts",
+      "plain": "Understands search filters such as who sent it, where, and on which day, the same way in the app and on the server.",
       "summary": "Parses search syntax and calendar-day filters identically on client and server.",
       "details": [
         "Splits recognized from/in/has/type/before/after modifiers from free terms, records invalid calendar dates and normalizes handles/channel names.",
@@ -445,248 +484,281 @@
   "flows": [
     {
       "id": "server-auth-reconnect",
-      "title": "From password sign-in to a synchronized workspace",
-      "summary": "Authentication produces a session; the socket handshake turns it into visible current state plus any safe replay.",
+      "title": "Signing in and catching up",
+      "summary": "Signing in with a password gives the app a sign-in key. The live connection then turns that key into an up-to-date view of the workspace, filling in missed updates only where it is safe.",
       "steps": [
         {
-          "title": "Validate and ration the request",
-          "description": "REST schemas check the login body. Separate address and handle allowances bound guessing; proxy headers only count under explicit loopback trust.",
+          "title": "Check the request and limit guessing",
+          "description": "The server checks the sign-in form has the right shape. It limits wrong passwords per username and per network address, to slow down guessing. It believes what a middleman says about who is connecting only when the host turned that on and the middleman runs on the same computer.",
           "files": [
             "packages/protocol/src/rest.ts",
             "packages/server/src/server.ts",
             "packages/server/src/limits.ts",
             "packages/server/src/netTrust.ts"
-          ]
+          ],
+          "detail": "REST schemas check the login body. Separate address and handle allowances bound guessing; proxy headers only count under explicit loopback trust."
         },
         {
-          "title": "Verify credentials and create a session",
-          "description": "scrypt verification checks the stored salt/hash. Only a random bearer token leaves the server; the session row stores its hash, expiry and account identity.",
-          "files": ["packages/server/src/auth.ts", "packages/server/src/store.ts"]
+          "title": "Check the password and start a session",
+          "description": "The server compares the password against a scrambled copy, never the password itself. If it matches, the server sends back a random sign-in key. It keeps only a scrambled copy of that key, with an expiry date and the account it belongs to.",
+          "files": ["packages/server/src/auth.ts", "packages/server/src/store.ts"],
+          "detail": "scrypt verification checks the stored salt/hash. Only a random bearer token leaves the server; the session row stores its hash, expiry and account identity."
         },
         {
-          "title": "Authenticate hello before joining fan-out",
-          "description": "The socket schema validates protocol/version/cursor. Gateway checks the session and forced password-change state and reads the full snapshot before registering the connection.",
+          "title": "Say hello before getting updates",
+          "description": "The app opens a live connection and says which version it speaks and the last update it saw. The server checks the sign-in is still valid and whether the account must change its password first. Only then does it load the whole workspace for this person and start sending live updates.",
           "files": [
             "packages/server/src/socketSchema.ts",
             "packages/server/src/gateway.ts",
             "packages/protocol/src/events.ts"
-          ]
+          ],
+          "detail": "The socket schema validates protocol/version/cursor. Gateway checks the session and forced password-change state and reads the full snapshot before registering the connection."
         },
         {
-          "title": "Replay or replace",
-          "description": "Store filters replay to current public/member access. If the cursor is pruned, invalid or beyond the replay budget, ready requests replacement; otherwise missed events replay and synced finishes catch-up.",
+          "title": "Fill in missed updates or start fresh",
+          "description": "If the app was away briefly, the server sends the updates it missed, leaving out channels the person can no longer see. If the app was away too long, or its place in the history is gone, the server tells it to replace its copy of the workspace. Either way, a final signal tells the app it is up to date.",
           "files": [
             "packages/server/src/store.ts",
             "packages/server/src/gateway.ts",
             "packages/protocol/src/events.ts"
-          ]
+          ],
+          "detail": "Store filters replay to current public/member access. If the cursor is pruned, invalid or beyond the replay budget, ready requests replacement; otherwise missed events replay and synced finishes catch-up."
         },
         {
-          "title": "Continue checking authorization",
-          "description": "Delivery and heartbeats recheck sessions; revocation disconnects affected sockets. Ephemeral presence is derived from live socket groups and rebuilt at reconnect.",
-          "files": ["packages/server/src/gateway.ts", "packages/server/src/server.ts"]
+          "title": "Keep checking the sign-in",
+          "description": "The server checks the sign-in again as it sends updates and during regular check-ins. When a sign-in ends, the server cuts its connections. Who is online comes from who is connected right now, and is worked out again after a reconnect.",
+          "files": ["packages/server/src/gateway.ts", "packages/server/src/server.ts"],
+          "detail": "Delivery and heartbeats recheck sessions; revocation disconnects affected sockets. Ephemeral presence is derived from live socket groups and rebuilt at reconnect."
         }
-      ]
+      ],
+      "detail": "Authentication produces a session; the socket handshake turns it into visible current state plus any safe replay."
     },
     {
       "id": "server-message-transaction",
-      "title": "A message, its retry key and its event commit together",
-      "summary": "The same posting path handles direct sends and due schedules so persistence and live publication agree.",
+      "title": "Saving a message on the server",
+      "summary": "The server saves a message the same way whether someone sends it now or it was scheduled earlier. Saving and announcing happen in a fixed order, so what is saved and what everyone sees always agree.",
       "steps": [
         {
-          "title": "Validate target and attachments",
-          "description": "Parse bounded message input, check active account/current channel access, archived state and a valid root. Files must belong to this account/channel and cannot be promised to another schedule.",
+          "title": "Check the message and its files",
+          "description": "The server checks the message is within size limits, the sender's account is active and they can post in this channel. The channel must not be archived, and a reply must point at a real thread. Attached files must belong to this person and channel, and not already be set aside for another scheduled message.",
           "files": [
             "packages/protocol/src/rest.ts",
             "packages/server/src/server.ts",
             "packages/server/src/store.ts"
-          ]
+          ],
+          "detail": "Parse bounded message input, check active account/current channel access, archived state and a valid root. Files must belong to this account/channel and cannot be promised to another schedule."
         },
         {
-          "title": "Resolve repeated send intent",
-          "description": "Hash the request shape under the account-scoped nonce. An identical retry returns its message; conflicting content or a key for deleted/retained history is refused rather than creating a second post.",
+          "title": "Spot a repeated send",
+          "description": "Each send carries a one-time code chosen by the sender's device. If the same code comes again with the same content, the server returns the message it already saved instead of posting a second copy. If the content differs, or that message was since deleted or cleared away by old-history cleanup, the server refuses.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/store.ts",
             "packages/protocol/src/entities.ts"
-          ]
+          ],
+          "detail": "Hash the request shape under the account-scoped nonce. An identical retry returns its message; conflicting content or a key for deleted/retained history is refused rather than creating a second post."
         },
         {
-          "title": "Commit message plus event",
-          "description": "Create and hydrate the message, attach files, record its request key and append message.created in one synchronous transaction. Eligible app delivery rows are queued with that event.",
+          "title": "Save the message and its update together",
+          "description": "In one step, the server saves the message, links its files, records its code and writes the update that announces it. The same step records deliveries to outside apps that should hear about it. Either all of this is saved or none of it is.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/store.ts",
             "packages/protocol/src/events.ts"
-          ]
+          ],
+          "detail": "Create and hydrate the message, attach files, record its request key and append message.created in one synchronous transaction. Eligible app delivery rows are queued with that event."
         },
         {
-          "title": "Complete scheduled work without another content copy",
-          "description": "For a scheduled send, the same transaction marks the schedule sent, links the message and clears queue text/file IDs. A crash cannot commit only one side.",
+          "title": "Mark a scheduled message as sent",
+          "description": "For a scheduled message, the same step marks the schedule as sent, links it to the new message and clears the schedule's own copy of the words and file list. A crash cannot leave one half done without the other.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/store.ts",
             "packages/server/src/db.ts"
-          ]
+          ],
+          "detail": "For a scheduled send, the same transaction marks the schedule sent, links the message and clears queue text/file IDs. A crash cannot commit only one side."
         },
         {
-          "title": "Publish after commit",
-          "description": "Gateway fans out only committed events under current visibility. Targeted follow/mention updates are coalesced, while app deliveries run through the bounded retry pump.",
+          "title": "Announce it after saving",
+          "description": "Only once everything is saved does the server send the update to people allowed to see it. It groups together the updates for people following the thread or mentioned in it. Deliveries to outside apps go out separately, with a limited number of retries.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/gateway.ts",
             "packages/server/src/integrations.ts"
-          ]
+          ],
+          "detail": "Gateway fans out only committed events under current visibility. Targeted follow/mention updates are coalesced, while app deliveries run through the bounded retry pump."
         }
-      ]
+      ],
+      "detail": "The same posting path handles direct sends and due schedules so persistence and live publication agree."
     },
     {
       "id": "server-interactive-app",
-      "title": "A button opens a form and the app answers safely",
-      "summary": "Short-lived capabilities tie actions to the right app/person and current access, while N08/N09 control overlapping and delayed replies.",
+      "title": "Pressing a button on an app's message",
+      "summary": "Short-lived permissions tie each button press and form to the right app and person, and to what they may see right now. Extra checks handle a form sent twice at once and replies that arrive late.",
       "steps": [
         {
-          "title": "Represent only supported controls",
-          "description": "Block Kit text/actions become bounded native text and HTTP(S) link or callback buttons. The pressed message determines the owning bot and conversation.",
+          "title": "Show only buttons Tandem supports",
+          "description": "Apps lay out their messages the way Slack apps do. The server keeps only text, buttons that open a web link and buttons that tell the app they were pressed, all within size limits. The message a button sits on decides which app and conversation the press belongs to.",
           "files": [
             "packages/server/src/blockKit.ts",
             "packages/server/src/server.ts",
             "packages/protocol/src/entities.ts"
-          ]
+          ],
+          "detail": "Block Kit text/actions become bounded native text and HTTP(S) link or callback buttons. The pressed message determines the owning bot and conversation."
         },
         {
-          "title": "Issue limited callback authority",
-          "description": "The callback receives an app-bound trigger and a response URL. Capability maps cap memory and expire permissions; outbound calls are signed, deadline-bounded and private-host-checked.",
+          "title": "Give the app short-lived permission",
+          "description": "When someone presses a button, the server tells the app and hands it two short-lived permissions, one to open a form and a reply address to update the message. These expire, and only so many can exist at once. Every call to an app is signed, has a time limit and cannot reach private computers on the host's network.",
           "files": [
             "packages/server/src/capabilities.ts",
             "packages/server/src/limits.ts",
             "packages/server/src/integrations.ts",
             "packages/server/src/outbound.ts"
-          ]
+          ],
+          "detail": "The callback receives an app-bound trigger and a response URL. Capability maps cap memory and expire permissions; outbound calls are signed, deadline-bounded and private-host-checked."
         },
         {
-          "title": "Open a form for its intended person",
-          "description": "views.open consumes one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event for the owner alone.",
+          "title": "Open the form for the right person",
+          "description": "The app uses its permission once to open a form. The server first checks that the app, its bot, the person and the channel are all still allowed. It then sends the form, with only the kinds of fields Tandem supports, to that person alone.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/blockKit.ts",
             "packages/protocol/src/events.ts"
-          ]
+          ],
+          "detail": "views.open consumes one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event for the owner alone."
         },
         {
-          "title": "Exclude simultaneous submission",
-          "description": "The server verifies form ownership, required values and select options. One modal ID may have one callback in flight; overlap receives 409 view_submitting, and finally releases exclusion for correction or deliberate retry.",
-          "files": ["packages/server/src/server.ts", "packages/protocol/src/rest.ts"]
+          "title": "Refuse a second submission at the same time",
+          "description": "When the person submits, the server checks the form is theirs, required answers are filled in and each choice comes from the list. Only one submission of a form can be on its way to the app at a time, and a second one meanwhile is refused. Once the first finishes, the person can correct their answers or try again.",
+          "files": ["packages/server/src/server.ts", "packages/protocol/src/rest.ts"],
+          "detail": "The server verifies form ownership, required values and select options. One modal ID may have one callback in flight; overlap receives 409 view_submitting, and finally releases exclusion for correction or deliberate retry."
         },
         {
-          "title": "Fence delayed mutation of the original",
-          "description": "Before replace/delete, current text/edit/actions must match the pressed revision. A disappeared or changed origin is ignored; successful updates through the same response URL advance its own expected revision.",
-          "files": ["packages/server/src/server.ts", "packages/server/src/store.ts"]
+          "title": "Ignore late changes to an old message",
+          "description": "The app may later ask to replace or delete the message whose button was pressed. The server does this only if the message still looks as it did when pressed, and ignores the request if it was changed or deleted since. Each successful update through the same reply address becomes the version the next one must match.",
+          "files": ["packages/server/src/server.ts", "packages/server/src/store.ts"],
+          "detail": "Before replace/delete, current text/edit/actions must match the pressed revision. A disappeared or changed origin is ignored; successful updates through the same response URL advance its own expected revision."
         },
         {
-          "title": "Understand the remaining retry boundary",
-          "description": "The server prevents overlap and rechecks revocation, but an endpoint may perform its business effect before a transport failure. An app should deduplicate a retried view_submission by view ID.",
+          "title": "Know what a retry can still repeat",
+          "description": "The server stops overlapping submissions and checks again that permission was not withdrawn. Still, an app may act on a submission and then lose the connection before answering. If the person tries again, the app should spot the repeat by the form's ID.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/test/integrationLifetime.test.ts"
-          ]
+          ],
+          "detail": "The server prevents overlap and rechecks revocation, but an endpoint may perform its business effect before a transport failure. An app should deduplicate a retried view_submission by view ID."
         }
-      ]
+      ],
+      "detail": "Short-lived capabilities tie actions to the right app/person and current access, while N08/N09 control overlapping and delayed replies."
     },
     {
       "id": "server-content-retention",
-      "title": "Deleting history also cleans its remaining active copies",
-      "summary": "N06/N07 and earlier retention work remove redundant words, actions and file references while preserving replay order and retry safety.",
+      "title": "Deleting messages and clearing old history",
+      "summary": "Deleting a message or clearing old history removes its words, buttons and file links from every working copy the server keeps, not just the one you see. The order of past updates stays intact, and a delayed resend cannot bring a deleted message back.",
       "steps": [
         {
-          "title": "Choose the removal",
-          "description": "Soft deletion clears one message's words/actions and associated live state. Retention chooses roots only when their newest reply is old enough and removes the whole thread within a bounded pass.",
-          "files": ["packages/server/src/store.ts", "packages/server/src/server.ts"]
+          "title": "Choose what to remove",
+          "description": "Deleting a message clears its words and buttons and anything live tied to it. If the host set history to expire, cleanup picks a thread only once its newest reply is old enough, then removes the whole thread. Each cleanup round handles a limited amount.",
+          "files": ["packages/server/src/store.ts", "packages/server/src/server.ts"],
+          "detail": "Soft deletion clears one message's words/actions and associated live state. Retention chooses roots only when their newest reply is old enough and removes the whole thread within a bounded pass."
         },
         {
-          "title": "Commit logical cleanup together",
-          "description": "A temporary ID table handles large threads without bind-count limits. Message/file references, minimal purged send keys, queued blob deletions and redacted event/delivery copies commit together.",
-          "files": ["packages/server/src/store.ts", "packages/server/src/db.ts"]
+          "title": "Clean up everything in one step",
+          "description": "The server handles even a very large thread in one go. It removes message and file links, keeps a bare record of each send code, lines up files for deletion and blanks stored copies of updates and app deliveries. It saves all of this together.",
+          "files": ["packages/server/src/store.ts", "packages/server/src/db.ts"],
+          "detail": "A temporary ID table handles large threads without bind-count limits. Message/file references, minimal purged send keys, queued blob deletions and redacted event/delivery copies commit together."
         },
         {
-          "title": "Keep sequence continuity without old content",
-          "description": "Superseded event rows stay in the ordered replay log but lose text, file metadata and button labels/values/URLs. Schema 37 repairs earlier deleted/superseded copies and sent schedules.",
+          "title": "Keep the order without the old words",
+          "description": "The server keeps a numbered list of past updates so apps can catch up in order. Updates that are out of date because the message was deleted or changed stay in that list, but lose their words, file details and button labels and links. A database upgrade also cleans copies left by earlier versions, including scheduled messages already sent.",
           "files": [
             "packages/server/src/store.ts",
             "packages/server/src/db.ts",
             "packages/protocol/src/events.ts"
-          ]
+          ],
+          "detail": "Superseded event rows stay in the ordered replay log but lose text, file metadata and button labels/values/URLs. Schema 37 repairs earlier deleted/superseded copies and sent schedules."
         },
         {
-          "title": "Tell connected clients what was removed",
-          "description": "After commit, message.deleted or history.removed reaches authorized sockets. Whole-thread root IDs let clients invalidate evicted root/reply caches and pending attachment transfers.",
+          "title": "Tell connected people what was removed",
+          "description": "Once saved, the server tells everyone allowed to see it that a message was deleted or that history was cleared. For a whole thread it names the thread, so each person's app drops its saved copies of the thread and its replies and stops any file transfers for them.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/gateway.ts",
             "packages/protocol/src/events.ts"
-          ]
+          ],
+          "detail": "After commit, message.deleted or history.removed reaches authorized sockets. Whole-thread root IDs let clients invalidate evicted root/reply caches and pending attachment transfers."
         },
         {
-          "title": "Remove bytes with retryable ownership",
-          "description": "The file pump deletes bounded pages and releases storage accounting only after success. Retry delay and rejected rows let healthy removals proceed while failures remain visible.",
+          "title": "Delete the files, retrying when needed",
+          "description": "A background job deletes the files a few at a time, and counts storage space as freed only once a file is gone. It tries a failed file again after a wait and keeps the failure visible, while the other files go ahead.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/store.ts",
             "packages/server/src/storageBudget.ts"
-          ]
+          ],
+          "detail": "The file pump deletes bounded pages and releases storage accounting only after success. Retry delay and rejected rows let healthy removals proceed while failures remain visible."
         },
         {
-          "title": "Respect the scope of cleanup",
-          "description": "Active database copies are cleaned. Historical backups, freed storage blocks and payloads already delivered to external apps are not recalled or securely erased by these operations.",
-          "files": ["packages/server/src/store.ts", "packages/server/src/db.ts"]
+          "title": "Know what cleanup does not reach",
+          "description": "These steps clean the copies in the working database. They do not remove the content from older backups, securely wipe space the database freed on disk, or recall what was already sent to outside apps.",
+          "files": ["packages/server/src/store.ts", "packages/server/src/db.ts"],
+          "detail": "Active database copies are cleaned. Historical backups, freed storage blocks and payloads already delivered to external apps are not recalled or securely erased by these operations."
         }
-      ]
+      ],
+      "detail": "N06/N07 and earlier retention work remove redundant words, actions and file references while preserving replay order and retry safety."
     },
     {
       "id": "server-backup-restore",
-      "title": "A verified snapshot becomes a restored workspace",
-      "summary": "Backups are staged and validated before publication; restore preserves the original but has a documented Q01 admission gap during folder replacement.",
+      "title": "Backing up and restoring a workspace",
+      "summary": "A backup is built and checked in full before it counts as a backup. Restoring keeps the original workspace, but a known gap remains while the folders swap.",
       "steps": [
         {
-          "title": "Capture a consistent database",
-          "description": "VACUUM INTO reads committed SQLite/WAL state; snapshot file inventory identifies required blobs. Missing concurrent-deleted blobs fail capture, so stopped-server capture is the way to guarantee completeness.",
-          "files": ["packages/server/src/backup.ts"]
+          "title": "Copy the database at one moment",
+          "description": "The server copies its database as it stands, including the most recent saves, and lists the uploaded files the backup needs. If a file is deleted while the backup runs, the backup fails. To be sure a backup is complete, take it while the server is stopped.",
+          "files": ["packages/server/src/backup.ts"],
+          "detail": "VACUUM INTO reads committed SQLite/WAL state; snapshot file inventory identifies required blobs. Missing concurrent-deleted blobs fail capture, so stopped-server capture is the way to guarantee completeness."
         },
         {
-          "title": "Verify contents before publishing",
-          "description": "Staged database and files must match checksums/sizes, schema/counts, integrity and references, with no manifest duplicates or path escape. Only then is the complete capture renamed to its destination.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/db.ts"]
+          "title": "Check the backup before keeping it",
+          "description": "The copied database and files must match their recorded sizes and fingerprints, the expected layout and counts, and the database's own health check. Every file reference must be valid, with nothing listed twice and nothing pointing outside the backup. Only then does the server move the finished backup to its final place.",
+          "files": ["packages/server/src/backup.ts", "packages/server/src/db.ts"],
+          "detail": "Staged database and files must match checksums/sizes, schema/counts, integrity and references, with no manifest duplicates or path escape. Only then is the complete capture renamed to its destination."
         },
         {
-          "title": "Inspect effects before starting a copy",
-          "description": "Read-only inventory reports app destinations, queued schedules, undelivered callbacks and surviving sessions. Isolated mode blocks app calls and schedule delivery while inspecting a restored copy.",
+          "title": "See what a restored copy would do",
+          "description": "Without changing anything, the host can list which outside apps a restored copy would contact, which scheduled messages are waiting, which app calls never went out and which sign-ins still work. A separate isolated mode runs the copy without calling apps or sending scheduled messages, so it can be looked at safely.",
           "files": [
             "packages/server/src/backup.ts",
             "packages/server/src/main.ts",
             "packages/server/src/server.ts"
-          ]
+          ],
+          "detail": "Read-only inventory reports app destinations, queued schedules, undelivered callbacks and surviving sessions. Isolated mode blocks app calls and schedule delivery while inspecting a restored copy."
         },
         {
-          "title": "Stage replacement while the original is held",
-          "description": "Restore refuses an already held workspace, copies the verified backup beside the target and verifies staged bytes. The old workspace is moved to a superseded folder for recovery.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"]
+          "title": "Prepare the restore beside the original",
+          "description": "Restore refuses to start if a server is using the workspace. It copies the checked backup next to the workspace folder and checks the copy again. The old workspace moves to a set-aside folder so it can still be recovered.",
+          "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"],
+          "detail": "Restore refuses an already held workspace, copies the verified backup beside the target and verifies staged bytes. The old workspace is moved to a superseded folder for recovery."
         },
         {
-          "title": "OPEN Q01: protect the publication interval",
-          "description": "Current Windows code releases its hold to rename the folder. A concurrent server can create a fresh target during that gap; failed publication then cannot roll back over the new target. The original survives aside. A stable admission identity outside the renamed folder is proposed follow-up, not implemented here.",
-          "files": ["packages/server/src/backup.ts"]
+          "title": "Another server can slip in while folders swap",
+          "description": "On Windows, restore briefly lets go of the workspace to rename its folder, and a server started in that moment can create a new workspace there. The restore then cannot roll back, though the original stays safe in the set-aside folder. Keeping hold through the swap is a proposed fix, not yet built.",
+          "files": ["packages/server/src/backup.ts"],
+          "detail": "Current Windows code releases its hold to rename the folder. A concurrent server can create a fresh target during that gap; failed publication then cannot roll back over the new target. The original survives aside. A stable admission identity outside the renamed folder is proposed follow-up, not implemented here."
         },
         {
-          "title": "Open restored data under normal version rules",
-          "description": "A subsequent server opens with the exclusive writer hold and atomic migrations, taking pre-upgrade copies when needed. Local host settings such as public URL, retention and ICE configuration must be applied separately.",
+          "title": "Start the restored workspace as usual",
+          "description": "The next server to start takes sole hold of the restored workspace and upgrades its database if needed, keeping a copy from before the upgrade. The host applies settings that belong to the computer separately, such as the public address, how long history is kept and call connection settings.",
           "files": [
             "packages/server/src/ownership.ts",
             "packages/server/src/db.ts",
             "packages/server/src/config.ts",
             "packages/server/src/server.ts"
-          ]
+          ],
+          "detail": "A subsequent server opens with the exclusive writer hold and atomic migrations, taking pre-upgrade copies when needed. Local host settings such as public URL, retention and ICE configuration must be applied separately."
         }
-      ]
+      ],
+      "detail": "Backups are staged and validated before publication; restore preserves the original but has a documented Q01 admission gap during folder replacement."
     }
   ]
 }

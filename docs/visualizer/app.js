@@ -10,30 +10,30 @@
   // Eleven areas fold into six layers so colour can carry identity: the chart
   // palette is validated for five hues plus a neutral, not for eleven.
   const layers = [
-    { id: "interface", title: "Interface", areas: ["ui", "web"] },
-    { id: "client", title: "Client", areas: ["client-core"] },
-    { id: "contract", title: "Contract", areas: ["protocol"] },
+    { id: "interface", title: "Screens", areas: ["ui", "web"] },
+    { id: "client", title: "App engine", areas: ["client-core"] },
+    { id: "contract", title: "Shared rules", areas: ["protocol"] },
     { id: "server", title: "Server", areas: ["server", "server-cli"] },
-    { id: "desktop", title: "Desktop", areas: ["desktop"] },
-    { id: "support", title: "Support", areas: ["tooling", "docs", "root", "visualizer"] },
+    { id: "desktop", title: "Desktop app", areas: ["desktop"] },
+    { id: "support", title: "Tools and docs", areas: ["tooling", "docs", "root", "visualizer"] },
   ];
   const layerOf = (area) => layers.find((layer) => layer.areas.includes(area)) ?? layers[5];
   const layerById = (id) => layers.find((layer) => layer.id === id);
   const areaInfo = (id) => guide.areas.find((area) => area.id === id);
   const areaTitle = (id) => areaInfo(id)?.title ?? id;
   const kinds = {
-    runtime: "Source",
-    test: "Tests",
+    runtime: "Code",
+    test: "Test",
     documentation: "Docs",
-    configuration: "Config",
-    tooling: "Tooling",
-    asset: "Assets",
+    configuration: "Settings",
+    tooling: "Build script",
+    asset: "Image or font",
   };
   // Listed in the order the improvements page groups them: open work first.
   const statuses = {
-    "follow-up": { label: "Open", icon: "circle" },
-    measured: { label: "Measured", icon: "gauge" },
-    implemented: { label: "Implemented", icon: "check" },
+    "follow-up": { label: "Still open", icon: "circle" },
+    measured: { label: "Done and measured", icon: "gauge" },
+    implemented: { label: "Done", icon: "check" },
   };
   const views = {
     overview: { label: "Overview", icon: "map" },
@@ -42,7 +42,21 @@
     improvements: { label: "Improvements", icon: "spark" },
     evidence: { label: "Scope & limits", icon: "scale" },
   };
-  const flowGroups = { client: "Client", server: "Server", desktop: "Desktop" };
+  const flowGroups = {
+    client: "In the app",
+    server: "On the server",
+    desktop: "In the desktop app",
+  };
+  // Improvement categories, named for people rather than for the code.
+  const categoryNames = {
+    performance: "Speed",
+    reliability: "Reliability",
+    privacy: "Privacy",
+    resources: "Memory and disk",
+    tooling: "Build tools",
+    measurement: "Measuring",
+  };
+  const categoryName = (category) => categoryNames[category] ?? category;
   const store = {
     get(key, fallback) {
       try {
@@ -180,6 +194,9 @@
     `<span class="status-mark status-${escape(status)}" title="${statuses[status].label}">${icon(statuses[status].icon)}<span class="sr-only">${statuses[status].label}: </span></span>`;
   const empty = (title, text, action = "") =>
     `<div class="empty"><h3>${escape(title)}</h3><p>${escape(text)}</p>${action}</div>`;
+  // The technical version of something said in plain words, one click below it.
+  const inCode = (body, note = "", open = false, label = "In the code") =>
+    `<details class="in-code" ${open ? "open" : ""}><summary>${escape(label)}${note ? `<small>${escape(note)}</small>` : ""}</summary><div class="in-code-body">${body}</div></details>`;
   const pageHead = (title, intro, aside = "") =>
     `<header class="page-head"><div><h1>${escape(title)}</h1><p>${escape(intro)}</p></div>${aside}</header>`;
 
@@ -203,6 +220,14 @@
     }
     return counts;
   };
+  // The layer doing most of the work in a step. A tie goes to the layer nearer the screen.
+  const primaryLayer = (counts) =>
+    [...counts.entries()].sort(
+      (a, b) =>
+        b[1] - a[1] ||
+        layers.findIndex((layer) => layer.id === a[0]) -
+          layers.findIndex((layer) => layer.id === b[0]),
+    )[0]?.[0];
   const metricChange = (metric) => {
     const before = Number(metric.before);
     const after = Number(metric.after);
@@ -248,7 +273,7 @@
   function applyTheme(theme) {
     root.dataset.theme = theme;
     const next = { system: "dark", dark: "light", light: "system" }[theme];
-    const names = { system: "Theme follows your device", dark: "Onyx theme", light: "White theme" };
+    const names = { system: "Theme follows your device", dark: "Dark theme", light: "Light theme" };
     const button = document.getElementById("theme-button");
     button.innerHTML = icon(theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor");
     button.setAttribute(
@@ -277,48 +302,291 @@
   }
 
   // ---------- overview ----------
-  function archNode(name, role, path, area, extra = "") {
-    const count = files.filter((file) => file.area === area).length;
-    return `<a class="arch-node ${extra}" href="${escape(href(path))}" ${layerStyle(area)}><strong>${escape(name)}</strong><span>${escape(role)}</span><code>${escape(path.replace(/\/src\/.+$/, ""))}</code><small>${number(count)} files</small></a>`;
+  // The map tells the story of a request, one node per area, and every file is
+  // a dot in its node. A wire with a number is imports, counted from the source
+  // with tests left out. A dotted wire happens at runtime, where no import says
+  // so. Each wire names the side it leaves by and the side it arrives at.
+  const mapNodes = [
+    { area: "web", name: "Web version", role: "Opens Tandem in any web browser" },
+    { area: "desktop", name: "Desktop app", role: "The app for your computer. It can also host" },
+    { area: "ui", name: "Screens", role: "Everything you see and click" },
+    {
+      area: "client-core",
+      name: "App engine",
+      role: "Your copy of the workspace, unsent messages, calls",
+    },
+    { area: "protocol", name: "Shared rules", role: "What both sides agree a message looks like" },
+    { area: "server", name: "Server", role: "Accounts, messages, files, connected apps" },
+    { area: "server-cli", name: "Server on its own", role: "The server without the desktop app" },
+  ];
+  const mapWires = [
+    { from: "web", to: "ui", out: "right", into: "left" },
+    { from: "desktop", to: "ui", out: "right", into: "left" },
+    { from: "ui", to: "client-core", out: "right", into: "left" },
+    { from: "ui", to: "protocol", out: "top", into: "left" },
+    { from: "client-core", to: "protocol", out: "top", into: "bottom" },
+    { from: "server", to: "protocol", out: "top", into: "right" },
+    {
+      from: "client-core",
+      to: "server",
+      out: "right",
+      into: "left",
+      runtime: "over the network",
+      verb: "Talks over the network to",
+    },
+    { from: "desktop", to: "server", out: "right", into: "bottom" },
+    {
+      from: "server-cli",
+      to: "server",
+      out: "left",
+      into: "top",
+      runtime: "packs up",
+      verb: "Packs up",
+    },
+    {
+      from: "server",
+      to: "store",
+      out: "right",
+      into: "left",
+      runtime: "saves to",
+      verb: "Saves to",
+    },
+  ];
+  const supportAreas = layers[5].areas;
+  const mapName = (id) =>
+    id === "store" ? "the workspace folder" : mapNodes.find((node) => node.area === id).name;
+  const countFiles = (count) => `${count} ${count === 1 ? "file" : "files"}`;
+  // Files in one area that import a file in another, tests left out.
+  const importCount = (from, to) => {
+    let count = 0;
+    for (const file of files) {
+      if (file.area !== from || file.kind === "test") continue;
+      const seen = new Set();
+      for (const dependency of file.imports) {
+        const target = dependency.path && byPath.get(dependency.path);
+        if (!target || target.area !== to || seen.has(target.path)) continue;
+        seen.add(target.path);
+        count += 1;
+      }
+    }
+    return count;
+  };
+  const wireCounts = new Map(
+    mapWires.map((wire) => [wire, wire.runtime ? 0 : importCount(wire.from, wire.to)]),
+  );
+  // Source first, then tests, then everything else, so a node shows its make-up.
+  const dotKind = (file) =>
+    file.kind === "runtime" || file.kind === "tooling"
+      ? "source"
+      : file.kind === "test"
+        ? "test"
+        : "other";
+  const dotRank = { source: 0, test: 1, other: 2 };
+  function dots(members) {
+    return `<div class="dots" aria-hidden="true">${[...members]
+      .sort((a, b) => dotRank[dotKind(a)] - dotRank[dotKind(b)] || a.path.localeCompare(b.path))
+      .map(
+        (file) =>
+          `<a class="d k-${dotKind(file)}" tabindex="-1" href="${escape(href(file.path))}" data-file="${escape(file.path)}"></a>`,
+      )
+      .join("")}</div>`;
   }
-  function architecture() {
-    return `<figure class="arch" aria-label="How Tandem's layers connect">
-      <div class="arch-row arch-two">
-        ${archNode("Browser", "Opens a workspace from any computer", "apps/web/src/main.tsx", "web")}
-        ${archNode("Desktop", "Electron app that can also host", "apps/desktop/src/main/index.ts", "desktop")}
+  // The wires leaving a node, as sentences: what it imports, then what it does at runtime.
+  function mapRelations(area) {
+    const leaving = mapWires.filter((wire) => wire.from === area);
+    const sentences = [
+      ...leaving
+        .filter((wire) => !wire.runtime)
+        .map((wire) => `${countFiles(wireCounts.get(wire))} here use ${mapName(wire.to)}.`),
+      ...leaving.filter((wire) => wire.runtime).map((wire) => `${wire.verb} ${mapName(wire.to)}.`),
+    ];
+    return sentences.length ? `<p class="map-rel">${escape(sentences.join(" "))}</p>` : "";
+  }
+  // How many files a node holds, and how many of them are tests: the rings.
+  const fileCount = (members) => {
+    const tests = members.filter((file) => file.kind === "test").length;
+    return `<small class="map-count">${number(members.length)} files${tests ? `, ${number(tests)} tests` : ""}</small>`;
+  };
+  function atlasMap() {
+    const node = ({ area, name, role }) => {
+      const members = files.filter((file) => file.area === area);
+      return `<article class="map-node" data-node="${area}" style="--c: var(--layer-${layerOf(area).id}); grid-area: n-${area}">
+        <a class="map-node-head" href="${escape(href(areaInfo(area).entry))}"><strong><span class="dot" aria-hidden="true"></span>${escape(name)}</strong><span>${escape(role)}</span></a>
+        ${dots(members)}${fileCount(members)}${mapRelations(area)}
+      </article>`;
+    };
+    const support = files.filter((file) => supportAreas.includes(file.area));
+    return `<figure class="atlas-map" id="atlas-map" aria-label="How Tandem's areas connect, with a dot for every file">
+      <div class="map-grid" id="map-grid">
+        <svg class="map-wires" id="map-wires" aria-hidden="true"></svg>
+        ${mapNodes.map(node).join("")}
+        <a class="map-node map-store" data-node="store" href="${escape(href("packages/server/src/store.ts"))}" style="--c: var(--layer-server); grid-area: n-store"><strong>Workspace folder</strong><span>Saved messages, uploaded files and backups</span></a>
+        <article class="map-node map-support" data-node="support" style="--c: var(--layer-support); grid-area: n-support">
+          <a class="map-node-head" href="#files?layer=support"><strong><span class="dot" aria-hidden="true"></span>Tools and docs</strong><span>Build scripts, settings, guides and this atlas</span></a>
+          ${dots(support)}${fileCount(support)}
+        </article>
+        <div class="dot-tip" id="dot-tip" hidden></div>
       </div>
-      <div class="arch-link"><span>both render the same interface</span></div>
-      ${archNode("Interface", "React screens, rows and dialogs", "packages/ui/src/App.tsx", "ui")}
-      <div class="arch-link short"></div>
-      ${archNode("Client replica", "Local state, drafts, outbox, calls", "packages/client-core/src/workspace.ts", "client-core")}
-      <div class="arch-wire">
-        <div class="arch-link"><span>HTTP and ordered WebSocket events</span></div>
-        ${archNode("Protocol", "Types and permissions both sides share", "packages/protocol/src/index.ts", "protocol", "arch-contract")}
-      </div>
-      <div class="arch-row arch-server">
-        ${archNode("Workspace server", "Accounts, messages, events, apps", "packages/server/src/server.ts", "server")}
-        ${archNode("Standalone host", "The server without the desktop app", "apps/server-cli/src/main.ts", "server-cli", "arch-minor")}
-      </div>
-      <div class="arch-link short"></div>
-      <a class="arch-store" href="${escape(href("packages/server/src/store.ts"))}" ${layerStyle("server")}><strong>One workspace folder</strong><span>SQLite database, uploaded files and backups</span></a>
+      <figcaption class="map-legend" aria-hidden="true">
+        <span><i class="d k-source"></i>Code</span>
+        <span><i class="d k-test"></i>Test that checks the code</span>
+        <span><i class="d k-other"></i>Settings, docs and images</span>
+        <span class="legend-wire"><i class="wire-sample"></i>A number counts the files in one part that use another, tests left out</span>
+        <span class="legend-wire"><i class="wire-sample runtime"></i>Connects while Tandem runs</span>
+      </figcaption>
     </figure>`;
   }
-  // One section answers both "how big is each layer" and "what lives in it": the
-  // bar gives the proportions, each row names the layer's areas.
+  // Where a wire meets a node: ports share a side evenly, ordered by where
+  // their other ends are, so two wires from one side do not cross.
+  function drawMap(animate = false) {
+    const grid = document.getElementById("map-grid");
+    const svg = document.getElementById("map-wires");
+    if (!grid || !svg) return;
+    grid.querySelectorAll(".wire-label").forEach((label) => label.remove());
+    if (getComputedStyle(svg).display === "none") {
+      svg.innerHTML = "";
+      return;
+    }
+    const box = grid.getBoundingClientRect();
+    svg.setAttribute("viewBox", `0 0 ${box.width} ${box.height}`);
+    const rects = new Map(
+      [...grid.querySelectorAll("[data-node]")].map((element) => {
+        const rect = element.getBoundingClientRect();
+        return [
+          element.dataset.node,
+          {
+            left: rect.left - box.left,
+            right: rect.right - box.left,
+            top: rect.top - box.top,
+            bottom: rect.bottom - box.top,
+            x: rect.left - box.left + rect.width / 2,
+            y: rect.top - box.top + rect.height / 2,
+          },
+        ];
+      }),
+    );
+    const ports = new Map();
+    const claim = (id, side, wire, other) => {
+      const key = `${id}:${side}`;
+      if (!ports.has(key)) ports.set(key, []);
+      ports.get(key).push({ wire, other });
+    };
+    for (const wire of mapWires) {
+      claim(wire.from, wire.out, wire, wire.to);
+      claim(wire.to, wire.into, wire, wire.from);
+    }
+    const point = (id, side, wire) => {
+      const rect = rects.get(id);
+      const vertical = side === "left" || side === "right";
+      const sharing = ports
+        .get(`${id}:${side}`)
+        .slice()
+        .sort((a, b) =>
+          vertical
+            ? rects.get(a.other).y - rects.get(b.other).y
+            : rects.get(a.other).x - rects.get(b.other).x,
+        );
+      const share = (sharing.findIndex((port) => port.wire === wire) + 1) / (sharing.length + 1);
+      return vertical
+        ? {
+            x: side === "left" ? rect.left : rect.right,
+            y: rect.top + (rect.bottom - rect.top) * share,
+            dx: side === "left" ? -1 : 1,
+            dy: 0,
+          }
+        : {
+            x: rect.left + (rect.right - rect.left) * share,
+            y: side === "top" ? rect.top : rect.bottom,
+            dx: 0,
+            dy: side === "top" ? -1 : 1,
+          };
+    };
+    const colour = (id) => `var(--layer-${id === "store" ? "server" : layerOf(id).id})`;
+    const mid = (p0, p1, p2, p3) => 0.125 * p0 + 0.375 * p1 + 0.375 * p2 + 0.125 * p3;
+    let defs = "";
+    let lines = "";
+    let ends = "";
+    mapWires.forEach((wire, index) => {
+      const a = point(wire.from, wire.out, wire);
+      const b = point(wire.to, wire.into, wire);
+      const reach = Math.max(28, Math.min(120, Math.hypot(b.x - a.x, b.y - a.y) * 0.45));
+      const c1 = { x: a.x + a.dx * reach, y: a.y + a.dy * reach };
+      const c2 = { x: b.x + b.dx * reach, y: b.y + b.dy * reach };
+      const d = `M${a.x.toFixed(1)} ${a.y.toFixed(1)} C${c1.x.toFixed(1)} ${c1.y.toFixed(1)} ${c2.x.toFixed(1)} ${c2.y.toFixed(1)} ${b.x.toFixed(1)} ${b.y.toFixed(1)}`;
+      const count = wireCounts.get(wire);
+      const width = wire.runtime ? 2.2 : 1.6 + Math.log2(count + 1) * 0.55;
+      defs += `<linearGradient id="wire-${index}" gradientUnits="userSpaceOnUse" x1="${a.x.toFixed(1)}" y1="${a.y.toFixed(1)}" x2="${b.x.toFixed(1)}" y2="${b.y.toFixed(1)}"><stop offset="0" style="stop-color: ${colour(wire.from)}"/><stop offset="1" style="stop-color: ${colour(wire.to)}"/></linearGradient>`;
+      const attrs = `data-from="${wire.from}" data-to="${wire.to}"`;
+      lines += wire.runtime
+        ? `<path class="wire runtime" ${attrs} d="${d}" stroke="url(#wire-${index})" stroke-width="${width}"/>`
+        : `<path class="wire-glow" ${attrs} d="${d}" stroke="url(#wire-${index})" stroke-width="${(width + 7).toFixed(2)}"/><path class="wire" ${attrs} d="${d}" pathLength="1" stroke="url(#wire-${index})" stroke-width="${width.toFixed(2)}"/>`;
+      ends += `<circle class="port" ${attrs} cx="${a.x.toFixed(1)}" cy="${a.y.toFixed(1)}" r="4" style="fill: ${colour(wire.from)}"/><circle class="port" ${attrs} cx="${b.x.toFixed(1)}" cy="${b.y.toFixed(1)}" r="4" style="fill: ${colour(wire.to)}"/>`;
+      // The label sits at the middle of the curve.
+      const label = document.createElement("span");
+      label.className = `wire-label${wire.runtime ? " runtime" : ""}`;
+      label.dataset.from = wire.from;
+      label.dataset.to = wire.to;
+      label.textContent = wire.runtime ?? String(count);
+      label.style.left = `${mid(a.x, c1.x, c2.x, b.x).toFixed(1)}px`;
+      label.style.top = `${mid(a.y, c1.y, c2.y, b.y).toFixed(1)}px`;
+      grid.append(label);
+    });
+    svg.innerHTML = `<defs>${defs}</defs>${lines}${ends}`;
+    svg.classList.toggle("draw-in", animate);
+  }
+  // Pointing at a node lights its own wires and quietens the rest.
+  function focusMap(id) {
+    const grid = document.getElementById("map-grid");
+    if (!grid) return;
+    const wired = mapWires.some((wire) => wire.from === id || wire.to === id);
+    grid.classList.toggle("focused", wired);
+    grid
+      .querySelectorAll("[data-from]")
+      .forEach((element) =>
+        element.classList.toggle(
+          "lit",
+          wired && (element.dataset.from === id || element.dataset.to === id),
+        ),
+      );
+  }
+  // A tip sits above the mark it names, inside the mark's container, and
+  // below the mark when there is no room above.
+  function placeTip(tip, container, mark) {
+    tip.hidden = false;
+    const box = container.getBoundingClientRect();
+    const rect = mark.getBoundingClientRect();
+    const half = tip.offsetWidth / 2;
+    const x = Math.max(
+      half + 6,
+      Math.min(box.width - half - 6, rect.left - box.left + rect.width / 2),
+    );
+    const above = rect.top - box.top - tip.offsetHeight - 8;
+    tip.style.left = `${x}px`;
+    tip.style.top = `${above < 4 ? rect.bottom - box.top + 8 : above}px`;
+  }
+  function showDotTip(dot) {
+    const tip = document.getElementById("dot-tip");
+    const grid = document.getElementById("map-grid");
+    if (!tip || !grid) return;
+    const file = dot && byPath.get(dot.dataset.file);
+    if (!file) {
+      tip.hidden = true;
+      return;
+    }
+    tip.innerHTML = `<strong>${escape(base(file.path))}</strong>${file.plain ? `<em>${escape(file.plain)}</em>` : ""}<small>${escape(kinds[file.kind])}, ${number(file.lines)} lines</small>`;
+    placeTip(tip, grid, dot);
+  }
+  // One row per layer: its share of the lines as a thin bar, then the areas in
+  // it, each opening on the file to read first.
   function layersSection() {
     const total = layerStats.reduce((sum, stat) => sum + stat.lines, 0);
     return `<section class="section" aria-labelledby="layers-title">
-      <div class="section-head"><h2 id="layers-title">What each layer holds</h2><p>${number(total)} lines across ${number(files.length)} files. Each area opens on the file to read first.</p></div>
-      <div class="stack">${layerStats
-        .map(
-          (stat) =>
-            `<a class="stack-part" href="#files?layer=${stat.layer.id}" style="--c: var(--layer-${stat.layer.id}); flex-grow: ${stat.lines}" aria-label="${escape(`${stat.layer.title}: ${Math.round((100 * stat.lines) / total)}% of lines. List its files`)}" data-tip="${escape(`${stat.layer.title}: ${number(stat.lines)} lines in ${number(stat.files)} files`)}"><span>${Math.round((100 * stat.lines) / total)}%</span></a>`,
-        )
-        .join("")}</div>
-      <div class="layer-groups">${layerStats
+      <div class="section-head"><h2 id="layers-title">What each part does</h2><p>${number(total)} lines of code in ${number(files.length)} files. Click a part to open the file to start with.</p></div>
+      <div class="layer-table">${layerStats
         .map(({ layer, files: count, lines }) => {
           const areas = guide.areas.filter((area) => layer.areas.includes(area.id));
-          return `<div class="layer-group" style="--c: var(--layer-${layer.id})"><h3><a href="#files?layer=${layer.id}"><span class="dot" aria-hidden="true"></span>${escape(layer.title)}</a><small>${number(count)} files, ${number(lines)} lines</small></h3><ul>${areas
+          const share = (100 * lines) / total;
+          return `<div class="layer-row" style="--c: var(--layer-${layer.id})"><div class="layer-key"><h3><a href="#files?layer=${layer.id}"><span class="dot" aria-hidden="true"></span>${escape(layer.title)}</a></h3><div class="share"><span class="share-bar" aria-hidden="true"><span style="width: ${share.toFixed(2)}%"></span></span><b>${Math.round(share)}%<span class="sr-only"> of lines</span></b></div><small>${number(count)} files, ${number(lines)} lines</small></div><ul>${areas
             .map(
               (area) =>
                 `<li><a href="${escape(href(area.entry))}"><span class="area-name">${escape(area.title)}</span><span class="area-summary">${escape(area.summary)}</span></a></li>`,
@@ -328,28 +596,40 @@
         .join("")}</div>
     </section>`;
   }
+  // A journey drawn small: one point per step, on the row of the layer doing
+  // most of the work in it.
+  function routeGlyph(flow) {
+    const primary = flow.steps.map((step) => primaryLayer(stepLayers(step)));
+    const used = layers.filter((layer) => primary.includes(layer.id));
+    const width = 88;
+    const height = 28;
+    const x = (index) =>
+      flow.steps.length === 1 ? width / 2 : 6 + (index * (width - 12)) / (flow.steps.length - 1);
+    const y = (layerId) => {
+      const row = used.findIndex((layer) => layer.id === layerId);
+      return used.length === 1 ? height / 2 : 6 + (row * (height - 12)) / (used.length - 1);
+    };
+    const points = primary
+      .map((layerId, index) => (layerId ? [x(index), y(layerId), layerId] : null))
+      .filter(Boolean);
+    return `<svg class="route-glyph" viewBox="0 0 ${width} ${height}" width="${width}" height="${height}" aria-hidden="true"><path d="${points.map(([px, py], index) => `${index ? "L" : "M"}${px.toFixed(1)} ${py.toFixed(1)}`).join(" ")}"/>${points.map(([px, py, layerId]) => `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="3.2" style="fill: var(--layer-${layerId})"/>`).join("")}</svg>`;
+  }
   function overview() {
-    const firstFlows = [
-      flows[0],
-      flows.find((flow) => flow.area === "server"),
-      flows.find((flow) => flow.area === "desktop"),
-    ].filter(Boolean);
     return `<div class="page overview">
       <section class="hero">
+        <h1>${escape(guide.title)}</h1>
         <div class="hero-copy">
-          <p class="hero-kicker">Tandem, explained from the source</p>
-          <h1>${escape(guide.title)}</h1>
           <p class="hero-intro">${escape(guide.intro)}</p>
           <div class="hero-actions">
-            <a class="button primary" href="#flows">Follow a request through the code</a>
+            <a class="button primary" href="#flows">See how a message travels</a>
             <a class="button" href="#files">Browse the files</a>
           </div>
         </div>
-        ${architecture()}
       </section>
+      ${atlasMap()}
       ${layersSection()}
       <section class="section" aria-labelledby="principles-title">
-        <div class="section-head"><h2 id="principles-title">The rules the code keeps</h2><p>Four ideas that explain most of the design decisions.</p></div>
+        <div class="section-head"><h2 id="principles-title">Four ideas behind the design</h2><p>They explain most of the choices in the code.</p></div>
         <div class="principles">${guide.principles
           .map(
             (principle) =>
@@ -358,15 +638,19 @@
           .join("")}</div>
       </section>
       <section class="section" aria-labelledby="start-title">
-        <div class="section-head"><h2 id="start-title">Start with a journey</h2><p>${flows.length} walkthroughs follow one action from the click to the database and back.</p></div>
-        <div class="journey-teasers">${firstFlows
+        <div class="section-head"><h2 id="start-title">Follow one action through Tandem</h2><p>${flows.length} everyday actions. Each line shows which parts of Tandem do the work, step by step.</p></div>
+        <div class="routes">${Object.entries(flowGroups)
           .map(
-            (flow) =>
-              `<a class="journey-teaser" href="#flows?id=${encodeURIComponent(flow.id)}"><span class="teaser-group">${escape(flowGroups[flow.area] ?? flow.area)}</span><strong>${escape(flow.title)}</strong><span>${escape(flow.summary)}</span><span class="teaser-meta">${flow.steps.length} steps, ${flowFiles(flow).length} files</span></a>`,
+            ([area, title]) =>
+              `<div class="route-group"><h3>${title}</h3>${flows
+                .filter((flow) => flow.area === area)
+                .map(
+                  (flow) =>
+                    `<a class="route" href="#flows?id=${encodeURIComponent(flow.id)}">${routeGlyph(flow)}<strong>${escape(flow.title)}</strong><small>${flow.steps.length} steps, ${flowFiles(flow).length} files</small></a>`,
+                )
+                .join("")}</div>`,
           )
-          .join(
-            "",
-          )}<a class="journey-teaser more" href="#flows"><strong>All ${flows.length} journeys</strong><span>Sign-in, sending, reconnecting, huddles, apps, backups, the desktop host and the release pipeline.</span></a></div>
+          .join("")}</div>
       </section>
     </div>`;
   }
@@ -502,9 +786,9 @@
     const recent = store.get("recent", []).filter((path) => byPath.has(path));
     return `<div class="files-home">
       <h1>Pick a file, or search for one</h1>
-      <p>The tree on the left holds every tracked file. Type in its filter to narrow it, or press <kbd>/</kbd> to search names, declarations and journeys together.</p>
+      <p>The list on the left has every file in the project. Type in its filter to narrow it, or press <kbd>/</kbd> to search file names, code and journeys together.</p>
       ${recent.length ? `<h2>Opened recently</h2>${fileRefs(recent)}` : ""}
-      <h2>Good first files</h2>
+      <h2>Good places to start</h2>
       <div class="first-files">${guide.areas
         .map(
           (area) =>
@@ -517,8 +801,8 @@
     const local = file.imports.filter((dependency) => dependency.path);
     const tabs = [
       ["explain", "About"],
-      ["source", file.source === null ? "Preview" : "Source"],
-      ["symbols", `Declarations${file.symbols.length ? ` <b>${file.symbols.length}</b>` : ""}`],
+      ["source", file.source === null ? "Preview" : "Code"],
+      ["symbols", `What's inside${file.symbols.length ? ` <b>${file.symbols.length}</b>` : ""}`],
       [
         "connections",
         `Connections${local.length + file.usedBy.length ? ` <b>${new Set(local.map((dependency) => dependency.path)).size + file.usedBy.length}</b>` : ""}`,
@@ -538,7 +822,7 @@
           <a class="icon-button" href="${escape(`${meta.repository}/blob/${meta.revision}/${file.path}`)}" target="_blank" rel="noopener noreferrer" aria-label="Open on GitHub" title="Open on GitHub">${icon("external")}</a>
         </div>
       </div>
-      <div class="file-facts"><span class="fact-layer"><span class="dot" aria-hidden="true"></span>${escape(areaTitle(file.area))}</span><span>${escape(kinds[file.kind] ?? file.kind)}</span>${file.source !== null ? `<span>${number(file.lines)} lines</span>` : ""}<span>${size(file.bytes)}</span>${file.curated ? `<span class="fact-reviewed">${icon("check")}Reviewed explanation</span>` : ""}</div>
+      <div class="file-facts"><span class="fact-layer"><span class="dot" aria-hidden="true"></span>${escape(areaTitle(file.area))}</span><span>${escape(kinds[file.kind] ?? file.kind)}</span>${file.source !== null ? `<span>${number(file.lines)} lines</span>` : ""}<span>${size(file.bytes)}</span>${file.curated ? `<span class="fact-reviewed">${icon("check")}Explanation checked by a person</span>` : ""}</div>
       <nav class="tabs" aria-label="File views">${tabs
         .map(
           ([key, label]) =>
@@ -566,9 +850,9 @@
       .slice(0, 10);
     const cases = file.checks.filter((check) => !check.group);
     return `<div class="explain">
-      <p class="lead">${escape(file.summary)}</p>
-      ${file.curated ? "" : `<p class="note">This description is generated from the file's structure. Runtime files carry a reviewed explanation; this one is ${escape((kinds[file.kind] ?? file.kind).toLowerCase())}.</p>`}
-      <div class="prose">${file.details.map((detail) => `<p>${escape(detail)}</p>`).join("")}</div>
+      <p class="lead">${escape(file.plain ?? file.summary)}</p>
+      ${file.curated ? "" : `<p class="note">Nobody has written an explanation for this file, so this one comes from its contents.</p>`}
+      <div class="prose">${file.plain ? `<h2 class="prose-label">In the code</h2><p>${escape(file.summary)}</p>` : ""}${file.details.map((detail) => `<p>${escape(detail)}</p>`).join("")}</div>
       ${
         keySymbols.length
           ? `<section class="block"><h2>Start reading here</h2><div class="symbol-grid">${keySymbols
@@ -594,7 +878,7 @@
               )}</ul>${cases.length > 12 ? `<a class="text-link" href="${escape(href(file.path, "symbols"))}">All ${cases.length} cases</a>` : ""}<p class="note">A named case shows what is asserted, not that it ran.</p></section>`
           : ""
       }
-      ${tests.length ? `<section class="block"><h2>Tests that import it</h2>${fileRefs(tests)}</section>` : ""}
+      ${tests.length ? `<section class="block"><h2>Tests that check it</h2>${fileRefs(tests)}</section>` : ""}
       ${
         journeys.length
           ? `<section class="block"><h2>Journeys it takes part in</h2><div class="link-list">${journeys
@@ -826,7 +1110,7 @@
           note: dependency.typeOnly ? "types only" : dependency.dynamic ? "loaded on demand" : "",
         })),
         "in",
-        "Imports nothing from the repository.",
+        "Uses no other file in the project.",
       )}
       <div class="graph-col graph-center"><div class="graph-self"><span class="graph-name">${escape(base(file.path))}</span><span class="graph-dir">${escape(folder(file.path))}</span></div></div>
       ${column(
@@ -837,8 +1121,8 @@
       )}
     </div>
     ${more ? `<button type="button" class="button small" data-action="all-connections">${state.showAllConnections ? "Show fewer" : "Show every connection"}</button>` : ""}
-    ${external.length ? `<section class="block"><h2>Packages and built-ins</h2><ul class="concepts mono">${external.map((specifier) => `<li>${escape(specifier)}</li>`).join("")}</ul></section>` : ""}
-    <p class="note">Static imports, including type-only and dynamic ones. They show which files depend on which, not every call made at runtime.</p>`;
+    ${external.length ? `<section class="block"><h2>Outside code it uses</h2><ul class="concepts mono">${external.map((specifier) => `<li>${escape(specifier)}</li>`).join("")}</ul></section>` : ""}
+    <p class="note">A line means one file names the other in its code. It shows which files depend on which, not every step the code takes while it runs.</p>`;
   }
   function drawGraph() {
     const graph = document.getElementById("graph");
@@ -858,7 +1142,9 @@
       const y1 = incoming ? y : middle;
       const y2 = incoming ? middle : y;
       const bend = (x2 - x1) / 2;
-      return `<path d="M${x1} ${y1} C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}" style="stroke: ${getComputedStyle(element).getPropertyValue("--c")}"/>`;
+      const d = `M${x1} ${y1} C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`;
+      const colour = getComputedStyle(element).getPropertyValue("--c");
+      return `<path class="glow" d="${d}" style="stroke: ${colour}"/><path d="${d}" style="stroke: ${colour}"/><circle cx="${x1}" cy="${y1}" r="3.5" style="fill: ${colour}"/><circle cx="${x2}" cy="${y2}" r="3.5" style="fill: ${colour}"/>`;
     });
     svg.innerHTML = paths.join("");
   }
@@ -869,6 +1155,7 @@
     if (file) expandTo(file.path);
     return `<div class="files ${file ? "has-file" : ""}">
       <aside class="tree-pane" aria-label="All files">
+        ${file ? "" : '<h1 class="tree-title sr-only">All files</h1>'}
         <div class="tree-tools">
           <label class="filter-input">${icon("search")}<span class="sr-only">Filter files</span><input id="tree-filter" type="search" placeholder="Filter files" value="${escape(state.filter)}" autocomplete="off" /></label>
           <div class="tree-filters">
@@ -880,7 +1167,7 @@
                   `<option value="${key}" ${state.kind === key ? "selected" : ""}>${label}</option>`,
               )
               .join("")}</select>
-            <select id="layer-filter" aria-label="Layer"><option value="all">Any layer</option>${layers
+            <select id="layer-filter" aria-label="Part"><option value="all">Any part</option>${layers
               .map(
                 (layer) =>
                   `<option value="${layer.id}" ${state.layer === layer.id ? "selected" : ""}>${layer.title}</option>`,
@@ -928,19 +1215,22 @@
     const x = (index) => left + index * columnWidth + columnWidth / 2;
     const y = (layerId) =>
       top + used.findIndex((layer) => layer.id === layerId) * rowHeight + rowHeight / 2;
-    const primary = perStep.map(
-      (counts) =>
-        [...counts.entries()].sort(
-          (a, b) =>
-            b[1] - a[1] ||
-            layers.findIndex((layer) => layer.id === a[0]) -
-              layers.findIndex((layer) => layer.id === b[0]),
-        )[0]?.[0],
-    );
-    let path = "";
+    const primary = perStep.map(primaryLayer);
+    // One wire per handoff: level while a layer keeps the work, a curve that
+    // changes colour where the next layer takes over.
+    let defs = "";
+    let wires = "";
+    let last = null;
     primary.forEach((layerId, index) => {
       if (!layerId) return;
-      path += `${path ? "L" : "M"}${x(index)} ${y(layerId)} `;
+      if (last) {
+        const [x1, y1, x2, y2] = [x(last.index), y(last.layerId), x(index), y(layerId)];
+        const bend = (x2 - x1) / 2;
+        const d = `M${x1} ${y1} C${x1 + bend} ${y1} ${x2 - bend} ${y2} ${x2} ${y2}`;
+        defs += `<linearGradient id="handoff-${index}" gradientUnits="userSpaceOnUse" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}"><stop offset="0" style="stop-color: var(--layer-${last.layerId})"/><stop offset="1" style="stop-color: var(--layer-${layerId})"/></linearGradient>`;
+        wires += `<path class="map-path-glow" d="${d}" stroke="url(#handoff-${index})"/><path class="map-path" d="${d}" stroke="url(#handoff-${index})"/>`;
+      }
+      last = { index, layerId };
     });
     const rows = used
       .map(
@@ -964,7 +1254,7 @@
           .join(""),
       )
       .join("");
-    return `<figure class="handoff"><figcaption><strong>Handoff map</strong><span>Which layers each step works in. The line follows the layer doing most of the work; smaller dots are layers it also touches.</span></figcaption><div class="handoff-scroll"><svg viewBox="0 0 ${width} ${height}" style="max-width: ${width}px" role="group" aria-label="${escape(flow.steps.map((step, index) => `Step ${index + 1} ${step.title}: ${[...perStep[index].keys()].map((id) => layerById(id).title).join(" and ")}`).join(". "))}">${rows}${heads}<path class="map-path" d="${path}"/>${dots}</svg></div></figure>`;
+    return `<figure class="handoff"><figcaption><strong>Who does each step</strong><span>Which parts of Tandem work in each step. The line follows the part doing most of the work, and small dots are parts that help.</span></figcaption><div class="handoff-scroll"><svg viewBox="0 0 ${width} ${height}" style="max-width: ${width}px" role="group" aria-label="${escape(flow.steps.map((step, index) => `Step ${index + 1} ${step.title}: ${[...perStep[index].keys()].map((id) => layerById(id).title).join(" and ")}`).join(". "))}"><defs>${defs}</defs>${rows}${heads}${wires}${dots}</svg></div></figure>`;
   }
   function flowsPage(params) {
     const flow = flows.find((item) => item.id === params.get("id")) ?? flows[0];
@@ -1002,16 +1292,17 @@
                   .join("")}</optgroup>`,
             )
             .join("")}</select></label>
-          <p class="journey-group-label">${escape(flowGroups[flow.area] ?? flow.area)} journey ${index + 1} of ${flows.length}</p>
+          <p class="journey-group-label">Journey ${index + 1} of ${flows.length}, ${escape((flowGroups[flow.area] ?? flow.area).toLowerCase())}</p>
           <h1>${escape(flow.title)}</h1>
           <p>${escape(flow.summary)}</p>
+          ${flow.detail ? inCode(`<p>${escape(flow.detail)}</p>`) : ""}
           <p class="journey-meta">${flow.steps.length} steps through ${all.length} files</p>
         </header>
         ${handoffMap(flow)}
         <ol class="steps">${flow.steps
           .map(
             (step, stepIndex) =>
-              `<li class="step" id="step-${stepIndex + 1}"><span class="step-number" aria-hidden="true">${stepIndex + 1}</span><div class="step-body"><h2><span class="sr-only">Step ${stepIndex + 1}: </span>${escape(step.title)}</h2><p>${escape(step.description)}</p>${fileRefs(step.files)}</div></li>`,
+              `<li class="step" id="step-${stepIndex + 1}"><span class="step-number" aria-hidden="true">${stepIndex + 1}</span><div class="step-body"><h2><span class="sr-only">Step ${stepIndex + 1}: </span>${escape(step.title)}</h2><p>${escape(step.description)}</p>${inCode(`${step.detail ? `<p>${escape(step.detail)}</p>` : ""}${fileRefs(step.files)}`, countFiles(step.files.length), Number(params.get("step")) === stepIndex + 1)}</div></li>`,
           )
           .join("")}</ol>
         <nav class="pager" aria-label="Other journeys">${previous ? `<a href="#flows?id=${encodeURIComponent(previous.id)}" class="prev"><small>${icon("back")}Previous journey</small><span>${escape(previous.title)}</span></a>` : "<span></span>"}${next ? `<a href="#flows?id=${encodeURIComponent(next.id)}" class="next"><small>Next journey${icon("chevron")}</small><span>${escape(next.title)}</span></a>` : "<span></span>"}</nav>
@@ -1020,6 +1311,90 @@
   }
 
   // ---------- improvements ----------
+  // The board above the list: every record as a dot in its category's row,
+  // and the measured changes ranked by how much they took away. Each mark
+  // opens its record, and the list below says the same in words.
+  const statusOrder = Object.keys(statuses);
+  const amount = (value) => (typeof value === "number" ? number(value) : value);
+  function improvementBoard() {
+    const rows = [...new Set(improvements.map((item) => item.category))]
+      .map((category) => ({
+        category,
+        items: improvements
+          .filter((item) => item.category === category)
+          .sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)),
+      }))
+      .sort((a, b) => b.items.length - a.items.length || a.category.localeCompare(b.category));
+    const cuts = improvements
+      .map((item) => ({ item, metric: item.metrics?.[0] }))
+      .map((entry) => ({ ...entry, change: entry.metric ? metricChange(entry.metric) : null }))
+      .filter(({ change }) => change !== null && change < 0)
+      .sort((a, b) => a.change - b.change || a.item.id.localeCompare(b.item.id));
+    const link = (item) => `#improvements?id=${encodeURIComponent(item.id)}`;
+    // Which layers the open findings reach into, through the files they name.
+    const open = improvements.filter((item) => item.status === "follow-up");
+    const reach = layers
+      .map((layer) => ({
+        layer,
+        count: open.filter((item) =>
+          item.files.some((path) => byPath.has(path) && layerOf(byPath.get(path).area) === layer),
+        ).length,
+      }))
+      .filter(({ count }) => count)
+      .sort((a, b) => b.count - a.count);
+    return `<div class="imp-board">
+      <figure class="board-panel board-records" aria-labelledby="board-records">
+        <figcaption><h2 id="board-records">Every record</h2><p>One dot each, in a row for its category</p></figcaption>
+        <dl class="board-figures">${statusOrder
+          .map(
+            (status) =>
+              `<div><dt><i class="r s-${status}" aria-hidden="true"></i>${statuses[status].label}</dt><dd>${improvements.filter((item) => item.status === status).length}</dd></div>`,
+          )
+          .join("")}</dl>
+        <div class="board-rows" aria-hidden="true">${rows
+          .map(
+            ({ category, items }) =>
+              `<div class="board-row"><span class="board-cat">${escape(categoryName(category))}</span><span class="board-dots">${items
+                .map(
+                  (item) =>
+                    `<a class="r s-${escape(item.status)}" tabindex="-1" href="${link(item)}" data-record="${escape(item.id)}"></a>`,
+                )
+                .join("")}</span><b>${items.length}</b></div>`,
+          )
+          .join("")}</div>
+        <div class="dot-tip record-tip" id="record-tip" hidden></div>
+      </figure>
+      <figure class="board-panel board-reach" aria-labelledby="board-reach">
+        <figcaption><h2 id="board-reach">Where the open problems are</h2><p>How many open problems involve each part of Tandem. One problem can involve several.</p></figcaption>
+        <ul class="reach-list">${reach
+          .map(
+            ({ layer, count }) =>
+              `<li style="--c: var(--layer-${layer.id})"><span class="reach-name"><span class="dot" aria-hidden="true"></span>${escape(layer.title)}</span><span class="share-bar" aria-hidden="true"><span style="width: ${((100 * count) / open.length).toFixed(1)}%"></span></span><b>${count}<span class="sr-only"> of ${open.length}</span></b></li>`,
+          )
+          .join("")}</ul>
+      </figure>
+      <figure class="board-panel board-cuts" aria-labelledby="board-cuts">
+        <figcaption><h2 id="board-cuts">How much each change saved</h2><p>The main measurement of each change, after compared with before</p></figcaption>
+        <ol class="cut-list">${cuts
+          .map(
+            ({ item, metric, change }) =>
+              `<li data-record="${escape(item.id)}"><a href="${link(item)}" title="${escape(metric.label)}"><span class="cut-name"><span>${escape(item.title)}</span><small>${escape(amount(metric.before))} to ${escape(amount(metric.after))} ${escape(metric.unit)}</small></span><span class="cut-bar" aria-hidden="true"><span style="width: ${(-change).toFixed(1)}%"></span></span><b>${changeText(change)}</b></a></li>`,
+          )
+          .join("")}</ol>
+      </figure>
+    </div>`;
+  }
+  function showRecordTip(dot) {
+    const tip = document.getElementById("record-tip");
+    if (!tip) return;
+    const item = dot && improvements.find((record) => record.id === dot.dataset.record);
+    if (!item) {
+      tip.hidden = true;
+      return;
+    }
+    tip.innerHTML = `<strong>${escape(item.id)}</strong><span>${escape(item.title)}</span><small>${statuses[item.status].label}, ${escape(categoryName(item.category).toLowerCase())}</small>`;
+    placeTip(tip, dot.closest(".board-panel"), dot);
+  }
   function metricRows(metrics) {
     return `<div class="metrics">${metrics
       .map((metric) => {
@@ -1033,7 +1408,7 @@
           Math.max(before, after) > 0;
         const change = metricChange(metric);
         const scale = numeric ? Math.max(before, after) : 1;
-        return `<div class="metric"><div class="metric-label">${escape(metric.label)}${change !== null ? `<span class="delta ${change > 0 ? "up" : "down"}">${changeText(change)}</span>` : ""}</div>${
+        return `<div class="metric"><div class="metric-label" ${metric.detail ? `title="${escape(metric.detail)}"` : ""}>${escape(metric.label)}${change !== null ? `<span class="delta ${change > 0 ? "up" : "down"}">${changeText(change)}</span>` : ""}</div>${
           numeric
             ? `<div class="bar-row"><span class="bar-name">Before</span><span class="bar"><span class="bar-fill before" style="width:${((100 * before) / scale).toFixed(2)}%"></span></span><span class="bar-value">${escape(metric.before)} ${escape(metric.unit)}</span></div><div class="bar-row"><span class="bar-name">After</span><span class="bar"><span class="bar-fill after" style="width:${((100 * after) / scale).toFixed(2)}%"></span></span><span class="bar-value">${escape(metric.after)} ${escape(metric.unit)}</span></div>`
             : `<p class="metric-text">${escape(metric.before)} ${escape(metric.unit)} before, ${escape(metric.after)} ${escape(metric.unit)} after</p>`
@@ -1043,14 +1418,18 @@
   }
   function improvementDetail(item) {
     const open = item.status === "follow-up";
+    const now = open ? "What happens now" : "Before";
+    const next = open ? "What should happen" : "After";
+    const technical = item.technical;
     return `<div class="imp-detail">
       <p class="lead">${escape(item.summary)}</p>
-      <div class="before-after"><div><h2>${open ? "What happens now" : "Before"}</h2><p>${escape(item.before)}</p></div><div><h2>${open ? "What should happen" : "After"}</h2><p>${escape(item.after)}</p></div></div>
-      <section class="block"><h2>How it works</h2><p>${escape(item.mechanism)}</p></section>
-      ${item.metrics?.length ? `<section class="block"><h2>Measured</h2>${metricRows(item.metrics)}</section>` : ""}
-      <section class="block"><h2>Files</h2>${fileRefs(item.files)}</section>
-      ${item.evidence?.length ? `<section class="block"><h2>Evidence</h2><div class="link-list">${item.evidence.map((evidence) => `<a href="${escape(href(evidence.path, "source"))}">${icon("file")}<span>${escape(evidence.label)}</span><small>${escape(base(evidence.path))}</small></a>`).join("")}</div></section>` : ""}
+      <div class="before-after"><div><h2>${now}</h2><p>${escape(item.before)}</p></div><div><h2>${next}</h2><p>${escape(item.after)}</p></div></div>
+      ${item.metrics?.length ? `<section class="block"><h2>Measurements</h2>${metricRows(item.metrics)}</section>` : ""}
       ${item.limits?.length ? `<section class="block limits"><h2>What this does not show</h2><ul>${item.limits.map((limit) => `<li>${escape(limit)}</li>`).join("")}</ul></section>` : ""}
+      ${inCode(
+        `${technical ? `<p class="in-code-title">${escape(technical.title)}</p><p>${escape(technical.summary)}</p><dl class="in-code-pair"><div><dt>${now}</dt><dd>${escape(technical.before)}</dd></div><div><dt>${next}</dt><dd>${escape(technical.after)}</dd></div></dl>` : ""}<p><strong>How it works.</strong> ${escape(item.mechanism)}</p>${technical?.limits?.length ? `<h3>Limits, as first written</h3><ul>${technical.limits.map((limit) => `<li>${escape(limit)}</li>`).join("")}</ul>` : ""}<h3>Files</h3>${fileRefs(item.files)}${item.evidence?.length ? `<h3>Where the numbers come from</h3><div class="link-list">${item.evidence.map((evidence) => `<a href="${escape(href(evidence.path, "source"))}">${icon("file")}<span>${escape(evidence.label)}</span><small>${escape(base(evidence.path))}</small></a>`).join("")}</div>` : ""}`,
+        countFiles(item.files.length),
+      )}
       <button type="button" class="text-button" data-action="copy-link" data-id="${escape(item.id)}">${icon("link")}Copy a link to ${escape(item.id)}</button>
     </div>`;
   }
@@ -1075,7 +1454,16 @@
         (state.impStatus === "all" || item.status === state.impStatus) &&
         (state.impCategory === "all" || item.category === state.impCategory) &&
         words.every((word) =>
-          [item.id, item.title, item.summary, item.category, item.mechanism, ...item.files]
+          [
+            item.id,
+            item.title,
+            item.summary,
+            categoryName(item.category),
+            item.mechanism,
+            item.technical?.title,
+            item.technical?.summary,
+            ...item.files,
+          ]
             .join(" ")
             .toLowerCase()
             .includes(word),
@@ -1104,6 +1492,11 @@
         );
     document.getElementById("imp-count").textContent =
       matches.length === improvements.length ? "" : `${matches.length} of ${improvements.length}`;
+    const shown = new Set(matches.map((item) => item.id));
+    document.querySelectorAll(".imp-board [data-record]").forEach((mark) => {
+      mark.classList.toggle("dim", !shown.has(mark.dataset.record));
+      mark.classList.toggle("current", mark.dataset.record === id);
+    });
     document
       .querySelectorAll("[data-status-filter]")
       .forEach((button) =>
@@ -1127,7 +1520,8 @@
     );
     const categories = [...new Set(improvements.map((item) => item.category))].sort();
     return `<div class="page">
-      ${pageHead("What changed, and what is still open", "Each record says what the code did before, what it does now, how, and how it was checked. Open findings stay listed until they are fixed.")}
+      ${pageHead("What changed, and what is still open", "Each record says what used to happen, what happens now and how it was checked. Problems that are found but not fixed yet stay on the list until they are.")}
+      ${improvementBoard()}
       <div class="imp-tools">
         <div class="segmented" role="group" aria-label="Status">${[
           ["all", "All", improvements.length],
@@ -1138,8 +1532,8 @@
               `<button type="button" data-status-filter="${key}" aria-pressed="${state.impStatus === key}">${label}<b>${count}</b></button>`,
           )
           .join("")}</div>
-        <select id="imp-category" aria-label="Category"><option value="all">Every category</option>${categories.map((category) => `<option value="${escape(category)}" ${state.impCategory === category ? "selected" : ""}>${escape(category[0].toUpperCase() + category.slice(1))}</option>`).join("")}</select>
-        <label class="filter-input grow">${icon("search")}<span class="sr-only">Search changes</span><input id="imp-search" type="search" placeholder="Search titles, files and mechanisms" value="${escape(state.impQuery)}" autocomplete="off" /></label>
+        <select id="imp-category" aria-label="Category"><option value="all">Every category</option>${categories.map((category) => `<option value="${escape(category)}" ${state.impCategory === category ? "selected" : ""}>${escape(categoryName(category))}</option>`).join("")}</select>
+        <label class="filter-input grow">${icon("search")}<span class="sr-only">Search changes</span><input id="imp-search" type="search" placeholder="Search the changes" value="${escape(state.impQuery)}" autocomplete="off" /></label>
         <span class="imp-count" id="imp-count" aria-live="polite"></span>
       </div>
       <div class="imp-list" id="imp-list"></div>
@@ -1150,10 +1544,10 @@
   function evidencePage() {
     const date = new Date(meta.revisionDate);
     return `<div class="page narrow">
-      ${pageHead("What this atlas can and cannot tell you", "It is a snapshot of the source, explained. It does not run anything, so it cannot prove that tests pass or that numbers still hold today.")}
+      ${pageHead("What this atlas can and cannot tell you", "It is a snapshot of the code with explanations. It does not run Tandem, so it cannot prove the tests pass or that old numbers still hold.")}
       ${guide.validation.length ? `<div class="validation">${guide.validation.map((record) => `<article><strong>${escape(record.value)}</strong><h3>${escape(record.label)}</h3><p>${escape(record.detail)}</p>${fileRef(record.path)}</article>`).join("")}</div>` : ""}
-      <section class="section"><div class="section-head"><h2>Read these before quoting a number</h2></div><ul class="limits-list">${guide.limits.map((limit) => `<li>${escape(limit)}</li>`).join("")}</ul></section>
-      <section class="section"><div class="section-head"><h2>Words used here</h2></div><dl class="glossary">${guide.glossary.map((item) => `<div><dt>${escape(item.term)}</dt><dd>${escape(item.meaning)}</dd></div>`).join("")}</dl></section>
+      <section class="section"><div class="section-head"><h2>Before you quote a number</h2></div><ul class="limits-list">${guide.limits.map((limit) => `<li>${escape(limit.text)}</li>`).join("")}</ul>${inCode(`<ul>${guide.limits.map((limit) => `<li>${escape(limit.detail)}</li>`).join("")}</ul>`, "", false, "The precise wording, for developers")}</section>
+      <section class="section"><div class="section-head"><h2>Words you may meet in the code sections</h2></div><dl class="glossary">${guide.glossary.map((item) => `<div><dt>${escape(item.term)}</dt><dd>${escape(item.meaning)}</dd></div>`).join("")}</dl></section>
       <section class="section snapshot-facts"><div class="section-head"><h2>This snapshot</h2></div>
         <dl>
           <div><dt>Commit</dt><dd><a href="${escape(`${meta.repository}/commit/${meta.revision}`)}" target="_blank" rel="noopener noreferrer"><code>${escape(meta.revision)}</code></a></dd></div>
@@ -1223,7 +1617,29 @@
     afterRender(view, params);
     announce(`${view === "files" && path ? base(path) : views[view].label} opened`);
   }
+  // The wires are measured from where the cards land, so they are drawn again
+  // whenever the map changes size: a narrower window, or the fonts arriving.
+  let mapSize = "";
+  const sizeOf = (element) => `${element.offsetWidth}x${element.offsetHeight}`;
+  const mapObserver =
+    typeof ResizeObserver === "function"
+      ? new ResizeObserver(() => {
+          const grid = document.getElementById("map-grid");
+          if (!grid || sizeOf(grid) === mapSize) return;
+          mapSize = sizeOf(grid);
+          drawMap();
+        })
+      : null;
+  function watchMap() {
+    mapObserver?.disconnect();
+    const grid = document.getElementById("map-grid");
+    if (!grid) return;
+    mapSize = sizeOf(grid);
+    drawMap(true);
+    mapObserver?.observe(grid);
+  }
   function afterRender(view, params) {
+    watchMap();
     const path = params.get("path");
     const line = Number(params.get("line"));
     if (view === "files" && path && byPath.has(path)) {
@@ -1402,6 +1818,7 @@
       Math.max(
         score(item.id, query) + 5,
         score(item.title, query),
+        item.technical ? score(item.technical.title, query) - 5 : -1,
         item.summary.toLowerCase().includes(query) ? 25 : -1,
       ),
     );
@@ -1812,11 +2229,31 @@
     )
       goToLine(event.target.value);
   });
+  // The map answers the pointer: a dot names its file, a card lights its wires.
+  main.addEventListener("mouseover", (event) => {
+    if (main.dataset.view === "improvements") showRecordTip(event.target.closest("a.r"));
+    if (main.dataset.view !== "overview") return;
+    showDotTip(event.target.closest("a.d"));
+    focusMap(event.target.closest("[data-node]")?.dataset.node);
+  });
+  main.addEventListener("mouseleave", () => {
+    showDotTip(null);
+    showRecordTip(null);
+    focusMap();
+  });
+  main.addEventListener("focusin", (event) => {
+    if (main.dataset.view === "overview")
+      focusMap(event.target.closest("[data-node]")?.dataset.node);
+  });
   let resizeFrame;
   window.addEventListener("resize", () => {
     cancelAnimationFrame(resizeFrame);
-    resizeFrame = requestAnimationFrame(drawGraph);
+    resizeFrame = requestAnimationFrame(() => {
+      drawGraph();
+      if (!mapObserver) drawMap();
+    });
   });
+  document.fonts?.ready.then(() => drawMap());
   window.addEventListener("hashchange", render);
   renderChrome();
   render();

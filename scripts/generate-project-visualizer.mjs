@@ -200,6 +200,7 @@ function describe(path, kind, source, analysis) {
   if (path.endsWith("package.json")) {
     const pkg = JSON.parse(source);
     return {
+      plain: "Lists the outside code this package uses and the commands that build and test it.",
       summary: `Package manifest for ${pkg.name ?? "this workspace"}. Defines commands, dependency versions and package entry points.`,
       details: [
         pkg.description ??
@@ -209,8 +210,12 @@ function describe(path, kind, source, analysis) {
       concepts: ["dependencies", "package boundaries"],
     };
   }
-  if (kind === "test")
+  if (kind === "test") {
+    const cases = analysis.checks.filter((check) => !check.group).length;
     return {
+      plain: cases
+        ? `${cases} automatic ${cases === 1 ? "test checks" : "tests check"} that this part of Tandem still behaves as expected.`
+        : "Automatic tests that check this part of Tandem still behaves as expected.",
       summary: `Regression coverage in ${posix.basename(path)}. ${analysis.checks.filter((check) => !check.group).length} statically named test cases are indexed below.`,
       details: [
         "The case names and source describe the expected behavior; a test's presence does not prove it was run or passed.",
@@ -218,10 +223,14 @@ function describe(path, kind, source, analysis) {
       ],
       concepts: ["regression coverage"],
     };
+  }
   if (kind === "documentation") {
     const title = source.match(/^#\s+(.+)$/m)?.[1];
     const headings = [...source.matchAll(/^#{2,3}\s+(.+)$/gm)].map((match) => match[1]);
     return {
+      plain: title
+        ? `A written guide titled ${title.replace(/[`*_]/g, "")}.`
+        : "Notes, guidance or licence text for the project.",
       summary: title
         ? `${title}. Documentation and decisions for this part of the project.`
         : `${posix.basename(path)} records project guidance, output or licensing.`,
@@ -236,6 +245,15 @@ function describe(path, kind, source, analysis) {
   }
   if (kind === "configuration")
     return {
+      plain: path.startsWith(".github/")
+        ? "Settings for the automatic checks that run on every change."
+        : path.includes("tsconfig")
+          ? "Settings for checking the code for mistakes before it runs."
+          : path.includes("lock")
+            ? "The exact versions of all outside code, so every install gets the same."
+            : path.includes("Docker") || path.startsWith("docker/")
+              ? "Settings for the ready-made server package."
+              : "Settings for the tools that build and package Tandem.",
       summary: `${posix.basename(path)} configures ${path.startsWith(".github/") ? "GitHub Actions validation and delivery" : path.includes("tsconfig") ? "TypeScript checking and module compilation" : path.includes("lock") ? "the exact resolved dependency graph" : path.includes("Docker") || path.startsWith("docker/") ? "the self-hosted container" : "workspace tooling or packaging"}.`,
       details: [
         "Keys and commands in the source define the behavior. Configuration is indexed alongside runtime code because it affects what is built, checked and shipped.",
@@ -244,6 +262,11 @@ function describe(path, kind, source, analysis) {
     };
   if (kind === "asset")
     return {
+      plain: path.endsWith(".css")
+        ? "Colours, spacing and layout for what you see."
+        : /\.(svg|png|ico)$/.test(path)
+          ? "An image or icon Tandem shows."
+          : "A file Tandem ships as it is, such as a font.",
       summary: `${posix.basename(path)} supplies ${path.endsWith(".css") ? "styles and layout" : /\.(svg|png|ico)$/.test(path) ? "a visual asset" : "a static asset"} for ${areaFor(path)}.`,
       details: [
         "Text assets can be inspected in the source tab. Binary files have size and hash metadata; their contents are not interpreted as code.",
@@ -251,6 +274,10 @@ function describe(path, kind, source, analysis) {
       concepts: ["presentation"],
     };
   return {
+    plain:
+      kind === "tooling"
+        ? "A helper script for building, testing or measuring Tandem."
+        : "Supporting code with no written explanation yet.",
     summary: `${posix.basename(path)} contains ${
       analysis.symbols
         .slice(0, 3)
@@ -281,6 +308,8 @@ const files = paths.map((path) => {
     curated: Boolean(annotation),
     ...describe(path, kind, source ?? "", analysis),
     ...annotation,
+    // A written explanation brings its own plain sentence, or none.
+    ...(annotation ? { plain: annotation.plain } : {}),
     ...analysis,
     usedBy: [],
   };

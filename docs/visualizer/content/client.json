@@ -4,6 +4,7 @@
   "entries": [
     {
       "path": "packages/client-core/src/index.ts",
+      "plain": "The front door of the app engine, handing the screens and the desktop app the parts they use so both follow the same rules.",
       "summary": "Defines the public API of the client-core package.",
       "details": [
         "Re-exports the workspace client, typed REST client, huddle session, file cache and notification rules.",
@@ -13,6 +14,7 @@
     },
     {
       "path": "packages/client-core/src/api.ts",
+      "plain": "Turns each thing you do, like signing in, searching or uploading a file, into a request to the server and reads its answer.",
       "summary": "Turns workspace operations into typed HTTP requests.",
       "details": [
         "The private request helper adds the bearer token and JSON body, combines caller cancellation with optional deadlines, and translates non-success responses into ApiError with a status and code.",
@@ -24,6 +26,7 @@
     },
     {
       "path": "packages/client-core/src/workspace.ts",
+      "plain": "The heart of the app engine, which keeps you connected to one workspace, holds the app's copy of it and sends your messages.",
       "summary": "Coordinates one live workspace connection and the local state the UI renders.",
       "details": [
         "WorkspaceClient combines Api, FileCache and a Zustand store. The store holds authenticated identity, users, channels, memberships, read cursors, loaded history, drafts, pending sends, app replies, forms and huddle state.",
@@ -48,6 +51,7 @@
     },
     {
       "path": "packages/client-core/src/drafts.ts",
+      "plain": "Combines drafts from different windows one conversation at a time, keeping both versions if two windows changed the same draft.",
       "summary": "Merges individual conversation drafts without replacing the whole account's draft map.",
       "details": [
         "DraftChanges carries put, remove, optional fill and optional base values. A window writes only conversations it changed, so saving one conversation does not erase another window's unrelated draft.",
@@ -58,6 +62,7 @@
     },
     {
       "path": "packages/client-core/src/outbox.ts",
+      "plain": "Keeps the saved list of messages waiting to send in step across windows, so a message already sent never comes back.",
       "summary": "Provides a shared, revisioned durable representation of queued messages.",
       "details": [
         "Each entry is indexed by the send nonce and carries a revision. A merge accepts a newer entry, preserving newer refusal or retry intent instead of letting a stale window overwrite it.",
@@ -69,6 +74,7 @@
     },
     {
       "path": "packages/client-core/src/records.ts",
+      "plain": "Saves small settings one name at a time, so changing one account's choice leaves the other accounts' choices alone.",
       "summary": "Merges a small map of string choices by the names actually changed.",
       "details": [
         "RecordChanges maps names to strings or null for removal. Updating one account's notification-preview choice leaves other accounts' choices intact.",
@@ -78,6 +84,7 @@
     },
     {
       "path": "packages/client-core/src/fileCache.ts",
+      "plain": "Downloads attached files once, keeps a limited saved copy for reuse, and drops it when the message it came with is removed.",
       "summary": "Fetches authenticated attachments once and owns their object-URL lifetime.",
       "details": [
         "Concurrent requests for one file share an in-flight promise. At most four transfers run at once, including the complete body transfer, and releasing the last active view cancels unfinished work.",
@@ -95,6 +102,7 @@
     },
     {
       "path": "packages/client-core/src/callLog.ts",
+      "plain": "Describes the lines of a call's log and the words that explain why a call has not connected yet.",
       "summary": "Holds the call log line type and the words for why a call has not connected.",
       "details": [
         "Kept apart from the call itself, which loads only on joining, so the huddle bar and Diagnostics can explain trouble without loading it."
@@ -103,6 +111,7 @@
     },
     {
       "path": "packages/client-core/src/huddle.ts",
+      "plain": "Runs your side of a huddle, opening your microphone, camera and screen share and connecting you to each person in the call.",
       "summary": "Owns microphone capture, WebRTC peer connections and call media state.",
       "details": [
         "HuddleSession creates a mesh connection per participant with fixed microphone, camera and screen transceivers. Deterministic offer ownership prevents both peers from offering at once; camera and screen changes use replaceTrack instead of another negotiation.",
@@ -126,6 +135,7 @@
     },
     {
       "path": "packages/client-core/src/devices.ts",
+      "plain": "Decides which microphone and camera a call opens, and lists the ones you can pick from.",
       "summary": "Says which microphone and camera to open, and lists the devices to choose from.",
       "details": [
         "microphoneConstraints and cameraConstraints are the one place a huddle's capture constraints are written. A saved device is asked for loosely, so one left unplugged falls back to the default instead of failing the join; a device chosen just now is asked for exactly, so a failure is reported rather than another device opening silently. Echo cancellation, noise suppression and automatic gain are on unless turned off; wantsNoiseFilter says whether Strong noise suppression applies (on unless it or suppression was turned off), and the browser's own suppression is then left off rather than run twice. NoiseFilter is the shape of the filter the app supplies. Cameras are asked for with resizeMode crop-and-scale: without it Chromium handed over a virtual camera's full 1080p, past the 1280 cap, which a mesh would send to everyone.",
@@ -135,6 +145,7 @@
     },
     {
       "path": "packages/client-core/src/capture.ts",
+      "plain": "Explains in plain words why the microphone, camera or screen share could not start and what to do about it.",
       "summary": "Explains microphone, camera and screen-capture failures in actionable language.",
       "details": [
         "captureFailure maps browser error names and secure-context availability to advice about permissions, missing devices, competing apps or HTTPS.",
@@ -144,6 +155,7 @@
     },
     {
       "path": "packages/client-core/src/notify.ts",
+      "plain": "Decides whether a message should notify you, checks whether you are already looking at it, and words the notification.",
       "summary": "Keeps notification eligibility and message visibility rules consistent across shells.",
       "details": [
         "decideNotification rejects own messages, inaccessible channels, muted/nothing preferences and active Do Not Disturb before deciding whether a DM, named mention or broadcast should ring.",
@@ -154,6 +166,7 @@
     },
     {
       "path": "packages/ui/src/index.ts",
+      "plain": "The front door of the screens, which the web version and the desktop app both use to start the same app.",
       "summary": "Exports the reusable React application and shell contracts.",
       "details": [
         "Web and desktop entry points import App and the relevant Platform adapter through this package boundary.",
@@ -163,6 +176,7 @@
     },
     {
       "path": "packages/ui/src/context.ts",
+      "plain": "Gives every screen access to the workspace you are in and to what the web version or desktop app can do.",
       "summary": "Connects React components to the active platform and workspace client.",
       "details": [
         "PlatformContext supplies storage and shell capabilities; ClientContext supplies the current WorkspaceClient. Missing providers fail explicitly instead of returning an unusable object.",
@@ -172,6 +186,7 @@
     },
     {
       "path": "packages/ui/src/platform.ts",
+      "plain": "Sets out what the web version and the desktop app each supply, such as saving on the device and notifications, and supplies it in the browser.",
       "summary": "Defines the browser/desktop capability boundary and implements the browser adapter.",
       "details": [
         "Platform describes acknowledged storage reads/writes and optional atomic initialization, outbox/draft/record merges and watchers. Optional discovery, hosting, backup and deep-link capabilities let one UI run in both shells.",
@@ -183,6 +198,7 @@
     },
     {
       "path": "packages/ui/src/App.tsx",
+      "plain": "Starts the app, remembers the workspaces you have signed in to, and switches between them.",
       "summary": "Owns application startup, remembered sign-ins and switching between workspaces.",
       "details": [
         "The Session union distinguishes loading, failed restore, joining and a connected workspace. Startup strictly parses saved credentials; a corrupt or unavailable store offers retry instead of turning saved sign-ins into an empty list.",
@@ -200,6 +216,7 @@
     },
     {
       "path": "packages/ui/src/screens/JoinScreen.tsx",
+      "plain": "The screen where you find a workspace or type its address, then sign in, create an account or join as a guest.",
       "summary": "Guides discovery, address probing, saved-token reconnect and password-based joining.",
       "details": [
         "A browser quietly recognizes the workspace serving its own origin; desktop discovery subscribes to LAN announcements. Hosted-but-stopped workspaces can offer resume instead of an endless connection attempt.",
@@ -218,6 +235,7 @@
     },
     {
       "path": "packages/ui/src/screens/WorkspaceScreen.tsx",
+      "plain": "The main workspace screen, which puts the sidebar, the conversation, side panels, dialogs and calls together.",
       "summary": "Assembles conversation navigation, panels, dialogs, calls and notifications.",
       "details": [
         "Provides the active client and gates account-local consumers through WorkspaceStorageGate. The central conversation combines Sidebar, MessageTimeline, Composer and an optional thread, members or utility panel.",
@@ -237,6 +255,7 @@
     },
     {
       "path": "packages/ui/src/theme.css",
+      "plain": "Sets the app's shared look, with its colors, spacing, light and dark themes, and layout for small screens.",
       "summary": "Defines the shared visual system, responsive layout and accessibility styling.",
       "details": [
         "Semantic surface, ink, accent, border and alert tokens support Onyx, White and system appearance. Density attributes adjust message and sidebar spacing without changing component behavior.",
@@ -247,6 +266,7 @@
     },
     {
       "path": "packages/ui/src/lib/deviceStore.ts",
+      "plain": "Saves the web version's data on the device safely, even with several tabs open, and finishes interrupted saves after a restart.",
       "summary": "Owns browser durability, atomic multi-tab merges and unfinished-write recovery.",
       "details": [
         "Each IndexedDB read/merge/write occurs inside one readwrite transaction across the values and made object stores. Transaction completion is the write acknowledgement; other tabs cannot interleave a lost update between the read and write.",
@@ -268,6 +288,7 @@
     },
     {
       "path": "packages/ui/src/lib/workspaceStorage.ts",
+      "plain": "Labels data saved on this device with its workspace and account, and carries over data saved under older labels.",
       "summary": "Scopes local work to authenticated workspace/account identity and migrates old address keys.",
       "details": [
         "workspaceStorageKey creates an encoded local:v1 key from the ready snapshot's workspace ID, user ID, data kind and optional conversation suffix. Older address-and-account keys are retained as migration candidates.",
@@ -285,6 +306,7 @@
     },
     {
       "path": "packages/ui/src/lib/workspaceAddressTrust.ts",
+      "plain": "Keeps the list of addresses allowed to reach one account's saved drafts and unsent messages on this device.",
       "summary": "Records the addresses allowed to share one account's stable local workspace data.",
       "details": [
         "Address normalization preserves protocol, port and path and rejects credentials, query strings and fragments. These distinctions can identify different servers and therefore cannot be discarded for trust.",
@@ -295,6 +317,7 @@
     },
     {
       "path": "packages/ui/src/lib/localWork.ts",
+      "plain": "Tells the message box when the words of a message waiting to send are safely saved on the device.",
       "summary": "Tells the composer when a queued message's words have durable local ownership.",
       "details": [
         "A WeakMap ledger tracks persistence owners and waiters by client and nonce. DraftPersistence acknowledges stored or unsaved outcomes when the outbox, recovery record or delivered message supplies evidence.",
@@ -304,6 +327,7 @@
     },
     {
       "path": "packages/ui/src/lib/notificationPreview.ts",
+      "plain": "Remembers how much each account's desktop notifications may show, from the full message down to nothing at all.",
       "summary": "Stores how much each account's desktop notification may reveal.",
       "details": [
         "full shows author/conversation and message text, sender hides the message text, and none removes names and conversation detail. Catch-up notifications apply the same privacy choice.",
@@ -314,6 +338,7 @@
     },
     {
       "path": "packages/ui/src/lib/callPreferences.ts",
+      "plain": "Remembers how huddles start on this device, such as joining muted and which microphone and camera to use.",
       "summary": "Keeps how huddles start on this device: join muted, and the chosen devices.",
       "details": [
         "A per-Platform shared Zustand store loads the device preference strictly and validates its boolean shape. Unknown or damaged preferences expose retry and keep the microphone off.",
@@ -333,6 +358,7 @@
     },
     {
       "path": "packages/ui/src/lib/callVolumes.ts",
+      "plain": "Remembers how loud each person in a call is for you, or that you muted them, across all your calls.",
       "summary": "Keeps how loud each person in a call is to you, as Discord's user volume.",
       "details": [
         "A per-Platform shared Zustand store of { volume 0-200 percent, muted } by user id, under call-volumes on this device, for every call and workspace. Only people turned up, down or muted are kept; anyone set back to 100% and unmuted is dropped.",
@@ -344,6 +370,7 @@
     },
     {
       "path": "packages/ui/src/lib/mediaDevices.ts",
+      "plain": "Lists your microphones, cameras and speakers for the pickers, and switches a call in progress to the one you choose.",
       "summary": "Lists devices for the pickers and applies a device choice to a call in progress.",
       "details": [
         "useMediaDevices lists microphones, cameras and speakers, again on devicechange and on demand once a permission grant makes names available. hasDeviceChoice says whether there is more than one microphone or camera, for the question a first huddle asks.",
@@ -353,6 +380,7 @@
     },
     {
       "path": "packages/ui/src/lib/relayProbe.ts",
+      "plain": "Tests whether the relay that helps calls cross networks answers this computer, and says whether it refused the password.",
       "summary": "Checks a TURN relay gives this computer a route, the way a call would ask.",
       "details": [
         "probeRelay opens a connection allowed only relayed routes and offers a data channel so it gathers them; a relay candidate means the relay answered and took the username and password.",
@@ -362,6 +390,7 @@
     },
     {
       "path": "packages/ui/src/assets.d.ts",
+      "plain": "A small note telling the build tools how the screens load extra files, either by address or with the contents built in.",
       "summary": "Types the Vite asset imports the UI package uses: a file's address, or its bytes as a data URL.",
       "details": [
         "The apps build this package with Vite, which turns a ?url import into the address of the file it emits and an ?inline import into a data URL. gtcrnFilter loads its worklet and model this way, and references this file so the apps' own type checks see it too."
@@ -370,6 +399,7 @@
     },
     {
       "path": "packages/ui/src/lib/noiseFilter.ts",
+      "plain": "Gives calls and the microphone check strong noise suppression, downloading it only the first time it is needed.",
       "summary": "Hands calls and the microphone check strong noise suppression, fetched on first use.",
       "details": [
         "noiseFilter is the NoiseFilter client-core is given when joining a huddle and when testing a microphone. It imports gtcrnFilter only when a microphone is opened with Strong chosen, so the model never weighs on the app's first load."
@@ -378,6 +408,7 @@
     },
     {
       "path": "packages/ui/src/lib/gtcrnFilter.ts",
+      "plain": "Cleans background noise out of your microphone with a small speech model, and steps aside for the browser's own filter if it fails.",
       "summary": "Runs the microphone through GTCRN, a small speech-enhancement network, in an AudioWorklet.",
       "details": [
         "The model is bundled into this chunk as a data URL and decoded in memory, so it loads the same in the browser and from the desktop app's file:// pages; it is compiled on the main thread first, so a page that may not run WebAssembly fails here rather than in the worklet.",
@@ -388,6 +419,7 @@
     },
     {
       "path": "packages/ui/src/lib/composerPreferences.ts",
+      "plain": "Remembers whether pressing Enter sends a message, and shares that choice with every message box on this device.",
       "summary": "Shares the Enter-to-send choice across composers on this device.",
       "details": [
         "The store begins with Enter creating a newline until the initial preference read answers, and updates the selected choice only after a successful save.",
@@ -397,6 +429,7 @@
     },
     {
       "path": "packages/ui/src/lib/appearance.ts",
+      "plain": "Loads your theme and message spacing choices for this device and applies them to every screen.",
       "summary": "Loads and applies the device's theme and message density.",
       "details": [
         "A shared store validates system/dark/light and comfortable/compact values and supplies existing defaults for absent or obsolete settings.",
@@ -406,6 +439,7 @@
     },
     {
       "path": "packages/ui/src/lib/account.ts",
+      "plain": "Turns account refusals into readable messages and gives each signed-in device a readable name from its browser and system.",
       "summary": "Turns account refusal codes and session user agents into readable labels.",
       "details": [
         "accountError distinguishes changed credentials, expired sessions, role restrictions and invalid password changes instead of showing raw API codes.",
@@ -415,6 +449,7 @@
     },
     {
       "path": "packages/ui/src/lib/accountSections.ts",
+      "plain": "Lists the sections of Account settings, such as profile, notifications and security, so a link can open each one.",
       "summary": "Defines the routable Account settings sections.",
       "details": [
         "The ordered list names profile, notifications, appearance, composing, calls, security, devices and storage.",
@@ -424,6 +459,7 @@
     },
     {
       "path": "packages/ui/src/lib/route.ts",
+      "plain": "Records where you are in the workspace in the browser's history, so Back and Forward return you to the right channel and spot.",
       "summary": "Represents workspace places in the URL and browser history.",
       "details": [
         "A WorkspaceRoute combines a channel with one optional thread or side panel and a persistent dialog. Strict token and enum parsing refuses malformed hashes or unsupported account sections.",
@@ -435,6 +471,7 @@
     },
     {
       "path": "packages/ui/src/lib/deeplink.ts",
+      "plain": "Reads and builds links that invite people or open a message, and picks the best address to share.",
       "summary": "Parses and builds join/message links and chooses an address suitable for sharing.",
       "details": [
         "Supports Tandem desktop schemes, legacy schemes and browser fragment forms. Browser invite codes sit in the fragment, which is not sent as the HTTP request target or Referer fragment.",
@@ -445,6 +482,7 @@
     },
     {
       "path": "packages/ui/src/lib/deeplinkHelpers.ts",
+      "plain": "Small shared pieces for links, such as Tandem's link prefixes and a check that quietly drops a badly typed address.",
       "summary": "Shares deep-link scheme constants and safe address normalization.",
       "details": [
         "Re-exports current and accepted legacy schemes from protocol.",
@@ -454,6 +492,7 @@
     },
     {
       "path": "packages/ui/src/lib/connection.ts",
+      "plain": "Works out why connecting failed, such as an unreachable server, a wrong password or a version mismatch, and says what to do.",
       "summary": "Distinguishes reachability, credentials, mixed-content and version problems.",
       "details": [
         "connectionFailure uses status, browser protocol and timeout identity to recommend the appropriate action.",
@@ -463,6 +502,7 @@
     },
     {
       "path": "packages/ui/src/lib/savedServers.ts",
+      "plain": "Checks remembered sign-ins carefully before using them, so damaged data is reported instead of quietly erased.",
       "summary": "Strictly validates remembered workspace credentials before restoring them.",
       "details": [
         "Checks list shape, nonempty tokens, presentation fields, nonnegative last-use time and HTTP(S) URL shape.",
@@ -472,6 +512,7 @@
     },
     {
       "path": "packages/ui/src/lib/resume.ts",
+      "plain": "Notices when a workspace this computer hosts is stopped, so the app can offer to start it again.",
       "summary": "Recognizes a remembered workspace hosted here that is currently stopped.",
       "details": [
         "Matches a saved loopback address and explicit port against lastHosted; repeated workspace names are not identity.",
@@ -481,6 +522,7 @@
     },
     {
       "path": "packages/ui/src/lib/hosting.ts",
+      "plain": "Keeps the screens up to date on whether this computer is hosting a workspace, and which one it hosted last.",
       "summary": "Shares live native hosting status and the most recently hosted workspace.",
       "details": [
         "useHostingStatus combines status reads and native subscriptions. A revision ensures a newer live update takes precedence over an older request result.",
@@ -490,6 +532,7 @@
     },
     {
       "path": "packages/ui/src/lib/huddleView.ts",
+      "plain": "Decides whether a call is shown small, expanded or hidden, and checks whether anyone's camera or screen share is on.",
       "summary": "Defines docked, expanded and hidden call presentation and detects visible video.",
       "details": [
         "huddleHasVideo checks local camera/share and every peer's camera/share stream.",
@@ -499,6 +542,7 @@
     },
     {
       "path": "packages/ui/src/lib/build.ts",
+      "plain": "Reads which version of the code this app was built from, so the diagnostics report can show it.",
       "summary": "Exposes source identity embedded by web and desktop builds.",
       "details": [
         "Reads the build-time stamp safely when it exists and returns null for development/tests without one.",
@@ -508,6 +552,7 @@
     },
     {
       "path": "packages/ui/src/lib/diagnostics.ts",
+      "plain": "Builds a report on how the app and server are running, without any message contents, for sharing when something goes wrong.",
       "summary": "Constructs a previewable operating report without including message contents.",
       "details": [
         "Reports source/protocol versions, connection status, pending-send count, huddle connection counts, notification capability and device/window information.",
@@ -519,6 +564,7 @@
     },
     {
       "path": "packages/ui/src/lib/catchUp.ts",
+      "plain": "Rolls up messages you missed while disconnected into one summary notification, shown at most every two minutes.",
       "summary": "Groups replayed missed messages into an occasional notification summary.",
       "details": [
         "Holds eligible messages by ID until replay is quiet for one second, with at most one summary every two minutes by default.",
@@ -528,6 +574,7 @@
     },
     {
       "path": "packages/ui/src/lib/coalescedLoader.ts",
+      "plain": "Groups a burst of change signals into one refresh, so busy lists do not reload over and over.",
       "summary": "Bounds refresh work for lists receiving many invalidation signals.",
       "details": [
         "soon merges a burst into one delayed request, or one queued refresh after a request already running. now cancels obsolete work and loads the current selection immediately.",
@@ -537,6 +584,7 @@
     },
     {
       "path": "packages/ui/src/lib/lastConversation.ts",
+      "plain": "Remembers the last conversation you had open in each account on this device.",
       "summary": "Remembers the last conversation for this authenticated account on this device.",
       "details": [
         "Uses the stable workspace/account key and validates a channel token when restoring. undefined means still loading and null means no usable memory.",
@@ -546,6 +594,7 @@
     },
     {
       "path": "packages/ui/src/lib/recentSearches.ts",
+      "plain": "Remembers your ten most recent searches for each account, moving a repeated search back to the top.",
       "summary": "Maintains up to ten recent searches within an account's workspace scope.",
       "details": [
         "Validates and deduplicates query/channel entries, placing a repeated choice at the front.",
@@ -555,6 +604,7 @@
     },
     {
       "path": "packages/ui/src/lib/messageReferences.ts",
+      "plain": "Lets each message redraw only when the people or channels it shows change, so typing elsewhere does not redraw them all.",
       "summary": "Subscribes each message row only to the users and channels it actually displays.",
       "details": [
         "Extracts author, mention, reaction and linked-channel IDs from message data.",
@@ -564,6 +614,7 @@
     },
     {
       "path": "packages/ui/src/lib/format.ts",
+      "plain": "Shared labels for file sizes, times and conversation names, plus the colored initials used as profile pictures.",
       "summary": "Centralizes byte/time labels, conversation titles and deterministic avatars.",
       "details": [
         "Reusable Intl.DateTimeFormat instances avoid constructing a formatter for every message row. Day labels recognize Today and Yesterday in the reader's local time.",
@@ -573,6 +624,7 @@
     },
     {
       "path": "packages/ui/src/lib/emoji.ts",
+      "plain": "The shared list of emoji you can search by name, used by the message box and the reaction picker.",
       "summary": "Provides the shared searchable emoji choices and accessible labels.",
       "details": [
         "A small static catalog supplies both the composer chooser and reaction picker.",
@@ -582,6 +634,7 @@
     },
     {
       "path": "packages/ui/src/lib/schedule.ts",
+      "plain": "Offers quick choices for sending later, like this evening or tomorrow at 9:00, using your local time.",
       "summary": "Builds schedule presets and labels using the device's local calendar.",
       "details": [
         "Offers relative short delays, a still-future evening, tomorrow at 09:00 and next Monday morning.",
@@ -591,6 +644,7 @@
     },
     {
       "path": "packages/ui/src/lib/snooze.ts",
+      "plain": "Offers how long to pause notifications and shows, in your local time, when they will come back.",
       "summary": "Supplies notification pause durations and readable resume times.",
       "details": [
         "Short options compute the deadline when selected, while tomorrow morning is a calendar time rather than an arbitrary twelve-hour delay.",
@@ -600,6 +654,7 @@
     },
     {
       "path": "packages/ui/src/lib/shortcuts.ts",
+      "plain": "Shows keyboard shortcuts with the keys your own keyboard has, such as the Command key on a Mac and Ctrl elsewhere.",
       "summary": "Writes keyboard shortcuts as the person's own keyboard labels them.",
       "details": [
         "isApple and modKey choose ⌘ on a Mac and Ctrl elsewhere; shortcutLabel turns \"Mod+Shift+U\" into \"⌘⇧U\" or \"Ctrl Shift U\", so hints never name the wrong key."
@@ -608,6 +663,7 @@
     },
     {
       "path": "packages/ui/src/lib/status.ts",
+      "plain": "The common statuses people pick, offered in both the profile form and the quick status menu.",
       "summary": "The statuses people set most, offered wherever a status is chosen.",
       "details": [
         "One list of emoji and text presets shared by the profile form and quick status, so both offer the same choices."
@@ -616,6 +672,7 @@
     },
     {
       "path": "packages/ui/src/lib/textInput.ts",
+      "plain": "Stops Enter from sending while you type in Japanese, Chinese or Korean or inside a code block, and keeps your typing position steady.",
       "summary": "Protects input-method composition, code blocks and caret placement.",
       "details": [
         "isImeKey checks both isComposing and key code 229, preventing Enter used to choose a Japanese/Chinese/Korean candidate from sending or navigating.",
@@ -626,6 +683,7 @@
     },
     {
       "path": "packages/ui/src/lib/mentionDocument.ts",
+      "plain": "Shows mentions in the message box as readable names while keeping the hidden link to the right person or channel.",
       "summary": "Maps stored mention tokens to the readable text a message box shows, and edits back.",
       "details": [
         "projectMentions turns <@USER_ID>, <#CHANNEL_ID> and <!here>/<!channel>/<!everyone> into @name, #channel and @here segments. The stored string stays the only source of truth; an unresolved person or channel shows @unknown or #unknown and keeps its ID.",
@@ -636,6 +694,7 @@
     },
     {
       "path": "packages/ui/src/lib/useMentionField.ts",
+      "plain": "Makes the message box and the edit box show mentions as names, and lets Undo, Backspace and Delete treat each as one piece.",
       "summary": "Binds a textarea to readable mentions for both the composer and the message editor.",
       "details": [
         "The owner keeps stored text as before (drafts, sends, schedules, outbox and edit conflicts are unchanged strings); the hook supplies the shown value, converts each change event back, and restores the caret only while the shown text still matches.",
@@ -646,6 +705,7 @@
     },
     {
       "path": "packages/ui/src/lib/threadPosition.ts",
+      "plain": "Remembers where you were reading in up to 100 recent threads until the app closes.",
       "summary": "Keeps reading anchors for recently visited threads during this app session.",
       "details": [
         "Stores root-specific message/offset positions by workspace address, removing the entry when the reader returns to the newest reply.",
@@ -655,6 +715,7 @@
     },
     {
       "path": "packages/ui/src/lib/historyKeys.ts",
+      "plain": "Adds Back and Forward to the desktop app with Alt plus the arrow keys and the mouse's side buttons.",
       "summary": "Adds desktop Back/Forward keyboard and mouse shortcuts.",
       "details": [
         "When enabled, Alt+Left/Right and mouse side buttons call browser history.",
@@ -664,6 +725,7 @@
     },
     {
       "path": "packages/ui/src/lib/useMediaQuery.ts",
+      "plain": "Lets the screens change their layout the moment the window grows or shrinks.",
       "summary": "Makes responsive decisions react to a changing media query.",
       "details": [
         "Initializes from matchMedia when available and subscribes to change events.",
@@ -673,6 +735,7 @@
     },
     {
       "path": "packages/ui/src/lib/useCopy.ts",
+      "plain": "Copies text to the clipboard and only reports success once the copy really worked, with a fallback when the browser refuses.",
       "summary": "Copies text and reports success only after a real clipboard operation.",
       "details": [
         "Uses Clipboard API first, then a temporary selected textarea for ordinary HTTP LAN pages or refused clipboard permission.",
@@ -682,6 +745,7 @@
     },
     {
       "path": "packages/ui/src/lib/useListbox.ts",
+      "plain": "Lets you move through suggestions with the arrow keys while you keep typing, and tells screen readers which one is picked.",
       "summary": "Keeps suggestion navigation accessible while focus remains in the text field.",
       "details": [
         "ArrowUp/Down wrap the selected suggestion and aria-activedescendant tells screen readers which option is active.",
@@ -691,6 +755,7 @@
     },
     {
       "path": "packages/ui/src/lib/usePanelFocus.ts",
+      "plain": "Moves keyboard focus into a panel when it opens and back to where you were when it closes.",
       "summary": "Moves focus into an opened panel and returns it when the panel closes.",
       "details": [
         "A heading receives focus when appropriate; visible disclosure toggles can keep it. Phone panels that cover their opener take focus instead.",
@@ -700,6 +765,7 @@
     },
     {
       "path": "packages/ui/src/lib/useRovingMessages.ts",
+      "plain": "Makes a long message list easy to move through by keyboard, one message at a time with the arrow keys.",
       "summary": "Turns a long message list into a practical keyboard navigation region.",
       "details": [
         "Only the active message and its controls participate in sequential Tab order; arrows, Home and End move between articles, Enter enters actions and Escape returns to the message.",
@@ -709,6 +775,7 @@
     },
     {
       "path": "packages/ui/src/lib/useTabs.ts",
+      "plain": "Makes tabs behave the same everywhere, including moving between them with the arrow keys.",
       "summary": "Implements consistent WAI-ARIA tab selection and keyboard movement.",
       "details": [
         "One selected tab is a Tab stop; Left/Right wrap and Home/End select the endpoints. Each tab and the shared panel have matching IDs and labels.",
@@ -718,6 +785,7 @@
     },
     {
       "path": "packages/ui/src/components/Composer.tsx",
+      "plain": "The box where you type a message, add files, mention people, format text and schedule it to send later.",
       "summary": "Owns visible message text, attachments, mentions, formatting and scheduling intent.",
       "details": [
         "Channel and thread composers use different draft keys. Typing updates local React text immediately and hands it to the client after a 250 ms debounce; an untouched composer can receive a restored or other-window draft without overwriting newer typing.",
@@ -740,6 +808,7 @@
     },
     {
       "path": "packages/ui/src/components/DraftPersistence.tsx",
+      "plain": "Saves your drafts and messages waiting to send on the device, and brings them back when you return.",
       "summary": "Bridges in-memory unsent work to acknowledged account-scoped storage.",
       "details": [
         "Creates stable drafts, outbox and unstored-sends keys from authenticated workspace/account identity. Restores records strictly, then subscribes to client changes and other-window storage changes.",
@@ -760,6 +829,7 @@
     },
     {
       "path": "packages/ui/src/components/WorkspaceStorageGate.tsx",
+      "plain": "Checks that this workspace address may use your saved drafts before loading them, and asks you about a new address.",
       "summary": "Keeps local-work components unmounted until the current address is admitted.",
       "details": [
         "Reads workspace and account identity from the ready replica, then checks the local trusted-address record. The gate shows checking, explicit approval, saving or retryable error before mounting drafts/search-history consumers.",
@@ -770,6 +840,7 @@
     },
     {
       "path": "packages/ui/src/components/ViewModal.tsx",
+      "plain": "Shows a form that a connected app or bot sends you, keeping its answers apart from any form that replaces it.",
       "summary": "Renders an app-owned form with input and result lifetime bound to its view ID.",
       "details": [
         "ViewModal keys AppForm by view.id, so a newly arriving app form starts with its own values, field errors, message and busy state.",
@@ -780,6 +851,7 @@
     },
     {
       "path": "packages/ui/src/components/MessageTimeline.tsx",
+      "plain": "The list of messages in a channel, which loads older ones as you scroll and keeps your reading spot.",
       "summary": "Shows bounded channel history while preserving reading and scroll position.",
       "details": [
         "Loads initial, older and newer history through owned request tickets. A top visible message and offset anchor preserve position while prepending rows; explicit message jumps center and highlight a target.",
@@ -797,6 +869,7 @@
     },
     {
       "path": "packages/ui/src/components/MessageItem.tsx",
+      "plain": "Shows one message with its author, time, text, files and reactions, plus the actions you are allowed to take.",
       "summary": "Renders one message and its authorized actions with narrow replica subscriptions.",
       "details": [
         "The memoized row renders author, timestamps, mrkdwn, files, reactions, thread affordances and app buttons. useMessageReferences tracks only referenced users/channels, and self identity/role controls relevant actions.",
@@ -813,6 +886,7 @@
     },
     {
       "path": "packages/ui/src/components/MessageEditor.tsx",
+      "plain": "The box for editing a sent message, which keeps unsaved changes and refuses to overwrite a newer edit made meanwhile.",
       "summary": "Edits a message while preserving unsaved words and the original comparison base.",
       "details": [
         "An edit draft has its own message-specific slot and stores both text and the message text it began from, including compatibility with older plain-text drafts.",
@@ -823,6 +897,7 @@
     },
     {
       "path": "packages/ui/src/components/ThreadPanel.tsx",
+      "plain": "The side panel that shows a thread's first message, its replies and a box to reply.",
       "summary": "Displays a root message, paged replies and an independent reply composer.",
       "details": [
         "Loads the root's thread through WorkspaceClient, displays optimistic replies and manages retry/discard for waiting sends.",
@@ -833,6 +908,7 @@
     },
     {
       "path": "packages/ui/src/components/MessageListPanel.tsx",
+      "plain": "The shared layout for the Pins, Saved and Threads panels, each a list of messages with a Refresh button.",
       "summary": "Shares the layout and loading behavior for Pins, Saved and followed Threads.",
       "details": [
         "The generic panel renders server-loaded message sets, row context, counts, loading/empty/refusal state and an explicit Refresh action.",
@@ -843,6 +919,7 @@
     },
     {
       "path": "packages/ui/src/components/SearchDialog.tsx",
+      "plain": "The search window, which finds words in messages and file names with filters for where, when and what kind of file.",
       "summary": "Searches server-side message text and attachment names with understandable filters.",
       "details": [
         "Displays search modifiers and the parsed interpretation, scope/date/file-type controls, pagination, matched terms and attachment-name reasons for a result.",
@@ -853,6 +930,7 @@
     },
     {
       "path": "packages/ui/src/components/ActivityPanel.tsx",
+      "plain": "Lists messages that are unread or mention you, and groups bursts of changes into one refresh.",
       "summary": "Lists unread or mentioned messages with paged, coalesced refreshes.",
       "details": [
         "Filter tabs reset cursor paging; read cursors, thread follows, mention counts and retention state signal changes that can require fresh activity.",
@@ -862,6 +940,7 @@
     },
     {
       "path": "packages/ui/src/components/ScheduledPanel.tsx",
+      "plain": "Shows the messages you scheduled to send later, including failed ones, and lets you edit, reschedule or cancel them.",
       "summary": "Shows queued, held and failed schedules and lets the author resolve them.",
       "details": [
         "Loads server-owned schedules and presents future delivery times, status and attachment context.",
@@ -871,6 +950,7 @@
     },
     {
       "path": "packages/ui/src/components/Attachments.tsx",
+      "plain": "Shows attached files as cards, loads image previews as they scroll into view, and opens them full size.",
       "summary": "Displays file cards, lazy authenticated image previews and full-size lightboxes.",
       "details": [
         "Image loading begins near the viewport using IntersectionObserver, then retains/releases the shared FileCache resource. Large or non-image files use cards and scoped download URLs instead of eager inline transfer.",
@@ -881,6 +961,7 @@
     },
     {
       "path": "packages/ui/src/components/Mrkdwn.tsx",
+      "plain": "Turns message formatting like bold, code, quotes, mentions and links into what you see, and reveals where a link really goes.",
       "summary": "Renders the supported Slack-style message syntax into React elements.",
       "details": [
         "Handles fenced and inline code, bold/italic/strike, quotes, user/channel references and ordinary or labelled HTTP links without interpreting message text as arbitrary HTML.",
@@ -891,6 +972,7 @@
     },
     {
       "path": "packages/ui/src/components/FormattingToolbar.tsx",
+      "plain": "The formatting buttons and shortcuts, such as bold and italic, shared by the message box and the edit box, plus the length limit.",
       "summary": "Shares formatting transformations, shortcuts and message length limits.",
       "details": [
         "formatText wraps or inserts syntax and returns the corresponding selection so composer/editor behavior stays consistent.",
@@ -900,6 +982,7 @@
     },
     {
       "path": "packages/ui/src/components/ReactionPicker.tsx",
+      "plain": "The searchable emoji picker for adding a reaction to a message.",
       "summary": "Makes the shared emoji catalog searchable for a message reaction.",
       "details": [
         "Uses listbox selection and labelled buttons so keyboard, screen-reader and pointer users can choose the same emoji.",
@@ -909,6 +992,7 @@
     },
     {
       "path": "packages/ui/src/components/Sidebar.tsx",
+      "plain": "The sidebar with your workspaces, channels, direct messages, unread marks and account menu.",
       "summary": "Combines workspace switching, conversation navigation, unread context and account actions.",
       "details": [
         "A compact workspace rail and workspace menu expose remembered workspaces without presenting saved tokens to the visible navigation.",
@@ -920,6 +1004,7 @@
     },
     {
       "path": "packages/ui/src/components/QuickSwitcher.tsx",
+      "plain": "The Ctrl+K box for jumping to a channel, a direct message or a person.",
       "summary": "Provides Ctrl+K navigation to channels, DMs and people.",
       "details": [
         "Builds labelled suggestion rows and keeps text-field focus with useListbox; IME Enter stays text input.",
@@ -929,6 +1014,7 @@
     },
     {
       "path": "packages/ui/src/components/MembersPanel.tsx",
+      "plain": "The side panel listing who is in a conversation, grouped by who is online.",
       "summary": "Shows the active conversation's people grouped by online presence.",
       "details": [
         "DMs use their known participant IDs; channels fetch membership when opened and ignore results after disposal.",
@@ -938,6 +1024,7 @@
     },
     {
       "path": "packages/ui/src/components/ChannelDetailsDialog.tsx",
+      "plain": "The channel settings window for its topic and description, its members and managers, and your notifications for it.",
       "summary": "Edits channel details and manages membership, managers and notification choices.",
       "details": [
         "Presents topic/description and member controls under shared channel permission rules; the server remains responsible for enforcement.",
@@ -947,6 +1034,7 @@
     },
     {
       "path": "packages/ui/src/components/dialogs.tsx",
+      "plain": "Windows for making and browsing channels, starting a direct message, managing invite links and turning a guest into an account.",
       "summary": "Groups channel creation/browsing, new conversations and invite management forms.",
       "details": [
         "NewChannelDialog creates public/private channels; BrowseChannelsDialog lists and joins available channels; NewDmDialog chooses participants and opens a direct/group conversation.",
@@ -958,6 +1046,7 @@
     },
     {
       "path": "packages/ui/src/components/ProfileDialog.tsx",
+      "plain": "Shows someone's profile with a way to message them, and lets you edit your own name and status.",
       "summary": "Displays a person's profile and provides the shared self-profile editor.",
       "details": [
         "ProfileForm updates the current user's name and status through Api. Another person's profile can start/open a direct message.",
@@ -967,6 +1056,7 @@
     },
     {
       "path": "packages/ui/src/components/FriendsDialog.tsx",
+      "plain": "Lists your friends in the workspace and lets you send, accept or remove friend requests.",
       "summary": "Lists contacts and friend-request actions within the workspace.",
       "details": [
         "FriendActions requests, accepts or removes a relationship through Api and displays current request state.",
@@ -976,6 +1066,7 @@
     },
     {
       "path": "packages/ui/src/components/AccountDialog.tsx",
+      "plain": "Account settings, with sections for your profile, notifications, appearance, calls, security, devices and storage.",
       "summary": "Collects account, device and presentation settings in routable sections.",
       "details": [
         "Section keyboard navigation and route callbacks connect profile, notifications, appearance, composing, calls, security, devices and storage to Back/Forward history.",
@@ -987,6 +1078,7 @@
     },
     {
       "path": "packages/ui/src/components/PeopleDialog.tsx",
+      "plain": "Lets admins see everyone's account and change roles, deactivate people, reset passwords or hand over ownership.",
       "summary": "Lets administrators inspect accounts and manage access under server role rules.",
       "details": [
         "Loads all users, offers role/deactivation/invite-permission actions, password reset and ownership transfer where permitted.",
@@ -996,6 +1088,7 @@
     },
     {
       "path": "packages/ui/src/components/AppsDialog.tsx",
+      "plain": "Where bots and other connected apps are set up and managed, along with their slash commands and delivery status.",
       "summary": "Manages bot apps, webhooks, commands, subscriptions and callback configuration.",
       "details": [
         "Creates and removes integrations and exposes explicit credential replacement actions. Bot tokens shown once stay only in this UI session; rereadable secrets have reveal/copy controls.",
@@ -1011,6 +1104,7 @@
     },
     {
       "path": "packages/ui/src/components/AuditHistory.tsx",
+      "plain": "Shows a page-by-page history of admin changes, written as readable sentences.",
       "summary": "Shows paged administrator changes as readable audit sentences.",
       "details": [
         "Looks up current names from stored IDs and defensively interprets details, so newer or partial records remain understandable.",
@@ -1020,6 +1114,7 @@
     },
     {
       "path": "packages/ui/src/components/HostDialog.tsx",
+      "plain": "In the desktop app, starts and stops the workspace you host and handles its folder, backups, who may join and outside access.",
       "summary": "Controls desktop hosting, workspace folders, backup/restore and public reachability.",
       "details": [
         "The browser does not own a server; native Platform.hosting provides the operations this dialog presents. Existing workspace folders and new workspace names are separate start intents.",
@@ -1038,6 +1133,7 @@
     },
     {
       "path": "packages/ui/src/components/CallRelaySettings.tsx",
+      "plain": "The hosting card that sets up a relay so calls work between people on different networks, and tests that it answers.",
       "summary": "The Calls from other networks card in Manage hosting: no relay, Cloudflare, or another TURN server.",
       "details": [
         "Shows the saved relay without its secret; a token or password left empty keeps the saved one for the same key or username. Save reaches calls that start afterwards.",
@@ -1047,6 +1143,7 @@
     },
     {
       "path": "packages/ui/src/components/ShareableServer.tsx",
+      "plain": "Keeps the workspace's best address ready, so copying a link is instant and points somewhere others can reach.",
       "summary": "Keeps known workspace addresses ready before the user copies a link.",
       "details": [
         "Combines server-info, native hosting status and explicitly trusted aliases to choose a sharing address without awaiting a network request in the clipboard click handler.",
@@ -1056,6 +1153,7 @@
     },
     {
       "path": "packages/ui/src/components/GettingStarted.tsx",
+      "plain": "A setup checklist that ticks itself off as you create a channel, invite someone, turn on notifications and join a huddle.",
       "summary": "Shows setup steps that complete from actual workspace/account behavior.",
       "details": [
         "Tracks creating a channel, inviting someone, enabling notifications and participating in a huddle, with account/workspace-local dismissal memory.",
@@ -1065,6 +1163,7 @@
     },
     {
       "path": "packages/ui/src/components/NotificationBanner.tsx",
+      "plain": "A banner asking to turn on browser notifications, which waits two weeks before asking again if you pick Not now.",
       "summary": "Requests browser notification permission from an intentional visible gesture.",
       "details": [
         "Appears after sign-in rather than asking from an unrelated first click. Not now defers the banner for two weeks on this device.",
@@ -1074,6 +1173,7 @@
     },
     {
       "path": "packages/ui/src/components/MessageAnnouncer.tsx",
+      "plain": "Reads out new messages to screen reader users without moving focus, grouping bursts so they are not flooded.",
       "summary": "Politely announces new visible messages without flooding a screen reader.",
       "details": [
         "A single arrival includes a bounded excerpt; a burst groups count and up to a few sender names after a quiet period.",
@@ -1083,6 +1183,7 @@
     },
     {
       "path": "packages/ui/src/components/HuddleButton.tsx",
+      "plain": "The button at the top of a conversation that starts a huddle, joins one in progress or shows you are in it.",
       "summary": "Header control that starts a huddle, joins the running one, or says you are in it.",
       "details": [
         "Names the action by the room's state (Start a huddle, Join the huddle (n), In huddle) and joins through the same preference-aware path as other entry points."
@@ -1091,6 +1192,7 @@
     },
     {
       "path": "packages/ui/src/components/HuddleBar.tsx",
+      "plain": "The call bar showing who is in the huddle, who is speaking, each person's volume and anyone you cannot connect to.",
       "summary": "Shows call presence, speaking rings and the header join/start control.",
       "details": [
         "HuddleFace resolves participants and speaking state, while the compact bar hosts controls and a way to restore hidden video.",
@@ -1102,6 +1204,7 @@
     },
     {
       "path": "packages/ui/src/components/HuddleControls.tsx",
+      "plain": "The mute, camera, screen share and leave buttons, with menus to switch microphone, speaker or camera.",
       "summary": "Provides shared microphone, camera, screen-share and leave actions.",
       "details": [
         "Used by both the compact bar and fullscreen stage so the call actions stay available in either layout.",
@@ -1112,6 +1215,7 @@
     },
     {
       "path": "packages/ui/src/components/HuddleAudio.tsx",
+      "plain": "Plays everyone's voice in a call through your chosen speaker at the volume you set, even with the video hidden.",
       "summary": "Keeps each remote microphone playing independently of video layout.",
       "details": [
         "Peer audio elements attach microphone streams even when the call has no camera or the video stage is hidden.",
@@ -1124,6 +1228,7 @@
     },
     {
       "path": "packages/ui/src/components/PersonVolume.tsx",
+      "plain": "One person's volume control in a call, with a mute just for you and a slider up to 200 percent.",
       "summary": "One person's volume in a call: mute for you, and a slider from silent to 200%.",
       "details": [
         "A toggle button (aria-pressed) mutes the person for you alone, and a range input in steps of 5 sets their volume, with a tick at 100% from a datalist and the percent beside it, or Off.",
@@ -1133,6 +1238,7 @@
     },
     {
       "path": "packages/ui/src/components/HuddleStage.tsx",
+      "plain": "The video area of a call, which lays out cameras and screen shares as large as the window allows.",
       "summary": "Arranges cameras and shares into docked, gallery, presenting or spotlight views.",
       "details": [
         "stageItems prioritizes screen shares then participants; bestFit tries column counts to find the largest 16:9 tiles for the actual container dimensions.",
@@ -1144,6 +1250,7 @@
     },
     {
       "path": "packages/ui/src/components/MicrophoneCheck.tsx",
+      "plain": "Lets you hear and see how your microphone sounds before a huddle, without sending anything to anyone.",
       "summary": "Lets the user test local microphone level before joining a huddle.",
       "details": [
         "Opens the chosen microphone with the chosen processing through client-core's testMicrophone, the strong noise filter included, so what plays back is what a call would send; if the filter cannot start it says the browser's own suppression is standing in. It shows the microphone's name and level, and opens it again when the choice changes; autoStart listens at once, as the first-huddle question does. An optional playback sends the voice to the chosen speaker.",
@@ -1153,6 +1260,7 @@
     },
     {
       "path": "packages/ui/src/components/VoiceVideoSettings.tsx",
+      "plain": "The Voice & video settings, where you pick devices, set noise suppression and test your microphone, speaker and camera.",
       "summary": "The Voice & video section of Account settings: devices, processing and tests.",
       "details": [
         "Microphone, speaker (where setSinkId exists) and camera pickers with the system default first; a chosen device that is unplugged stays listed as such. Changes apply to a huddle in progress through chooseDevices and are kept for every workspace on this device.",
@@ -1162,6 +1270,7 @@
     },
     {
       "path": "packages/ui/src/components/DeviceCheckDialog.tsx",
+      "plain": "Asks once, before your first huddle, which microphone and camera to use when you have more than one.",
       "summary": "Asks once, before a first huddle, which microphone and camera to use.",
       "details": [
         "callPreferences.joinHuddle asks when this device has not been asked (devicesChecked), nothing is chosen, and the browser lists more than one microphone or camera; a browser that keeps names back lists none, so it is asked on the first join after it gives them. Choosing a microphone or camera in settings counts as an answer.",
@@ -1171,6 +1280,7 @@
     },
     {
       "path": "packages/ui/src/components/DiagnosticsDialog.tsx",
+      "plain": "Shows the full diagnostics report, call logs included, so you can read it before copying or saving it.",
       "summary": "Shows the complete diagnostics report before copying or downloading it.",
       "details": [
         "Reads server-info and optional owner/admin operating status, recording a readable failure when either is unavailable.",
@@ -1181,6 +1291,7 @@
     },
     {
       "path": "packages/ui/src/components/ShortcutsDialog.tsx",
+      "plain": "A searchable list of keyboard shortcuts that follows your Enter to send setting.",
       "summary": "Lists and filters keyboard shortcuts using the current composing preference.",
       "details": [
         "Writing-key descriptions change with Enter-to-send so the help reflects active behavior.",
@@ -1190,6 +1301,7 @@
     },
     {
       "path": "packages/ui/src/components/Avatar.tsx",
+      "plain": "Draws each person's colored initials and the dot that shows whether they are online.",
       "summary": "Draws consistent initials avatars and presence indicators without image downloads.",
       "details": [
         "Avatar uses the account's deterministic hue and display-name initials; missing users receive a fallback.",
@@ -1199,6 +1311,7 @@
     },
     {
       "path": "packages/ui/src/components/Icon.tsx",
+      "plain": "The app's set of small icons and its logo, drawn directly so nothing extra has to download.",
       "summary": "Provides the application's small inline SVG icon vocabulary and brand mark.",
       "details": [
         "IconName maps to shared vector paths, stroke/size conventions and accessible usage supplied by parent controls.",
@@ -1208,6 +1321,7 @@
     },
     {
       "path": "packages/ui/src/components/Button.tsx",
+      "plain": "The app's standard buttons, in main, secondary, danger and quiet styles.",
       "summary": "Centralizes primary, secondary, danger and quiet action styling.",
       "details": [
         "buttonClass lets existing native buttons reuse variants; Button forwards native attributes and ref.",
@@ -1217,6 +1331,7 @@
     },
     {
       "path": "packages/ui/src/components/Modal.tsx",
+      "plain": "The layer under every dialog, menu and full-size image, which keeps the keyboard inside the top one and returns focus on close.",
       "summary": "Owns the shared stack of modal portals and keyboard/focus isolation.",
       "details": [
         "Tracks the active layer, makes the page and older portals inert, and permits only the top layer to handle Escape, outside dismissal and tab containment.",
@@ -1227,6 +1342,7 @@
     },
     {
       "path": "packages/ui/src/components/Dialog.tsx",
+      "plain": "The standard dialog frame with a title, a close button and matching form fields.",
       "summary": "Adds standard dialog structure and form styling on top of Modal.",
       "details": [
         "Supplies a titled surface, accessible description relationship, close affordance and configurable width.",
@@ -1236,6 +1352,7 @@
     },
     {
       "path": "packages/ui/src/components/Popover.tsx",
+      "plain": "A small panel that opens beside the button that opened it, such as the choices for Send later.",
       "summary": "A small panel anchored to the control that opened it, such as Send later's choices.",
       "details": [
         "Built on the modal layer like Menu: Escape or a press outside closes it, the page beneath waits, and focus returns to the control. It sits above the control, or below when there is no room, and follows it as the page scrolls."
@@ -1244,6 +1361,7 @@
     },
     {
       "path": "packages/ui/src/components/Menu.tsx",
+      "plain": "The compact menu used for message and workspace actions, which works by keyboard as well as by mouse.",
       "summary": "Provides one accessible compact menu for row and workspace actions.",
       "details": [
         "Built on the modal layer, with arrow navigation, Enter selection, Escape/outside dismissal and focus return to the trigger.",
@@ -1253,6 +1371,7 @@
     },
     {
       "path": "packages/ui/src/components/Tooltip.tsx",
+      "plain": "The small hint that appears over a button when you point at it or reach it with the keyboard.",
       "summary": "Explains compact controls without taking focus or blocking the page.",
       "details": [
         "Hover opens after a short delay; keyboard focus opens immediately; Escape dismisses the hint. The floating portal follows its trigger and flips when needed.",
@@ -1262,6 +1381,7 @@
     },
     {
       "path": "packages/ui/src/components/Confirm.tsx",
+      "plain": "Asks you to confirm before something that cannot be undone, and only goes ahead if you pick the named action.",
       "summary": "Asks named questions for irreversible user actions and returns a boolean answer.",
       "details": [
         "ConfirmProvider and useConfirm expose a promise resolved true only by the explicitly named action; cancellation, closing and Escape resolve false.",
@@ -1271,6 +1391,7 @@
     },
     {
       "path": "packages/ui/src/components/Toast.tsx",
+      "plain": "The small notices that say whether something worked, where failures stay until you dismiss them and may offer Retry or Undo.",
       "summary": "Reports operation outcomes without interrupting current input.",
       "details": [
         "Success notices clear after a reading interval, while failures remain for acknowledgement and can offer an operation-specific retry or undo.",
@@ -1280,6 +1401,7 @@
     },
     {
       "path": "packages/ui/src/components/ListStatus.tsx",
+      "plain": "Gives every list the same look while it is loading, refreshing, empty or offering to try again.",
       "summary": "Keeps loading, refresh, empty and retry state consistent across lists.",
       "details": [
         "Before first content it renders varied stand-in rows; later refreshes keep the current list and show a status line.",
@@ -1289,6 +1411,7 @@
     },
     {
       "path": "packages/ui/src/components/ErrorBoundary.tsx",
+      "plain": "Catches a part of the screen that breaks and offers to retry it, without losing your connection or what you typed.",
       "summary": "Contains a broken React view while preserving the workspace connection and typed work.",
       "details": [
         "Catches render failures and supplies recoverable fallback controls at the relevant boundary.",
@@ -1298,6 +1421,7 @@
     },
     {
       "path": "packages/ui/src/components/LazyView.tsx",
+      "plain": "Shows a loading message while a panel or dialog downloads on first use, and offers to close or reload if that fails.",
       "summary": "Wraps on-demand panels and dialogs with loading and failed-chunk recovery.",
       "details": [
         "Suspense announces what is loading and retains a way to close the pending view.",
@@ -1309,285 +1433,321 @@
   "flows": [
     {
       "id": "client-message-send",
-      "title": "From typing a message to a confirmed row",
-      "summary": "The visible draft, durable local work and server message each have different owners. Sending connects them with a nonce and acknowledgement rather than merely clearing the textarea.",
+      "title": "Sending a message",
+      "summary": "Different parts of Tandem look after what you type, the copy saved on your device and the message on the server. Sending passes the message along with a one-time code and waits for a confirmation, rather than just emptying the message box.",
       "steps": [
         {
-          "title": "Type and protect the draft",
-          "description": "Composer updates local text immediately, debounces client.setDraft for ordinary typing, and captures current text before navigation or normal close. Thread replies use their own draft key.",
-          "files": ["packages/ui/src/components/Composer.tsx", "packages/ui/src/lib/textInput.ts"]
+          "title": "Type and keep a draft",
+          "description": "The message box shows your words as you type them. The app saves the draft a moment after you pause, and right away when you switch conversations or close the app normally. A thread reply has its own draft, separate from the channel's.",
+          "files": ["packages/ui/src/components/Composer.tsx", "packages/ui/src/lib/textInput.ts"],
+          "detail": "Composer updates local text immediately, debounces client.setDraft for ordinary typing, and captures current text before navigation or normal close. Thread replies use their own draft key."
         },
         {
-          "title": "Queue an optimistic send",
-          "description": "WorkspaceClient validates admission, generates a random nonce, appends PendingMessage and creates local attachment previews. The 50-send limit refuses extra work while keeping the draft.",
+          "title": "Show the message right away",
+          "description": "The message shows up in the conversation right away, marked as sending, with previews of any attached files. The app gives it a random one-time code so it can recognise it later. If 50 messages are already waiting to send, the app refuses this one and keeps your draft.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/MessageTimeline.tsx"
-          ]
+          ],
+          "detail": "WorkspaceClient validates admission, generates a random nonce, appends PendingMessage and creates local attachment previews. The 50-send limit refuses extra work while keeping the draft."
         },
         {
-          "title": "Acquire durable ownership",
-          "description": "DraftPersistence merges the outbox before clearing the corresponding saved draft. localWork settles the nonce after storage or delivery evidence; failures retain retry/recovery state.",
+          "title": "Save it on the device before clearing the draft",
+          "description": "The message joins the messages waiting to send, saved on the device, and only then does the app clear the saved draft. The app counts the message as safe once it is saved on the device or delivered. If saving fails, the app keeps what it needs to try again or to give your words back.",
           "files": [
             "packages/ui/src/components/DraftPersistence.tsx",
             "packages/ui/src/lib/localWork.ts",
             "packages/client-core/src/outbox.ts"
-          ]
+          ],
+          "detail": "DraftPersistence merges the outbox before clearing the corresponding saved draft. localWork settles the nonce after storage or delivery evidence; failures retain retry/recovery state."
         },
         {
-          "title": "Upload and post",
-          "description": "deliver uploads chosen files, caches successful upload IDs for a retry and posts the exact message request. Progress belongs to the pending row.",
-          "files": ["packages/client-core/src/workspace.ts", "packages/client-core/src/api.ts"]
+          "title": "Upload files and post",
+          "description": "The app uploads any attached files, then sends the message to the server. If it has to try again, it does not upload the same files twice and sends exactly the same message. Upload progress shows on the message marked as sending.",
+          "files": ["packages/client-core/src/workspace.ts", "packages/client-core/src/api.ts"],
+          "detail": "deliver uploads chosen files, caches successful upload IDs for a retry and posts the exact message request. Progress belongs to the pending row."
         },
         {
-          "title": "Reconcile server evidence",
-          "description": "The HTTP response or WebSocket message.created event updates the replica and removes the optimistic entry by nonce. File previews are released and durable removal creates an outbox tombstone.",
+          "title": "Swap in the confirmed message",
+          "description": "The server confirms the message, either in its answer or over the live connection. The app replaces the sending copy with the server's message, matched by its code, and frees the file previews. It removes the message from those waiting to send and leaves a note so an older copy cannot bring it back.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/DraftPersistence.tsx",
             "packages/ui/src/components/MessageItem.tsx"
-          ]
+          ],
+          "detail": "The HTTP response or WebSocket message.created event updates the replica and removes the optimistic entry by nonce. File previews are released and durable removal creates an outbox tombstone."
         }
-      ]
+      ],
+      "detail": "The visible draft, durable local work and server message each have different owners. Sending connects them with a nonce and acknowledgement rather than merely clearing the textarea."
     },
     {
       "id": "client-offline-recovery",
-      "title": "Reconnect, restart and unfinished-write recovery",
-      "summary": "Recovery distinguishes unknown network outcome, explicit server refusal and unavailable local attachment bytes. The same text must not silently become two sends.",
+      "title": "Picking up after a lost connection or restart",
+      "summary": "When something goes wrong, the app tells three cases apart. It may not know whether a message arrived, the server may have refused it, or an attached file may no longer be on the device, and in every case the same words must never quietly post twice.",
       "steps": [
         {
-          "title": "Keep uncertainty visible",
-          "description": "A failed send stays in pending state with an actionable reason. A known refusal requires deliberate Retry; an uncertain outcome retains the same nonce.",
+          "title": "Show what went wrong",
+          "description": "A message that failed stays in the conversation, marked as sending, with the reason and what you can do. If the server refused it, it waits until you choose Retry. If the app cannot tell whether it arrived, it keeps the same code, so the server can spot a repeat.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/MessageTimeline.tsx"
-          ]
+          ],
+          "detail": "A failed send stays in pending state with an actionable reason. A known refusal requires deliberate Retry; an uncertain outcome retains the same nonce."
         },
         {
-          "title": "Journal before asynchronous persistence",
-          "description": "deviceStore synchronously records the storage operation, then commits an IndexedDB transaction. Failure keeps the journal entry; tab/sequence metadata prevents repeating an operation already committed.",
-          "files": ["packages/ui/src/lib/deviceStore.ts"]
+          "title": "Note each change before saving it",
+          "description": "Before the app saves a change in the browser's storage, it first writes a quick note of the change. If the save fails or the page closes, the note stays and the change is made the next time the app starts. Each note records which tab made it and in what order, so a change already saved is never made twice.",
+          "files": ["packages/ui/src/lib/deviceStore.ts"],
+          "detail": "deviceStore synchronously records the storage operation, then commits an IndexedDB transaction. Failure keeps the journal entry; tab/sequence metadata prevents repeating an operation already committed."
         },
         {
-          "title": "Restore only after identity admission",
-          "description": "The ready snapshot identifies workspace/account, WorkspaceStorageGate admits the address, and workspaceStorage reads the correct versioned keys. Unreadable storage offers retry instead of an empty alternate store.",
+          "title": "Check the workspace before restoring",
+          "description": "The app restores saved work only after the server confirms which workspace and account this is, and the address is approved. It then reads the saved work for exactly that workspace and account. If the saved work cannot be read, the app offers to try again rather than starting empty.",
           "files": [
             "packages/ui/src/components/WorkspaceStorageGate.tsx",
             "packages/ui/src/lib/workspaceStorage.ts",
             "packages/ui/src/components/DraftPersistence.tsx"
-          ]
+          ],
+          "detail": "The ready snapshot identifies workspace/account, WorkspaceStorageGate admits the address, and workspaceStorage reads the correct versioned keys. Unreadable storage offers retry instead of an empty alternate store."
         },
         {
-          "title": "Restore a send or its words",
-          "description": "Durable outbox records restore sends; unstored recovery records restore words only when the outbox/tombstone does not own the nonce. Missing files and sends beyond the retry window remain held for the author.",
+          "title": "Restore unsent messages or their words",
+          "description": "The app restores messages saved as waiting to send and sends them again. Where the device kept only the words, they come back as text, unless that message was already sent or discarded. A message whose files are gone, or that is too old to resend on its own, waits for you to decide.",
           "files": [
             "packages/ui/src/components/DraftPersistence.tsx",
             "packages/client-core/src/workspace.ts",
             "packages/client-core/src/outbox.ts"
-          ]
+          ],
+          "detail": "Durable outbox records restore sends; unstored recovery records restore words only when the outbox/tombstone does not own the nonce. Missing files and sends beyond the retry window remain held for the author."
         },
         {
-          "title": "Resume the replica without notification flood",
-          "description": "WebSocket hello sends lastSeq, replay is reconciled with snapshot-watermarked history, and eligible missed messages become a catch-up summary. @here replay is not treated as live presence.",
+          "title": "Catch up without a flood of notifications",
+          "description": "On reconnecting, the app tells the server the last update it saw and gets everything it missed, matched against the history it already has. Missed messages that still matter arrive as one catch-up summary instead of many notifications. A missed @here does not ring, since it was meant for people around at the time.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/client-core/src/notify.ts",
             "packages/ui/src/lib/catchUp.ts",
             "packages/ui/src/screens/WorkspaceScreen.tsx"
-          ]
+          ],
+          "detail": "WebSocket hello sends lastSeq, replay is reconciled with snapshot-watermarked history, and eligible missed messages become a catch-up summary. @here replay is not treated as live presence."
         }
-      ]
+      ],
+      "detail": "Recovery distinguishes unknown network outcome, explicit server refusal and unavailable local attachment bytes. The same text must not silently become two sends."
     },
     {
       "id": "client-multi-tab-storage",
-      "title": "Two windows sharing local drafts and choices",
-      "summary": "Atomic backend merges preserve changed keys and removals. Caller-level state still needs its own reply-order ownership; Q02/Q03/Q05 record remaining gaps.",
+      "title": "Using Tandem in two windows at once",
+      "summary": "When two windows save at once, Tandem merges each change in on its own, so neither window wipes out the other's drafts or deletions. The parts of the app that use these saves must still handle late answers themselves, and three known gaps remain.",
       "steps": [
         {
-          "title": "Choose one authoritative backend",
-          "description": "N02 persists IndexedDB ownership before migration. Missing BroadcastChannel does not change ownership; failed opening remains unreadability with retry.",
-          "files": ["packages/ui/src/lib/deviceStore.ts", "packages/ui/src/platform.ts"]
+          "title": "Pick one place to save",
+          "description": "In a browser, the app keeps drafts and choices in one storage place and records that choice before moving older saved work into it. It does not switch places just because the browser cannot message other windows. If storage will not open, the app says it cannot be read and offers to try again.",
+          "files": ["packages/ui/src/lib/deviceStore.ts", "packages/ui/src/platform.ts"],
+          "detail": "N02 persists IndexedDB ownership before migration. Missing BroadcastChannel does not change ownership; failed opening remains unreadability with retry."
         },
         {
-          "title": "Commit only the actual change",
-          "description": "A readwrite transaction merges one conversation's draft, one nonce's outbox state or one account's choice. Draft bases preserve conflicting words, and outbox tombstones/floors reject stale resurrection.",
+          "title": "Save only what changed",
+          "description": "Each save changes one thing in a single step, such as one conversation's draft, one message waiting to send, or one account's choice. If two windows typed different words into the same draft, the app keeps both. A message already sent or discarded cannot be brought back by an older copy.",
           "files": [
             "packages/ui/src/lib/deviceStore.ts",
             "packages/client-core/src/drafts.ts",
             "packages/client-core/src/outbox.ts",
             "packages/client-core/src/records.ts"
-          ]
+          ],
+          "detail": "A readwrite transaction merges one conversation's draft, one nonce's outbox state or one account's choice. Draft bases preserve conflicting words, and outbox tombstones/floors reject stale resurrection."
         },
         {
-          "title": "Tell other windows",
-          "description": "BroadcastChannel can deliver the change; a fallback storage event carries only the changed key, then reads IndexedDB. Focus refresh and generation guards supplement that path.",
-          "files": ["packages/ui/src/lib/deviceStore.ts"]
+          "title": "Tell the other windows",
+          "description": "The app tells the other open windows what changed. If the usual route is missing, a backup signal names only what changed, and the other window reads it from storage. Windows also check again when you switch to them, and ignore late answers to older requests.",
+          "files": ["packages/ui/src/lib/deviceStore.ts"],
+          "detail": "BroadcastChannel can deliver the change; a fallback storage event carries only the changed key, then reads IndexedDB. Focus refresh and generation guards supplement that path."
         },
         {
-          "title": "Reconcile their current views",
-          "description": "DraftPersistence adopts another window's drafts/outbox without overwriting its still-unsaved edits, while notification preview watchers update privacy choice. Newer local edits retain their own merge base.",
+          "title": "Update the other window without losing its edits",
+          "description": "The other window takes in new drafts and messages waiting to send, without overwriting words you are still typing there. It also picks up a change to whether notifications show message previews. Edits you make there afterwards still merge correctly.",
           "files": [
             "packages/ui/src/components/DraftPersistence.tsx",
             "packages/ui/src/lib/notificationPreview.ts",
             "packages/ui/src/components/Composer.tsx"
-          ]
+          ],
+          "detail": "DraftPersistence adopts another window's drafts/outbox without overwriting its still-unsaved edits, while notification preview watchers update privacy choice. Newer local edits retain their own merge base."
         },
         {
-          "title": "Respect the remaining caller boundaries",
-          "description": "Q02 requires atomic first-address registration; Q03 requires fencing old preference replies against newer watches; Q05 requires account-aware saved-signin operations. These are documented follow-ups, not claimed repairs.",
+          "title": "Windows can still clash in three known ways",
+          "description": "These problems are recorded for later, not fixed. Two windows opening a workspace at a new address at the same moment can both trust it, and a late reply can undo a newer choice about notification previews. A window can also bring back a saved sign-in another window removed, or erase one it just added.",
           "files": [
             "packages/ui/src/lib/workspaceAddressTrust.ts",
             "packages/ui/src/lib/notificationPreview.ts",
             "packages/ui/src/App.tsx"
-          ]
+          ],
+          "detail": "Q02 requires atomic first-address registration; Q03 requires fencing old preference replies against newer watches; Q05 requires account-aware saved-signin operations. These are documented follow-ups, not claimed repairs."
         }
-      ]
+      ],
+      "detail": "Atomic backend merges preserve changed keys and removals. Caller-level state still needs its own reply-order ownership; Q02/Q03/Q05 record remaining gaps."
     },
     {
       "id": "client-huddle-join",
-      "title": "Preference-aware huddle joining and microphone recovery",
-      "summary": "A join has owned preference initialization, permission capture, server admission and peer media. The latest mute choice follows a replacement microphone.",
+      "title": "Joining a huddle",
+      "summary": "Joining a huddle means loading your call settings, getting your microphone, being let in by the server and connecting to everyone else. If your microphone changes during the call, your latest mute choice carries over.",
       "steps": [
         {
-          "title": "Use the shared join preference",
-          "description": "Header and Getting started actions wait for current initialization or saving. Unreadable preferences keep the microphone off and expose retry; a navigation guard can cancel a join no longer wanted.",
+          "title": "Load your call settings",
+          "description": "The huddle button in the channel header and the one in Getting started both wait until your call settings have loaded or finished saving. If the settings cannot be read, you join with the microphone off and can try loading them again. Moving elsewhere first can cancel a join you no longer want.",
           "files": [
             "packages/ui/src/lib/callPreferences.ts",
             "packages/ui/src/components/HuddleBar.tsx",
             "packages/ui/src/screens/WorkspaceScreen.tsx"
-          ]
+          ],
+          "detail": "Header and Getting started actions wait for current initialization or saving. Unreadable preferences keep the microphone off and expose retry; a navigation guard can cancel a join no longer wanted."
         },
         {
-          "title": "Capture before admission",
-          "description": "WorkspaceClient reads RTC configuration and creates HuddleSession. startLocalAudio requests the microphone and adopts it with the current mute intent; late media after cancellation is stopped.",
+          "title": "Get the microphone first",
+          "description": "The app reads the server's call connection settings and sets up the call. It asks for your microphone and applies your current mute choice to it. If you cancelled and the microphone arrives late, the app turns it off at once.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/client-core/src/huddle.ts",
             "packages/client-core/src/capture.ts"
-          ]
+          ],
+          "detail": "WorkspaceClient reads RTC configuration and creates HuddleSession. startLocalAudio requests the microphone and adopts it with the current mute intent; late media after cancellation is stopped."
         },
         {
-          "title": "Join and connect peers",
-          "description": "Supported servers acknowledge huddle.join with a request ID; failure cleans local media. The roster chooses one offerer per peer and fixed microphone/camera/screen transceivers carry streams.",
-          "files": ["packages/client-core/src/workspace.ts", "packages/client-core/src/huddle.ts"]
+          "title": "Join and connect to others",
+          "description": "The server confirms the join, and if joining fails, the app lets go of the microphone. For each pair of people, one side starts the connection. Fixed slots carry the microphone, camera and screen share.",
+          "files": ["packages/client-core/src/workspace.ts", "packages/client-core/src/huddle.ts"],
+          "detail": "Supported servers acknowledge huddle.join with a request ID; failure cleans local media. The roster chooses one offerer per peer and fixed microphone/camera/screen transceivers carry streams."
         },
         {
-          "title": "Present audio and video once",
-          "description": "HuddleAudio owns remote voices, each as loud as you chose; video tiles stay muted. Speaking transitions update the compact bar, while the lazy stage fits cameras and shares to the available container.",
+          "title": "Play each voice once",
+          "description": "Each person's voice plays once, at the volume you chose for them, while video tiles stay silent. The small huddle bar shows who is speaking. The larger call view loads only when you open it and fits cameras and screen shares to the space.",
           "files": [
             "packages/ui/src/components/HuddleAudio.tsx",
             "packages/ui/src/lib/callVolumes.ts",
             "packages/ui/src/components/HuddleBar.tsx",
             "packages/ui/src/components/HuddleStage.tsx"
-          ]
+          ],
+          "detail": "HuddleAudio owns remote voices, each as loud as you chose; video tiles stay muted. Speaking transitions update the compact bar, while the lazy stage fits cameras and shares to the available container."
         },
         {
-          "title": "Replace or release hardware",
-          "description": "After microphone loss, recovery captures the new default, applies the current mute choice and replaceTrack updates peers. Leave/destroy stops tracks, polling, device listeners and peer connections.",
+          "title": "Switch microphones or leave",
+          "description": "If your microphone disconnects, the app picks up the new default one, applies your current mute choice and passes it to everyone in the call. Leaving turns off your microphone and camera, stops watching for device changes and closes every connection.",
           "files": [
             "packages/client-core/src/huddle.ts",
             "packages/ui/src/components/HuddleControls.tsx"
-          ]
+          ],
+          "detail": "After microphone loss, recovery captures the new default, applies the current mute choice and replaceTrack updates peers. Leave/destroy stops tracks, polling, device listeners and peer connections."
         }
-      ]
+      ],
+      "detail": "A join has owned preference initialization, permission capture, server admission and peer media. The latest mute choice follows a replacement microphone."
     },
     {
       "id": "client-app-form",
-      "title": "App form replacement while a callback is in flight",
-      "summary": "A form's identity owns its input and completion. The server additionally excludes concurrent submissions of that same view, while external uncertain retries can still require app-side deduplication.",
+      "title": "Filling in a form from an app",
+      "summary": "Each form an app opens keeps its own answers and its own result, so a late reply to an old form cannot close a new one. The server also refuses a second submission of the same form while one is in progress, but after an unclear network failure the app itself may need to spot a repeat.",
       "steps": [
         {
-          "title": "Receive the app view",
-          "description": "A server ephemeral opens a ModalView in the workspace replica. ViewModal renders an AppForm keyed by that unique view ID.",
+          "title": "Receive the form",
+          "description": "The server tells only you that an app added to the workspace wants to show you a form. The app engine adds it to the workspace, and the screens open it in a dialog tied to that form's own ID.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/ViewModal.tsx"
-          ]
+          ],
+          "detail": "A server ephemeral opens a ModalView in the workspace replica. ViewModal renders an AppForm keyed by that unique view ID."
         },
         {
-          "title": "Collect form-local input",
-          "description": "Each block/action pair has its own value key. Busy, errors and message state belong to this keyed instance; nothing is saved to device storage.",
-          "files": ["packages/ui/src/components/ViewModal.tsx"]
+          "title": "Fill in the fields",
+          "description": "Each field keeps its own answer. Whether the form is busy, its errors and its messages all belong to this one form. Nothing is saved on the device.",
+          "files": ["packages/ui/src/components/ViewModal.tsx"],
+          "detail": "Each block/action pair has its own value key. Busy, errors and message state belong to this keyed instance; nothing is saved to device storage."
         },
         {
-          "title": "Submit with ownership",
-          "description": "An immediate submitting guard blocks a second local submit. WorkspaceClient checks the captured view ID, and Api submits the nested answer payload to the server.",
+          "title": "Submit once",
+          "description": "Pressing submit again while the first is under way does nothing. The app engine checks it is still the same form, then sends your answers to the server.",
           "files": [
             "packages/ui/src/components/ViewModal.tsx",
             "packages/client-core/src/workspace.ts",
             "packages/client-core/src/api.ts"
-          ]
+          ],
+          "detail": "An immediate submitting guard blocks a second local submit. WorkspaceClient checks the captured view ID, and Api submits the nested answer payload to the server."
         },
         {
-          "title": "Accept only this view's result",
-          "description": "Success dismisses the original view ID, validation focuses its refused field, and a transport failure reports a message only while this instance remains alive.",
+          "title": "Accept only this form's result",
+          "description": "If the app accepts the answers, this form closes. If it refuses a field, that field gets the focus. If the network fails, you see a message, but only while this form is still open.",
           "files": [
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/ViewModal.tsx"
-          ]
+          ],
+          "detail": "Success dismisses the original view ID, validation focuses its refused field, and a transport failure reports a message only while this instance remains alive."
         },
         {
-          "title": "Keep a replacement independent",
-          "description": "A new view ID unmounts the old form and starts fresh state. N05 prevents the prior callback result from closing or contaminating it; N08 provides separate server-side in-flight exclusion.",
+          "title": "Start a new form fresh",
+          "description": "When the app sends a new form, the old one disappears and the new one starts empty. A late result from the old form cannot close or change the new one. The server separately refuses a second submission of a form that is still being handled.",
           "files": [
             "packages/ui/src/components/ViewModal.tsx",
             "packages/client-core/src/workspace.ts",
             "packages/server/src/server.ts"
-          ]
+          ],
+          "detail": "A new view ID unmounts the old form and starts fresh state. N05 prevents the prior callback result from closing or contaminating it; N08 provides separate server-side in-flight exclusion."
         }
-      ]
+      ],
+      "detail": "A form's identity owns its input and completion. The server additionally excludes concurrent submissions of that same view, while external uncertain retries can still require app-side deduplication."
     },
     {
       "id": "client-navigation-trust",
-      "title": "Open a workspace or message and return to the right place",
-      "summary": "Link parsing, account restoration, address trust and history each answer a different question: destination, credentials, local-work admission and reading position.",
+      "title": "Following a link to a workspace or message",
+      "summary": "Opening a link answers four separate questions, each in its own place. The link says where to go, a saved sign-in says who you are, the trusted address decides whether work saved on the device may open, and history remembers where to return.",
       "steps": [
         {
-          "title": "Interpret the link",
-          "description": "Platform consumes a recognized desktop or browser fragment link. App chooses a remembered sign-in, reuses the open workspace or carries a message target through joining.",
+          "title": "Read the link",
+          "description": "The desktop app or the browser hands over a Tandem link it recognises. Tandem then picks a saved sign-in, reuses the workspace already open, or keeps the target message in mind while you join.",
           "files": [
             "packages/ui/src/platform.ts",
             "packages/ui/src/lib/deeplink.ts",
             "packages/ui/src/App.tsx"
-          ]
+          ],
+          "detail": "Platform consumes a recognized desktop or browser fragment link. App chooses a remembered sign-in, reuses the open workspace or carries a message target through joining."
         },
         {
-          "title": "Authenticate and identify the workspace",
-          "description": "JoinScreen probes compatibility and authenticates, then WorkspaceClient receives the ready snapshot. Switching destroys the previous client so no old socket/media remains active behind the new screen.",
+          "title": "Sign in and identify the workspace",
+          "description": "The join screen checks that the server works with this version of Tandem and signs you in, then the app engine receives the workspace. Switching workspaces fully shuts down the previous one, so no old connection or call keeps running behind the new screen.",
           "files": [
             "packages/ui/src/screens/JoinScreen.tsx",
             "packages/ui/src/App.tsx",
             "packages/client-core/src/workspace.ts"
-          ]
+          ],
+          "detail": "JoinScreen probes compatibility and authenticates, then WorkspaceClient receives the ready snapshot. Switching destroys the previous client so no old socket/media remains active behind the new screen."
         },
         {
-          "title": "Admit local work",
-          "description": "WorkspaceStorageGate checks the exact connected address for the authenticated workspace/account before mounting local-work consumers. Later aliases require approval; simultaneous first-registration remains Q02.",
+          "title": "Approve the address before opening saved work",
+          "description": "Before opening drafts and other work saved on the device, the app checks that this exact address is approved for this workspace and account. A different address for the same workspace needs your approval. Two windows registering a first address at the same moment is still a known gap.",
           "files": [
             "packages/ui/src/components/WorkspaceStorageGate.tsx",
             "packages/ui/src/lib/workspaceAddressTrust.ts"
-          ]
+          ],
+          "detail": "WorkspaceStorageGate checks the exact connected address for the authenticated workspace/account before mounting local-work consumers. Later aliases require approval; simultaneous first-registration remains Q02."
         },
         {
-          "title": "Navigate and load the target",
-          "description": "WorkspaceScreen chooses the channel/thread/panel and requests an owned jump window. The timeline highlights the message while keeping ordinary paging from fighting the programmatic scroll.",
+          "title": "Jump to the message",
+          "description": "The app opens the right channel, thread or panel and loads the part of the history around the message. It highlights the message, and stops the usual loading of older messages from pulling the view away while it scrolls there.",
           "files": [
             "packages/ui/src/screens/WorkspaceScreen.tsx",
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/MessageTimeline.tsx"
-          ]
+          ],
+          "detail": "WorkspaceScreen chooses the channel/thread/panel and requests an owned jump window. The timeline highlights the message while keeping ordinary paging from fighting the programmatic scroll."
         },
         {
-          "title": "Keep Back, Forward and focus meaningful",
-          "description": "route.ts records workspace-bound places and reading anchors, threadPosition bounds session thread anchors, and panel/modal focus helpers return keyboard focus to a usable opener. Q06/Q11 document remaining abandoned-action navigation paths.",
+          "title": "Make Back and Forward work",
+          "description": "Back and Forward return to places in this workspace and to where you were reading, including in threads during this session. Closing a panel or dialog returns the keyboard to the button that opened it. Two known gaps remain, where a cancelled sign-in or the Message button on a profile can still move you after you have moved on.",
           "files": [
             "packages/ui/src/lib/route.ts",
             "packages/ui/src/lib/threadPosition.ts",
             "packages/ui/src/lib/usePanelFocus.ts",
             "packages/ui/src/components/Modal.tsx"
-          ]
+          ],
+          "detail": "route.ts records workspace-bound places and reading anchors, threadPosition bounds session thread anchors, and panel/modal focus helpers return keyboard focus to a usable opener. Q06/Q11 document remaining abandoned-action navigation paths."
         }
-      ]
+      ],
+      "detail": "Link parsing, account restoration, address trust and history each answer a different question: destination, credentials, local-work admission and reading position."
     }
   ]
 }
