@@ -18,9 +18,14 @@ serves only the generated page and does not expose arbitrary repository files.
 Press `/` or `Ctrl K` anywhere to search file names, declarations, journeys and
 changes together.
 
-- **Overview** maps how the browser, desktop app, shared interface, client
-  replica, protocol and server connect, charts how much code each layer holds and
-  names the areas inside each layer.
+- **Overview** is a map of the code. Each area is a card and each file is a dot
+  in its card: a solid dot is source, a ring is a test and a faint dot is
+  configuration, docs or an asset. A wire with a number counts the files in one
+  area that import another, tests left out; a dotted wire is a connection made
+  at runtime, such as the client reaching the server over HTTP and WebSocket.
+  Point at a card to light its wires, or at a dot to name its file, and click
+  either to open it. Below the map, each layer's share of the code and the
+  areas in it, then every journey drawn small by the layers it passes through.
 - **Files** is a folder tree beside a reader. Filter the tree by name, kind or
   layer, or tick **Search inside files too** to match source text. A file opens on
   its explanation; **Source** shows the whole file with find, go to line, line
@@ -29,8 +34,11 @@ changes together.
   line number to copy a link to that line. Arrow keys move through the tree.
 - **How it works** follows one action through the code, step by step. Its
   handoff map shows which layer each step works in.
-- **Improvements** groups open, measured and implemented changes, each with its
-  before and after, mechanism, measurements, files and limits.
+- **Improvements** opens on a board: every record as a dot in a row for its
+  category, which layers the open findings reach into, and how much each
+  measured change took away. Below it the records are grouped as open, measured
+  and implemented, each with its before and after, mechanism, measurements,
+  files and limits. Filtering the list dims what it hides on the board.
 - **Scope & limits** says what the atlas can and cannot show.
 
 Every view, file, tab and line has its own address, so Back, Forward and copied
@@ -82,6 +90,13 @@ Run `pnpm install` first; the generator stops if they are missing. Layer colours
 group the eleven areas into six layers so a colour can name one: the five hues
 and the neutral were checked for colour-vision separation on both themes, and
 every chart also labels its values.
+
+The look follows the app's own theme (`packages/ui/src/theme.css`), and the
+diagrams take after shots collected on [vibrant.design](https://vibrant.design):
+the cards, ports and wires of the overview from the AI Node-Based Workflow
+Canvas, a dot for every file from the dot-matrix map in Mintlify's Stats
+Section, the thin share bars from the AI Model Router Dashboard, and the
+Improvements board's panels from Modal's Bento Grid.
 
 The [atlas validation record](VALIDATION.md) covers its generator and browser
 interactions.

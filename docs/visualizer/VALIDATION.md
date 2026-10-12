@@ -50,3 +50,34 @@ with no server, at 1440 × 900 and at 390 × 844 as a touch phone, in both theme
 - No view is wider than a 390-pixel screen.
 
 A screen reader and printed output were not tried.
+
+## Browser checks, 12 October 2026
+
+The atlas was redesigned again: Tandem's graphite theme, a wired map of every
+file on Overview, journeys drawn small, and a board on Improvements. The same
+Playwright setup checked it, from the file, at 1440 × 900 and at 390 × 844 as a
+touch phone, in both themes.
+
+- axe-core reports no violations on Overview, Files (tree, explanation, source,
+  declarations, connections), How it works, an expanded improvement,
+  Improvements and Scope & limits, in Onyx and White, at both sizes. On the
+  phone it had found three problems that were already on the main branch: the
+  search button had no name once its label was hidden, the closed navigation
+  drawer kept its links in the Tab order, and the file tree had no top-level
+  heading. All three are fixed.
+- The map draws all ten wires, and their labels stay inside it. Pointing at a
+  card lights its own wires and dims the rest; pointing at a dot names its file,
+  and clicking it opens that file.
+- On Improvements, the Measured filter shows 12 records and the Open filter 13.
+  Filtering dims what the list hides on the board, and a bar on the board opens
+  its record.
+- Ctrl K opens search and Escape closes it; HTML typed into it creates no
+  elements. The Contract layer link lists its 14 files. The theme choice
+  survives a reload. The skip link moves focus into the page without leaving
+  the view.
+- No view is wider than a 390-pixel screen, the page makes no network requests
+  and it logs no errors.
+- The colours of the board's three statuses were run through a colour-vision
+  check. The measured and implemented colours are too close for red-green
+  colour blindness, so the board also tells them apart by shape: a ring is
+  open, a target is measured, a solid dot is implemented.

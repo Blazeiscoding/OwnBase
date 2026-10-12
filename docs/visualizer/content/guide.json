@@ -1,6 +1,6 @@
 {
-  "title": "A workspace. A few layers. Every file connected.",
-  "intro": "Tandem is a self-hosted chat workspace. The browser and desktop share a React interface and a client replica; a Node server owns the workspace's SQLite database, media and ordered events. This atlas connects the files to that behavior, then explains what changed and the evidence behind it.",
+  "title": "Every file in Tandem, and the wires between them",
+  "intro": "Tandem is a self-hosted chat workspace. The browser and the desktop app share a React interface and a client replica, and a Node server owns the workspace's SQLite database, media and ordered events. On the map below, each dot is one file and each wire is one area depending on another.",
   "areas": [
     {
       "id": "ui",
