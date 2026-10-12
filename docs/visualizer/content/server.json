@@ -343,6 +343,7 @@
         "Whole-thread purge uses a temporary ID table, retains only minimal send-key tombstones to prevent retry resurrection, queues blob deletions and redacts event/delivery copies together.",
         "Due cleanup and app delivery queries isolate retrying/rejected rows so a failing item does not block healthy work. Follow-state revisions prevent stale authoritative echoes from replacing newer state.",
         "Already delivered app copies and prior backups are outside active-store cleanup; the SQL rules do not constitute physical disk erasure.",
+        "Inline replies keep the message they answer (reply_to_id) and whether its author was notified (reply_ping). Hydration reads each quoted message as it now is, cut to replyExcerpt, or says it was deleted; a notified author is indexed as mentioned. Editing, deleting or purging a quoted message rewrites the quotes in its replies' logged copies too, so the log never keeps words that were taken back.",
         "Guest sessions keep their 24-hour expiry instead of sliding; canAccess and listChannelsVisibleTo give a guest public channels only, whatever membership it might hold. convertGuest turns a guest into a member in place, and revokeGuestSessions reports the ended tokens so their sockets close."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
