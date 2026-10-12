@@ -939,9 +939,10 @@ function updateTray(): void {
       },
       { type: "separator" },
       {
-        label: status.phase === "stopped" ? "Quit Tandem" : "Stop hosting and quit…",
+        label: status.phase === "stopped" ? "Quit Tandem" : "Stop hosting and quit",
         enabled: !quitting && !trayStopPending,
-        click: () => app.quit(),
+        // The label already says hosting stops, so it does not ask again.
+        click: () => quitTandem(true),
       },
     ]),
   );
@@ -1226,11 +1227,19 @@ app.on("window-all-closed", () => {
 app.on("before-quit", (event) => {
   if (quitReady || !primaryInstance) return;
   event.preventDefault();
+  quitTandem(false);
+});
+
+/**
+ * Stops hosting, saves local work and quits. `stopConfirmed` skips asking
+ * first, for a choice that already said it stops hosting.
+ */
+function quitTandem(stopConfirmed: boolean): void {
   if (quitTask || trayStopPending) return;
   quitting = true;
   updateTray();
   quitTask = (async () => {
-    if (hosting.status().phase !== "stopped" && !(await confirmStop(true))) {
+    if (!stopConfirmed && hosting.status().phase !== "stopped" && !(await confirmStop(true))) {
       quitting = false;
       updateTray();
       return;
@@ -1279,4 +1288,4 @@ app.on("before-quit", (event) => {
       if (!quitReady && mainWindow && !mainWindow.isDestroyed()) mainWindow.setEnabled(true);
     });
   void quitTask.catch(() => {});
-});
+}
