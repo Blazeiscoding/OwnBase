@@ -81,3 +81,26 @@ touch phone, in both themes.
   check. The measured and implemented colours are too close for red-green
   colour blindness, so the board also tells them apart by shape: a ring is
   open, a target is measured, a solid dot is implemented.
+
+## Plain words, 12 October 2026
+
+The text people read first was rewritten for readers who do not write code:
+the overview, the part names on the map, the 15 journeys, the 50 improvement
+records, the limits, the glossary and every label. Each of the 264 explained
+files also got one plain sentence, shown first on its page and in the map's
+tooltip. The technical wording was kept and moved under "In the code".
+
+- A script checked every rewritten field against the original it replaces:
+  same records, same number of steps, measurements and limits, and none of a
+  list of jargon words, code names, dashes or parentheses. All of it passes.
+- Each improvement keeps its original title, summary, before, after and limits
+  in `technical`; each journey, step, measurement and guide limit keeps its
+  original in `detail`. Searching for an original title still finds the record.
+- axe-core reports no violations on every view, in both themes, at both sizes,
+  with every "In the code" section open.
+- A link to a journey step opens that step's "In the code", and only that one.
+  A record's "In the code" starts closed.
+- Plain text was spot-checked against the original for the hosting and
+  building journeys and for several records. One sentence that misread a
+  cross-reference was corrected. Nobody without a coding background has read
+  it yet.

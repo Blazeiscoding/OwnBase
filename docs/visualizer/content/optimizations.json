@@ -2,12 +2,12 @@
   "items": [
     {
       "id": "OPT-10",
-      "title": "Seek directly through thread history",
+      "title": "Old threads open their newest replies much faster",
       "category": "performance",
       "status": "measured",
-      "summary": "Schema v28 replaces the old single-column reply index with (thread_root_id, id), speeding sparse old-thread tail reads.",
-      "before": "A thread tail without a cursor could scan a channel's unrelated newer messages and sort before finding the requested replies.",
-      "after": "The SQLite plan seeks the requested thread's ordered range directly; the old index is replaced rather than retained alongside a duplicate.",
+      "summary": "The workspace's database now files replies by thread and in order. The server can jump straight to the newest replies of an old thread.",
+      "before": "To show the newest replies of an old thread, the server could read through the channel's newer, unrelated messages and sort them before it found the replies it wanted.",
+      "after": "The server goes straight to that thread's replies, already in order. The old way of finding replies was replaced, not kept beside the new one.",
       "mechanism": "The composite index matches both the equality filter and message-order range used by thread pages and has-more probes.",
       "files": [
         "packages/server/src/db.ts",
@@ -23,43 +23,57 @@
       ],
       "metrics": [
         {
-          "label": "Old thread newest page, 200k messages, warm p50",
+          "label": "Opening the newest replies of an old thread, 200,000 messages, typical time",
           "before": 92.01,
           "after": 3.02,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Old thread newest page, 200k messages, warm p50"
         },
         {
-          "label": "Old thread newest page, warm p95",
+          "label": "Opening the newest replies of an old thread, slow cases",
           "before": 111.6,
           "after": 5.24,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Old thread newest page, warm p95"
         },
         {
-          "label": "VACUUM database",
+          "label": "Size of the workspace's database after compacting it",
           "before": 38.6,
           "after": 40.7,
-          "unit": "MB"
+          "unit": "MB",
+          "detail": "VACUUM database"
         },
         {
-          "label": "10k inserts in one transaction",
+          "label": "Adding 10,000 messages at once, mostly replies",
           "before": 236,
           "after": 256,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "10k inserts in one transaction"
         }
       ],
       "limits": [
-        "Historical Linux Xeon/Node 24.21 fixture with 30 warm HTTP samples; not a current installation capacity claim.",
-        "Cursor-bounded pages were already fast and showed no comparable gain. Extra index space/build/write cost is part of the decision."
-      ]
+        "Measured once in the past on a Linux server computer, with 30 timed requests. It does not claim how fast any current installation will be.",
+        "Loading further pages of a thread was already fast and did not get noticeably faster. The new lookup takes extra disk space and makes saving messages a little slower, and that cost was weighed in the decision."
+      ],
+      "technical": {
+        "title": "Seek directly through thread history",
+        "summary": "Schema v28 replaces the old single-column reply index with (thread_root_id, id), speeding sparse old-thread tail reads.",
+        "before": "A thread tail without a cursor could scan a channel's unrelated newer messages and sort before finding the requested replies.",
+        "after": "The SQLite plan seeks the requested thread's ordered range directly; the old index is replaced rather than retained alongside a duplicate.",
+        "limits": [
+          "Historical Linux Xeon/Node 24.21 fixture with 30 warm HTTP samples; not a current installation capacity claim.",
+          "Cursor-bounded pages were already fast and showed no comparable gain. Extra index space/build/write cost is part of the decision."
+        ]
+      }
     },
     {
       "id": "OPT-05",
-      "title": "Render only rows whose displayed entities changed",
+      "title": "Unrelated changes no longer redraw every message",
       "category": "performance",
       "status": "measured",
-      "summary": "Message rows subscribe to the author, mentioned/reacting users, referenced channels and primitive self identity/role instead of entire maps.",
-      "before": "An unrelated user's profile edit, other-channel membership or own status change rendered all 300 loaded rows.",
-      "after": "Unrelated changes render zero rows; renaming an author updates only rows that show that author, while permission changes still update the affected controls.",
+      "summary": "Each message on screen now watches only the people and channels it shows, plus your own identity and role. It no longer watches the whole list of people and channels.",
+      "before": "When someone unrelated edited their profile, someone joined another channel, or you changed your own status, the app redrew all 300 loaded messages.",
+      "after": "Unrelated changes redraw no messages. Renaming a person redraws only the messages that show that person. Permission changes still update the buttons they affect.",
       "mechanism": "Stable derived entity selectors preserve object references while unchanged maps/entries remain semantically equal.",
       "files": [
         "packages/ui/src/components/MessageItem.tsx",
@@ -75,37 +89,50 @@
       ],
       "metrics": [
         {
-          "label": "Rows rendered for an unrelated profile change",
+          "label": "Messages redrawn when an unrelated person edits their profile",
           "before": 300,
           "after": 0,
-          "unit": "rows"
+          "unit": "rows",
+          "detail": "Rows rendered for an unrelated profile change"
         },
         {
-          "label": "Rows rendered when author of 60 rows is renamed",
+          "label": "Messages redrawn when the author of 60 of them is renamed",
           "before": 300,
           "after": 60,
-          "unit": "rows"
+          "unit": "rows",
+          "detail": "Rows rendered when author of 60 rows is renamed"
         },
         {
-          "label": "Unrelated-profile flush p50",
+          "label": "Time to handle an unrelated profile edit, typical",
           "before": "106–117",
           "after": "0.41–0.42",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Unrelated-profile flush p50"
         }
       ],
       "limits": [
-        "Historical React production build under jsdom measures React work without real layout/paint.",
-        "Selectors add small per-event work and the change added about 1 kB to that historical entry."
-      ]
+        "Measured in the past in a simulated browser. It counts the app's own redraw work, not the time a real screen takes to draw.",
+        "Each update now costs a little extra checking. The change also made the app's first download about 1 kilobyte larger at the time."
+      ],
+      "technical": {
+        "title": "Render only rows whose displayed entities changed",
+        "summary": "Message rows subscribe to the author, mentioned/reacting users, referenced channels and primitive self identity/role instead of entire maps.",
+        "before": "An unrelated user's profile edit, other-channel membership or own status change rendered all 300 loaded rows.",
+        "after": "Unrelated changes render zero rows; renaming an author updates only rows that show that author, while permission changes still update the affected controls.",
+        "limits": [
+          "Historical React production build under jsdom measures React work without real layout/paint.",
+          "Selectors add small per-event work and the change added about 1 kB to that historical entry."
+        ]
+      }
     },
     {
       "id": "OPT-12",
-      "title": "Start unread mention work from the mentions index",
+      "title": "Mention counts and Activity load much faster",
       "category": "performance",
       "status": "measured",
-      "summary": "Schema v31 materializes message-to-recipient mention membership instead of scanning every channel message for each account's count.",
-      "before": "Every recount rechecked message text across joined channels; a room-wide mention repeated that work for every member.",
-      "after": "Counts and Activity start from the account's direct or room-wide mention candidates, then apply the shared channel/thread read rule.",
+      "summary": "The server now keeps a list of who each message mentions. It no longer rereads every message in every channel to count each person's mentions.",
+      "before": "Each recount reread the text of messages in every channel the person had joined. A message that mentioned everyone in a channel repeated that work for every member.",
+      "after": "Unread counts and the Activity view start from the messages that mention the person directly or mention everyone. Then the usual rules for what is read in channels and threads apply.",
       "mechanism": "Store updates message_mentions transactionally on create/edit/delete; retention cascades its rows. The migration parses existing text under the same mention rules.",
       "files": [
         "packages/server/src/db.ts",
@@ -121,43 +148,57 @@
       ],
       "metrics": [
         {
-          "label": "One account unread count, 200k messages",
+          "label": "Counting one person's unread mentions, 200,000 messages",
           "before": 68,
           "after": 1.2,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "One account unread count, 200k messages"
         },
         {
-          "label": "Activity mentions first page",
+          "label": "First page of mentions in Activity",
           "before": 20,
           "after": "2.0–2.1",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Activity mentions first page"
         },
         {
-          "label": "Room-wide mention HTTP, 51 recounts",
+          "label": "Posting a message that mentions everyone, recounting for 51 people",
           "before": 3659,
           "after": "76–86",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Room-wide mention HTTP, 51 recounts"
         },
         {
-          "label": "10k Store sends",
+          "label": "Saving 10,000 sent messages on the server",
           "before": 1776,
           "after": "1891–1917",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "10k Store sends"
         }
       ],
       "limits": [
-        "Historical seeded measurements; text scanning/index maintenance raises send work and slightly increases database size.",
-        "Thread unread semantics remain authoritative; older clients may not understand later unreadHold additions."
-      ]
+        "Measured in the past with made-up test data. Keeping the list up to date makes sending a message a little slower and the database slightly larger.",
+        "The existing rules for unread thread replies still decide the final count. Older versions of the app may not understand marking a thread as unread, which was added later."
+      ],
+      "technical": {
+        "title": "Start unread mention work from the mentions index",
+        "summary": "Schema v31 materializes message-to-recipient mention membership instead of scanning every channel message for each account's count.",
+        "before": "Every recount rechecked message text across joined channels; a room-wide mention repeated that work for every member.",
+        "after": "Counts and Activity start from the account's direct or room-wide mention candidates, then apply the shared channel/thread read rule.",
+        "limits": [
+          "Historical seeded measurements; text scanning/index maintenance raises send work and slightly increases database size.",
+          "Thread unread semantics remain authoritative; older clients may not understand later unreadHold additions."
+        ]
+      }
     },
     {
       "id": "OPT-13",
-      "title": "Build snapshots with batched managers and sparse presence",
+      "title": "Connecting to a big workspace is about four times faster",
       "category": "performance",
       "status": "measured",
-      "summary": "Schema v34 and batched list reads remove two handshake costs that scaled with the account/member count.",
-      "before": "The channel list made one manager/member query per channel; manager lookups scanned ordinary members. Presence reloaded all users to mark them offline.",
-      "after": "A partial manager index and two shared reads build visible channel metadata; the presence map names only online accounts.",
+      "summary": "When the app connects, the server sends a starting picture of the workspace. Two parts of building it took longer the more people a workspace had, and both are now cheaper.",
+      "before": "To list channels, the server asked about each channel's managers and members one channel at a time, and finding managers meant looking through ordinary members too. To show who is online, it loaded every person just to mark them offline.",
+      "after": "The server keeps a short list of channel managers and gathers channel details in two shared lookups. The online list names only the people who are online.",
       "mechanism": "Only is_manager=1 membership rows enter the new index. Missing presence already means offline in the client, and snapshots replace the map rather than merge stale online entries.",
       "files": [
         "packages/server/src/db.ts",
@@ -170,37 +211,50 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "Snapshot/handshake, 10k members and 300 channels",
+          "label": "Connecting, 10,000 members and 300 channels",
           "before": 251,
           "after": 60,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Snapshot/handshake, 10k members and 300 channels"
         },
         {
-          "label": "Snapshot payload, same fixture",
+          "label": "Size of the starting picture sent on connect, same test workspace",
           "before": 2398,
           "after": 2203,
-          "unit": "kB"
+          "unit": "kB",
+          "detail": "Snapshot payload, same fixture"
         },
         {
-          "label": "100-handshake herd, same fixture",
+          "label": "100 people connecting at once, same test workspace",
           "before": 25.6,
           "after": 6.4,
-          "unit": "s"
+          "unit": "s",
+          "detail": "100-handshake herd, same fixture"
         }
       ],
       "limits": [
-        "Historical workload and host; the complete users list still dominates large snapshots.",
-        "Lean account bootstrap/paged People would require a further protocol decision, not just this query optimization."
-      ]
+        "Measured in the past on one test computer. In big workspaces, the full list of people is still most of what is sent on connect.",
+        "Sending less at sign-in, or loading the People list a page at a time, would need a change to the shared rules, not just a faster lookup."
+      ],
+      "technical": {
+        "title": "Build snapshots with batched managers and sparse presence",
+        "summary": "Schema v34 and batched list reads remove two handshake costs that scaled with the account/member count.",
+        "before": "The channel list made one manager/member query per channel; manager lookups scanned ordinary members. Presence reloaded all users to mark them offline.",
+        "after": "A partial manager index and two shared reads build visible channel metadata; the presence map names only online accounts.",
+        "limits": [
+          "Historical workload and host; the complete users list still dominates large snapshots.",
+          "Lean account bootstrap/paged People would require a further protocol decision, not just this query optimization."
+        ]
+      }
     },
     {
       "id": "OPT-11",
-      "title": "Keep common-word search bounded and sparse/name search selective",
+      "title": "Searching common words and file names is faster",
       "category": "performance",
       "status": "measured",
-      "summary": "Two delivered search changes choose the appropriate query shape while preserving exact page content and access filters.",
-      "before": "A common word required resolving, joining and sorting every matching message for one page; filename eligibility was repeatedly evaluated in sparse queries.",
-      "after": "Common full-text terms use a newest-first scoped window with exact fallback; sparse terms combine bounded text matches and filename rowids once.",
+      "summary": "The server now picks a different way to search depending on the words. It shows exactly the same results and still respects who can see what.",
+      "before": "Searching for a common word meant gathering and sorting every matching message just to show one page. Searches for rarer words checked over and over whether each file name could match.",
+      "after": "For a common word, the server looks through the newest messages first, within a limited range, and falls back to a full search when needed. For rarer words, it gathers text matches and file name matches once and then combines them.",
       "mechanism": "A match count capped at 5,001 selects the path. Terms over the 5,000 threshold keep a 20,000-message window; the F13 sparse branch uses full-text rows UNION ALL file-message rows, then shared hydration/filtering.",
       "files": [
         "packages/server/src/store.ts",
@@ -210,38 +264,52 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "Common word 'the', historical warm query",
+          "label": "Searching for the common word 'the', measured in the past",
           "before": 122,
           "after": 13.1,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Common word 'the', historical warm query"
         },
         {
-          "label": "Filename 'budget', later F13 fixture",
+          "label": "Searching file names for 'budget', later test workspace",
           "before": "8.2–8.5",
           "after": "5.7–5.9",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Filename 'budget', later F13 fixture"
         },
         {
-          "label": "20k matching filenames, F13 fixture",
+          "label": "20,000 matching file names, same later test workspace",
           "before": "53–55",
           "after": 39,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "20k matching filenames, F13 fixture"
         }
       ],
       "limits": [
-        "The two comparisons use different historical revisions; their gains must not be added.",
-        "Rare/hidden/in-channel queries can pay small admission overhead. Blanket message-ID UNION and separate filename-statement experiments were rejected.",
-        "No rare-author/date index was rolled out from research candidates; benchmark promises are limited to tested fixtures."
-      ]
+        "The two speed comparisons were measured on different past versions of the code. Do not add their gains together.",
+        "Searches for rare words, for words mostly found in channels you cannot see, or inside one channel can take slightly longer because of an extra first count. Two other approaches were tried and rejected.",
+        "Faster lookups for searching by a rare author or by date were researched but not added. The speed figures only hold for the test workspaces that were measured."
+      ],
+      "technical": {
+        "title": "Keep common-word search bounded and sparse/name search selective",
+        "summary": "Two delivered search changes choose the appropriate query shape while preserving exact page content and access filters.",
+        "before": "A common word required resolving, joining and sorting every matching message for one page; filename eligibility was repeatedly evaluated in sparse queries.",
+        "after": "Common full-text terms use a newest-first scoped window with exact fallback; sparse terms combine bounded text matches and filename rowids once.",
+        "limits": [
+          "The two comparisons use different historical revisions; their gains must not be added.",
+          "Rare/hidden/in-channel queries can pay small admission overhead. Blanket message-ID UNION and separate filename-statement experiments were rejected.",
+          "No rare-author/date index was rolled out from research candidates; benchmark promises are limited to tested fixtures."
+        ]
+      }
     },
     {
       "id": "LAZY-UI",
-      "title": "Move first-use-only screens and dialogs out of the entry",
+      "title": "Screens used once download only when opened",
       "category": "performance",
       "status": "measured",
-      "summary": "Join, profile and friends screens join other deferred dialogs/panels as lazy modules.",
-      "before": "Returning signed-in readers downloaded code for first-use screens that they did not need during initial chat rendering.",
-      "after": "Those modules load on use, restoring measured historical headroom under the 500 kB entry guard.",
+      "summary": "The join, profile and friends screens now download only when someone opens them, like several other dialogs and panels already did.",
+      "before": "People already signed in still downloaded the code for screens used once, like joining a workspace, even though they did not need it to show their chats.",
+      "after": "Those screens download when opened. This freed up room under the 500 kilobyte limit on what the app downloads first.",
       "mechanism": "React lazy imports and Suspense boundaries split code while keeping the shared application route behavior and chunk-failure handling.",
       "files": [
         "packages/ui/src/App.tsx",
@@ -254,31 +322,43 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "Historical web entry after first-use split",
+          "label": "Size of the web version's first download, measured in the past",
           "before": 493.2,
           "after": 465.2,
-          "unit": "kB"
+          "unit": "kB",
+          "detail": "Historical web entry after first-use split"
         },
         {
-          "label": "Historical gzip entry",
+          "label": "Same first download, compressed, measured in the past",
           "before": 150.1,
           "after": 142.3,
-          "unit": "kB"
+          "unit": "kB",
+          "detail": "Historical gzip entry"
         }
       ],
       "limits": [
-        "This is a historical bundle-byte comparison, not a measured startup improvement.",
-        "Later features consume the restored headroom: the N01–N12 build recorded web 496,783 and desktop 499,463 bytes against 500,000."
-      ]
+        "This compares download sizes at one past moment. Nobody measured whether startup got faster.",
+        "Later features used up the freed room. A later build measured 496,783 bytes for the web version and 499,463 bytes for the desktop app, against the 500,000 byte limit."
+      ],
+      "technical": {
+        "title": "Move first-use-only screens and dialogs out of the entry",
+        "summary": "Join, profile and friends screens join other deferred dialogs/panels as lazy modules.",
+        "before": "Returning signed-in readers downloaded code for first-use screens that they did not need during initial chat rendering.",
+        "after": "Those modules load on use, restoring measured historical headroom under the 500 kB entry guard.",
+        "limits": [
+          "This is a historical bundle-byte comparison, not a measured startup improvement.",
+          "Later features consume the restored headroom: the N01–N12 build recorded web 496,783 and desktop 499,463 bytes against 500,000."
+        ]
+      }
     },
     {
       "id": "REV-03",
-      "title": "Preserve unchanged thread and link-context references",
+      "title": "Threads and message links are not rebuilt for no reason",
       "category": "performance",
       "status": "implemented",
-      "summary": "Client cache and hosting/link context updates avoid rebuilding unrelated visible content.",
-      "before": "An unrelated channel message could slice/replace every cached thread, and a connected-count/backup-status update could invalidate shared message-link context.",
-      "after": "Only relevant threads/pages and semantically changed link fields receive new references.",
+      "summary": "The threads kept in the app's copy of the workspace, and the address used to build links to messages, are no longer rebuilt when something unrelated changes.",
+      "before": "A new message in some other channel could make the app rebuild every thread it had kept. When the desktop app hosts the server, each change in how many people are connected or in backup status could rebuild the address used for message links, so every message on screen redrew.",
+      "after": "Only the threads and pages a new message belongs to are rebuilt. The address for message links changes only when a link would actually change.",
       "mechanism": "Route live events by message/root ownership; derive provider values from address-relevant fields rather than the entire hosting snapshot.",
       "files": [
         "packages/client-core/src/workspace.ts",
@@ -288,18 +368,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Correct reference preservation is covered; the historical Profiler comparison was not rerun in the later follow-up review.",
-        "In-flight history still buffers ordered events under the snapshot watermark rules."
-      ]
+        "Tests confirm that unchanged parts are left alone. The earlier speed measurement was not repeated in the later review.",
+        "While older messages are still loading, live updates are still held back and applied in order, as before."
+      ],
+      "technical": {
+        "title": "Preserve unchanged thread and link-context references",
+        "summary": "Client cache and hosting/link context updates avoid rebuilding unrelated visible content.",
+        "before": "An unrelated channel message could slice/replace every cached thread, and a connected-count/backup-status update could invalidate shared message-link context.",
+        "after": "Only relevant threads/pages and semantically changed link fields receive new references.",
+        "limits": [
+          "Correct reference preservation is covered; the historical Profiler comparison was not rerun in the later follow-up review.",
+          "In-flight history still buffers ordered events under the snapshot watermark rules."
+        ]
+      }
     },
     {
       "id": "REV-05-F14",
-      "title": "Share equivalent history requests and coalesce Activity refreshes",
+      "title": "Fewer duplicate loads, and Activity stops going blank",
       "category": "performance",
       "status": "implemented",
-      "summary": "Equivalent tail/older/thread/newer loads share a transfer, and automatic Activity updates collapse into bounded work.",
-      "before": "Repeated equivalent paging started duplicate requests and aborted one; a mention burst repeatedly blanked/refetched Activity.",
-      "after": "Equivalent cursor/window callers settle from one request, replaced windows cancel, and Activity remains visible until the new answer arrives.",
+      "summary": "When the app asks for the same piece of history twice, both requests now share one download. A burst of new mentions leads to only a couple of Activity refreshes.",
+      "before": "Asking for the same page of history again started a second request and cancelled one of them. A burst of mentions made the Activity view go blank and reload again and again.",
+      "after": "Matching requests for history get their answer from one download. Requests for a page the app no longer needs are cancelled. Activity keeps showing its list until the new one arrives.",
       "mechanism": "Each history run has AbortController plus request/window identity; CoalescedLoader debounces automatic changes for 250 ms and permits at most one follow-up load while active. Explicit filter/page/Refresh loads remain immediate.",
       "files": [
         "packages/client-core/src/workspace.ts",
@@ -310,25 +400,36 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "Requests for the recorded ten-change Activity burst",
+          "label": "Requests made for a burst of ten Activity changes",
           "before": 10,
           "after": "at most 2",
-          "unit": "requests"
+          "unit": "requests",
+          "detail": "Requests for the recorded ten-change Activity burst"
         }
       ],
       "limits": [
-        "This records request-count and visible-state controls, not an end-to-end latency benchmark.",
-        "Changed cursors/windows, real network failures, live replay, ordering and destruction retain their existing semantics."
-      ]
+        "This counts requests and checks what stays on screen. It does not measure how much faster anything feels.",
+        "Requests for different pages, real network failures, catching up on live updates, message order and shutting the workspace down all behave as before."
+      ],
+      "technical": {
+        "title": "Share equivalent history requests and coalesce Activity refreshes",
+        "summary": "Equivalent tail/older/thread/newer loads share a transfer, and automatic Activity updates collapse into bounded work.",
+        "before": "Repeated equivalent paging started duplicate requests and aborted one; a mention burst repeatedly blanked/refetched Activity.",
+        "after": "Equivalent cursor/window callers settle from one request, replaced windows cancel, and Activity remains visible until the new answer arrives.",
+        "limits": [
+          "This records request-count and visible-state controls, not an end-to-end latency benchmark.",
+          "Changed cursors/windows, real network failures, live replay, ordering and destruction retain their existing semantics."
+        ]
+      }
     },
     {
       "id": "REV-04",
-      "title": "Bound transient private app answers",
+      "title": "Private replies from apps no longer pile up",
       "category": "resources",
       "status": "implemented",
-      "summary": "Private command replies retained by the client have count and text budgets, with replacement by repeated IDs.",
-      "before": "Long sessions could accumulate arbitrarily many or large private answers outside bounded durable history.",
-      "after": "The client keeps bounded transient answers and replaces an existing answer of the same identity rather than accumulating duplicates.",
+      "summary": "The app keeps a limited number of private replies to commands, with a cap on their total text. A reply that arrives again replaces its earlier copy.",
+      "before": "In a long session, private replies to commands could pile up without limit, in number and in size, outside the normal message history.",
+      "after": "The app keeps up to 20 of these replies per conversation and 100 overall, with a limit on their total text. A repeated reply replaces the earlier one instead of showing twice.",
       "mechanism": "Admission/eviction operates on the private-answer collection, preserving durable workspace messages and the active visible reply behavior.",
       "files": [
         "packages/client-core/src/workspace.ts",
@@ -337,18 +438,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "The recorded frame/control result is one fixture, not the configured limit or a whole-process memory guarantee.",
-        "Screen-reader/physical scrolling acceptance remains separate."
-      ]
+        "The recorded test result comes from one test setup. It is not the limit itself and does not guarantee how much memory the whole app uses.",
+        "Checking this with a screen reader and with real scrolling is still a separate task."
+      ],
+      "technical": {
+        "title": "Bound transient private app answers",
+        "summary": "Private command replies retained by the client have count and text budgets, with replacement by repeated IDs.",
+        "before": "Long sessions could accumulate arbitrarily many or large private answers outside bounded durable history.",
+        "after": "The client keeps bounded transient answers and replaces an existing answer of the same identity rather than accumulating duplicates.",
+        "limits": [
+          "The recorded frame/control result is one fixture, not the configured limit or a whole-process memory guarantee.",
+          "Screen-reader/physical scrolling acceptance remains separate."
+        ]
+      }
     },
     {
       "id": "REV-06-F10",
-      "title": "Avoid offline/repeated publication authorization and recount work",
+      "title": "Deleting messages in private channels is faster",
       "category": "performance",
       "status": "measured",
-      "summary": "Fan-out shares short-lived authorization/audience work inside a committed synchronous publication batch.",
-      "before": "Private deletion rebuilt a channel's audience per event even with no readers; multiple devices of the same session repeated the same session lookup.",
-      "after": "Offline private batches read no audience, and online batches share one channel read while still sending every durable deletion frame.",
+      "summary": "When the server sends live updates to connected people, it now shares the checks on who may see them across one batch of updates. The shared checks last only for that batch.",
+      "before": "Deleting messages in a private channel rebuilt the list of who could see it for every message, even when no one was online. Several devices signed in to the same session repeated the same session check.",
+      "after": "If no one is online, deleting a batch of private messages reads no list of readers. If people are online, the batch reads the channel's members once and still tells every device about each deleted message.",
       "mechanism": "Gateway visits connected byUser recipients, memoizes session checks only within the publication and server batches replaceable recounts; it does not introduce long-lived authorization cache.",
       "files": [
         "packages/server/src/server.ts",
@@ -360,43 +471,57 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "Offline audience reads for 21-message deletion",
+          "label": "Member list reads when deleting 21 messages with no one online",
           "before": 21,
           "after": 0,
-          "unit": "reads"
+          "unit": "reads",
+          "detail": "Offline audience reads for 21-message deletion"
         },
         {
-          "label": "Two-reader audience reads for same batch",
+          "label": "Member list reads for the same deletion with two people online",
           "before": 22,
           "after": 1,
-          "unit": "reads"
+          "unit": "reads",
+          "detail": "Two-reader audience reads for same batch"
         },
         {
-          "label": "2k-member offline DELETE median, two runs",
+          "label": "Deleting in a 2,000 member channel with no one online, typical time, two runs",
           "before": "41.9 / 42.2",
           "after": "7.9 / 7.5",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "2k-member offline DELETE median, two runs"
         },
         {
-          "label": "2k-member two-reader all-frame median",
+          "label": "Same deletion with two people online, until every update is sent, typical time",
           "before": "52.2 / 45.0",
           "after": "14.9 / 14.8",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "2k-member two-reader all-frame median"
         }
       ],
       "limits": [
-        "Single Linux host; actual timing depends on membership, readers and storage.",
-        "Membership/revocation checks remain authoritative; failed authorization closes the affected session and sends no dependent frame."
-      ]
+        "Measured on one Linux computer. Real times depend on how many members and readers a channel has, and on the disk.",
+        "The server still checks membership and removed access every time. If a check fails, it disconnects that session and sends it nothing that relied on the check."
+      ],
+      "technical": {
+        "title": "Avoid offline/repeated publication authorization and recount work",
+        "summary": "Fan-out shares short-lived authorization/audience work inside a committed synchronous publication batch.",
+        "before": "Private deletion rebuilt a channel's audience per event even with no readers; multiple devices of the same session repeated the same session lookup.",
+        "after": "Offline private batches read no audience, and online batches share one channel read while still sending every durable deletion frame.",
+        "limits": [
+          "Single Linux host; actual timing depends on membership, readers and storage.",
+          "Membership/revocation checks remain authoritative; failed authorization closes the affected session and sends no dependent frame."
+        ]
+      }
     },
     {
       "id": "F11",
-      "title": "Share integration eligibility and payload construction per event",
+      "title": "Telling outside apps about events repeats less work",
       "category": "performance",
       "status": "measured",
-      "summary": "One bot with many subscriptions reuses the same bot/channel eligibility and common event envelope.",
-      "before": "One event with 100 subscriptions repeated identical membership, workspace metadata and JSON serialization work 100 times.",
-      "after": "Distinct subscriptions still get their own durable delivery rows, but shared checks/read/body construction run once.",
+      "summary": "When one app has many event subscriptions, the server now checks that app and the channel once per event and builds the shared part of the notice once.",
+      "before": "One event with 100 subscriptions repeated the same membership check, workspace lookup and notice building 100 times.",
+      "after": "Each subscription still gets its own delivery, saved on the server. The shared checks, lookup and notice building run once.",
       "mechanism": "Group event preparation by bot/channel within the event, retain per-subscription filtering/admission/redaction, then insert the distinct delivery jobs.",
       "files": [
         "packages/server/src/store.ts",
@@ -407,31 +532,43 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "100-subscription POST median, repeated runs",
+          "label": "Posting a message with 100 subscriptions, typical time, repeated runs",
           "before": "14.6 / 15.3",
           "after": "13.2 / 13.3",
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "100-subscription POST median, repeated runs"
         },
         {
-          "label": "Shared eligibility/read/serialization",
+          "label": "Times the shared checks, lookup and notice building run",
           "before": 100,
           "after": 1,
-          "unit": "operations each"
+          "unit": "operations each",
+          "detail": "Shared eligibility/read/serialization"
         }
       ],
       "limits": [
-        "No clear timing change at one or ten subscriptions; row writes remain necessary.",
-        "Single-host measured result is not a general integration capacity claim."
-      ]
+        "With one or ten subscriptions there was no clear change in time. Saving each delivery is still needed.",
+        "Measured on one computer. It does not claim how many apps a server can handle."
+      ],
+      "technical": {
+        "title": "Share integration eligibility and payload construction per event",
+        "summary": "One bot with many subscriptions reuses the same bot/channel eligibility and common event envelope.",
+        "before": "One event with 100 subscriptions repeated identical membership, workspace metadata and JSON serialization work 100 times.",
+        "after": "Distinct subscriptions still get their own durable delivery rows, but shared checks/read/body construction run once.",
+        "limits": [
+          "No clear timing change at one or ten subscriptions; row writes remain necessary.",
+          "Single-host measured result is not a general integration capacity claim."
+        ]
+      }
     },
     {
       "id": "REV-07",
-      "title": "Keep heavy backup SQL off main and keep workers dependency-light",
+      "title": "Desktop backups load only the backup code they need",
       "category": "performance",
       "status": "implemented",
-      "summary": "Desktop backup/verify/inventory/restore workers import only the focused backup module.",
-      "before": "Full server-barrel imports pulled networking dependencies into jobs that only needed database/filesystem backup work.",
-      "after": "The emitted focused worker was verified at 44,577 bytes and packaged backup/restore paths passed their controls.",
+      "summary": "The desktop app's background jobs that back up, check, list and restore the workspace now load only the backup code.",
+      "before": "These jobs loaded the whole server, including its networking parts, even though they only needed to work with the database and files.",
+      "after": "The background job's code was measured at 44,577 bytes. Backup and restore passed their checks in the packaged desktop app.",
       "mechanism": "Move version/build constants to a light server module and export a dedicated backup entry; worker imports it directly and returns only result/error metadata.",
       "files": [
         "apps/desktop/src/main/backupWorker.ts",
@@ -443,18 +580,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "The earlier 684,998→38,858-byte and 180.66→74.46-ms candidate probe is not the final emitted-build measurement; no final total-job speedup is claimed here.",
-        "Ordinary embedded-server queries still run synchronously in Electron main; backend isolation remains an evidence-led future decision."
-      ]
+        "An early trial measured 684,998 bytes down to 38,858, and 180.66 milliseconds down to 74.46. That was not the final build, so no overall speedup of the jobs is claimed.",
+        "When the desktop app runs the server, ordinary database work still happens in the part of the app that manages its windows. Whether to move it elsewhere will be decided later, based on measurements."
+      ],
+      "technical": {
+        "title": "Keep heavy backup SQL off main and keep workers dependency-light",
+        "summary": "Desktop backup/verify/inventory/restore workers import only the focused backup module.",
+        "before": "Full server-barrel imports pulled networking dependencies into jobs that only needed database/filesystem backup work.",
+        "after": "The emitted focused worker was verified at 44,577 bytes and packaged backup/restore paths passed their controls.",
+        "limits": [
+          "The earlier 684,998→38,858-byte and 180.66→74.46-ms candidate probe is not the final emitted-build measurement; no final total-job speedup is claimed here.",
+          "Ordinary embedded-server queries still run synchronously in Electron main; backend isolation remains an evidence-led future decision."
+        ]
+      }
     },
     {
       "id": "REV-02",
-      "title": "Make attachment removal fair and promptly drain healthy backlog",
+      "title": "Deleted files get cleaned up even when some removals fail",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Schema v35 gives failed blob removals persistent eligibility/backoff so they cannot monopolize the first page.",
-      "before": "One hundred permanently failing paths could keep a healthy 101st blob queued across restart; healthy pages waited for each 15-second timer.",
-      "after": "Healthy removals continue on bounded later turns while individual failures back off, and permanent malformed names are visibly set aside.",
+      "summary": "When removing a deleted file from disk fails, the server now remembers it, even across restarts, and waits longer before trying again. Failures can no longer block the files behind them.",
+      "before": "A hundred files that could never be removed could keep a 101st, removable file waiting, even after a restart. Each batch of removable files also waited for a 15 second timer.",
+      "after": "Removable files keep being cleaned up in later rounds. Failed ones wait longer between tries, up to two hours. Files with broken names that can never be removed are set aside where people can see them.",
       "mechanism": "Stable due ordering uses queue time, attempts and next-attempt time; backoff grows through one minute, five, thirty and two hours. File bytes remain accounted until physical deletion succeeds.",
       "files": [
         "packages/server/src/db.ts",
@@ -465,18 +612,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "This improves cleanup progress and correctness; no generic filesystem speedup is asserted.",
-        "Permanent failures remain visible and reserved storage is not falsely reclaimed."
-      ]
+        "This keeps cleanup moving and makes it correct. It does not claim that working with files got faster.",
+        "Files that can never be removed stay visible, and the space they use is not counted as freed."
+      ],
+      "technical": {
+        "title": "Make attachment removal fair and promptly drain healthy backlog",
+        "summary": "Schema v35 gives failed blob removals persistent eligibility/backoff so they cannot monopolize the first page.",
+        "before": "One hundred permanently failing paths could keep a healthy 101st blob queued across restart; healthy pages waited for each 15-second timer.",
+        "after": "Healthy removals continue on bounded later turns while individual failures back off, and permanent malformed names are visibly set aside.",
+        "limits": [
+          "This improves cleanup progress and correctness; no generic filesystem speedup is asserted.",
+          "Permanent failures remain visible and reserved storage is not falsely reclaimed."
+        ]
+      }
     },
     {
       "id": "REV-13",
-      "title": "Serve precompressed assets and reuse hashed browser files",
+      "title": "The web version loads faster on a slow connection",
       "category": "performance",
       "status": "measured",
-      "summary": "Build-time Brotli/gzip and immutable hashed-asset caching reduce repeated-host delivery work and cold bytes.",
-      "before": "Hosts sent uncompressed client text and revalidated unchanged scripts with every visit; compressing at request time would add recurring CPU work.",
-      "after": "Browsers negotiate prebuilt variants, hashed assets cache for a year, the page revalidates, and missing old chunks return explicit 404/no-store.",
+      "summary": "The server sends compressed copies of the web version's files, made once ahead of time. Browsers keep files that never change for a year instead of checking them on every visit.",
+      "before": "The server sent the web version's files uncompressed, and browsers checked unchanged files again on every visit. Compressing each file on request would have cost the server work every time.",
+      "after": "Browsers get a compressed copy made ahead of time. Files named after their contents are kept in the browser for a year. The main page is still checked each visit, and a request for a file from an old version gets a clear 'not found' that browsers do not keep.",
       "mechanism": "Vite writes quality-11 Brotli/level-9 gzip sidecars once; @fastify/static serves variants with Vary. Integrity guards decode every copy and compare it to source.",
       "files": [
         "apps/web/precompress.ts",
@@ -494,37 +651,50 @@
       ],
       "metrics": [
         {
-          "label": "Historical entry script + CSS, plain → Brotli",
+          "label": "First code and styling download, uncompressed versus compressed, measured in the past",
           "before": 519.5,
           "after": 129.9,
-          "unit": "kB"
+          "unit": "kB",
+          "detail": "Historical entry script + CSS, plain → Brotli"
         },
         {
-          "label": "Cold first visible control, 200kB/s and 150ms RTT",
+          "label": "First visit until the first control shows, slow connection of 200 kilobytes per second with a 150 millisecond delay",
           "before": 3502,
           "after": 1981,
-          "unit": "ms"
+          "unit": "ms",
+          "detail": "Cold first visible control, 200kB/s and 150ms RTT"
         },
         {
-          "label": "Cold browser transfer",
+          "label": "Total downloaded on a first visit",
           "before": 547.1,
           "after": 142.7,
-          "unit": "kB"
+          "unit": "kB",
+          "detail": "Cold browser transfer"
         }
       ],
       "limits": [
-        "Median of seven throttled Chromium visits against earlier CLI output; later source changes alter byte totals.",
-        "Warm visible-control timing was effectively unchanged around 985 ms; API/attachment compression was not changed."
-      ]
+        "The typical result of seven visits in a Chromium browser with its connection slowed on purpose, compared with an older build. Later code changes alter the sizes.",
+        "On return visits the first control showed in about 985 milliseconds both before and after. Compression of other server answers and of attached files did not change."
+      ],
+      "technical": {
+        "title": "Serve precompressed assets and reuse hashed browser files",
+        "summary": "Build-time Brotli/gzip and immutable hashed-asset caching reduce repeated-host delivery work and cold bytes.",
+        "before": "Hosts sent uncompressed client text and revalidated unchanged scripts with every visit; compressing at request time would add recurring CPU work.",
+        "after": "Browsers negotiate prebuilt variants, hashed assets cache for a year, the page revalidates, and missing old chunks return explicit 404/no-store.",
+        "limits": [
+          "Median of seven throttled Chromium visits against earlier CLI output; later source changes alter byte totals.",
+          "Warm visible-control timing was effectively unchanged around 985 ms; API/attachment compression was not changed."
+        ]
+      }
     },
     {
       "id": "F15",
-      "title": "Prune dependency TypeScript from the desktop package",
+      "title": "The desktop app leaves out files it never reads",
       "category": "performance",
       "status": "measured",
-      "summary": "Remove unused .ts/.cts/.mts files from packaged dependencies while preserving runtime JS, required metadata and licenses.",
-      "before": "The clean desktop ASAR still carried TypeScript sources/declarations inside node_modules that Node never loads there.",
-      "after": "Linux archive payload is smaller; both filtered and unfiltered packages retain working dependency/server/backup paths.",
+      "summary": "The desktop app no longer packs the source files meant for developers that come with the libraries it uses. The code that runs, the details it needs and the licenses stay.",
+      "before": "The desktop app's packed files still included developer source files inside its libraries, which the app never loads.",
+      "after": "The packed files on Linux are smaller. Builds with and without the change both still run the libraries, the server and backups correctly.",
       "mechanism": "Electron Builder excludes those extensions under node_modules; the archive guard rejects their accidental reintroduction.",
       "files": [
         "apps/desktop/electron-builder.yml",
@@ -535,31 +705,43 @@
       "evidence": [],
       "metrics": [
         {
-          "label": "Linux archive payload",
+          "label": "Packed app files on Linux",
           "before": 11182495,
           "after": 7403035,
-          "unit": "bytes"
+          "unit": "bytes",
+          "detail": "Linux archive payload"
         },
         {
-          "label": "Zod archive contents",
+          "label": "Files from the Zod library inside the packed files",
           "before": 5.43,
           "after": 2.18,
-          "unit": "MB"
+          "unit": "MB",
+          "detail": "Zod archive contents"
         }
       ],
       "limits": [
-        "Package-size gain only. Launch 1.42–1.46 s, hosting 1.48–1.53 s and memory ranges were indistinguishable between packages.",
-        "The excluded files were never read, so no startup or memory benefit is claimed."
-      ]
+        "Only the package got smaller. Starting the app took 1.42 to 1.46 seconds and starting to host took 1.48 to 1.53 seconds either way, and memory use looked the same.",
+        "The app never read the removed files, so no faster start or lower memory use is claimed."
+      ],
+      "technical": {
+        "title": "Prune dependency TypeScript from the desktop package",
+        "summary": "Remove unused .ts/.cts/.mts files from packaged dependencies while preserving runtime JS, required metadata and licenses.",
+        "before": "The clean desktop ASAR still carried TypeScript sources/declarations inside node_modules that Node never loads there.",
+        "after": "Linux archive payload is smaller; both filtered and unfiltered packages retain working dependency/server/backup paths.",
+        "limits": [
+          "Package-size gain only. Launch 1.42–1.46 s, hosting 1.48–1.53 s and memory ranges were indistinguishable between packages.",
+          "The excluded files were never read, so no startup or memory benefit is claimed."
+        ]
+      }
     },
     {
       "id": "CI-REUSE",
-      "title": "Reuse verified task outputs and avoid unused installer stages",
+      "title": "Checks on each change skip work they already did",
       "category": "tooling",
       "status": "measured",
-      "summary": "Content-addressed Turbo reuse, bounded concurrency and installer-aware selection reduce redundant validation work.",
-      "before": "Independent commands rebuilt web output, package worker pools overlapped, and every Windows runtime PR generated an installer that native tests did not use.",
-      "after": "Task hashes cover complete source/config/test inputs; ordinary runtime PRs build unpacked Windows output while installer-sensitive changes retain NSIS.",
+      "summary": "The checks that run on every change now reuse earlier results when nothing they depend on changed. They also run fewer jobs at once and build the Windows installer only when it matters.",
+      "before": "Separate steps each rebuilt the web version, test runs crowded each other, and every change to the app's code built a Windows installer that the desktop tests never used.",
+      "after": "Saved results are tied to every source, settings and test file they depend on. Ordinary changes build the Windows app without its installer, and changes that could affect the installer still build it.",
       "mechanism": "Cache task outputs separately from dependency/browser downloads; run cache/format/bundle/browser guards independently, limit task/Vitest concurrency and fail safe to full packaging when the base diff is unavailable.",
       "files": [
         "turbo.json",
@@ -581,32 +763,45 @@
       ],
       "metrics": [
         {
-          "label": "Identical local repeat of all three task phases",
+          "label": "Running all three stages again on a developer's computer with nothing changed",
           "before": "initial full execution",
           "after": 1.09,
-          "unit": "s"
+          "unit": "s",
+          "detail": "Identical local repeat of all three task phases"
         },
         {
-          "label": "Cache invalidation controls",
+          "label": "Checks that saved results are thrown away when they should be",
           "before": "not applicable",
           "after": 101,
-          "unit": "assertions"
+          "unit": "assertions",
+          "detail": "Cache invalidation controls"
         }
       ],
       "limits": [
-        "1.09 s excludes install/cache transfer, formatting, browser setup and E2E; it is not total Actions duration.",
-        "Recorded 73–89 s prior installer stages describe expected avoided work, not a measured new remote saving.",
-        "Cache scope/permissions and correct invalidation remain essential; task caches are not a security boundary."
-      ]
+        "The 1.09 seconds leaves out installing, downloading saved results, formatting checks, browser setup and full app tests. It is not the total time of a check run on GitHub.",
+        "Building the installer used to take 73 to 89 seconds. That is the work expected to be skipped, not a measured saving.",
+        "Who can use saved results, and throwing them away at the right time, still matter. Saved results are not a security safeguard."
+      ],
+      "technical": {
+        "title": "Reuse verified task outputs and avoid unused installer stages",
+        "summary": "Content-addressed Turbo reuse, bounded concurrency and installer-aware selection reduce redundant validation work.",
+        "before": "Independent commands rebuilt web output, package worker pools overlapped, and every Windows runtime PR generated an installer that native tests did not use.",
+        "after": "Task hashes cover complete source/config/test inputs; ordinary runtime PRs build unpacked Windows output while installer-sensitive changes retain NSIS.",
+        "limits": [
+          "1.09 s excludes install/cache transfer, formatting, browser setup and E2E; it is not total Actions duration.",
+          "Recorded 73–89 s prior installer stages describe expected avoided work, not a measured new remote saving.",
+          "Cache scope/permissions and correct invalidation remain essential; task caches are not a security boundary."
+        ]
+      }
     },
     {
       "id": "DOCKER-REUSE",
-      "title": "Separate lockfile dependency work from source-layer builds",
+      "title": "Server package rebuilds reuse unchanged libraries",
       "category": "tooling",
       "status": "implemented",
-      "summary": "Container builds fetch pinned packages before copying source and install only the shipped dependency closure.",
-      "before": "Any source change invalidated a stage that copied the whole repository before installation.",
-      "after": "Source-only edits can reuse dependency fetch/install inputs; lock/toolchain/install-policy changes intentionally invalidate them.",
+      "summary": "When building the ready-to-run Docker package of the server, the build downloads the exact library versions before copying in Tandem's own code. It installs only the libraries the server ships with.",
+      "before": "Any change to Tandem's code made the build copy the whole project and reinstall every library.",
+      "after": "Edits to Tandem's own code can reuse the downloaded and installed libraries. Changes to the list of library versions, the build tools or the install rules start fresh on purpose.",
       "mechanism": "Multi-stage Node 24 image uses pnpm fetch, offline frozen filtered installation, stamped server/web builds and BuildKit Actions layer reuse. Final image copies only dist and runs as a non-root user.",
       "files": [
         "docker/Dockerfile",
@@ -627,18 +822,28 @@
       ],
       "metrics": [],
       "limits": [
-        "No local before/after image timing is asserted; the documented Windows research environment lacked a usable Linux Docker engine.",
-        "Persistent-volume restart/socket and reuse smoke controls remain part of CI."
-      ]
+        "No before and after build time is claimed. The Windows computer used for the research could not run Linux Docker builds.",
+        "The checks on every change still restart the server with its saved data, test its live connection and test that build steps are reused."
+      ],
+      "technical": {
+        "title": "Separate lockfile dependency work from source-layer builds",
+        "summary": "Container builds fetch pinned packages before copying source and install only the shipped dependency closure.",
+        "before": "Any source change invalidated a stage that copied the whole repository before installation.",
+        "after": "Source-only edits can reuse dependency fetch/install inputs; lock/toolchain/install-policy changes intentionally invalidate them.",
+        "limits": [
+          "No local before/after image timing is asserted; the documented Windows research environment lacked a usable Linux Docker engine.",
+          "Persistent-volume restart/socket and reuse smoke controls remain part of CI."
+        ]
+      }
     },
     {
       "id": "IMP-08",
-      "title": "Bind tests and releases to matching source artifacts",
+      "title": "Tests and releases always match the current code",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Stamped source-input identities, archive checks and repeatable release manifests prevent stale/unclean output from giving false test confidence.",
-      "before": "Browser/native tests could launch leftover bundles, malformed identities could fail badly, and repeated release preparation could checksum old notes before rewriting them.",
-      "after": "Tests reject missing/stale/malformed output with rebuild guidance; binary inputs are hashed exactly and release assets are a deliberate hash-bound set.",
+      "summary": "Each build is stamped with what it was built from. Tests refuse old or broken builds, and release files come as a fixed set, each with a fingerprint that can be checked.",
+      "before": "Browser and desktop tests could start an old leftover build. A badly formed build stamp could cause a confusing failure. Preparing a release twice could record the fingerprint of old release notes before rewriting them.",
+      "after": "Tests refuse builds that are missing, out of date or badly stamped, and say how to rebuild. Images and other non-text files are fingerprinted byte for byte, and release files are a chosen set, each tied to its fingerprint.",
       "mechanism": "One identity module supplies version/revision/dirty/input hashes to web/server/desktop, manifests and diagnostics; install gates inspect the actual app's profile report.",
       "files": [
         "scripts/build-identity.mjs",
@@ -656,18 +861,28 @@
       ],
       "metrics": [],
       "limits": [
-        "Assurance improvement, not a runtime speed claim.",
-        "A genuine upgrade from a published release and a real publication remain explicit acceptance work; unsigned packaging is not signed release proof."
-      ]
+        "This makes test results more trustworthy. It does not make the app faster.",
+        "Upgrading from a real published version, and publishing a real release, still need their own checks. A test package without a signature does not prove that a signed release works."
+      ],
+      "technical": {
+        "title": "Bind tests and releases to matching source artifacts",
+        "summary": "Stamped source-input identities, archive checks and repeatable release manifests prevent stale/unclean output from giving false test confidence.",
+        "before": "Browser/native tests could launch leftover bundles, malformed identities could fail badly, and repeated release preparation could checksum old notes before rewriting them.",
+        "after": "Tests reject missing/stale/malformed output with rebuild guidance; binary inputs are hashed exactly and release assets are a deliberate hash-bound set.",
+        "limits": [
+          "Assurance improvement, not a runtime speed claim.",
+          "A genuine upgrade from a published release and a real publication remain explicit acceptance work; unsigned packaging is not signed release proof."
+        ]
+      }
     },
     {
       "id": "MEASUREMENT-BASELINES",
-      "title": "Make performance decisions from successful reproducible work",
+      "title": "Speed tests only count work that actually succeeded",
       "category": "measurement",
       "status": "measured",
-      "summary": "Server mixed-load and browser startup/image-scroll scripts record revision, fixture, host/runtime, samples and errors.",
-      "before": "Earlier mixed probes could skip actual retention, accept incomplete replay and retain harness state that confounded memory/stalls.",
-      "after": "F12 seeds exact expired data, verifies deletion and ordered replay/snapshot, bounds receipts/sockets and records offered/completed load.",
+      "summary": "The scripts that time the server under mixed use, and the browser at startup and while scrolling images, now record the code version, test data, computer, samples and errors.",
+      "before": "Earlier mixed-use tests could skip actually deleting old messages, accept an incomplete catch-up, and keep test leftovers that muddied the memory and freeze readings.",
+      "after": "The mixed-use test now creates messages that are exactly due for deletion, checks that they are deleted, and checks that catch-up arrives complete and in order. It limits what the test itself holds on to, and records how much work it asked for and how much finished.",
       "mechanism": "Workload scripts check correctness before/while timing; artifacts report latency distributions and scope rather than timing an error as successful work.",
       "files": [
         "scripts/measure-mixed.mts",
@@ -677,18 +892,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "These are measurement tools and baselines, not optimization speedups or declared capacity.",
-        "Historical mixed/cloud/headless results must not be treated as low-spec desktop-main/GPU acceptance; reference-hardware profiling remains open."
-      ]
+        "These are tools and starting measurements. They do not make anything faster or claim how much a server can handle.",
+        "Past results from cloud computers and from browsers with no window do not show how the desktop app runs on a slow computer. Measuring on a chosen reference computer is still to do."
+      ],
+      "technical": {
+        "title": "Make performance decisions from successful reproducible work",
+        "summary": "Server mixed-load and browser startup/image-scroll scripts record revision, fixture, host/runtime, samples and errors.",
+        "before": "Earlier mixed probes could skip actual retention, accept incomplete replay and retain harness state that confounded memory/stalls.",
+        "after": "F12 seeds exact expired data, verifies deletion and ordered replay/snapshot, bounds receipts/sockets and records offered/completed load.",
+        "limits": [
+          "These are measurement tools and baselines, not optimization speedups or declared capacity.",
+          "Historical mixed/cloud/headless results must not be treated as low-spec desktop-main/GPU acceptance; reference-hardware profiling remains open."
+        ]
+      }
     },
     {
       "id": "N01",
-      "title": "Make malformed query logging safe",
+      "title": "A garbled web address can no longer break server logging",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Invalid percent-encoded query names cannot terminate request logging.",
-      "before": "A malformed query name could throw while being decoded by the redactor and escape the logging path.",
-      "after": "Malformed names and their values are masked; the real child server keeps answering later requests.",
+      "summary": "When a request's web address has a garbled setting name, the server can still write the request to its log.",
+      "before": "If a web address had a garbled name in its settings part, the step that hides secrets before logging could fail and break logging for that request.",
+      "after": "The server hides the garbled name and its value in the log, and keeps answering later requests.",
       "mechanism": "Catch query-name decoding failure before classifying sensitive parameters, mask both sides, and retain ordinary secret redaction.",
       "files": [
         "packages/server/src/redact.ts",
@@ -703,17 +928,26 @@
       ],
       "metrics": [],
       "limits": [
-        "The regression proves the tested malformed-input boundary; no timing gain or natural crash frequency is claimed."
-      ]
+        "The test proves the server survives this kind of garbled address. It claims no speed gain and does not say how often this happened in real use."
+      ],
+      "technical": {
+        "title": "Make malformed query logging safe",
+        "summary": "Invalid percent-encoded query names cannot terminate request logging.",
+        "before": "A malformed query name could throw while being decoded by the redactor and escape the logging path.",
+        "after": "Malformed names and their values are masked; the real child server keeps answering later requests.",
+        "limits": [
+          "The regression proves the tested malformed-input boundary; no timing gain or natural crash frequency is claimed."
+        ]
+      }
     },
     {
       "id": "N02",
-      "title": "Keep one durable browser storage owner and recover conflicts",
+      "title": "Web drafts survive storage errors and several open tabs",
       "category": "reliability",
       "status": "implemented",
-      "summary": "IndexedDB failures remain visible/retryable, unfinished operations stay journaled and acknowledged operations are not reapplied, and multi-window recovery preserves local work.",
-      "before": "Failed IndexedDB opening could silently switch to empty localStorage; optional BroadcastChannel absence could alter backend choice; older migration copies could overwrite private/local work.",
-      "after": "Ownership is persisted before adoption, opening failure refuses alternate-backend writes, later calls can retry, and old conflicting drafts/outbox/privacy choices reconcile safely.",
+      "summary": "If the browser's storage fails, the web version says so and can try again. Changes cut off midway are finished on the next start, finished ones are never applied twice, and several open tabs keep each other's work.",
+      "before": "If the browser's main storage failed to open, the web version could quietly switch to a simpler storage area that was empty. Whether the browser let tabs signal each other could change which storage was used. Older copies of drafts could overwrite private choices or newer work.",
+      "after": "The app records that it uses the main storage before it starts using it. If the main storage will not open, the app refuses to write anywhere else and can try again later. Old drafts, messages waiting to send and privacy choices that disagree are merged with care.",
       "mechanism": "Transactions serialize updates across independent contexts. Persistent operation IDs/tombstones prevent stale replay; legacy draft conflicts retain both texts, outbox removals remain removed and privacy reconciliation chooses the more private value. Storage-event/focus invalidation works without BroadcastChannel and carries no private payload.",
       "files": [
         "packages/ui/src/lib/deviceStore.ts",
@@ -729,19 +963,30 @@
       ],
       "metrics": [],
       "limits": [
-        "Browser storage is not an OS power-loss guarantee.",
-        "Fresh profiles without IndexedDB can use localStorage until adoption; acknowledged IndexedDB ownership prevents later alternate fallback.",
-        "Q02/Q03/Q04/Q05 remain caller-level identity/preference/sign-in ordering findings; this backend fix does not close them."
-      ]
+        "Saving in the browser does not protect against the computer losing power.",
+        "A new browser profile with no main storage can use the simpler storage area. Once the main storage has been used, the app never falls back to the simpler one.",
+        "Four related open findings, about the order in which accounts, preferences and sign-in are handled, are separate. This change does not fix them."
+      ],
+      "technical": {
+        "title": "Keep one durable browser storage owner and recover conflicts",
+        "summary": "IndexedDB failures remain visible/retryable, unfinished operations stay journaled and acknowledged operations are not reapplied, and multi-window recovery preserves local work.",
+        "before": "Failed IndexedDB opening could silently switch to empty localStorage; optional BroadcastChannel absence could alter backend choice; older migration copies could overwrite private/local work.",
+        "after": "Ownership is persisted before adoption, opening failure refuses alternate-backend writes, later calls can retry, and old conflicting drafts/outbox/privacy choices reconcile safely.",
+        "limits": [
+          "Browser storage is not an OS power-loss guarantee.",
+          "Fresh profiles without IndexedDB can use localStorage until adoption; acknowledged IndexedDB ownership prevents later alternate fallback.",
+          "Q02/Q03/Q04/Q05 remain caller-level identity/preference/sign-in ordering findings; this backend fix does not close them."
+        ]
+      }
     },
     {
       "id": "N03",
-      "title": "Save the visible final composer text before native exit",
+      "title": "Your last words typed are saved when the desktop app closes",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Desktop window close/quit waits for current UI text, pending local work and the native settings queue.",
-      "before": "The last visible keystrokes could exist only in the renderer when native close destroyed the page.",
-      "after": "Normal close captures current text and acknowledges persistence before destruction; failure keeps copying/retry/explicit unsaved exit available.",
+      "summary": "Closing a desktop window or quitting the app now waits until the text on screen, other unsaved work and the app's settings are saved.",
+      "before": "The last few keystrokes you could see might exist only on the screen. When closing the window threw the page away, they were lost.",
+      "after": "A normal close saves the current text and waits until it is confirmed as saved. If saving fails, you can still copy the text, try again or choose to quit without saving.",
       "mechanism": "Composer captures through layout cleanup, DraftPersistence drains restore/pending/failed/recovery work, preload sends a matching preparation reply, and main drains settings behind a window/request-bound handshake.",
       "files": [
         "apps/desktop/src/main/closePreparation.ts",
@@ -762,17 +1007,26 @@
       ],
       "metrics": [],
       "limits": [
-        "Normal app close/quit verified on unpacked Windows output; forced process death, OS logoff and physical power loss are separate conditions."
-      ]
+        "Tested with a normal close and quit on a Windows build of the app. A force-quit, signing out of the computer and power loss are separate cases."
+      ],
+      "technical": {
+        "title": "Save the visible final composer text before native exit",
+        "summary": "Desktop window close/quit waits for current UI text, pending local work and the native settings queue.",
+        "before": "The last visible keystrokes could exist only in the renderer when native close destroyed the page.",
+        "after": "Normal close captures current text and acknowledges persistence before destruction; failure keeps copying/retry/explicit unsaved exit available.",
+        "limits": [
+          "Normal app close/quit verified on unpacked Windows output; forced process death, OS logoff and physical power loss are separate conditions."
+        ]
+      }
     },
     {
       "id": "N04",
-      "title": "Apply the latest mute intent when adopting a microphone",
+      "title": "Calls keep your latest mute choice",
       "category": "privacy",
       "status": "implemented",
-      "summary": "Track replacement and both join entry points honor current acknowledged microphone preferences.",
-      "before": "Held/recovered capture could adopt an older unmuted value; a join route could run before preference initialization settled.",
-      "after": "Replacement tracks use the current desired-mute state; joins await the current initialization/save and unreadable preference state keeps capture muted with retry.",
+      "summary": "Swapping in a microphone, and both ways of joining a call, now follow your latest saved mute choice.",
+      "before": "A microphone the app had kept or recovered could pick up an older, unmuted setting. One way of joining could start before your saved setting had loaded.",
+      "after": "A new microphone takes your current mute choice. Joining waits for your setting to load or finish saving. If the setting cannot be read, you join muted and the app tries again.",
       "mechanism": "Separate intent from the physical track. Preference generations fence late older reads against newer retries/saves and lifetime checks prevent canceled/unmounted join completion.",
       "files": [
         "packages/client-core/src/huddle.ts",
@@ -790,17 +1044,26 @@
       ],
       "metrics": [],
       "limits": [
-        "Synthetic media/held-capture controls do not establish physical unplug, real device selection or second-network calling acceptance."
-      ]
+        "Tests used fake microphones. Unplugging a real one, choosing a real device and calling someone on another network still need their own checks."
+      ],
+      "technical": {
+        "title": "Apply the latest mute intent when adopting a microphone",
+        "summary": "Track replacement and both join entry points honor current acknowledged microphone preferences.",
+        "before": "Held/recovered capture could adopt an older unmuted value; a join route could run before preference initialization settled.",
+        "after": "Replacement tracks use the current desired-mute state; joins await the current initialization/save and unreadable preference state keeps capture muted with retry.",
+        "limits": [
+          "Synthetic media/held-capture controls do not establish physical unplug, real device selection or second-network calling acceptance."
+        ]
+      }
     },
     {
       "id": "N05",
-      "title": "Give each app form its own asynchronous lifetime",
+      "title": "An old app form can no longer change a new one",
       "category": "reliability",
       "status": "implemented",
-      "summary": "A dismissed or replaced app form cannot receive an older submission's state or completion effects.",
-      "before": "An old form's success, validation refusal or network failure could close or contaminate a replacement form.",
-      "after": "Input, field errors and busy state belong to the active view; only that view's live request can update or close it.",
+      "summary": "When an app's form is closed or replaced, the result of an earlier submission can no longer reach the new form.",
+      "before": "An old form's success, a refusal of what you typed or a network failure could close the new form that replaced it, or mix wrong details into it.",
+      "after": "What you type, field errors and the busy sign belong to the form on screen. Only that form's own submission can update or close it.",
       "mechanism": "Key AppForm by view ID, guard component/submission lifetime, and fence WorkspaceClient submit/dismiss actions by the modal identity.",
       "files": [
         "packages/ui/src/components/ViewModal.tsx",
@@ -816,17 +1079,26 @@
       ],
       "metrics": [],
       "limits": [
-        "This owns UI/modal completion; server concurrent submission and external-effect deduplication are separate N08 limits."
-      ]
+        "This covers what the form on screen does. Two submissions reaching the server at almost the same moment, and an app acting twice on one submission, are handled separately by repair N08."
+      ],
+      "technical": {
+        "title": "Give each app form its own asynchronous lifetime",
+        "summary": "A dismissed or replaced app form cannot receive an older submission's state or completion effects.",
+        "before": "An old form's success, validation refusal or network failure could close or contaminate a replacement form.",
+        "after": "Input, field errors and busy state belong to the active view; only that view's live request can update or close it.",
+        "limits": [
+          "This owns UI/modal completion; server concurrent submission and external-effect deduplication are separate N08 limits."
+        ]
+      }
     },
     {
       "id": "N06",
-      "title": "Strip action content from deleted and superseded message copies",
+      "title": "Deleted messages no longer keep their button contents",
       "category": "privacy",
       "status": "implemented",
-      "summary": "Deletion cleanup now removes interactive button labels, values and URLs from active tombstones and superseded replay events.",
-      "before": "Text was cleaned while action payloads could retain user/app content after deletion or replacement.",
-      "after": "Deleted rows and old replay copies carry no action payload; current live message buttons remain intact.",
+      "summary": "When a message is deleted, the server now also removes its buttons' labels, values and links. This applies to the marker left in its place and to older copies kept for catching up.",
+      "before": "Deleting or replacing a message cleared its text, but its buttons could still hold content from the person or app.",
+      "after": "Deleted messages and old copies kept for catching up carry no button content. Buttons on current messages stay as they are.",
       "mechanism": "Set actions to an empty array during soft deletion and replay redaction, then schema v37 cleans existing deleted/purged/superseded active database records.",
       "files": [
         "packages/server/src/store.ts",
@@ -841,17 +1113,26 @@
       ],
       "metrics": [],
       "limits": [
-        "Active-record cleanup does not erase historical backups or freed SQLite disk pages."
-      ]
+        "The cleanup does not erase old backups, or leftover data in disk space the database has freed but not yet overwritten."
+      ],
+      "technical": {
+        "title": "Strip action content from deleted and superseded message copies",
+        "summary": "Deletion cleanup now removes interactive button labels, values and URLs from active tombstones and superseded replay events.",
+        "before": "Text was cleaned while action payloads could retain user/app content after deletion or replacement.",
+        "after": "Deleted rows and old replay copies carry no action payload; current live message buttons remain intact.",
+        "limits": [
+          "Active-record cleanup does not erase historical backups or freed SQLite disk pages."
+        ]
+      }
     },
     {
       "id": "N07",
-      "title": "Remove completed schedule content while retaining completion metadata",
+      "title": "Sent scheduled messages no longer keep a copy of their text",
       "category": "privacy",
       "status": "implemented",
-      "summary": "Completed scheduled messages no longer keep a redundant text/file-ID copy in the schedule table.",
-      "before": "An already-sent schedule still retained message text and attachment references after its delivery purpose ended.",
-      "after": "Sent rows keep state/timing/completion identity without text or attachment IDs; queued unsent schedules retain what delivery requires.",
+      "summary": "Once a scheduled message has been sent, the server no longer keeps a second copy of its text and its list of files in the record of scheduled messages.",
+      "before": "After a scheduled message went out, the server still kept its text and its links to attached files in the scheduled list, even though nothing needed them anymore.",
+      "after": "A sent scheduled message keeps only its status, its times and which message it became. Older sent records are cleared the same way when the server updates. Scheduled messages that have not gone out yet keep everything they need to send.",
       "mechanism": "On completion write empty text and file_ids, and schema v37 migrates old sent rows under the same content-minimization policy.",
       "files": [
         "packages/server/src/store.ts",
@@ -866,18 +1147,28 @@
       ],
       "metrics": [],
       "limits": [
-        "Removing duplicate schedule content is a privacy/storage-lifecycle fix; no measured database-size or throughput saving is claimed.",
-        "Historical backups and freed bytes remain outside this cleanup."
-      ]
+        "This is about privacy and not keeping text longer than needed. It does not claim a smaller database or a faster server.",
+        "Older backups still contain the removed text, and freeing the disk space it used is not part of this change."
+      ],
+      "technical": {
+        "title": "Remove completed schedule content while retaining completion metadata",
+        "summary": "Completed scheduled messages no longer keep a redundant text/file-ID copy in the schedule table.",
+        "before": "An already-sent schedule still retained message text and attachment references after its delivery purpose ended.",
+        "after": "Sent rows keep state/timing/completion identity without text or attachment IDs; queued unsent schedules retain what delivery requires.",
+        "limits": [
+          "Removing duplicate schedule content is a privacy/storage-lifecycle fix; no measured database-size or throughput saving is claimed.",
+          "Historical backups and freed bytes remain outside this cleanup."
+        ]
+      }
     },
     {
       "id": "N08",
-      "title": "Exclude simultaneous duplicate app view submissions",
+      "title": "An app form cannot be sent twice at the same moment",
       "category": "reliability",
       "status": "implemented",
-      "summary": "One app view can have only one callback in flight, with correction/retry available after it settles.",
-      "before": "Concurrent requests for the same view could both reach the external application.",
-      "after": "A second active submission gets 409 view_submitting, while later validation correction and deliberate transport retry still work.",
+      "summary": "When an app opens a form in Tandem, only one submission of that form can be on its way to the app at a time. Once the app answers, the person can fix mistakes or send it again.",
+      "before": "Two submissions of the same form at almost the same moment could both reach the outside app.",
+      "after": "A second submission while the first is still on its way is refused with a note to wait for the app's answer. Fixing a field the app flagged, or deliberately trying again after a failed connection, still works.",
       "mechanism": "A per-view submitting Set is acquired before callback dispatch and released in finally; view/account ownership is validated independently.",
       "files": [
         "packages/server/src/server.ts",
@@ -891,17 +1182,26 @@
       ],
       "metrics": [],
       "limits": [
-        "The Set prevents simultaneous dispatch, not exactly-once external business effects after an uncertain network reply. Apps should deduplicate by view ID."
-      ]
+        "This stops two submissions at the same moment. If the network fails and nobody knows whether the app got the form, sending it again can still make the app act twice. Apps should use the form's ID to skip a repeat."
+      ],
+      "technical": {
+        "title": "Exclude simultaneous duplicate app view submissions",
+        "summary": "One app view can have only one callback in flight, with correction/retry available after it settles.",
+        "before": "Concurrent requests for the same view could both reach the external application.",
+        "after": "A second active submission gets 409 view_submitting, while later validation correction and deliberate transport retry still work.",
+        "limits": [
+          "The Set prevents simultaneous dispatch, not exactly-once external business effects after an uncertain network reply. Apps should deduplicate by view ID."
+        ]
+      }
     },
     {
       "id": "N09",
-      "title": "Fence delayed app replace/delete directives to their origin revision",
+      "title": "A late app reply cannot change an edited or deleted message",
       "category": "reliability",
       "status": "implemented",
-      "summary": "An old response URL cannot replace/delete a message that disappeared or was changed since its callback origin.",
-      "before": "Late directives could act on the message's newer state after an edit/deletion race.",
-      "after": "Missing or changed origins make delayed replace/delete a no-op; an app can continue its own update chain through the same response URL.",
+      "summary": "When an app answers a button press late, it can no longer replace or delete a message that was removed or changed after the press.",
+      "before": "If the message was edited or deleted at almost the same moment, a late instruction from the app could still replace or delete the newer version.",
+      "after": "If the message is gone or has changed since the button was pressed, a late replace or delete does nothing. An app can still update its own message several times in a row through the same reply link.",
       "mechanism": "Hash origin text/editedAt/actions, compare before mutation and advance the shared origin revision after a valid self-update.",
       "files": [
         "packages/server/src/server.ts",
@@ -915,17 +1215,26 @@
       ],
       "metrics": [],
       "limits": [
-        "The fingerprint covers the declared message fields; it is not a general cross-device revision protocol for all state."
-      ]
+        "The check covers the message's text, when it was last edited and its buttons. It is not a general way to keep every change in order across devices."
+      ],
+      "technical": {
+        "title": "Fence delayed app replace/delete directives to their origin revision",
+        "summary": "An old response URL cannot replace/delete a message that disappeared or was changed since its callback origin.",
+        "before": "Late directives could act on the message's newer state after an edit/deletion race.",
+        "after": "Missing or changed origins make delayed replace/delete a no-op; an app can continue its own update chain through the same response URL.",
+        "limits": [
+          "The fingerprint covers the declared message fields; it is not a general cross-device revision protocol for all state."
+        ]
+      }
     },
     {
       "id": "N10",
-      "title": "Invalidate cached attachment bytes when a whole thread is retained away",
+      "title": "Removing an old thread also clears its files from the app",
       "category": "privacy",
       "status": "implemented",
-      "summary": "Retention removal reaches root and reply attachment ownership even after history eviction.",
-      "before": "Cached blob URLs or held transfers could outlive a thread removed by retention because reply ownership was absent from the loaded history.",
-      "after": "Root/reply bytes are canceled/released, a late transfer cannot reinstall them, and an active preview explains unavailability.",
+      "summary": "When the server's automatic history removal deletes a whole thread, the app now clears its copies of files from the first message and every reply, even if those replies were never loaded.",
+      "before": "Saved copies of a removed thread's files, or downloads of them still in progress, could outlive the thread. The app did not know which files belonged to the replies because it had not loaded them.",
+      "after": "The app drops its copies of the thread's files and stops their downloads. A download that finishes late cannot put them back. A file preview that is open says the file is no longer available.",
       "mechanism": "File ownership includes threadRootId independent of loaded history. history.removed invalidates those owners; unknown-owner entries are conservatively revalidated on removal.",
       "files": [
         "packages/client-core/src/fileCache.ts",
@@ -942,18 +1251,28 @@
       ],
       "metrics": [],
       "limits": [
-        "Fresh server authorization already denied unavailable files; this fixes previously fetched local resources.",
-        "Previously downloaded/copied content cannot be retroactively unrevealed."
-      ]
+        "The server already refused to send these files again. This fix clears copies the app had already fetched.",
+        "Files someone already downloaded or copied elsewhere cannot be taken back."
+      ],
+      "technical": {
+        "title": "Invalidate cached attachment bytes when a whole thread is retained away",
+        "summary": "Retention removal reaches root and reply attachment ownership even after history eviction.",
+        "before": "Cached blob URLs or held transfers could outlive a thread removed by retention because reply ownership was absent from the loaded history.",
+        "after": "Root/reply bytes are canceled/released, a late transfer cannot reinstall them, and an active preview explains unavailability.",
+        "limits": [
+          "Fresh server authorization already denied unavailable files; this fixes previously fetched local resources.",
+          "Previously downloaded/copied content cannot be retroactively unrevealed."
+        ]
+      }
     },
     {
       "id": "N11",
-      "title": "Preserve restored-copy holds despite damaged registry metadata",
+      "title": "A restored backup stays on hold even with damaged settings",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Malformed display fields cannot cause a held restored workspace to be adopted into ordinary hosting.",
-      "before": "A damaged name, port or timestamp could discard a registry row and lose the protection that kept a restored copy isolated.",
-      "after": "Hold state survives recoverable display damage; uncertain held identities remain blocked while ordinary new-folder adoption stays supported.",
+      "summary": "After a restore, the desktop app keeps the restored copy on hold, open only for looking inside from this computer. Damaged details in the app's settings can no longer lift that hold.",
+      "before": "If the app's saved name, port or date for a restored copy was damaged, the app dropped that entry. It could then pick up the folder again as an ordinary workspace, losing the hold that kept it apart.",
+      "after": "The hold survives damage to the name, port or date, which can be repaired. If the app cannot tell which workspace is on hold, it refuses to host it. The app still adds new workspace folders it finds, as before.",
       "mechanism": "Parse safety-critical identity/hold metadata independently of optional presentation fields and fail closed when a held folder/identity cannot be established.",
       "files": [
         "apps/desktop/src/main/registry.ts",
@@ -968,17 +1287,26 @@
       ],
       "metrics": [],
       "limits": [
-        "This closes registry-adoption behavior; Q01's restore publication lock gap remains separate."
-      ]
+        "This fixes how the app picks up folders. A separate open problem remains, where a server starting during a restore can take the workspace folder."
+      ],
+      "technical": {
+        "title": "Preserve restored-copy holds despite damaged registry metadata",
+        "summary": "Malformed display fields cannot cause a held restored workspace to be adopted into ordinary hosting.",
+        "before": "A damaged name, port or timestamp could discard a registry row and lose the protection that kept a restored copy isolated.",
+        "after": "Hold state survives recoverable display damage; uncertain held identities remain blocked while ordinary new-folder adoption stays supported.",
+        "limits": [
+          "This closes registry-adoption behavior; Q01's restore publication lock gap remains separate."
+        ]
+      }
     },
     {
       "id": "N12",
-      "title": "Retain connector/server ownership until cleanup actually succeeds",
+      "title": "A public link that fails to close is not forgotten",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Canceled/failed public setup cannot abandon handles that still need teardown.",
-      "before": "An unsuccessful connector close could be treated as finished, allowing another route/access change while the old resource remained alive.",
-      "after": "Failed cleanup stays pending, resource handles remain owned and reopening is gated until retry establishes cleanup.",
+      "summary": "When opening a workspace to the internet is canceled or fails, the desktop app keeps track of the public link until it has really closed.",
+      "before": "If closing the public link failed, the app could treat it as closed. You could then open another link or change who can join while the old link was still running.",
+      "after": "A link that did not close stays marked as needing cleanup, and the app keeps hold of it. The app will not open another link until stopping hosting finishes the cleanup. Waiting for a link to close has a time limit and can be tried again.",
       "mechanism": "TunnelCleanupError carries the connector to the controller, including canceled/setup-failed handles and accidental-port isolated listeners. Cleanup waits are bounded and retryable; established close failures also mark pending cleanup.",
       "files": [
         "apps/desktop/src/main/hosting.ts",
@@ -994,18 +1322,28 @@
       ],
       "metrics": [],
       "limits": [
-        "Loopback/injected connector failures do not establish a real Cloudflare orphan frequency.",
-        "Q12 remains a separate main-adapter handle gap after listening; Q13 remains a pre-cleanup queue wait gap."
-      ]
+        "The tests faked these failures on this computer. They do not show how often a real public link is left running.",
+        "Two related problems stay open. A server can keep running unseen after its invite setting fails, and stopping can wait behind a backup before cleanup begins."
+      ],
+      "technical": {
+        "title": "Retain connector/server ownership until cleanup actually succeeds",
+        "summary": "Canceled/failed public setup cannot abandon handles that still need teardown.",
+        "before": "An unsuccessful connector close could be treated as finished, allowing another route/access change while the old resource remained alive.",
+        "after": "Failed cleanup stays pending, resource handles remain owned and reopening is gated until retry establishes cleanup.",
+        "limits": [
+          "Loopback/injected connector failures do not establish a real Cloudflare orphan frequency.",
+          "Q12 remains a separate main-adapter handle gap after listening; Q13 remains a pre-cleanup queue wait gap."
+        ]
+      }
     },
     {
       "id": "RESOURCE-BOUNDS",
-      "title": "Keep history, attachment transfer and socket work bounded",
+      "title": "Fixed limits on loaded messages, files and slow connections",
       "category": "resources",
       "status": "implemented",
-      "summary": "The architecture already caps retained page/cache work and avoids materializing whole file bodies during transfer.",
-      "before": "Unbounded histories, independent duplicate file fetches or unchecked socket buffering would scale memory with session duration/load.",
-      "after": "Timeline/thread windows hold 300 messages, inactive caches have 20 entries per category, idle blobs have a 32 MiB budget, body fetches have four slots and slow sockets use a 2 MiB queued-byte cutoff.",
+      "summary": "Tandem already limits how much history and how many file copies the app holds, and the server sends files without loading each one whole into memory.",
+      "before": "Without limits, long histories, the same file fetched twice at once, or data piling up for a slow connection would make memory use grow the longer someone stays and the busier the server gets.",
+      "after": "A channel or thread keeps at most 300 messages loaded. The app keeps at most 20 of each kind of conversation you are not viewing. Files not on screen share 32 megabytes. At most four files download at once. The server cuts off a connection that falls 2 megabytes behind, and that device reconnects and catches up.",
       "mechanism": "LRU eviction protects active histories, file fetches deduplicate/cancel, image bodies load near the viewport, streaming server transfers preserve bounded body work, and reconnect uses durable replay/snapshot fallback.",
       "files": [
         "packages/client-core/src/workspace.ts",
@@ -1017,18 +1355,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "These are configured bounds, not comparative speed/memory measurements.",
-        "Active blobs, decoded pixels, complete account snapshots, aggregate connections and database/WAL/staging storage need separate budgets and profiling."
-      ]
+        "These are set limits, not measurements of speed or memory.",
+        "Files on screen, images once unpacked for display, the full copy of a workspace sent when a device connects, the total number of connections, and the disk space the server uses for its database and temporary files each need their own limits and testing."
+      ],
+      "technical": {
+        "title": "Keep history, attachment transfer and socket work bounded",
+        "summary": "The architecture already caps retained page/cache work and avoids materializing whole file bodies during transfer.",
+        "before": "Unbounded histories, independent duplicate file fetches or unchecked socket buffering would scale memory with session duration/load.",
+        "after": "Timeline/thread windows hold 300 messages, inactive caches have 20 entries per category, idle blobs have a 32 MiB budget, body fetches have four slots and slow sockets use a 2 MiB queued-byte cutoff.",
+        "limits": [
+          "These are configured bounds, not comparative speed/memory measurements.",
+          "Active blobs, decoded pixels, complete account snapshots, aggregate connections and database/WAL/staging storage need separate budgets and profiling."
+        ]
+      }
     },
     {
       "id": "REV-01-F03",
-      "title": "Contain background jobs and socket callback failures",
+      "title": "A failed background job no longer crashes the server",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Actual scheduled/delivery/timer and Gateway callback faults no longer escape as unhandled process-ending work.",
-      "before": "Read/rejection faults through native interval/immediate callbacks or socket heartbeat/message/close could terminate the host.",
-      "after": "Queue failures retain durable rows and retry on later turns; unreadable session authorization sends no dependent frame and closes for recovery.",
+      "summary": "Errors in the server's background work, such as sending scheduled messages, delivering events to apps and timers, or in its live connections, no longer stop the whole server.",
+      "before": "A failed disk read or other error inside background work, or while keeping a live connection open and handling its messages, could stop the server for everyone.",
+      "after": "Background work that fails stays saved and is tried again on a later round. If the server cannot check that a connection is still signed in, it sends nothing that depends on that check and closes the connection so the device can reconnect.",
       "mechanism": "Contain synchronous/asynchronous whole entry boundaries, report bounded queue failure metadata, deduplicate session checks within a batch and let explicit operational flush callers still learn that work failed.",
       "files": [
         "packages/server/src/server.ts",
@@ -1039,18 +1387,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Fault injection establishes survival/correct recovery at these boundaries, not the frequency of real disk failures.",
-        "Durable jobs remain authoritative and no transaction failure is treated as accepted publication."
-      ]
+        "The tests caused these failures on purpose. They show the server survives and recovers, not how often real disks fail.",
+        "The saved list of jobs still decides what remains to be done, and a change that failed to save is never announced as done."
+      ],
+      "technical": {
+        "title": "Contain background jobs and socket callback failures",
+        "summary": "Actual scheduled/delivery/timer and Gateway callback faults no longer escape as unhandled process-ending work.",
+        "before": "Read/rejection faults through native interval/immediate callbacks or socket heartbeat/message/close could terminate the host.",
+        "after": "Queue failures retain durable rows and retry on later turns; unreadable session authorization sends no dependent frame and closes for recovery.",
+        "limits": [
+          "Fault injection establishes survival/correct recovery at these boundaries, not the frequency of real disk failures.",
+          "Durable jobs remain authoritative and no transaction failure is treated as accepted publication."
+        ]
+      }
     },
     {
       "id": "REV-15-F04",
-      "title": "Keep accepted integration retry intent and healthy endpoint progress",
+      "title": "Retries to apps are kept, and a slow app delays no others",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Durable repair intent respects admission limits/expiry, and independent endpoints refill freed delivery slots without a slow-peer barrier.",
-      "before": "Retry could restore 1,500 rows into a 500-row ready queue; seven-day pruning could erase accepted waiting intent; one slow endpoint held back unrelated work.",
-      "after": "A bounded ready queue promotes requested retries as space frees, retains requested intent through restart/expiry, and healthy endpoints advance while another remains held.",
+      "summary": "When an administrator asks to retry events an app missed, Tandem keeps that request within the limit on waiting events. Apps that answer normally keep receiving events while another app is slow.",
+      "before": "A retry could put 1,500 events into a line that holds 500. The cleanup that drops given-up events after seven days could erase a retry someone had asked for. One slow app held back deliveries to unrelated apps.",
+      "after": "Retried events join the line as space frees up. The request to retry survives a restart and the seven-day cleanup. Healthy apps keep receiving events while another one is held back.",
       "mechanism": "Schema v36 records retry_requested; terminal-history pruning excludes accepted requested retry intent. The pump has at most ten concurrent operations and one per subscription, preserving per-subscription order.",
       "files": [
         "packages/server/src/db.ts",
@@ -1063,18 +1421,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Retry replay is ordered within its subset after already queued events, not globally inserted back into historical sequence order.",
-        "Uncertain external responses can repeat consumer effects; global integration count/byte budgets are still an operating-envelope decision."
-      ]
+        "Retried events go out oldest first among themselves, after events that were already waiting. They are not put back in their original place in history.",
+        "If an app's answer was unclear, the app may act on the same event twice. Overall limits on how many events, or how much data, may wait for all apps together are not set yet and depend on how the server is run."
+      ],
+      "technical": {
+        "title": "Keep accepted integration retry intent and healthy endpoint progress",
+        "summary": "Durable repair intent respects admission limits/expiry, and independent endpoints refill freed delivery slots without a slow-peer barrier.",
+        "before": "Retry could restore 1,500 rows into a 500-row ready queue; seven-day pruning could erase accepted waiting intent; one slow endpoint held back unrelated work.",
+        "after": "A bounded ready queue promotes requested retries as space frees, retains requested intent through restart/expiry, and healthy endpoints advance while another remains held.",
+        "limits": [
+          "Retry replay is ordered within its subset after already queued events, not globally inserted back into historical sequence order.",
+          "Uncertain external responses can repeat consumer effects; global integration count/byte budgets are still an operating-envelope decision."
+        ]
+      }
     },
     {
       "id": "F06",
-      "title": "Reconnect affected clients after failed access publication",
+      "title": "Losing access clears a channel even when a notice fails",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Committed revocation cannot leave the affected device indefinitely relying on stale cached access solely because its refresh notice failed.",
-      "before": "Fresh HTTP correctly refused the removed user, but failed post-commit publication left its existing client showing old channel/history until manual reconnect.",
-      "after": "Failure triggers resynchronization of the affected devices; handshake clears the revoked channel/history and preserves committed HTTP success.",
+      "summary": "When someone is removed from a channel, their open app no longer keeps showing it just because the server's notice to their device failed.",
+      "before": "The server already refused new requests from the removed person. But if the notice to their open app failed, it kept showing the channel and its history until they reconnected by hand.",
+      "after": "If that notice fails, the server makes the affected devices reconnect. When they do, the app drops the channel and its history. The removal still counts, and the person who made it still sees it succeed.",
       "mechanism": "Target affected sessions for reconnect after access-state fan-out failure instead of rolling back a durable mutation or suppressing later events.",
       "files": [
         "packages/server/src/server.ts",
@@ -1084,17 +1452,26 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "This removes previously fetched state after resynchronization; it does not undo data already downloaded or grant fresh unauthorized access."
-      ]
+        "This clears what the device had already loaded once it reconnects. It cannot undo anything already downloaded, and it gives no new access."
+      ],
+      "technical": {
+        "title": "Reconnect affected clients after failed access publication",
+        "summary": "Committed revocation cannot leave the affected device indefinitely relying on stale cached access solely because its refresh notice failed.",
+        "before": "Fresh HTTP correctly refused the removed user, but failed post-commit publication left its existing client showing old channel/history until manual reconnect.",
+        "after": "Failure triggers resynchronization of the affected devices; handshake clears the revoked channel/history and preserves committed HTTP success.",
+        "limits": [
+          "This removes previously fetched state after resynchronization; it does not undo data already downloaded or grant fresh unauthorized access."
+        ]
+      }
     },
     {
       "id": "REV-11",
-      "title": "Serialize local choice writes and stop queued work after destruction",
+      "title": "Quick pin, save and snooze changes end on your last choice",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Pins, saved items, snooze and preference choices have one active local write, a coalesced latest choice and explicit client lifetime.",
-      "before": "Reordered parallel writes or an old destroyed client's repair could overwrite its replacement client's newer choice.",
-      "after": "Latest intent waits behind the in-flight request; destroy drops queued/repair work and refuses new writes.",
+      "summary": "Pins, saved messages, Do Not Disturb snoozes and channel notification choices now go to the server one at a time and end on your latest choice. A workspace the app has closed sends nothing more.",
+      "before": "Two quick changes could reach the server in the wrong order, so the older one won. Leftover work from a workspace the app had just closed could also overwrite the choice made after reopening it.",
+      "after": "The app sends one change at a time for each item. Your latest choice waits for the one already on its way, then goes out. When the app closes a workspace, it drops changes still waiting and refuses new ones.",
       "mechanism": "Per-item queues keep one request active, send the latest queued choice after it settles and guard corrections/echo reconciliation by client lifetime.",
       "files": [
         "packages/client-core/src/workspace.ts",
@@ -1103,18 +1480,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "An already-delivered request cannot be recalled; cross-device ordering still needs a server revision contract.",
-        "Q09 shows Follow has a different unfixed ordering boundary and is not covered by this pin/save/snooze implementation."
-      ]
+        "A change already on its way to the server cannot be called back. Keeping changes from two devices in order still needs help from the server.",
+        "Following a thread has its own open problem, where Follow then Unfollow can end followed, and this fix does not cover it."
+      ],
+      "technical": {
+        "title": "Serialize local choice writes and stop queued work after destruction",
+        "summary": "Pins, saved items, snooze and preference choices have one active local write, a coalesced latest choice and explicit client lifetime.",
+        "before": "Reordered parallel writes or an old destroyed client's repair could overwrite its replacement client's newer choice.",
+        "after": "Latest intent waits behind the in-flight request; destroy drops queued/repair work and refuses new writes.",
+        "limits": [
+          "An already-delivered request cannot be recalled; cross-device ordering still needs a server revision contract.",
+          "Q09 shows Follow has a different unfixed ordering boundary and is not covered by this pin/save/snooze implementation."
+        ]
+      }
     },
     {
       "id": "REV-09-F08",
-      "title": "Recover a failed renderer without stopping its host",
+      "title": "The desktop app reloads a crashed window and keeps hosting",
       "category": "reliability",
       "status": "implemented",
-      "summary": "Electron retries a crashed/failed page within a bounded budget and restores its validated route/history context.",
-      "before": "Renderer failures could leave a blank page; early retry restoration kept channel but lost Saved/thread/panel/query context.",
-      "after": "Up to three failures in a minute reload automatically, followed by Try again/explicit action; main-side hosting remains alive and valid place state is handed back once.",
+      "summary": "If the desktop app's window crashes or fails to load, the app reloads it on its own a few times and puts you back where you were.",
+      "before": "A crashed window could stay blank. Early recovery brought back the channel but lost whether you were in Saved, a thread, a side panel or a search.",
+      "after": "Up to three failures in a minute reload the window on its own. After that, the app shows a Try again button. A workspace this computer hosts keeps running throughout, and the place you were is checked and handed back once.",
       "mechanism": "Separate renderer lifetime from native service ownership and retain a bounded trusted URL/history checkpoint outside renderer memory.",
       "files": [
         "apps/desktop/src/main/rendererRecovery.ts",
@@ -1131,35 +1518,55 @@
       ],
       "metrics": [],
       "limits": [
-        "Recovered route state is validated against the account/workspace; it does not revive unauthorised local work.",
-        "Crash/power-loss durability remains subject to the separate acknowledged storage boundaries."
-      ]
+        "The place you return to is checked against your account and workspace. It does not bring back local work you are no longer allowed to see.",
+        "Whether recent changes survive a crash or a power cut still depends on separate limits on what is saved to disk."
+      ],
+      "technical": {
+        "title": "Recover a failed renderer without stopping its host",
+        "summary": "Electron retries a crashed/failed page within a bounded budget and restores its validated route/history context.",
+        "before": "Renderer failures could leave a blank page; early retry restoration kept channel but lost Saved/thread/panel/query context.",
+        "after": "Up to three failures in a minute reload automatically, followed by Try again/explicit action; main-side hosting remains alive and valid place state is handed back once.",
+        "limits": [
+          "Recovered route state is validated against the account/workspace; it does not revive unauthorised local work.",
+          "Crash/power-loss durability remains subject to the separate acknowledged storage boundaries."
+        ]
+      }
     },
     {
       "id": "Q01",
-      "title": "Keep exclusive restore ownership through folder publication",
+      "title": "A server starting mid-restore can take the workspace folder",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Restore drops target ownership before swapping folders, allowing a concurrent real host to create an unrelated workspace at that path.",
-      "before": "A controlled concurrent start causes restore publication to fail and leaves the original in a superseded folder.",
-      "after": "Follow-up: retain exclusive admission throughout publication and rollback, using a stable lock identity outside the folder being renamed.",
+      "summary": "Restoring a backup lets go of the workspace folder just before it swaps in the restored copy. A server that starts at that moment can create a new, unrelated workspace in that folder.",
+      "before": "In a test, a server was started at that moment on purpose. The restore then failed, and the original workspace was left in a folder renamed as replaced.",
+      "after": "The restore should keep its claim on the folder until the swap, or undoing a failed swap, is complete. That claim should be kept outside the folder being renamed.",
       "mechanism": "Hold ownership until publication/rollback is complete; cover concurrent server start, two restores and failed rename without overwriting another target.",
       "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"],
       "evidence": [],
       "metrics": [],
       "limits": [
-        "The original survives; the evidence does not prove irrecoverable deletion.",
-        "This is a local restore concurrency boundary, not a public remote restore endpoint."
-      ]
+        "The original workspace survives. The test does not show that anything is lost for good.",
+        "This concerns a restore run on the host's own computer, not something a person elsewhere can start."
+      ],
+      "technical": {
+        "title": "Keep exclusive restore ownership through folder publication",
+        "summary": "Restore drops target ownership before swapping folders, allowing a concurrent real host to create an unrelated workspace at that path.",
+        "before": "A controlled concurrent start causes restore publication to fail and leaves the original in a superseded folder.",
+        "after": "Follow-up: retain exclusive admission throughout publication and rollback, using a stable lock identity outside the folder being renamed.",
+        "limits": [
+          "The original survives; the evidence does not prove irrecoverable deletion.",
+          "This is a local restore concurrency boundary, not a public remote restore endpoint."
+        ]
+      }
     },
     {
       "id": "Q02",
-      "title": "Make first trusted-address registration atomic",
+      "title": "Two first sign-ins at once can skip an address approval",
       "category": "privacy",
       "status": "follow-up",
-      "summary": "Two windows can each admit a distinct address after both read the same trusted-identity record as absent.",
-      "before": "A second first-registration window can mount local-work consumers and read migrated text from the first address without approval.",
-      "after": "Follow-up: use the storage owner's conditional initialization/atomic update so exactly one first address is admitted automatically.",
+      "summary": "The app trusts the first address a device uses for a workspace and asks before trusting a different one. Two windows signing in for the first time at once, through different addresses, can both be trusted without asking.",
+      "before": "The second window can open saved drafts and other local work, including text carried over from the first address, without anyone approving its address.",
+      "after": "Exactly one first address should be trusted on its own. A different address should wait for the person's approval before the window opens any saved work.",
       "mechanism": "Replace the separate get/set absent check with an atomic owner operation; require deliberate approval for the losing distinct address before consumers mount.",
       "files": [
         "packages/ui/src/lib/workspaceAddressTrust.ts",
@@ -1169,35 +1576,55 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Requires concurrent first registration; the ordinary second-address refusal control passes.",
-        "No alias approval bypass outside that race is established."
-      ]
+        "This needs two first sign-ins at almost the same moment. The usual check, which asks before trusting a second address, works.",
+        "No other way around that approval has been found."
+      ],
+      "technical": {
+        "title": "Make first trusted-address registration atomic",
+        "summary": "Two windows can each admit a distinct address after both read the same trusted-identity record as absent.",
+        "before": "A second first-registration window can mount local-work consumers and read migrated text from the first address without approval.",
+        "after": "Follow-up: use the storage owner's conditional initialization/atomic update so exactly one first address is admitted automatically.",
+        "limits": [
+          "Requires concurrent first registration; the ordinary second-address refusal control passes.",
+          "No alias approval bypass outside that race is established."
+        ]
+      }
     },
     {
       "id": "Q03",
-      "title": "Fence stale notification preference replies",
+      "title": "A late reply can undo a private notification setting",
       "category": "privacy",
       "status": "follow-up",
-      "summary": "Older initial-read/save completions can overwrite a newer private choice already received from another window.",
-      "before": "Durable storage is private, while the active window returns to full previews after a delayed reply.",
-      "after": "Follow-up: generation-fence replies against newer observed state and use an acknowledged current read if ordering is uncertain.",
+      "summary": "A late answer to an earlier read or save of your notification setting can overwrite a more private choice this window already learned from another window.",
+      "before": "The saved setting stays private, but after a delayed reply this window goes back to showing the full message in notifications.",
+      "after": "Late replies should be ignored once a newer setting has arrived. If the order is unclear, the app should read the current saved setting again.",
       "mechanism": "Track the preference request/watch generation, including watches arriving before initial load; stale async replies must not restore less-private active state.",
       "files": ["packages/ui/src/lib/notificationPreview.ts", "packages/ui/src/lib/deviceStore.ts"],
       "evidence": [],
       "metrics": [],
       "limits": [
-        "This is caller-level active-state ordering; N02's backend keeps the correct private durable value.",
-        "A passed diagnostic reproduces the failure and is not fix acceptance."
-      ]
+        "The problem is in what this window shows and uses. The saved setting underneath keeps the correct private choice.",
+        "A test shows the problem happens. That test passing does not mean it is fixed."
+      ],
+      "technical": {
+        "title": "Fence stale notification preference replies",
+        "summary": "Older initial-read/save completions can overwrite a newer private choice already received from another window.",
+        "before": "Durable storage is private, while the active window returns to full previews after a delayed reply.",
+        "after": "Follow-up: generation-fence replies against newer observed state and use an acknowledged current read if ordering is uncertain.",
+        "limits": [
+          "This is caller-level active-state ordering; N02's backend keeps the correct private durable value.",
+          "A passed diagnostic reproduces the failure and is not fix acceptance."
+        ]
+      }
     },
     {
       "id": "Q04",
-      "title": "Keep unreadable composer preferences visible and safe",
+      "title": "Enter can send a message you meant to keep writing",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "A refused browser composer-preference read is treated as first-use absence.",
-      "before": "A saved newline-on-Enter choice becomes Enter-to-send without an error and the actual composer invokes Send.",
-      "after": "Follow-up: strict validated preference reads keep newline behavior on unreadability and expose a retry.",
+      "summary": "If the web version cannot read your saved Enter key setting, it treats it as never set.",
+      "before": "Someone who chose to have Enter start a new line gets the default instead, with no error shown. Pressing Enter in the message box sends the message.",
+      "after": "If the setting cannot be read, Enter should keep starting a new line, and the app should show the problem and offer to try again.",
       "mechanism": "Distinguish absent record from denied/corrupt read in the web adapter and composer preference owner; test held/refused reads and save acknowledgement.",
       "files": [
         "packages/ui/src/lib/composerPreferences.ts",
@@ -1207,18 +1634,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "The failure is conditional on record-specific unreadability.",
-        "The storage backend's owner/journal repair does not choose this caller's fallback UI behavior."
-      ]
+        "This only happens when the browser cannot read this one saved setting.",
+        "The fix for damaged saved data underneath does not decide what the message box should do here."
+      ],
+      "technical": {
+        "title": "Keep unreadable composer preferences visible and safe",
+        "summary": "A refused browser composer-preference read is treated as first-use absence.",
+        "before": "A saved newline-on-Enter choice becomes Enter-to-send without an error and the actual composer invokes Send.",
+        "after": "Follow-up: strict validated preference reads keep newline behavior on unreadability and expose a retry.",
+        "limits": [
+          "The failure is conditional on record-specific unreadability.",
+          "The storage backend's owner/journal repair does not choose this caller's fallback UI behavior."
+        ]
+      }
     },
     {
       "id": "Q05",
-      "title": "Merge saved sign-ins without reviving removals",
+      "title": "A forgotten sign-in can come back from another window",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "App writes a stale in-memory servers list as a whole.",
-      "before": "A stale window switching workspaces can revive an explicitly forgotten sign-in or erase a sign-in newly stored by another window.",
-      "after": "Follow-up: account-aware atomic add/remove/token changes plus open-window subscriptions preserve explicit removal intent.",
+      "summary": "The app saves its whole list of saved sign-ins at once, using whatever this window last knew, which may be out of date.",
+      "before": "A window that has been open a while can bring back a sign-in you removed in another window when it switches workspaces. It can also erase a sign-in another window just saved.",
+      "after": "Each change should add, remove or update one sign-in for one account and address. Removals should be remembered, and open windows should hear about changes made in the others.",
       "mechanism": "Use owner operations keyed by address/account and durable removals, then reconcile returned/current data without stale whole-list overwrite.",
       "files": [
         "packages/ui/src/App.tsx",
@@ -1229,35 +1666,55 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Uses actual App and IndexedDB with synthetic credentials; no token-revocation bypass is demonstrated.",
-        "Browser/Desktop caller policy needs coverage even though native settings serializes writes."
-      ]
+        "The test used the real app and real browser storage with made-up sign-ins. It did not show that a sign-in the server has canceled could still be used.",
+        "How the web version and the desktop app handle this both need tests, even though the desktop app's settings file already saves one change at a time."
+      ],
+      "technical": {
+        "title": "Merge saved sign-ins without reviving removals",
+        "summary": "App writes a stale in-memory servers list as a whole.",
+        "before": "A stale window switching workspaces can revive an explicitly forgotten sign-in or erase a sign-in newly stored by another window.",
+        "after": "Follow-up: account-aware atomic add/remove/token changes plus open-window subscriptions preserve explicit removal intent.",
+        "limits": [
+          "Uses actual App and IndexedDB with synthetic credentials; no token-revocation bypass is demonstrated.",
+          "Browser/Desktop caller policy needs coverage even though native settings serializes writes."
+        ]
+      }
     },
     {
       "id": "Q06",
-      "title": "End saved-sign-in and password attempts when canceled",
+      "title": "A canceled sign-in can still open its workspace",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Saved-sign-in and password completions can still invoke connected after their UI attempt is abandoned.",
-      "before": "A canceled request or dismissed form can navigate into its old workspace after the reader moves on.",
-      "after": "Follow-up: give these attempts cancellation/unmount identity guards like the existing address-probe control.",
+      "summary": "Signing in with a saved sign-in or a password can still finish after you cancel or leave that attempt.",
+      "before": "After you cancel a request or close the form and move on, a late answer can still take you into the old workspace.",
+      "after": "These attempts should be ignored once canceled or closed, the way canceling a check of a workspace address already works.",
       "mechanism": "Capture attempt generation/account identity; late success/failure cannot call connected or overwrite a newer attempt once abandoned.",
       "files": ["packages/ui/src/screens/JoinScreen.tsx"],
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Ordinary canceled address probes already ignore late success.",
-        "The reproduction is asynchronous UI ownership, not a server authentication defect."
-      ]
+        "Canceling while the app checks a workspace address already ignores a late success.",
+        "The problem is in the screens, not in how the server checks sign-ins."
+      ],
+      "technical": {
+        "title": "End saved-sign-in and password attempts when canceled",
+        "summary": "Saved-sign-in and password completions can still invoke connected after their UI attempt is abandoned.",
+        "before": "A canceled request or dismissed form can navigate into its old workspace after the reader moves on.",
+        "after": "Follow-up: give these attempts cancellation/unmount identity guards like the existing address-probe control.",
+        "limits": [
+          "Ordinary canceled address probes already ignore late success.",
+          "The reproduction is asynchronous UI ownership, not a server authentication defect."
+        ]
+      }
     },
     {
       "id": "Q07",
-      "title": "Keep open search results synchronized with content removal/edit",
+      "title": "Open search results can keep deleted or edited text",
       "category": "privacy",
       "status": "follow-up",
-      "summary": "SearchDialog owns copied results independently of authoritative socket changes.",
-      "before": "Deleted/retained or edited text remains in an already-open search until the reader repeats the query.",
-      "after": "Follow-up: observe deletion/retention/edit/revocation and fence held result installation independent of loaded timeline history.",
+      "summary": "Search keeps its own copy of the results it found, and that copy does not follow later changes from the server.",
+      "before": "Text that was deleted, removed by automatic history removal, or edited stays in a search that is already open until you search again.",
+      "after": "Open results should drop or update a message when it is deleted, removed by history removal or edited, or when you lose access to it, even if its channel is not loaded. A late search answer should not bring removed text back.",
       "mechanism": "Apply authoritative result invalidation or refresh to the search's copied rows and track request generation so late removed content cannot reinstall.",
       "files": [
         "packages/ui/src/components/SearchDialog.tsx",
@@ -1266,18 +1723,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "This is previously fetched text; fresh unauthorized retrieval is not established.",
-        "Preserve unrelated authorized result rows and normal paging/search access filters."
-      ]
+        "This is text the search had already shown. It does not let anyone search for text they cannot see.",
+        "A fix must keep other results you may still see, along with loading more results and the usual search access rules."
+      ],
+      "technical": {
+        "title": "Keep open search results synchronized with content removal/edit",
+        "summary": "SearchDialog owns copied results independently of authoritative socket changes.",
+        "before": "Deleted/retained or edited text remains in an already-open search until the reader repeats the query.",
+        "after": "Follow-up: observe deletion/retention/edit/revocation and fence held result installation independent of loaded timeline history.",
+        "limits": [
+          "This is previously fetched text; fresh unauthorized retrieval is not established.",
+          "Preserve unrelated authorized result rows and normal paging/search access filters."
+        ]
+      }
     },
     {
       "id": "Q08",
-      "title": "Refresh Pins independently of loaded timeline state",
+      "title": "A deleted message can stay in the Pinned panel",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Pins refresh reacts to loaded timeline pin data rather than every authoritative pin/deletion change.",
-      "before": "A deleted pinned message remains in an open Pins panel when that channel timeline is not loaded.",
-      "after": "Follow-up: subscribe to independent pin/removal changes and fence held panel results.",
+      "summary": "The Pinned panel updates when the app sees pin changes in a channel it has loaded, not on every pin change or deletion from the server.",
+      "before": "A pinned message that is deleted stays in an open Pinned panel when the app has not loaded that channel's messages.",
+      "after": "The panel should follow every pin, unpin and deletion in its channel, and ignore late answers to older requests.",
       "mechanism": "Use server/socket message/pin invalidation scoped to the panel's channel, retaining loaded-history controls and explicit Refresh behavior.",
       "files": [
         "packages/ui/src/components/MessageListPanel.tsx",
@@ -1286,35 +1753,55 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Loaded-timeline and manual Refresh controls already clear the row.",
-        "This is stale previously fetched data, not a fresh access-grant bypass."
-      ]
+        "When the channel is loaded, or you press Refresh, the message already disappears.",
+        "This is a message the app had already fetched. It gives no one access they did not have."
+      ],
+      "technical": {
+        "title": "Refresh Pins independently of loaded timeline state",
+        "summary": "Pins refresh reacts to loaded timeline pin data rather than every authoritative pin/deletion change.",
+        "before": "A deleted pinned message remains in an open Pins panel when that channel timeline is not loaded.",
+        "after": "Follow-up: subscribe to independent pin/removal changes and fence held panel results.",
+        "limits": [
+          "Loaded-timeline and manual Refresh controls already clear the row.",
+          "This is stale previously fetched data, not a fresh access-grant bypass."
+        ]
+      }
     },
     {
       "id": "Q09",
-      "title": "Order Follow/Unfollow by latest local intent",
+      "title": "Follow then Unfollow can leave a thread followed",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Opposite Follow requests can race on the network/server.",
-      "before": "Follow then Unfollow can finish followed when the older request reaches the server last; sequential calls finish unfollowed.",
-      "after": "Follow-up: serialize/coalesce per-thread follow intent or use an explicit server revision contract.",
+      "summary": "Two opposite Follow requests for a thread can arrive at the server in either order.",
+      "before": "If you click Follow then Unfollow, the thread can end up followed when the older request reaches the server last. Done one after the other, it ends unfollowed.",
+      "after": "The app should send one Follow change at a time for each thread and end on your latest choice, or the server should track which change is newest.",
       "mechanism": "Keep one request active, send the latest queued choice, reconcile authoritative echoes and ensure failed older completion cannot roll back newer intent.",
       "files": ["packages/client-core/src/workspace.ts", "packages/server/src/store.ts"],
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Actual HTTP/socket controls inject request ordering; natural frequency is unmeasured.",
-        "The completed pin/save/snooze queue does not cover Follow."
-      ]
+        "The tests forced the requests out of order. How often this happens in real use is not measured.",
+        "The fix that does this for pins, saves and snoozes does not cover Follow."
+      ],
+      "technical": {
+        "title": "Order Follow/Unfollow by latest local intent",
+        "summary": "Opposite Follow requests can race on the network/server.",
+        "before": "Follow then Unfollow can finish followed when the older request reaches the server last; sequential calls finish unfollowed.",
+        "after": "Follow-up: serialize/coalesce per-thread follow intent or use an explicit server revision contract.",
+        "limits": [
+          "Actual HTTP/socket controls inject request ordering; natural frequency is unmeasured.",
+          "The completed pin/save/snooze queue does not cover Follow."
+        ]
+      }
     },
     {
       "id": "Q10",
-      "title": "Identify unread rollback by request rather than cursor equality",
+      "title": "A failed Mark unread can undo one that worked",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Repeated identical Mark unread actions share the same optimistic cursor value.",
-      "before": "An older failure rolls local state back after a newer identical request succeeds, while SQLite remains unread.",
-      "after": "Follow-up: associate rollback ownership with a request identity/generation and current authoritative echo.",
+      "summary": "Marking the same message unread twice looks like the same change to the app, so it cannot tell the two attempts apart.",
+      "before": "If the first attempt fails after the second has succeeded, the app undoes the mark and shows the conversation as read. The server still has it marked unread.",
+      "after": "Only the attempt that failed should undo its own change, and only if nothing newer has replaced it. The app should then follow what the server reports.",
       "mechanism": "Only the still-owning failed request may restore its prior cursor; test repeated equal values, held failure, reconnect and multi-device updates.",
       "files": [
         "packages/client-core/src/workspace.ts",
@@ -1323,17 +1810,26 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "The reproduced disagreement is local rollback; the server's stored unread state is correct."
-      ]
+        "Only this device shows the wrong thing. The server keeps the correct unread mark."
+      ],
+      "technical": {
+        "title": "Identify unread rollback by request rather than cursor equality",
+        "summary": "Repeated identical Mark unread actions share the same optimistic cursor value.",
+        "before": "An older failure rolls local state back after a newer identical request succeeds, while SQLite remains unread.",
+        "after": "Follow-up: associate rollback ownership with a request identity/generation and current authoritative echo.",
+        "limits": [
+          "The reproduced disagreement is local rollback; the server's stored unread state is correct."
+        ]
+      }
     },
     {
       "id": "Q11",
-      "title": "Cancel Profile Message navigation ownership on dismissal",
+      "title": "A closed profile can still pull you into a direct message",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "A Profile Message action keeps its navigation completion alive after the dialog closes.",
-      "before": "The old action opens its DM after the reader has navigated to another channel.",
-      "after": "Follow-up: lifetime-guard Profile action completion and rejection, matching the working New message cancellation behavior.",
+      "summary": "Clicking Message on someone's profile keeps going after you close the profile.",
+      "before": "After you close the profile and go to another channel, the old click still opens your direct message with that person.",
+      "after": "Closing the profile should cancel the action, whether it would succeed or fail, as New message already does.",
       "mechanism": "Dismiss/unmount increments action ownership; a late direct-message result must not navigate or contaminate the replacement view.",
       "files": [
         "packages/ui/src/components/ProfileDialog.tsx",
@@ -1342,17 +1838,26 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Real component/full WorkspaceScreen control establishes the action boundary; ordinary New message already has a dismissal guard."
-      ]
+        "Tests with the real profile and workspace screens show where the problem is. The New message button already cancels when you close it."
+      ],
+      "technical": {
+        "title": "Cancel Profile Message navigation ownership on dismissal",
+        "summary": "A Profile Message action keeps its navigation completion alive after the dialog closes.",
+        "before": "The old action opens its DM after the reader has navigated to another channel.",
+        "after": "Follow-up: lifetime-guard Profile action completion and rejection, matching the working New message cancellation behavior.",
+        "limits": [
+          "Real component/full WorkspaceScreen control establishes the action boundary; ordinary New message already has a dismissal guard."
+        ]
+      }
     },
     {
       "id": "Q12",
-      "title": "Close a created listener when post-start invite setup fails",
+      "title": "A failed invite setting can leave a server running unseen",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Main's startup adapter starts listening before configured invite policy is enforced.",
-      "before": "A failed policy write loses the server handle before returning it to the controller; shutdown reports success while health still answers and ownership remains locked.",
-      "after": "Follow-up: retain the newly created server in a protected try/finally until startup either transfers ownership or closes it.",
+      "summary": "When the desktop app starts hosting, the server starts accepting connections before the app applies the invite setting.",
+      "before": "If saving that setting fails, the app loses track of the server it started. Stopping hosting then reports success, but the server still answers and the workspace folder stays locked.",
+      "after": "The app should keep hold of the new server until startup has fully worked. If any step fails, the app should shut that server down.",
       "mechanism": "Acquire the handle immediately after create/listen, run policy checks inside a cleanup-protected block and transfer it to the controller only after complete success.",
       "files": [
         "apps/desktop/src/main/index.ts",
@@ -1362,18 +1867,28 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "Actual extracted startup callback, real SQLite write-refusing trigger and loopback listener establish the controlled failure.",
-        "This is adjacent to N12's controller/connector fixes, which remain in place."
-      ]
+        "The test used the real startup steps, a database set up to refuse the write, and a server only this computer could reach.",
+        "This sits next to the fixes for closing a public link, which stay in place."
+      ],
+      "technical": {
+        "title": "Close a created listener when post-start invite setup fails",
+        "summary": "Main's startup adapter starts listening before configured invite policy is enforced.",
+        "before": "A failed policy write loses the server handle before returning it to the controller; shutdown reports success while health still answers and ownership remains locked.",
+        "after": "Follow-up: retain the newly created server in a protected try/finally until startup either transfers ownership or closes it.",
+        "limits": [
+          "Actual extracted startup callback, real SQLite write-refusing trigger and loopback listener establish the controlled failure.",
+          "This is adjacent to N12's controller/connector fixes, which remain in place."
+        ]
+      }
     },
     {
       "id": "Q13",
-      "title": "Bound shutdown waiting before it reaches cleanup",
+      "title": "A stuck backup can keep the server from stopping",
       "category": "reliability",
       "status": "follow-up",
-      "summary": "Shutdown joins the hosting operation queue behind an outstanding backup.",
-      "before": "A held backup leaves the listener running beyond six injected cleanup deadline intervals because timed cleanup has not begun.",
-      "after": "Follow-up: define bounded cancellation/settlement for preceding queued/in-flight work while retaining resource ownership.",
+      "summary": "Stopping the server waits in line behind a backup that is still running.",
+      "before": "If a backup hangs, the server keeps running long past the time limit for stopping, because the timed cleanup has not started yet. In a test, it was still running after six times that limit.",
+      "after": "Stopping should have an overall time limit that starts right away. The app should tell work it can call off from work that must finish, and keep hold of each piece until it has stopped or been cleaned up.",
       "mechanism": "Start an overall shutdown policy before queue wait, distinguish accepted durable work from abortable work and retain handles until each cancellation/cleanup outcome is established.",
       "files": [
         "apps/desktop/src/main/hosting.ts",
@@ -1383,9 +1898,19 @@
       "evidence": [],
       "metrics": [],
       "limits": [
-        "A held adapter proves queue behavior; it does not establish a real blocked network-share backup or observed native exit hang.",
-        "A timeout must not abandon the worker/server resource or silently claim unfinished backup success."
-      ]
+        "The test held a backup open on purpose. It did not show a real backup stuck on a network drive, or the app failing to quit.",
+        "A time limit must not walk away from a still-running backup or server, or report an unfinished backup as done."
+      ],
+      "technical": {
+        "title": "Bound shutdown waiting before it reaches cleanup",
+        "summary": "Shutdown joins the hosting operation queue behind an outstanding backup.",
+        "before": "A held backup leaves the listener running beyond six injected cleanup deadline intervals because timed cleanup has not begun.",
+        "after": "Follow-up: define bounded cancellation/settlement for preceding queued/in-flight work while retaining resource ownership.",
+        "limits": [
+          "A held adapter proves queue behavior; it does not establish a real blocked network-share backup or observed native exit hang.",
+          "A timeout must not abandon the worker/server resource or silently claim unfinished backup success."
+        ]
+      }
     }
   ]
 }

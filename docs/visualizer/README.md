@@ -28,12 +28,13 @@ changes together.
   areas in it, then every journey drawn small by the layers it passes through.
 - **Files** is a folder tree beside a reader. Filter the tree by name, kind or
   layer, or tick **Search inside files too** to match source text. A file opens on
-  its explanation; **Source** shows the whole file with find, go to line, line
+  one plain sentence about what it does, then its technical explanation; **Source** shows the whole file with find, go to line, line
   wrapping and an outline, **Declarations** lists what it defines and its named
   tests, and **Connections** draws what it imports and what imports it. Click a
   line number to copy a link to that line. Arrow keys move through the tree.
-- **How it works** follows one action through the code, step by step. Its
-  handoff map shows which layer each step works in.
+- **How it works** follows one everyday action, such as sending a message,
+  step by step. Its map shows which part of Tandem works in each step, and
+  each step's **In the code** opens the technical version and its files.
 - **Improvements** opens on a board: every record as a dot in a row for its
   category, which layers the open findings reach into, and how much each
   measured change took away. Below it the records are grouped as open, measured
@@ -60,6 +61,19 @@ mechanisms, evidence and limits. `content/guide.json` provides the architecture,
 reading guide and scope. Update these alongside a changed runtime file. Keep
 unimplemented findings marked `follow-up`; do not turn a plan or diagnostic into
 a completed optimization.
+
+The pages people read first are written for someone who does not write code.
+Journey titles, summaries and steps, improvement titles, summaries, before and
+after, measurement labels and limits, and the guide's text use plain words: no
+code names, and the part names the map uses (the screens, the app engine, the
+shared rules, the server, the desktop app). The technical version is kept
+beside each one and shown under **In the code**: a journey's and a step's
+`detail`, an improvement's `technical` object, a measurement's `detail` and a
+guide limit's `detail`. When the code changes, update both. Each explained file
+also has a one-sentence `plain` description, shown first on its page and in the
+map's tooltip; the generator writes one for files without an explanation. The
+rest of a file's explanation stays technical, since that view is for reading
+code.
 
 ```sh
 pnpm exec prettier --write scripts/generate-project-visualizer.mjs scripts/serve-project-visualizer.mjs docs/visualizer

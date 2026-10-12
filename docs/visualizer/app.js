@@ -10,30 +10,30 @@
   // Eleven areas fold into six layers so colour can carry identity: the chart
   // palette is validated for five hues plus a neutral, not for eleven.
   const layers = [
-    { id: "interface", title: "Interface", areas: ["ui", "web"] },
-    { id: "client", title: "Client", areas: ["client-core"] },
-    { id: "contract", title: "Contract", areas: ["protocol"] },
+    { id: "interface", title: "Screens", areas: ["ui", "web"] },
+    { id: "client", title: "App engine", areas: ["client-core"] },
+    { id: "contract", title: "Shared rules", areas: ["protocol"] },
     { id: "server", title: "Server", areas: ["server", "server-cli"] },
-    { id: "desktop", title: "Desktop", areas: ["desktop"] },
-    { id: "support", title: "Support", areas: ["tooling", "docs", "root", "visualizer"] },
+    { id: "desktop", title: "Desktop app", areas: ["desktop"] },
+    { id: "support", title: "Tools and docs", areas: ["tooling", "docs", "root", "visualizer"] },
   ];
   const layerOf = (area) => layers.find((layer) => layer.areas.includes(area)) ?? layers[5];
   const layerById = (id) => layers.find((layer) => layer.id === id);
   const areaInfo = (id) => guide.areas.find((area) => area.id === id);
   const areaTitle = (id) => areaInfo(id)?.title ?? id;
   const kinds = {
-    runtime: "Source",
-    test: "Tests",
+    runtime: "Code",
+    test: "Test",
     documentation: "Docs",
-    configuration: "Config",
-    tooling: "Tooling",
-    asset: "Assets",
+    configuration: "Settings",
+    tooling: "Build script",
+    asset: "Image or font",
   };
   // Listed in the order the improvements page groups them: open work first.
   const statuses = {
-    "follow-up": { label: "Open", icon: "circle" },
-    measured: { label: "Measured", icon: "gauge" },
-    implemented: { label: "Implemented", icon: "check" },
+    "follow-up": { label: "Still open", icon: "circle" },
+    measured: { label: "Done and measured", icon: "gauge" },
+    implemented: { label: "Done", icon: "check" },
   };
   const views = {
     overview: { label: "Overview", icon: "map" },
@@ -42,7 +42,21 @@
     improvements: { label: "Improvements", icon: "spark" },
     evidence: { label: "Scope & limits", icon: "scale" },
   };
-  const flowGroups = { client: "Client", server: "Server", desktop: "Desktop" };
+  const flowGroups = {
+    client: "In the app",
+    server: "On the server",
+    desktop: "In the desktop app",
+  };
+  // Improvement categories, named for people rather than for the code.
+  const categoryNames = {
+    performance: "Speed",
+    reliability: "Reliability",
+    privacy: "Privacy",
+    resources: "Memory and disk",
+    tooling: "Build tools",
+    measurement: "Measuring",
+  };
+  const categoryName = (category) => categoryNames[category] ?? category;
   const store = {
     get(key, fallback) {
       try {
@@ -180,6 +194,9 @@
     `<span class="status-mark status-${escape(status)}" title="${statuses[status].label}">${icon(statuses[status].icon)}<span class="sr-only">${statuses[status].label}: </span></span>`;
   const empty = (title, text, action = "") =>
     `<div class="empty"><h3>${escape(title)}</h3><p>${escape(text)}</p>${action}</div>`;
+  // The technical version of something said in plain words, one click below it.
+  const inCode = (body, note = "", open = false, label = "In the code") =>
+    `<details class="in-code" ${open ? "open" : ""}><summary>${escape(label)}${note ? `<small>${escape(note)}</small>` : ""}</summary><div class="in-code-body">${body}</div></details>`;
   const pageHead = (title, intro, aside = "") =>
     `<header class="page-head"><div><h1>${escape(title)}</h1><p>${escape(intro)}</p></div>${aside}</header>`;
 
@@ -256,7 +273,7 @@
   function applyTheme(theme) {
     root.dataset.theme = theme;
     const next = { system: "dark", dark: "light", light: "system" }[theme];
-    const names = { system: "Theme follows your device", dark: "Onyx theme", light: "White theme" };
+    const names = { system: "Theme follows your device", dark: "Dark theme", light: "Light theme" };
     const button = document.getElementById("theme-button");
     button.innerHTML = icon(theme === "dark" ? "moon" : theme === "light" ? "sun" : "monitor");
     button.setAttribute(
@@ -290,13 +307,17 @@
   // with tests left out. A dotted wire happens at runtime, where no import says
   // so. Each wire names the side it leaves by and the side it arrives at.
   const mapNodes = [
-    { area: "web", name: "Browser", role: "Opens a workspace from any computer" },
-    { area: "desktop", name: "Desktop", role: "Electron app that can also host" },
-    { area: "ui", name: "Interface", role: "React screens, rows and dialogs" },
-    { area: "client-core", name: "Client replica", role: "Local state, drafts, outbox, calls" },
-    { area: "protocol", name: "Protocol", role: "Types and permissions both sides share" },
-    { area: "server", name: "Workspace server", role: "Accounts, messages, events, apps" },
-    { area: "server-cli", name: "Standalone host", role: "The server without the desktop app" },
+    { area: "web", name: "Web version", role: "Opens Tandem in any web browser" },
+    { area: "desktop", name: "Desktop app", role: "The app for your computer. It can also host" },
+    { area: "ui", name: "Screens", role: "Everything you see and click" },
+    {
+      area: "client-core",
+      name: "App engine",
+      role: "Your copy of the workspace, unsent messages, calls",
+    },
+    { area: "protocol", name: "Shared rules", role: "What both sides agree a message looks like" },
+    { area: "server", name: "Server", role: "Accounts, messages, files, connected apps" },
+    { area: "server-cli", name: "Server on its own", role: "The server without the desktop app" },
   ];
   const mapWires = [
     { from: "web", to: "ui", out: "right", into: "left" },
@@ -310,8 +331,8 @@
       to: "server",
       out: "right",
       into: "left",
-      runtime: "HTTP and WebSocket",
-      verb: "Talks over HTTP and WebSocket to",
+      runtime: "over the network",
+      verb: "Talks over the network to",
     },
     { from: "desktop", to: "server", out: "right", into: "bottom" },
     {
@@ -319,21 +340,22 @@
       to: "server",
       out: "left",
       into: "top",
-      runtime: "bundles",
-      verb: "Bundles",
+      runtime: "packs up",
+      verb: "Packs up",
     },
     {
       from: "server",
       to: "store",
       out: "right",
       into: "left",
-      runtime: "reads and writes",
-      verb: "Reads and writes",
+      runtime: "saves to",
+      verb: "Saves to",
     },
   ];
   const supportAreas = layers[5].areas;
   const mapName = (id) =>
     id === "store" ? "the workspace folder" : mapNodes.find((node) => node.area === id).name;
+  const countFiles = (count) => `${count} ${count === 1 ? "file" : "files"}`;
   // Files in one area that import a file in another, tests left out.
   const importCount = (from, to) => {
     let count = 0;
@@ -372,16 +394,12 @@
   // The wires leaving a node, as sentences: what it imports, then what it does at runtime.
   function mapRelations(area) {
     const leaving = mapWires.filter((wire) => wire.from === area);
-    const imports = leaving
-      .filter((wire) => !wire.runtime)
-      .map((wire) => `${mapName(wire.to)} (${wireCounts.get(wire)})`);
-    const sentences = leaving
-      .filter((wire) => wire.runtime)
-      .map((wire) => `${wire.verb} ${mapName(wire.to)}.`);
-    if (imports.length)
-      sentences.unshift(
-        `Imports ${imports.length > 1 ? `${imports.slice(0, -1).join(", ")} and ${imports.at(-1)}` : imports[0]}.`,
-      );
+    const sentences = [
+      ...leaving
+        .filter((wire) => !wire.runtime)
+        .map((wire) => `${countFiles(wireCounts.get(wire))} here use ${mapName(wire.to)}.`),
+      ...leaving.filter((wire) => wire.runtime).map((wire) => `${wire.verb} ${mapName(wire.to)}.`),
+    ];
     return sentences.length ? `<p class="map-rel">${escape(sentences.join(" "))}</p>` : "";
   }
   // How many files a node holds, and how many of them are tests: the rings.
@@ -402,19 +420,19 @@
       <div class="map-grid" id="map-grid">
         <svg class="map-wires" id="map-wires" aria-hidden="true"></svg>
         ${mapNodes.map(node).join("")}
-        <a class="map-node map-store" data-node="store" href="${escape(href("packages/server/src/store.ts"))}" style="--c: var(--layer-server); grid-area: n-store"><strong>One workspace folder</strong><span>SQLite database, uploaded files and backups</span></a>
+        <a class="map-node map-store" data-node="store" href="${escape(href("packages/server/src/store.ts"))}" style="--c: var(--layer-server); grid-area: n-store"><strong>Workspace folder</strong><span>Saved messages, uploaded files and backups</span></a>
         <article class="map-node map-support" data-node="support" style="--c: var(--layer-support); grid-area: n-support">
-          <a class="map-node-head" href="#files?layer=support"><strong><span class="dot" aria-hidden="true"></span>Support</strong><span>Scripts, configuration, operations docs and this atlas</span></a>
+          <a class="map-node-head" href="#files?layer=support"><strong><span class="dot" aria-hidden="true"></span>Tools and docs</strong><span>Build scripts, settings, guides and this atlas</span></a>
           ${dots(support)}${fileCount(support)}
         </article>
         <div class="dot-tip" id="dot-tip" hidden></div>
       </div>
       <figcaption class="map-legend" aria-hidden="true">
-        <span><i class="d k-source"></i>Source</span>
-        <span><i class="d k-test"></i>Test</span>
-        <span><i class="d k-other"></i>Configuration, docs and assets</span>
-        <span class="legend-wire"><i class="wire-sample"></i>Imports between two areas, counted without tests</span>
-        <span class="legend-wire"><i class="wire-sample runtime"></i>Happens at runtime</span>
+        <span><i class="d k-source"></i>Code</span>
+        <span><i class="d k-test"></i>Test that checks the code</span>
+        <span><i class="d k-other"></i>Settings, docs and images</span>
+        <span class="legend-wire"><i class="wire-sample"></i>A number counts the files in one part that use another, tests left out</span>
+        <span class="legend-wire"><i class="wire-sample runtime"></i>Connects while Tandem runs</span>
       </figcaption>
     </figure>`;
   }
@@ -555,7 +573,7 @@
       tip.hidden = true;
       return;
     }
-    tip.innerHTML = `<strong>${escape(base(file.path))}</strong><span>${escape(folder(file.path))}</span><small>${escape(kinds[file.kind])}, ${number(file.lines)} lines</small>`;
+    tip.innerHTML = `<strong>${escape(base(file.path))}</strong>${file.plain ? `<em>${escape(file.plain)}</em>` : ""}<small>${escape(kinds[file.kind])}, ${number(file.lines)} lines</small>`;
     placeTip(tip, grid, dot);
   }
   // One row per layer: its share of the lines as a thin bar, then the areas in
@@ -563,7 +581,7 @@
   function layersSection() {
     const total = layerStats.reduce((sum, stat) => sum + stat.lines, 0);
     return `<section class="section" aria-labelledby="layers-title">
-      <div class="section-head"><h2 id="layers-title">What each layer holds</h2><p>${number(total)} lines across ${number(files.length)} files. Each area opens on the file to read first.</p></div>
+      <div class="section-head"><h2 id="layers-title">What each part does</h2><p>${number(total)} lines of code in ${number(files.length)} files. Click a part to open the file to start with.</p></div>
       <div class="layer-table">${layerStats
         .map(({ layer, files: count, lines }) => {
           const areas = guide.areas.filter((area) => layer.areas.includes(area.id));
@@ -603,7 +621,7 @@
         <div class="hero-copy">
           <p class="hero-intro">${escape(guide.intro)}</p>
           <div class="hero-actions">
-            <a class="button primary" href="#flows">Follow a request through the code</a>
+            <a class="button primary" href="#flows">See how a message travels</a>
             <a class="button" href="#files">Browse the files</a>
           </div>
         </div>
@@ -611,7 +629,7 @@
       ${atlasMap()}
       ${layersSection()}
       <section class="section" aria-labelledby="principles-title">
-        <div class="section-head"><h2 id="principles-title">The rules the code keeps</h2><p>Four ideas that explain most of the design decisions.</p></div>
+        <div class="section-head"><h2 id="principles-title">Four ideas behind the design</h2><p>They explain most of the choices in the code.</p></div>
         <div class="principles">${guide.principles
           .map(
             (principle) =>
@@ -620,7 +638,7 @@
           .join("")}</div>
       </section>
       <section class="section" aria-labelledby="start-title">
-        <div class="section-head"><h2 id="start-title">Follow one action through the code</h2><p>${flows.length} journeys, each drawn by the layers it passes through.</p></div>
+        <div class="section-head"><h2 id="start-title">Follow one action through Tandem</h2><p>${flows.length} everyday actions. Each line shows which parts of Tandem do the work, step by step.</p></div>
         <div class="routes">${Object.entries(flowGroups)
           .map(
             ([area, title]) =>
@@ -768,9 +786,9 @@
     const recent = store.get("recent", []).filter((path) => byPath.has(path));
     return `<div class="files-home">
       <h1>Pick a file, or search for one</h1>
-      <p>The tree on the left holds every tracked file. Type in its filter to narrow it, or press <kbd>/</kbd> to search names, declarations and journeys together.</p>
+      <p>The list on the left has every file in the project. Type in its filter to narrow it, or press <kbd>/</kbd> to search file names, code and journeys together.</p>
       ${recent.length ? `<h2>Opened recently</h2>${fileRefs(recent)}` : ""}
-      <h2>Good first files</h2>
+      <h2>Good places to start</h2>
       <div class="first-files">${guide.areas
         .map(
           (area) =>
@@ -783,8 +801,8 @@
     const local = file.imports.filter((dependency) => dependency.path);
     const tabs = [
       ["explain", "About"],
-      ["source", file.source === null ? "Preview" : "Source"],
-      ["symbols", `Declarations${file.symbols.length ? ` <b>${file.symbols.length}</b>` : ""}`],
+      ["source", file.source === null ? "Preview" : "Code"],
+      ["symbols", `What's inside${file.symbols.length ? ` <b>${file.symbols.length}</b>` : ""}`],
       [
         "connections",
         `Connections${local.length + file.usedBy.length ? ` <b>${new Set(local.map((dependency) => dependency.path)).size + file.usedBy.length}</b>` : ""}`,
@@ -804,7 +822,7 @@
           <a class="icon-button" href="${escape(`${meta.repository}/blob/${meta.revision}/${file.path}`)}" target="_blank" rel="noopener noreferrer" aria-label="Open on GitHub" title="Open on GitHub">${icon("external")}</a>
         </div>
       </div>
-      <div class="file-facts"><span class="fact-layer"><span class="dot" aria-hidden="true"></span>${escape(areaTitle(file.area))}</span><span>${escape(kinds[file.kind] ?? file.kind)}</span>${file.source !== null ? `<span>${number(file.lines)} lines</span>` : ""}<span>${size(file.bytes)}</span>${file.curated ? `<span class="fact-reviewed">${icon("check")}Reviewed explanation</span>` : ""}</div>
+      <div class="file-facts"><span class="fact-layer"><span class="dot" aria-hidden="true"></span>${escape(areaTitle(file.area))}</span><span>${escape(kinds[file.kind] ?? file.kind)}</span>${file.source !== null ? `<span>${number(file.lines)} lines</span>` : ""}<span>${size(file.bytes)}</span>${file.curated ? `<span class="fact-reviewed">${icon("check")}Explanation checked by a person</span>` : ""}</div>
       <nav class="tabs" aria-label="File views">${tabs
         .map(
           ([key, label]) =>
@@ -832,9 +850,9 @@
       .slice(0, 10);
     const cases = file.checks.filter((check) => !check.group);
     return `<div class="explain">
-      <p class="lead">${escape(file.summary)}</p>
-      ${file.curated ? "" : `<p class="note">This description is generated from the file's structure. Runtime files carry a reviewed explanation; this one is ${escape((kinds[file.kind] ?? file.kind).toLowerCase())}.</p>`}
-      <div class="prose">${file.details.map((detail) => `<p>${escape(detail)}</p>`).join("")}</div>
+      <p class="lead">${escape(file.plain ?? file.summary)}</p>
+      ${file.curated ? "" : `<p class="note">Nobody has written an explanation for this file, so this one comes from its contents.</p>`}
+      <div class="prose">${file.plain ? `<h2 class="prose-label">In the code</h2><p>${escape(file.summary)}</p>` : ""}${file.details.map((detail) => `<p>${escape(detail)}</p>`).join("")}</div>
       ${
         keySymbols.length
           ? `<section class="block"><h2>Start reading here</h2><div class="symbol-grid">${keySymbols
@@ -860,7 +878,7 @@
               )}</ul>${cases.length > 12 ? `<a class="text-link" href="${escape(href(file.path, "symbols"))}">All ${cases.length} cases</a>` : ""}<p class="note">A named case shows what is asserted, not that it ran.</p></section>`
           : ""
       }
-      ${tests.length ? `<section class="block"><h2>Tests that import it</h2>${fileRefs(tests)}</section>` : ""}
+      ${tests.length ? `<section class="block"><h2>Tests that check it</h2>${fileRefs(tests)}</section>` : ""}
       ${
         journeys.length
           ? `<section class="block"><h2>Journeys it takes part in</h2><div class="link-list">${journeys
@@ -1092,7 +1110,7 @@
           note: dependency.typeOnly ? "types only" : dependency.dynamic ? "loaded on demand" : "",
         })),
         "in",
-        "Imports nothing from the repository.",
+        "Uses no other file in the project.",
       )}
       <div class="graph-col graph-center"><div class="graph-self"><span class="graph-name">${escape(base(file.path))}</span><span class="graph-dir">${escape(folder(file.path))}</span></div></div>
       ${column(
@@ -1103,8 +1121,8 @@
       )}
     </div>
     ${more ? `<button type="button" class="button small" data-action="all-connections">${state.showAllConnections ? "Show fewer" : "Show every connection"}</button>` : ""}
-    ${external.length ? `<section class="block"><h2>Packages and built-ins</h2><ul class="concepts mono">${external.map((specifier) => `<li>${escape(specifier)}</li>`).join("")}</ul></section>` : ""}
-    <p class="note">Static imports, including type-only and dynamic ones. They show which files depend on which, not every call made at runtime.</p>`;
+    ${external.length ? `<section class="block"><h2>Outside code it uses</h2><ul class="concepts mono">${external.map((specifier) => `<li>${escape(specifier)}</li>`).join("")}</ul></section>` : ""}
+    <p class="note">A line means one file names the other in its code. It shows which files depend on which, not every step the code takes while it runs.</p>`;
   }
   function drawGraph() {
     const graph = document.getElementById("graph");
@@ -1149,7 +1167,7 @@
                   `<option value="${key}" ${state.kind === key ? "selected" : ""}>${label}</option>`,
               )
               .join("")}</select>
-            <select id="layer-filter" aria-label="Layer"><option value="all">Any layer</option>${layers
+            <select id="layer-filter" aria-label="Part"><option value="all">Any part</option>${layers
               .map(
                 (layer) =>
                   `<option value="${layer.id}" ${state.layer === layer.id ? "selected" : ""}>${layer.title}</option>`,
@@ -1236,7 +1254,7 @@
           .join(""),
       )
       .join("");
-    return `<figure class="handoff"><figcaption><strong>Handoff map</strong><span>Which layers each step works in. The line follows the layer doing most of the work; smaller dots are layers it also touches.</span></figcaption><div class="handoff-scroll"><svg viewBox="0 0 ${width} ${height}" style="max-width: ${width}px" role="group" aria-label="${escape(flow.steps.map((step, index) => `Step ${index + 1} ${step.title}: ${[...perStep[index].keys()].map((id) => layerById(id).title).join(" and ")}`).join(". "))}"><defs>${defs}</defs>${rows}${heads}${wires}${dots}</svg></div></figure>`;
+    return `<figure class="handoff"><figcaption><strong>Who does each step</strong><span>Which parts of Tandem work in each step. The line follows the part doing most of the work, and small dots are parts that help.</span></figcaption><div class="handoff-scroll"><svg viewBox="0 0 ${width} ${height}" style="max-width: ${width}px" role="group" aria-label="${escape(flow.steps.map((step, index) => `Step ${index + 1} ${step.title}: ${[...perStep[index].keys()].map((id) => layerById(id).title).join(" and ")}`).join(". "))}"><defs>${defs}</defs>${rows}${heads}${wires}${dots}</svg></div></figure>`;
   }
   function flowsPage(params) {
     const flow = flows.find((item) => item.id === params.get("id")) ?? flows[0];
@@ -1274,16 +1292,17 @@
                   .join("")}</optgroup>`,
             )
             .join("")}</select></label>
-          <p class="journey-group-label">${escape(flowGroups[flow.area] ?? flow.area)} journey ${index + 1} of ${flows.length}</p>
+          <p class="journey-group-label">Journey ${index + 1} of ${flows.length}, ${escape((flowGroups[flow.area] ?? flow.area).toLowerCase())}</p>
           <h1>${escape(flow.title)}</h1>
           <p>${escape(flow.summary)}</p>
+          ${flow.detail ? inCode(`<p>${escape(flow.detail)}</p>`) : ""}
           <p class="journey-meta">${flow.steps.length} steps through ${all.length} files</p>
         </header>
         ${handoffMap(flow)}
         <ol class="steps">${flow.steps
           .map(
             (step, stepIndex) =>
-              `<li class="step" id="step-${stepIndex + 1}"><span class="step-number" aria-hidden="true">${stepIndex + 1}</span><div class="step-body"><h2><span class="sr-only">Step ${stepIndex + 1}: </span>${escape(step.title)}</h2><p>${escape(step.description)}</p>${fileRefs(step.files)}</div></li>`,
+              `<li class="step" id="step-${stepIndex + 1}"><span class="step-number" aria-hidden="true">${stepIndex + 1}</span><div class="step-body"><h2><span class="sr-only">Step ${stepIndex + 1}: </span>${escape(step.title)}</h2><p>${escape(step.description)}</p>${inCode(`${step.detail ? `<p>${escape(step.detail)}</p>` : ""}${fileRefs(step.files)}`, countFiles(step.files.length), Number(params.get("step")) === stepIndex + 1)}</div></li>`,
           )
           .join("")}</ol>
         <nav class="pager" aria-label="Other journeys">${previous ? `<a href="#flows?id=${encodeURIComponent(previous.id)}" class="prev"><small>${icon("back")}Previous journey</small><span>${escape(previous.title)}</span></a>` : "<span></span>"}${next ? `<a href="#flows?id=${encodeURIComponent(next.id)}" class="next"><small>Next journey${icon("chevron")}</small><span>${escape(next.title)}</span></a>` : "<span></span>"}</nav>
@@ -1296,7 +1315,6 @@
   // and the measured changes ranked by how much they took away. Each mark
   // opens its record, and the list below says the same in words.
   const statusOrder = Object.keys(statuses);
-  const capital = (word) => word[0].toUpperCase() + word.slice(1);
   const amount = (value) => (typeof value === "number" ? number(value) : value);
   function improvementBoard() {
     const rows = [...new Set(improvements.map((item) => item.category))]
@@ -1336,7 +1354,7 @@
         <div class="board-rows" aria-hidden="true">${rows
           .map(
             ({ category, items }) =>
-              `<div class="board-row"><span class="board-cat">${escape(capital(category))}</span><span class="board-dots">${items
+              `<div class="board-row"><span class="board-cat">${escape(categoryName(category))}</span><span class="board-dots">${items
                 .map(
                   (item) =>
                     `<a class="r s-${escape(item.status)}" tabindex="-1" href="${link(item)}" data-record="${escape(item.id)}"></a>`,
@@ -1347,7 +1365,7 @@
         <div class="dot-tip record-tip" id="record-tip" hidden></div>
       </figure>
       <figure class="board-panel board-reach" aria-labelledby="board-reach">
-        <figcaption><h2 id="board-reach">Where the open findings are</h2><p>Open findings that name a file in each layer. One finding can reach several.</p></figcaption>
+        <figcaption><h2 id="board-reach">Where the open problems are</h2><p>How many open problems involve each part of Tandem. One problem can involve several.</p></figcaption>
         <ul class="reach-list">${reach
           .map(
             ({ layer, count }) =>
@@ -1356,7 +1374,7 @@
           .join("")}</ul>
       </figure>
       <figure class="board-panel board-cuts" aria-labelledby="board-cuts">
-        <figcaption><h2 id="board-cuts">How much each change took away</h2><p>Each record's headline measurement, after against before</p></figcaption>
+        <figcaption><h2 id="board-cuts">How much each change saved</h2><p>The main measurement of each change, after compared with before</p></figcaption>
         <ol class="cut-list">${cuts
           .map(
             ({ item, metric, change }) =>
@@ -1374,7 +1392,7 @@
       tip.hidden = true;
       return;
     }
-    tip.innerHTML = `<strong>${escape(item.id)}</strong><span>${escape(item.title)}</span><small>${statuses[item.status].label}, ${escape(item.category)}</small>`;
+    tip.innerHTML = `<strong>${escape(item.id)}</strong><span>${escape(item.title)}</span><small>${statuses[item.status].label}, ${escape(categoryName(item.category).toLowerCase())}</small>`;
     placeTip(tip, dot.closest(".board-panel"), dot);
   }
   function metricRows(metrics) {
@@ -1390,7 +1408,7 @@
           Math.max(before, after) > 0;
         const change = metricChange(metric);
         const scale = numeric ? Math.max(before, after) : 1;
-        return `<div class="metric"><div class="metric-label">${escape(metric.label)}${change !== null ? `<span class="delta ${change > 0 ? "up" : "down"}">${changeText(change)}</span>` : ""}</div>${
+        return `<div class="metric"><div class="metric-label" ${metric.detail ? `title="${escape(metric.detail)}"` : ""}>${escape(metric.label)}${change !== null ? `<span class="delta ${change > 0 ? "up" : "down"}">${changeText(change)}</span>` : ""}</div>${
           numeric
             ? `<div class="bar-row"><span class="bar-name">Before</span><span class="bar"><span class="bar-fill before" style="width:${((100 * before) / scale).toFixed(2)}%"></span></span><span class="bar-value">${escape(metric.before)} ${escape(metric.unit)}</span></div><div class="bar-row"><span class="bar-name">After</span><span class="bar"><span class="bar-fill after" style="width:${((100 * after) / scale).toFixed(2)}%"></span></span><span class="bar-value">${escape(metric.after)} ${escape(metric.unit)}</span></div>`
             : `<p class="metric-text">${escape(metric.before)} ${escape(metric.unit)} before, ${escape(metric.after)} ${escape(metric.unit)} after</p>`
@@ -1400,14 +1418,18 @@
   }
   function improvementDetail(item) {
     const open = item.status === "follow-up";
+    const now = open ? "What happens now" : "Before";
+    const next = open ? "What should happen" : "After";
+    const technical = item.technical;
     return `<div class="imp-detail">
       <p class="lead">${escape(item.summary)}</p>
-      <div class="before-after"><div><h2>${open ? "What happens now" : "Before"}</h2><p>${escape(item.before)}</p></div><div><h2>${open ? "What should happen" : "After"}</h2><p>${escape(item.after)}</p></div></div>
-      <section class="block"><h2>How it works</h2><p>${escape(item.mechanism)}</p></section>
-      ${item.metrics?.length ? `<section class="block"><h2>Measured</h2>${metricRows(item.metrics)}</section>` : ""}
-      <section class="block"><h2>Files</h2>${fileRefs(item.files)}</section>
-      ${item.evidence?.length ? `<section class="block"><h2>Evidence</h2><div class="link-list">${item.evidence.map((evidence) => `<a href="${escape(href(evidence.path, "source"))}">${icon("file")}<span>${escape(evidence.label)}</span><small>${escape(base(evidence.path))}</small></a>`).join("")}</div></section>` : ""}
+      <div class="before-after"><div><h2>${now}</h2><p>${escape(item.before)}</p></div><div><h2>${next}</h2><p>${escape(item.after)}</p></div></div>
+      ${item.metrics?.length ? `<section class="block"><h2>Measurements</h2>${metricRows(item.metrics)}</section>` : ""}
       ${item.limits?.length ? `<section class="block limits"><h2>What this does not show</h2><ul>${item.limits.map((limit) => `<li>${escape(limit)}</li>`).join("")}</ul></section>` : ""}
+      ${inCode(
+        `${technical ? `<p class="in-code-title">${escape(technical.title)}</p><p>${escape(technical.summary)}</p><dl class="in-code-pair"><div><dt>${now}</dt><dd>${escape(technical.before)}</dd></div><div><dt>${next}</dt><dd>${escape(technical.after)}</dd></div></dl>` : ""}<p><strong>How it works.</strong> ${escape(item.mechanism)}</p>${technical?.limits?.length ? `<h3>Limits, as first written</h3><ul>${technical.limits.map((limit) => `<li>${escape(limit)}</li>`).join("")}</ul>` : ""}<h3>Files</h3>${fileRefs(item.files)}${item.evidence?.length ? `<h3>Where the numbers come from</h3><div class="link-list">${item.evidence.map((evidence) => `<a href="${escape(href(evidence.path, "source"))}">${icon("file")}<span>${escape(evidence.label)}</span><small>${escape(base(evidence.path))}</small></a>`).join("")}</div>` : ""}`,
+        countFiles(item.files.length),
+      )}
       <button type="button" class="text-button" data-action="copy-link" data-id="${escape(item.id)}">${icon("link")}Copy a link to ${escape(item.id)}</button>
     </div>`;
   }
@@ -1432,7 +1454,16 @@
         (state.impStatus === "all" || item.status === state.impStatus) &&
         (state.impCategory === "all" || item.category === state.impCategory) &&
         words.every((word) =>
-          [item.id, item.title, item.summary, item.category, item.mechanism, ...item.files]
+          [
+            item.id,
+            item.title,
+            item.summary,
+            categoryName(item.category),
+            item.mechanism,
+            item.technical?.title,
+            item.technical?.summary,
+            ...item.files,
+          ]
             .join(" ")
             .toLowerCase()
             .includes(word),
@@ -1489,7 +1520,7 @@
     );
     const categories = [...new Set(improvements.map((item) => item.category))].sort();
     return `<div class="page">
-      ${pageHead("What changed, and what is still open", "Each record says what the code did before, what it does now, how, and how it was checked. Open findings stay listed until they are fixed.")}
+      ${pageHead("What changed, and what is still open", "Each record says what used to happen, what happens now and how it was checked. Problems that are found but not fixed yet stay on the list until they are.")}
       ${improvementBoard()}
       <div class="imp-tools">
         <div class="segmented" role="group" aria-label="Status">${[
@@ -1501,8 +1532,8 @@
               `<button type="button" data-status-filter="${key}" aria-pressed="${state.impStatus === key}">${label}<b>${count}</b></button>`,
           )
           .join("")}</div>
-        <select id="imp-category" aria-label="Category"><option value="all">Every category</option>${categories.map((category) => `<option value="${escape(category)}" ${state.impCategory === category ? "selected" : ""}>${escape(capital(category))}</option>`).join("")}</select>
-        <label class="filter-input grow">${icon("search")}<span class="sr-only">Search changes</span><input id="imp-search" type="search" placeholder="Search titles, files and mechanisms" value="${escape(state.impQuery)}" autocomplete="off" /></label>
+        <select id="imp-category" aria-label="Category"><option value="all">Every category</option>${categories.map((category) => `<option value="${escape(category)}" ${state.impCategory === category ? "selected" : ""}>${escape(categoryName(category))}</option>`).join("")}</select>
+        <label class="filter-input grow">${icon("search")}<span class="sr-only">Search changes</span><input id="imp-search" type="search" placeholder="Search the changes" value="${escape(state.impQuery)}" autocomplete="off" /></label>
         <span class="imp-count" id="imp-count" aria-live="polite"></span>
       </div>
       <div class="imp-list" id="imp-list"></div>
@@ -1513,10 +1544,10 @@
   function evidencePage() {
     const date = new Date(meta.revisionDate);
     return `<div class="page narrow">
-      ${pageHead("What this atlas can and cannot tell you", "It is a snapshot of the source, explained. It does not run anything, so it cannot prove that tests pass or that numbers still hold today.")}
+      ${pageHead("What this atlas can and cannot tell you", "It is a snapshot of the code with explanations. It does not run Tandem, so it cannot prove the tests pass or that old numbers still hold.")}
       ${guide.validation.length ? `<div class="validation">${guide.validation.map((record) => `<article><strong>${escape(record.value)}</strong><h3>${escape(record.label)}</h3><p>${escape(record.detail)}</p>${fileRef(record.path)}</article>`).join("")}</div>` : ""}
-      <section class="section"><div class="section-head"><h2>Read these before quoting a number</h2></div><ul class="limits-list">${guide.limits.map((limit) => `<li>${escape(limit)}</li>`).join("")}</ul></section>
-      <section class="section"><div class="section-head"><h2>Words used here</h2></div><dl class="glossary">${guide.glossary.map((item) => `<div><dt>${escape(item.term)}</dt><dd>${escape(item.meaning)}</dd></div>`).join("")}</dl></section>
+      <section class="section"><div class="section-head"><h2>Before you quote a number</h2></div><ul class="limits-list">${guide.limits.map((limit) => `<li>${escape(limit.text)}</li>`).join("")}</ul>${inCode(`<ul>${guide.limits.map((limit) => `<li>${escape(limit.detail)}</li>`).join("")}</ul>`, "", false, "The precise wording, for developers")}</section>
+      <section class="section"><div class="section-head"><h2>Words you may meet in the code sections</h2></div><dl class="glossary">${guide.glossary.map((item) => `<div><dt>${escape(item.term)}</dt><dd>${escape(item.meaning)}</dd></div>`).join("")}</dl></section>
       <section class="section snapshot-facts"><div class="section-head"><h2>This snapshot</h2></div>
         <dl>
           <div><dt>Commit</dt><dd><a href="${escape(`${meta.repository}/commit/${meta.revision}`)}" target="_blank" rel="noopener noreferrer"><code>${escape(meta.revision)}</code></a></dd></div>
@@ -1787,6 +1818,7 @@
       Math.max(
         score(item.id, query) + 5,
         score(item.title, query),
+        item.technical ? score(item.technical.title, query) - 5 : -1,
         item.summary.toLowerCase().includes(query) ? 25 : -1,
       ),
     );

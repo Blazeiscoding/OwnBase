@@ -4,6 +4,7 @@
   "entries": [
     {
       "path": "apps/desktop/src/main/index.ts",
+      "plain": "Starts the desktop app with its window and tray icon, and wires up hosting, downloads, links and settings.",
       "summary": "Owns Electron startup and connects native capabilities to the shared application.",
       "details": [
         "Keeps the existing user-data location while applying Tandem branding and reads legacy environment names, so renaming does not abandon settings or hosted databases.",
@@ -15,6 +16,7 @@
     },
     {
       "path": "apps/desktop/src/main/hosting.ts",
+      "plain": "Starts and stops a workspace the desktop app hosts, runs its backups and restores, and opens or closes its public link.",
       "summary": "Serializes the lifecycle of the locally hosted workspace and its public connector.",
       "details": [
         "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
@@ -27,6 +29,7 @@
     },
     {
       "path": "apps/desktop/src/main/registry.ts",
+      "plain": "Keeps the list of workspaces this computer hosts and checks a folder really is the right workspace before opening it.",
       "summary": "Records stable hosted-workspace identities and validates adoption of folders.",
       "details": [
         "Uses a fixed folder identifier independent of the display name, validates database identity, and parses persisted registry/automatic-backup metadata.",
@@ -37,6 +40,7 @@
     },
     {
       "path": "apps/desktop/src/main/settings.ts",
+      "plain": "Saves the desktop app's settings one change at a time, so two changes made together never overwrite each other.",
       "summary": "Provides one acknowledged queue for native settings reads, updates and writes.",
       "details": [
         "Every operation shares the same promise queue, making an update's read/modify/write indivisible relative to other desktop callers.",
@@ -48,6 +52,7 @@
     },
     {
       "path": "apps/desktop/src/main/credentials.ts",
+      "plain": "Keeps saved sign-ins locked with the computer's own encryption and never writes them as plain text.",
       "summary": "Validates saved accounts and protects their tokens using the native credential adapter.",
       "details": [
         "Separates workspace/account presentation from encrypted credential bytes and validates both legacy and protected shapes.",
@@ -58,6 +63,7 @@
     },
     {
       "path": "apps/desktop/src/main/callRelay.ts",
+      "plain": "Saves the call relay settings for hosted workspaces, with the relay password locked by the computer's encryption.",
       "summary": "Keeps the hosted workspaces' call relay in the settings file, its secret encrypted by the OS.",
       "details": [
         "resolveDraft turns what Manage hosting sends into a relay, keeping the saved API token or password when the key ID or username is unchanged and saying what to correct otherwise.",
@@ -68,6 +74,7 @@
     },
     {
       "path": "apps/desktop/src/main/draftsStorage.ts",
+      "plain": "Saves draft changes for one conversation without touching the drafts in any other.",
       "summary": "Merges per-conversation draft changes through the settings owner.",
       "details": [
         "Validates DraftChanges, then applies the client-core merge operation inside settings.update.",
@@ -77,6 +84,7 @@
     },
     {
       "path": "apps/desktop/src/main/outboxStorage.ts",
+      "plain": "Keeps the messages waiting to send saved on the device, so changes made at almost the same moment do not erase each other.",
       "summary": "Merges accepted pending sends without overwriting another caller's work.",
       "details": [
         "Validates additions/removals and calls applyOutboxChanges inside the native settings queue.",
@@ -86,6 +94,7 @@
     },
     {
       "path": "apps/desktop/src/main/closePreparation.ts",
+      "plain": "Keeps the window open until drafts and settings are saved, and offers Retry or Keep open if saving fails.",
       "summary": "Keeps a window alive until the renderer and native settings acknowledge final local work.",
       "details": [
         "Coalesces repeated preparation requests into one promise and sends a monotonically increasing request ID to the specific window.",
@@ -96,6 +105,7 @@
     },
     {
       "path": "apps/desktop/src/main/ipcBoundary.ts",
+      "plain": "Lets only Tandem's own window use the desktop app's powers, like saving settings or hosting, and receive private updates.",
       "summary": "Checks who may invoke native handlers and receive sensitive native events.",
       "details": [
         "A request must come from the current app window's live top frame, with matching process/routing identity and the expected renderer origin/path.",
@@ -106,6 +116,7 @@
     },
     {
       "path": "apps/desktop/src/main/backupWorker.ts",
+      "plain": "Runs backups and restores off to the side so the desktop app and its hosted workspace keep responding.",
       "summary": "Runs backup, verification, inventory and restore as dedicated worker jobs.",
       "details": [
         "Imports the dependency-light server/backup entry instead of the full Fastify/WebSocket/discovery barrel.",
@@ -116,6 +127,7 @@
     },
     {
       "path": "apps/desktop/src/main/tunnel.ts",
+      "plain": "Opens and closes the public link, through Cloudflare, that lets people outside the local network reach a hosted workspace.",
       "summary": "Creates, probes and closes public-address connectors.",
       "details": [
         "Finds cloudflared and supports quick tunnels, managed named tunnels and externally carried configured addresses.",
@@ -126,6 +138,7 @@
     },
     {
       "path": "apps/desktop/src/main/rendererRecovery.ts",
+      "plain": "If the screens crash, reloads them up to three times a minute, then asks you, and puts you back where you were.",
       "summary": "Defines bounded renderer retries and preserves the UI's last valid place outside the renderer.",
       "details": [
         "Counts failures over a minute, automatically retries up to three, then asks the user instead of reloading forever; aborted or subframe navigation failures do not consume recovery attempts.",
@@ -136,6 +149,7 @@
     },
     {
       "path": "apps/desktop/src/main/loginItem.ts",
+      "plain": "Lets the desktop app start when you sign in to your computer, quietly in the tray on Windows.",
       "summary": "Expresses platform-specific launch-at-login behavior without importing Electron.",
       "details": [
         "Windows registration carries --hidden so sign-in can start in the tray; macOS uses its wasOpenedAtLogin indication.",
@@ -145,6 +159,7 @@
     },
     {
       "path": "apps/desktop/src/main/screenPicker.ts",
+      "plain": "Asks which screen to share in a huddle and explains when screens cannot be listed or shared.",
       "summary": "Chooses the screen to share and explains listing/permission failures.",
       "details": [
         "Takes injectable listing and native-dialog capabilities so selection policy can be tested independently of Electron.",
@@ -154,6 +169,7 @@
     },
     {
       "path": "apps/desktop/src/main/trayBackups.ts",
+      "plain": "Shows failed automatic backups in the tray menu, with a retry option when one can be tried again.",
       "summary": "Turns persistent automatic-backup failures into tray actions.",
       "details": [
         "Shows one named failure or a count of failures, escaping ampersands in native menu labels.",
@@ -163,6 +179,7 @@
     },
     {
       "path": "apps/desktop/src/main/releaseGate.ts",
+      "plain": "Reports which version and settings folder the installed app really uses, so install and upgrade checks can trust it.",
       "summary": "Reports the actual launched app/profile to installation and upgrade validation.",
       "details": [
         "Reads a synthetic release-gate marker from the profile this process actually uses, not any leftover profile found on disk.",
@@ -173,6 +190,7 @@
     },
     {
       "path": "apps/desktop/src/main/env.d.ts",
+      "plain": "A note for the code checker about the desktop app's build tools, with no effect on the running app.",
       "summary": "Supplies electron-vite Node build types to the desktop main TypeScript project.",
       "details": [
         "This declaration reference teaches the compiler about build-time main/worker imports; it emits no runtime application behavior."
@@ -181,6 +199,7 @@
     },
     {
       "path": "apps/desktop/src/preload/index.ts",
+      "plain": "A narrow doorway that lets the screens ask the desktop app for saving, hosting, downloads and links, and nothing more.",
       "summary": "Exposes a narrow native bridge into the isolated renderer.",
       "details": [
         "contextBridge exposes named storage, discovery, hosting, download, deep-link, route and close-handshake methods rather than giving the renderer Node APIs.",
@@ -191,6 +210,7 @@
     },
     {
       "path": "apps/desktop/src/renderer/src/platform.ts",
+      "plain": "Plugs the shared screens into the desktop app's own saving, hosting and workspace finding.",
       "summary": "Adapts the preload bridge to the shared UI Platform interface.",
       "details": [
         "Maps native storage, atomic draft/outbox/record merges, hosting and discovery into the interface also used by the browser.",
@@ -201,6 +221,7 @@
     },
     {
       "path": "apps/desktop/src/renderer/src/main.tsx",
+      "plain": "Starts the screens inside the desktop app window and puts you back where you were after a crash.",
       "summary": "Starts the shared React app in the desktop page.",
       "details": [
         "Chooses electronPlatform when the preload bridge exists, otherwise webPlatform for an ordinary-browser opening.",
@@ -210,6 +231,7 @@
     },
     {
       "path": "apps/desktop/src/renderer/src/index.css",
+      "plain": "Gives the desktop app the same look as the web version by using the same styles.",
       "summary": "Connects desktop rendering to the shared UI styles.",
       "details": [
         "Imports the same UI styling used by the web app, keeping appearance and responsive behavior aligned instead of maintaining a parallel desktop theme."
@@ -218,6 +240,7 @@
     },
     {
       "path": "apps/desktop/src/renderer/index.html",
+      "plain": "The empty page the desktop app loads first, into which all the screens are drawn.",
       "summary": "Provides the trusted desktop document shell and entry point.",
       "details": [
         "Creates the React mount point, page metadata and renderer script reference.",
@@ -227,6 +250,7 @@
     },
     {
       "path": "apps/desktop/src/renderer/public/tandem.svg",
+      "plain": "Tandem's logo as shown inside the desktop app.",
       "summary": "Provides the desktop renderer's application brand artwork.",
       "details": [
         "A repository-native SVG asset copied by the renderer build; binary/source identities and branding tests ensure the intended artwork ships."
@@ -235,6 +259,7 @@
     },
     {
       "path": "apps/desktop/build/icon.png",
+      "plain": "The app and tray icon picture packed into the desktop app.",
       "summary": "Provides the packaged raster app/tray icon.",
       "details": [
         "Electron Builder copies this resource to the installed app's tray resource directory; the icon generator derives it from the repository branding."
@@ -243,6 +268,7 @@
     },
     {
       "path": "apps/desktop/build/icon.ico",
+      "plain": "The icon Windows shows for the Tandem program and in the tray.",
       "summary": "Provides the Windows executable and tray icon.",
       "details": [
         "Referenced by the Windows target and shipped beside other tray assets; changes must trigger installer-aware packaging coverage."
@@ -251,6 +277,7 @@
     },
     {
       "path": "apps/desktop/electron.vite.config.ts",
+      "plain": "Settings for building the desktop app's three parts, stamping each with the exact code it came from.",
       "summary": "Builds distinct main, preload and renderer bundles with source identity.",
       "details": [
         "Bundles workspace TypeScript packages into main while retaining real runtime dependencies as externals; emits preload as CommonJS for Electron.",
@@ -261,6 +288,7 @@
     },
     {
       "path": "apps/desktop/electron-builder.yml",
+      "plain": "Settings for packaging the Windows, Mac and Linux installers, what goes inside, and which links open Tandem.",
       "summary": "Defines clean desktop package contents, native targets and protocol registration.",
       "details": [
         "Packages only built output, the manifest and required dependencies into ASAR; excludes dependency .ts/.cts/.mts source files that Node does not load there.",
@@ -271,6 +299,7 @@
     },
     {
       "path": "apps/desktop/package.json",
+      "plain": "Lists what the desktop app is built from and the commands to run, build, package and test it.",
       "summary": "Declares desktop dependencies and development/build/package/test commands.",
       "details": [
         "Separates Electron build/test tooling from runtime dependencies used by the packaged main process.",
@@ -280,6 +309,7 @@
     },
     {
       "path": "apps/desktop/tsconfig.json",
+      "plain": "Settings for checking the desktop app's code for mistakes before it is packaged.",
       "summary": "Typechecks desktop main, preload, renderer and supporting test/build code.",
       "details": [
         "Extends the common compiler policy with desktop-specific source and library/type requirements; typechecking validates contracts before expensive packaging."
@@ -288,6 +318,7 @@
     },
     {
       "path": "apps/web/src/main.tsx",
+      "plain": "Starts the web version in the browser, using the same screens as the desktop app.",
       "summary": "Starts the same application using browser capabilities.",
       "details": [
         "Mounts App with webPlatform under React StrictMode and imports shared styling.",
@@ -297,6 +328,7 @@
     },
     {
       "path": "apps/web/src/index.css",
+      "plain": "Brings the shared styles into the web version so it looks the same as the desktop app.",
       "summary": "Imports the shared UI styles into the browser bundle.",
       "details": [
         "Keeps web and Electron visuals on the same component/style system while letting Vite process Tailwind and CSS assets."
@@ -305,6 +337,7 @@
     },
     {
       "path": "apps/web/index.html",
+      "plain": "The first page the browser loads, which the server sends and the web version fills in.",
       "summary": "Provides the browser document shell.",
       "details": [
         "Contains app metadata, the root mount node and browser entry module; it is served by the standalone or embedded server."
@@ -313,6 +346,7 @@
     },
     {
       "path": "apps/web/public/tandem.svg",
+      "plain": "The Tandem logo the web version shows in the browser.",
       "summary": "Supplies browser branding as a static SVG.",
       "details": [
         "Vite copies the public asset into the hosted client; browser and desktop branding remain tested against their respective shells."
@@ -321,6 +355,7 @@
     },
     {
       "path": "apps/web/precompress.ts",
+      "plain": "Squeezes the web version's files once at build time so browsers download less.",
       "summary": "Generates Brotli and gzip asset variants once during the production build.",
       "details": [
         "Walks compressible text outputs, skips files below 1,024 bytes, and uses high-quality settings that would be costly per request.",
@@ -330,6 +365,7 @@
     },
     {
       "path": "apps/web/vite.config.ts",
+      "plain": "Settings for building the web version, stamping it with the exact code it came from and squeezing its files.",
       "summary": "Builds browser React/Tailwind assets and stamps their identity.",
       "details": [
         "Defines __TANDEM_BUILD__, writes dist/build.json and runs the precompression plugin after bundle generation.",
@@ -339,6 +375,7 @@
     },
     {
       "path": "apps/web/package.json",
+      "plain": "Lists what the web version is built from and the command that builds it.",
       "summary": "Declares the browser app's workspace dependencies and build command.",
       "details": [
         "Consumes shared UI/client code rather than duplicating chat behavior; its build output is reused by CLI and desktop hosting packages."
@@ -347,6 +384,7 @@
     },
     {
       "path": "apps/web/tsconfig.json",
+      "plain": "Tells the code checker which parts of the web version to look over for mistakes.",
       "summary": "Checks browser entry and Vite/precompression TypeScript.",
       "details": [
         "Extends the shared strict compiler configuration with the browser project's includes and runtime types."
@@ -355,6 +393,7 @@
     },
     {
       "path": "apps/server-cli/tsup.config.ts",
+      "plain": "Packs the whole server into one program file that a host can run on its own.",
       "summary": "Bundles the production server as one Node 24 ESM executable.",
       "details": [
         "Uses packages/server/src/main.ts as the entry and bundles ordinary dependencies, retaining node: builtins externally.",
@@ -365,6 +404,7 @@
     },
     {
       "path": "apps/server-cli/scripts/postbuild.mjs",
+      "plain": "Puts the web version next to the packed server, so one folder serves both the server and the browser app.",
       "summary": "Normalizes builtin imports and ships the browser client beside the bundled server.",
       "details": [
         "Restores node: prefixes including prefix-only builtins such as sqlite that a bundler may strip.",
@@ -374,6 +414,7 @@
     },
     {
       "path": "apps/server-cli/package.json",
+      "plain": "Lists what the server on its own is built from and the steps that package it.",
       "summary": "Declares the distributable server's executable and build pipeline.",
       "details": [
         "Coordinates tsup and postbuild work; its workspace dependency closure includes server/protocol and the built web client required for zero-install deployment."
@@ -382,6 +423,7 @@
     },
     {
       "path": "apps/server-cli/tsconfig.json",
+      "plain": "Settings for checking the code that packages the server on its own.",
       "summary": "Checks server-distribution build configuration.",
       "details": [
         "Extends the common compiler settings for the CLI packaging project; runtime server TypeScript remains owned by packages/server."
@@ -390,6 +432,7 @@
     },
     {
       "path": "scripts/build-identity.mjs",
+      "plain": "Fingerprints the code a build came from, so anyone can check that a download matches the code that was tested.",
       "summary": "Hashes declared source/config inputs and compares built manifest identities with the checkout.",
       "details": [
         "Normalizes explicit text formats across line endings while hashing binaries exactly; validates manifests and can read identity from packaged ASAR/web copies."
@@ -398,6 +441,7 @@
     },
     {
       "path": "scripts/build-identity.d.mts",
+      "plain": "A description of the build fingerprint tool for the code checker, with no effect on what it does.",
       "summary": "Declares the build-identity module's types for Vite, Electron and automation TypeScript callers.",
       "details": [
         "The declaration is a contract for the JavaScript implementation and adds no runtime hashing work."
@@ -406,6 +450,7 @@
     },
     {
       "path": "scripts/check-ci-cache.mjs",
+      "plain": "Proves that changing the right files makes the build redo its work instead of reusing old results.",
       "summary": "Creates an isolated temporary workspace and mutates relevant source/configuration inputs.",
       "details": [
         "Asserts which Turbo task hashes must change or remain stable, including dependency source, external test inputs, web-build reuse and test worker environment isolation."
@@ -414,6 +459,7 @@
     },
     {
       "path": "scripts/check-desktop-archive.mjs",
+      "plain": "Looks inside the packaged desktop app and refuses it if private data, logs or source files slipped in.",
       "summary": "Reads ASAR headers or unpacked files with Node alone and inventories the package closure.",
       "details": [
         "Refuses databases, logs, environment files, workspace source/development output and dependency TypeScript files; prints size/dependency observations."
@@ -422,6 +468,7 @@
     },
     {
       "path": "scripts/check-web-precompressed.mjs",
+      "plain": "Unpacks every squeezed web file and checks it matches the original exactly.",
       "summary": "Decodes every expected Brotli/gzip asset variant and compares bytes with its original.",
       "details": [
         "Refuses stale, missing or orphaned compressed variants in web, server or desktop copies; reports actual raw/encoded byte totals."
@@ -430,6 +477,7 @@
     },
     {
       "path": "scripts/check-web-bundle.mjs",
+      "plain": "Keeps the code the web version loads first under its limit of 500,000 bytes.",
       "summary": "Finds the initial JavaScript entry rather than summing deferred chunks.",
       "details": [
         "Enforces the existing 500,000-byte entry budget for web or desktop; a size gate is not a startup-latency benchmark."
@@ -438,6 +486,7 @@
     },
     {
       "path": "scripts/desktop-ci-mode.mjs",
+      "plain": "Picks whether automatic checks build the full Windows installer or a quicker unpacked app, based on what changed.",
       "summary": "Chooses full installer coverage for installer/resource/dependency/install-policy changes and unpacked coverage for ordinary runtime changes.",
       "details": [
         "An unavailable PR base defaults to the full installer; explicit manual selection remains possible."
@@ -446,6 +495,7 @@
     },
     {
       "path": "scripts/release-manifest.mjs",
+      "plain": "Lists the files to publish in a release with their fingerprints, refusing any file that is not the one tested.",
       "summary": "Prepares a validated set of publishable release assets and checksums.",
       "details": [
         "Binds assets to tested identities, keeps release notes outside their own checksum inputs and makes repeated preparation predictable."
@@ -454,6 +504,7 @@
     },
     {
       "path": "scripts/release-install-gates.ps1",
+      "plain": "Installs, upgrades and uninstalls the Windows app on throwaway profiles to prove data and links survive.",
       "summary": "Runs Windows installation, profile-marker, protocol, upgrade and data-preserving uninstall gates against disposable test profiles.",
       "details": [
         "Reads the actual app process's release-gate report; ordinary native E2E does not substitute for installed upgrade proof."
@@ -462,12 +513,14 @@
     },
     {
       "path": "scripts/generate-icons.mjs",
+      "plain": "Makes the desktop app's icon pictures from Tandem's logo.",
       "summary": "Produces the native PNG/ICO branding resources used by desktop packaging.",
       "details": ["Keeps icon generation reproducible and separate from app runtime execution."],
       "concepts": ["tooling", "asset generation"]
     },
     {
       "path": "scripts/seed-demo.mjs",
+      "plain": "Fills a new workspace with made-up people, channels, messages, threads, reactions and files for demos.",
       "summary": "Registers synthetic people and creates sample channels, messages, threads, reactions and attachments using public HTTP APIs.",
       "details": [
         "Builds its illustrative PNG directly and can seed a new demo workspace without relying on private user data."
@@ -476,6 +529,7 @@
     },
     {
       "path": "scripts/measure-thread-index.mts",
+      "plain": "Tries different ways of looking up thread replies in a crowded workspace and measures their speed, size and cost.",
       "summary": "Seeds old sparse and busy threads among many unrelated messages and compares index configurations through successful HTTP reads.",
       "details": [
         "Checks results and records warm p50/p95, index creation, database bytes and insert costs; makes index tradeoffs visible."
@@ -484,6 +538,7 @@
     },
     {
       "path": "scripts/measure-unread-counts.mts",
+      "plain": "Measures how fast unread counts, mentions and Activity load in a big workspace, and checks they are correct.",
       "summary": "Measures mention/unread/Activity operations on a seeded workspace.",
       "details": [
         "Checks indexed counts against a brute-force reference and includes read/thread rules and write/storage cost."
@@ -492,6 +547,7 @@
     },
     {
       "path": "scripts/measure-snapshot.mts",
+      "plain": "Measures how long and how much data it takes to catch an app up when it connects, as a workspace grows.",
       "summary": "Seeds accounts, membership, conversations, saved messages and followed threads.",
       "details": [
         "Measures snapshot components/bytes, real socket handshake and a reconnect herd, separating query and payload costs."
@@ -500,6 +556,7 @@
     },
     {
       "path": "scripts/measure-search.mts",
+      "plain": "Times searches for common and rare words and checks that results never include channels the searcher cannot see.",
       "summary": "Seeds common/rare words, ACL-separated channels, filenames and file kinds.",
       "details": [
         "Checks hidden-channel exclusion and emits page hashes alongside repeated query timings, making before/after results comparable."
@@ -508,6 +565,7 @@
     },
     {
       "path": "scripts/measure-publication.mts",
+      "plain": "Measures how quickly deletions and app posts reach everyone reading, on a real server saving to disk.",
       "summary": "Runs a real disk-backed server and measures private multi-message deletion and bot-subscription posting.",
       "details": [
         "Separates HTTP completion from all-reader frame delivery and supports longer posting rounds when small samples are noisy."
@@ -516,6 +574,7 @@
     },
     {
       "path": "scripts/measure-stall.mts",
+      "plain": "Measures how long busy jobs like backups or search can freeze the server before it answers anyone else.",
       "summary": "Measures how long synchronous server/SQLite operations prevent the main event loop from serving work.",
       "details": [
         "Validates successful reads/search/schedules/retention/backup before recording the longest stall; targets the desktop-main responsiveness concern."
@@ -524,6 +583,7 @@
     },
     {
       "path": "scripts/measure-stall-worker.mts",
+      "plain": "Runs a backup off to the side during the freeze measurement, to compare with running it in place.",
       "summary": "Provides the worker-side part of the stall/backup experiment.",
       "details": [
         "Runs the measured operation off the calling event loop so isolation can be compared with shared-thread work."
@@ -532,6 +592,7 @@
     },
     {
       "path": "scripts/measure-mixed.mts",
+      "plain": "Puts the server under posting, searching, reconnecting and cleanup all at once and records delays and memory.",
       "summary": "Offers overlapping posting, searching, reconnect and maintenance load and records latency, delay and memory metadata.",
       "details": [
         "A measurement harness is not capacity certification: documented retention/replay/state-retention limitations must be resolved before architecture conclusions."
@@ -540,6 +601,7 @@
     },
     {
       "path": "scripts/measure-client.mts",
+      "plain": "Measures how fast the web version shows a first conversation and how smoothly it scrolls through many pictures.",
       "summary": "Measures a browser's first usable conversation and image-heavy scrolling against seeded data.",
       "details": [
         "Records cold/warm transfer, timings, long tasks, retained pictures and heap; headless frame numbers are not physical-screen/GPU proof."
@@ -548,6 +610,7 @@
     },
     {
       "path": "scripts/measure-desktop-start.mts",
+      "plain": "Measures how long two versions of the desktop app take to start and how much memory they use.",
       "summary": "Launches two packaged Electron builds alternately on fresh profiles.",
       "details": [
         "Measures startup, hosting and process memory to distinguish package-byte savings from real runtime gains."
@@ -556,6 +619,7 @@
     },
     {
       "path": "apps/desktop/test/backupWorker.test.ts",
+      "plain": "Makes sure backups run off to the side without loading the whole server along with them.",
       "summary": "Checks focused worker import closure and job behavior.",
       "details": [
         "Protects against accidentally importing the full networking server into backup workers."
@@ -564,6 +628,7 @@
     },
     {
       "path": "apps/desktop/test/closePreparation.test.ts",
+      "plain": "Tests that closing waits for saving, gives up after a time limit, and ignores replies from the wrong window.",
       "summary": "Tests close acknowledgements, settings drain and timeout/failure handling.",
       "details": [
         "Includes stale/foreign/duplicate reply refusal so an unrelated reply cannot destroy a window."
@@ -572,6 +637,7 @@
     },
     {
       "path": "apps/desktop/test/draftsStorage.test.ts",
+      "plain": "Proves that saving one draft never loses the drafts of other conversations.",
       "summary": "Tests atomic native draft merges.",
       "details": [
         "Checks preservation of unrelated conversations, conflict/recovery data and malformed changes."
@@ -580,6 +646,7 @@
     },
     {
       "path": "apps/desktop/test/hosting.test.ts",
+      "plain": "Tests starting, stopping, backing up and restoring hosted workspaces, and opening their public links.",
       "summary": "Exercises controller start/stop/restore/backup/public-route state transitions through injected adapters.",
       "details": [
         "Includes cleanup ownership, queued work, retry, identity, isolated restores and automatic-backup failure policies."
@@ -588,6 +655,7 @@
     },
     {
       "path": "apps/desktop/test/ipcBoundary.test.ts",
+      "plain": "Tests that only Tandem's own window can use the desktop app's powers or receive private updates.",
       "summary": "Tests native sender and event-recipient authorization.",
       "details": [
         "Covers wrong/navigated/subframe/destroyed windows, trusted page matching and setting key validation."
@@ -596,6 +664,7 @@
     },
     {
       "path": "apps/desktop/test/loginItem.test.ts",
+      "plain": "Tries the start-at-sign-in setting without changing anything on the real computer.",
       "summary": "Checks platform launch-at-login and approval/refusal policy.",
       "details": [
         "Uses pure inputs instead of modifying the host machine's real login registration."
@@ -604,18 +673,21 @@
     },
     {
       "path": "apps/desktop/test/outboxStorage.test.ts",
+      "plain": "Confirms that messages waiting to send are saved correctly when changes arrive together.",
       "summary": "Checks native merge of pending-send additions/removals.",
       "details": ["Protects concurrent accepted work and envelope/tombstone semantics."],
       "concepts": ["regression test", "desktop"]
     },
     {
       "path": "apps/desktop/test/releaseGate.test.ts",
+      "plain": "Tests that upgrade checks read the profile the app really uses, not a leftover old folder.",
       "summary": "Checks reports from the actual launched-profile abstraction.",
       "details": ["Ensures a marker in an unrelated old folder cannot establish upgrade success."],
       "concepts": ["regression test", "desktop"]
     },
     {
       "path": "apps/desktop/test/rendererPlatform.test.ts",
+      "plain": "Tests the link between the screens and the desktop app, for saving, errors, links and closing.",
       "summary": "Checks preload-to-Platform adaptation and callback disposal.",
       "details": [
         "Includes storage acknowledgement, native errors, route and close-preparation behavior."
@@ -624,6 +696,7 @@
     },
     {
       "path": "apps/desktop/test/rendererRecovery.test.ts",
+      "plain": "Tests that crashed screens reload a limited number of times and come back to the right place.",
       "summary": "Tests bounded renderer recovery and last-place checkpointing.",
       "details": [
         "Validates context size/trust and distinguishes replaced navigations from real failures."
@@ -632,12 +705,14 @@
     },
     {
       "path": "apps/desktop/test/screenPicker.test.ts",
+      "plain": "Tests choosing a screen to share, cancelling, and the messages shown when no screen is available.",
       "summary": "Checks native screen selection, cancel and unavailable-screen explanations.",
       "details": ["Keeps consent and failure feedback distinct."],
       "concepts": ["regression test", "desktop"]
     },
     {
       "path": "apps/desktop/test/settings.test.ts",
+      "plain": "Tests that settings and saved sign-ins are written safely and that damaged settings are noticed.",
       "summary": "Tests serialized private settings persistence and credential migration.",
       "details": [
         "Covers strict unreadability, malformed values and atomic updates without using the real profile."
@@ -646,24 +721,28 @@
     },
     {
       "path": "apps/desktop/test/settingsDrain.test.ts",
+      "plain": "Makes sure closing the app waits for every settings change to finish saving.",
       "summary": "Checks that close waits for the entire accepted native settings queue.",
       "details": ["A later successful/no-op operation cannot hide an unfinished saving failure."],
       "concepts": ["regression test", "desktop"]
     },
     {
       "path": "apps/desktop/test/trayBackups.test.ts",
+      "plain": "Checks the tray menu warnings about failed backups and its retry option.",
       "summary": "Checks tray-visible automatic-backup attention and retry actions.",
       "details": ["Tests menu escaping and multiple-failure presentation."],
       "concepts": ["regression test", "desktop"]
     },
     {
       "path": "apps/desktop/test/tunnel.test.ts",
+      "plain": "Tests opening, checking and closing public links, and retrying when closing one fails.",
       "summary": "Tests configured/managed/quick routes, child cleanup and probing.",
       "details": ["Ensures unsuccessful cleanup retains the resource for retry."],
       "concepts": ["regression test", "desktop"]
     },
     {
       "path": "scripts/build-identity.test.mjs",
+      "plain": "Tries the build fingerprint tool on good and bad examples, so the check itself is proven to work.",
       "summary": "Regression controls for build-identity tooling.",
       "details": [
         "Creates disposable artifacts/configuration fixtures and tests both accepted and rejected inputs, so the gate itself is validated rather than merely executed once."
@@ -672,6 +751,7 @@
     },
     {
       "path": "scripts/check-desktop-archive.test.mjs",
+      "plain": "Feeds the desktop package inspector packages that should pass and ones that should fail.",
       "summary": "Regression controls for check-desktop-archive tooling.",
       "details": [
         "Creates disposable artifacts/configuration fixtures and tests both accepted and rejected inputs, so the gate itself is validated rather than merely executed once."
@@ -680,6 +760,7 @@
     },
     {
       "path": "scripts/check-web-precompressed.test.mjs",
+      "plain": "Tests the squeezed web file check with good copies, missing ones and ones that no longer match.",
       "summary": "Regression controls for check-web-precompressed tooling.",
       "details": [
         "Creates disposable artifacts/configuration fixtures and tests both accepted and rejected inputs, so the gate itself is validated rather than merely executed once."
@@ -688,6 +769,7 @@
     },
     {
       "path": "scripts/desktop-ci-mode.test.mjs",
+      "plain": "Confirms the right kind of Windows build is chosen for each kind of change.",
       "summary": "Regression controls for desktop-ci-mode tooling.",
       "details": [
         "Creates disposable artifacts/configuration fixtures and tests both accepted and rejected inputs, so the gate itself is validated rather than merely executed once."
@@ -696,6 +778,7 @@
     },
     {
       "path": "scripts/release-manifest.test.mjs",
+      "plain": "Proves release preparation accepts the tested files and refuses swapped or extra ones.",
       "summary": "Regression controls for release-manifest tooling.",
       "details": [
         "Creates disposable artifacts/configuration fixtures and tests both accepted and rejected inputs, so the gate itself is validated rather than merely executed once."
@@ -704,6 +787,7 @@
     },
     {
       "path": ".github/workflows/ci.yml",
+      "plain": "The main set of automatic checks GitHub runs on every proposed change, from tests to full browser walkthroughs.",
       "summary": "Runs the main PR correctness pipeline.",
       "details": [
         "Installs pinned dependencies, checks formatting/tooling/cache inputs, executes bounded typecheck/unit/build tasks and runs uncached browser journeys against fresh artifacts."
@@ -712,6 +796,7 @@
     },
     {
       "path": ".github/workflows/desktop.yml",
+      "plain": "Automatic GitHub checks that build the Windows desktop app and test it as a real installed program.",
       "summary": "Validates Windows desktop packaging and native application behavior.",
       "details": [
         "Watches shared UI/client/web/install inputs, selects unpacked versus installer coverage through policy, verifies artifact identity/content and runs disposable native tests."
@@ -720,6 +805,7 @@
     },
     {
       "path": ".github/workflows/container.yml",
+      "plain": "Builds the server's Docker package and tries it out whenever the files it depends on change.",
       "summary": "Builds and smoke-tests the standalone server image when its inputs change.",
       "details": [
         "Uses BuildKit Actions layers, supplies source SHA, and runs persistence/socket and cache-reuse controls; docs-only edits do not rebuild the image."
@@ -728,6 +814,7 @@
     },
     {
       "path": ".github/workflows/caches.yml",
+      "plain": "Downloads outside code and test browsers ahead of time on GitHub, so later automatic checks start faster.",
       "summary": "Primes dependency/browser caches on main when the lock changes.",
       "details": [
         "Fills pnpm stores on Linux/Windows and Chromium on Linux; it does not cache OS browser libraries or certify task outputs."
@@ -736,6 +823,7 @@
     },
     {
       "path": ".github/workflows/release.yml",
+      "plain": "Builds, tests and prepares a Tandem release on GitHub, with a practice run that publishes nothing.",
       "summary": "Prepares tested release artifacts and optional publication.",
       "details": [
         "Coordinates build/content/install gates and checksum manifests; separates dry-run validation from an actual release."
@@ -744,6 +832,7 @@
     },
     {
       "path": "docker/Dockerfile",
+      "plain": "The recipe for the server's Docker package, which holds only what it needs and keeps workspace data in one folder.",
       "summary": "Builds server/web assets and copies only their deployable output into a non-root runtime image.",
       "details": [
         "Separates lockfile-based pnpm fetch from source, installs the filtered dependency closure offline, stamps GITHUB_SHA, exposes health and stores persistent data under /data."
@@ -752,6 +841,7 @@
     },
     {
       "path": "docker/docker-compose.yml",
+      "plain": "A ready-made Docker setup that runs one invite-only workspace and keeps its data across restarts.",
       "summary": "Provides one persistent invite-only container-host configuration.",
       "details": [
         "Maps the server port and named data volume, enables init and graceful stop, drops Linux capabilities and supports current/legacy ICE environment names."
@@ -760,6 +850,7 @@
     },
     {
       "path": ".dockerignore",
+      "plain": "Keeps local files, private data and old build output out of the Docker package.",
       "summary": "Limits Docker build context to the inputs needed by a clean image.",
       "details": [
         "Avoids copying local dependencies, build outputs, private data and unrelated generated files into the source/build stages."
@@ -768,6 +859,7 @@
     },
     {
       "path": "package.json",
+      "plain": "Sets the project-wide commands to run, build and test everything, and the exact version of the package tool.",
       "summary": "Defines root workspace orchestration and the pinned package-manager contract.",
       "details": [
         "Turbo drives dev/build/typecheck/test; separate browser/desktop E2E and strict automation typechecking are available, with Node 24 as the runtime floor."
@@ -776,6 +868,7 @@
     },
     {
       "path": "pnpm-workspace.yaml",
+      "plain": "Lists the parts of the project, such as the apps and shared code, so they can use each other.",
       "summary": "Declares the app/package workspace graph.",
       "details": [
         "Workspace relationships let shared source feed web, desktop and server packaging; install policy changes are global task/identity inputs."
@@ -784,6 +877,7 @@
     },
     {
       "path": "pnpm-lock.yaml",
+      "plain": "Records the exact version of every piece of outside code, so every install gets the same ones.",
       "summary": "Pins the resolved dependency graph for repeatable installation.",
       "details": [
         "Frozen-lockfile CI and Docker fetch depend on it; changing it invalidates dependency-sensitive caches and installer coverage."
@@ -792,6 +886,7 @@
     },
     {
       "path": "turbo.json",
+      "plain": "Tells the build tool which steps depend on which, and when earlier results can be reused.",
       "summary": "Defines task dependencies, cached outputs and complete invalidation inputs.",
       "details": [
         "Builds depend on workspace builds; explicit root/external test files and test-worker variables prevent stale cache hits. Task cache has a seven-day age and 100 MB size cap."
@@ -800,6 +895,7 @@
     },
     {
       "path": "tsconfig.base.json",
+      "plain": "The shared settings for how strictly the code is checked for mistakes across the project.",
       "summary": "Sets the common TypeScript compiler policy.",
       "details": [
         "Shared strictness and module settings apply across runtime projects; changes invalidate relevant build/cache identities."
@@ -808,6 +904,7 @@
     },
     {
       "path": "tsconfig.automation.json",
+      "plain": "Settings for checking the test and measurement scripts for mistakes before they run.",
       "summary": "Typechecks root E2E/configuration/measurement automation separately from package source.",
       "details": [
         "Catches mistakes in expensive validation tools before packaging or browser execution."
@@ -816,6 +913,7 @@
     },
     {
       "path": "playwright.config.ts",
+      "plain": "Settings for the tests that click through the web version in a real browser like a person would.",
       "summary": "Configures browser journey execution and fixtures.",
       "details": [
         "Keeps test artifacts, browser selection, timeouts and bounded worker policy explicit; scenarios use independent disposable prerequisites."
@@ -824,6 +922,7 @@
     },
     {
       "path": "playwright.desktop.config.ts",
+      "plain": "Sets up the tests that click through the installed Windows desktop app.",
       "summary": "Configures the Windows/native Electron journey suite.",
       "details": [
         "Runs against the packaged app with disposable profiles and native-specific workers/timeouts."
@@ -832,6 +931,7 @@
     },
     {
       "path": ".prettierrc",
+      "plain": "The project's rules for how code is laid out on the page, so every file looks the same.",
       "summary": "Defines repository formatting conventions.",
       "details": [
         "Formatting is checked independently of task cache results; this controls presentation, not runtime behavior."
@@ -840,6 +940,7 @@
     },
     {
       "path": ".gitignore",
+      "plain": "Tells Git which local, private and built files to leave out of the project's saved history.",
       "summary": "Separates generated/local/private artifacts from committed source.",
       "details": [
         "Keeps dependency/build/test output and local workspace data out of repository history."
@@ -850,153 +951,169 @@
   "flows": [
     {
       "id": "desktop-startup",
-      "title": "One app instance, shared UI, native capabilities",
-      "summary": "The native shell starts once, restores its profile and gives the same React application a narrow desktop adapter.",
+      "title": "Opening the desktop app",
+      "summary": "The desktop app makes sure only one copy runs and finds your saved data. It then shows the same screens as the web version, with a short list of extra desktop abilities.",
       "steps": [
         {
-          "title": "Take ownership and preserve the profile",
-          "description": "Main reads current/legacy environment configuration, keeps the existing user-data path, takes the single-instance lock and holds an incoming deep link until a trusted window is ready.",
+          "title": "Start once and find your saved data",
+          "description": "The desktop app reads its settings, including ones saved under Tandem's older names, and keeps using the same data folder as before. If Tandem is already running, a second launch hands over to it. A Tandem link that opened the app waits until a trusted window is ready to receive it.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/settings.ts",
             "apps/desktop/src/main/credentials.ts"
-          ]
+          ],
+          "detail": "Main reads current/legacy environment configuration, keeps the existing user-data path, takes the single-instance lock and holds an incoming deep link until a trusted window is ready."
         },
         {
-          "title": "Create the native shell",
-          "description": "A sandboxed BrowserWindow loads the app document; contextBridge exposes only named IPC operations. Main guards incoming commands and outgoing sensitive recipients.",
+          "title": "Open a window with limited powers",
+          "description": "The desktop app opens a window that runs the screens with limited powers. The screens can ask the desktop app for only a short, named list of things. The desktop app checks every request coming in and who may receive sensitive information going out.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/ipcBoundary.ts",
             "apps/desktop/src/preload/index.ts"
-          ]
+          ],
+          "detail": "A sandboxed BrowserWindow loads the app document; contextBridge exposes only named IPC operations. Main guards incoming commands and outgoing sensitive recipients."
         },
         {
-          "title": "Restore the page's place and mount",
-          "description": "The renderer consumes any crash-recovery checkpoint before App mounts. electronPlatform maps UI calls onto the bridge; the browser entry instead supplies webPlatform.",
+          "title": "Return to where you were and show the screens",
+          "description": "If the window crashed before, it first returns to where it was, such as an open thread or dialog. The screens then start and reach desktop features through the desktop app. The web version starts the same screens with browser versions of those features.",
           "files": [
             "apps/desktop/src/renderer/src/main.tsx",
             "apps/desktop/src/renderer/src/platform.ts",
             "apps/desktop/src/main/rendererRecovery.ts",
             "apps/web/src/main.tsx"
-          ]
+          ],
+          "detail": "The renderer consumes any crash-recovery checkpoint before App mounts. electronPlatform maps UI calls onto the bridge; the browser entry instead supplies webPlatform."
         },
         {
-          "title": "Connect or host",
-          "description": "Shared UI owns account/chat state while native main supplies discovery, dialogs, tray and locally hosted services. A renderer crash reloads this view within bounded retries while hosting remains alive.",
+          "title": "Join a workspace or host one",
+          "description": "The screens look after accounts and chat. The desktop app supplies the rest, such as finding workspaces on the local network, file dialogs, the tray icon and running a server on this computer. If the window crashes, it reloads a limited number of times while hosting keeps running.",
           "files": [
             "packages/ui/src/App.tsx",
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/hosting.ts",
             "apps/desktop/src/main/rendererRecovery.ts"
-          ]
+          ],
+          "detail": "Shared UI owns account/chat state while native main supplies discovery, dialogs, tray and locally hosted services. A renderer crash reloads this view within bounded retries while hosting remains alive."
         }
-      ]
+      ],
+      "detail": "The native shell starts once, restores its profile and gives the same React application a narrow desktop adapter."
     },
     {
       "id": "desktop-close",
-      "title": "Visible text → acknowledged storage → safe close",
-      "summary": "N03 adds an explicit handover before native window destruction.",
+      "title": "Closing the desktop app",
+      "summary": "Before the desktop app closes its window for good, the screens must hand over your unsent words and confirm they are saved. Closing does not quietly lose what you typed.",
       "steps": [
         {
-          "title": "Capture final local work",
-          "description": "Close/quit starts one ID-bound preparation request. The live UI freezes editing, captures visible composer text and waits for draft/outbox restoration, pending saves and recovery work.",
+          "title": "Collect what you were typing",
+          "description": "Closing or quitting sends the window one request to get ready, with its own ID. The screens stop accepting typing, take the text in the message box and wait for drafts, messages waiting to send and any other saving or recovery to finish.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/closePreparation.ts",
             "apps/desktop/src/renderer/src/platform.ts",
             "packages/ui/src/components/Composer.tsx",
             "packages/ui/src/components/DraftPersistence.tsx"
-          ]
+          ],
+          "detail": "Close/quit starts one ID-bound preparation request. The live UI freezes editing, captures visible composer text and waits for draft/outbox restoration, pending saves and recovery work."
         },
         {
-          "title": "Acknowledge durable ownership",
-          "description": "Draft/outbox changes pass through owner merges. Only the matching window/request may reply; main then drains the native settings queue, including newly accepted work.",
+          "title": "Confirm everything is saved",
+          "description": "The desktop app merges drafts and messages waiting to send into what is already saved, rather than writing over it. Only an answer from the same window to the same request counts. It then finishes writing its settings, including anything just handed over.",
           "files": [
             "apps/desktop/src/preload/index.ts",
             "apps/desktop/src/main/draftsStorage.ts",
             "apps/desktop/src/main/outboxStorage.ts",
             "apps/desktop/src/main/settings.ts",
             "apps/desktop/src/main/closePreparation.ts"
-          ]
+          ],
+          "detail": "Draft/outbox changes pass through owner merges. Only the matching window/request may reply; main then drains the native settings queue, including newly accepted work."
         },
         {
-          "title": "Close or keep work accessible",
-          "description": "Successful preparation allows final close/quit. Failure or timeout offers Retry, Keep open to copy, or explicit unsaved exit; it does not silently destroy unsaved text.",
+          "title": "Close, or keep your words reachable",
+          "description": "If everything is saved, the app closes or quits. If saving fails or takes too long, you can try again, keep the window open to copy your text, or choose to quit without saving. The app never throws away unsaved text without asking.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/closePreparation.ts",
             "packages/ui/test/desktopClose.dom.test.tsx",
             "tests/e2e/desktop.spec.ts"
-          ]
+          ],
+          "detail": "Successful preparation allows final close/quit. Failure or timeout offers Retry, Keep open to copy, or explicit unsaved exit; it does not silently destroy unsaved text."
         }
-      ]
+      ],
+      "detail": "N03 adds an explicit handover before native window destruction."
     },
     {
       "id": "desktop-hosting",
-      "title": "Folder identity → local service → public route → cleanup",
-      "summary": "One controller owns the server/connector lifecycle; restored-copy holds and pending cleanup gate reopening.",
+      "title": "Hosting a workspace from the desktop app",
+      "summary": "One part of the desktop app starts, publishes and stops the workspace server and its internet link. A restored copy on hold, or a cleanup that has not finished, keeps a workspace from opening again.",
       "steps": [
         {
-          "title": "Validate the workspace identity",
-          "description": "Read the durable registry, adopt eligible ordinary folders, and preserve isolated/held restored copies. Unreadable registry state is refused instead of treated as an empty list.",
-          "files": ["apps/desktop/src/main/registry.ts", "apps/desktop/src/main/hosting.ts"]
+          "title": "Find the workspace folders",
+          "description": "The desktop app reads its saved list of hosted workspaces and adds ordinary folders it finds. Restored copies on hold stay on hold, so they do not start like ordinary workspaces. If the list cannot be read, the app stops rather than treating it as empty.",
+          "files": ["apps/desktop/src/main/registry.ts", "apps/desktop/src/main/hosting.ts"],
+          "detail": "Read the durable registry, adopt eligible ordinary folders, and preserve isolated/held restored copies. Unreadable registry state is refused instead of treated as an empty list."
         },
         {
-          "title": "Start and identify the listener",
-          "description": "Controller calls the main adapter to start the same server used by the CLI, records its per-run identity and announces reachable LAN addresses. Q12 remains an adapter failure gap after listen and before policy setup completes.",
+          "title": "Start the server",
+          "description": "The desktop app starts the same server people run on its own, notes which run this is, and shows addresses others on the local network can use. One known gap remains. If saving the invite rules fails just after the server starts, the server can keep running without the app in control of it.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/hosting.ts",
             "packages/server/src/server.ts"
-          ]
+          ],
+          "detail": "Controller calls the main adapter to start the same server used by the CLI, records its per-run identity and announces reachable LAN addresses. Q12 remains an adapter failure gap after listen and before policy setup completes."
         },
         {
-          "title": "Publish only an established route",
-          "description": "Open quick/named/configured connectors, probe the public route and show status/errors. Cancellation or failed cleanup keeps handles owned and blocks incompatible reopen/access changes.",
-          "files": ["apps/desktop/src/main/tunnel.ts", "apps/desktop/src/main/hosting.ts"]
+          "title": "Open an internet address",
+          "description": "The app can open a temporary internet address through Cloudflare, a stable one with a Cloudflare account, or use one set up elsewhere. It checks the address really reaches this server before showing it, and shows status and errors. If closing the link is cancelled or fails, the app keeps track of it and blocks reopening or access changes until cleanup succeeds.",
+          "files": ["apps/desktop/src/main/tunnel.ts", "apps/desktop/src/main/hosting.ts"],
+          "detail": "Open quick/named/configured connectors, probe the public route and show status/errors. Cancellation or failed cleanup keeps handles owned and blocks incompatible reopen/access changes."
         },
         {
-          "title": "Back up and stop",
-          "description": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; Q13's wait behind a held backup is follow-up.",
+          "title": "Back up and shut down",
+          "description": "A separate helper does the heavy database work for backups, and the app checks each result and saves the backup schedule and any failures. Shutting down waits for work already accepted, then closes everything the app opened. A known gap remains, since shutdown can wait a long time behind a backup that is stuck.",
           "files": [
             "apps/desktop/src/main/backupWorker.ts",
             "apps/desktop/src/main/hosting.ts",
             "packages/server/src/backup.ts",
             "apps/desktop/src/main/trayBackups.ts"
-          ]
+          ],
+          "detail": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; Q13's wait behind a held backup is follow-up."
         }
-      ]
+      ],
+      "detail": "One controller owns the server/connector lifecycle; restored-copy holds and pending cleanup gate reopening."
     },
     {
       "id": "artifact-pipeline",
-      "title": "Shared source → stamped outputs → guarded distributions",
-      "summary": "The same source graph produces web assets, a standalone server, Electron packages and a container, each with freshness and content controls.",
+      "title": "Building and releasing Tandem",
+      "summary": "One set of source files becomes the web version, the server on its own, the desktop app and a Docker package. Checks confirm that each output is up to date and carries only what it should.",
       "steps": [
         {
-          "title": "Build the browser once",
-          "description": "Vite bundles shared React/client modules, emits hashed/lazy assets and source identity, then creates compressed text sidecars. Entry and sidecar guards enforce size and byte integrity.",
+          "title": "Build the web version",
+          "description": "The build packs the shared screens and app engine into files for browsers, splits off parts that load only when needed, and stamps which source they came from. It also saves compressed copies of text files. Checks refuse a first download over its size limit and any compressed copy that does not match its original.",
           "files": [
             "apps/web/vite.config.ts",
             "apps/web/precompress.ts",
             "scripts/check-web-bundle.mjs",
             "scripts/check-web-precompressed.mjs",
             "scripts/build-identity.mjs"
-          ]
+          ],
+          "detail": "Vite bundles shared React/client modules, emits hashed/lazy assets and source identity, then creates compressed text sidecars. Entry and sidecar guards enforce size and byte integrity."
         },
         {
-          "title": "Produce native/standalone distributions",
-          "description": "tsup bundles the Node server and copies web output; electron-vite builds main/preload/renderer and worker. Electron Builder keeps runtime assets and excludes nonruntime dependency TypeScript.",
+          "title": "Build the server and the desktop app",
+          "description": "The build packs the server on its own into one program, with the web version beside it. It builds the desktop app in its separate parts, including a background helper. Its installer keeps the files the app needs to run and leaves out library source code it does not need.",
           "files": [
             "apps/server-cli/tsup.config.ts",
             "apps/server-cli/scripts/postbuild.mjs",
             "apps/desktop/electron.vite.config.ts",
             "apps/desktop/electron-builder.yml"
-          ]
+          ],
+          "detail": "tsup bundles the Node server and copies web output; electron-vite builds main/preload/renderer and worker. Electron Builder keeps runtime assets and excludes nonruntime dependency TypeScript."
         },
         {
-          "title": "Validate the actual outputs",
-          "description": "Freshness hashes reject stale bundles; archive inspection refuses private/development files; browser/native suites launch those outputs. CI selects installer work only when required and keeps correctness tasks/cache inputs covered.",
+          "title": "Test what was actually built",
+          "description": "A check compares each output's stamp with the current source and refuses one that is out of date. Another refuses a desktop package that holds private or development files such as databases, logs or secret settings, and tests then run the real outputs. Automated checks build the installer only when its inputs change, and never reuse a saved result when the inputs differ.",
           "files": [
             "scripts/build-identity.mjs",
             "scripts/check-desktop-archive.mjs",
@@ -1004,11 +1121,12 @@
             "scripts/desktop-ci-mode.mjs",
             ".github/workflows/ci.yml",
             ".github/workflows/desktop.yml"
-          ]
+          ],
+          "detail": "Freshness hashes reject stale bundles; archive inspection refuses private/development files; browser/native suites launch those outputs. CI selects installer work only when required and keeps correctness tasks/cache inputs covered."
         },
         {
-          "title": "Deploy and release with explicit evidence",
-          "description": "Docker uses lockfile/source-separated layers and a non-root persistent runtime. Release preparation checks assets/checksums and actual installed profile reports; genuine published-version upgrade remains a separate acceptance condition.",
+          "title": "Release with proof",
+          "description": "The Docker package reuses its library downloads when only the source changes, and runs as an ordinary user with its data in a lasting folder. Before a release, a check compares every file with its fingerprint, and the installed app must report which data folder it really uses. Upgrading from a real published version is still a separate check.",
           "files": [
             "docker/Dockerfile",
             ".github/workflows/container.yml",
@@ -1016,9 +1134,11 @@
             "scripts/release-manifest.mjs",
             "scripts/release-install-gates.ps1",
             "apps/desktop/src/main/releaseGate.ts"
-          ]
+          ],
+          "detail": "Docker uses lockfile/source-separated layers and a non-root persistent runtime. Release preparation checks assets/checksums and actual installed profile reports; genuine published-version upgrade remains a separate acceptance condition."
         }
-      ]
+      ],
+      "detail": "The same source graph produces web assets, a standalone server, Electron packages and a container, each with freshness and content controls."
     }
   ]
 }

@@ -709,6 +709,99 @@ main:focus {
 .block {
   margin-top: 32px;
 }
+/* The plain words come first. The technical version, for people reading the
+   code, sits one click below them. */
+.in-code {
+  margin-top: 12px;
+}
+/* On a file's page the plain sentence leads, and this marks where the
+   technical explanation begins. */
+.prose-label {
+  margin: 22px 0 6px;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.in-code > summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  color: var(--ink-faint);
+  font-size: 12.5px;
+  font-weight: 600;
+  list-style: none;
+  cursor: pointer;
+}
+.in-code > summary::-webkit-details-marker {
+  display: none;
+}
+.in-code > summary::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  margin: 0 2px 0 1px;
+  border-right: 1.5px solid currentColor;
+  border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg);
+  transition: transform 140ms ease-out;
+}
+.in-code[open] > summary::before {
+  transform: rotate(45deg);
+}
+.in-code > summary:hover {
+  color: var(--ink);
+}
+.in-code > summary small {
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 500;
+}
+.in-code-body {
+  display: grid;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 2px 0 4px 16px;
+  border-left: 2px solid var(--edge-strong);
+}
+.in-code .in-code-body p,
+.in-code .in-code-body li,
+.in-code .in-code-body dd {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--ink-dim);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+.in-code .in-code-body h3 {
+  margin: 6px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+.in-code .in-code-body ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding-left: 18px;
+  list-style: disc;
+}
+.in-code-title {
+  font-weight: 600;
+}
+.in-code .in-code-body p.in-code-title {
+  color: var(--ink);
+}
+.in-code-pair {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+}
+.in-code-pair dt {
+  color: var(--ink);
+  font-size: 12.5px;
+  font-weight: 700;
+}
 .block > h2,
 .block > h3 {
   margin-bottom: 12px;
@@ -1225,6 +1318,12 @@ a.d:hover::before {
 .dot-tip small {
   color: var(--ink-faint);
   font-size: 11.5px;
+}
+.dot-tip em {
+  margin: 2px 0;
+  color: var(--ink);
+  font-style: normal;
+  line-height: 1.45;
 }
 /* What a node feeds, in words: read aloud always, and shown where the wires are not. */
 .map-rel {
@@ -2566,7 +2665,7 @@ a.d:hover::before {
 }
 .board-row {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 24px;
+  grid-template-columns: 118px minmax(0, 1fr) 24px;
   align-items: center;
   gap: 12px;
 }
@@ -2630,7 +2729,11 @@ a.r:hover::before {
   margin: 0;
   border-block: 1px solid var(--edge);
 }
+/* A label can take two lines, so the numbers line up along the bottom. */
 .board-figures > div {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   padding: 12px 0 12px 14px;
 }
 .board-figures > div:first-child {
@@ -2665,7 +2768,7 @@ a.r:hover::before {
 }
 .reach-list li {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 24px;
+  grid-template-columns: 118px minmax(0, 1fr) 24px;
   align-items: center;
   gap: 12px;
 }
