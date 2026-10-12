@@ -18,7 +18,7 @@ import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { backupWorkspace, verifyBackup } from "../src/backup.js";
 import { createWorkspaceServer } from "../src/server.js";
-import { holdWorkspace } from "../src/ownership.js";
+import { holdFolder } from "../src/ownership.js";
 
 const hooks = vi.hoisted(() => ({
   copy: null as ((from: string, to: string) => Promise<void> | void) | null,
@@ -170,7 +170,7 @@ describe("publishing a verified backup", () => {
         preserveEmpty: true,
       }),
     );
-    const hold = holdWorkspace(operation, "a live backup");
+    const hold = holdFolder(operation, "a live backup");
     try {
       await backupWorkspace({ dataDir, out: join(root, "first") });
       expect(existsSync(join(operation, "capture", "workspace.db"))).toBe(true);

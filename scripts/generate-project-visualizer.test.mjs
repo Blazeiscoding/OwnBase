@@ -148,10 +148,17 @@ test("runtime explanations and all guide/evidence references are complete", () =
   for (const path of references) assert.ok(byPath.has(path), `Broken guide reference: ${path}`);
   const ids = [...data.flows, ...data.optimizations].map((entry) => entry.id);
   assert.equal(new Set(ids).size, ids.length, "Guide IDs must be unique.");
+  // Q01 to Q13 were recorded as open findings. One counts as repaired only
+  // with a test to show for it.
   for (let index = 1; index <= 13; index++) {
-    assert.equal(
-      data.optimizations.find((item) => item.id === `Q${String(index).padStart(2, "0")}`)?.status,
-      "follow-up",
+    const id = `Q${String(index).padStart(2, "0")}`;
+    const item = data.optimizations.find((entry) => entry.id === id);
+    assert.ok(item, id);
+    if (item.status === "follow-up") continue;
+    assert.equal(item.status, "implemented", id);
+    assert.ok(
+      item.evidence.some((evidence) => evidence.path.includes("/test/")),
+      `${id} is marked repaired without a test as evidence`,
     );
   }
 });
