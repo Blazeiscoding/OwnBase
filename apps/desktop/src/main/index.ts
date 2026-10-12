@@ -59,6 +59,7 @@ import { pickScreen } from "./screenPicker.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
 import { createHostingController } from "./hosting.js";
+import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import {
@@ -510,53 +511,19 @@ const hosting = createHostingController({
   openFolder: (path) => shell.openPath(path),
   onChange: publishHostingStatus,
   inventoryBackup: (dir) => inWorker({ kind: "inventory", dir }),
-  startServer: async ({ dataDir, port, workspaceName, isolated }) => {
-    const server = await createWorkspaceServer({
-      dataDir,
-      port,
-      workspaceName,
-      // A restored copy being looked inside is reachable from this computer
-      // only, sends nothing queued, calls no app, and is not announced.
-      ...(isolated ? { isolated: true, host: "127.0.0.1" } : {}),
-      mdns: !isolated,
+  startServer: (request) =>
+    startHostedServer(request, {
+      createServer: createWorkspaceServer,
       webDistPath: app.isPackaged
         ? join(process.resourcesPath, "web")
         : join(import.meta.dirname, "../../../web/dist"),
-      // A relay that cannot be read leaves calls on this network working;
-      // the hosting window says why.
-      relay: isolated ? null : await savedCallRelay().catch(() => null),
-    });
-    if (!isolated) relayServers.add(server);
-    const configured = publicAddressConfig();
-    // An external carrier may already be forwarding this port, and an app-owned
-    // connector may have survived an ungraceful exit. Never leave registration
-    // open while any stable public address is configured.
-    if (configured && !("error" in configured)) server.setInviteOnly(true);
-    return {
-      port: server.port,
-      instanceId: server.instanceId,
-      workspaceId: () => server.store.getMeta("workspace_id") ?? null,
-      workspaceName: () => server.store.getMeta("workspace_name") ?? workspaceName ?? "",
-      setWorkspaceName: (name) => server.setWorkspaceName(name),
-      reannounce: () => server.reannounce(),
-      connectedPeople: () => server.connectedPeople(),
-      onConnectedChange: (listener) => server.onConnectedChange(listener),
-      stop: async () => {
-        await server.stop();
-        relayServers.delete(server);
+      savedRelay: savedCallRelay,
+      relayServers,
+      publicAddressConfigured: () => {
+        const configured = publicAddressConfig();
+        return !!configured && !("error" in configured);
       },
-      setPublicUrl: (url) => server.setPublicUrl(url),
-      // cloudflared reaches this embedded server from loopback. Believe its
-      // visitor address only while the controller owns a live connector.
-      setTrustLoopbackProxy: (enabled) => server.setTrustLoopbackProxy(enabled),
-      setIceServers: (servers) => server.setIceServers(servers),
-      inviteOnly: () => server.inviteOnly(),
-      setInviteOnly: (value) => server.setInviteOnly(value),
-      accessPolicy: () => server.accessPolicy(),
-      setAccessPolicy: (policy) => server.setAccessPolicy(policy),
-      accountCount: () => server.store.userCount(),
-    };
-  },
+    }),
   verifyLoopback: async (port, instanceId) =>
     // Only a reply from something that is not this run proves the port leads
     // elsewhere. A probe that cannot connect at all proves nothing, and must

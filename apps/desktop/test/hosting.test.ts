@@ -1228,6 +1228,50 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.shutdown();
       expect(h.servers[0]!.stop).toHaveBeenCalledTimes(2);
     });
+
+    it("gives up its place behind a backup that outlasts the wait, and stops nothing later (Q13)", async () => {
+      const h = harness({ cleanupTimeoutMs: 20 });
+      await h.controller.start({ workspaceName: "Rocket Team" });
+      const [entry] = registryOf(h);
+      const gate = deferred();
+      h.backupGate = gate.promise;
+      const backing = h.controller.backup({ folder: entry!.folder, destination: profile() });
+      await vi.waitFor(() => expect(h.backups).toHaveLength(1));
+
+      await expect(h.controller.shutdown()).rejects.toThrow(/still finishing other work/);
+      expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      expect(h.controller.status()).toMatchObject({ running: true, phase: "running" });
+
+      // The backup goes on to finish, and the stop that gave up does not follow it.
+      gate.resolve();
+      await expect(backing).resolves.toMatchObject({ path: h.backups[0]!.out });
+      await h.controller.list();
+      expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      expect(h.controller.status()).toMatchObject({ running: true, phase: "running" });
+
+      // No longer quitting, and the same server is there to stop on the next try.
+      await h.controller.shutdown();
+      expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
+      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    });
+
+    it("waits its turn behind work that finishes within the wait", async () => {
+      const h = harness({ cleanupTimeoutMs: 2_000 });
+      await h.controller.start({ workspaceName: "Rocket Team" });
+      const [entry] = registryOf(h);
+      const gate = deferred();
+      h.backupGate = gate.promise;
+      const backing = h.controller.backup({ folder: entry!.folder, destination: profile() });
+      await vi.waitFor(() => expect(h.backups).toHaveLength(1));
+
+      const quitting = h.controller.shutdown();
+      expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      gate.resolve();
+      await backing;
+      await quitting;
+      expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
+      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    });
   });
 });
 
