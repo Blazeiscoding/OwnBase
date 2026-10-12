@@ -175,6 +175,20 @@ async function signIn(page: Page, handle: string) {
   await expect(page.locator("textarea")).toBeVisible();
 }
 
+/**
+ * Saves that this browser was already asked which microphone and camera to
+ * use: Chromium's fake devices are two microphones, so a first huddle would
+ * otherwise ask before joining.
+ */
+async function skipDeviceCheck(page: Page) {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "slackoss:call-preferences",
+      JSON.stringify({ joinMuted: false, devicesChecked: true }),
+    );
+  });
+}
+
 async function expectInsideViewport(page: Page, element: Locator) {
   const box = await element.boundingBox();
   const viewport = page.viewportSize();
@@ -319,7 +333,7 @@ test(
         // for the level meter to report. Taken in once, as a saved choice.
         localStorage.setItem(
           "slackoss:call-preferences",
-          JSON.stringify({ joinMuted: false, noiseFilter: false }),
+          JSON.stringify({ joinMuted: false, noiseFilter: false, devicesChecked: true }),
         );
       });
     }
@@ -464,6 +478,7 @@ test("a call says which route it connected on, and one that cannot connect says 
   try {
     const alice = await a.newPage();
     const bob = await b.newPage();
+    for (const page of [alice, bob]) await skipDeviceCheck(page);
     await signIn(alice, "alice");
     await signIn(bob, "bobby");
     const bar = (page: Page) => page.getByRole("region", { name: "Active huddle", exact: true });
@@ -582,6 +597,7 @@ test("the microphone and speaker can be changed in a call, from the call and fro
         };
       });
     }
+    await skipDeviceCheck(bob);
     await signIn(alice, "alice");
     await signIn(bob, "bobby");
     const bar = (page: Page) => page.getByRole("region", { name: "Active huddle", exact: true });
@@ -617,12 +633,28 @@ test("the microphone and speaker can be changed in a call, from the call and fro
         return bytes;
       });
 
+    // Chromium's fake devices are two microphones, so her first huddle asks
+    // which to use first, listening to it and showing her camera.
     await alice.getByRole("button", { name: "Start a huddle", exact: true }).click();
+    const check = alice.getByRole("dialog", {
+      name: "Choose your microphone and camera",
+      exact: true,
+    });
+    await expect(check.getByText(/^Listening to/)).toContainText("Fake Default Audio Input");
+    await expect
+      .poll(() => check.locator("video").evaluate((v) => (v as HTMLVideoElement).videoWidth))
+      .toBeGreaterThan(0);
+    await alice.screenshot({ path: test.info().outputPath("device-check.png") });
+    // Nothing starts until she answers.
+    await expect(bar(alice)).toHaveCount(0);
+    await check.getByRole("button", { name: "Join huddle", exact: true }).click();
+    await expect(check).toHaveCount(0);
     await bob.getByRole("button", { name: "Join the huddle with alice", exact: true }).click();
     await expect(bar(alice).getByRole("status")).toHaveText("With bobby");
     await expect(bar(bob).getByRole("status")).toHaveText("With alice");
     await expect.poll(bobHearsBytes).toBeGreaterThan(0);
-    expect(await aliceSends()).toEqual(sending("Fake Default Audio Input"));
+    // The check let go of what it opened, and the call has only her microphone.
+    await expect.poll(aliceSends).toEqual(sending("Fake Default Audio Input"));
     // Her microphone goes through strong noise suppression unless she chose otherwise.
     await expect(await aliceLog()).toContainText("Noise suppression: strong.");
     await alice.keyboard.press("Escape");
@@ -721,8 +753,10 @@ test("the microphone and speaker can be changed in a call, from the call and fro
       (window as any).peers = [];
       (window as any).microphones = [];
     });
+    // Asked once: the next call does not ask again.
     await alice.getByRole("button", { name: "Join the huddle with bobby", exact: true }).click();
     await expect(bar(alice).getByRole("status")).toHaveText("With bobby");
+    await expect(check).toHaveCount(0);
     await expect.poll(aliceSends).toEqual(sending("Fake Audio Input 1"));
     expect(errors).toEqual([]);
   } finally {
@@ -748,7 +782,7 @@ test("each person's volume is yours alone: turned down, up past as sent, or mute
         // takes out as noise; on the browser's own it is there to measure.
         localStorage.setItem(
           "slackoss:call-preferences",
-          JSON.stringify({ joinMuted: false, noiseFilter: false }),
+          JSON.stringify({ joinMuted: false, noiseFilter: false, devicesChecked: true }),
         );
       });
     }

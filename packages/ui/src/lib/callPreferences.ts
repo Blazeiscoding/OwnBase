@@ -24,6 +24,13 @@ interface Preferences {
   /** Join huddles with the microphone off (CALL-01). */
   joinMuted: boolean;
   devices: CallDevices;
+  /**
+   * Whether this device has been asked which microphone and camera to use,
+   * or chose one in settings, so a join no longer asks.
+   */
+  devicesChecked: boolean;
+  /** A join is waiting for that answer; the workspace shows the question. */
+  checkingDevices: boolean;
   loaded: boolean;
   saving: boolean;
   error: string | null;
@@ -32,12 +39,20 @@ interface Preferences {
   /** Saves device choices; a key set to undefined goes back to the default. */
   setDevices: (patch: CallDevices) => Promise<void>;
   retryLoad: () => Promise<void>;
-  /** Every join waits for device preferences; unknown preferences keep the mic off. */
+  /**
+   * Every join waits for device preferences; unknown preferences keep the
+   * mic off. The first join with a choice of devices asks which first.
+   */
   joinHuddle: (
     client: WorkspaceClient,
     channelId: string,
     stillWanted?: () => boolean,
   ) => Promise<void>;
+  /**
+   * Answers the question: the devices to join with, kept for every later
+   * call, or null to join nothing and ask again next time.
+   */
+  finishDeviceCheck: (choice: Pick<CallDevices, "microphoneId" | "cameraId"> | null) => void;
 }
 
 const KEY = "call-preferences";
@@ -74,17 +89,25 @@ export function microphoneOf({
 function createPreferences(platform: Platform) {
   let initialization: Promise<void>;
   let loadVersion = 0;
-  const write = (joinMuted: boolean, devices: CallDevices) => {
+  /** Gives a join waiting on the device question its answer. */
+  let answer: ((choice: CallDevices | null) => void) | null = null;
+  const write = (joinMuted: boolean, devices: CallDevices, devicesChecked: boolean) => {
     if (store.getState().saving) return initialization;
     // An explicit acknowledged choice supersedes every older preference read.
     const version = ++loadVersion;
     const known = store.getState().loaded;
     store.setState({ saving: true, error: null });
     const writing = Promise.resolve()
-      .then(() => platform.storage.set(KEY, { joinMuted, ...devices }))
+      .then(() =>
+        platform.storage.set(KEY, {
+          joinMuted,
+          ...devices,
+          ...(devicesChecked ? { devicesChecked } : {}),
+        }),
+      )
       .then(() => {
         if (version === loadVersion)
-          store.setState({ joinMuted, devices, loaded: true, unreadable: false });
+          store.setState({ joinMuted, devices, devicesChecked, loaded: true, unreadable: false });
       })
       .catch(() => {
         if (version === loadVersion)
@@ -98,17 +121,46 @@ function createPreferences(platform: Platform) {
     initialization = writing;
     return writing;
   };
+  /**
+   * Whether to ask which microphone and camera to use before this join: once
+   * per device, while nothing is chosen, and only where the browser lists
+   * more than one of either. A browser that keeps devices' names back lists
+   * none, so it is asked on the first join after it gives them.
+   */
+  async function needsDeviceCheck(): Promise<boolean> {
+    const { devicesChecked, devices, unreadable } = store.getState();
+    if (devicesChecked || unreadable || devices.microphoneId || devices.cameraId) return false;
+    // Fetched by a join that may ask, not by every visit: listing devices
+    // brings the rest of what opens them along.
+    return import("./mediaDevices.js").then(
+      ({ hasDeviceChoice }) => hasDeviceChoice(),
+      () => false,
+    );
+  }
+  function askForDevices(): Promise<CallDevices | null> {
+    // A join already waiting gives way to this one.
+    answer?.(null);
+    store.setState({ checkingDevices: true });
+    return new Promise((resolve) => (answer = resolve));
+  }
   const store: StoreApi<Preferences> = createStore<Preferences>(() => ({
     joinMuted: true,
     devices: {},
+    devicesChecked: false,
+    checkingDevices: false,
     loaded: false,
     saving: false,
     error: null,
     unreadable: false,
-    setJoinMuted: (joinMuted) => write(joinMuted, store.getState().devices),
+    setJoinMuted: (joinMuted) => {
+      const { devices, devicesChecked } = store.getState();
+      return write(joinMuted, devices, devicesChecked);
+    },
     setDevices: (patch) => {
-      const { joinMuted, devices } = store.getState();
-      return write(joinMuted, devicesOf({ ...devices, ...patch }));
+      const { joinMuted, devices, devicesChecked } = store.getState();
+      // Choosing a microphone or camera in settings answers the question too.
+      const chose = "microphoneId" in patch || "cameraId" in patch;
+      return write(joinMuted, devicesOf({ ...devices, ...patch }), devicesChecked || chose);
     },
     retryLoad: () => (store.getState().saving ? initialization : (initialization = load())),
     joinHuddle: async (client, channelId, stillWanted = () => true) => {
@@ -121,14 +173,18 @@ function createPreferences(platform: Platform) {
           });
         });
       }
-      if (
+      const gone = () =>
         !stillWanted() ||
         client.state.status === "closed" ||
         client.state.status === "auth_failed" ||
-        client.state.status === "password_change_required"
-      )
-        return;
-      const { joinMuted, devices } = store.getState();
+        client.state.status === "password_change_required";
+      if (gone()) return;
+      const choice = (await needsDeviceCheck()) ? await askForDevices() : {};
+      // Listing the devices and the answer both take a while.
+      if (!choice || gone()) return;
+      const { joinMuted, devices: saved } = store.getState();
+      // Joins with the answer even if keeping it failed.
+      const devices = devicesOf({ ...saved, ...choice });
       const microphone = microphoneOf(devices);
       await client.joinHuddle(channelId, {
         muted: joinMuted,
@@ -137,10 +193,26 @@ function createPreferences(platform: Platform) {
         noiseFilter,
       });
     },
+    finishDeviceCheck: (choice) => {
+      const waiting = answer;
+      answer = null;
+      store.setState({ checkingDevices: false });
+      if (choice) {
+        const { joinMuted, devices } = store.getState();
+        void write(joinMuted, devicesOf({ ...devices, ...choice }), true);
+      }
+      waiting?.(choice);
+    },
   }));
   function load(): Promise<void> {
     const version = ++loadVersion;
-    store.setState({ joinMuted: true, devices: {}, loaded: false, error: null });
+    store.setState({
+      joinMuted: true,
+      devices: {},
+      devicesChecked: false,
+      loaded: false,
+      error: null,
+    });
     return Promise.resolve()
       .then(() => platform.storage.get<unknown>(KEY, { strict: true }))
       .then((saved) => {
@@ -155,6 +227,7 @@ function createPreferences(platform: Platform) {
         store.setState({
           joinMuted: saved !== null && (saved as { joinMuted: boolean }).joinMuted,
           devices: saved === null ? {} : devicesOf(saved as Record<string, unknown>),
+          devicesChecked: (saved as { devicesChecked?: unknown } | null)?.devicesChecked === true,
           loaded: true,
           unreadable: false,
         });

@@ -107,6 +107,10 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   expect(web.status).toBe(200);
   expect(await web.text()).toContain('<div id="root">');
   await page.getByRole("button", { name: "Start a huddle", exact: true }).click();
+  // The fake devices are two microphones, so a first huddle asks which first.
+  const check = page.getByRole("dialog", { name: "Choose your microphone and camera" });
+  await expect(check.getByText(/^Listening to/)).toBeVisible();
+  await check.getByRole("button", { name: "Join huddle", exact: true }).click();
   await expect(page.getByText("Huddle in #general", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Leave", exact: true }).click();
   await page.screenshot({ path: info.outputPath("desktop.png") });

@@ -43,6 +43,16 @@ export function useMediaDevices(): MediaDeviceLists & { listed: boolean; refresh
   return { ...(lists ?? NONE), listed: lists !== null, refresh };
 }
 
+/**
+ * Whether there is more than one microphone or camera to choose between. A
+ * browser that keeps devices' names back lists none, and a listing that
+ * fails is no choice either.
+ */
+export async function hasDeviceChoice(): Promise<boolean> {
+  const lists = await listMediaDevices().catch(() => NONE);
+  return lists.microphones.length > 1 || lists.cameras.length > 1;
+}
+
 /** Whether a change to the device choices changes what the microphone opens. */
 const MICROPHONE_KEYS: (keyof CallDevices)[] = [
   "microphoneId",

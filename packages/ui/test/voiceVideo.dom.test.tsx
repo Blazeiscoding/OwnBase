@@ -137,13 +137,18 @@ describe("Voice & video settings", () => {
     expect(set).toHaveBeenCalledWith("call-preferences", {
       joinMuted: false,
       microphoneId: "mic-array",
+      // A choice made here means a first huddle need not ask.
+      devicesChecked: true,
     });
     // Outside a call there is nothing to change over.
     expect(setMicrophone).not.toHaveBeenCalled();
     await waitFor(() => expect(microphone).toHaveValue("mic-array"));
 
     await user.selectOptions(microphone, "System default (Headset Microphone (USB))");
-    expect(set).toHaveBeenLastCalledWith("call-preferences", { joinMuted: false });
+    expect(set).toHaveBeenLastCalledWith("call-preferences", {
+      joinMuted: false,
+      devicesChecked: true,
+    });
   });
 
   it("in a huddle, changes the call over first, and keeps nothing when the device will not start", async () => {
@@ -169,6 +174,7 @@ describe("Voice & video settings", () => {
       joinMuted: true,
       noiseSuppression: false,
       microphoneId: "mic-array",
+      devicesChecked: true,
     });
     expect(screen.queryByRole("alert")).toBeNull();
   });
@@ -214,6 +220,7 @@ describe("Voice & video settings", () => {
     expect(set).toHaveBeenLastCalledWith("call-preferences", {
       joinMuted: false,
       cameraId: "cam-desk",
+      devicesChecked: true,
     });
 
     await user.selectOptions(
@@ -224,6 +231,7 @@ describe("Voice & video settings", () => {
       joinMuted: false,
       cameraId: "cam-desk",
       speakerId: "spk-usb",
+      devicesChecked: true,
     });
     await waitFor(() => expect(media.setSinkId).toHaveBeenCalledWith("spk-usb"));
   });
@@ -317,6 +325,7 @@ describe("choosing devices from the huddle", () => {
     expect(set).toHaveBeenCalledWith("call-preferences", {
       joinMuted: false,
       microphoneId: "mic-array",
+      devicesChecked: true,
     });
   });
 
