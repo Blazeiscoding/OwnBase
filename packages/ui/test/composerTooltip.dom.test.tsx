@@ -110,7 +110,7 @@ describe.each([
     await user.click(attach);
     expect(pickerClick).toHaveBeenCalledOnce();
     await user.click(later);
-    expect(screen.getByRole("button", { name: "Schedule message" })).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Schedule message" })).toBeVisible();
     await user.click(sendButton);
     expect(send).toHaveBeenCalledWith(design.id, "A draft", {
       threadRootId: undefined,

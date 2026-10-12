@@ -3974,3 +3974,94 @@ test("the client arrives compressed, and a second visit reuses its hashed files"
   expect(entry(seen).every((r) => r.cached)).toBe(true);
   await cdp.detach();
 });
+
+test("a message is answered in place or in its thread, as in Discord", async ({ page }) => {
+  // Bobby asks, then the channel moves on far enough to scroll it out of view.
+  const login = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ handle: "bobby", password: "password123" }),
+  });
+  const bobby = { authorization: `Bearer ${((await login.json()) as { token: string }).token}` };
+  const json = { ...bobby, "content-type": "application/json" };
+  const { channels } = (await (await fetch(`${base}/api/channels`, { headers: bobby })).json()) as {
+    channels: { id: string; name: string }[];
+  };
+  const general = channels.find((c) => c.name === "general")!.id;
+  const post = async (body: Record<string, unknown>) =>
+    (
+      (await (
+        await fetch(`${base}/api/channels/${general}/messages`, {
+          method: "POST",
+          headers: json,
+          body: JSON.stringify(body),
+        })
+      ).json()) as { message: { id: string; replyTo?: { id: string; ping: boolean } } }
+    ).message;
+  const question = await post({ text: "Is the release still on for Friday?" });
+  for (let i = 0; i < 30; i++) await post({ text: `status line ${i}` });
+
+  await signIn(page, "alice");
+  const composer = page.getByRole("textbox", { name: "Message #general" });
+  const asked = page.getByRole("article").filter({ hasText: "Is the release still on" }).first();
+  await asked.hover();
+  await asked.getByRole("button", { name: "Reply", exact: true }).click();
+  await expect(composer).toBeFocused();
+  await expect(page.getByText("Replying to", { exact: false }).last()).toContainText(
+    "Replying to bobby",
+  );
+  await expect(page.getByRole("button", { name: "Notify bobby" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await composer.fill("Yes, still Friday");
+  await composer.press("Enter");
+
+  // The answer lands in view under its quote, though the question was far up.
+  const answer = page.getByRole("article").filter({ hasText: "Yes, still Friday" });
+  const quote = answer.getByRole("button", { name: /Replying to @bobby Is the release still on/ });
+  await expect(quote).toBeInViewport();
+  await expect(page.getByRole("button", { name: "Cancel reply" })).toHaveCount(0);
+  // Bobby was notified, as a mention does.
+  const mentions = (await (
+    await fetch(`${base}/api/activity?mode=mentions`, { headers: bobby })
+  ).json()) as { messages: { text: string; replyTo?: { id: string; ping: boolean } }[] };
+  expect(mentions.messages[0]).toMatchObject({
+    text: "Yes, still Friday",
+    replyTo: { id: question.id, ping: true },
+  });
+
+  // Its quote brings the question back into view.
+  await quote.click();
+  await expect(asked).toBeInViewport();
+  await expect(asked).toHaveClass(/reply-flash/);
+
+  // A thread answers in place too, from the thread's own box.
+  await asked.hover();
+  await asked.getByRole("button", { name: "Reply in thread", exact: true }).click();
+  const thread = page.getByRole("complementary", { name: "Thread", exact: true });
+  await expect(thread).toBeVisible();
+  await post({ text: "Unless the migration slips", threadRootId: question.id });
+  const caveat = thread.getByRole("article").filter({ hasText: "Unless the migration slips" });
+  await caveat.hover();
+  await caveat.getByRole("button", { name: "Reply", exact: true }).click();
+  const threadBox = thread.getByRole("textbox", { name: "Reply…" });
+  await expect(threadBox).toBeFocused();
+  await expect(thread.getByText("Replying to", { exact: false }).last()).toContainText(
+    "Replying to bobby",
+  );
+  // Escape lets go of the answer and leaves the thread open.
+  await page.keyboard.press("Escape");
+  await expect(thread.getByRole("button", { name: "Cancel reply" })).toHaveCount(0);
+  await expect(thread).toBeVisible();
+  await caveat.hover();
+  await caveat.getByRole("button", { name: "Reply", exact: true }).click();
+  await threadBox.fill("Then we ship Monday");
+  await threadBox.press("Enter");
+  await expect(
+    thread
+      .getByRole("article")
+      .filter({ hasText: "Then we ship Monday" })
+      .getByRole("button", { name: /Replying to @bobby Unless the migration slips/ }),
+  ).toBeVisible();
+});

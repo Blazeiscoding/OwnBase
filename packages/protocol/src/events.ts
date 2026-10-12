@@ -150,6 +150,8 @@ export interface ReadySnapshot {
   huddleJoinReplies?: true;
   /** This server keeps a call log and takes `huddle.report`; older ones close on it. */
   huddleReports?: true;
+  /** This server keeps inline replies; older ones post one as an ordinary message. */
+  inlineReplies?: true;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;

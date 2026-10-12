@@ -10,18 +10,24 @@ const LINK = /https?:\/\/[^\s<>]+/g;
 
 /**
  * The people and conversations a message row shows: its author, whoever it
- * names or reacted to it, and the channels it names or links a message in.
- * A superset of what `Mrkdwn` looks up is harmless; a subset would leave a
- * rename unshown.
+ * names or reacted to it, the channels it names or links a message in, and
+ * who wrote what it answers and whom that names. A superset of what `Mrkdwn`
+ * looks up is harmless; a subset would leave a rename unshown.
  */
-export function messageReferences(message: Pick<Message, "userId" | "text" | "reactions">): {
+export function messageReferences(
+  message: Pick<Message, "userId" | "text" | "reactions" | "replyTo">,
+): {
   userIds: ID[];
   channelIds: ID[];
 } {
   const userIds = new Set<ID>([message.userId]);
   const channelIds = new Set<ID>();
-  for (const [, id] of message.text.matchAll(NAMED_USER)) userIds.add(id!);
-  for (const [, id] of message.text.matchAll(NAMED_CHANNEL)) channelIds.add(id!);
+  const quote = message.replyTo;
+  for (const text of quote ? [message.text, quote.text] : [message.text]) {
+    for (const [, id] of text.matchAll(NAMED_USER)) userIds.add(id!);
+    for (const [, id] of text.matchAll(NAMED_CHANNEL)) channelIds.add(id!);
+  }
+  if (quote?.userId) userIds.add(quote.userId);
   for (const [url] of message.text.matchAll(LINK)) {
     const link = parseDeepLink(url);
     if (link?.kind === "message") channelIds.add(link.channelId);
@@ -71,14 +77,16 @@ function usePick<T>(map: (s: WorkspaceState) => Record<ID, T>, ids: ID[]) {
  * The users and channels one message row shows, from the replica. A change to
  * anyone or anything else leaves the same objects, so the row does not render.
  */
-export function useMessageReferences(message: Pick<Message, "userId" | "text" | "reactions">): {
+export function useMessageReferences(
+  message: Pick<Message, "userId" | "text" | "reactions" | "replyTo">,
+): {
   users: Record<ID, User>;
   channels: Record<ID, Channel>;
 } {
-  const { userId, text, reactions } = message;
+  const { userId, text, reactions, replyTo } = message;
   const refs = useMemo(
-    () => messageReferences({ userId, text, reactions }),
-    [userId, text, reactions],
+    () => messageReferences({ userId, text, reactions, replyTo }),
+    [userId, text, reactions, replyTo],
   );
   const users = useWorkspace(usePick((s) => s.users, refs.userIds));
   const channels = useWorkspace(usePick((s) => s.channels, refs.channelIds));

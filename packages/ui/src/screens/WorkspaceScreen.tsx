@@ -1,4 +1,13 @@
-import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type ComponentProps,
+} from "react";
 import type { ID, Message } from "@slackoss/protocol";
 import {
   WorkspaceClient,
@@ -25,7 +34,7 @@ import {
   useNotificationPreviews,
   type NotificationPreview,
 } from "../lib/notificationPreview.js";
-import { QuickSwitcher, type PaletteCommand } from "../components/QuickSwitcher.js";
+import type { PaletteCommand } from "../components/QuickSwitcher.js";
 import { useAppearance } from "../lib/appearance.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import type { AccountSection } from "../components/AccountDialog.js";
@@ -154,6 +163,28 @@ const ChannelDetailsDialog = lazy(() =>
     default: module.ChannelDetailsDialog,
   })),
 );
+/**
+ * Ctrl+K's palette is out of the first download too, but it is fetched as
+ * soon as the workspace opens and drawn directly once here: a switch typed
+ * straight after Ctrl+K must not land on a loading state.
+ */
+let LoadedSwitcher: (typeof import("../components/QuickSwitcher.js"))["QuickSwitcher"] | null =
+  null;
+const loadQuickSwitcher = () =>
+  import("../components/QuickSwitcher.js").then((module) => {
+    LoadedSwitcher = module.QuickSwitcher;
+    return { default: module.QuickSwitcher };
+  });
+const LazySwitcher = lazy(loadQuickSwitcher);
+function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
+  return LoadedSwitcher ? (
+    <LoadedSwitcher {...props} />
+  ) : (
+    <LazyDialog loading="Loading Jump to" onClose={props.onClose}>
+      <LazySwitcher {...props} />
+    </LazyDialog>
+  );
+}
 
 interface Props {
   client: WorkspaceClient;
@@ -589,6 +620,11 @@ function WorkspaceInner({
   }, [serverUrl, clientFromCtx]);
 
   useHistoryKeys(platform.kind === "desktop");
+
+  useEffect(() => {
+    // Failing here is not final: opening the palette fetches it again.
+    loadQuickSwitcher().catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     clientFromCtx.focusConversation(activeChannelId);
@@ -1339,7 +1375,7 @@ function WorkspaceInner({
         </LazyDialog>
       )}
       {dialog.kind === "switcher" && (
-        <QuickSwitcher
+        <SwitcherDialog
           onClose={closeDialog}
           onOpen={openChannel}
           commands={paletteCommands}

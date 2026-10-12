@@ -1,4 +1,4 @@
-import { SEND_RETRY_WINDOW_MS } from "@slackoss/protocol";
+import { SEND_RETRY_WINDOW_MS, type ReplyReference } from "@slackoss/protocol";
 import type { StoredPending } from "./workspace.js";
 
 /**
@@ -75,6 +75,7 @@ export function isStoredPending(entry: unknown): entry is StoredPending {
     typeof e.channelId === "string" &&
     (e.threadRootId === null || typeof e.threadRootId === "string") &&
     (e.broadcast === undefined || typeof e.broadcast === "boolean") &&
+    (e.replyTo === undefined || isReplyReference(e.replyTo)) &&
     typeof e.text === "string" &&
     typeof e.userId === "string" &&
     Number.isFinite(e.createdAt) &&
@@ -92,6 +93,20 @@ export function isStoredPending(entry: unknown): entry is StoredPending {
   );
 }
 
+function isReplyReference(value: unknown): value is ReplyReference {
+  const r = value as Record<string, unknown> | null;
+  return (
+    !!r &&
+    typeof r === "object" &&
+    typeof r.id === "string" &&
+    typeof r.userId === "string" &&
+    typeof r.text === "string" &&
+    typeof r.fileCount === "number" &&
+    typeof r.deleted === "boolean" &&
+    typeof r.ping === "boolean"
+  );
+}
+
 const isRevision = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
@@ -102,6 +117,18 @@ export function storedPending(entry: StoredPending): StoredPending {
     channelId: entry.channelId,
     threadRootId: entry.threadRootId,
     ...(entry.broadcast === undefined ? {} : { broadcast: entry.broadcast }),
+    ...(entry.replyTo === undefined
+      ? {}
+      : {
+          replyTo: {
+            id: entry.replyTo.id,
+            userId: entry.replyTo.userId,
+            text: entry.replyTo.text,
+            fileCount: entry.replyTo.fileCount,
+            deleted: entry.replyTo.deleted,
+            ping: entry.replyTo.ping,
+          },
+        }),
     text: entry.text,
     userId: entry.userId,
     createdAt: entry.createdAt,

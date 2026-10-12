@@ -38,3 +38,17 @@ export function broadcastsIn(text: string): Set<Broadcast> {
 export function broadcastLabel(token: string): string {
   return `@${token === "everyone" ? "channel" : token}`;
 }
+
+/** The most of an original's words a reply carries to show above itself. */
+export const REPLY_EXCERPT_LENGTH = 200;
+
+/**
+ * How much of a message a reply quotes: enough for one line, cut before any
+ * mention or link the limit would split, so a cut never shows half an id.
+ */
+export function replyExcerpt(text: string): string {
+  if (text.length <= REPLY_EXCERPT_LENGTH) return text;
+  const cut = text.slice(0, REPLY_EXCERPT_LENGTH);
+  const open = cut.lastIndexOf("<");
+  return open > cut.lastIndexOf(">") ? cut.slice(0, open) : cut;
+}
