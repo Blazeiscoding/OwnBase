@@ -1,4 +1,4 @@
-import { useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { ApiError } from "@slackoss/client-core";
 import type { ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
@@ -28,21 +28,34 @@ export function ProfileDialog(props: {
   const selfId = useWorkspace((s) => s.self?.id);
   const [opening, setOpening] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
+  // The press on Message this card is waiting on. Once the card is closed, or
+  // shows someone else, an earlier press has nothing left to finish: opening
+  // its conversation then would pull the reader out of wherever they went (Q11).
+  const press = useRef(0);
+  useEffect(() => {
+    setOpening(false);
+    setDmError(null);
+    return () => {
+      press.current += 1;
+    };
+  }, [props.userId]);
   if (!user) return null;
 
   async function message(userId: ID, name: string) {
     if (opening) return;
+    const mine = ++press.current;
     setOpening(true);
     setDmError(null);
     try {
       const channel = await client.openDm([userId]);
-      props.onOpenDm(channel.id);
+      if (press.current === mine) props.onOpenDm(channel.id);
     } catch {
-      setDmError(
-        `Could not open a conversation with ${name}. Check your connection and try again.`,
-      );
+      if (press.current === mine)
+        setDmError(
+          `Could not open a conversation with ${name}. Check your connection and try again.`,
+        );
     } finally {
-      setOpening(false);
+      if (press.current === mine) setOpening(false);
     }
   }
 
