@@ -157,7 +157,8 @@ describe("adding a reaction", () => {
   it("finds any emoji from the menu, and reacts with it", async () => {
     const { react, user } = messageFrom(sam, sam);
     await user.click(within(await openMenu(user, "Sam Rivera")).getByText("Add a reaction…"));
-    const picker = screen.getByRole("dialog", { name: "Add a reaction" });
+    // The picker loads on first use.
+    const picker = await screen.findByRole("dialog", { name: "Add a reaction" });
     expect(await accessibilityProblems(picker)).toEqual([]);
     await user.type(within(picker).getByRole("combobox", { name: "Search emoji" }), "rocket");
     await user.click(within(picker).getByRole("option", { name: "Rocket launch" }));
@@ -168,7 +169,7 @@ describe("adding a reaction", () => {
   it("opens from the toolbar too, and says when nothing matches", async () => {
     const { react, user } = messageFrom(sam, sam);
     await user.click(screen.getByRole("button", { name: "Add a reaction" }));
-    const picker = screen.getByRole("dialog", { name: "Add a reaction" });
+    const picker = await screen.findByRole("dialog", { name: "Add a reaction" });
     const search = within(picker).getByRole("combobox", { name: "Search emoji" });
     expect(search).toHaveFocus();
     await user.type(search, "zzzz");
