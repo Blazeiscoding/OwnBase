@@ -1,5 +1,10 @@
 import type { CSSProperties } from "react";
 
+/**
+ * Most icons are one path. Six are drawn in named parts, after Its Hover's
+ * (itshover.com, Apache-2.0), so that a part can move by itself: theme.css
+ * plays their motion inside a control marked `icon-live` while it is pointed at.
+ */
 const paths = {
   activity: "M3 12h4l3-8 4 16 3-8h4",
   search: "m21 21-5-5M19 10.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0",
@@ -9,27 +14,43 @@ const paths = {
   friends:
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   pin: "m16 3 5 5-4 1-4 5v4l-7-7h4l5-4zM9 15l-6 6",
-  bookmark: "M6 3h12v18l-6-4-6 4z",
+  bookmark: { ribbon: "M12 17l8.5 5V4A2.5 2.5 0 0 0 18 1.5H6A2.5 2.5 0 0 0 3.5 4v18z" },
   clock: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M12 6v6l4 2",
   attach: "m21 11-9 9a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6",
   send: "m22 2-7 20-4-9-9-4zM22 2 11 13",
   headphones: "M3 14v-3a9 9 0 0 1 18 0v3M3 13h4v8H3zM17 13h4v8h-4z",
   arrow: "M4 12h16m-6-6 6 6-6 6",
   link: "M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
-  thread: "M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2zM8 8h8M8 12h5",
+  thread: {
+    bubble:
+      "M2.992 16.342a2 2 0 0 1 .094 1.167l-1.065 3.29a1 1 0 0 0 1.236 1.168l3.413-.998a2 2 0 0 1 1.099.092 10 10 0 1 0-4.777-4.719",
+  },
   /** An arrow turning back: answering a message in place, beside it rather than in a thread. */
-  reply: "m9 17-5-5 5-5M20 18v-2a4 4 0 0 0-4-4H4",
+  reply: { arrow: "m9 14-4-4 4-4M5 10h11a4 4 0 1 1 0 8h-1" },
   /** Triangle with an exclamation mark, for failure states. */
   alert: "M12 3 2.5 20h19zM12 10v4M12 17.5h.01",
-  /** Three dots, drawn by a round stroke through three points. */
-  dots: "M12 5h.01M12 12h.01M12 19h.01",
+  /** Three dots, each a ring so small that a stroke of 2 fills it. */
+  dots: {
+    top: "M11 5a1 1 0 1 0 2 0 1 1 0 1 0-2 0",
+    middle: "M11 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0",
+    bottom: "M11 19a1 1 0 1 0 2 0 1 1 0 1 0-2 0",
+  },
   check: "m4 12 5 5L20 7",
   plus: "M12 5v14M5 12h14",
-  edit: "M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z",
+  /** A pencil. The line across it is hidden until the pencil moves. */
+  edit: {
+    line: "m15 4.5 4.5 4.5",
+    pencil: "M7.875 20.625l-6 1.5 1.5-6L16.693 2.807a3.182 3.182 0 0 1 4.5 4.5z",
+  },
   trash: "M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6",
   lock: "M6 11h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM8 11V7a4 4 0 0 1 8 0v4",
   at: "M16 12a4 4 0 1 1-8 0 4 4 0 0 1 8 0M16 8v5a3 3 0 0 0 6 0v-1a10 10 0 1 0-4 8",
-  smile: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M8 14s1.5 2 4 2 4-2 4-2M9 9h.01M15 9h.01",
+  /** Its Hover draws no smile: this is its level-mouthed face with the mouth turned up. */
+  smile: {
+    face: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0",
+    mouth: "M8 14s1.5 2 4 2 4-2 4-2",
+    eyes: "M9 9h.01M15 9h.01",
+  },
   bell: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0",
   /** Notifications paused: the pause control, and a muted channel. */
   bellOff:
@@ -104,6 +125,7 @@ export function Icon({
   className?: string;
   strokeWidth?: number;
 }) {
+  const drawing: string | Record<string, string> = paths[name];
   return (
     <svg
       width={size}
@@ -117,8 +139,16 @@ export function Icon({
       aria-hidden="true"
       className={"shrink-0" + (className ? ` ${className}` : "")}
       style={style}
+      data-icon={typeof drawing === "string" ? undefined : name}
     >
-      <path d={paths[name]} />
+      {typeof drawing === "string" ? (
+        <path d={drawing} />
+      ) : (
+        // A length of 1 lets the stylesheet draw a part in, as a dash that grows.
+        Object.entries(drawing).map(([part, d]) => (
+          <path key={part} data-part={part} pathLength={1} d={d} />
+        ))
+      )}
     </svg>
   );
 }

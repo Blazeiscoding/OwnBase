@@ -521,46 +521,48 @@ export const MessageItem = memo(function MessageItem({
             <ToolbarButton key={e} label={e} onClick={() => react(e)} />
           ))}
           <ToolbarButton
-            label={<Icon name="smile" size={16} />}
+            label={<Icon name="smile" size={18} strokeWidth={2} />}
             title="Add a reaction"
             onClick={() => setPicking(true)}
           />
           <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-edge" />
           {canReply && (
             <ToolbarButton
-              label={<Icon name="reply" size={16} />}
+              label={<Icon name="reply" size={18} strokeWidth={2} />}
               title="Reply"
               onClick={(event) => reply(!event.shiftKey)}
             />
           )}
           {!inThread && (
             <ToolbarButton
-              label={<Icon name="thread" size={16} />}
+              label={<Icon name="thread" size={18} strokeWidth={2} />}
               title="Reply in thread"
               onClick={() => onOpenThread?.(message.id)}
             />
           )}
           <ToolbarButton
-            label={<Icon name="bookmark" size={16} />}
+            label={<Icon name="bookmark" size={18} strokeWidth={2} />}
             title={saveLabel}
             active={isSaved}
             onClick={toggleSaved}
           />
           {mine && (
             <ToolbarButton
-              label={<Icon name="edit" size={16} />}
+              label={<Icon name="edit" size={18} strokeWidth={2} />}
               title="Edit message"
               onClick={() => setEditing(true)}
             />
           )}
           <Menu
             label="More actions"
+            triggerLabel="More actions"
+            triggerContent={<Icon name="dots" size={18} strokeWidth={2} />}
             tooltip="More actions"
             items={moreItems}
             // Wide enough that "Mark unread from this message" stays on one line.
             width={272}
             onOpenChange={setMoreOpen}
-            triggerClassName="flex size-7 items-center justify-center rounded-md text-ink-dim transition-colors hover:bg-ink/[0.08] hover:text-ink"
+            triggerClassName="icon-live flex size-7 items-center justify-center rounded-md text-ink-dim transition-colors hover:bg-ink/[0.08] hover:text-ink"
           />
         </div>
       )}
@@ -678,8 +680,9 @@ function ToolbarButton(props: {
       onClick={props.onClick}
       disabled={props.disabled}
       aria-label={props.title}
-      className={`flex size-7 items-center justify-center rounded-md text-[15px] text-ink-dim transition-colors hover:bg-ink/[0.08] hover:text-ink disabled:opacity-40 ${
-        props.active ? "text-copper" : ""
+      // One colour or the other: of two text colours on one element, the stylesheet's order picks.
+      className={`icon-live flex size-7 items-center justify-center rounded-md text-[15px] transition-colors hover:bg-ink/[0.08] disabled:opacity-40 ${
+        props.active ? "text-copper" : "text-ink-dim hover:text-ink"
       }`}
     >
       {props.label}

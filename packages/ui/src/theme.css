@@ -1177,6 +1177,161 @@ textarea::placeholder {
 }
 
 /*
+ * Icons that move, after Its Hover's (itshover.com), with its timings. Icon.tsx
+ * draws them in named parts, and a control marked icon-live plays their motion
+ * while it is pointed at or holds the keyboard's focus. Distances are in the
+ * drawing's own 24 units, so a motion keeps its proportions at any size. The
+ * bookmark stays squeezed for as long as the pointer does, so it is a
+ * transition; the others play once.
+ */
+[data-icon] {
+  overflow: visible;
+}
+[data-icon] path {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+[data-icon="bookmark"] path {
+  transform-origin: 50% 20%;
+  transition:
+    translate 180ms ease-in-out,
+    scale 180ms ease-in-out;
+}
+/* The pencil and the line across it turn as one, about the middle of the drawing. */
+[data-icon="edit"] path {
+  transform-box: view-box;
+}
+[data-icon="edit"] [data-part="line"] {
+  opacity: 0;
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .icon-live:is(:hover, :focus-visible) [data-icon="smile"] [data-part="eyes"] {
+    animation: icon-blink 800ms ease-in-out;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="smile"] [data-part="mouth"] {
+    animation: icon-purse 500ms ease-in-out;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="reply"] path {
+    animation: icon-nudge 400ms ease-in-out;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="thread"] path {
+    animation:
+      icon-draw 600ms ease-in-out,
+      icon-swell 300ms ease-out 600ms;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="bookmark"] path {
+    translate: 0 1px;
+    scale: 1 0.9;
+    transition-timing-function: ease-out;
+  }
+  /* It writes its way up, the line is drawn and taken back, and it settles. */
+  .icon-live:is(:hover, :focus-visible) [data-icon="edit"] path {
+    animation: icon-write 1550ms ease-in-out;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="edit"] [data-part="line"] {
+    animation:
+      icon-write 1550ms ease-in-out,
+      icon-stroke 500ms ease-in-out 800ms;
+  }
+  /* One after another: the top dot drops in, the middle swells, the bottom rises. */
+  .icon-live:is(:hover, :focus-visible) [data-icon="dots"] path {
+    animation:
+      icon-settle 300ms ease-out,
+      icon-swell 300ms ease-out;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="dots"] [data-part="top"] {
+    --icon-from: -2px;
+    --icon-swell: 1.2;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="dots"] [data-part="middle"] {
+    --icon-swell: 1.3;
+    animation-delay: 100ms;
+  }
+  .icon-live:is(:hover, :focus-visible) [data-icon="dots"] [data-part="bottom"] {
+    --icon-from: 2px;
+    --icon-swell: 1.2;
+    animation-delay: 200ms;
+  }
+}
+@keyframes icon-blink {
+  25%,
+  75% {
+    scale: 1 0.3;
+  }
+  50% {
+    scale: 1;
+  }
+}
+@keyframes icon-purse {
+  50% {
+    scale: 0.9 1;
+  }
+}
+@keyframes icon-nudge {
+  50% {
+    translate: -3px;
+  }
+}
+/* Needs pathLength="1" on the path, which makes one dash the whole of it. */
+@keyframes icon-draw {
+  from {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes icon-stroke {
+  from,
+  to {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    opacity: 0;
+  }
+  60% {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+}
+@keyframes icon-swell {
+  50% {
+    scale: var(--icon-swell, 1.05);
+  }
+}
+@keyframes icon-settle {
+  from {
+    translate: 0 var(--icon-from, 0);
+  }
+}
+@keyframes icon-write {
+  10% {
+    translate: 0.75px -1.5px;
+    rotate: -6deg;
+  }
+  21% {
+    translate: -0.75px -3px;
+    rotate: -4deg;
+  }
+  31% {
+    translate: 0.75px -4.5px;
+    rotate: -6deg;
+  }
+  41% {
+    translate: -0.75px -6px;
+    rotate: -4deg;
+  }
+  52%,
+  84% {
+    translate: 0 -7.5px;
+    rotate: 0deg;
+  }
+}
+
+/*
  * Shortening a looping animation does not stop it — it speeds it up. The
  * pulsing dot that says a call is live would run its whole cycle in a
  * hundredth of a second and flicker, which is worse for the person who asked
