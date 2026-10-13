@@ -273,7 +273,8 @@
         "The stylesheet centralizes font, spacing, radius and focus conventions, plus compact-window/drawer behavior and motion-related presentation. UI theme controls and native shell colors are intended to stay consistent with these tokens.",
         "It also holds the dialog layout: a capped column whose scrolling region keeps a constant content width through container units, contains overscroll, and fades at an edge with more beyond it through a scroll timeline.",
         "Theme tests check the project's chosen type/radius scale and color contrast; these checks support consistency without replacing manual usability inspection.",
-        "Motion follows transitions.dev's scale, written down as tokens: durations, two easings and distances and blurs, each named for what it is for. Surfaces open in 250 ms and close in 150 ms; arrivals may overshoot and departures never do. The keyframes name only where they start and fill backwards, so a finished animation leaves no transform behind. The phone drawer slides both ways with @starting-style and a discrete display transition, and asking for less motion stops all of it."
+        "Motion follows transitions.dev's scale, written down as tokens: durations, two easings and distances and blurs, each named for what it is for. Surfaces open in 250 ms and close in 150 ms; arrivals may overshoot and departures never do. The keyframes name only where they start and fill backwards, so a finished animation leaves no transform behind. The phone drawer slides both ways with @starting-style and a discrete display transition, and asking for less motion stops all of it.",
+        "Icons move the way Its Hover's do, with its timings, inside a control marked icon-live: the smile blinks, the reply arrow nudges back, the speech bubble draws itself, the bookmark squeezes for as long as it is pointed at, the pencil writes its way up and the three dots land one after another. Distances are in the drawing's own units. The motion plays for a pointer that hovers or for keyboard focus, and not at all for someone who asked for less motion."
       ],
       "concepts": ["design tokens", "themes", "density", "responsive layout", "focus styling"]
     },
@@ -901,7 +902,8 @@
         "Reaction, pin and saved toggles report refused optimistic changes through a toast with a repeatable intent. Delete uses an explicit confirmation; mark unread delegates channel or thread cursor behavior to the client.",
         "Copying text/link waits for clipboard outcome. App link buttons navigate normally while interactive buttons call the app through the server and wait for its result; permissions remain enforced by the server.",
         "The in-place editor is a lazy chunk with an inline loading status and a recoverable failure, keeping editing code out of the entry every visit downloads. The emoji picker for a reaction is a lazy chunk too, with a dialog that says so if it cannot load.",
-        "Reply answers a message in place (Shift leaves its author unnotified) and Reply in thread opens its thread, as in Discord; inside a thread, Reply answers one of its replies. A reply shows its quote above it through ReplyQuote, and a reply that notified you is marked as a mention is."
+        "Reply answers a message in place (Shift leaves its author unnotified) and Reply in thread opens its thread, as in Discord; inside a thread, Reply answers one of its replies. A reply shows its quote above it through ReplyQuote, and a reply that notified you is marked as a mention is.",
+        "The hover toolbar draws its icons at 18 px with a stroke of 2, beside the reaction emoji, and marks each button icon-live so its icon moves when pointed at. A saved message's bookmark takes the accent colour alone; with two text colours on the button, the stylesheet's order had left it looking unsaved."
       ],
       "concepts": [
         "memoized row",
@@ -1372,13 +1374,19 @@
     },
     {
       "path": "packages/ui/src/components/Icon.tsx",
-      "plain": "The app's set of small icons and its logo, drawn directly so nothing extra has to download.",
+      "plain": "The app's set of small icons and its logo, drawn directly so nothing extra has to download. Six of them move when you point at their button.",
       "summary": "Provides the application's small inline SVG icon vocabulary and brand mark.",
       "details": [
         "IconName maps to shared vector paths, stroke/size conventions and accessible usage supplied by parent controls.",
-        "Inline vectors avoid an icon font, extra network fetch and a large icon runtime dependency while keeping common controls visually consistent."
+        "Inline vectors avoid an icon font, extra network fetch and a large icon runtime dependency while keeping common controls visually consistent.",
+        "Six icons (smile, reply, thread, bookmark, edit and the three dots) are redrawn after Its Hover's and kept as named parts. Such an icon carries data-icon and each path data-part, and every part has a path length of 1, so the stylesheet can move or draw one part without a motion library in the bundle."
       ],
-      "concepts": ["inline SVG", "shared visual vocabulary", "dependency reduction"]
+      "concepts": [
+        "inline SVG",
+        "shared visual vocabulary",
+        "dependency reduction",
+        "icons in parts"
+      ]
     },
     {
       "path": "packages/ui/src/components/Button.tsx",
