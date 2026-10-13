@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, Message, User } from "@slackoss/protocol";
@@ -150,6 +150,36 @@ describe("a message's menu", () => {
     await user.click(within(await openMenu(user, "Sam Rivera")).getByText("Copy text"));
     expect(await screen.findByText("Text copied.")).toBeVisible();
     expect(await navigator.clipboard.readText()).toBe("Standup notes are in the doc.");
+  });
+});
+
+describe("a message's toolbar", () => {
+  it("marks every button whose icon can move, so pointing at it plays the motion", () => {
+    messageFrom(sam, sam);
+    const toolbar = screen.getByRole("button", { name: "Reply in thread" }).parentElement!;
+    const icons = [...toolbar.querySelectorAll<SVGElement>("svg[data-icon]")];
+    expect(icons.map((icon) => icon.dataset.icon)).toEqual([
+      "smile",
+      "thread",
+      "bookmark",
+      "edit",
+      "dots",
+    ]);
+    for (const icon of icons) expect(icon.closest("button")).toHaveClass("icon-live");
+  });
+
+  it("gives a saved message's bookmark the accent colour and no other", () => {
+    const { client } = messageFrom(sam, sam);
+    const colours = (name: string) =>
+      screen
+        .getByRole("button", { name })
+        .className.split(" ")
+        .filter((cls) => /(^|:)text-[a-z]/.test(cls));
+    expect(colours("Save for later")).toEqual(["text-ink-dim", "hover:text-ink"]);
+    act(() => client.store.setState({ saved: { M_1: true } }));
+    // Two text colours on one element leave the choice to the stylesheet's
+    // order, which once left a saved message's bookmark looking unsaved.
+    expect(colours("Remove from Saved")).toEqual(["text-copper"]);
   });
 });
 

@@ -96,10 +96,10 @@ export function Menu({
       onClick={() => setOpen(true)}
       className={
         triggerClassName ??
-        "rounded-lg border border-edge px-2 py-1 text-[12px] text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40"
+        "icon-live rounded-lg border border-edge px-2 py-1 text-[12px] text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40"
       }
     >
-      {triggerContent ?? <Icon name="dots" size={15} strokeWidth={2.6} />}
+      {triggerContent ?? <Icon name="dots" size={15} strokeWidth={2} />}
     </button>
   );
 

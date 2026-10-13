@@ -56,7 +56,7 @@ interface Props {
 }
 
 const tool =
-  "flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink";
+  "icon-live flex h-7 min-w-7 items-center justify-center rounded-md px-1.5 text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink";
 
 export function FormattingToolbar({
   onFormat,
