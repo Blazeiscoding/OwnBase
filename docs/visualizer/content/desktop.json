@@ -10,9 +10,22 @@
         "Keeps the existing user-data location while applying Tandem branding and reads legacy environment names, so renaming does not abandon settings or hosted databases.",
         "Enforces one primary instance, routes cold/warm deep links, creates a sandboxed window and tray, and registers IPC through the trusted-window guard.",
         "Owns discovery, the embedded server adapter, native dialogs/downloads/media, settings, worker jobs, network/wake refresh, renderer recovery and coordinated quit.",
-        "The embedded server still runs in Electron main. Q12 documents a post-listen policy-write ownership gap; it is follow-up work."
+        "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12)."
       ],
       "concepts": ["Electron main", "process ownership", "IPC", "lifecycle"]
+    },
+    {
+      "path": "apps/desktop/src/main/hostedServer.ts",
+      "plain": "Starts the server for a workspace the desktop app hosts, and stops it again if getting it ready fails.",
+      "summary": "Creates the embedded workspace server and hands it to the hosting controller, closing it when setup fails after it is listening.",
+      "details": [
+        "startHostedServer calls the same createWorkspaceServer the CLI uses, with the packaged web client, the saved call relay, and loopback-only isolation for a restored copy being looked inside.",
+        "The server listens and holds its folder as soon as it is created, before the controller owns anything. Relay tracking and the invite-only write for a configured public address run inside a protected block.",
+        "If that block throws, the server is removed from relay tracking and stopped before the error propagates, so nothing keeps answering or holding the folder (Q12). If the stop fails too, an AggregateError carries both failures.",
+        "The returned object is the controller's view of the server: identity, name, connected count, public URL, proxy trust, ICE servers, access policy and stop.",
+        "The host's dependencies are passed in, so the real server can be exercised in tests without Electron."
+      ],
+      "concepts": ["embedded server", "resource ownership", "startup failure", "Q12"]
     },
     {
       "path": "apps/desktop/src/main/hosting.ts",
@@ -22,7 +35,7 @@
         "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
         "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
-        "Q13 remains open: a queued shutdown can wait behind an outstanding backup before it reaches its cleanup deadline.",
+        "Since Q13 a shutdown waits its cleanup deadline for work ahead of it in the queue, then gives up its place and rejects, so a stop never runs after its caller was told it failed.",
         "setAccessPolicy changes who may join the running workspace. Opening and closing the public link save and restore the whole policy rather than the invite flag, and guests let in while the link is open leave with it."
       ],
       "concepts": ["state machine", "serialized operations", "backup", "ownership"]
@@ -1055,13 +1068,13 @@
         },
         {
           "title": "Start the server",
-          "description": "The desktop app starts the same server people run on its own, notes which run this is, and shows addresses others on the local network can use. One known gap remains. If saving the invite rules fails just after the server starts, the server can keep running without the app in control of it.",
+          "description": "The desktop app starts the same server people run on its own, notes which run this is, and shows addresses others on the local network can use. If saving the invite rules fails just after the server starts, the app stops that server again and reports that the workspace did not start.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/hosting.ts",
             "packages/server/src/server.ts"
           ],
-          "detail": "Controller calls the main adapter to start the same server used by the CLI, records its per-run identity and announces reachable LAN addresses. Q12 remains an adapter failure gap after listen and before policy setup completes."
+          "detail": "Controller calls the main adapter to start the same server used by the CLI, records its per-run identity and announces reachable LAN addresses. If policy setup fails after listen, the adapter stops the server it made before the failure is reported (Q12)."
         },
         {
           "title": "Open an internet address",
@@ -1071,14 +1084,14 @@
         },
         {
           "title": "Back up and shut down",
-          "description": "A separate helper does the heavy database work for backups, and the app checks each result and saves the backup schedule and any failures. Shutting down waits for work already accepted, then closes everything the app opened. A known gap remains, since shutdown can wait a long time behind a backup that is stuck.",
+          "description": "A separate helper does the heavy database work for backups, and the app checks each result and saves the backup schedule and any failures. Shutting down waits for work already accepted, then closes everything the app opened. It waits a set time for a backup that is still running. After that it says it could not finish, and the person can keep the app open or quit anyway.",
           "files": [
             "apps/desktop/src/main/backupWorker.ts",
             "apps/desktop/src/main/hosting.ts",
             "packages/server/src/backup.ts",
             "apps/desktop/src/main/trayBackups.ts"
           ],
-          "detail": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; Q13's wait behind a held backup is follow-up."
+          "detail": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; its wait behind a held backup is bounded by the cleanup deadline (Q13)."
         }
       ],
       "detail": "One controller owns the server/connector lifecycle; restored-copy holds and pending cleanup gate reopening."

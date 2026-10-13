@@ -148,6 +148,79 @@ describe("mark unread", () => {
     expect(lastRead()).toBe(later.seq);
   });
 
+  /** Answers each mark unread when told to, in whatever order the test chooses. */
+  function heldMarks() {
+    const answers: { accept: () => void; refuse: () => void }[] = [];
+    vi.spyOn(client.api, "markUnread").mockImplementation(
+      (_channel, seq) =>
+        new Promise((resolve, reject) => {
+          answers.push({
+            accept: () => resolve({ ok: true, seq }),
+            refuse: () => reject(new Error("offline")),
+          });
+        }),
+    );
+    return answers;
+  }
+  const settled = () => new Promise((resolve) => setTimeout(resolve, 0));
+
+  it("keeps a second mark of the same message when the first then fails (Q10)", async () => {
+    const message = await incoming("Marked twice");
+    client.markRead(channelId, message.seq);
+    await expect.poll(lastRead).toBe(message.seq);
+
+    const answers = heldMarks();
+    client.markUnread(channelId, message.seq);
+    client.markUnread(channelId, message.seq);
+    answers[1]!.accept();
+    await settled();
+    answers[0]!.refuse();
+    await settled();
+
+    expect(lastRead()).toBe(message.seq - 1);
+    // Still held unread: looking at it does not read it again.
+    client.markRead(channelId, message.seq);
+    expect(lastRead()).toBe(message.seq - 1);
+  });
+
+  it("goes back to before the first mark when both of the same message fail", async () => {
+    const message = await incoming("Refused twice");
+    client.markRead(channelId, message.seq);
+    await expect.poll(lastRead).toBe(message.seq);
+
+    const answers = heldMarks();
+    client.markUnread(channelId, message.seq);
+    client.markUnread(channelId, message.seq);
+    answers[0]!.refuse();
+    await settled();
+    // The second is still out, and speaks for the cursor.
+    expect(lastRead()).toBe(message.seq - 1);
+    answers[1]!.refuse();
+    await settled();
+
+    expect(lastRead()).toBe(message.seq);
+    client.markRead(channelId, message.seq);
+    expect(lastRead()).toBe(message.seq);
+  });
+
+  it("goes back to the mark the server took when a later one fails", async () => {
+    const first = await incoming("Kept unread from here");
+    const second = await incoming("Not from here");
+    client.markRead(channelId, second.seq);
+    await expect.poll(lastRead).toBe(second.seq);
+
+    const answers = heldMarks();
+    client.markUnread(channelId, first.seq);
+    client.markUnread(channelId, second.seq);
+    expect(lastRead()).toBe(second.seq - 1);
+    answers[0]!.accept();
+    await settled();
+    answers[1]!.refuse();
+    await settled();
+
+    expect(lastRead()).toBe(first.seq - 1);
+  });
+
   it("marks a thread unread without touching the channel, and counts it", async () => {
     const root = await incoming("Thread root");
     await client.loadThread(root.id, channelId, "latest");
@@ -261,6 +334,76 @@ describe("reading a thread", () => {
       alsoSendToChannel: true,
     });
     await expect.poll(() => client.state.channelLastSeq[channelId]).toBe(message.seq);
+  });
+});
+
+describe("following a thread", () => {
+  const followed = async (rootId: string) =>
+    (await client.api.listFollowedThreads()).threads.some((thread) => thread.root.id === rootId);
+
+  it("sends an Unfollow only once the Follow before it is answered, so the server ends unfollowed (Q09)", async () => {
+    const root = await incoming("Follow, then not");
+    await client.loadThread(root.id, channelId, "latest");
+    const send = client.api.setThreadFollow.bind(client.api);
+    let release = () => {};
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    // The Follow is slow to reach the server; sent together, the Unfollow would get there first.
+    const sent = vi
+      .spyOn(client.api, "setThreadFollow")
+      .mockImplementationOnce(async (rootId, following) => {
+        await slow;
+        return send(rootId, following);
+      });
+
+    client.setThreadFollow(root.id, true);
+    client.setThreadFollow(root.id, false);
+    expect(client.state.threadFollows[root.id]?.following).toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(sent.mock.calls.map(([, following]) => following)).toEqual([true]);
+
+    release();
+    await expect
+      .poll(() => sent.mock.calls.map(([, following]) => following))
+      .toEqual([true, false]);
+    await Promise.all(sent.mock.results.map((result) => result.value));
+    expect(await followed(root.id)).toBe(false);
+    expect(client.state.threadFollows[root.id]?.following).toBe(false);
+  });
+
+  it("still sends the Unfollow when the Follow before it fails", async () => {
+    const root = await incoming("Follow fails");
+    await client.loadThread(root.id, channelId, "latest");
+    const sent = vi
+      .spyOn(client.api, "setThreadFollow")
+      .mockRejectedValueOnce(new Error("offline"));
+
+    client.setThreadFollow(root.id, true);
+    client.setThreadFollow(root.id, false);
+    await expect.poll(() => sent.mock.calls.length).toBe(2);
+    await sent.mock.results[1]!.value;
+
+    expect(await followed(root.id)).toBe(false);
+    expect(client.state.threadFollows[root.id]?.following).toBe(false);
+  });
+
+  it("sends nothing that was waiting its turn once the client is closed", async () => {
+    const root = await incoming("Closed meanwhile");
+    await client.loadThread(root.id, channelId, "latest");
+    let release = () => {};
+    const sent = vi.spyOn(client.api, "setThreadFollow").mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          release = () => reject(new Error("offline"));
+        }),
+    );
+
+    client.setThreadFollow(root.id, true);
+    client.setThreadFollow(root.id, false);
+    client.destroy();
+    release();
+    await new Promise((resolve) => setTimeout(resolve, 20));
+
+    expect(sent).toHaveBeenCalledOnce();
   });
 });
 

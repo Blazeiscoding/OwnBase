@@ -155,7 +155,7 @@ export function parseLastHosted(value: unknown): LastHosted | null {
   return { workspaceName: workspaceName.trim(), port };
 }
 
-interface HostedServer {
+export interface HostedServer {
   port: number;
   /** The identity the server keeps in its database, recorded in the registry. */
   workspaceId?(): string | null;
@@ -252,7 +252,10 @@ interface HostingOptions {
    * port does not prove the port reaches us. Absent where nothing can check.
    */
   verifyLoopback?(port: number, instanceId?: string): Promise<boolean>;
-  /** A stop that never answers stays owned and can be retried, rather than blocking quit forever. */
+  /**
+   * A stop that never answers stays owned and can be retried, rather than
+   * blocking quit forever. A quit waits this long too for work ahead of it.
+   */
   cleanupTimeoutMs?: number;
 }
 
@@ -2065,7 +2068,29 @@ export function createHostingController(options: HostingOptions) {
     // Set before joining the queue: later IPC starts cannot outrun a pending quit.
     closing = true;
     cancelPublicOpen();
-    shutdownPromise = serialized(stopCurrent).catch((error: unknown) => {
+    // Whatever is already running, a backup to a slow disk say, gets as long
+    // to finish as a stop does. After that the stop gives up its place: left
+    // waiting, it would stop the workspace whenever that work ended, after
+    // whoever was asked had chosen to keep the app open. Nothing is abandoned;
+    // the work goes on, and the server stays owned to stop on a later try.
+    let turn: "waiting" | "taken" | "given up" = "waiting";
+    const reached = new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (turn !== "waiting") return;
+        turn = "given up";
+        reject(
+          new Error("Tandem is still finishing other work, so the workspace was not stopped."),
+        );
+      }, options.cleanupTimeoutMs ?? 30_000);
+      timer.unref?.();
+      void serialized(async () => {
+        if (turn === "given up") return;
+        turn = "taken";
+        clearTimeout(timer);
+        await stopCurrent();
+      }).then(resolve, reject);
+    });
+    shutdownPromise = reached.catch((error: unknown) => {
       // The caller can cancel quitting and retry with the same owned server.
       closing = false;
       shutdownPromise = null;

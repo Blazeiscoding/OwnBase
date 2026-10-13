@@ -31,7 +31,7 @@ import type {
   EventEnvelope,
 } from "@slackoss/protocol";
 import { FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
-import { ulid, inviteCode } from "./ids.js";
+import { ulid, orderedUlid, inviteCode } from "./ids.js";
 
 interface UserRow {
   id: string;
@@ -979,7 +979,9 @@ export class Store {
     /** Notify that message's author, unless it is the sender or deleted. */
     replyPing?: boolean;
   }): Message {
-    const id = ulid();
+    // Messages are read back in the order of their ids, so that order has to
+    // be the order they were made in, within one millisecond too.
+    const id = orderedUlid();
     const original = input.replyToId && input.replyPing ? this.pingable(input.replyToId) : null;
     const pinged = original !== input.userId ? original : null;
     this.db

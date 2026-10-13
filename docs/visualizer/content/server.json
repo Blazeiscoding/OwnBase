@@ -117,6 +117,7 @@
       "summary": "Creates sortable entity IDs and random invitation/integration secrets.",
       "details": [
         "ULID-style IDs combine a Crockford-base32 timestamp with random characters, letting ordinary lexicographic comparisons support time-ordered history paging.",
+        "Messages take orderedUlid: within one millisecond it counts up from the previous random half instead of drawing a new one, so ids sort in the order the messages were made. History pages and client lists order by id, and two messages in one millisecond used to sort either way round. Its ids are easy to guess from a neighbour, so nothing that acts as a capability uses it.",
         "Invitation codes use a short readable alphabet; bot and webhook secrets use longer random hex tokens with an optional prefix.",
         "An ID is a reference, while a secret token grants a specific authority. The two must not be treated as interchangeable by callers."
       ],

@@ -125,6 +125,9 @@ interface Choice<V> {
   resent: boolean;
 }
 
+/** Why a request that was waiting its turn did not go: its client had been closed. */
+const CLOSED = new Error("The workspace client was closed.");
+
 const STALE_SEND =
   `Not sent again on its own: this was written more than ${SEND_RETRY_WINDOW_MS / 86_400_000} days ago ` +
   "and may have been posted already. Retry to send it anyway, or discard it.";
@@ -688,6 +691,13 @@ export class WorkspaceClient {
    */
   private readHold = new Set<ID>();
   private threadReadHold = new Set<ID>();
+  /**
+   * The latest mark unread still unanswered for each conversation: the message
+   * it was for, and where the cursor goes back to if the server refuses it.
+   */
+  private unreadMarks = new Map<ID, { seq: number; before: number }>();
+  /** The last request about whether each thread is followed, while one is out; see `inFollowOrder`. */
+  private followWrites = new Map<ID, Promise<unknown>>();
   private readRequests = new Map<ID, AbortController>();
   private readRetryTimer: ReturnType<typeof setInterval> | null = null;
   private acknowledgedMessages = new Set<ID>();
@@ -2599,7 +2609,7 @@ export class WorkspaceClient {
         lastSeq: Math.max(before?.lastSeq ?? 0, tail),
         revision: (before?.revision ?? 0) + 1,
       },
-      () => this.api.setThreadFollow(rootId, following),
+      () => this.inFollowOrder(rootId, () => this.api.setThreadFollow(rootId, following)),
     );
   }
 
@@ -2618,8 +2628,8 @@ export class WorkspaceClient {
     this.applyThreadFollow(next);
     void request()
       .then(({ state }) => this.applyThreadFollow(state))
-      .catch(() => {
-        if (this.state.threadFollows[next.rootId] !== next) return;
+      .catch((error: unknown) => {
+        if (error === CLOSED || this.state.threadFollows[next.rootId] !== next) return;
         onRefused?.();
         this.store.setState((s) => {
           const threadFollows = { ...s.threadFollows };
@@ -2628,6 +2638,27 @@ export class WorkspaceClient {
           return { threadFollows };
         });
       });
+  }
+
+  /**
+   * Sends the requests that say whether a thread is followed one at a time, in
+   * the order they were made. Sent together, a Follow could reach the server
+   * after the Unfollow that came after it, and leave the thread followed (Q09).
+   *
+   * Reading a thread does not wait here. It moves only the thread's cursor,
+   * and a newer read held up behind an older one would wait for nothing.
+   */
+  private inFollowOrder<T>(rootId: ID, request: () => Promise<T>): Promise<T> {
+    const earlier = this.followWrites.get(rootId);
+    // A client closed while this waited sends nothing more.
+    const afterEarlier = () => (this.stopped ? Promise.reject(CLOSED) : request());
+    const sent = earlier ? earlier.then(afterEarlier, afterEarlier) : request();
+    this.followWrites.set(rootId, sent);
+    const settled = () => {
+      if (this.followWrites.get(rootId) === sent) this.followWrites.delete(rootId);
+    };
+    sent.then(settled, settled);
+    return sent;
   }
 
   /**
@@ -3036,14 +3067,33 @@ export class WorkspaceClient {
     this.readRequests.delete(channelId);
     this.pendingReads.delete(channelId);
     this.readHold.add(channelId);
-    const before = this.state.memberships[channelId] ?? 0;
+    const cursor = this.state.memberships[channelId] ?? 0;
+    // Marked again while the last mark is unanswered and still showing: the
+    // server has neither yet, so both go back to where the first began.
+    const earlier = this.unreadMarks.get(channelId);
+    const mark = { seq, before: earlier && cursor === earlier.seq - 1 ? earlier.before : cursor };
+    this.unreadMarks.set(channelId, mark);
     this.store.setState((s) => ({ memberships: { ...s.memberships, [channelId]: seq - 1 } }));
-    void this.api.markUnread(channelId, seq).catch(() => {
-      // A read or another mark unread since has moved the cursor, and is newer.
-      if (this.state.memberships[channelId] !== seq - 1) return;
-      this.readHold.delete(channelId);
-      this.store.setState((s) => ({ memberships: { ...s.memberships, [channelId]: before } }));
-    });
+    void this.api.markUnread(channelId, seq).then(
+      () => {
+        const latest = this.unreadMarks.get(channelId);
+        if (latest === mark) this.unreadMarks.delete(channelId);
+        // The server has this one now, so a later one refused goes back to it.
+        else if (latest) latest.before = seq - 1;
+      },
+      () => {
+        // A later mark unread speaks for the cursor now, even one for this
+        // same message, which leaves the cursor looking as this one left it
+        // (Q10). So does a read since, which has moved it.
+        if (this.unreadMarks.get(channelId) !== mark) return;
+        this.unreadMarks.delete(channelId);
+        if (this.state.memberships[channelId] !== seq - 1) return;
+        this.readHold.delete(channelId);
+        this.store.setState((s) => ({
+          memberships: { ...s.memberships, [channelId]: mark.before },
+        }));
+      },
+    );
   }
 
   /** The same for one thread, which also follows it. */
@@ -3065,7 +3115,7 @@ export class WorkspaceClient {
         // As the server holds it: against the channel's cursor as it is now.
         ...(channelRead === undefined ? {} : { unreadHold: channelRead }),
       },
-      () => this.api.markThreadUnread(rootId, seq),
+      () => this.inFollowOrder(rootId, () => this.api.markThreadUnread(rootId, seq)),
       () => this.threadReadHold.delete(rootId),
     );
   }

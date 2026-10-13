@@ -34,7 +34,7 @@
         "History requests carry identity and snapshot watermarks so late HTTP pages can be reconciled with socket events. Identical loads share work; superseded, revoked or evicted history requests are aborted. A timeline holds at most 300 messages and inactive history is bounded by a 20-entry cache limit.",
         "send creates a random request nonce and an optimistic PendingMessage, uploads files, posts the message and reconciles the response or socket echo by nonce. The outbox accepts up to 50 waiting sends per account. A known server refusal waits for deliberate Retry; an uncertain outcome can retry the same nonce.",
         "Restored outbox entries contain attachment descriptions rather than File objects. Missing attachment bytes and sends older than the retry window remain visibly failed instead of silently sending incomplete or stale content. destroy releases sockets, timers, media, previews and cached files.",
-        "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Existing choice sequencing covers pins, saves, snooze and channel preferences, but Q09 identifies an unresolved reordered Follow/Unfollow request and Q10 an older identical Mark unread failure that can roll back newer local intent.",
+        "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choice sequencing covers pins, saves, snooze and channel preferences. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation.",
         "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving."
       ],
       "concepts": [
@@ -924,7 +924,7 @@
       "summary": "Displays a root message, paged replies and an independent reply composer.",
       "details": [
         "Loads the root's thread through WorkspaceClient, displays optimistic replies and manages retry/discard for waiting sends.",
-        "Remembers reply reading anchors, protects current thread history from eviction and acknowledges the thread cursor when appropriate. Follow/Unfollow calls the client's thread-follow logic; Q09 documents its remaining request-order race.",
+        "Remembers reply reading anchors, protects current thread history from eviction and acknowledges the thread cursor when appropriate. Follow/Unfollow calls the client's thread-follow logic, which sends those requests in order (Q09).",
         "A thread composer uses a root-specific draft key and optional also-send-to-channel choice rather than clobbering the channel composer."
       ],
       "concepts": ["thread history", "reply drafts", "thread cursor", "Q09"]
@@ -1105,7 +1105,7 @@
       "summary": "Displays a person's profile and provides the shared self-profile editor.",
       "details": [
         "ProfileForm updates the current user's name and status through Api. Another person's profile can start/open a direct message.",
-        "Q11 remains open: dismissing Profile during its Message action does not yet end navigation ownership, so the old completion can navigate after a later channel choice."
+        "Since Q11 a press on Message is dropped once the card closes or shows someone else, so a late answer neither navigates nor changes the card."
       ],
       "concepts": ["profile", "direct message action", "Q11"]
     },
@@ -1175,7 +1175,7 @@
         "The browser does not own a server; native Platform.hosting provides the operations this dialog presents. Existing workspace folders and new workspace names are separate start intents.",
         "Presents running/stopped/startup status, port and rename controls, LAN and public-address choices, connector failure and launch recovery actions.",
         "Lists hosted workspaces and backup schedules, supports backup/restore and explains a restored copy's pending apps, schedules, deliveries and sessions before activation.",
-        "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; pending Q12/Q13 startup/queue gaps must not be claimed solved by the UI.",
+        "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; Q12 and Q13 closed the startup and queue gaps in the desktop main process, not in this dialog.",
         "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it."
       ],
       "concepts": [
@@ -1792,14 +1792,14 @@
         },
         {
           "title": "Make Back and Forward work",
-          "description": "Back and Forward return to places in this workspace and to where you were reading, including in threads during this session. Closing a panel or dialog returns the keyboard to the button that opened it. Two known gaps remain, where a cancelled sign-in or the Message button on a profile can still move you after you have moved on.",
+          "description": "Back and Forward return to places in this workspace and to where you were reading, including in threads during this session. Closing a panel or dialog returns the keyboard to the button that opened it. One known gap remains, where a cancelled sign-in can still move you after you have moved on.",
           "files": [
             "packages/ui/src/lib/route.ts",
             "packages/ui/src/lib/threadPosition.ts",
             "packages/ui/src/lib/usePanelFocus.ts",
             "packages/ui/src/components/Modal.tsx"
           ],
-          "detail": "route.ts records workspace-bound places and reading anchors, threadPosition bounds session thread anchors, and panel/modal focus helpers return keyboard focus to a usable opener. Q06/Q11 document remaining abandoned-action navigation paths."
+          "detail": "route.ts records workspace-bound places and reading anchors, threadPosition bounds session thread anchors, and panel/modal focus helpers return keyboard focus to a usable opener. Q06 documents a remaining abandoned-action navigation path; Q11's is closed."
         }
       ],
       "detail": "Link parsing, account restoration, address trust and history each answer a different question: destination, credentials, local-work admission and reading position."

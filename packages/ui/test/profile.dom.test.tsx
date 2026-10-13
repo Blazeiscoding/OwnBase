@@ -76,6 +76,61 @@ describe("someone else's profile", () => {
     expect(onOpenDm).toHaveBeenCalledWith(dm.id);
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
+
+  /** A press on Message whose conversation opens only when the test says. */
+  function slowDm(client: WorkspaceClient) {
+    let open = () => {};
+    vi.spyOn(client, "openDm").mockImplementation(
+      () => new Promise<Channel>((resolve) => (open = () => resolve(dm))),
+    );
+    return () => open();
+  }
+
+  it("opens nothing once the card is closed, however late the conversation arrives (Q11)", async () => {
+    const user = userEvent.setup();
+    const client = workspace();
+    const arrive = slowDm(client);
+    const onOpenDm = vi.fn();
+    const view = render(
+      <ClientContext.Provider value={client}>
+        <ProfileDialog userId={priya.id} onClose={() => {}} onOpenDm={onOpenDm} />
+      </ClientContext.Provider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Message Priya Natarajan" }));
+
+    // Closed, and the reader has gone somewhere else.
+    view.unmount();
+    arrive();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(onOpenDm).not.toHaveBeenCalled();
+  });
+
+  it("drops a press made for one person once the card shows another", async () => {
+    const user = userEvent.setup();
+    const client = workspace();
+    const lee = person("U_LEE", "lee", "Lee Okafor");
+    client.store.setState((s) => ({ users: { ...s.users, [lee.id]: lee } }));
+    const arrive = slowDm(client);
+    const onOpenDm = vi.fn();
+    const card = (userId: string) => (
+      <ClientContext.Provider value={client}>
+        <ProfileDialog userId={userId} onClose={() => {}} onOpenDm={onOpenDm} />
+      </ClientContext.Provider>
+    );
+    const view = render(card(priya.id));
+    await user.click(screen.getByRole("button", { name: "Message Priya Natarajan" }));
+
+    view.rerender(card(lee.id));
+    arrive();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(onOpenDm).not.toHaveBeenCalled();
+    // And Lee's own button is not left waiting on Priya's press.
+    expect(screen.getByRole("button", { name: "Message Lee Okafor" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
+  });
 });
 
 describe("editing your own profile", () => {
