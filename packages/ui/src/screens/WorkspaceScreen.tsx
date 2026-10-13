@@ -22,7 +22,6 @@ import { channelTitle } from "../lib/format.js";
 import { Sidebar, type OtherWorkspace } from "../components/Sidebar.js";
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
-import { ThreadPanel } from "../components/ThreadPanel.js";
 import { huddleHasVideo, type HuddleView } from "../lib/huddleView.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { CatchUpSummary, namesList } from "../lib/catchUp.js";
@@ -183,6 +182,28 @@ function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
     <LazyDialog loading="Loading Jump to" onClose={props.onClose}>
       <LazySwitcher {...props} />
     </LazyDialog>
+  );
+}
+
+/**
+ * A thread is out of the first download as well. It is fetched as the
+ * workspace opens and drawn directly from then on, so opening one does not
+ * stop at a loading state; only one opened in that first moment does.
+ */
+let LoadedThreadPanel: (typeof import("../components/ThreadPanel.js"))["ThreadPanel"] | null = null;
+const loadThreadPanel = () =>
+  import("../components/ThreadPanel.js").then((module) => {
+    LoadedThreadPanel = module.ThreadPanel;
+    return { default: module.ThreadPanel };
+  });
+const LazyThreadPanel = lazy(loadThreadPanel);
+function ThreadPanel(props: ComponentProps<typeof LazyThreadPanel>) {
+  return LoadedThreadPanel ? (
+    <LoadedThreadPanel {...props} />
+  ) : (
+    <LazyPanel name="Thread" onClose={props.onClose}>
+      <LazyThreadPanel {...props} />
+    </LazyPanel>
   );
 }
 
@@ -622,8 +643,9 @@ function WorkspaceInner({
   useHistoryKeys(platform.kind === "desktop");
 
   useEffect(() => {
-    // Failing here is not final: opening the palette fetches it again.
+    // Failing here is not final: opening the palette, or a thread, fetches it again.
     loadQuickSwitcher().catch(() => undefined);
+    loadThreadPanel().catch(() => undefined);
   }, []);
 
   useEffect(() => {
@@ -1047,7 +1069,7 @@ function WorkspaceInner({
       {announcer.region}
       {sidebarOpen && (
         <button
-          className="sidebar-dismiss fixed inset-0 z-30 bg-black/60"
+          className="sidebar-dismiss fixed inset-0 z-30"
           aria-label="Close navigation"
           onClick={closeDrawer}
         />

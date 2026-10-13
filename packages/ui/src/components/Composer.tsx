@@ -809,7 +809,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         <ul
           {...commandList.listProps}
           aria-label="Commands"
-          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 animate-pop-in overflow-hidden rounded-xl p-1"
+          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
         >
           {commandCandidates.map((c, i) => (
             <li
@@ -833,7 +833,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         <ul
           {...mentionList.listProps}
           aria-label="Mentions"
-          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 animate-pop-in overflow-hidden rounded-xl p-1"
+          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
         >
           {candidates.map((c, i) => (
             <li
@@ -868,7 +868,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         <ul
           {...emojiList.listProps}
           aria-label="Emoji"
-          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 animate-pop-in overflow-hidden rounded-xl p-1"
+          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
         >
           {emojiCandidates.map(([emoji, label], i) => (
             <li

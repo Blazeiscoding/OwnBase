@@ -11,6 +11,7 @@ import { Lightbox, PendingAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
+import { Swap } from "./Motion.js";
 import { useRovingMessages } from "../lib/useRovingMessages.js";
 import {
   rememberReadingPosition,
@@ -183,6 +184,25 @@ export const MessageTimeline = memo(function MessageTimeline({
   const typers = Object.keys(typing ?? {})
     .filter((id) => id !== selfId)
     .map((id) => users[id]?.displayName ?? "someone");
+
+  // A message that comes in while the reader is at the newest rises into
+  // place, and one of yours, already shown faded as it went, brightens. Not a
+  // page of history, another conversation, or a crowd caught up at once.
+  const arrived = useRef(new Set<ID>());
+  const tail = useRef<{ channelId: ID; newest?: ID; live: boolean } | null>(null);
+  const last = tail.current;
+  if (last?.channelId !== channelId) arrived.current.clear();
+  else if (last.live && last.newest) {
+    const fresh = items.filter((message) => message.id > last.newest!);
+    if (fresh.length <= 3) for (const message of fresh) arrived.current.add(message.id);
+  }
+  useLayoutEffect(() => {
+    tail.current = {
+      channelId,
+      newest: items.at(-1)?.id,
+      live: !!timeline?.loaded && !timeline.hasMoreNewer,
+    };
+  });
 
   // Sending brings you down to what you sent, as Discord and Slack do: a reply
   // to something far up would otherwise land out of sight, and stay unread.
@@ -454,6 +474,13 @@ export const MessageTimeline = memo(function MessageTimeline({
               key={msg.id}
               data-mid={msg.id}
               ref={msg.id === highlightMessageId ? highlightRef : undefined}
+              className={
+                arrived.current.has(msg.id)
+                  ? msg.userId === selfId
+                    ? "animate-sent"
+                    : "animate-message-in"
+                  : undefined
+              }
             >
               {newDay && <DayDivider ts={msg.createdAt} />}
               {i === firstUnread && (
@@ -499,20 +526,23 @@ export const MessageTimeline = memo(function MessageTimeline({
         {(ephemerals ?? []).map((e) => (
           <EphemeralRow key={e.id} message={e} channelId={channelId} />
         ))}
-        <div className="flex h-6 items-center gap-2 px-5 pt-1 text-[12px] text-ink-faint">
-          {typers.length > 0 && (
-            <>
-              <span aria-hidden="true" className="typing-dots inline-flex items-end">
-                <span />
-                <span />
-                <span />
-              </span>
-              <span>
-                <span className="font-medium text-ink-dim">{typers.slice(0, 3).join(", ")}</span>{" "}
-                {typers.length === 1 ? "is" : "are"} typing…
-              </span>
-            </>
-          )}
+        <div className="flex h-6 items-center px-5 pt-1 text-[12px] text-ink-faint">
+          {/* Who is typing changes in place, rising out of a blur. */}
+          <Swap on={typers.join()} text className="flex items-center gap-2">
+            {typers.length > 0 && (
+              <>
+                <span aria-hidden="true" className="typing-dots inline-flex items-end">
+                  <span />
+                  <span />
+                  <span />
+                </span>
+                <span>
+                  <span className="font-medium text-ink-dim">{typers.slice(0, 3).join(", ")}</span>{" "}
+                  {typers.length === 1 ? "is" : "are"} typing…
+                </span>
+              </>
+            )}
+          </Swap>
         </div>
       </div>
       {lightboxFile && <Lightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
@@ -682,7 +712,7 @@ function ChannelIntro({
     : others.map((id) => users[id]?.displayName ?? "unknown").join(", ") || "Just you";
   const person = !isRoom && others.length === 1 ? users[others[0]!] : undefined;
   return (
-    <div className="px-4 pb-2 pt-8 animate-rise-in">
+    <div className="animate-message-in px-4 pb-2 pt-8">
       <div className="mb-3 flex items-center gap-3">
         {person ? (
           <Avatar user={person} size={68} />
@@ -746,7 +776,7 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   return (
-    <div className="py-0.5 pl-5 pr-12 opacity-60">
+    <div className="animate-message-in py-0.5 pl-5 pr-12 opacity-60">
       {pending.replyTo && <ReplyQuote quote={pending.replyTo} users={users} channels={channels} />}
       <div className="flex gap-3.5">
         <div className="w-10 shrink-0" />

@@ -5,6 +5,7 @@ import { browserLink, desktopLink, serverAddress } from "../lib/deeplink.js";
 import type { Channel, ID, Invite, InviteStatus } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
+import { Swap } from "./Motion.js";
 import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { useConfirm } from "./Confirm.js";
 import { useShareableServer } from "./ShareableServer.js";
@@ -653,7 +654,7 @@ function InviteLink(props: {
               : "h-8 shrink-0 rounded-lg px-2.5 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink"
           }
         >
-          {props.copyLabel}
+          <Swap text>{props.copyLabel}</Swap>
         </button>
       </div>
     </div>
@@ -787,7 +788,7 @@ export function InviteDialog(props: { onClose: () => void }) {
             onClick={() => void copy(host, "host")}
             className="h-8 shrink-0 rounded-lg px-2.5 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink"
           >
-            {label("Copy address", "Copied", "Copy failed", "host")}
+            <Swap text>{label("Copy address", "Copied", "Copy failed", "host")}</Swap>
           </button>
         </div>
         {shareable.localOnly && (
@@ -811,7 +812,7 @@ export function InviteDialog(props: { onClose: () => void }) {
               onClick={() => void copy(invite, "code")}
               className="h-8 shrink-0 rounded-lg px-2.5 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink"
             >
-              {label("Copy code", "Copied", "Copy failed", "code")}
+              <Swap text>{label("Copy code", "Copied", "Copy failed", "code")}</Swap>
             </button>
           </div>
           <InviteLink

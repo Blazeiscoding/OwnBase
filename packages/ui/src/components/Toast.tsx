@@ -201,9 +201,28 @@ function ToastItem({
   const messageId = useId();
   const element = useRef<HTMLDivElement>(null);
   const remaining = useRef(SUCCESS_LIFETIME);
-  const close = () => dismiss(id);
+  const [leaving, setLeaving] = useState(false);
+  // It fades as its row folds away, so the notices after it slide up rather
+  // than jump. One closed from the keyboard goes at once, so focus moves to
+  // its neighbour while that is still where it was.
+  const close = () => {
+    const shown = element.current;
+    if (
+      !shown ||
+      typeof shown.getAnimations !== "function" ||
+      shown.querySelector(":focus-visible") ||
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    )
+      dismiss(id);
+    else setLeaving(true);
+  };
   const closeRef = useRef(close);
   closeRef.current = close;
+  useEffect(() => {
+    if (!leaving) return;
+    const gone = setTimeout(() => dismiss(id), 250);
+    return () => clearTimeout(gone);
+  }, [dismiss, id, leaving]);
 
   useEffect(() => {
     // A failure stays until it is dealt with: it may be the only copy of news
@@ -229,59 +248,62 @@ function ToastItem({
   }, [hold, id, releaseFocus]);
 
   return (
-    <div
-      ref={element}
-      data-toast={id}
-      onPointerEnter={() => hold(`pointer:${id}`, true)}
-      onPointerLeave={() => hold(`pointer:${id}`, false)}
-      onFocus={() => hold(`focus:${id}`, true)}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null))
-          hold(`focus:${id}`, false);
-      }}
-      onKeyDown={(event) => {
-        // Escape belongs to the notice holding focus, not to the side panel or
-        // anything else listening further up.
-        if (event.key !== "Escape" || event.defaultPrevented || isImeKey(event.nativeEvent)) return;
-        event.preventDefault();
-        event.stopPropagation();
-        close();
-      }}
-      className={`pointer-events-auto flex animate-pop-in items-start gap-3 rounded-xl border bg-lifted p-3 text-sm text-ink shadow-[var(--shadow-float)] ${
-        failed ? "border-alert/40" : "border-edge"
-      }`}
-    >
-      <Icon
-        name={failed ? "alert" : "check"}
-        size={16}
-        className={`mt-0.5 ${failed ? "text-alert" : "text-online"}`}
-      />
-      <p id={messageId} className="min-w-0 flex-1 leading-snug">
-        {notice.message}
-      </p>
-      {notice.action && (
+    <div className={`toast-slot ${leaving ? "is-leaving" : ""}`}>
+      <div
+        ref={element}
+        data-toast={id}
+        onPointerEnter={() => hold(`pointer:${id}`, true)}
+        onPointerLeave={() => hold(`pointer:${id}`, false)}
+        onFocus={() => hold(`focus:${id}`, true)}
+        onBlur={(event) => {
+          if (!event.currentTarget.contains(event.relatedTarget as Node | null))
+            hold(`focus:${id}`, false);
+        }}
+        onKeyDown={(event) => {
+          // Escape belongs to the notice holding focus, not to the side panel or
+          // anything else listening further up.
+          if (event.key !== "Escape" || event.defaultPrevented || isImeKey(event.nativeEvent))
+            return;
+          event.preventDefault();
+          event.stopPropagation();
+          close();
+        }}
+        className={`pointer-events-auto flex animate-toast-in items-start gap-3 rounded-xl border bg-lifted p-3 text-sm text-ink shadow-[var(--shadow-float)] ${
+          failed ? "border-alert/40" : "border-edge"
+        }`}
+      >
+        <Icon
+          name={failed ? "alert" : "check"}
+          size={16}
+          className={`mt-0.5 ${failed ? "text-alert" : "text-online"}`}
+        />
+        <p id={messageId} className="min-w-0 flex-1 leading-snug">
+          {notice.message}
+        </p>
+        {notice.action && (
+          <button
+            type="button"
+            aria-describedby={messageId}
+            onClick={() => {
+              void notice.action?.run();
+              close();
+            }}
+            className="shrink-0 rounded-lg border border-edge px-2 py-1 text-xs font-semibold text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+          >
+            {notice.action.label}
+          </button>
+        )}
         <button
           type="button"
+          aria-label="Dismiss"
+          // Several notices can be open at once; the message says which one.
           aria-describedby={messageId}
-          onClick={() => {
-            void notice.action?.run();
-            close();
-          }}
-          className="shrink-0 rounded-lg border border-edge px-2 py-1 text-xs font-semibold text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+          onClick={close}
+          className="shrink-0 rounded-lg p-1 text-ink-faint transition-colors hover:text-ink"
         >
-          {notice.action.label}
+          <Icon name="close" size={14} />
         </button>
-      )}
-      <button
-        type="button"
-        aria-label="Dismiss"
-        // Several notices can be open at once; the message says which one.
-        aria-describedby={messageId}
-        onClick={close}
-        className="shrink-0 rounded-lg p-1 text-ink-faint transition-colors hover:text-ink"
-      >
-        <Icon name="close" size={14} />
-      </button>
+      </div>
     </div>
   );
 }

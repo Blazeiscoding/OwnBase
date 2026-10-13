@@ -5,6 +5,7 @@ import { useCallPreferences, type CallDevices } from "../lib/callPreferences.js"
 import { chooseDevices, useMediaDevices } from "../lib/mediaDevices.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
+import { Swap } from "./Motion.js";
 import { Tooltip } from "./Tooltip.js";
 
 /** The system's default and then each device, the chosen one ticked. */
@@ -196,7 +197,9 @@ export function HuddleControls({
               overlay ? "border-alert bg-black/45 text-alert" : "border-alert text-alert",
             )}
           >
-            <Icon name={huddle.micMuted ? "micOff" : "mic"} />
+            <Swap on={huddle.micMuted}>
+              <Icon name={huddle.micMuted ? "micOff" : "mic"} />
+            </Swap>
           </button>
         </Tooltip>
         {micMenu}

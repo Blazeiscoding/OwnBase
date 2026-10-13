@@ -48,7 +48,9 @@ function Starting() {
         className="flex size-9 animate-spin rounded-full border-2 border-edge border-t-copper"
         aria-hidden="true"
       />
-      <span className="font-mono text-sm text-ink-faint">starting…</span>
+      <span className="text-shimmer font-mono text-sm text-ink-faint" data-text="starting…">
+        starting…
+      </span>
     </div>
   );
 }

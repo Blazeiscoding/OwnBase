@@ -16,6 +16,7 @@ import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
 import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { ListStatus } from "./ListStatus.js";
+import { stepIn } from "./Motion.js";
 import { ProfileForm } from "./ProfileDialog.js";
 import { VoiceVideoSettings } from "./VoiceVideoSettings.js";
 import { buttonClass } from "./Button.js";
@@ -192,6 +193,9 @@ export function AccountDialog({
     setSection(next);
     // A section is read from its start, wherever the last one was left.
     if (panel.current) panel.current.scrollTop = 0;
+    // It steps in from the side of the list it is on: one further down from the right.
+    const at = (id: AccountSection) => SECTIONS.findIndex((s) => s.id === id);
+    stepIn(panel.current?.firstElementChild, at(next) - at(section));
     onSectionChange?.(next);
     // What was said, or about to be confirmed, belongs to the section it came from.
     setError(null);

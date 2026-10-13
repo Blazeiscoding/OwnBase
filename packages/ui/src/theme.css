@@ -42,10 +42,15 @@
  *   avatars, dots and pills. theme.test.ts fails on any other.
  * - Elevation: hairline borders first, shadows only for what floats (menus,
  *   dialogs, toolbars).
- * - Motion: 120–180 ms, ease-out, nothing travels more than a few pixels,
- *   except a segmented control's thumb, which slides to the segment chosen so
- *   the eye follows the choice. Nothing opened from the keyboard many times a
- *   day animates.
+ * - Motion: transitions.dev's scale, in the tokens under :root below. A
+ *   surface opens in 250 ms on --ease-smooth and closes in 150 ms, the way it
+ *   came; only an arrival bounces, never a departure. A dialog grows from
+ *   96 %, a menu from 97 % at the corner it hangs from, a hint from 98 %.
+ *   Text that changes moves 4 px, a page 8 px, and only a drawer or a sheet
+ *   travels its own size. A swap blurs 2 px on the way. A count that changes
+ *   rolls in, and a hint waits 400 ms before it shows, then 80 ms for the
+ *   next one. Nothing opened from the keyboard many times a day animates,
+ *   and asking for less motion stops all of it.
  * - Focus: a ring in the accent, --focus-ring-width wide, 2 px out.
  *
  * Every ink clears 4.5:1 on every surface in both themes, and text written on
@@ -85,50 +90,359 @@
     0 12px 32px -8px rgb(0 0 0 / 0.45);
   --shadow-dialog: 0 0 0 1px rgb(0 0 0 / 0.05), 0 32px 80px -16px rgb(0 0 0 / 0.6);
 
-  --animate-pop-in: pop-in 140ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
-  --animate-fade-in: fade-in 140ms ease-out both;
-  --animate-rise-in: rise-in 180ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
-  --animate-slide-in: slide-in 200ms cubic-bezier(0.2, 0.9, 0.3, 1) both;
+  /*
+   * Each arrival names only where it starts, so it ends on the element's own
+   * styles: a pending message settles at its 60 %, not at full strength. All
+   * fill backwards and stop at their end, so nothing they did lingers. A
+   * finished transform still in force would make the element the box that
+   * fixed children, such as a dialog's tooltips, are placed in.
+   */
+  --animate-pop-in: pop-in var(--duration-fast) var(--ease-smooth) backwards;
+  --animate-menu-in: menu-in var(--duration-fast) var(--ease-smooth) backwards;
+  --animate-fade-in: fade-in var(--duration-fast) var(--ease-smooth) backwards;
+  --animate-rise-in: rise-in var(--duration-very-slow) var(--ease-smooth) backwards;
+  --animate-slide-in: slide-in var(--duration-fast) var(--ease-smooth) backwards;
+  --animate-sheet-in: sheet-in var(--duration-medium) var(--ease-smooth) backwards;
+  --animate-toast-in: toast-in var(--duration-medium) var(--ease-smooth) backwards;
+  --animate-tip-in: tip-in var(--duration-quick) ease-out backwards;
+  --animate-message-in: message-in var(--duration-fast) var(--ease-smooth) backwards;
+  --animate-sent: sent var(--duration-quick) ease-out backwards;
+  --animate-badge-in: badge-in var(--duration-very-slow) var(--ease-pop) backwards;
+  --animate-count-in: count-in var(--duration-very-slow) var(--ease-count) backwards;
+  --animate-swap-in: swap-in var(--duration-fast) ease-in-out backwards;
+  --animate-text-in: text-in var(--duration-quick) ease-in-out backwards;
+  --animate-reveal: reveal var(--duration-slow) ease-in-out backwards;
+  --animate-press: press var(--duration-medium) var(--ease-spring);
+  --animate-shake: shake 280ms linear;
+  --animate-shake-again: shake-again 280ms linear;
 
+  /* A dialog grows from just under its size. */
   @keyframes pop-in {
     from {
       opacity: 0;
-      transform: translateY(4px) scale(0.98);
+      scale: 0.96;
     }
-    to {
-      opacity: 1;
-      transform: none;
+  }
+  /* A menu or a popover, from the corner it hangs from (its transform-origin). */
+  @keyframes menu-in {
+    from {
+      opacity: 0;
+      scale: 0.97;
     }
   }
   @keyframes fade-in {
     from {
       opacity: 0;
     }
-    to {
-      opacity: 1;
-    }
   }
-  /* Revealed from its leading edge: clipped, not moved, so its box never shifts. */
+  /* A side panel comes in from the edge it is set against, out of a soft blur. */
   @keyframes slide-in {
     from {
       opacity: 0;
-      clip-path: inset(0 0 0 16%);
-    }
-    to {
-      opacity: 1;
-      clip-path: inset(0);
+      translate: var(--distance-base) 0;
+      filter: blur(var(--blur-small));
     }
   }
+  /* Words arriving on a page: they rise a little out of a soft blur. */
   @keyframes rise-in {
     from {
       opacity: 0;
-      transform: translateY(6px);
-    }
-    to {
-      opacity: 1;
-      transform: none;
+      translate: 0 var(--distance-medium);
+      filter: blur(var(--blur-medium));
     }
   }
+  /* A sheet from below the screen's edge, its own height and a margin away. */
+  @keyframes sheet-in {
+    from {
+      translate: 0 calc(100% + 16px);
+    }
+  }
+  /* A notice rises in, a little smaller and out of focus. */
+  @keyframes toast-in {
+    from {
+      opacity: 0;
+      translate: 0 16px;
+      scale: 0.97;
+      filter: blur(var(--blur-small));
+    }
+  }
+  /* A hint barely grows: it is read, not watched. */
+  @keyframes tip-in {
+    from {
+      opacity: 0;
+      scale: 0.98;
+    }
+  }
+  /* A message as it arrives, and yours once the server has it. */
+  @keyframes message-in {
+    from {
+      opacity: 0;
+      translate: 0 var(--distance-micro);
+    }
+  }
+  @keyframes sent {
+    from {
+      opacity: 0.6;
+    }
+  }
+  /* A badge pops out of nothing, past its size and back. */
+  @keyframes badge-in {
+    from {
+      opacity: 0;
+      scale: 0;
+      filter: blur(var(--blur-small));
+    }
+  }
+  /* A number that changes rolls up into place. */
+  @keyframes count-in {
+    from {
+      opacity: 0;
+      translate: 0 var(--distance-base);
+      filter: blur(var(--blur-small));
+    }
+  }
+  /* An icon that swaps for another grows out of a blur where the last one was. */
+  @keyframes swap-in {
+    from {
+      opacity: 0;
+      scale: 0.25;
+      filter: blur(var(--blur-small));
+    }
+  }
+  /* Words that change slide up into place. */
+  @keyframes text-in {
+    from {
+      opacity: 0;
+      translate: 0 var(--distance-micro);
+      filter: blur(var(--blur-small));
+    }
+  }
+  /* What was being waited for comes into focus where its placeholder was. */
+  @keyframes reveal {
+    from {
+      opacity: 0;
+      filter: blur(var(--blur-small));
+    }
+  }
+  /* Something you pressed gives, then springs back. */
+  @keyframes press {
+    30% {
+      scale: 0.82;
+    }
+  }
+  /*
+   * No: each leg of the shake eases on its own (80, 60, 80 and 60 ms). Its
+   * twin is the same, under a name of its own, so a second refusal straight
+   * after the first starts the shake over.
+   */
+  @keyframes shake-again {
+    0% {
+      translate: 0 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    28.57% {
+      translate: var(--distance-small) 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    57.14% {
+      translate: calc(-1 * var(--distance-small)) 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    78.57% {
+      translate: var(--distance-micro) 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    100% {
+      translate: 0 0;
+    }
+  }
+  @keyframes shake {
+    0% {
+      translate: 0 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    28.57% {
+      translate: var(--distance-small) 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    57.14% {
+      translate: calc(-1 * var(--distance-small)) 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    78.57% {
+      translate: var(--distance-micro) 0;
+      animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    100% {
+      translate: 0 0;
+    }
+  }
+
+  /* On the way out: the twin of each arrival, played by the copy Modal leaves behind. */
+  @keyframes pop-out {
+    to {
+      opacity: 0;
+      scale: 0.96;
+    }
+  }
+  @keyframes menu-out {
+    to {
+      opacity: 0;
+      scale: 0.99;
+    }
+  }
+  @keyframes fade-out {
+    to {
+      opacity: 0;
+    }
+  }
+  @keyframes sheet-out {
+    to {
+      translate: 0 calc(100% + 16px);
+    }
+  }
+}
+
+/*
+ * The motion scale, after transitions.dev's: what each value is for, rather
+ * than the number, decides which one a motion takes.
+ */
+:root {
+  --duration-stagger: 40ms; /* between items in a list */
+  --duration-quick: 150ms; /* closing; text and hints changing */
+  --duration-fast: 250ms; /* opening a dialog or a menu; tabs; a page; an icon swap */
+  --duration-medium: 350ms; /* a sheet or a notice; a drawer opening */
+  --duration-slow: 400ms; /* content replacing its placeholder */
+  --duration-very-slow: 500ms; /* a moment: a badge, a count, words arriving */
+  /* Quick to start and long to settle: everything that opens, closes or moves. */
+  --ease-smooth: cubic-bezier(0.22, 1, 0.36, 1);
+  /* Past the mark and back, for arrivals only. */
+  --ease-pop: cubic-bezier(0.34, 1.36, 0.64, 1);
+  --ease-count: cubic-bezier(0.34, 1.45, 0.64, 1);
+  --ease-spring: cubic-bezier(0.34, 1.96, 0.64, 1);
+  --distance-micro: 4px; /* text that changes in place */
+  --distance-small: 6px; /* a shake */
+  --distance-base: 8px; /* a page, a panel, a count */
+  --distance-medium: 12px; /* words arriving */
+  --blur-small: 2px; /* a swap or a panel */
+  --blur-medium: 3px; /* a page; words arriving */
+}
+
+/*
+ * A dialog, a menu or a popover leaves as it came. Modal puts a copy of it,
+ * marked data-leaving, where it was the moment it closes, and takes the copy
+ * away when these end. A surface that came in with no animation, such as the
+ * switcher, has none to reverse and goes at once.
+ */
+[data-leaving] {
+  pointer-events: none;
+}
+/* The copy is new, so every arrival in it would start again: they are stopped first. */
+[data-leaving] [class*="animate-"] {
+  animation: none;
+}
+[data-leaving].animate-fade-in,
+[data-leaving] .animate-fade-in {
+  animation: fade-out var(--duration-quick) var(--ease-smooth) both;
+}
+[data-leaving] .animate-pop-in {
+  animation: pop-out var(--duration-quick) var(--ease-smooth) both;
+}
+[data-leaving] .animate-menu-in {
+  animation: menu-out var(--duration-quick) var(--ease-smooth) both;
+}
+[data-leaving] .animate-sheet-in {
+  animation: sheet-out var(--duration-fast) var(--ease-smooth) both;
+}
+
+/*
+ * A notice on its way out fades as its row folds to nothing, taking the gap
+ * beside it too, so the notices after it slide up rather than jump.
+ */
+.toast-slot {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition:
+    grid-template-rows var(--duration-fast) var(--ease-smooth),
+    margin var(--duration-fast) var(--ease-smooth);
+}
+.toast-slot > * {
+  min-height: 0;
+}
+.toast-slot.is-leaving {
+  grid-template-rows: 0fr;
+  overflow: hidden;
+  pointer-events: none;
+}
+.toast-slot.is-leaving:not(:first-child) {
+  margin-top: -0.5rem;
+}
+.toast-slot.is-leaving:first-child:not(:last-child) {
+  margin-bottom: -0.5rem;
+}
+.toast-slot.is-leaving > * {
+  animation: toast-out var(--duration-fast) var(--ease-smooth) both;
+}
+@keyframes toast-out {
+  to {
+    opacity: 0;
+    scale: 0.97;
+    filter: blur(var(--blur-small));
+  }
+}
+
+/*
+ * A sidebar category opened again: its rows drop into place one after
+ * another, 40 ms apart and the eighth and later together, so the last is in
+ * by 300 ms. A browser that cannot count siblings brings them in at once.
+ */
+.rows-in > * {
+  animation: row-in var(--duration-fast) var(--ease-smooth) backwards;
+  animation-delay: calc(min(sibling-index() - 1, 7) * var(--duration-stagger));
+}
+@keyframes row-in {
+  from {
+    opacity: 0;
+    translate: 0 calc(-1 * var(--distance-micro));
+  }
+}
+
+/*
+ * Words that say something is on its way, with a band of light passing
+ * through them. The band is a copy of the words from data-text, drawn over
+ * them and hidden from screen readers (the "/ ''" after the content).
+ * Asking for less motion leaves the band out of sight.
+ */
+.text-shimmer {
+  position: relative;
+}
+.text-shimmer::before {
+  content: attr(data-text) / "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 40%, var(--color-ink) 50%, transparent 60%) 100%
+    0 / 400% 100% no-repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: shimmer 2s linear infinite;
+}
+@keyframes shimmer {
+  to {
+    background-position: 0 0;
+  }
+}
+
+/* A hint grows out of the side nearest its control. */
+[role="tooltip"][data-side="top"] > span {
+  transform-origin: 50% 100%;
+}
+[role="tooltip"][data-side="bottom"] > span {
+  transform-origin: 50% 0;
+}
+[role="tooltip"][data-side="right"] > span {
+  transform-origin: 0 50%;
 }
 
 :root {
@@ -354,8 +668,11 @@ summary:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-copper);
   outline-offset: 2px;
 }
-button {
-  transition-duration: 120ms;
+/* In the base layer, so a button's own duration utility still wins. */
+@layer base {
+  button {
+    transition-duration: 120ms;
+  }
 }
 input::placeholder,
 textarea::placeholder {
@@ -514,7 +831,7 @@ textarea::placeholder {
   background: var(--color-lifted);
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.25);
   transform: translateX(calc(var(--segment) * (100% + 4px)));
-  transition: transform 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: transform var(--duration-fast) var(--ease-smooth);
 }
 
 /*
@@ -546,7 +863,7 @@ textarea::placeholder {
 .squircle {
   border-radius: 50%;
   transition:
-    border-radius 180ms cubic-bezier(0.2, 0.9, 0.3, 1),
+    border-radius var(--duration-fast) var(--ease-smooth),
     background-color 180ms ease-out,
     color 180ms ease-out;
 }
@@ -567,7 +884,7 @@ textarea::placeholder {
   border-radius: 0 4px 4px 0;
   background: var(--color-ink);
   transform: translateY(-50%);
-  transition: height 180ms cubic-bezier(0.2, 0.9, 0.3, 1);
+  transition: height var(--duration-fast) var(--ease-smooth);
 }
 .rail-pill[data-state="unread"] {
   height: 8px;
@@ -701,20 +1018,58 @@ textarea::placeholder {
  * drawer when the window grows out of this query, so the two must match.
  */
 @media (max-width: 760px), (max-height: 480px) {
+  /*
+   * The drawer slides in from the edge of the screen and back out to it. It
+   * stays drawn until it has gone (display changes last, allow-discrete), and
+   * @starting-style is where it comes from. A browser with neither opens and
+   * closes it at once, as before.
+   */
   .workspace-sidebar {
     display: none;
-  }
-  .sidebar-open .workspace-sidebar {
-    display: flex;
     position: absolute;
     inset: 0 auto 0 0;
     z-index: 40;
     max-width: 88vw;
     box-shadow: 16px 0 40px #0006;
-    animation: var(--animate-fade-in);
+    translate: -100% 0;
+    transition:
+      translate var(--duration-quick) var(--ease-smooth),
+      display var(--duration-quick) allow-discrete;
   }
-  .sidebar-open .sidebar-column {
+  .sidebar-open .workspace-sidebar {
+    display: flex;
+    translate: 0 0;
+    transition-duration: var(--duration-medium);
+  }
+  @starting-style {
+    .sidebar-open .workspace-sidebar {
+      translate: -100% 0;
+    }
+  }
+  .workspace-sidebar .sidebar-column {
     width: min(272px, calc(88vw - 72px));
+  }
+  /*
+   * What the drawer covers dims as it opens and clears as it closes. The
+   * dismiss button over it is clear; it is there to be pressed.
+   */
+  .workspace-shell::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    background: rgb(0 0 0 / 0.6);
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition:
+      opacity var(--duration-quick) var(--ease-smooth),
+      visibility var(--duration-quick);
+  }
+  .sidebar-open::before {
+    opacity: 1;
+    visibility: visible;
+    transition-duration: var(--duration-medium);
   }
   .mobile-nav-toggle,
   .sidebar-dismiss {
@@ -772,6 +1127,7 @@ textarea::placeholder {
     z-index: 30;
     width: 100%;
     max-width: 100%;
+    animation: var(--animate-slide-in);
   }
   .composer-shell {
     padding-inline: 10px;

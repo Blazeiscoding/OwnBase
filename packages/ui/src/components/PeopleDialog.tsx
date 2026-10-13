@@ -3,6 +3,7 @@ import type { ID, User } from "@slackoss/protocol";
 import { ApiError } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog, inputCls } from "./Dialog.js";
+import { Swap } from "./Motion.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Avatar } from "./Avatar.js";
 import { formatWhen } from "../lib/format.js";
@@ -174,12 +175,14 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
               className={secondaryBtn}
               onClick={() => void clipboard.copy(issued.password, issued.password)}
             >
-              {clipboard.label(
-                "Copy password",
-                "Copied",
-                "Copy failed — select and copy manually",
-                issued.password,
-              )}
+              <Swap text>
+                {clipboard.label(
+                  "Copy password",
+                  "Copied",
+                  "Copy failed — select and copy manually",
+                  issued.password,
+                )}
+              </Swap>
             </button>
           </div>
           <p className="mt-3 text-xs text-ink-faint">

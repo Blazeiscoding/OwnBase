@@ -36,6 +36,7 @@ export function Popover(props: {
     el.style.width = `${width}px`;
     el.style.top = `${Math.max(8, top)}px`;
     el.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
+    el.style.transformOrigin = `${props.align === "start" ? "left" : "right"} ${above >= 8 ? "bottom" : "top"}`;
   };
   useLayoutEffect(() => place.current(), []);
   useEffect(() => {
@@ -56,7 +57,7 @@ export function Popover(props: {
     >
       <div
         ref={panel}
-        className="surface-float fixed max-h-[70vh] animate-pop-in overflow-y-auto rounded-xl outline-none"
+        className="surface-float fixed max-h-[70vh] animate-menu-in overflow-y-auto rounded-xl outline-none"
       >
         {props.children}
       </div>

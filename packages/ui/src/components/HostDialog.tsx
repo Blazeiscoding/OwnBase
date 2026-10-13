@@ -14,6 +14,7 @@ import { useCopy } from "../lib/useCopy.js";
 import { formatDay, formatTime } from "../lib/format.js";
 import { isImeKey } from "../lib/textInput.js";
 import { Dialog, inputCls } from "./Dialog.js";
+import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 
@@ -1393,7 +1394,9 @@ export function HostDialog(props: {
                       onClick={() => void copy(publicUrl, "public-address")}
                       className="shrink-0 rounded px-2 py-1 text-xs text-ink-dim hover:bg-ink/[0.05]"
                     >
-                      {copyLabel("Copy address", "Copied", "Copy failed", "public-address")}
+                      <Swap text>
+                        {copyLabel("Copy address", "Copied", "Copy failed", "public-address")}
+                      </Swap>
                     </button>
                   </div>
                   {guestsSupported && livePolicy ? (

@@ -6,6 +6,7 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import { writeClipboard } from "../lib/useCopy.js";
@@ -23,6 +24,7 @@ import { Dialog } from "./Dialog.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
+import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
@@ -82,6 +84,8 @@ export const MessageItem = memo(function MessageItem({
   const [moreOpen, setMoreOpen] = useState(false);
   /** The touch menu, opened by its button or by holding the message. */
   const [touchMenu, setTouchMenu] = useState(false);
+  /** The reactions it had when drawn; any other one pops in as it comes. */
+  const [firstReactions] = useState(() => new Set(message.reactions.map((g) => g.emoji)));
   const row = useRef<HTMLDivElement>(null);
   const press = useRef<{ timer: number; x: number; y: number } | null>(null);
   const cancelPress = () => {
@@ -466,26 +470,16 @@ export const MessageItem = memo(function MessageItem({
                 );
                 const count = g.userIds.length;
                 return (
-                  <button
+                  <ReactionChip
                     key={g.emoji}
-                    type="button"
+                    emoji={g.emoji}
+                    count={count}
+                    reacted={reacted}
+                    fresh={!firstReactions.has(g.emoji)}
                     title={names}
                     aria-label={`${g.emoji} ${count} ${count === 1 ? "reaction" : "reactions"}, from ${names}`}
-                    aria-pressed={reacted}
                     onClick={() => react(g.emoji)}
-                    className={`flex h-6 items-center gap-1.5 rounded-lg border px-1.5 text-[15px] transition-colors active:scale-95 ${
-                      reacted
-                        ? "border-copper/60 bg-copper/15"
-                        : "border-transparent bg-lifted hover:border-ink-faint/40"
-                    }`}
-                  >
-                    <span>{g.emoji}</span>
-                    <span
-                      className={`tabular text-[12px] font-medium ${reacted ? "text-copper" : "text-ink-dim"}`}
-                    >
-                      {g.userIds.length}
-                    </span>
-                  </button>
+                  />
                 );
               })}
             </div>
@@ -631,6 +625,46 @@ export const MessageItem = memo(function MessageItem({
     </div>
   );
 });
+
+/**
+ * One reaction under a message. A new one pops in, its count rolls when it
+ * changes, and the emoji gives under your press when you add yours.
+ */
+function ReactionChip({
+  emoji,
+  count,
+  reacted,
+  fresh,
+  ...button
+}: {
+  emoji: string;
+  count: number;
+  reacted: boolean;
+  /** Came after the message was drawn. */
+  fresh: boolean;
+} & ComponentProps<"button">) {
+  const pressed = useChanges(reacted);
+  return (
+    <button
+      {...button}
+      type="button"
+      aria-pressed={reacted}
+      className={`flex h-6 items-center gap-1.5 rounded-lg border px-1.5 text-[15px] transition-[color,background-color,border-color,scale] active:scale-95 ${
+        reacted
+          ? "border-copper/60 bg-copper/15"
+          : "border-transparent bg-lifted hover:border-ink-faint/40"
+      } ${fresh ? "animate-badge-in" : ""}`}
+    >
+      <span key={pressed} className={reacted && pressed ? "inline-block animate-press" : undefined}>
+        {emoji}
+      </span>
+      <CountBadge
+        count={count}
+        className={`tabular text-[12px] font-medium ${reacted ? "text-copper" : "text-ink-dim"}`}
+      />
+    </button>
+  );
+}
 
 function ToolbarButton(props: {
   label: ReactNode;
