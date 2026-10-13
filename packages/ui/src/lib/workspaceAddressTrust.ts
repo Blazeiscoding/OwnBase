@@ -85,8 +85,19 @@ export function checkWorkspaceAddress(
     const address = normalizeWorkspaceAddress(baseUrl);
     let addresses = await readAddresses(platform, key);
     if (addresses === null) {
-      addresses = [address];
-      await platform.storage.set(key, { version: 1, addresses } satisfies TrustedAddresses);
+      const first = { version: 1, addresses: [address] } satisfies TrustedAddresses;
+      // Stored only if nothing is, in one step across windows, and what is
+      // stored then is what counts. Two windows that each read nothing, each
+      // at a different address, would otherwise each trust its own: the one
+      // that stored second took the first's place without anyone approving
+      // it, and went on to read that address's local work (Q02). The queue
+      // above orders this window's own checks only.
+      if (platform.storage.initialize) {
+        addresses = parseAddresses(await platform.storage.initialize(key, first));
+      } else {
+        addresses = first.addresses;
+        await platform.storage.set(key, first);
+      }
     }
     return { address, addresses, allowed: addresses.includes(address) };
   });

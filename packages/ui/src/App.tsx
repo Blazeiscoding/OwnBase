@@ -82,6 +82,9 @@ export function App({ platform }: { platform: Platform }) {
   const renderedNavigation = navigation.current;
   const restoredServers = useRef(false);
   const saveVersion = useRef(0);
+  const serverTurns = useRef<Promise<void>>(Promise.resolve());
+  /** The change that could not be saved, for Retry. */
+  const unsaved = useRef<((stored: SavedServer[]) => SavedServer[]) | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [forgetConfirm, setForgetConfirm] = useState(false);
   const [forgetBusy, setForgetBusy] = useState(false);
@@ -95,19 +98,57 @@ export function App({ platform }: { platform: Platform }) {
     null,
   );
 
-  const persistServers = useCallback(
-    async (list: SavedServer[]) => {
+  /**
+   * One turn at the stored sign-ins: this window's turns one after another,
+   * and other windows of this browser kept waiting where the browser can.
+   */
+  const serversTurn = useCallback(<T,>(turn: () => Promise<T>): Promise<T> => {
+    const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
+    const taken = serverTurns.current.then(() =>
+      locks ? (locks.request("tandem:saved-sign-ins", turn) as Promise<T>) : turn(),
+    );
+    serverTurns.current = taken.then(
+      () => {},
+      () => {},
+    );
+    return taken;
+  }, []);
+
+  /**
+   * Makes one change to the saved sign-ins, to the list as it is stored now.
+   * A window used to write the whole list as it last knew it, so one left open
+   * brought back a sign-in another window had forgotten since, or wiped one
+   * another window had added (Q05). The list is read, changed and written in
+   * one turn; what is stored then is what this window goes on to show.
+   */
+  const changeServers = useCallback(
+    async (change: (stored: SavedServer[]) => SavedServer[]) => {
       const version = ++saveVersion.current;
-      savedServersRef.current = list;
-      setSavedServers(list);
+      // Shown at once. What was stored takes its place when the turn is done.
+      savedServersRef.current = change(savedServersRef.current);
+      setSavedServers(savedServersRef.current);
       try {
-        await platform.storage.set("servers", list);
-        if (version === saveVersion.current) setSaveError(false);
+        const next = await serversTurn(async () => {
+          // Strict: a list that cannot be read is never written over.
+          const stored = parseSavedServers(
+            await platform.storage.get<unknown>("servers", { strict: true }),
+          );
+          const changed = change(stored);
+          await platform.storage.set("servers", changed);
+          return changed;
+        });
+        if (version !== saveVersion.current) return;
+        unsaved.current = null;
+        savedServersRef.current = next;
+        setSavedServers(next);
+        setSaveError(false);
       } catch {
-        if (version === saveVersion.current) setSaveError(true);
+        if (version !== saveVersion.current) return;
+        unsaved.current = change;
+        setSaveError(true);
       }
     },
-    [platform],
+    [platform, serversTurn],
   );
 
   const openWorkspace = useCallback(
@@ -121,11 +162,15 @@ export function App({ platform }: { platform: Platform }) {
       const client = new WorkspaceClient(server.url, server.token);
       clientRef.current = client;
       client.connect();
-      const updated = [
-        { ...server, lastUsedAt: Date.now() },
-        ...list.filter((s) => s.url !== server.url),
-      ];
-      void persistServers(updated);
+      const same = (s: SavedServer) => s.url === server.url && s.token === server.token;
+      // A sign-in this window already held, as against one just made.
+      const held = list.some(same);
+      const used = { ...server, lastUsedAt: Date.now() };
+      void changeServers((stored) =>
+        // Held here but gone from what is stored: another window forgot it, or
+        // signed in again, since. Opening it here does not put it back.
+        held && !stored.some(same) ? stored : [used, ...stored.filter((s) => s.url !== server.url)],
+      );
       openServerUrl.current = server.url;
       setSession({
         view: "workspace",
@@ -135,7 +180,7 @@ export function App({ platform }: { platform: Platform }) {
         target: target ?? null,
       });
     },
-    [persistServers],
+    [changeServers],
   );
 
   const restoreServers = useCallback(async () => {
@@ -259,22 +304,20 @@ export function App({ platform }: { platform: Platform }) {
 
   const forgetServer = useCallback(
     (url: string) => {
-      void persistServers(savedServers.filter((s) => s.url !== url));
+      void changeServers((stored) => stored.filter((s) => s.url !== url));
     },
-    [persistServers, savedServers],
+    [changeServers],
   );
 
   const endSession = useCallback(
     (server: SavedServer, client: WorkspaceClient) => {
       // A late logout response must not remove a newer sign-in to the same workspace.
-      void persistServers(
-        savedServersRef.current.filter(
-          (saved) => saved.url !== server.url || saved.token !== server.token,
-        ),
+      void changeServers((stored) =>
+        stored.filter((saved) => saved.url !== server.url || saved.token !== server.token),
       );
       if (clientRef.current === client) leaveWorkspace();
     },
-    [persistServers, leaveWorkspace],
+    [changeServers, leaveWorkspace],
   );
 
   async function forgetSavedSignIns() {
@@ -285,7 +328,8 @@ export function App({ platform }: { platform: Platform }) {
     const ticket = ++navigation.current;
     try {
       // Deliberate reset of credentials only; drafts and other settings remain.
-      await platform.storage.set("servers", []);
+      // In its turn, so no change still on its way writes a sign-in back after it.
+      await serversTurn(() => platform.storage.set("servers", []));
       if (ticket !== navigation.current) return;
       savedServersRef.current = [];
       restoredServers.current = true;
@@ -330,7 +374,7 @@ export function App({ platform }: { platform: Platform }) {
               <button
                 type="button"
                 className="shrink-0 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
-                onClick={() => void persistServers(savedServersRef.current)}
+                onClick={() => void changeServers(unsaved.current ?? ((stored) => stored))}
               >
                 Retry saving
               </button>

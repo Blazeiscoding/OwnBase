@@ -302,6 +302,18 @@ export function AccountDialog({
               {composer.error && (
                 <p role="alert" className="mt-2 text-sm text-alert">
                   {composer.error}
+                  {composer.unread && (
+                    <>
+                      {" "}
+                      <button
+                        type="button"
+                        className="underline underline-offset-2"
+                        onClick={() => void composer.retry()}
+                      >
+                        Try again
+                      </button>
+                    </>
+                  )}
                 </p>
               )}
             </section>
