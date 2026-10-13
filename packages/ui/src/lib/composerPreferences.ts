@@ -8,7 +8,10 @@ interface Preferences {
   loaded: boolean;
   saving: boolean;
   error: string | null;
+  /** The saved choice is there but could not be read; `retry` reads it again. */
+  unread: boolean;
   setEnterSends: (value: boolean) => Promise<void>;
+  retry: () => Promise<void>;
 }
 
 const KEY = "composer-preferences";
@@ -21,33 +24,49 @@ function createPreferences(platform: Platform) {
     loaded: false,
     saving: false,
     error: null,
+    unread: false,
     setEnterSends: async (enterSends) => {
       if (!store.getState().loaded || store.getState().saving) return;
       store.setState({ saving: true, error: null });
       try {
         await platform.storage.set(KEY, { enterSends });
-        store.setState({ enterSends });
+        store.setState({ enterSends, unread: false });
       } catch {
         store.setState({ error: "Could not save this preference. Please try again." });
       } finally {
         store.setState({ saving: false });
       }
     },
+    retry: async () => {},
   }));
-  void platform.storage
-    .get<{ enterSends?: unknown }>(KEY)
-    .then((saved) => {
+  /**
+   * A choice that cannot be read is not a choice never made. Read as absent,
+   * a saved "new line" became the first-use default, and Enter sent a message
+   * still being written (Q04). So the read is strict, what it gives back is
+   * checked, and until it can be read Enter stays a new line.
+   */
+  async function load() {
+    try {
+      const saved = await platform.storage.get<{ enterSends?: unknown }>(KEY, { strict: true });
+      const choice = saved?.enterSends;
+      if (saved !== null && typeof choice !== "boolean") throw new Error("unreadable");
       store.setState({
-        enterSends: typeof saved?.enterSends === "boolean" ? saved.enterSends : true,
+        enterSends: typeof choice === "boolean" ? choice : true,
         loaded: true,
+        error: null,
+        unread: false,
       });
-    })
-    .catch(() => {
+    } catch {
       store.setState({
+        enterSends: false,
         loaded: true,
+        unread: true,
         error: "Could not load your preference. Enter inserts a new line until you choose again.",
       });
-    });
+    }
+  }
+  store.setState({ retry: load });
+  void load();
   return store;
 }
 

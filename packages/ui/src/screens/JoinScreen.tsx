@@ -72,7 +72,19 @@ export function JoinScreen({
   // been answered yet. Rendering the full list before it is answered shows a
   // screen that is about to be replaced.
   const [selfChecked, setSelfChecked] = useState(platform.kind !== "web");
+  /**
+   * Which look at a workspace, or sign-in with a saved one, is current. An
+   * answer to an older one is not acted on, nor one that comes after this
+   * screen is gone: cancelling, or choosing somewhere else, means the person
+   * no longer wants it (Q06).
+   */
   const probeAttempt = useRef(0);
+  useEffect(
+    () => () => {
+      probeAttempt.current = -1;
+    },
+    [],
+  );
 
   // A browser that was served *by* a workspace already knows where it is. Ask
   // that origin quietly; if it is not a workspace (a dev server, a static
@@ -128,11 +140,14 @@ export function JoinScreen({
   /** Saved servers reconnect with their stored token; fall back to the auth card if it expired. */
   async function openSaved(saved: SavedServer) {
     setError(null);
+    const attempt = ++probeAttempt.current;
     setStage({ view: "probing", url: saved.url });
     try {
       await new Api(saved.url, saved.token).me();
+      if (probeAttempt.current !== attempt) return;
       onConnected(saved);
     } catch (err) {
+      if (probeAttempt.current !== attempt) return;
       if (err instanceof ApiError && err.status === 401) {
         await probe(saved.url);
       } else {
@@ -797,9 +812,11 @@ function AuthCard(props: {
       return;
     }
     setBusy(true);
+    const ticket = ++attempt.current;
     try {
       const api = new Api(props.url, mustReplace.token);
       await api.changePassword(mustReplace.current, newPassword);
+      if (ticket !== attempt.current) return;
       props.onConnected({
         url: props.url,
         token: mustReplace.token,
@@ -808,6 +825,7 @@ function AuthCard(props: {
         lastUsedAt: Date.now(),
       });
     } catch (err) {
+      if (ticket !== attempt.current) return;
       setError(errorMessage(err, "login"));
       setBusy(false);
     }

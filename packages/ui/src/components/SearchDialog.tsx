@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "@slackoss/client-core";
-import type { FileMeta, FileType, ID } from "@slackoss/protocol";
+import type { FileMeta, FileType, ID, Message } from "@slackoss/protocol";
 import { parseSearchQuery } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
@@ -135,6 +135,14 @@ const keyOf = (criteria: { query: string; channelId?: ID }) =>
  * files. It searches as it is typed; Enter searches at once and keeps the
  * search among the recent ones.
  */
+/** The latest change heard in any conversation these results come from. */
+function latestChange(found: { messages: Message[] }, changedContent: Record<ID, number>): number {
+  let latest = 0;
+  for (const message of found.messages)
+    latest = Math.max(latest, changedContent[message.channelId] ?? 0);
+  return latest;
+}
+
 export function SearchDialog(props: {
   onClose: () => void;
   onJump: (channelId: ID, messageId: ID) => void;
@@ -172,6 +180,12 @@ export function SearchDialog(props: {
   const asked = useRef<string | null>(null);
   /** A search Enter was pressed on before it answered, to remember when it does. */
   const committed = useRef<string | null>(null);
+  // The results are a copy. When a conversation among them has had a message
+  // edited or taken away since they were asked for, or has been left, the same
+  // page is asked for again, so nothing deleted stays on show (Q07).
+  const changed = useWorkspace((s) => (results ? latestChange(results, s.changedContent) : 0));
+  /** How far those changes had got when the results showing were asked for. */
+  const heard = useRef(0);
   const query = [
     q.trim(),
     author && `from:${author}`,
@@ -186,6 +200,16 @@ export function SearchDialog(props: {
   const unreadable = useMemo(() => parseSearchQuery(query).invalid.length > 0, [query]);
 
   useEffect(() => () => request.current?.abort(), []);
+
+  useEffect(() => {
+    // A search still out is left to finish: it may be a newer question, and
+    // its answer is checked against the same changes when it arrives.
+    if (busy || !submitted || changed <= heard.current) return;
+    // Asked once for each change: an answer that fails says so and offers Retry.
+    heard.current = changed;
+    void search(submitted, cursors[page], page, cursors, { keepPlace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- asks again for what is showing
+  }, [changed, busy]);
 
   // Words brought from the palette or the header are searched straight away.
   const initial = useRef(props.initialQuery?.trim().slice(0, 200));
@@ -220,11 +244,12 @@ export function SearchDialog(props: {
     cursor: ID | undefined,
     nextPage: number,
     nextCursors: (ID | undefined)[],
-    opts: { remember?: boolean } = {},
+    opts: { remember?: boolean; keepPlace?: boolean } = {},
   ) {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
+    const known = client.state.changedContent;
     failed.current = () => {
       void search(criteria, cursor, nextPage, nextCursors, opts);
     };
@@ -238,6 +263,9 @@ export function SearchDialog(props: {
         signal: controller.signal,
       });
       if (controller.signal.aborted) return;
+      // Measured against what was known when this was asked: a change that
+      // arrived while it was out may not be in the answer, and asks once more.
+      heard.current = latestChange(found, known);
       setResults(found);
       setSubmitted(criteria);
       setPage(nextPage);
@@ -247,7 +275,7 @@ export function SearchDialog(props: {
         committed.current = null;
         recent.remember(criteria);
       }
-      list.current?.closest('[role="dialog"]')?.scrollTo({ top: 0 });
+      if (!opts.keepPlace) list.current?.closest('[role="dialog"]')?.scrollTo({ top: 0 });
     } catch (err) {
       if (!controller.signal.aborted)
         setError(

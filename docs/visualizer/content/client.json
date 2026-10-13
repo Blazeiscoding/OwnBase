@@ -1,6 +1,6 @@
 {
   "area": "client",
-  "overview": "The shared client has two layers. client-core owns the authenticated HTTP/WebSocket connection, the local workspace replica, retries, cached files and WebRTC media. ui turns that state into conversations, dialogs and controls, while a Platform adapter supplies browser or desktop storage, notifications and hosting. The client keeps responsive optimistic state but still depends on server authorization and durable storage acknowledgements. The completed N-series work fixes particular storage, close, mute, form and file-cache failures; the Q-series report records additional races that remain open.",
+  "overview": "The shared client has two layers. client-core owns the authenticated HTTP/WebSocket connection, the local workspace replica, retries, cached files and WebRTC media. ui turns that state into conversations, dialogs and controls, while a Platform adapter supplies browser or desktop storage, notifications and hosting. The client keeps responsive optimistic state but still depends on server authorization and durable storage acknowledgements. The completed N-series work fixes particular storage, close, mute, form and file-cache failures; the Q-series work closes the further races a later review reproduced, each with its limits recorded.",
   "entries": [
     {
       "path": "packages/client-core/src/index.ts",
@@ -34,7 +34,7 @@
         "History requests carry identity and snapshot watermarks so late HTTP pages can be reconciled with socket events. Identical loads share work; superseded, revoked or evicted history requests are aborted. A timeline holds at most 300 messages and inactive history is bounded by a 20-entry cache limit.",
         "send creates a random request nonce and an optimistic PendingMessage, uploads files, posts the message and reconciles the response or socket echo by nonce. The outbox accepts up to 50 waiting sends per account. A known server refusal waits for deliberate Retry; an uncertain outcome can retry the same nonce.",
         "Restored outbox entries contain attachment descriptions rather than File objects. Missing attachment bytes and sends older than the retry window remain visibly failed instead of silently sending incomplete or stale content. destroy releases sockets, timers, media, previews and cached files.",
-        "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choice sequencing covers pins, saves, snooze and channel preferences. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation.",
+        "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choice sequencing covers pins, saves, snooze and channel preferences. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation. changedContent records, per conversation, the seq of the latest edit, deletion, pin, history removal or own departure, so views holding copied messages can ask again without loaded history (Q07, Q08).",
         "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving."
       ],
       "concepts": [
@@ -201,7 +201,7 @@
       "summary": "Defines the browser/desktop capability boundary and implements the browser adapter.",
       "details": [
         "Platform describes acknowledged storage reads/writes and optional atomic initialization, outbox/draft/record merges and watchers. Optional discovery, hosting, backup and deep-link capabilities let one UI run in both shells.",
-        "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which matters to caller policies such as the pending Q04 issue.",
+        "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly.",
         "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Downloads use a scoped URL through a hidden no-referrer iframe.",
         "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation."
       ],
@@ -215,7 +215,7 @@
         "The Session union distinguishes loading, failed restore, joining and a connected workspace. Startup strictly parses saved credentials; a corrupt or unavailable store offers retry instead of turning saved sign-ins into an empty list.",
         "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in.",
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
-        "Navigation and save versions fence several stale completions inside this window. Q05 remains open: saving the entire remembered-server list from a stale window can revive forgotten credentials or erase another window's newly saved sign-in."
+        "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back."
       ],
       "concepts": [
         "application lifecycle",
@@ -233,7 +233,7 @@
         "A browser quietly recognizes the workspace serving its own origin; desktop discovery subscribes to LAN announcements. Hosted-but-stopped workspaces can offer resume instead of an endless connection attempt.",
         "Address probing normalizes the input and checks application/protocol compatibility before presenting authentication. A probe-attempt number rejects success from an ordinary cancelled or superseded address probe.",
         "Saved sign-ins first validate their token and fall back to a password card when expired. The auth form handles registration, invites and initial-owner claiming through the typed API.",
-        "Q06 remains open: the saved-token path and an abandoned password form still lack the same completion ownership as ordinary probes, so late success can invoke the connected callback after the user moved on.",
+        "Since Q06 the saved-token path and the forced password replacement carry the same attempt ownership as ordinary probes, so a late answer after Cancel, another choice or unmount does nothing.",
         "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry."
       ],
       "concepts": [
@@ -285,7 +285,7 @@
         "N02 persists backend ownership before migration and prefers IndexedDB even without BroadcastChannel. A failed, blocked or timed-out open reports unreadability and permits a later retry instead of opening an apparently empty alternate store.",
         "Legacy drafts keep conflicting versions, legacy outboxes merge with tombstones and compaction floors, and copied notification choices keep the more private value. Unrecognized conflicting legacy copies remain until explicit replacement; retirement checks the exact captured legacy text before removal.",
         "BroadcastChannel carries change messages when usable; otherwise storage events carry only a key invalidation and re-read the authoritative backend. Focus also refreshes watchers, and generation guards prevent an older asynchronous refresh from winning.",
-        "LocalStorage-only support is reserved for profiles that have not adopted IndexedDB. Later ownership changes block legacy writes and mark watcher data unreadable. Journaling can still fail if localStorage has no room, and N02 does not fix the higher-level Q02/Q03/Q04/Q05 caller races."
+        "LocalStorage-only support is reserved for profiles that have not adopted IndexedDB. Later ownership changes block legacy writes and mark watcher data unreadable. Journaling can still fail if localStorage has no room, and N02 does not fix the higher-level caller races: Q02, Q03, Q04 and Q05 were closed in their callers."
       ],
       "concepts": [
         "IndexedDB transaction",
@@ -322,7 +322,7 @@
       "details": [
         "Address normalization preserves protocol, port and path and rejects credentials, query strings and fragments. These distinctions can identify different servers and therefore cannot be discarded for trust.",
         "The first known address is registered; later aliases require explicit trustWorkspaceAddress approval. Strict parsing of the stored address list refuses damage, while a read-only helper returns only known aliases.",
-        "Q02 remains open: the first registration currently uses separate read/write operations behind a per-Platform queue. Two windows can both observe absence and automatically admit different addresses; this needs conditional initialization at the storage owner."
+        "Since Q02 the first registration goes through the storage owner's conditional initialize, and admission is decided from the record it returns, so two windows that both observe absence cannot both admit their own address. Approving a later address is still a queued read and set."
       ],
       "concepts": ["address trust", "identity boundary", "strict validation", "Q02"]
     },
@@ -343,7 +343,7 @@
       "details": [
         "full shows author/conversation and message text, sender hides the message text, and none removes names and conversation detail. Catch-up notifications apply the same privacy choice.",
         "Strict initial reads, damaged-entry validation and an unknown-account marker default unreadable choices to none. Atomic record merges change one account at a time and watchers apply another window's saved choice.",
-        "Q03 remains open: an older initial-read or save reply can overwrite a newer private watch update in the active window. Durable storage can remain private while the in-memory choice regresses; N02 backend durability alone does not resolve this ordering."
+        "Since Q03 a watch delivery that arrives while this window's own read or save is unanswered marks the two as crossed; the reply is then replaced by a fresh strict read, repeated until one completes uncrossed. Until the first read settles, previewFor answers none."
       ],
       "concepts": ["notification privacy", "per-account choice", "watch ordering", "Q03"]
     },
@@ -434,7 +434,7 @@
       "summary": "Shares the Enter-to-send choice across composers on this device.",
       "details": [
         "The store begins with Enter creating a newline until the initial preference read answers, and updates the selected choice only after a successful save.",
-        "A loaded boolean chooses the behavior; absence uses the current default. Q04 remains open because this caller uses a non-strict browser read, allowing read refusal to appear as absence and unexpectedly enable Enter-to-send."
+        "A loaded boolean chooses the behavior; absence uses the current default. Since Q04 the read is strict and validated: a refused read or a value that is not a boolean choice leaves Enter as a new line, sets unread and an error, and retry reads again."
       ],
       "concepts": ["keyboard preference", "acknowledged save", "Q04"]
     },
@@ -517,7 +517,7 @@
       "summary": "Strictly validates remembered workspace credentials before restoring them.",
       "details": [
         "Checks list shape, nonempty tokens, presentation fields, nonnegative last-use time and HTTP(S) URL shape.",
-        "Unreadable data throws instead of becoming an empty list that a later save could overwrite. This read guard is useful even though the multi-window whole-list write race Q05 remains open in App."
+        "Unreadable data throws instead of becoming an empty list that a later save could overwrite. App reads through this guard inside each saved sign-in turn (Q05), so a list that cannot be read is never written over."
       ],
       "concepts": ["credential restore", "strict validation"]
     },
@@ -816,7 +816,7 @@
         "The field shows mentions as names (choosing @here shows @here) through useMentionField, while text, drafts and sends keep <!here> and <@USER_ID>. A mention already completed is not offered again; the character limit counts the stored text the server receives.",
         "Send later's choices are SendLaterPopover, loaded when the clock is first pressed. Scheduling uploads attachments, persists the exact request including nonce, file IDs and chosen time before posting, and restores unresolved scheduling requests before another send. A retry reuses the original request identity rather than creating a duplicate schedule.",
         "While Reply is chosen, a bar above the text names whom you answer, with an @ toggle for whether they are notified and a close button; Escape cancels it before the panel behind can take Escape. One send answers it, and Send later is not offered meanwhile because a scheduled message cannot answer in place.",
-        "Q04 remains open at the preference caller: unreadability can be converted to an Enter-to-send default. N03 covers normal preparation and persistence acknowledgements, not every power-loss or OS-termination case."
+        "Since Q04 the preference caller keeps Enter a new line when the saved choice cannot be read. N03 covers normal preparation and persistence acknowledgements, not every power-loss or OS-termination case."
       ],
       "concepts": [
         "draft ownership",
@@ -856,7 +856,7 @@
       "details": [
         "Reads workspace and account identity from the ready replica, then checks the local trusted-address record. The gate shows checking, explicit approval, saving or retryable error before mounting drafts/search-history consumers.",
         "Approval explains that the address can access saved local work and may resume queued sends. Effects fence results to their current client/workspace/account scope.",
-        "The ordinary later-address refusal works, but Q02 documents the separate simultaneous first-registration gap in the trust helper; this gate cannot compensate for an incorrectly admitted address."
+        "The gate relies on the trust helper's answer and cannot compensate for an incorrectly admitted address; Q02 closed the helper's simultaneous first-registration gap."
       ],
       "concepts": ["local-work admission", "explicit trust", "scope fencing", "Q02"]
     },
@@ -936,7 +936,7 @@
       "details": [
         "The generic panel renders server-loaded message sets, row context, counts, loading/empty/refusal state and an explicit Refresh action.",
         "Pins are channel-specific, Saved spans readable conversations, and Threads represents followed conversations with unread counts and opens the thread rather than a single message.",
-        "Q08 remains open: Pins invalidation currently depends on loaded timeline pins, so a deleted pinned row from an unloaded timeline can remain until Refresh. Previously fetched panel text should not be described as always live."
+        "Since Q08 PinsPanel also passes its channel's changedContent marker as refreshKey, so a pin, edit or deletion outside the loaded timeline re-requests the current page in place."
       ],
       "concepts": ["shared panels", "pins", "saved messages", "followed threads", "Q08"]
     },
@@ -947,7 +947,7 @@
       "details": [
         "Displays search modifiers and the parsed interpretation, scope/date/file-type controls, pagination, matched terms and attachment-name reasons for a result.",
         "Recent searches are kept in the authenticated local scope; choosing a result requests an in-app message jump rather than treating a result excerpt as the whole conversation.",
-        "Q07 remains open: results are copied into dialog state and do not yet reliably invalidate for deletion, retention or edit events. Repeating the search updates them; an open result list must not be described as an authoritative live replica."
+        "Since Q07 the dialog re-requests its current page when changedContent advances for a channel among its results, leaving a request in flight to finish first. Results are still a copy: after a resync beyond the event log they are stale until asked again."
       ],
       "concepts": ["full-text search", "filters", "result excerpts", "Q07"]
     },
@@ -1127,7 +1127,7 @@
         "Section keyboard navigation and route callbacks connect profile, notifications, appearance, composing, calls, security, devices and storage to Back/Forward history.",
         "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences.",
         "Security and Devices change passwords, list/revoke sessions and sign out through the server; Storage displays server usage. Confirmation identifies destructive session changes.",
-        "The settings UI does not itself fix remaining Q03/Q04 preference ordering/read-policy issues; those are tracked in their underlying helper entries."
+        "The Q03 and Q04 repairs live in the underlying helpers; this dialog only shows their state, including Try again for a composer preference that could not be read."
       ],
       "concepts": ["account settings", "session management", "device preferences", "N04"]
     },
@@ -1592,7 +1592,7 @@
     {
       "id": "client-multi-tab-storage",
       "title": "Using Tandem in two windows at once",
-      "summary": "When two windows save at once, Tandem merges each change in on its own, so neither window wipes out the other's drafts or deletions. The parts of the app that use these saves must still handle late answers themselves, and three known gaps remain.",
+      "summary": "When two windows save at once, Tandem merges each change in on its own, so neither window wipes out the other's drafts or deletions. The parts of the app that use these saves must still handle late answers themselves.",
       "steps": [
         {
           "title": "Pick one place to save",
@@ -1628,17 +1628,17 @@
           "detail": "DraftPersistence adopts another window's drafts/outbox without overwriting its still-unsaved edits, while notification preview watchers update privacy choice. Newer local edits retain their own merge base."
         },
         {
-          "title": "Windows can still clash in three known ways",
-          "description": "These problems are recorded for later, not fixed. Two windows opening a workspace at a new address at the same moment can both trust it, and a late reply can undo a newer choice about notification previews. A window can also bring back a saved sign-in another window removed, or erase one it just added.",
+          "title": "Three ways windows used to clash",
+          "description": "Three problems of this kind were repaired. Two windows opening a workspace at a new address at the same moment can no longer both trust it. A late reply can no longer undo a newer choice about notification previews. A window left open can no longer bring back a saved sign-in another window removed, or erase one it added.",
           "files": [
             "packages/ui/src/lib/workspaceAddressTrust.ts",
             "packages/ui/src/lib/notificationPreview.ts",
             "packages/ui/src/App.tsx"
           ],
-          "detail": "Q02 requires atomic first-address registration; Q03 requires fencing old preference replies against newer watches; Q05 requires account-aware saved-signin operations. These are documented follow-ups, not claimed repairs."
+          "detail": "Q02 made first-address registration atomic, Q03 fences old preference replies against newer watches, and Q05 makes each saved sign-in change a turn against the stored list."
         }
       ],
-      "detail": "Atomic backend merges preserve changed keys and removals. Caller-level state still needs its own reply-order ownership; Q02/Q03/Q05 record remaining gaps."
+      "detail": "Atomic backend merges preserve changed keys and removals. Caller-level state still needs its own reply-order ownership; Q02, Q03 and Q05 closed three such gaps."
     },
     {
       "id": "client-huddle-join",
@@ -1773,12 +1773,12 @@
         },
         {
           "title": "Approve the address before opening saved work",
-          "description": "Before opening drafts and other work saved on the device, the app checks that this exact address is approved for this workspace and account. A different address for the same workspace needs your approval. Two windows registering a first address at the same moment is still a known gap.",
+          "description": "Before opening drafts and other work saved on the device, the app checks that this exact address is approved for this workspace and account. A different address for the same workspace needs your approval. Two windows registering a first address at the same moment are settled in one step, so only one is trusted without asking.",
           "files": [
             "packages/ui/src/components/WorkspaceStorageGate.tsx",
             "packages/ui/src/lib/workspaceAddressTrust.ts"
           ],
-          "detail": "WorkspaceStorageGate checks the exact connected address for the authenticated workspace/account before mounting local-work consumers. Later aliases require approval; simultaneous first-registration remains Q02."
+          "detail": "WorkspaceStorageGate checks the exact connected address for the authenticated workspace/account before mounting local-work consumers. Later aliases require approval; simultaneous first registration is settled atomically (Q02)."
         },
         {
           "title": "Jump to the message",
@@ -1792,14 +1792,14 @@
         },
         {
           "title": "Make Back and Forward work",
-          "description": "Back and Forward return to places in this workspace and to where you were reading, including in threads during this session. Closing a panel or dialog returns the keyboard to the button that opened it. One known gap remains, where a cancelled sign-in can still move you after you have moved on.",
+          "description": "Back and Forward return to places in this workspace and to where you were reading, including in threads during this session. Closing a panel or dialog returns the keyboard to the button that opened it.",
           "files": [
             "packages/ui/src/lib/route.ts",
             "packages/ui/src/lib/threadPosition.ts",
             "packages/ui/src/lib/usePanelFocus.ts",
             "packages/ui/src/components/Modal.tsx"
           ],
-          "detail": "route.ts records workspace-bound places and reading anchors, threadPosition bounds session thread anchors, and panel/modal focus helpers return keyboard focus to a usable opener. Q06 documents a remaining abandoned-action navigation path; Q11's is closed."
+          "detail": "route.ts records workspace-bound places and reading anchors, threadPosition bounds session thread anchors, and panel/modal focus helpers return keyboard focus to a usable opener. Q06 and Q11 closed the abandoned-action navigation paths."
         }
       ],
       "detail": "Link parsing, account restoration, address trust and history each answer a different question: destination, credentials, local-work admission and reading position."

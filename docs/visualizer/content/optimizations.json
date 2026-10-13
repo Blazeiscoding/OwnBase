@@ -965,7 +965,7 @@
       "limits": [
         "Saving in the browser does not protect against the computer losing power.",
         "A new browser profile with no main storage can use the simpler storage area. Once the main storage has been used, the app never falls back to the simpler one.",
-        "Four related open findings, about the order in which accounts, preferences and sign-in are handled, are separate. This change does not fix them."
+        "Four related findings, about the order in which accounts, preferences and sign-in are handled, are separate. This change does not fix them. All four were repaired later."
       ],
       "technical": {
         "title": "Keep one durable browser storage owner and recover conflicts",
@@ -975,7 +975,7 @@
         "limits": [
           "Browser storage is not an OS power-loss guarantee.",
           "Fresh profiles without IndexedDB can use localStorage until adoption; acknowledged IndexedDB ownership prevents later alternate fallback.",
-          "Q02/Q03/Q04/Q05 remain caller-level identity/preference/sign-in ordering findings; this backend fix does not close them."
+          "Q02/Q03/Q04/Q05 are caller-level identity/preference/sign-in ordering findings this backend fix does not close; all four were closed separately."
         ]
       }
     },
@@ -1580,209 +1580,254 @@
     },
     {
       "id": "Q02",
-      "title": "Two first sign-ins at once can skip an address approval",
+      "title": "Two first sign-ins at once no longer skip an address approval",
       "category": "privacy",
-      "status": "follow-up",
-      "summary": "The app trusts the first address a device uses for a workspace and asks before trusting a different one. Two windows signing in for the first time at once, through different addresses, can both be trusted without asking.",
-      "before": "The second window can open saved drafts and other local work, including text carried over from the first address, without anyone approving its address.",
-      "after": "Exactly one first address should be trusted on its own. A different address should wait for the person's approval before the window opens any saved work.",
-      "mechanism": "Replace the separate get/set absent check with an atomic owner operation; require deliberate approval for the losing distinct address before consumers mount.",
+      "status": "implemented",
+      "summary": "The app trusts the first address a device uses for a workspace and asks before trusting a different one. Which address was first is now settled in one step that two windows cannot both win.",
+      "before": "Two windows signing in for the first time at once, through different addresses, were both trusted without asking. The second could open saved drafts and other local work carried over from the first address.",
+      "after": "Exactly one first address is trusted on its own. The other window is told which address that was, and has to wait for the person's approval before it opens any saved work.",
+      "mechanism": "Register the first trusted address with the storage owner's conditional initialize and decide admission from the record it returns, instead of a read followed by a separate write.",
       "files": [
         "packages/ui/src/lib/workspaceAddressTrust.ts",
-        "packages/ui/src/lib/deviceStore.ts",
-        "packages/ui/src/lib/workspaceStorage.ts"
+        "packages/ui/test/workspaceAddressTrust.test.ts"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "packages/ui/test/workspaceAddressTrust.test.ts",
+          "label": "Two windows on one store, both reading nothing before either writes"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "This needs two first sign-ins at almost the same moment. The usual check, which asks before trusting a second address, works.",
-        "No other way around that approval has been found."
+        "Approving a second address is still a read followed by a write. Two approvals at the same moment can leave one to be given again.",
+        "Where storage has no single step for this, the app falls back to the old read and write. The browser and the desktop app both have the single step."
       ],
       "technical": {
         "title": "Make first trusted-address registration atomic",
-        "summary": "Two windows can each admit a distinct address after both read the same trusted-identity record as absent.",
-        "before": "A second first-registration window can mount local-work consumers and read migrated text from the first address without approval.",
-        "after": "Follow-up: use the storage owner's conditional initialization/atomic update so exactly one first address is admitted automatically.",
+        "summary": "checkWorkspaceAddress initializes the trusted-address record through platform.storage.initialize and parses what comes back.",
+        "before": "An absent record led to storage.set of this window's address behind a per-Platform queue, so two windows that both read absence each admitted their own address.",
+        "after": "When the strict read finds nothing, the record is written with initialize, which stores only if nothing is stored and returns the stored value in one cross-window step. allowed is computed from the returned addresses, so the losing window sees the winner's address and is refused. Unreadable or malformed records still throw before anything is written.",
         "limits": [
-          "Requires concurrent first registration; the ordinary second-address refusal control passes.",
-          "No alias approval bypass outside that race is established."
+          "trustWorkspaceAddress remains a queued read plus set.",
+          "Platforms without initialize keep the read and set fallback."
         ]
       }
     },
     {
       "id": "Q03",
-      "title": "A late reply can undo a private notification setting",
+      "title": "A late reply no longer undoes a private notification setting",
       "category": "privacy",
-      "status": "follow-up",
-      "summary": "A late answer to an earlier read or save of your notification setting can overwrite a more private choice this window already learned from another window.",
-      "before": "The saved setting stays private, but after a delayed reply this window goes back to showing the full message in notifications.",
-      "after": "Late replies should be ignored once a newer setting has arrived. If the order is unclear, the app should read the current saved setting again.",
-      "mechanism": "Track the preference request/watch generation, including watches arriving before initial load; stale async replies must not restore less-private active state.",
-      "files": ["packages/ui/src/lib/notificationPreview.ts", "packages/ui/src/lib/deviceStore.ts"],
-      "evidence": [],
+      "status": "implemented",
+      "summary": "When this window's own read or save of your notification setting crosses a change made in another window, the app now reads the saved setting again and shows that.",
+      "before": "A late answer to an earlier read or save could overwrite a more private choice another window had just made. The saved setting stayed private, but this window went back to showing the full message in notifications.",
+      "after": "If another window's change arrives while this window is waiting for an answer, neither is trusted to be the newer. The app reads what is saved now and uses that. Until the first read settles, notifications show nothing about messages.",
+      "mechanism": "Track whether a request of this window's is out; a watch delivery during one marks the pair crossed, and the answer is replaced by a fresh strict read, repeated while crossings continue.",
+      "files": [
+        "packages/ui/src/lib/notificationPreview.ts",
+        "packages/ui/test/notificationPreviewOrder.test.ts"
+      ],
+      "evidence": [
+        {
+          "path": "packages/ui/test/notificationPreviewOrder.test.ts",
+          "label": "Held first reads and held saves crossed by another window's choice, in each order"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "The problem is in what this window shows and uses. The saved setting underneath keeps the correct private choice.",
-        "A test shows the problem happens. That test passing does not mean it is fixed."
+        "While the extra read is out after a crossed save, this window keeps showing what it showed before the save.",
+        "The saved setting underneath was already correct. This fixes what the window shows and uses."
       ],
       "technical": {
         "title": "Fence stale notification preference replies",
-        "summary": "Older initial-read/save completions can overwrite a newer private choice already received from another window.",
-        "before": "Durable storage is private, while the active window returns to full previews after a delayed reply.",
-        "after": "Follow-up: generation-fence replies against newer observed state and use an acknowledged current read if ordering is uncertain.",
+        "summary": "Own replies and watchRecord deliveries that overlap are resolved by an acknowledged current read.",
+        "before": "The initial get applied its reply unconditionally and watch deliveries before load were dropped; a mergeRecord reply was applied even when a newer watch value had already arrived.",
+        "after": "An asking flag covers the initial strict get and each save. A watch delivery while asking sets crossed instead of applying. current() loops a strict get until one completes uncrossed, then applies it or reports unreadable. A save applies its reply only if nothing crossed it, otherwise awaits current(); a failed save still reports its error. Watch deliveries while idle apply at once, as before.",
         "limits": [
-          "This is caller-level active-state ordering; N02's backend keeps the correct private durable value.",
-          "A passed diagnostic reproduces the failure and is not fix acceptance."
+          "Ordering between two watch deliveries relies on the storage owner's delivery order.",
+          "The store is created through notificationPreviews(platform), exported for tests."
         ]
       }
     },
     {
       "id": "Q04",
-      "title": "Enter can send a message you meant to keep writing",
+      "title": "Enter no longer sends when its saved setting cannot be read",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "If the web version cannot read your saved Enter key setting, it treats it as never set.",
-      "before": "Someone who chose to have Enter start a new line gets the default instead, with no error shown. Pressing Enter in the message box sends the message.",
-      "after": "If the setting cannot be read, Enter should keep starting a new line, and the app should show the problem and offer to try again.",
-      "mechanism": "Distinguish absent record from denied/corrupt read in the web adapter and composer preference owner; test held/refused reads and save acknowledgement.",
+      "status": "implemented",
+      "summary": "If the app cannot read your saved Enter key setting, Enter now keeps starting a new line, and the settings say so and offer to try again.",
+      "before": "The web version treated a setting it could not read as never set. Someone who chose to have Enter start a new line got the default instead, with no error shown, and Enter sent the message.",
+      "after": "A setting that cannot be read, or that is not a real choice, leaves Enter as a new line. Composing settings show the problem with Try again, and choosing an option there replaces the unreadable one.",
+      "mechanism": "Read the preference strictly and validate its shape; treat failure as unreadable with the safe default, and expose a retry.",
       "files": [
         "packages/ui/src/lib/composerPreferences.ts",
-        "packages/ui/src/platform.ts",
-        "packages/ui/src/components/Composer.tsx"
+        "packages/ui/src/components/AccountDialog.tsx",
+        "packages/ui/test/composerPreferences.dom.test.tsx"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "packages/ui/test/composerPreferences.dom.test.tsx",
+          "label": "A refused read and a malformed value in the real composer, and Try again in settings"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "This only happens when the browser cannot read this one saved setting.",
-        "The fix for damaged saved data underneath does not decide what the message box should do here."
+        "This only comes up when the device cannot read this one saved setting.",
+        "The message box itself shows no warning. The explanation is in Composing settings."
       ],
       "technical": {
         "title": "Keep unreadable composer preferences visible and safe",
-        "summary": "A refused browser composer-preference read is treated as first-use absence.",
-        "before": "A saved newline-on-Enter choice becomes Enter-to-send without an error and the actual composer invokes Send.",
-        "after": "Follow-up: strict validated preference reads keep newline behavior on unreadability and expose a retry.",
+        "summary": "useComposerPreferences reads with { strict: true } and rejects values that are not a boolean choice.",
+        "before": "A non-strict get mapped a refused read to null, which the store read as first use and set enterSends true.",
+        "after": "load() awaits a strict get, throws on a present value whose enterSends is not boolean, and on any failure sets enterSends false, unread true and the error text. retry re-runs load; setEnterSends clears unread on a successful write. Absent still means first use, with Enter sending.",
         "limits": [
-          "The failure is conditional on record-specific unreadability.",
-          "The storage backend's owner/journal repair does not choose this caller's fallback UI behavior."
+          "Applies to every platform adapter that honours strict reads.",
+          "No change to how Composer or ShortcutsDialog read enterSends."
         ]
       }
     },
     {
       "id": "Q05",
-      "title": "A forgotten sign-in can come back from another window",
+      "title": "A forgotten sign-in no longer comes back from another window",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "The app saves its whole list of saved sign-ins at once, using whatever this window last knew, which may be out of date.",
-      "before": "A window that has been open a while can bring back a sign-in you removed in another window when it switches workspaces. It can also erase a sign-in another window just saved.",
-      "after": "Each change should add, remove or update one sign-in for one account and address. Removals should be remembered, and open windows should hear about changes made in the others.",
-      "mechanism": "Use owner operations keyed by address/account and durable removals, then reconcile returned/current data without stale whole-list overwrite.",
-      "files": [
-        "packages/ui/src/App.tsx",
-        "packages/ui/src/lib/deviceStore.ts",
-        "apps/desktop/src/main/settings.ts",
-        "apps/desktop/src/main/credentials.ts"
+      "status": "implemented",
+      "summary": "Each change to the saved sign-ins is now made to the list as it is saved at that moment, not to the copy a window has had since it opened.",
+      "before": "The app saved its whole list of sign-ins at once, as that window last knew it. A window that had been open a while could bring back a sign-in you removed in another window when it switched workspaces, or erase one another window had just saved.",
+      "after": "A window reads the saved list, makes its one change and saves, in a single turn that other windows of the same browser wait for. Opening a sign-in that another window has since forgotten, or replaced with a newer one, does not put the old one back. A list that cannot be read is never saved over.",
+      "mechanism": "Replace whole-list writes with queued read-change-write turns held under a Web Lock; make the open-workspace change conditional on the held sign-in still being stored.",
+      "files": ["packages/ui/src/App.tsx", "packages/ui/test/savedSignIns.dom.test.tsx"],
+      "evidence": [
+        {
+          "path": "packages/ui/test/savedSignIns.dom.test.tsx",
+          "label": "A window left open while another forgets, adds or renews a sign-in, and a list that cannot be read"
+        }
       ],
-      "evidence": [],
       "metrics": [],
       "limits": [
-        "The test used the real app and real browser storage with made-up sign-ins. It did not show that a sign-in the server has canceled could still be used.",
-        "How the web version and the desktop app handle this both need tests, even though the desktop app's settings file already saves one change at a time."
+        "A window left open still lists a sign-in another window forgot until it next changes something. Picking it opens the workspace for that visit, but does not save it again.",
+        "Browsers only let windows wait for each other on https pages and on this computer's own address. A workspace opened over plain http on a local network does without, so there two changes in the same instant can still lose one. The desktop app has one window and saves one change at a time.",
+        "Forgetting a sign-in removes it from this device. It does not sign that device out on the server."
       ],
       "technical": {
         "title": "Merge saved sign-ins without reviving removals",
-        "summary": "App writes a stale in-memory servers list as a whole.",
-        "before": "A stale window switching workspaces can revive an explicitly forgotten sign-in or erase a sign-in newly stored by another window.",
-        "after": "Follow-up: account-aware atomic add/remove/token changes plus open-window subscriptions preserve explicit removal intent.",
+        "summary": "App changes the stored servers list through serialized read-modify-write turns instead of writing its in-memory copy.",
+        "before": "persistServers(list) wrote the window's in-memory list as a whole, so a stale window's next workspace switch revived a forgotten sign-in or erased one stored by another window.",
+        "after": "changeServers(change) applies the change to memory at once, then in one turn does a strict get, applies the same change to the stored list and sets it, and replaces memory with what was stored. Turns queue per window and run under navigator.locks.request where available. Opening a workspace moves it to the front only if the sign-in was fresh or its url and token are still stored. Forget removes by url, sign-out by url and token, and the reset of all sign-ins runs in the same queue. A failed turn keeps its change for Retry.",
         "limits": [
-          "Uses actual App and IndexedDB with synthetic credentials; no token-revocation bypass is demonstrated.",
-          "Browser/Desktop caller policy needs coverage even though native settings serializes writes."
+          "navigator.locks exists only in secure contexts (https, localhost, the desktop renderer); over plain http on a LAN the turn is not atomic across windows.",
+          "No watch: a stale window's displayed list is reconciled by its next turn.",
+          "Storage format and the desktop credential envelope are unchanged."
         ]
       }
     },
     {
       "id": "Q06",
-      "title": "A canceled sign-in can still open its workspace",
+      "title": "A canceled sign-in no longer opens its workspace",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "Signing in with a saved sign-in or a password can still finish after you cancel or leave that attempt.",
-      "before": "After you cancel a request or close the form and move on, a late answer can still take you into the old workspace.",
-      "after": "These attempts should be ignored once canceled or closed, the way canceling a check of a workspace address already works.",
-      "mechanism": "Capture attempt generation/account identity; late success/failure cannot call connected or overwrite a newer attempt once abandoned.",
-      "files": ["packages/ui/src/screens/JoinScreen.tsx"],
-      "evidence": [],
+      "status": "implemented",
+      "summary": "Signing in with a saved sign-in, or setting the new password the host asked for, now ends when you cancel or leave.",
+      "before": "After you canceled a saved sign-in or left the form and moved on, a late answer could still take you into the old workspace.",
+      "after": "An answer that arrives after you cancel, choose another workspace or leave the screen is ignored. Signing in with a username and password already worked this way.",
+      "mechanism": "Give the saved-token check the probe attempt counter and invalidate it on unmount; give the forced password replacement the auth card's attempt ticket.",
+      "files": [
+        "packages/ui/src/screens/JoinScreen.tsx",
+        "packages/ui/test/joinAbandoned.dom.test.tsx"
+      ],
+      "evidence": [
+        {
+          "path": "packages/ui/test/joinAbandoned.dom.test.tsx",
+          "label": "A saved sign-in answered after Cancel and after the screen is gone; a replaced password saved late"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "Canceling while the app checks a workspace address already ignores a late success.",
-        "The problem is in the screens, not in how the server checks sign-ins."
+        "The request itself is not called off. Only what the app does with its answer changes.",
+        "The problem was in the screens, not in how the server checks sign-ins."
       ],
       "technical": {
         "title": "End saved-sign-in and password attempts when canceled",
-        "summary": "Saved-sign-in and password completions can still invoke connected after their UI attempt is abandoned.",
-        "before": "A canceled request or dismissed form can navigate into its old workspace after the reader moves on.",
-        "after": "Follow-up: give these attempts cancellation/unmount identity guards like the existing address-probe control.",
+        "summary": "openSaved and replacePassword complete only while their attempt is still the current one.",
+        "before": "openSaved called onConnected whenever me() resolved, and replacePassword whenever changePassword resolved, with no ownership check; cancelProbe bumped a counter only probe() read.",
+        "after": "openSaved takes a ticket from probeAttempt and returns early on a mismatch in both its success and failure paths; an unmount effect sets the counter to -1. replacePassword takes a ticket from the auth card's attempt ref, which its existing unmount cleanup already invalidates.",
         "limits": [
-          "Ordinary canceled address probes already ignore late success.",
-          "The reproduction is asynchronous UI ownership, not a server authentication defect."
+          "No request is aborted; a late 401 after cancel no longer falls through to a probe.",
+          "The password sign-in submit path was already ticketed and is unchanged."
         ]
       }
     },
     {
       "id": "Q07",
-      "title": "Open search results can keep deleted or edited text",
+      "title": "Open search results no longer keep deleted or edited text",
       "category": "privacy",
-      "status": "follow-up",
-      "summary": "Search keeps its own copy of the results it found, and that copy does not follow later changes from the server.",
-      "before": "Text that was deleted, removed by automatic history removal, or edited stays in a search that is already open until you search again.",
-      "after": "Open results should drop or update a message when it is deleted, removed by history removal or edited, or when you lose access to it, even if its channel is not loaded. A late search answer should not bring removed text back.",
-      "mechanism": "Apply authoritative result invalidation or refresh to the search's copied rows and track request generation so late removed content cannot reinstall.",
+      "status": "implemented",
+      "summary": "Search keeps its own copy of the results it found. It now asks for the same page again when a conversation in those results changes.",
+      "before": "Text that was deleted, removed by automatic history removal, or edited stayed in a search that was already open until you searched again.",
+      "after": "When a message is edited or deleted, history is removed, or you leave a conversation, an open search with results from that conversation asks the server for its page again, in place. This works even when that conversation's messages are not loaded.",
+      "mechanism": "Record per conversation the seq of the latest content-changing event; the dialog re-requests its current page when that advances for a conversation among its results, never cutting a newer request short.",
       "files": [
         "packages/ui/src/components/SearchDialog.tsx",
-        "packages/client-core/src/workspace.ts"
+        "packages/client-core/src/workspace.ts",
+        "packages/ui/test/activitySearch.dom.test.tsx",
+        "packages/client-core/test/changedContent.test.ts"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "packages/ui/test/activitySearch.dom.test.tsx",
+          "label": "A deleted result dropped, the same page asked again, a newer question left to finish"
+        },
+        {
+          "path": "packages/client-core/test/changedContent.test.ts",
+          "label": "A real server's edit, deletion, pin and leave move the marker with no history loaded"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "This is text the search had already shown. It does not let anyone search for text they cannot see.",
-        "A fix must keep other results you may still see, along with loading more results and the usual search access rules."
+        "This is text the search had already shown. It never let anyone search for text they cannot see.",
+        "After being offline longer than the server keeps its record of changes, an open search is not refreshed until you search again."
       ],
       "technical": {
         "title": "Keep open search results synchronized with content removal/edit",
-        "summary": "SearchDialog owns copied results independently of authoritative socket changes.",
-        "before": "Deleted/retained or edited text remains in an already-open search until the reader repeats the query.",
-        "after": "Follow-up: observe deletion/retention/edit/revocation and fence held result installation independent of loaded timeline history.",
+        "summary": "SearchDialog re-requests its current page when changedContent advances for a channel among its results.",
+        "before": "SearchDialog copied results into component state and nothing invalidated them; only loaded timelines reacted to message.updated, message.deleted or history.removed.",
+        "after": "WorkspaceState.changedContent maps a channel to the seq of its latest message.updated, message.deleted, pin event, history.removed or own member.left. The dialog compares the latest marker across its results' channels with the level captured when those results were requested, and re-runs the submitted criteria at the same cursor without scrolling. A request in flight is left to finish and its answer is checked against the level known when it was sent.",
         "limits": [
-          "This is previously fetched text; fresh unauthorized retrieval is not established.",
-          "Preserve unrelated authorized result rows and normal paging/search access filters."
+          "The server remains the access filter; the client only asks again.",
+          "A full resync beyond the event log emits no per-message events, so it moves no marker."
         ]
       }
     },
     {
       "id": "Q08",
-      "title": "A deleted message can stay in the Pinned panel",
+      "title": "A deleted message no longer stays in the Pinned panel",
       "category": "reliability",
-      "status": "follow-up",
-      "summary": "The Pinned panel updates when the app sees pin changes in a channel it has loaded, not on every pin change or deletion from the server.",
-      "before": "A pinned message that is deleted stays in an open Pinned panel when the app has not loaded that channel's messages.",
-      "after": "The panel should follow every pin, unpin and deletion in its channel, and ignore late answers to older requests.",
-      "mechanism": "Use server/socket message/pin invalidation scoped to the panel's channel, retaining loaded-history controls and explicit Refresh behavior.",
+      "status": "implemented",
+      "summary": "The Pinned panel now asks again whenever anything already in its conversation changes, not only when the messages the app has loaded change.",
+      "before": "A pinned message that was deleted stayed in an open Pinned panel when the app had not loaded that part of the conversation.",
+      "after": "The panel follows every pin, unpin, edit and deletion in its conversation. It asks for the page it is on again, keeps what it shows until the answer arrives, and ignores answers to older requests.",
+      "mechanism": "Pass the conversation's content-change marker to the shared list panel as a refresh key that re-requests the current page in place.",
       "files": [
         "packages/ui/src/components/MessageListPanel.tsx",
-        "packages/client-core/src/workspace.ts"
+        "packages/client-core/src/workspace.ts",
+        "packages/ui/test/pinsPanel.dom.test.tsx",
+        "packages/client-core/test/changedContent.test.ts"
       ],
-      "evidence": [],
+      "evidence": [
+        {
+          "path": "packages/ui/test/pinsPanel.dom.test.tsx",
+          "label": "A deleted pin dropped with no history loaded, the list kept while asking, the same page asked again"
+        }
+      ],
       "metrics": [],
       "limits": [
-        "When the channel is loaded, or you press Refresh, the message already disappears.",
-        "This is a message the app had already fetched. It gives no one access they did not have."
+        "Any edit or deletion in the conversation makes the open panel ask again, pinned or not.",
+        "This is a message the app had already fetched. It gave no one access they did not have."
       ],
       "technical": {
         "title": "Refresh Pins independently of loaded timeline state",
-        "summary": "Pins refresh reacts to loaded timeline pin data rather than every authoritative pin/deletion change.",
-        "before": "A deleted pinned message remains in an open Pins panel when that channel timeline is not loaded.",
-        "after": "Follow-up: subscribe to independent pin/removal changes and fence held panel results.",
+        "summary": "PinsPanel refreshes on changedContent for its channel, in addition to the loaded timeline's pin signature.",
+        "before": "PinsPanel's reload key was derived from pinned messages in the loaded timeline, so a pin event or deletion for a message outside that window changed nothing.",
+        "after": "MessageListPanel takes an optional refreshKey. When it changes, the last requested page is requested again with the same cursor, without clearing the list or scrolling; the existing AbortController drops the older request's answer.",
         "limits": [
-          "Loaded-timeline and manual Refresh controls already clear the row.",
-          "This is stale previously fetched data, not a fresh access-grant bypass."
+          "The refresh is per conversation, not per pinned message.",
+          "Saved and Threads keep their existing reload keys."
         ]
       }
     },

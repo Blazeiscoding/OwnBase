@@ -142,43 +142,80 @@ function createPreviews(platform: Platform) {
       const changes: Record<string, string> = { [account]: preview };
       if (damaged) changes[UNKNOWN] = "none";
       store.setState({ saving: true, error: null });
+      let stored: unknown;
+      let saved = true;
+      asking = true;
       try {
         if (platform.storage.mergeRecord) {
           // Only this account's choice is written, so another window's choice
           // for another account stands (F02).
-          apply(await platform.storage.mergeRecord(KEY, changes));
+          stored = await platform.storage.mergeRecord(KEY, changes);
         } else {
-          const next = { ...byAccount, ...changes };
-          await platform.storage.set(KEY, next);
-          apply(next);
+          stored = { ...byAccount, ...changes };
+          await platform.storage.set(KEY, stored);
         }
       } catch {
-        store.setState({ error: "Could not save this choice. Please try again." });
-      } finally {
-        store.setState({ saving: false });
+        saved = false;
       }
+      asking = false;
+      if (crossed) await current();
+      else if (saved) apply(stored);
+      store.setState({
+        saving: false,
+        ...(saved ? {} : { error: "Could not save this choice. Please try again." }),
+      });
     },
   }));
-  // Strict: storage that cannot be read is not the same as no choice saved.
-  void platform.storage.get<unknown>(KEY, { strict: true }).then(apply).catch(unreadable);
+  /**
+   * What another window stores and what this window is answered can arrive in
+   * either order. An answer to something asked before another window's change
+   * was heard may be older than that change, and the change may be older than
+   * the answer. Shown as they came, the older could replace the newer: a
+   * window went back to showing everything after another had chosen to show
+   * nothing (Q03). So when the two cross, neither is shown, and the choices
+   * are read again as they are stored now.
+   */
+  let asking = false;
+  let crossed = false;
+  async function current(): Promise<void> {
+    for (;;) {
+      crossed = false;
+      asking = true;
+      let saved: unknown;
+      let read = true;
+      try {
+        // Strict: storage that cannot be read is not the same as no choice saved.
+        saved = await platform.storage.get<unknown>(KEY, { strict: true });
+      } catch {
+        read = false;
+      }
+      asking = false;
+      if (crossed) continue;
+      return read ? apply(saved) : unreadable();
+    }
+  }
+  void current();
   // Another window's choice takes effect here before the next notification,
   // a stricter one included (F02).
   platform.storage.watchRecord?.(KEY, (stored) => {
-    if (!store.getState().loaded) return;
-    apply(stored);
+    if (asking) crossed = true;
+    else apply(stored);
   });
   return store;
 }
 
 /** Every account's choice on this device, from the platform's storage. */
-export function useNotificationPreviews() {
-  const platform = usePlatform();
+export function notificationPreviews(platform: Platform) {
   let store = stores.get(platform);
   if (!store) {
     store = createPreviews(platform);
     stores.set(platform, store);
   }
-  return useStore(store);
+  return store;
+}
+
+export function useNotificationPreviews() {
+  return useStore(notificationPreviews(usePlatform()));
 }
 
 /**
