@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { ApiError } from "@slackoss/client-core";
 import type { FileMeta, FileType, ID, Message } from "@slackoss/protocol";
 import { parseSearchQuery } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
 import { channelTitle, formatBytes, formatTime, formatWhen } from "../lib/format.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { isImeKey } from "../lib/textInput.js";
 import { Icon } from "./Icon.js";
@@ -176,6 +176,8 @@ export function SearchDialog(props: {
   const request = useRef<AbortController | null>(null);
   const failed = useRef<(() => void) | null>(null);
   const list = useRef<HTMLUListElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const formId = useId();
   /** The first page last asked for, so the same question is not asked twice. */
   const asked = useRef<string | null>(null);
   /** A search Enter was pressed on before it answered, to remember when it does. */
@@ -275,7 +277,7 @@ export function SearchDialog(props: {
         committed.current = null;
         recent.remember(criteria);
       }
-      if (!opts.keepPlace) list.current?.closest('[role="dialog"]')?.scrollTo({ top: 0 });
+      if (!opts.keepPlace && scroller.current) scroller.current.scrollTop = 0;
     } catch (err) {
       if (!controller.signal.aborted)
         setError(
@@ -311,8 +313,10 @@ export function SearchDialog(props: {
   }
 
   return (
-    <Dialog title="Search messages" onClose={props.onClose} width={640}>
-      <form onSubmit={run} className="mb-3 space-y-3">
+    <Dialog title="Search messages" onClose={props.onClose} width={640} ownScroll>
+      {/* The field stays in sight over what it found, to be changed from any
+          way down the results. */}
+      <form id={formId} onSubmit={run} className="shrink-0 space-y-3 px-6 pb-2">
         <div className="flex gap-2">
           <input
             autoFocus
@@ -336,9 +340,16 @@ export function SearchDialog(props: {
             Search
           </button>
         </div>
+        {query.length > 200 && (
+          <p role="alert" className="text-xs text-ink-dim">
+            Shorten the search or remove a filter (200 characters maximum).
+          </p>
+        )}
+      </form>
+      <DialogScroll ref={scroller}>
         <details
           open={!!(scope || author || contains || after || before) || undefined}
-          className="group rounded-xl border border-edge"
+          className="group mb-3 rounded-xl border border-edge"
         >
           <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink-dim hover:text-ink">
             <Icon
@@ -426,6 +437,8 @@ export function SearchDialog(props: {
                 After
                 <input
                   type="date"
+                  // Enter in a date still searches, from outside the form.
+                  form={formId}
                   className={inputCls}
                   value={after}
                   onChange={(e) => setAfter(e.target.value)}
@@ -435,6 +448,7 @@ export function SearchDialog(props: {
                 Before
                 <input
                   type="date"
+                  form={formId}
                   className={inputCls}
                   value={before}
                   onChange={(e) => setBefore(e.target.value)}
@@ -462,187 +476,186 @@ export function SearchDialog(props: {
             </div>
           </div>
         </details>
-        {query.length > 200 && (
-          <p role="alert" className="text-xs text-ink-dim">
-            Shorten the search or remove a filter (200 characters maximum).
-          </p>
-        )}
-      </form>
-      {(recent.items.length > 0 || recent.error) && (
-        <details open={!results} className="mb-3 rounded-xl border border-edge p-3">
-          <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium text-ink-dim hover:text-ink">
-            <Icon name="clock" size={14} className="text-ink-faint" />
-            Recent searches
-          </summary>
-          <div className="mb-2 mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
-            <span>Saved on this device for this account and workspace.</span>
-            <button
-              disabled={busy || recent.busy}
-              className="shrink-0 font-medium text-ink-dim underline disabled:opacity-40"
-              onClick={recent.clear}
-            >
-              Clear recent searches
-            </button>
-          </div>
-          {recent.error && (
-            <p role="status" className="mb-2 text-xs text-ink-dim">
-              {recent.error}
-            </p>
-          )}
-          <ul aria-label="Recent searches" className="space-y-1">
-            {recent.items.map((entry) => {
-              const channel = entry.channelId ? channels[entry.channelId] : undefined;
-              const scopeLabel = entry.channelId
-                ? channel
-                  ? channelTitle(channel, users, client.state.self?.id ?? "")
-                  : "Unavailable conversation"
-                : "All conversations";
-              return (
-                <li
-                  key={JSON.stringify([entry.query, entry.channelId])}
-                  className="flex items-center gap-2"
-                >
-                  <button
-                    disabled={busy || (!!entry.channelId && !channel)}
-                    className="min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-sm hover:bg-ink/[0.05] disabled:opacity-40"
-                    onClick={() => repeat(entry)}
-                  >
-                    <span className="block truncate">{entry.query || "All messages"}</span>
-                    <span className="block truncate text-xs text-ink-faint">{scopeLabel}</span>
-                  </button>
-                  <button
-                    disabled={recent.busy}
-                    aria-label={`Remove recent search: ${entry.query || "All messages"} (${scopeLabel})`}
-                    className="rounded-md p-1.5 text-ink-faint hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
-                    onClick={() => recent.remove(entry)}
-                  >
-                    <Icon name="close" size={14} />
-                  </button>
-                </li>
-              );
-            })}
-          </ul>
-        </details>
-      )}
-      <SearchHints query={query} />
-      {results && (
-        <p role="status" className="mb-2 text-xs text-ink-faint">
-          {results.messages.length} results · Page {page + 1} · Newest first
-          {submitted?.query ? ` · “${submitted.query}”` : ""}
-        </p>
-      )}
-      <ListStatus
-        loading={busy}
-        placeholder={!results}
-        loadingLabel="Searching…"
-        error={error}
-        onRetry={() => failed.current?.()}
-        empty={results?.messages.length === 0 ? "Nothing matched. Try different words." : null}
-        emptyIcon="search"
-      />
-      {results && (
-        <>
-          <ul
-            ref={list}
-            className="space-y-2"
-            aria-busy={busy}
-            onKeyDown={(e) => {
-              if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-              const buttons = [
-                ...(list.current?.querySelectorAll<HTMLButtonElement>("[data-search-open]") ?? []),
-              ];
-              const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-              if (index < 0) return;
-              e.preventDefault();
-              buttons[
-                Math.max(0, Math.min(buttons.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)))
-              ]?.focus();
-            }}
-          >
-            {results.messages
-              .filter((m) => !!channels[m.channelId])
-              .map((m) => {
-                const ch = channels[m.channelId];
+        {(recent.items.length > 0 || recent.error) && (
+          <details open={!results} className="mb-3 rounded-xl border border-edge p-3">
+            <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium text-ink-dim hover:text-ink">
+              <Icon name="clock" size={14} className="text-ink-faint" />
+              Recent searches
+            </summary>
+            <div className="mb-2 mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
+              <span>Saved on this device for this account and workspace.</span>
+              <button
+                disabled={busy || recent.busy}
+                className="shrink-0 font-medium text-ink-dim underline disabled:opacity-40"
+                onClick={recent.clear}
+              >
+                Clear recent searches
+              </button>
+            </div>
+            {recent.error && (
+              <p role="status" className="mb-2 text-xs text-ink-dim">
+                {recent.error}
+              </p>
+            )}
+            <ul aria-label="Recent searches" className="space-y-1">
+              {recent.items.map((entry) => {
+                const channel = entry.channelId ? channels[entry.channelId] : undefined;
+                const scopeLabel = entry.channelId
+                  ? channel
+                    ? channelTitle(channel, users, client.state.self?.id ?? "")
+                    : "Unavailable conversation"
+                  : "All conversations";
                 return (
                   <li
-                    key={m.id}
-                    className="rounded-xl border border-edge p-3 transition-colors hover:bg-ink/[0.025]"
+                    key={JSON.stringify([entry.query, entry.channelId])}
+                    className="flex items-center gap-2"
                   >
-                    <div className="mb-1 flex items-baseline gap-2 text-[12px] text-ink-faint">
-                      <span className="font-semibold text-ink-dim">
-                        {ch
-                          ? ch.name
-                            ? `#${ch.name}`
-                            : channelTitle(ch, users, client.state.self?.id ?? "")
-                          : "Unavailable conversation"}
-                      </span>
-                      {(!ch || ch.name) && <span>{users[m.userId]?.displayName}</span>}
-                      <time
-                        dateTime={new Date(m.createdAt).toISOString()}
-                        title={`${new Date(m.createdAt).toLocaleDateString()} ${formatTime(m.createdAt)}`}
-                        className="ml-auto text-right"
-                      >
-                        {formatWhen(m.createdAt)}
-                      </time>
-                    </div>
-                    <div className="text-sm">
-                      <Mrkdwn
-                        text={m.text}
-                        users={users}
-                        channels={channels}
-                        highlightTerms={highlightTerms}
-                      />
-                    </div>
-                    <Attachments files={m.files} terms={highlightTerms} />
-                    <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
-                      <span>{m.threadRootId ? "Thread reply" : "Message"}</span>
-                      <button
-                        data-search-open
-                        className="inline-flex items-center gap-1 font-medium text-ink-dim hover:text-ink"
-                        disabled={busy || !ch}
-                        onClick={() => {
-                          // A result someone opens is one they were looking for.
-                          if (submitted) recent.remember(submitted);
-                          props.onJump(m.channelId, m.id);
-                        }}
-                      >
-                        Open in conversation
-                        <Icon name="arrow" size={12} />
-                      </button>
-                    </div>
+                    <button
+                      disabled={busy || (!!entry.channelId && !channel)}
+                      className="min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-sm hover:bg-ink/[0.05] disabled:opacity-40"
+                      onClick={() => repeat(entry)}
+                    >
+                      <span className="block truncate">{entry.query || "All messages"}</span>
+                      <span className="block truncate text-xs text-ink-faint">{scopeLabel}</span>
+                    </button>
+                    <button
+                      disabled={recent.busy}
+                      aria-label={`Remove recent search: ${entry.query || "All messages"} (${scopeLabel})`}
+                      className="rounded-md p-1.5 text-ink-faint hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
+                      onClick={() => recent.remove(entry)}
+                    >
+                      <Icon name="close" size={14} />
+                    </button>
                   </li>
                 );
               })}
-          </ul>
-          <div
-            hidden={page === 0 && !results.nextCursor}
-            className="mt-4 flex justify-between text-sm font-medium text-ink-dim"
-          >
-            <button
-              disabled={busy || page === 0}
-              onClick={() =>
-                submitted &&
-                void search(submitted, cursors[page - 1], page - 1, cursors.slice(0, page))
-              }
+            </ul>
+          </details>
+        )}
+        <SearchHints query={query} />
+        {results && (
+          <p role="status" className="mb-2 text-xs text-ink-faint">
+            {results.messages.length} results · Page {page + 1} · Newest first
+            {submitted?.query ? ` · “${submitted.query}”` : ""}
+          </p>
+        )}
+        <ListStatus
+          loading={busy}
+          placeholder={!results}
+          loadingLabel="Searching…"
+          error={error}
+          onRetry={() => failed.current?.()}
+          empty={results?.messages.length === 0 ? "Nothing matched. Try different words." : null}
+          emptyIcon="search"
+        />
+        {results && (
+          <>
+            <ul
+              ref={list}
+              className="space-y-2"
+              aria-busy={busy}
+              onKeyDown={(e) => {
+                if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                const buttons = [
+                  ...(list.current?.querySelectorAll<HTMLButtonElement>("[data-search-open]") ??
+                    []),
+                ];
+                const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+                if (index < 0) return;
+                e.preventDefault();
+                buttons[
+                  Math.max(
+                    0,
+                    Math.min(buttons.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)),
+                  )
+                ]?.focus();
+              }}
             >
-              Previous page
-            </button>
-            <button
-              disabled={busy || !results.nextCursor}
-              onClick={() =>
-                submitted &&
-                results.nextCursor &&
-                void search(submitted, results.nextCursor, page + 1, [
-                  ...cursors,
-                  results.nextCursor,
-                ])
-              }
+              {results.messages
+                .filter((m) => !!channels[m.channelId])
+                .map((m) => {
+                  const ch = channels[m.channelId];
+                  return (
+                    <li
+                      key={m.id}
+                      className="rounded-xl border border-edge p-3 transition-colors hover:bg-ink/[0.025]"
+                    >
+                      <div className="mb-1 flex items-baseline gap-2 text-[12px] text-ink-faint">
+                        <span className="font-semibold text-ink-dim">
+                          {ch
+                            ? ch.name
+                              ? `#${ch.name}`
+                              : channelTitle(ch, users, client.state.self?.id ?? "")
+                            : "Unavailable conversation"}
+                        </span>
+                        {(!ch || ch.name) && <span>{users[m.userId]?.displayName}</span>}
+                        <time
+                          dateTime={new Date(m.createdAt).toISOString()}
+                          title={`${new Date(m.createdAt).toLocaleDateString()} ${formatTime(m.createdAt)}`}
+                          className="ml-auto text-right"
+                        >
+                          {formatWhen(m.createdAt)}
+                        </time>
+                      </div>
+                      <div className="text-sm">
+                        <Mrkdwn
+                          text={m.text}
+                          users={users}
+                          channels={channels}
+                          highlightTerms={highlightTerms}
+                        />
+                      </div>
+                      <Attachments files={m.files} terms={highlightTerms} />
+                      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
+                        <span>{m.threadRootId ? "Thread reply" : "Message"}</span>
+                        <button
+                          data-search-open
+                          className="inline-flex items-center gap-1 font-medium text-ink-dim hover:text-ink"
+                          disabled={busy || !ch}
+                          onClick={() => {
+                            // A result someone opens is one they were looking for.
+                            if (submitted) recent.remember(submitted);
+                            props.onJump(m.channelId, m.id);
+                          }}
+                        >
+                          Open in conversation
+                          <Icon name="arrow" size={12} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+            </ul>
+            <div
+              hidden={page === 0 && !results.nextCursor}
+              className="mt-4 flex justify-between text-sm font-medium text-ink-dim"
             >
-              Next page
-            </button>
-          </div>
-        </>
-      )}
+              <button
+                disabled={busy || page === 0}
+                onClick={() =>
+                  submitted &&
+                  void search(submitted, cursors[page - 1], page - 1, cursors.slice(0, page))
+                }
+              >
+                Previous page
+              </button>
+              <button
+                disabled={busy || !results.nextCursor}
+                onClick={() =>
+                  submitted &&
+                  results.nextCursor &&
+                  void search(submitted, results.nextCursor, page + 1, [
+                    ...cursors,
+                    results.nextCursor,
+                  ])
+                }
+              >
+                Next page
+              </button>
+            </div>
+          </>
+        )}
+      </DialogScroll>
     </Dialog>
   );
 }

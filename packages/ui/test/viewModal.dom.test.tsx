@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
 import type { ModalView, User } from "@slackoss/protocol";
@@ -81,6 +81,16 @@ describe("an app's form", () => {
     expect(reason).not.toHaveAttribute("aria-describedby");
     expect(reason).toHaveAttribute("aria-required", "false");
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
+  });
+
+  it("keeps its buttons in sight under however many fields the app sends", () => {
+    renderForm();
+    const scroller = screen.getByRole("dialog").querySelector(".dialog-scroll")!;
+    expect(scroller).toContainElement(screen.getByRole("textbox", { name: "Amount" }));
+    const buttons = within(screen.getByRole("dialog")).getAllByRole("button");
+    // Close, and the two that finish the form.
+    expect(buttons).toHaveLength(3);
+    for (const button of buttons) expect(scroller).not.toContainElement(button);
   });
 
   it("keeps two fields apart when their blocks give them the same action id", async () => {

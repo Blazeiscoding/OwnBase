@@ -19,10 +19,10 @@ import { Avatar } from "./Avatar.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { useShareableServer } from "./ShareableServer.js";
+import { Dialog } from "./Dialog.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
-import { ReactionPicker } from "./ReactionPicker.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
@@ -31,6 +31,10 @@ import { useToast } from "./Toast.js";
 // Editing a sent message is now and then, so the editor loads on first use.
 const MessageEditor = lazy(() =>
   import("./MessageEditor.js").then((module) => ({ default: module.MessageEditor })),
+);
+// So is a reaction beyond the three the toolbar offers, and so does its picker.
+const ReactionPicker = lazy(() =>
+  import("./ReactionPicker.js").then((module) => ({ default: module.ReactionPicker })),
 );
 
 /** The three reactions most messages get; the picker has the rest. */
@@ -609,7 +613,21 @@ export const MessageItem = memo(function MessageItem({
           />
         </div>
       )}
-      {picking && <ReactionPicker anchor={row} onPick={react} onClose={() => setPicking(false)} />}
+      {picking && (
+        <ErrorBoundary
+          fallback={
+            <Dialog title="Add a reaction" onClose={() => setPicking(false)}>
+              <p role="alert" className="text-sm text-ink-dim">
+                The emoji picker could not load. Reload the app to try again.
+              </p>
+            </Dialog>
+          }
+        >
+          <Suspense fallback={null}>
+            <ReactionPicker anchor={row} onPick={react} onClose={() => setPicking(false)} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
     </div>
   );
 });

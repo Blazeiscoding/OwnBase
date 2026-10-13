@@ -271,6 +271,7 @@
       "details": [
         "Semantic surface, ink, accent, border and alert tokens support Onyx, White and system appearance. Density attributes adjust message and sidebar spacing without changing component behavior.",
         "The stylesheet centralizes font, spacing, radius and focus conventions, plus compact-window/drawer behavior and motion-related presentation. UI theme controls and native shell colors are intended to stay consistent with these tokens.",
+        "It also holds the dialog layout: a capped column whose scrolling region keeps a constant content width through container units, contains overscroll, and fades at an edge with more beyond it through a scroll timeline.",
         "Theme tests check the project's chosen type/radius scale and color contrast; these checks support consistency without replacing manual usability inspection."
       ],
       "concepts": ["design tokens", "themes", "density", "responsive layout", "focus styling"]
@@ -897,7 +898,7 @@
         "The memoized row renders author, timestamps, mrkdwn, files, reactions, thread affordances and app buttons. useMessageReferences tracks only referenced users/channels, and self identity/role controls relevant actions.",
         "Reaction, pin and saved toggles report refused optimistic changes through a toast with a repeatable intent. Delete uses an explicit confirmation; mark unread delegates channel or thread cursor behavior to the client.",
         "Copying text/link waits for clipboard outcome. App link buttons navigate normally while interactive buttons call the app through the server and wait for its result; permissions remain enforced by the server.",
-        "The in-place editor is a lazy chunk with an inline loading status and a recoverable failure, keeping editing code out of the entry every visit downloads.",
+        "The in-place editor is a lazy chunk with an inline loading status and a recoverable failure, keeping editing code out of the entry every visit downloads. The emoji picker for a reaction is a lazy chunk too, with a dialog that says so if it cannot load.",
         "Reply answers a message in place (Shift leaves its author unnotified) and Reply in thread opens its thread, as in Discord; inside a thread, Reply answers one of its replies. A reply shows its quote above it through ReplyQuote, and a reply that notified you is marked as a mention is."
       ],
       "concepts": [
@@ -945,7 +946,7 @@
       "plain": "The search window, which finds words in messages and file names with filters for where, when and what kind of file.",
       "summary": "Searches server-side message text and attachment names with understandable filters.",
       "details": [
-        "Displays search modifiers and the parsed interpretation, scope/date/file-type controls, pagination, matched terms and attachment-name reasons for a result.",
+        "Displays search modifiers and the parsed interpretation, scope/date/file-type controls, pagination, matched terms and attachment-name reasons for a result. The search field stays above the filters and results, which scroll, and each new page is shown from its top.",
         "Recent searches are kept in the authenticated local scope; choosing a result requests an in-app message jump rather than treating a result excerpt as the whole conversation.",
         "Since Q07 the dialog re-requests its current page when changedContent advances for a channel among its results, leaving a request in flight to finish first. Results are still a copy: after a resync beyond the event log they are stale until asked again."
       ],
@@ -1030,9 +1031,10 @@
       "summary": "Makes the shared emoji catalog searchable for a message reaction.",
       "details": [
         "Uses listbox selection and labelled buttons so keyboard, screen-reader and pointer users can choose the same emoji.",
-        "Touch users tap before opening the software keyboard, allowing the picker to show choices without the keyboard immediately covering them."
+        "Touch users tap before opening the software keyboard, allowing the picker to show choices without the keyboard immediately covering them.",
+        "Kept out of the entry every visit downloads: MessageItem loads it the first time someone asks for more than the toolbar's three reactions, shows nothing new while it loads, and says the picker could not load if its chunk fails."
       ],
-      "concepts": ["emoji reactions", "touch input", "listbox"]
+      "concepts": ["emoji reactions", "touch input", "listbox", "lazy loading"]
     },
     {
       "path": "packages/ui/src/components/ReplyQuote.tsx",
@@ -1121,10 +1123,11 @@
     },
     {
       "path": "packages/ui/src/components/AccountDialog.tsx",
-      "plain": "Account settings, with sections for your profile, notifications, appearance, calls, security, devices and storage.",
+      "plain": "Account settings, with sections for your profile, notifications, appearance, calls, security, devices and storage. The list of sections stays put while the open one scrolls.",
       "summary": "Collects account, device and presentation settings in routable sections.",
       "details": [
         "Section keyboard navigation and route callbacks connect profile, notifications, appearance, composing, calls, security, devices and storage to Back/Forward history.",
+        "The dialog has one height for every section. The section list stays beside the open section, which is the only part that scrolls and opens at its start; on a phone the list is a strip that brings the chosen section to its middle.",
         "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences.",
         "Security and Devices change passwords, list/revoke sessions and sign out through the server; Storage displays server usage. Confirmation identifies destructive session changes.",
         "The Q03 and Q04 repairs live in the underlying helpers; this dialog only shows their state, including Try again for a composer preference that could not be read."
@@ -1391,19 +1394,28 @@
       "details": [
         "Tracks the active layer, makes the page and older portals inert, and permits only the top layer to handle Escape, outside dismissal and tab containment.",
         "Focus restoration follows connected usable openers and fallback owners even if an underlying dialog was removed. Layout registration accounts for child autoFocus occurring before portal ownership is fully installed.",
-        "Central ownership avoids competing independent focus traps for dialogs, menus and lightboxes."
+        "Central ownership avoids competing independent focus traps for dialogs, menus and lightboxes.",
+        "A dialog's scrolling region is a part of it, so keys pressed elsewhere in it would scroll nothing. Page Up and Page Down from outside the region, and the arrow, Home and End keys from the dialog element itself, scroll the region. Text areas, selects and modified keys are left alone."
       ],
-      "concepts": ["modal stack", "inert background", "focus trap", "focus restoration"]
+      "concepts": [
+        "modal stack",
+        "inert background",
+        "focus trap",
+        "focus restoration",
+        "keyboard scrolling"
+      ]
     },
     {
       "path": "packages/ui/src/components/Dialog.tsx",
-      "plain": "The standard dialog frame with a title, a close button and matching form fields.",
-      "summary": "Adds standard dialog structure and form styling on top of Modal.",
+      "plain": "The standard dialog frame. Its title and close button stay in sight while what is under them scrolls, and it supplies matching form fields.",
+      "summary": "Adds standard dialog structure, one scrolling region and form styling on top of Modal.",
       "details": [
         "Supplies a titled surface, accessible description relationship, close affordance and configurable width.",
+        "The title row is fixed and the content scrolls in DialogScroll. A dialog that sets ownScroll places that region itself, between the parts it keeps in sight: a search field, the list of settings sections, or the buttons that finish a form.",
+        "The scrolling content takes its width from a container around the scroller, so a scrollbar appearing does not shift it, and it fades at an edge only while there is more to scroll to there. Both are stylesheet rules, with a plain edge where scroll timelines are unsupported.",
         "Exports shared input classes so forms use the same focus, border and disabled appearance."
       ],
-      "concepts": ["accessible dialog", "shared form surface"]
+      "concepts": ["accessible dialog", "single scroll region", "shared form surface"]
     },
     {
       "path": "packages/ui/src/components/Popover.tsx",

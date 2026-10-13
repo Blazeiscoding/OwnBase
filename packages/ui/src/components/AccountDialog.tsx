@@ -14,7 +14,7 @@ import {
 import type { AccountSection } from "../lib/accountSections.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { ListStatus } from "./ListStatus.js";
 import { ProfileForm } from "./ProfileDialog.js";
 import { VoiceVideoSettings } from "./VoiceVideoSettings.js";
@@ -80,6 +80,7 @@ export function AccountDialog({
   const [busy, setBusy] = useState(false);
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const confirmationPanel = useRef<HTMLElement>(null);
+  const panel = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (confirmation) {
       confirmationPanel.current?.focus();
@@ -189,12 +190,22 @@ export function AccountDialog({
   function choose(next: AccountSection) {
     if (next === section) return;
     setSection(next);
+    // A section is read from its start, wherever the last one was left.
+    if (panel.current) panel.current.scrollTop = 0;
     onSectionChange?.(next);
     // What was said, or about to be confirmed, belongs to the section it came from.
     setError(null);
     setNotice(null);
     setConfirmation(null);
   }
+
+  // On a phone the sections are a strip that scrolls sideways, and the one
+  // opened on may be past its end. Brought to the middle, it shows its neighbours.
+  useEffect(() => {
+    document
+      .getElementById(`${tabsId}-tab-${section}`)
+      ?.scrollIntoView?.({ block: "nearest", inline: "center" });
+  }, [tabsId, section]);
 
   // Back and Forward can name another section while the dialog stays open.
   const chooseRef = useRef(choose);
@@ -207,17 +218,21 @@ export function AccountDialog({
     setError(null);
   };
   return (
-    <Dialog title="Account settings" onClose={onClose} width={760}>
-      <p className="mb-4 text-sm text-ink-dim">
+    <Dialog title="Account settings" onClose={onClose} width={760} ownScroll>
+      <p className="mb-4 shrink-0 px-6 text-sm text-ink-dim">
         Signed in as <span className="font-medium text-ink">{self?.displayName}</span> · @
         {self?.handle}
       </p>
-      <div className="flex flex-col gap-5 sm:flex-row">
+      {/* One height for every section, so choosing another does not resize the
+          dialog under the pointer. The sections stay put beside the one being
+          read, and only that one scrolls. */}
+      <div className="flex h-[36rem] min-h-0 flex-col gap-y-3 sm:flex-row">
         <div
           role="tablist"
           aria-label="Account settings"
           aria-orientation="vertical"
-          className="flex shrink-0 gap-0.5 overflow-x-auto sm:w-44 sm:flex-col sm:self-start sm:border-r sm:border-edge sm:pr-3"
+          // Padded by the width of a focus ring, which its scrolling would clip.
+          className="tab-strip mx-5 flex shrink-0 gap-0.5 overflow-auto p-1 sm:mb-5 sm:mr-0 sm:w-45 sm:flex-col sm:border-r sm:border-edge sm:pr-3"
           onKeyDown={(event) => {
             const next = sectionAfter(event.key, section);
             if (!next) return;
@@ -246,13 +261,11 @@ export function AccountDialog({
             </button>
           ))}
         </div>
-        <div
+        <DialogScroll
+          ref={panel}
           id={`${tabsId}-panel`}
           role="tabpanel"
           aria-labelledby={`${tabsId}-tab-${section}`}
-          // As tall as the dialog allows, so moving between sections does not
-          // resize the dialog under the pointer.
-          className="min-w-0 flex-1 sm:min-h-[min(560px,calc(78vh-150px))]"
         >
           {error && (
             <p
@@ -529,7 +542,7 @@ export function AccountDialog({
               </div>
             </section>
           )}
-        </div>
+        </DialogScroll>
       </div>
     </Dialog>
   );

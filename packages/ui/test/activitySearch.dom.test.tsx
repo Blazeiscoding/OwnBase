@@ -516,6 +516,51 @@ describe("the search dialog", () => {
     expect(spy).toHaveBeenLastCalledWith("mockups", 30, expect.objectContaining({ cursor: "M5" }));
   });
 
+  it("keeps the field over what it found, and shows each page from its top", async () => {
+    const user = userEvent.setup();
+    const { client, dialog, box, spy } = renderSearch(async (_q, { cursor }) =>
+      cursor
+        ? { messages: [message("M1", "Older mockups", 1)], nextCursor: null }
+        : { messages: [message("M5", "Newer mockups", 5)], nextCursor: "M5" },
+    );
+    const scroller = dialog.querySelector<HTMLElement>(".dialog-scroll")!;
+    expect(scroller).not.toContainElement(box);
+    await user.type(box, "mockups{Enter}");
+    expect(scroller).toContainElement(await within(dialog).findByText(/Newer/));
+
+    scroller.scrollTop = 500;
+    await user.click(within(dialog).getByRole("button", { name: "Next page" }));
+    await within(dialog).findByText(/Older/);
+    expect(scroller.scrollTop).toBe(0);
+
+    // The page asked for again because something on it changed stays where it was being read.
+    scroller.scrollTop = 200;
+    const asked = spy.mock.calls.length;
+    act(() => client.store.setState({ changedContent: { [design.id]: 21 } }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(asked + 1));
+    await act(async () => {});
+    expect(scroller.scrollTop).toBe(200);
+  });
+
+  it("settles a search on Enter in a date, as on Enter in the field", async () => {
+    const user = userEvent.setup();
+    const { dialog, box } = renderSearch(async () => ({
+      messages: [message("M5", "The mockups are ready", 5)],
+      nextCursor: null,
+    }));
+    await user.type(box, "mock");
+    await waitFor(() => expect(dialog).toHaveTextContent("1 results"));
+    expect(within(dialog).queryByRole("list", { name: "Recent searches" })).toBeNull();
+    // The dates scroll with the results, outside the form the field is in.
+    const after = within(dialog).getByLabelText("After");
+    expect(box.closest("form")).not.toContainElement(after);
+    after.focus();
+    await user.keyboard("{Enter}");
+    expect(await within(dialog).findByRole("list", { name: "Recent searches" })).toHaveTextContent(
+      "mock",
+    );
+  });
+
   it("says it is searching, and does not ask again until it has an answer", async () => {
     const user = userEvent.setup();
     let answer!: (value: { messages: Message[]; nextCursor: null }) => void;

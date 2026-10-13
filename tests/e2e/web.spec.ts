@@ -3471,6 +3471,97 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
   }
 });
 
+test("a dialog keeps its name, its sections and its buttons in sight, and scrolls only what is read", async ({
+  page,
+}) => {
+  // Enough people that choosing who to message is a list to scroll.
+  for (let i = 1; i <= 12; i++) {
+    const registered = await fetch(`${base}/api/auth/register`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        handle: `guest${i}`,
+        displayName: `Person ${String(i).padStart(2, "0")}`,
+        password: "password123",
+      }),
+    });
+    expect(registered.status).toBe(201);
+  }
+  // A short window, where every section of the settings is longer than the dialog.
+  await page.setViewportSize({ width: 1280, height: 620 });
+  await signIn(page, "alice");
+  const box = async (locator: Locator) => (await locator.boundingBox())!;
+  /**
+   * Loaded, and done arriving. A dialog says it is loading in a smaller one
+   * first, and grows a little as it appears.
+   */
+  const settled = async (dialog: Locator, loaded: Locator) => {
+    await expect(loaded).toBeVisible();
+    await dialog.evaluate((el) => Promise.all(el.getAnimations().map((a) => a.finished)));
+  };
+  const scrolled = (locator: Locator) => locator.evaluate((el) => el.scrollTop);
+
+  await page.getByRole("button", { name: /, your account$/ }).click();
+  await page.getByRole("menuitem", { name: "Account settings" }).click();
+  const settings = page.getByRole("dialog", { name: "Account settings", exact: true });
+  const voice = settings.getByRole("tab", { name: "Voice & video", exact: true });
+  await settled(settings, voice);
+  await voice.click();
+  const section = settings.getByRole("tabpanel", { name: "Voice & video", exact: true });
+  const name = settings.getByRole("heading", { name: "Account settings" });
+  const sections = settings.getByRole("tablist");
+  const before = {
+    dialog: await box(settings),
+    name: await box(name),
+    sections: await box(sections),
+  };
+  expect(before.dialog.y + before.dialog.height).toBeLessThanOrEqual(620);
+
+  // The wheel over the section scrolls the section. Nothing else moves.
+  await section.hover();
+  await page.mouse.wheel(0, 400);
+  await expect.poll(() => scrolled(section)).toBeGreaterThan(200);
+  expect(await scrolled(settings)).toBe(0);
+  expect(await box(settings)).toEqual(before.dialog);
+  expect(await box(name)).toEqual(before.name);
+  expect(await box(sections)).toEqual(before.sections);
+  await expect(settings.getByRole("button", { name: "Close" })).toBeInViewport();
+  await expect(settings.getByRole("tab", { name: "Profile", exact: true })).toBeInViewport();
+
+  // Page Down reaches the section from its tab, which is beside what scrolls.
+  await section.evaluate((el) => (el.scrollTop = 0));
+  await voice.focus();
+  await page.keyboard.press("PageDown");
+  await expect.poll(() => scrolled(section)).toBeGreaterThan(100);
+
+  // Another section opens at its start, in a dialog that has not changed size.
+  await settings.getByRole("tab", { name: "Notifications", exact: true }).click();
+  const notifications = settings.getByRole("tabpanel", { name: "Notifications", exact: true });
+  await expect(notifications.getByRole("heading", { name: "Pause notifications" })).toBeVisible();
+  expect(await scrolled(notifications)).toBe(0);
+  expect(await box(settings)).toEqual(before.dialog);
+  await page.keyboard.press("Escape");
+  await expect(settings).toBeHidden();
+
+  // Who a message is to stays above the people, and the button that starts it below them.
+  await page.getByRole("button", { name: "New message", exact: true }).first().click();
+  const message = page.getByRole("dialog", { name: "New message", exact: true });
+  const to = message.getByLabel("To", { exact: true });
+  await settled(message, to);
+  const people = message.getByRole("list", { name: "People" });
+  const list = message.locator(".dialog-scroll");
+  expect(await list.evaluate((el) => el.scrollHeight - el.clientHeight)).toBeGreaterThan(100);
+  const start = message.getByRole("button", { name: "Start conversation", exact: true });
+  const fixed = { dialog: await box(message), to: await box(to), start: await box(start) };
+  expect(fixed.start.y + fixed.start.height).toBeLessThanOrEqual(620);
+  await people.hover();
+  await page.mouse.wheel(0, 2000);
+  await expect(message.getByText("Person 12", { exact: true })).toBeInViewport();
+  expect(await box(message)).toEqual(fixed.dialog);
+  expect(await box(to)).toEqual(fixed.to);
+  expect(await box(start)).toEqual(fixed.start);
+});
+
 test("a visitor joins with only a name where guests are allowed, and can keep it as an account", async ({
   browser,
 }) => {

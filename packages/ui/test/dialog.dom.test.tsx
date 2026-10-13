@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
 import { fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Dialog } from "../src/components/Dialog.js";
+import { Dialog, DialogScroll } from "../src/components/Dialog.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /** A button that opens a small form in a dialog, as most dialogs here are opened. */
@@ -98,6 +98,101 @@ describe("a dialog", () => {
     );
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(2);
+  });
+
+  it("keeps its name and its close button out of what scrolls", () => {
+    render(
+      <Dialog title="Diagnostics" onClose={() => {}}>
+        <p>A long report</p>
+      </Dialog>,
+    );
+    const dialog = screen.getByRole("dialog");
+    const scroller = dialog.querySelector(".dialog-scroll")!;
+    expect(scroller).toContainElement(screen.getByText("A long report"));
+    expect(scroller).not.toContainElement(screen.getByRole("heading", { name: "Diagnostics" }));
+    expect(scroller).not.toContainElement(screen.getByRole("button", { name: "Close" }));
+  });
+
+  it("lets the content keep a field above what scrolls, and buttons below it", () => {
+    render(
+      <Dialog title="New message" onClose={() => {}} ownScroll>
+        <input aria-label="To" />
+        <DialogScroll>
+          <p>Alex Kim</p>
+        </DialogScroll>
+        <button>Start conversation</button>
+      </Dialog>,
+    );
+    const scrollers = screen.getByRole("dialog").querySelectorAll(".dialog-scroll");
+    expect(scrollers).toHaveLength(1);
+    expect(scrollers[0]).toContainElement(screen.getByText("Alex Kim"));
+    expect(scrollers[0]).not.toContainElement(screen.getByRole("textbox", { name: "To" }));
+    expect(scrollers[0]).not.toContainElement(
+      screen.getByRole("button", { name: "Start conversation" }),
+    );
+  });
+
+  describe("scrolled from the keyboard", () => {
+    /** A dialog whose list is 400 px tall on screen; jsdom lays nothing out. */
+    function shortcuts() {
+      render(
+        <Dialog title="Keyboard shortcuts" onClose={() => {}} ownScroll>
+          <input aria-label="Find a shortcut" />
+          <textarea aria-label="Notes" />
+          <DialogScroll>
+            <button>Copy</button>
+          </DialogScroll>
+        </Dialog>,
+      );
+      const dialog = screen.getByRole("dialog");
+      const scroller = dialog.querySelector<HTMLElement>(".dialog-scroll")!;
+      Object.defineProperty(scroller, "clientHeight", { configurable: true, value: 400 });
+      return { dialog, scroller, user: userEvent.setup() };
+    }
+
+    it("pages what scrolls from a field kept above it", async () => {
+      const { scroller, user } = shortcuts();
+      screen.getByRole("textbox", { name: "Find a shortcut" }).focus();
+      await user.keyboard("{PageDown}");
+      expect(scroller.scrollTop).toBe(360);
+      await user.keyboard("{PageUp}");
+      expect(scroller.scrollTop).toBe(0);
+      // The arrow keys there move through what is typed.
+      await user.keyboard("{ArrowDown}{End}");
+      expect(scroller.scrollTop).toBe(0);
+    });
+
+    it("scrolls by line, page and to either end from the dialog itself", async () => {
+      const { dialog, scroller, user } = shortcuts();
+      dialog.focus();
+      await user.keyboard("{ArrowDown}");
+      expect(scroller.scrollTop).toBe(40);
+      await user.keyboard("{ArrowUp}{PageDown}");
+      expect(scroller.scrollTop).toBe(360);
+      // Farther than any dialog is long. A browser stops at the end itself;
+      // jsdom scrolls nothing, and keeps the number it was given.
+      await user.keyboard("{End}");
+      const end = scroller.scrollTop;
+      expect(end).toBeGreaterThan(100_000);
+      await user.keyboard("{Home}");
+      expect(scroller.scrollTop).toBeLessThan(end - 100_000);
+    });
+
+    it("leaves the keys to where a page means something else, and to what already scrolls", async () => {
+      const { scroller, user } = shortcuts();
+      // Page Down in a box of several lines moves through them.
+      screen.getByRole("textbox", { name: "Notes" }).focus();
+      await user.keyboard("{PageDown}");
+      expect(scroller.scrollTop).toBe(0);
+      // Inside what scrolls, the browser scrolls it; scrolling it here too would double it.
+      screen.getByRole("button", { name: "Copy" }).focus();
+      await user.keyboard("{PageDown}");
+      expect(scroller.scrollTop).toBe(0);
+      // With a modifier it is some other command.
+      screen.getByRole("textbox", { name: "Find a shortcut" }).focus();
+      await user.keyboard("{Control>}{PageDown}{/Control}");
+      expect(scroller.scrollTop).toBe(0);
+    });
   });
 
   it("stays open while it has to", async () => {

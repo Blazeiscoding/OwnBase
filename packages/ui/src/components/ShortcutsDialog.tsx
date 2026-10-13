@@ -1,6 +1,6 @@
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { useState } from "react";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { modKey } from "../lib/shortcuts.js";
 
 /** The key held for shortcuts, as this keyboard labels it: ⌘ on a Mac, Ctrl elsewhere. */
@@ -81,8 +81,8 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
   // Laid out as Linear's shortcut gallery is: what it does first, read down the
   // left, and its keys as keycaps lined up on the right.
   return (
-    <Dialog title="Keyboard shortcuts" onClose={onClose} width={500}>
-      <label className="mb-4 block text-sm">
+    <Dialog title="Keyboard shortcuts" onClose={onClose} width={500} ownScroll>
+      <label className="block shrink-0 px-6 pb-3 text-sm">
         <span className="sr-only">Find a shortcut</span>
         <input
           type="search"
@@ -93,37 +93,41 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
           className={inputCls}
         />
       </label>
-      <p role="status" className="mb-2 text-sm text-ink-faint empty:hidden">
-        {shown.length === 0 ? "No shortcut matches. Try another word." : ""}
-      </p>
-      <div className="space-y-5">
-        {shown.map((group) => (
-          <section key={group.title}>
-            <h3 className="mb-2 text-[13px] font-semibold text-ink">{group.title}</h3>
-            <ul className="divide-y divide-edge overflow-hidden rounded-xl border border-edge">
-              {group.items.map(([keys, what]) => (
-                <li
-                  key={keys}
-                  className="flex min-h-9 items-center justify-between gap-4 px-3 py-1 text-sm"
-                >
-                  <span className="text-ink-dim">{what}</span>
-                  <span className="flex shrink-0 items-center gap-1">
-                    {keys.split(" ").map((k) => (
-                      <kbd
-                        key={k}
-                        className="inline-flex h-6 min-w-6 items-center justify-center rounded border border-b-2 border-edge bg-lifted px-1.5 font-mono text-[11px] text-ink"
-                      >
-                        {k}
-                      </kbd>
-                    ))}
-                  </span>
-                </li>
-              ))}
-            </ul>
-            {group.note && <p className="mt-2 text-xs text-ink-faint">{group.note}</p>}
-          </section>
-        ))}
-      </div>
+      {/* Nothing in the sheet takes focus, so the sheet does. The keys that
+          scroll then scroll it, in every browser. */}
+      <DialogScroll tabIndex={0} role="group" aria-label="Shortcuts">
+        <p role="status" className="mb-2 text-sm text-ink-faint empty:hidden">
+          {shown.length === 0 ? "No shortcut matches. Try another word." : ""}
+        </p>
+        <div className="space-y-5">
+          {shown.map((group) => (
+            <section key={group.title}>
+              <h3 className="mb-2 text-[13px] font-semibold text-ink">{group.title}</h3>
+              <ul className="divide-y divide-edge overflow-hidden rounded-xl border border-edge">
+                {group.items.map(([keys, what]) => (
+                  <li
+                    key={keys}
+                    className="flex min-h-9 items-center justify-between gap-4 px-3 py-1 text-sm"
+                  >
+                    <span className="text-ink-dim">{what}</span>
+                    <span className="flex shrink-0 items-center gap-1">
+                      {keys.split(" ").map((k) => (
+                        <kbd
+                          key={k}
+                          className="inline-flex h-6 min-w-6 items-center justify-center rounded border border-b-2 border-edge bg-lifted px-1.5 font-mono text-[11px] text-ink"
+                        >
+                          {k}
+                        </kbd>
+                      ))}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              {group.note && <p className="mt-2 text-xs text-ink-faint">{group.note}</p>}
+            </section>
+          ))}
+        </div>
+      </DialogScroll>
     </Dialog>
   );
 }

@@ -167,12 +167,45 @@ function tabStops(panel: HTMLElement): HTMLElement[] {
     .sort((a, b) => (a.tabIndex || Infinity) - (b.tabIndex || Infinity));
 }
 
+/** How much of its own height each key scrolls a dialog's content by. */
+const SCROLL_KEYS: Record<string, number> = {
+  PageDown: 0.9,
+  PageUp: -0.9,
+  ArrowDown: 0.1,
+  ArrowUp: -0.1,
+  End: 1e4,
+  Home: -1e4,
+};
+
+/**
+ * A key that scrolls does so only from inside what scrolls, and a dialog's
+ * name, its close button and a field kept above a list are outside it. Page Up
+ * and Page Down reach it from those, and every key here from the dialog
+ * itself, which is where focus is when nothing in it asked for it.
+ */
+function scrollFromOutside(event: KeyboardEvent, panel: HTMLElement): boolean {
+  const from = event.target as Element;
+  const scroller = panel.querySelector(".dialog-scroll");
+  const by = SCROLL_KEYS[event.key];
+  if (!by || !scroller || scroller.contains(from)) return false;
+  if (event.ctrlKey || event.altKey || event.metaKey) return false;
+  // In a control an arrow, Home or End is the control's, and so is a page in a box of lines.
+  const paging = event.key.startsWith("Page");
+  if (from !== panel && (!paging || from.matches("textarea, select"))) return false;
+  scroller.scrollTop += by * scroller.clientHeight;
+  return true;
+}
+
 function onKeyDown(event: KeyboardEvent) {
   const layer = activeLayer();
   if (!layer || event.defaultPrevented || isImeKey(event)) return;
   if (event.key === "Escape") {
     event.preventDefault();
     layer.close();
+    return;
+  }
+  if (scrollFromOutside(event, layer.panel)) {
+    event.preventDefault();
     return;
   }
   if (event.key !== "Tab") return;

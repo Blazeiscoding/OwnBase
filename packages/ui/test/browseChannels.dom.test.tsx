@@ -72,6 +72,11 @@ describe("browse channels", () => {
     expect(dialog.getByRole("tab", { name: "Active" })).toHaveAttribute("aria-selected", "true");
     expect(names()).toEqual(["design", "general", "launch"]);
     expect(dialog.getByText("Private")).toBeInTheDocument();
+    // The tabs and the filter stay over the channels, which are what scrolls.
+    const scroller = document.querySelector(".dialog-scroll")!;
+    expect(scroller).toContainElement(dialog.getByRole("button", { name: /#design$/ }));
+    expect(scroller).not.toContainElement(dialog.getByRole("tablist"));
+    expect(scroller).not.toContainElement(dialog.getByRole("textbox", { name: "Filter channels" }));
 
     await user.click(dialog.getByRole("tab", { name: "Archived (1)" }));
     expect(names()).toEqual(["old-project"]);
