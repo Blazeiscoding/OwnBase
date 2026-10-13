@@ -160,9 +160,20 @@
       "details": [
         "decideNotification rejects own messages, inaccessible channels, muted/nothing preferences and active Do Not Disturb before deciding whether a DM, named mention or broadcast should ring.",
         "An @here broadcast applies only to a live message, so an old replay does not notify people as if they had been present when it was sent.",
-        "isMessageOnScreen accounts for focus, covered timelines and the exact open thread. notificationBody converts mentions and labelled links to readable words and supplies an attachment-only description."
+        "isMessageOnScreen accounts for focus, covered timelines and the exact open thread. notificationBody converts mentions and labelled links to readable words and supplies an attachment-only description.",
+        "A reply that chose to notify the author of the message it answers counts as naming them, as Discord's reply ping does."
       ],
       "concepts": ["notification policy", "Do Not Disturb", "live versus replay", "visibility"]
+    },
+    {
+      "path": "packages/client-core/src/replies.ts",
+      "plain": "Keeps the line a reply shows of the message it answers up to date when that message is edited or deleted.",
+      "summary": "Builds inline-reply quotes and refreshes the ones already held after an edit, deletion or removal.",
+      "details": [
+        "quoteOf takes the same excerpt the server stores, so a reply still sending shows what it will show once sent.",
+        "quoteChanges reads which messages an event edits or removes, and requote applies that to every held reply quoting them, returning the same list when none does so rows that are not affected do not redraw."
+      ],
+      "concepts": ["inline replies", "quote freshness", "stable lists"]
     },
     {
       "path": "packages/ui/src/index.ts",
@@ -241,7 +252,7 @@
         "Provides the active client and gates account-local consumers through WorkspaceStorageGate. The central conversation combines Sidebar, MessageTimeline, Composer and an optional thread, members or utility panel.",
         "Only one side panel is selected at a time. Persistent places such as channels, threads, saved panels and account sections map to route/history state; transient forms and pickers stay component state.",
         "The screen tracks what is truly visible and focused when deciding notifications and read acknowledgement. Missed messages are grouped through CatchUpSummary, and live messages can be announced politely to a screen reader.",
-        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
+        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
         "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues."
       ],
       "concepts": [
@@ -607,10 +618,20 @@
       "plain": "Lets each message redraw only when the people or channels it shows change, so typing elsewhere does not redraw them all.",
       "summary": "Subscribes each message row only to the users and channels it actually displays.",
       "details": [
-        "Extracts author, mention, reaction and linked-channel IDs from message data.",
+        "Extracts author, mention, reaction and linked-channel IDs from message data, and for a reply the author and mentions of the message it quotes.",
         "usePick preserves object identity until a referenced entry changes and skips work while the source map is unchanged. Renaming an unrelated person or typing elsewhere therefore need not rerender every visible message."
       ],
       "concepts": ["selective rendering", "stable selectors", "message references"]
+    },
+    {
+      "path": "packages/ui/src/lib/replyTarget.ts",
+      "plain": "Remembers which message you chose to reply to in each conversation, until you send, cancel or choose another.",
+      "summary": "Holds the pending inline-reply choice per conversation and workspace connection.",
+      "details": [
+        "Keyed like drafts, so a channel and each of its threads keep their own choice; one store per workspace client, so a choice never follows you to another server.",
+        "Each choice of Reply is counted, so choosing it again on the same message still brings the message box back into focus."
+      ],
+      "concepts": ["inline replies", "per-conversation state"]
     },
     {
       "path": "packages/ui/src/lib/format.ts",
@@ -785,7 +806,7 @@
     },
     {
       "path": "packages/ui/src/components/Composer.tsx",
-      "plain": "The box where you type a message, add files, mention people, format text and schedule it to send later.",
+      "plain": "The box where you type a message, add files, mention people, format text, answer a message in place and schedule it to send later.",
       "summary": "Owns visible message text, attachments, mentions, formatting and scheduling intent.",
       "details": [
         "Channel and thread composers use different draft keys. Typing updates local React text immediately and hands it to the client after a 250 ms debounce; an untouched composer can receive a restored or other-window draft without overwriting newer typing.",
@@ -793,7 +814,8 @@
         "Send validates content and limits, then queues through WorkspaceClient. The words remain owned until localWork acknowledges the send or recovery record, and refusal keeps an actionable notice rather than silently dropping the message.",
         "The composer supports Unicode-aware mention suggestions, slash-command hints, emoji, formatting preview, drag/paste attachments, progress and reply broadcast choice. IME and code-block Enter rules prevent premature actions; pending caret moves are tied to the text they were computed for.",
         "The field shows mentions as names (choosing @here shows @here) through useMentionField, while text, drafts and sends keep <!here> and <@USER_ID>. A mention already completed is not offered again; the character limit counts the stored text the server receives.",
-        "Scheduling uploads attachments, persists the exact request including nonce, file IDs and chosen time before posting, and restores unresolved scheduling requests before another send. A retry reuses the original request identity rather than creating a duplicate schedule.",
+        "Send later's choices are SendLaterPopover, loaded when the clock is first pressed. Scheduling uploads attachments, persists the exact request including nonce, file IDs and chosen time before posting, and restores unresolved scheduling requests before another send. A retry reuses the original request identity rather than creating a duplicate schedule.",
+        "While Reply is chosen, a bar above the text names whom you answer, with an @ toggle for whether they are notified and a close button; Escape cancels it before the panel behind can take Escape. One send answers it, and Send later is not offered meanwhile because a scheduled message cannot answer in place.",
         "Q04 remains open at the preference caller: unreadability can be converted to an Enter-to-send default. N03 covers normal preparation and persistence acknowledgements, not every power-loss or OS-termination case."
       ],
       "concepts": [
@@ -855,7 +877,7 @@
       "summary": "Shows bounded channel history while preserving reading and scroll position.",
       "details": [
         "Loads initial, older and newer history through owned request tickets. A top visible message and offset anchor preserve position while prepending rows; explicit message jumps center and highlight a target.",
-        "Readers at the latest message stay pinned as content or viewport size changes; readers looking back are not pulled to the bottom. History entries remember where a conversation was being read.",
+        "Readers at the latest message stay pinned as content or viewport size changes; readers looking back are not pulled to the bottom, except by a send of their own, which brings them down to it as Discord and Slack do. History entries remember where a conversation was being read.",
         "Separately renders optimistic pending sends with Retry/Discard and ephemeral app answers with dismissal/limit notices. Date dividers, an unread boundary and typing indicators make the timeline understandable.",
         "Read acknowledgement follows a genuinely visible tail, and useRovingMessages makes the list a manageable keyboard region. The actual row count is bounded in client-core rather than claiming full DOM virtualization."
       ],
@@ -875,7 +897,8 @@
         "The memoized row renders author, timestamps, mrkdwn, files, reactions, thread affordances and app buttons. useMessageReferences tracks only referenced users/channels, and self identity/role controls relevant actions.",
         "Reaction, pin and saved toggles report refused optimistic changes through a toast with a repeatable intent. Delete uses an explicit confirmation; mark unread delegates channel or thread cursor behavior to the client.",
         "Copying text/link waits for clipboard outcome. App link buttons navigate normally while interactive buttons call the app through the server and wait for its result; permissions remain enforced by the server.",
-        "The in-place editor is a lazy chunk with an inline loading status and a recoverable failure, keeping editing code out of the entry every visit downloads."
+        "The in-place editor is a lazy chunk with an inline loading status and a recoverable failure, keeping editing code out of the entry every visit downloads.",
+        "Reply answers a message in place (Shift leaves its author unnotified) and Reply in thread opens its thread, as in Discord; inside a thread, Reply answers one of its replies. A reply shows its quote above it through ReplyQuote, and a reply that notified you is marked as a mention is."
       ],
       "concepts": [
         "memoized row",
@@ -955,9 +978,30 @@
       "details": [
         "Image loading begins near the viewport using IntersectionObserver, then retains/releases the shared FileCache resource. Large or non-image files use cards and scoped download URLs instead of eager inline transfer.",
         "A resource is bound to the active client/file and can show loading, failure, retry or invalidated state. N10 cache notices make open previews become unavailable when their owner message/thread is removed.",
-        "Pending attachments use temporary local previews; lightboxes share the modal focus layer. The UI distinguishes a failed download from successful handoff rather than claiming the browser/OS completed it."
+        "Pending attachments use temporary local previews; lightboxes share the modal focus layer. The UI distinguishes a failed download from successful handoff rather than claiming the browser/OS completed it.",
+        "The full-size viewer itself is Lightbox.tsx, loaded on first use behind an error boundary; this file keeps the shared useFileResource and saveUrl it reads through."
       ],
       "concepts": ["lazy images", "file resource lifetime", "downloads", "lightbox", "N10"]
+    },
+    {
+      "path": "packages/ui/src/components/Lightbox.tsx",
+      "plain": "The full-size view of a picture, with Save and Close, loaded the first time a picture is opened.",
+      "summary": "Shows one image full size over the conversation through the shared file resource.",
+      "details": [
+        "Reads the image through Attachments' useFileResource, so loading, failure, retry and a file taken away behave as in inline previews; a picture that will not decode says so and can still be saved.",
+        "Kept out of the entry every visit downloads: Attachments' Lightbox loads it on first use, shows nothing new while it loads, and says the viewer could not load if its chunk fails."
+      ],
+      "concepts": ["lightbox", "lazy loading", "file resource lifetime"]
+    },
+    {
+      "path": "packages/ui/src/components/SendLaterPopover.tsx",
+      "plain": "The Send later choices beside the message box: a few times from now, or any date and time.",
+      "summary": "Offers scheduling presets and a custom local time, loaded when the composer's clock is first pressed.",
+      "details": [
+        "The whole popover mounts at once, so Popover measures and places it with its real height; the custom time lives here and is cleared when it closes.",
+        "The button names the time chosen before it is scheduled. Composer still owns the request, its recovery record and what it says once the server confirms."
+      ],
+      "concepts": ["scheduling", "lazy loading", "local time"]
     },
     {
       "path": "packages/ui/src/components/Mrkdwn.tsx",
@@ -991,6 +1035,16 @@
       "concepts": ["emoji reactions", "touch input", "listbox"]
     },
     {
+      "path": "packages/ui/src/components/ReplyQuote.tsx",
+      "plain": "The line above a reply showing who wrote the message it answers and how that message began, as Discord draws it.",
+      "summary": "Renders an inline reply's quote and leads back to the original.",
+      "details": [
+        "A curved line runs from the reply's avatar to the original author's small avatar, name and a one-line excerpt with mentions shown as names and formatting marks left out.",
+        "Clicking it is handled by the message row: an original on screen is scrolled to and briefly lit, and one that is not is opened by the same jump search and links use. A deleted original says so and opens nothing."
+      ],
+      "concepts": ["inline replies", "message context", "navigation"]
+    },
+    {
       "path": "packages/ui/src/components/Sidebar.tsx",
       "plain": "The sidebar with your workspaces, channels, direct messages, unread marks and account menu.",
       "summary": "Combines workspace switching, conversation navigation, unread context and account actions.",
@@ -1008,7 +1062,8 @@
       "summary": "Provides Ctrl+K navigation to channels, DMs and people.",
       "details": [
         "Builds labelled suggestion rows and keeps text-field focus with useListbox; IME Enter stays text input.",
-        "Existing conversations navigate directly, while a person without a DM starts one and shows pending/failure state. This is a navigation convenience over the server-authorized openDm operation."
+        "Existing conversations navigate directly, while a person without a DM starts one and shows pending/failure state. This is a navigation convenience over the server-authorized openDm operation.",
+        "It is kept out of the entry every visit downloads and fetched as soon as the workspace opens; see WorkspaceScreen."
       ],
       "concepts": ["quick navigation", "autocomplete", "direct messages"]
     },

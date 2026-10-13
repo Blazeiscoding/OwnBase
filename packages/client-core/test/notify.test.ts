@@ -54,6 +54,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     status: "online",
     workspaceName: "W",
     workspaceId: null,
+    inlineReplies: true,
     self: me,
     users: { [me.id]: me, [them.id]: them },
     channels: { C1: channel("public") },
@@ -99,6 +100,18 @@ describe("decideNotification", () => {
     expect(decideNotification(state(), message()).notify).toBe(false);
     const mention = message({ text: `morning <@${me.id}>` });
     expect(decideNotification(state(), mention)).toEqual({ notify: true, reason: "mention" });
+  });
+
+  it("counts a reply that notifies you of an answer to your message as a mention", () => {
+    const answer = (ping: boolean, userId = me.id) =>
+      message({
+        text: "agreed",
+        replyTo: { id: "M0", userId, text: "thoughts?", fileCount: 0, deleted: false, ping },
+      });
+    expect(decideNotification(state(), answer(true))).toEqual({ notify: true, reason: "mention" });
+    // Told not to notify, or answering someone else, it is an ordinary message.
+    expect(decideNotification(state(), answer(false)).notify).toBe(false);
+    expect(decideNotification(state(), answer(true, them.id)).notify).toBe(false);
   });
 
   it("notifies on every message when the channel is set to all", () => {

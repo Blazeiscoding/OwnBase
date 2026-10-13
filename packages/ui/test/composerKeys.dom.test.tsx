@@ -172,7 +172,7 @@ describe("a scheduled send that cannot upload its files", () => {
     expect(screen.getByText("numbers.csv")).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    fireEvent.change(screen.getByLabelText("Choose a date and time"), {
+    fireEvent.change(await screen.findByLabelText("Choose a date and time"), {
       target: { value: "2099-01-05T09:00" },
     });
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
@@ -235,7 +235,7 @@ describe("scheduling a reply that is also for the channel", () => {
     const checkbox = screen.getByRole("checkbox", { name: "Also send to channel" });
     if (alsoToChannel) await user.click(checkbox);
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    fireEvent.change(screen.getByLabelText("Choose a date and time"), {
+    fireEvent.change(await screen.findByLabelText("Choose a date and time"), {
       target: { value: "2099-01-05T09:00" },
     });
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
@@ -272,7 +272,7 @@ describe("a scheduled send past the queue's limit", () => {
       );
     await user.type(box, "One more for Friday");
     await user.click(screen.getByRole("button", { name: "Send later" }));
-    fireEvent.change(screen.getByLabelText("Choose a date and time"), {
+    fireEvent.change(await screen.findByLabelText("Choose a date and time"), {
       target: { value: "2099-01-05T09:00" },
     });
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));

@@ -739,12 +739,15 @@ async function startWorkspaceServer(
     audiences: Map<ID, Set<ID> | null>,
   ): ID[] => {
     const event = envelope.event;
-    if (event.type === "message.created")
-      return store.mentionedMemberIds(
-        event.message.channelId,
-        event.message.text,
-        event.message.userId,
-      );
+    if (event.type === "message.created") {
+      const { channelId, text, userId, replyTo } = event.message;
+      const named = store.mentionedMemberIds(channelId, text, userId);
+      // A reply that notified the author of what it answers counts for them.
+      const pinged = replyTo?.ping ? replyTo.userId : null;
+      return pinged && !named.includes(pinged) && store.isMember(channelId, pinged)
+        ? [...named, pinged]
+        : named;
+    }
     if (event.type === "message.deleted" && event.channelId) {
       // Offline members are skipped anyway; with nobody connected, skip the read
       // too, and read a channel's members once however many of its messages went.
@@ -1110,6 +1113,10 @@ async function startWorkspaceServer(
     actions?: MessageAction[];
     /** For a reply: show it in the channel's own timeline as well. */
     broadcast?: boolean;
+    /** The message this one answers in place, in the same conversation. */
+    replyToId?: ID | null;
+    /** Notify that message's author. */
+    replyPing?: boolean;
     /** Marks this queue row delivered in the same transaction as the message. */
     scheduledId?: ID;
   }) => {
@@ -1126,6 +1133,8 @@ async function startWorkspaceServer(
           input.threadRootId,
           input.broadcast ?? false,
           [...input.fileIds].sort(),
+          // Absent unless it answers something, so a request recorded before still matches.
+          ...(input.replyToId ? [input.replyToId, input.replyPing ?? false] : []),
         ]),
       );
       if (input.nonce !== null) {
@@ -1156,6 +1165,19 @@ async function startWorkspaceServer(
         if (!root || root.channelId !== channel.id || root.threadRootId)
           throw new HttpError(400, "bad_thread_root");
       }
+      // A reply answers something in its own conversation: in a channel, what
+      // the channel shows; in a thread, its first message or another reply.
+      // Deleted since it was chosen, it still goes and says so; removed with
+      // older history, it goes as an ordinary message.
+      const target = input.replyToId ? store.replyTarget(input.replyToId) : null;
+      if (
+        target &&
+        (target.channelId !== channel.id ||
+          (input.threadRootId
+            ? input.replyToId !== input.threadRootId && target.threadRootId !== input.threadRootId
+            : target.threadRootId !== null && !target.broadcast))
+      )
+        throw new HttpError(400, "bad_reply_target");
       if (channel.type === "public" && !store.isMember(channel.id, input.userId)) {
         store.addMember(channel.id, input.userId);
         events.push(
@@ -1172,7 +1194,10 @@ async function startWorkspaceServer(
           "attachments_scheduled",
           "One of these files is part of a scheduled message. Cancel that message to use it here.",
         );
-      const created = store.createMessage(input);
+      const created = store.createMessage({
+        ...input,
+        replyToId: target ? input.replyToId : null,
+      });
       if (
         !store.attachFiles(
           input.fileIds,
@@ -2306,6 +2331,9 @@ async function startWorkspaceServer(
       nonce: body.nonce ?? null,
       fileIds: body.fileIds ?? [],
       broadcast: body.alsoSendToChannel ?? false,
+      replyToId: body.replyToId ?? null,
+      // Discord notifies the author unless the reply says not to.
+      replyPing: body.replyPing ?? true,
     });
     return reply.status(201).send({ message });
   });

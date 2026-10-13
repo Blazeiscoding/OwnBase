@@ -681,6 +681,17 @@ textarea::placeholder {
   }
 }
 
+/* The message a reply answers, picked out for a moment after its quote is clicked. */
+.reply-flash {
+  animation: reply-flash 1.6s ease-out;
+}
+@keyframes reply-flash {
+  0%,
+  35% {
+    background-color: color-mix(in srgb, var(--color-copper) 20%, transparent);
+  }
+}
+
 /*
  * A narrow window, or a short one such as a phone on its side, has no room to
  * keep the sidebar open beside the conversation: at 844 by 390 it showed two

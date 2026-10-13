@@ -15,6 +15,7 @@ import type {
   Message,
   MessageAction,
   ReactionGroup,
+  ReplyReference,
   NotifyLevel,
   ParsedSearch,
   Role,
@@ -29,7 +30,7 @@ import type {
   WorkspaceEvent,
   EventEnvelope,
 } from "@slackoss/protocol";
-import { FILE_TYPE_MATCH } from "@slackoss/protocol";
+import { FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
 import { ulid, inviteCode } from "./ids.js";
 
 interface UserRow {
@@ -81,6 +82,8 @@ interface MessageRow {
   edited_at: number | null;
   deleted_at: number | null;
   actions: string;
+  reply_to_id: string | null;
+  reply_ping: number;
 }
 
 /**
@@ -971,13 +974,20 @@ export class Store {
     actions?: MessageAction[];
     /** Only meaningful for a reply; a top-level message is already there. */
     broadcast?: boolean;
+    /** The message this one answers in place; the caller has checked it. */
+    replyToId?: ID | null;
+    /** Notify that message's author, unless it is the sender or deleted. */
+    replyPing?: boolean;
   }): Message {
     const id = ulid();
+    const original = input.replyToId && input.replyPing ? this.pingable(input.replyToId) : null;
+    const pinged = original !== input.userId ? original : null;
     this.db
       .prepare(
         `INSERT INTO messages
-           (id, channel_id, user_id, text, thread_root_id, broadcast, nonce, created_at, actions)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           (id, channel_id, user_id, text, thread_root_id, broadcast, nonce, created_at, actions,
+            reply_to_id, reply_ping)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -989,22 +999,77 @@ export class Store {
         input.nonce,
         Date.now(),
         JSON.stringify(input.actions ?? []),
+        input.replyToId ?? null,
+        pinged ? 1 : 0,
       );
-    this.indexMentions(id, input.channelId, input.text, true);
+    this.indexMentions(id, input.channelId, input.text, { pinged });
     return this.getMessage(id)!;
+  }
+
+  /**
+   * Where a message a reply would answer belongs, deleted or not: a reply to
+   * something deleted after it was chosen still goes, saying it was deleted.
+   * Null once it is gone altogether, removed with older history.
+   */
+  replyTarget(
+    id: ID,
+  ): { channelId: ID; threadRootId: ID | null; broadcast: boolean; deleted: boolean } | null {
+    const row = this.db
+      .prepare(
+        "SELECT channel_id, thread_root_id, broadcast, deleted_at FROM messages WHERE id = ?",
+      )
+      .get(id) as
+      Pick<MessageRow, "channel_id" | "thread_root_id" | "broadcast" | "deleted_at"> | undefined;
+    return row
+      ? {
+          channelId: row.channel_id,
+          threadRootId: row.thread_root_id,
+          broadcast: row.broadcast === 1,
+          deleted: row.deleted_at !== null,
+        }
+      : null;
+  }
+
+  /** Whom a sent reply notified: the author of what it answers, if it chose to. */
+  private replyPinged(messageId: ID): ID | null {
+    const row = this.db
+      .prepare(
+        `SELECT q.user_id FROM messages m JOIN messages q ON q.id = m.reply_to_id
+         WHERE m.id = ? AND m.reply_ping = 1`,
+      )
+      .get(messageId) as { user_id: string } | undefined;
+    return row?.user_id ?? null;
+  }
+
+  /** Who a reply to this message would notify: its author, while it is there. */
+  private pingable(messageId: ID): ID | null {
+    const row = this.db
+      .prepare("SELECT user_id FROM messages WHERE id = ? AND deleted_at IS NULL")
+      .get(messageId) as { user_id: string } | undefined;
+    return row?.user_id ?? null;
   }
 
   /**
    * Keeps `message_mentions` to whom this text names: `<@X>` names X, and
    * `<!here>`, `<!channel>` or `<!everyone>` the whole room as '!'. The same
    * rule as `MENTIONS_ME` and migration v31, so counts read from the table
-   * agree with the text. A new message has no rows yet, and most name nobody,
-   * so sending one costs nothing more here.
+   * agree with the text. A reply that notifies the author of what it answers
+   * names them as well, whatever its words say. A new message has no rows yet
+   * and says whom it notifies, and most name nobody, so sending one costs
+   * nothing more here; an edit looks the notified author up again.
    */
-  private indexMentions(messageId: ID, channelId: ID, text: string, isNew = false): void {
-    if (!isNew) this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(messageId);
+  private indexMentions(
+    messageId: ID,
+    channelId: ID,
+    text: string,
+    created?: { pinged: ID | null },
+  ): void {
+    if (!created)
+      this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(messageId);
     const named = new Set([...text.matchAll(/<@([A-Za-z0-9_-]+)>/g)].map((m) => m[1]!));
     if (/<!(?:here|channel|everyone)>/.test(text)) named.add("!");
+    const pinged = created ? created.pinged : this.replyPinged(messageId);
+    if (pinged) named.add(pinged);
     if (named.size === 0) return;
     const insert = this.db.prepare(
       "INSERT INTO message_mentions (message_id, channel_id, user_id) VALUES (?, ?, ?)",
@@ -1047,9 +1112,11 @@ export class Store {
     // edit is often how someone takes back what they wrote, and leaving the
     // first draft on disk would make the correction cosmetic. The caller emits
     // the new version after this returns, so nothing appended yet is the one
-    // being kept.
+    // being kept. Replies quoting it hold a copy of their own.
     this.redactMessageEvents(id);
-    return this.getMessage(id)!;
+    const message = this.getMessage(id)!;
+    this.requoteEvents([id], { text: replyExcerpt(text), fileCount: message.files.length });
+    return message;
   }
 
   deleteMessage(id: ID): void {
@@ -1062,6 +1129,7 @@ export class Store {
     this.db.prepare("DELETE FROM saved_items WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(id);
     this.redactMessageEvents(id);
+    this.requoteEvents([id], null);
   }
 
   /**
@@ -1145,6 +1213,15 @@ export class Store {
       const queued = this.db
         .prepare(`SELECT id, body FROM event_deliveries WHERE message_id IN ${doomed}`)
         .all() as { id: string; body: string }[];
+      // Later replies quoting what goes stay, and say it is gone.
+      const quoted = (
+        this.db
+          .prepare(
+            `SELECT DISTINCT reply_to_id AS id FROM messages
+             WHERE reply_to_id IN ${doomed} AND id NOT IN ${doomed}`,
+          )
+          .all() as { id: string }[]
+      ).map((r) => r.id);
 
       // A send's key outlives its message, so an app still holding the send
       // is refused rather than posting it again. Who, which key and when only.
@@ -1179,6 +1256,7 @@ export class Store {
       // still hold what they said.
       this.redactEventRows(logged);
       this.redactQueuedDeliveries(queued);
+      this.requoteEvents(quoted, null);
       return { messages, fileIds, roots: removed };
     } finally {
       this.db.exec("DELETE FROM temp.purge_messages");
@@ -1370,6 +1448,47 @@ export class Store {
       else filesByMsg.set(message_id, [meta]);
     }
 
+    // What each reply answers, read as it is now: edited, deleted or gone.
+    const quotedIds = [...new Set(rows.flatMap((r) => (r.reply_to_id ? [r.reply_to_id] : [])))];
+    const quotes = new Map(
+      quotedIds.length === 0
+        ? []
+        : (
+            this.db
+              .prepare(
+                `SELECT q.id, q.user_id, q.text, q.deleted_at,
+                   (SELECT COUNT(*) FROM files f WHERE f.message_id = q.id) AS file_count
+                 FROM messages q WHERE q.id IN (${quotedIds.map(() => "?").join(",")})`,
+              )
+              .all(...quotedIds) as {
+              id: string;
+              user_id: string;
+              text: string;
+              deleted_at: number | null;
+              file_count: number;
+            }[]
+          ).map((q) => [q.id, q]),
+    );
+    // Only a reply carries one, so every other message reads as it always has.
+    const replyTo = (r: MessageRow): { replyTo?: ReplyReference } => {
+      if (!r.reply_to_id) return {};
+      const q = quotes.get(r.reply_to_id);
+      const ping = r.reply_ping === 1;
+      return {
+        replyTo:
+          q && q.deleted_at === null
+            ? {
+                id: q.id,
+                userId: q.user_id,
+                text: replyExcerpt(q.text),
+                fileCount: q.file_count,
+                deleted: false,
+                ping,
+              }
+            : { id: r.reply_to_id, userId: "", text: "", fileCount: 0, deleted: true, ping },
+      };
+    };
+
     return rows.map((r) => ({
       id: r.id,
       channelId: r.channel_id,
@@ -1386,6 +1505,7 @@ export class Store {
       files: filesByMsg.get(r.id) ?? [],
       pinned: pinned.has(r.id),
       actions: parseActions(r.actions),
+      ...replyTo(r),
     }));
   }
 
@@ -3340,6 +3460,39 @@ export class Store {
     }
   }
 
+  /**
+   * Brings the log's copies of these messages, quoted in replies to them, up
+   * to date: an edit's new words, or nothing at all once they are deleted
+   * (null). A reply's events stay where they are, as with `redactMessageEvents`,
+   * and the original's own edit or deletion still follows them on replay.
+   */
+  private requoteEvents(
+    quotedIds: ID[],
+    now: Pick<ReplyReference, "text" | "fileCount"> | null,
+  ): void {
+    if (quotedIds.length === 0) return;
+    const quoted = new Set(quotedIds);
+    const ph = quotedIds.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(
+        `SELECT seq, payload FROM events WHERE type IN ('message.created', 'message.updated')
+         AND message_id IN (SELECT id FROM messages WHERE reply_to_id IN (${ph}))`,
+      )
+      .all(...quotedIds) as { seq: number; payload: string }[];
+    const update = this.db.prepare("UPDATE events SET payload = ? WHERE seq = ?");
+    for (const row of rows) {
+      const event = JSON.parse(row.payload) as WorkspaceEvent;
+      if (event.type !== "message.created" && event.type !== "message.updated") continue;
+      const quote = event.message.replyTo;
+      if (!quote || !quoted.has(quote.id)) continue;
+      event.message.replyTo = now
+        ? { ...quote, ...now }
+        : { ...quote, userId: "", text: "", fileCount: 0, deleted: true };
+      const after = JSON.stringify(event);
+      if (after !== row.payload) update.run(after, row.seq);
+    }
+  }
+
   private redactEventRows(rows: { seq: number; payload: string }[]): number {
     const update = this.db.prepare("UPDATE events SET payload = ? WHERE seq = ?");
     let changed = 0;
@@ -3477,10 +3630,11 @@ export class Store {
    * The condition for "this message mentions me", shared by the Activity list
    * and the badge counts so a count can never disagree with what it opens.
    * A direct mention counts anywhere; a room-wide one only in a room, since
-   * `@here` in a DM is just words.
+   * `@here` in a DM is just words. A reply that notified the author of what
+   * it answers, beside `channel_members cm`, counts for that author.
    */
   private static readonly MENTIONS_ME =
-    "(instr(m.text, ?) > 0 OR (c.type IN ('public', 'private') AND (instr(m.text, '<!channel>') > 0 OR instr(m.text, '<!here>') > 0 OR instr(m.text, '<!everyone>') > 0)))";
+    "(instr(m.text, ?) > 0 OR (c.type IN ('public', 'private') AND (instr(m.text, '<!channel>') > 0 OR instr(m.text, '<!here>') > 0 OR instr(m.text, '<!everyone>') > 0)) OR (m.reply_ping = 1 AND EXISTS (SELECT 1 FROM messages q WHERE q.id = m.reply_to_id AND q.user_id = cm.user_id)))";
 
   /**
    * `MENTIONS_ME` read from `message_mentions` beside `mm` and `channels c`:

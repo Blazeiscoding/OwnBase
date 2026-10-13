@@ -1,10 +1,20 @@
-import { lazy, memo, Suspense, useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  lazy,
+  memo,
+  Suspense,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@slackoss/protocol";
-import { useClient, useWorkspace } from "../context.js";
+import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { formatFull, formatTime } from "../lib/format.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
+import { conversationKey, startReply } from "../lib/replyTarget.js";
 import { Avatar } from "./Avatar.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -13,6 +23,7 @@ import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { ReactionPicker } from "./ReactionPicker.js";
+import { ReplyQuote } from "./ReplyQuote.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
 import { useToast } from "./Toast.js";
@@ -81,8 +92,42 @@ export const MessageItem = memo(function MessageItem({
   const profileLabel = author ? `View ${author.displayName}'s profile` : "View profile";
   const mine = message.userId === selfId;
   const canDelete = mine || selfRole === "owner" || selfRole === "admin";
-  const mentionsMe = selfId ? message.text.includes(`<@${selfId}>`) : false;
+  // Named in it, or answered by it with a notification, as Discord marks both.
+  const mentionsMe = selfId
+    ? message.text.includes(`<@${selfId}>`) ||
+      (message.replyTo?.ping === true && message.replyTo.userId === selfId)
+    : false;
   const toast = useToast();
+  const openMessage = useContext(OpenMessageContext);
+  // Answered in place in the conversation it is shown in: the channel, or
+  // inside a thread its replies. The thread's first message is the thread.
+  const canReply =
+    useWorkspace((s) => s.inlineReplies) && !(inThread && message.threadRootId === null);
+  /** Shift, as in Discord, answers without notifying the author. */
+  function reply(ping = true) {
+    startReply(
+      client,
+      conversationKey(message.channelId, inThread ? message.threadRootId : null),
+      message,
+      ping,
+    );
+  }
+  /** Brings the message this one answers into view: in place when it is shown, else by a jump. */
+  function showOriginal(byKeyboard: boolean) {
+    const id = message.replyTo!.id;
+    const shown = row.current
+      ?.closest("main, aside")
+      ?.querySelector<HTMLElement>(`[data-message-id="${CSS.escape(id)}"]`);
+    if (!shown) {
+      openMessage?.(message.channelId, id);
+      return;
+    }
+    shown.scrollIntoView({ block: "center" });
+    shown.classList.remove("reply-flash");
+    void shown.offsetWidth;
+    shown.classList.add("reply-flash");
+    if (byKeyboard) shown.focus({ preventScroll: true });
+  }
 
   /**
    * These toggles are optimistic and undo themselves when the server refuses.
@@ -205,6 +250,9 @@ export const MessageItem = memo(function MessageItem({
   };
   /** Everything, named, for a touchscreen, where there is no toolbar. */
   const menuItems: MenuItem[] = [
+    ...(canReply
+      ? [{ id: "answer", label: "Reply", icon: "reply" as const, onSelect: () => reply() }]
+      : []),
     ...(inThread
       ? []
       : [
@@ -241,6 +289,7 @@ export const MessageItem = memo(function MessageItem({
     <div
       ref={row}
       role="article"
+      data-message-id={message.id}
       aria-label={`Message from ${author?.displayName ?? "unknown"}`}
       tabIndex={0}
       // Holding a message opens its actions, as phones do everywhere else.
@@ -274,6 +323,14 @@ export const MessageItem = memo(function MessageItem({
         mentionsMe ? "bg-mention shadow-[inset_2px_0_var(--color-copper)] hover:bg-mention" : ""
       } ${highlighted ? "bg-copper/15 hover:bg-copper/15" : ""}`}
     >
+      {message.replyTo && (
+        <ReplyQuote
+          quote={message.replyTo}
+          users={users}
+          channels={channels}
+          onOpen={showOriginal}
+        />
+      )}
       <div className="flex gap-4">
         <div className="relative w-10 shrink-0 pt-0.5">
           {!compact && (
@@ -471,6 +528,13 @@ export const MessageItem = memo(function MessageItem({
             onClick={() => setPicking(true)}
           />
           <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-edge" />
+          {canReply && (
+            <ToolbarButton
+              label={<Icon name="reply" size={16} />}
+              title="Reply"
+              onClick={(event) => reply(!event.shiftKey)}
+            />
+          )}
           {!inThread && (
             <ToolbarButton
               label={<Icon name="thread" size={16} />}
@@ -555,7 +619,7 @@ function ToolbarButton(props: {
   title?: string;
   active?: boolean;
   disabled?: boolean;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent) => void;
 }) {
   const button = (
     <button

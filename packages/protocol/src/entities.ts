@@ -130,6 +130,31 @@ export interface Message {
   pinned: boolean;
   /** Buttons an app attached to this message; empty for anything a person sent. */
   actions: MessageAction[];
+  /**
+   * The message this one answers in place, shown above it as Discord does,
+   * rather than in a thread. Absent when it answers nothing, and from servers
+   * older than inline replies.
+   */
+  replyTo?: ReplyReference | null;
+}
+
+/**
+ * What a reply shows of the message it answers: who wrote it and how it
+ * began. Read afresh with the reply, so it follows edits and deletion, and
+ * the reply can show it without the original having been loaded.
+ */
+export interface ReplyReference {
+  id: ID;
+  /** Its author; empty once it is deleted, when the reply says only that. */
+  userId: ID;
+  /** The start of its words, `replyExcerpt` long at most; empty once deleted. */
+  text: string;
+  /** How many files it carried, so a picture sent alone still reads as something. */
+  fileCount: number;
+  /** Deleted, or gone with older history: the reply says so instead. */
+  deleted: boolean;
+  /** Its author was notified of the reply, as a mention would. */
+  ping: boolean;
 }
 
 /**

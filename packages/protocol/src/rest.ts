@@ -112,6 +112,10 @@ export const sendMessageBody = z
     fileIds: z.array(z.string()).max(10).optional(),
     /** For a reply: show it in the channel's own timeline as well. */
     alsoSendToChannel: z.boolean().optional(),
+    /** The message this one answers in place, from the same conversation. */
+    replyToId: z.string().max(64).optional(),
+    /** Whether that message's author is notified, as Discord does by default. */
+    replyPing: z.boolean().optional(),
   })
   // A message needs words, attachments, or both.
   .refine((b) => b.text.trim().length > 0 || (b.fileIds?.length ?? 0) > 0, {
