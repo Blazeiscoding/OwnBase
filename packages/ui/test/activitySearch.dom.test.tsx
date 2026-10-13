@@ -357,8 +357,102 @@ describe("the search dialog", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Search messages" });
     const box = within(dialog).getByRole("textbox", { name: "Search messages" });
-    return { spy, dialog, box };
+    return { client, spy, dialog, box };
   }
+
+  it("asks for its page again when a conversation in the results changes, dropping what was deleted (Q07)", async () => {
+    const user = userEvent.setup();
+    let answer = [
+      message("M_GONE", "notes since deleted about launch", 5),
+      message("M_KEPT", "roadmap for the launch", 4),
+    ];
+    const { client, dialog, box, spy } = renderSearch(async () => ({
+      messages: answer,
+      nextCursor: null,
+    }));
+    await user.type(box, "launch{Enter}");
+    await within(dialog).findByText(/notes since deleted/);
+    const asked = spy.mock.calls.length;
+
+    // A change in a conversation none of the results come from is nothing to them.
+    act(() => client.store.setState({ changedContent: { [hidden.id]: 20 } }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(spy).toHaveBeenCalledTimes(asked);
+
+    answer = [message("M_KEPT", "roadmap for the launch", 4)];
+    act(() => client.store.setState({ changedContent: { [hidden.id]: 20, [design.id]: 21 } }));
+    await waitFor(() => expect(within(dialog).queryByText(/notes since deleted/)).toBeNull());
+    expect(within(dialog).getByText(/roadmap for the/)).toBeTruthy();
+    expect(spy).toHaveBeenCalledTimes(asked + 1);
+    expect(spy).toHaveBeenLastCalledWith(
+      "launch",
+      30,
+      expect.objectContaining({ cursor: undefined }),
+    );
+
+    // Asked once for that change, not again and again.
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(spy).toHaveBeenCalledTimes(asked + 1);
+  });
+
+  it("asks again for the page it is on, not the first", async () => {
+    const user = userEvent.setup();
+    const { client, dialog, box, spy } = renderSearch(async (_q, { cursor }) =>
+      cursor
+        ? { messages: [message("M1", "Older mockups", 1)], nextCursor: null }
+        : { messages: [message("M5", "Newer mockups", 5)], nextCursor: "M5" },
+    );
+    await user.type(box, "mockups{Enter}");
+    await within(dialog).findByText(/Newer/);
+    await user.click(within(dialog).getByRole("button", { name: "Next page" }));
+    await within(dialog).findByText(/Older/);
+    const asked = spy.mock.calls.length;
+
+    act(() => client.store.setState({ changedContent: { [design.id]: 21 } }));
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(asked + 1));
+    expect(spy).toHaveBeenLastCalledWith("mockups", 30, expect.objectContaining({ cursor: "M5" }));
+    expect(dialog).toHaveTextContent("1 results · Page 2");
+  });
+
+  it("lets a newer question finish when a change arrives meanwhile, then asks it once more", async () => {
+    const user = userEvent.setup();
+    let release = () => {};
+    let narrower = 0;
+    const { client, dialog, box, spy } = renderSearch((q) => {
+      if (q === "launch")
+        return Promise.resolve({ messages: [message("M1", "the launch", 1)], nextCursor: null });
+      narrower += 1;
+      const found = {
+        messages: [message("M2", `launch roadmap, answer ${narrower}`, 2)],
+        nextCursor: null,
+      };
+      // The first answer to the newer question is slow; the one asked after it is not.
+      return narrower === 1
+        ? new Promise<typeof found>((resolve) => (release = () => resolve(found)))
+        : Promise.resolve(found);
+    });
+    await user.type(box, "launch{Enter}");
+    await within(dialog).findByText(/^the/);
+
+    // The earlier results stay on show while the narrower question is out.
+    await user.type(box, " roadmap{Enter}");
+    await waitFor(() => expect(narrower).toBe(1));
+    const asked = spy.mock.calls.length;
+    const out = spy.mock.calls[asked - 1]![2]!.signal!;
+
+    // A change is heard in a conversation those results come from. The
+    // question that is out is not cut short to ask the old one again.
+    act(() => client.store.setState({ changedContent: { [design.id]: 30 } }));
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    expect(spy).toHaveBeenCalledTimes(asked);
+    expect(out.aborted).toBe(false);
+
+    // Its answer was asked for before the change, so it is asked for once more.
+    await act(async () => release());
+    await within(dialog).findByText(/answer 2/);
+    expect(spy).toHaveBeenCalledTimes(asked + 1);
+    expect(spy).toHaveBeenLastCalledWith("launch roadmap", 30, expect.anything());
+  });
 
   it("says back the days it was given, and which ones are not dates", async () => {
     const user = userEvent.setup();

@@ -22,6 +22,11 @@ interface Props {
   ) => Promise<{ messages: Message[]; nextCursor?: string | null }>;
   /** Re-runs `load` whenever this changes (channel switch, save toggled). */
   reloadKey: string;
+  /**
+   * Asks for the page showing again, in place, whenever this changes: what is
+   * listed may have changed somewhere this panel cannot see for itself.
+   */
+  refreshKey?: number;
   /** A control for the header, left of Refresh — a filter, usually. */
   headerExtra?: ReactNode;
   /** Extra detail beside a row's channel, such as an unread count. */
@@ -51,17 +56,21 @@ export function MessageListPanel(props: Props) {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const request = useRef<AbortController | null>(null);
   const retry = useRef<(() => void) | null>(null);
+  /** The page last asked for, asked for again without moving the reader. */
+  const again = useRef<(() => void) | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
 
   async function loadPage(
     cursor: string | undefined,
     targetPage: number,
     targetCursors: (string | undefined)[],
+    keepPlace = false,
   ) {
     request.current?.abort();
     const controller = new AbortController();
     request.current = controller;
     retry.current = () => void loadPage(cursor, targetPage, targetCursors);
+    again.current = () => void loadPage(cursor, targetPage, targetCursors, true);
     setBusy(true);
     setError(false);
     try {
@@ -71,7 +80,7 @@ export function MessageListPanel(props: Props) {
       setPage(targetPage);
       setCursors(targetCursors);
       setNextCursor(result.nextCursor ?? null);
-      scroller.current?.scrollTo({ top: 0 });
+      if (!keepPlace) scroller.current?.scrollTo({ top: 0 });
     } catch {
       if (!controller.signal.aborted) setError(true);
     } finally {
@@ -90,6 +99,12 @@ export function MessageListPanel(props: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client, props.reloadKey]);
+  const refreshed = useRef(props.refreshKey);
+  useEffect(() => {
+    if (refreshed.current === props.refreshKey) return;
+    refreshed.current = props.refreshKey;
+    again.current?.();
+  }, [props.refreshKey]);
   const { panel, heading } = usePanelFocus({ takeFocus: true });
 
   return (
@@ -241,6 +256,9 @@ export function PinsPanel(props: {
       .map((m) => m.id)
       .join(","),
   );
+  // A pinned message older than the history loaded here is not in that list,
+  // so its deletion, its edit or its unpinning by someone else would go unseen (Q08).
+  const changed = useWorkspace((s) => s.changedContent[props.channelId] ?? 0);
   return (
     <MessageListPanel
       title="Pinned"
@@ -248,6 +266,7 @@ export function PinsPanel(props: {
       emptyHint="Nothing pinned here yet. Pin a message to keep it handy for everyone in the channel."
       load={(cursor, signal) => client.api.listPins(props.channelId, signal, cursor)}
       reloadKey={`${props.channelId}:${pinSignature}`}
+      refreshKey={changed}
       onClose={props.onClose}
       onJump={props.onJump}
     />

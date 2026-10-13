@@ -520,6 +520,14 @@ export interface WorkspaceState {
    * the client does not hold, such as a page of Activity, can load again.
    */
   removedHistory: Record<ID, number>;
+  /**
+   * Per conversation, the seq of the latest event that changed what was
+   * already there: a message edited or deleted, a pin, history removed, or
+   * this account leaving. A view holding its own copy of messages, such as
+   * search results or the Pinned panel, asks again when a conversation it
+   * shows changes here, whether or not that history is loaded (Q07, Q08).
+   */
+  changedContent: Record<ID, number>;
   /** channelId -> unread messages there that name this user. */
   mentionCounts: Record<ID, number>;
   /** threadRootId -> this account's follow state and read cursor for it. */
@@ -563,6 +571,7 @@ const initialState: WorkspaceState = {
   pending: [],
   saved: {},
   removedHistory: {},
+  changedContent: {},
   threadFollows: {},
   mentionCounts: {},
   drafts: {},
@@ -1093,6 +1102,9 @@ export class WorkspaceClient {
       return;
     }
 
+    const changed = (channelId: ID) => {
+      patch.changedContent = { ...s.changedContent, [channelId]: seq };
+    };
     switch (event.type) {
       case "message.created": {
         const message = { ...event.message, seq };
@@ -1187,6 +1199,7 @@ export class WorkspaceClient {
         break;
       }
       case "message.updated": {
+        changed(event.message.channelId);
         patch.timelines = this.patchMessage(
           s,
           event.message.channelId,
@@ -1227,9 +1240,11 @@ export class WorkspaceClient {
         Object.assign(patch, { threads, threadPages, threadFollows, saved });
         patch.removedHistory = { ...s.removedHistory, [event.channelId]: seq };
         this.requoteHeld(s, patch, event.channelId, event, seq);
+        changed(event.channelId);
         break;
       }
       case "message.deleted": {
+        changed(event.channelId);
         this.onMessageDeleted?.(event.messageId);
         // Its files go with it, whether or not its history is still loaded (F07).
         this.files.invalidateMessage(event.messageId);
@@ -1287,6 +1302,7 @@ export class WorkspaceClient {
       case "pin.added":
       case "pin.removed": {
         const pinned = event.type === "pin.added";
+        changed(event.channelId);
         // A pin chosen here and not yet answered stays as chosen; see `choose`.
         if (this.heardChoice(`pin:${event.messageId}`, pinned)) break;
         const setPinned = (m: Message): Message => ({ ...m, pinned });
@@ -1326,6 +1342,7 @@ export class WorkspaceClient {
       }
       case "member.left": {
         if (event.userId === s.self?.id) {
+          changed(event.channelId);
           const { [event.channelId]: _gone, ...rest } = s.memberships;
           patch.memberships = rest;
           if (s.repliesRead) {
