@@ -67,7 +67,8 @@ export function ProfileDialog(props: {
       title="Profile"
       onClose={props.onClose}
       backdropClassName="flex animate-fade-in items-center justify-center dialog-backdrop p-4"
-      className="w-[340px] max-w-full animate-pop-in dialog-surface overflow-hidden rounded-2xl border border-[var(--card-edge)] outline-none"
+      // In a window shorter than the card, the card scrolls rather than losing its ends.
+      className="max-h-full w-[340px] max-w-full animate-pop-in dialog-surface overflow-y-auto overscroll-contain rounded-2xl border border-[var(--card-edge)] outline-none"
     >
       <div
         className="relative h-[92px]"

@@ -119,6 +119,13 @@ describe("a new message", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "New message" });
     const to = within(dialog).getByLabelText("To");
+    // Who it is to, and the button, stay in sight; the people between them scroll.
+    const people = dialog.querySelector(".dialog-scroll")!;
+    expect(people).toContainElement(within(dialog).getByRole("checkbox", { name: /Alex Chen/ }));
+    expect(people).not.toContainElement(to);
+    expect(people).not.toContainElement(
+      within(dialog).getByRole("button", { name: "Start conversation" }),
+    );
     await user.click(within(dialog).getByRole("button", { name: "Start conversation" }));
     expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Choose at least one person to message.",

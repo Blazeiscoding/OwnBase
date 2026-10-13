@@ -181,6 +181,13 @@ describe("views that were pressed buttons", () => {
     const panel = within(dialog).getByRole("tabpanel", { name: "Friends" });
     expect(within(panel).getByRole("textbox", { name: "Find people" })).toBeVisible();
     expect(within(panel).getByText("Alex Kim")).toBeVisible();
+    // The search stays over the people, who are the one thing that scrolls.
+    const scrollers = dialog.querySelectorAll(".dialog-scroll");
+    expect(scrollers).toHaveLength(1);
+    expect(scrollers[0]).toContainElement(within(panel).getByText("Alex Kim"));
+    expect(scrollers[0]).not.toContainElement(
+      within(panel).getByRole("textbox", { name: "Find people" }),
+    );
     expect(within(dialog).queryByRole("button", { pressed: true })).not.toBeInTheDocument();
     expect(await accessibilityProblems(dialog)).toEqual([]);
 

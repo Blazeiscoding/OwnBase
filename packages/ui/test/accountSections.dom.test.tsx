@@ -131,6 +131,28 @@ describe("account settings, a section at a time", () => {
     expect(tab("Profile")).toHaveFocus();
   });
 
+  it("scrolls only the section being read, and opens each at its start", async () => {
+    browserNotifications("granted");
+    const { dialog, moveTo, user } = settings("calls");
+    const panel = within(dialog).getByRole("tabpanel", { name: "Voice & video" });
+    // The section is what scrolls; its name, and the list of sections, are beside it.
+    expect(panel).toHaveClass("dialog-scroll");
+    expect(dialog.querySelectorAll(".dialog-scroll")).toHaveLength(1);
+    expect(panel).not.toContainElement(within(dialog).getByRole("tablist"));
+    expect(panel).not.toContainElement(
+      within(dialog).getByRole("heading", { name: "Account settings" }),
+    );
+
+    panel.scrollTop = 300;
+    await user.click(within(dialog).getByRole("tab", { name: "Security" }));
+    expect(within(dialog).getByRole("tabpanel", { name: "Security" })).toBe(panel);
+    expect(panel.scrollTop).toBe(0);
+    // And when Back or Forward chooses the section.
+    panel.scrollTop = 120;
+    moveTo("appearance");
+    expect(panel.scrollTop).toBe(0);
+  });
+
   it("says when someone chooses a section, and follows one chosen for it, as Back does", async () => {
     browserNotifications("granted");
     const { dialog, onSectionChange, moveTo, user } = settings("profile");

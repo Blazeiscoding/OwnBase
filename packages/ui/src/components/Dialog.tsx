@@ -1,3 +1,4 @@
+import type { ComponentProps } from "react";
 import { Modal } from "./Modal.js";
 import { Icon } from "./Icon.js";
 
@@ -9,8 +10,14 @@ interface Props {
   dismissible?: boolean;
   /** Id of the text a reader needs along with the title, such as a question's consequence. */
   describedBy?: string;
+  /**
+   * The content keeps part of itself in sight, such as a search field or the
+   * buttons that finish it, and puts what scrolls in a `DialogScroll`.
+   */
+  ownScroll?: boolean;
 }
 
+/** Its name and its close button stay in sight; what is under them scrolls. */
 export function Dialog({
   title,
   onClose,
@@ -18,6 +25,7 @@ export function Dialog({
   width = 440,
   dismissible = true,
   describedBy,
+  ownScroll,
 }: Props) {
   return (
     <Modal
@@ -25,11 +33,11 @@ export function Dialog({
       onClose={onClose}
       dismissible={dismissible}
       describedBy={describedBy}
-      backdropClassName="flex items-start justify-center dialog-backdrop px-3 pt-[12vh] animate-fade-in"
-      className="max-h-[78vh] max-w-full animate-pop-in overflow-y-auto rounded-2xl dialog-surface border border-[var(--card-edge)] p-6 outline-none"
+      backdropClassName="flex items-start justify-center dialog-backdrop px-3 pt-[12dvh] animate-fade-in"
+      className="dialog-panel animate-pop-in rounded-2xl dialog-surface border border-[var(--card-edge)] outline-none"
       style={{ width }}
     >
-      <div className="-mr-2 -mt-1.5 mb-4 flex items-center justify-between gap-3">
+      <div className="dialog-head">
         <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
         <button
           type="button"
@@ -43,8 +51,19 @@ export function Dialog({
           <Icon name="close" size={16} />
         </button>
       </div>
-      {children}
+      {ownScroll ? children : <DialogScroll>{children}</DialogScroll>}
     </Modal>
+  );
+}
+
+/** What scrolls in a dialog. Anything beside it in the dialog stays where it is. */
+export function DialogScroll({ children, ...scroller }: ComponentProps<"div">) {
+  return (
+    <div className="dialog-frame">
+      <div {...scroller} className="dialog-scroll">
+        <div className="dialog-body">{children}</div>
+      </div>
+    </div>
   );
 }
 

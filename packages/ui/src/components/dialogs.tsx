@@ -5,7 +5,7 @@ import { browserLink, desktopLink, serverAddress } from "../lib/deeplink.js";
 import type { Channel, ID, Invite, InviteStatus } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { useConfirm } from "./Confirm.js";
 import { useShareableServer } from "./ShareableServer.js";
 import { buttonClass } from "./Button.js";
@@ -313,10 +313,10 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
   }
 
   return (
-    <Dialog title="All channels" onClose={props.onClose} width={480}>
+    <Dialog title="All channels" onClose={props.onClose} width={480} ownScroll>
       <div
         {...tabs.listProps}
-        className="mb-3 flex gap-1 rounded-xl border border-edge bg-deep/40 p-1"
+        className="mx-6 mb-3 flex shrink-0 gap-1 rounded-xl border border-edge bg-deep/40 p-1"
       >
         {BROWSE_TABS.map((value) => (
           <button
@@ -330,83 +330,92 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
           </button>
         ))}
       </div>
-      {/* A steady height, so switching tabs or filtering does not jump the dialog. */}
-      <div {...tabs.panelProps} className="sm:min-h-[300px]">
-        <input
-          autoFocus
-          aria-label="Filter channels"
-          value={q}
-          onChange={(e) => setQ(e.target.value)}
-          placeholder="Filter by name or description"
-          className={`${inputCls} mb-3`}
-        />
-        {error && (
-          <p role="alert" className="mb-3 text-sm text-alert">
-            {error}
-          </p>
-        )}
-        {rooms.length > 0 ? (
-          <ul className="space-y-1">
-            {rooms.map((ch) => {
-              const joined = ch.id in memberships;
-              return (
-                <li
-                  key={ch.id}
-                  className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-ink/[0.05]"
-                >
-                  <span className="flex size-4 shrink-0 justify-center text-ink-faint">
-                    {ch.type === "private" ? (
-                      <>
-                        <Icon name="lock" size={14} />
-                        <span className="sr-only">Private</span>
-                      </>
-                    ) : (
-                      <Icon name="hash" size={14} />
-                    )}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-baseline gap-2">
-                      <span className="truncate font-medium">{ch.name}</span>
-                      {joined && <span className="shrink-0 text-xs text-ink-faint">Joined</span>}
-                    </div>
-                    {(ch.description || ch.topic) && (
-                      <div className="truncate text-xs text-ink-faint">
-                        {ch.description || ch.topic}
+      {/* The filter stays over the channels it narrows, which are all that scrolls. */}
+      <div {...tabs.panelProps} className="flex min-h-0 flex-col">
+        <div className="shrink-0 px-6 pb-2">
+          <input
+            autoFocus
+            aria-label="Filter channels"
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+            placeholder="Filter by name or description"
+            className={inputCls}
+          />
+        </div>
+        <DialogScroll>
+          {/* A steady height, so switching tabs or filtering does not jump the dialog. */}
+          <div className="sm:min-h-[250px]">
+            {error && (
+              <p role="alert" className="mb-3 text-sm text-alert">
+                {error}
+              </p>
+            )}
+            {rooms.length > 0 ? (
+              <ul className="space-y-1">
+                {rooms.map((ch) => {
+                  const joined = ch.id in memberships;
+                  return (
+                    <li
+                      key={ch.id}
+                      className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-ink/[0.05]"
+                    >
+                      <span className="flex size-4 shrink-0 justify-center text-ink-faint">
+                        {ch.type === "private" ? (
+                          <>
+                            <Icon name="lock" size={14} />
+                            <span className="sr-only">Private</span>
+                          </>
+                        ) : (
+                          <Icon name="hash" size={14} />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-baseline gap-2">
+                          <span className="truncate font-medium">{ch.name}</span>
+                          {joined && (
+                            <span className="shrink-0 text-xs text-ink-faint">Joined</span>
+                          )}
+                        </div>
+                        {(ch.description || ch.topic) && (
+                          <div className="truncate text-xs text-ink-faint">
+                            {ch.description || ch.topic}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
-                  {joined || ch.archived ? (
-                    <button
-                      onClick={() => props.onOpen(ch.id)}
-                      aria-label={`Open #${ch.name}`}
-                      className="rounded-lg border border-edge px-3 py-1 text-sm font-medium text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink"
-                    >
-                      Open
-                    </button>
-                  ) : (
-                    <button
-                      // Not `disabled`, so focus stays put while it joins.
-                      aria-disabled={joining !== null || undefined}
-                      aria-label={`Join #${ch.name}`}
-                      onClick={() => void join(ch)}
-                      className="btn-shape bg-copper px-3 py-1 text-sm font-semibold text-ground transition-colors hover:bg-copper-deep aria-disabled:opacity-60"
-                    >
-                      {joining === ch.id ? "Joining…" : "Join"}
-                    </button>
-                  )}
-                </li>
-              );
-            })}
-          </ul>
-        ) : (
-          <p className="py-6 text-center text-sm text-ink-faint">
-            {needle
-              ? "No channels match."
-              : tab === "archived"
-                ? "No channels have been archived."
-                : "There are no channels yet."}
-          </p>
-        )}
+                      {joined || ch.archived ? (
+                        <button
+                          onClick={() => props.onOpen(ch.id)}
+                          aria-label={`Open #${ch.name}`}
+                          className="rounded-lg border border-edge px-3 py-1 text-sm font-medium text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink"
+                        >
+                          Open
+                        </button>
+                      ) : (
+                        <button
+                          // Not `disabled`, so focus stays put while it joins.
+                          aria-disabled={joining !== null || undefined}
+                          aria-label={`Join #${ch.name}`}
+                          onClick={() => void join(ch)}
+                          className="btn-shape bg-copper px-3 py-1 text-sm font-semibold text-ground transition-colors hover:bg-copper-deep aria-disabled:opacity-60"
+                        >
+                          {joining === ch.id ? "Joining…" : "Join"}
+                        </button>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="py-6 text-center text-sm text-ink-faint">
+                {needle
+                  ? "No channels match."
+                  : tab === "archived"
+                    ? "No channels have been archived."
+                    : "There are no channels yet."}
+              </p>
+            )}
+          </div>
+        </DialogScroll>
       </div>
     </Dialog>
   );
@@ -468,9 +477,10 @@ export function NewDmDialog(props: {
   };
 
   return (
-    <Dialog title="New message" onClose={props.onClose}>
+    <Dialog title="New message" onClose={props.onClose} ownScroll>
       <form
         noValidate
+        className="flex min-h-0 flex-col"
         onSubmit={(e) => {
           e.preventDefault();
           // Say what is missing rather than refusing silently.
@@ -482,126 +492,132 @@ export function NewDmDialog(props: {
           void start();
         }}
       >
-        {props.initialMemberIds && (
-          <p className="mb-3 text-sm text-ink-dim">
-            History stays in the current conversation. A conversation originally started for the
-            selected people may reopen; otherwise a new one starts.
-          </p>
-        )}
-        <label
-          htmlFor="new-dm-search"
-          className="mb-1.5 block text-[13px] font-medium text-ink-dim"
-        >
-          To
-        </label>
-        <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-edge bg-ground px-2 py-1.5 transition-colors focus-within:border-copper hover:border-ink-faint/40">
-          {picked.map((id) => {
-            const u = users[id];
-            return (
-              <span
-                key={id}
-                className="flex h-7 items-center gap-1.5 rounded-full bg-ink/[0.07] pl-1 pr-1 text-[13px] font-medium"
-              >
-                {u && <Avatar user={u} size={20} />}
-                {u?.displayName ?? "Unknown"}
-                <button
-                  type="button"
-                  aria-label={`Remove ${u?.displayName ?? "this person"}`}
-                  disabled={busy}
-                  onClick={() => toggle(id, false)}
-                  className="flex size-5 items-center justify-center rounded-full text-ink-faint hover:bg-ink/10 hover:text-ink"
-                >
-                  <Icon name="close" size={12} />
-                </button>
-              </span>
-            );
-          })}
-          <input
-            id="new-dm-search"
-            ref={search}
-            autoFocus
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
-            onKeyDown={(e) => {
-              // Backspace in an empty box takes back the last person chosen.
-              if (e.key === "Backspace" && !q && picked.length > 0 && !busy)
-                toggle(picked[picked.length - 1]!, false);
-            }}
-            placeholder={picked.length === 0 ? "Search people" : "Add someone else"}
-            aria-describedby="new-dm-count"
-            className="h-7 min-w-[8rem] flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-ink-faint"
-          />
-        </div>
-        <p id="new-dm-count" className="mb-2 mt-1.5 text-[12px] text-ink-faint">
-          {picked.length === 0
-            ? "Choose up to 8 people. You're included."
-            : `${picked.length} of up to 8 chosen, plus you`}
-        </p>
-        <ul aria-label="People" className="-mx-1 mb-4 max-h-[300px] space-y-0.5 overflow-y-auto">
-          {candidates.map((u) => {
-            const chosen = picked.includes(u.id);
-            const online = presence[u.id] === "online";
-            return (
-              <li key={u.id}>
-                <label
-                  className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-copper ${
-                    chosen ? "bg-ink/[0.06]" : "hover:bg-ink/[0.04]"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={chosen}
-                    disabled={busy || (!chosen && picked.length >= 8)}
-                    onChange={(e) => toggle(u.id, e.target.checked)}
-                    className="sr-only"
-                  />
-                  <span className="relative shrink-0">
-                    <Avatar user={u} size={28} />
-                    <span
-                      aria-hidden="true"
-                      className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-raised ${
-                        online ? "bg-online" : "bg-ink-faint/50"
-                      }`}
-                    />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm text-ink">
-                      {u.displayName}
-                      {u.deactivated && " (unavailable)"}
-                    </span>
-                    <span className="block truncate text-[12px] text-ink-faint">
-                      @{u.handle}
-                      {online ? " · Online" : ""}
-                    </span>
-                  </span>
-                  <span
-                    aria-hidden="true"
-                    className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
-                      chosen ? "border-copper bg-copper text-ground" : "border-edge"
-                    }`}
-                  >
-                    {chosen && <Icon name="check" size={12} />}
-                  </span>
-                </label>
-              </li>
-            );
-          })}
-          {candidates.length === 0 && (
-            <p className="py-6 text-center text-sm text-ink-faint">
-              {Object.keys(users).length <= 1
-                ? "You're the only one here so far. Invite people to start a conversation."
-                : `No one matches “${q.trim()}”.`}
+        <div className="shrink-0 px-6">
+          {props.initialMemberIds && (
+            <p className="mb-3 text-sm text-ink-dim">
+              History stays in the current conversation. A conversation originally started for the
+              selected people may reopen; otherwise a new one starts.
             </p>
           )}
-        </ul>
-        {error && (
-          <p role="alert" className="mb-3 text-sm text-alert">
-            {error}
+          <label
+            htmlFor="new-dm-search"
+            className="mb-1.5 block text-[13px] font-medium text-ink-dim"
+          >
+            To
+          </label>
+          <div className="flex min-h-10 flex-wrap items-center gap-1.5 rounded-lg border border-edge bg-ground px-2 py-1.5 transition-colors focus-within:border-copper hover:border-ink-faint/40">
+            {picked.map((id) => {
+              const u = users[id];
+              return (
+                <span
+                  key={id}
+                  className="flex h-7 items-center gap-1.5 rounded-full bg-ink/[0.07] pl-1 pr-1 text-[13px] font-medium"
+                >
+                  {u && <Avatar user={u} size={20} />}
+                  {u?.displayName ?? "Unknown"}
+                  <button
+                    type="button"
+                    aria-label={`Remove ${u?.displayName ?? "this person"}`}
+                    disabled={busy}
+                    onClick={() => toggle(id, false)}
+                    className="flex size-5 items-center justify-center rounded-full text-ink-faint hover:bg-ink/10 hover:text-ink"
+                  >
+                    <Icon name="close" size={12} />
+                  </button>
+                </span>
+              );
+            })}
+            <input
+              id="new-dm-search"
+              ref={search}
+              autoFocus
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                // Backspace in an empty box takes back the last person chosen.
+                if (e.key === "Backspace" && !q && picked.length > 0 && !busy)
+                  toggle(picked[picked.length - 1]!, false);
+              }}
+              placeholder={picked.length === 0 ? "Search people" : "Add someone else"}
+              aria-describedby="new-dm-count"
+              className="h-7 min-w-[8rem] flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-ink-faint"
+            />
+          </div>
+          <p id="new-dm-count" className="mb-1 mt-1.5 text-[12px] text-ink-faint">
+            {picked.length === 0
+              ? "Choose up to 8 people. You're included."
+              : `${picked.length} of up to 8 chosen, plus you`}
           </p>
-        )}
-        <button type="submit" disabled={busy} className={buttonClass("primary", "w-full")}>
-          {busy ? "Opening…" : "Start conversation"}
-        </button>
+        </div>
+        <DialogScroll>
+          <ul aria-label="People" className="-mx-1 space-y-0.5">
+            {candidates.map((u) => {
+              const chosen = picked.includes(u.id);
+              const online = presence[u.id] === "online";
+              return (
+                <li key={u.id}>
+                  <label
+                    className={`flex cursor-pointer items-center gap-3 rounded-lg px-2 py-1.5 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-copper ${
+                      chosen ? "bg-ink/[0.06]" : "hover:bg-ink/[0.04]"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={chosen}
+                      disabled={busy || (!chosen && picked.length >= 8)}
+                      onChange={(e) => toggle(u.id, e.target.checked)}
+                      className="sr-only"
+                    />
+                    <span className="relative shrink-0">
+                      <Avatar user={u} size={28} />
+                      <span
+                        aria-hidden="true"
+                        className={`absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full ring-2 ring-raised ${
+                          online ? "bg-online" : "bg-ink-faint/50"
+                        }`}
+                      />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm text-ink">
+                        {u.displayName}
+                        {u.deactivated && " (unavailable)"}
+                      </span>
+                      <span className="block truncate text-[12px] text-ink-faint">
+                        @{u.handle}
+                        {online ? " · Online" : ""}
+                      </span>
+                    </span>
+                    <span
+                      aria-hidden="true"
+                      className={`flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors ${
+                        chosen ? "border-copper bg-copper text-ground" : "border-edge"
+                      }`}
+                    >
+                      {chosen && <Icon name="check" size={12} />}
+                    </span>
+                  </label>
+                </li>
+              );
+            })}
+            {candidates.length === 0 && (
+              <p className="py-6 text-center text-sm text-ink-faint">
+                {Object.keys(users).length <= 1
+                  ? "You're the only one here so far. Invite people to start a conversation."
+                  : `No one matches “${q.trim()}”.`}
+              </p>
+            )}
+          </ul>
+        </DialogScroll>
+        <div className="dialog-foot">
+          {error && (
+            <p role="alert" className="mb-3 text-sm text-alert">
+              {error}
+            </p>
+          )}
+          <button type="submit" disabled={busy} className={buttonClass("primary", "w-full")}>
+            {busy ? "Opening…" : "Start conversation"}
+          </button>
+        </div>
       </form>
     </Dialog>
   );

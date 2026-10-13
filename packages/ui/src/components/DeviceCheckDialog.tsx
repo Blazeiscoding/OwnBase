@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "./Button.js";
-import { Dialog } from "./Dialog.js";
+import { Dialog, DialogScroll } from "./Dialog.js";
 import { MicrophoneCheck } from "./MicrophoneCheck.js";
 import { CameraPreview, DeviceSelect } from "./VoiceVideoSettings.js";
 import { microphoneOf, useCallPreferences } from "../lib/callPreferences.js";
@@ -48,51 +48,54 @@ export function DeviceCheckDialog() {
       onClose={() => finish(null)}
       width={devices.cameras.length > 0 ? 680 : 440}
       describedBy={descriptionId}
+      ownScroll
     >
-      <p id={descriptionId} className="text-sm text-ink-dim">
-        You have more than one to choose from. Pick the ones huddles use; you can change them any
-        time in Voice &amp; video settings.
-      </p>
+      <DialogScroll>
+        <p id={descriptionId} className="text-sm text-ink-dim">
+          You have more than one to choose from. Pick the ones huddles use; you can change them any
+          time in Voice &amp; video settings.
+        </p>
 
-      {/* Side by side, so Join stays in sight without scrolling. */}
-      <div className={`mt-5 grid gap-6 ${devices.cameras.length > 0 ? "sm:grid-cols-2" : ""}`}>
-        <div className="min-w-0 space-y-1">
-          <h3 className="text-sm font-semibold">Microphone</h3>
-          <DeviceSelect
-            label="Microphone"
-            options={devices.microphones}
-            value={microphoneId}
-            systemDefault={devices.defaultMicrophone}
-            disabled={false}
-            onChange={setMicrophoneId}
-          />
-          <MicrophoneCheck
-            settings={microphoneOf({ ...calls.devices, microphoneId })}
-            speakerId={calls.devices.speakerId ?? ""}
-            onOpened={devices.refresh}
-            autoStart
-          />
-        </div>
-
-        {devices.cameras.length > 0 && (
+        {/* Side by side, so there is little to scroll; Join stays in sight either way. */}
+        <div className={`mt-5 grid gap-6 ${devices.cameras.length > 0 ? "sm:grid-cols-2" : ""}`}>
           <div className="min-w-0 space-y-1">
-            <h3 className="text-sm font-semibold">Camera</h3>
+            <h3 className="text-sm font-semibold">Microphone</h3>
             <DeviceSelect
-              label="Camera"
-              options={devices.cameras}
-              value={cameraId}
+              label="Microphone"
+              options={devices.microphones}
+              value={microphoneId}
+              systemDefault={devices.defaultMicrophone}
               disabled={false}
-              onChange={setCameraId}
+              onChange={setMicrophoneId}
             />
-            <CameraPreview cameraId={cameraId} onOpened={devices.refresh} autoStart />
-            <p className="text-xs text-ink-dim">
-              Only you see this. In the huddle your camera stays off until you turn it on.
-            </p>
+            <MicrophoneCheck
+              settings={microphoneOf({ ...calls.devices, microphoneId })}
+              speakerId={calls.devices.speakerId ?? ""}
+              onOpened={devices.refresh}
+              autoStart
+            />
           </div>
-        )}
-      </div>
 
-      <div className="mt-6 flex justify-end gap-2">
+          {devices.cameras.length > 0 && (
+            <div className="min-w-0 space-y-1">
+              <h3 className="text-sm font-semibold">Camera</h3>
+              <DeviceSelect
+                label="Camera"
+                options={devices.cameras}
+                value={cameraId}
+                disabled={false}
+                onChange={setCameraId}
+              />
+              <CameraPreview cameraId={cameraId} onOpened={devices.refresh} autoStart />
+              <p className="text-xs text-ink-dim">
+                Only you see this. In the huddle your camera stays off until you turn it on.
+              </p>
+            </div>
+          )}
+        </div>
+      </DialogScroll>
+
+      <div className="dialog-foot flex justify-end gap-2">
         <Button onClick={() => finish(null)}>Cancel</Button>
         <Button variant="primary" onClick={() => finish({ microphoneId, cameraId })}>
           Join huddle

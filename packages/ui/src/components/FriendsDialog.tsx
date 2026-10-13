@@ -3,7 +3,7 @@ import type { ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Avatar, PresenceDot } from "./Avatar.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { buttonClass } from "./Button.js";
 
 const FRIENDS_TABS = ["friends", "requests", "people"] as const;
@@ -100,13 +100,13 @@ export function FriendsDialog({
     })
     .sort((a, b) => a.displayName.localeCompare(b.displayName));
   return (
-    <Dialog title="Friends" onClose={onClose}>
-      <p className="mb-4 text-sm text-ink-dim">
+    <Dialog title="Friends" onClose={onClose} ownScroll>
+      <p className="mb-4 shrink-0 px-6 text-sm text-ink-dim">
         Connect with people in this workspace. Your friends and requests stay on this server.
       </p>
       <div
         {...tabs.listProps}
-        className="mb-4 flex gap-1 rounded-xl border border-edge bg-deep/40 p-1"
+        className="mx-6 mb-4 flex shrink-0 gap-1 rounded-xl border border-edge bg-deep/40 p-1"
       >
         {FRIENDS_TABS.map((value) => (
           <button
@@ -122,44 +122,49 @@ export function FriendsDialog({
           </button>
         ))}
       </div>
-      <div {...tabs.panelProps}>
-        <input
-          aria-label="Find people"
-          placeholder="Search by name or handle"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          className={inputCls}
-        />
-        <div className="mt-4 max-h-[50vh] space-y-3 overflow-y-auto">
-          {rows.length === 0 && (
-            <p className="py-8 text-center text-sm text-ink-faint">
-              {tab === "friends"
-                ? "No friends yet. Find someone in Add friends to send a request."
-                : tab === "requests"
-                  ? "No pending requests."
-                  : "No people found."}
-            </p>
-          )}
-          {rows.map((user) => (
-            <div key={user.id} className="card-warm rounded-xl p-3">
-              <button
-                onClick={() => onOpenProfile(user.id)}
-                className="mb-3 flex w-full items-center gap-3 text-left"
-              >
-                <Avatar user={user} size={36} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{user.displayName}</span>
-                  <span className="text-xs text-ink-faint">@{user.handle}</span>
-                </span>
-                <PresenceDot online={presence[user.id] === "online"} />
-              </button>
-              {friends.find((f) => f.userId === user.id)?.status === "outgoing" && (
-                <p className="mb-2 text-xs text-ink-faint">Request sent</p>
-              )}
-              <FriendActions userId={user.id} />
-            </div>
-          ))}
+      {/* The search stays over the people it narrows, who are all that scrolls. */}
+      <div {...tabs.panelProps} className="flex min-h-0 flex-col">
+        <div className="shrink-0 px-6 pb-3">
+          <input
+            aria-label="Find people"
+            placeholder="Search by name or handle"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className={inputCls}
+          />
         </div>
+        <DialogScroll>
+          <div className="space-y-3">
+            {rows.length === 0 && (
+              <p className="py-8 text-center text-sm text-ink-faint">
+                {tab === "friends"
+                  ? "No friends yet. Find someone in Add friends to send a request."
+                  : tab === "requests"
+                    ? "No pending requests."
+                    : "No people found."}
+              </p>
+            )}
+            {rows.map((user) => (
+              <div key={user.id} className="card-warm rounded-xl p-3">
+                <button
+                  onClick={() => onOpenProfile(user.id)}
+                  className="mb-3 flex w-full items-center gap-3 text-left"
+                >
+                  <Avatar user={user} size={36} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{user.displayName}</span>
+                    <span className="text-xs text-ink-faint">@{user.handle}</span>
+                  </span>
+                  <PresenceDot online={presence[user.id] === "online"} />
+                </button>
+                {friends.find((f) => f.userId === user.id)?.status === "outgoing" && (
+                  <p className="mb-2 text-xs text-ink-faint">Request sent</p>
+                )}
+                <FriendActions userId={user.id} />
+              </div>
+            ))}
+          </div>
+        </DialogScroll>
       </div>
     </Dialog>
   );

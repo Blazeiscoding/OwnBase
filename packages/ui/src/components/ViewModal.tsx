@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { ModalField, ModalView } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { buttonClass } from "./Button.js";
 
@@ -85,90 +85,95 @@ function AppForm({ view }: { view: ModalView }) {
   }
 
   return (
-    <Dialog title={view.title} onClose={close} width={520}>
-      <form onSubmit={submit}>
-        {view.text && (
-          <div className="mb-4 text-sm text-ink-dim">
-            <Mrkdwn text={view.text} users={users} channels={channels} />
-          </div>
-        )}
+    <Dialog title={view.title} onClose={close} width={520} ownScroll>
+      {/* An app decides how many fields there are; the buttons stay in sight
+          under however many that is. */}
+      <form onSubmit={submit} className="flex min-h-0 flex-col">
+        <DialogScroll>
+          {view.text && (
+            <div className="mb-4 text-sm text-ink-dim">
+              <Mrkdwn text={view.text} users={users} channels={channels} />
+            </div>
+          )}
 
-        <div className="space-y-3.5">
-          {view.fields.map((field) => {
-            const id = fieldId(field);
-            const error = errors[field.blockId];
-            // The error replaces the hint on screen, and so in what is read.
-            const described = error ? `${id}-error` : field.hint ? `${id}-hint` : undefined;
-            const shared = {
-              id,
-              "aria-describedby": described,
-              "aria-invalid": error ? true : undefined,
-              "aria-required": !field.optional,
-            };
-            return (
-              <div key={id}>
-                <label htmlFor={id} className="mb-1 block text-[13px] font-medium">
-                  {field.label}
-                  {field.optional && (
-                    <span className="ml-1.5 text-[11px] font-normal text-ink-faint">optional</span>
+          <div className="space-y-3.5">
+            {view.fields.map((field) => {
+              const id = fieldId(field);
+              const error = errors[field.blockId];
+              // The error replaces the hint on screen, and so in what is read.
+              const described = error ? `${id}-error` : field.hint ? `${id}-hint` : undefined;
+              const shared = {
+                id,
+                "aria-describedby": described,
+                "aria-invalid": error ? true : undefined,
+                "aria-required": !field.optional,
+              };
+              return (
+                <div key={id}>
+                  <label htmlFor={id} className="mb-1 block text-[13px] font-medium">
+                    {field.label}
+                    {field.optional && (
+                      <span className="ml-1.5 text-[11px] font-normal text-ink-faint">
+                        optional
+                      </span>
+                    )}
+                  </label>
+
+                  {field.type === "select" ? (
+                    <select
+                      {...shared}
+                      value={valueOf(field)}
+                      onChange={(e) => setValue(field, e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">{field.placeholder || "Choose one…"}</option>
+                      {field.options.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.text}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === "textarea" ? (
+                    <textarea
+                      {...shared}
+                      value={valueOf(field)}
+                      placeholder={field.placeholder}
+                      rows={4}
+                      onChange={(e) => setValue(field, e.target.value)}
+                      className={`${inputCls} resize-y`}
+                    />
+                  ) : (
+                    <input
+                      {...shared}
+                      value={valueOf(field)}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setValue(field, e.target.value)}
+                      className={inputCls}
+                    />
                   )}
-                </label>
 
-                {field.type === "select" ? (
-                  <select
-                    {...shared}
-                    value={valueOf(field)}
-                    onChange={(e) => setValue(field, e.target.value)}
-                    className={inputCls}
-                  >
-                    <option value="">{field.placeholder || "Choose one…"}</option>
-                    {field.options.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.text}
-                      </option>
-                    ))}
-                  </select>
-                ) : field.type === "textarea" ? (
-                  <textarea
-                    {...shared}
-                    value={valueOf(field)}
-                    placeholder={field.placeholder}
-                    rows={4}
-                    onChange={(e) => setValue(field, e.target.value)}
-                    className={`${inputCls} resize-y`}
-                  />
-                ) : (
-                  <input
-                    {...shared}
-                    value={valueOf(field)}
-                    placeholder={field.placeholder}
-                    onChange={(e) => setValue(field, e.target.value)}
-                    className={inputCls}
-                  />
-                )}
+                  {field.hint && !error && (
+                    <p id={`${id}-hint`} className="mt-1 text-[11px] text-ink-faint">
+                      {field.hint}
+                    </p>
+                  )}
+                  {error && (
+                    <p id={`${id}-error`} role="alert" className="mt-1 text-[11px] text-alert">
+                      {error}
+                    </p>
+                  )}
+                </div>
+              );
+            })}
+          </div>
 
-                {field.hint && !error && (
-                  <p id={`${id}-hint`} className="mt-1 text-[11px] text-ink-faint">
-                    {field.hint}
-                  </p>
-                )}
-                {error && (
-                  <p id={`${id}-error`} role="alert" className="mt-1 text-[11px] text-alert">
-                    {error}
-                  </p>
-                )}
-              </div>
-            );
-          })}
-        </div>
-
-        {message && (
-          <p role="alert" className="mt-3 text-[12px] text-alert">
-            {message}
-          </p>
-        )}
-
-        <div className="mt-5 flex justify-end gap-2">
+          {message && (
+            <p role="alert" className="mt-3 text-[12px] text-alert">
+              {message}
+            </p>
+          )}
+        </DialogScroll>
+        <div className="dialog-foot flex justify-end gap-2">
           <button
             type="button"
             onClick={close}

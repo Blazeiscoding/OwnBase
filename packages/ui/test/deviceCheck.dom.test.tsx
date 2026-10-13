@@ -141,6 +141,12 @@ describe("which microphone and camera, asked before a first huddle", () => {
     await start();
     const asked = await dialog();
     expect(join).not.toHaveBeenCalled();
+    // Join stays in sight, whatever the devices above it need of the window.
+    const scroller = asked.querySelector(".dialog-scroll")!;
+    expect(scroller).toContainElement(within(asked).getByRole("combobox", { name: "Microphone" }));
+    expect(scroller).not.toContainElement(
+      within(asked).getByRole("button", { name: "Join huddle" }),
+    );
 
     // It listens at once, and shows the camera without being asked.
     expect(await within(asked).findByText(/^Listening to/)).toHaveTextContent(

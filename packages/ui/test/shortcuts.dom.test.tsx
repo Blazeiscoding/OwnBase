@@ -55,6 +55,10 @@ describe("finding a shortcut", () => {
     sheet(true);
     const find = screen.getByRole("searchbox", { name: "Find a shortcut" });
     expect(find).toHaveFocus();
+    // The field stays over the sheet, which is what scrolls.
+    const scroller = screen.getByRole("dialog").querySelector(".dialog-scroll")!;
+    expect(scroller).toContainElement(screen.getByRole("heading", { name: "Messages" }));
+    expect(scroller).not.toContainElement(find);
     const user = userEvent.setup();
     await user.type(find, "next message");
     const rows = screen.getAllByRole("listitem").map((row) => row.textContent);

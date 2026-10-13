@@ -450,6 +450,8 @@ textarea::placeholder {
   box-shadow: var(--shadow-float);
   -webkit-backdrop-filter: blur(16px) saturate(1.4);
   backdrop-filter: blur(16px) saturate(1.4);
+  /* A long menu scrolled to its end stops there; on a phone it does not pull the page down to reload it. */
+  overscroll-behavior: contain;
 }
 
 /*
@@ -985,6 +987,119 @@ textarea::placeholder {
   background: radial-gradient(60% 50% at 50% 20%, rgb(0 0 0 / 0.35), rgb(0 0 0 / 0.6)), transparent;
   -webkit-backdrop-filter: blur(6px) saturate(1.1);
   backdrop-filter: blur(6px) saturate(1.1);
+}
+
+/*
+ * A dialog is as tall as what is in it, up to most of the window, and its
+ * parts stack: its name and close button, then whatever the content keeps in
+ * sight, and what scrolls takes the room that is left.
+ */
+.dialog-panel {
+  display: flex;
+  flex-direction: column;
+  max-width: 100%;
+  max-height: 78dvh;
+  overflow: hidden;
+}
+.dialog-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 1.125rem 1rem 0.75rem 1.5rem;
+}
+/*
+ * What scrolls in a dialog, under the name and the close button that stay put.
+ * The content takes its width from the frame around the scroller, in `cqw`,
+ * and not from the scroller, so it is as wide with a scrollbar as without one.
+ * The scrollbar takes its room from the margin beside the content, and nothing
+ * shifts when a list grows past the dialog. The frame is as wide as the dialog
+ * in most, and in settings as wide as the part beside the list of sections.
+ */
+.dialog-frame {
+  container-type: inline-size;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.dialog-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden auto;
+  /* The end of a dialog is not the start of scrolling, or reloading, the page. */
+  overscroll-behavior: contain;
+}
+.dialog-body {
+  width: calc(100cqw - 3rem);
+  margin-inline-start: 1.5rem;
+  /* Room above for the focus ring of whatever comes first. */
+  padding-block: 0.25rem 1.5rem;
+}
+/* The buttons that finish a dialog, kept in sight under what scrolls. */
+.dialog-foot {
+  flex-shrink: 0;
+  padding: 0 1.5rem 1.5rem;
+}
+.dialog-frame:has(+ .dialog-foot) .dialog-body {
+  padding-bottom: 1rem;
+}
+/*
+ * On a phone, settings' sections are a strip that scrolls sideways, with no
+ * scrollbar drawn under it. The section chosen is brought to its middle, which
+ * shows the ones either side.
+ */
+@media (width < 40rem) {
+  .tab-strip {
+    scrollbar-width: none;
+  }
+}
+/*
+ * Where there is more to scroll to, the content fades out at that edge and
+ * only there. A dialog that fits has no fade. The scrollbars here hide until
+ * the pointer is over them, so the fade is what says there is more. A browser
+ * without scroll timelines shows a plain edge.
+ */
+@supports (animation-timeline: scroll()) {
+  @property --fade-above {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
+  @property --fade-below {
+    syntax: "<length>";
+    inherits: false;
+    initial-value: 0px;
+  }
+  .dialog-scroll {
+    mask-image: linear-gradient(
+      to bottom,
+      transparent,
+      #000 var(--fade-above),
+      #000 calc(100% - var(--fade-below)),
+      transparent
+    );
+    animation:
+      fade-above 1ms linear both,
+      fade-below 1ms linear both;
+    animation-timeline: scroll(self), scroll(self);
+    animation-range:
+      0 2rem,
+      calc(100% - 2rem) 100%;
+  }
+  @keyframes fade-above {
+    to {
+      --fade-above: 1.5rem;
+    }
+  }
+  @keyframes fade-below {
+    from {
+      --fade-below: 1.5rem;
+    }
+  }
 }
 
 /*
