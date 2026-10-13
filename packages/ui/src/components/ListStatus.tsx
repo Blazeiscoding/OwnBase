@@ -67,7 +67,9 @@ export function ListStatus(props: Props) {
                 aria-hidden="true"
                 className="size-3 shrink-0 rounded-full border border-edge border-t-copper motion-safe:animate-spin"
               />
-              {props.loadingLabel}
+              <span className="text-shimmer" data-text={props.loadingLabel}>
+                {props.loadingLabel}
+              </span>
             </p>
           )
         ) : showEmpty ? (

@@ -15,6 +15,7 @@ import { workspaceGradient } from "../lib/format.js";
 import { resumeTarget } from "../lib/resume.js";
 import { buttonClass } from "../components/Button.js";
 import { useTabs } from "../lib/useTabs.js";
+import { Swap, useChanges } from "../components/Motion.js";
 
 interface Props {
   platform: Platform;
@@ -682,6 +683,10 @@ function AuthCard(props: {
   const [claimCode, setClaimCode] = useState("");
   const [requiresClaim, setRequiresClaim] = useState(!!props.info.requiresClaim);
   const [error, setError] = useState<string | null>(null);
+  // A form that was refused shakes its head. Each new refusal shakes it again:
+  // one that replaces another takes the twin animation, which starts afresh.
+  const refusals = useChanges(error);
+  const shake = error ? (refusals % 2 ? "animate-shake" : "animate-shake-again") : "";
   const [busy, setBusy] = useState(false);
   const firstField = useRef<HTMLInputElement>(null);
   /**
@@ -864,7 +869,7 @@ function AuthCard(props: {
             That password was issued to you by someone else. Choose your own to finish signing in —
             the workspace stays closed until you do.
           </p>
-          <form onSubmit={replacePassword} className="space-y-4">
+          <form onSubmit={replacePassword} className={`space-y-4 ${shake}`}>
             <div>
               <label className={labelCls} htmlFor={`${id}-new-password`}>
                 New password
@@ -897,12 +902,12 @@ function AuthCard(props: {
               />
             </div>
             {error && (
-              <p role="alert" className="text-sm text-alert">
+              <p role="alert" className="animate-text-in text-sm text-alert">
                 {error}
               </p>
             )}
             <button type="submit" disabled={busy} className={submitCls}>
-              {busy ? "Saving…" : "Set password and continue"}
+              <Swap text>{busy ? "Saving…" : "Set password and continue"}</Swap>
             </button>
           </form>
         </>
@@ -947,7 +952,7 @@ function AuthCard(props: {
 
           <div {...(hasUsers ? tabs.panelProps : {})}>
             {mode === "guest" ? (
-              <form onSubmit={submit} noValidate className="space-y-4">
+              <form onSubmit={submit} noValidate className={`space-y-4 ${shake}`}>
                 <div>
                   <label className={labelCls} htmlFor={`${id}-guest-name`}>
                     Display name
@@ -968,16 +973,16 @@ function AuthCard(props: {
                   </p>
                 </div>
                 {error && (
-                  <p role="alert" className="text-sm text-alert">
+                  <p role="alert" className="animate-text-in text-sm text-alert">
                     {error}
                   </p>
                 )}
                 <button type="submit" disabled={busy} className={submitCls}>
-                  {busy ? "Joining…" : "Join as guest"}
+                  <Swap text>{busy ? "Joining…" : "Join as guest"}</Swap>
                 </button>
               </form>
             ) : (
-              <form onSubmit={submit} noValidate className="space-y-4">
+              <form onSubmit={submit} noValidate className={`space-y-4 ${shake}`}>
                 <div>
                   <label className={labelCls} htmlFor={`${id}-handle`}>
                     Username
@@ -1078,12 +1083,14 @@ function AuthCard(props: {
                   </div>
                 )}
                 {error && (
-                  <p role="alert" className="text-sm text-alert">
+                  <p role="alert" className="animate-text-in text-sm text-alert">
                     {error}
                   </p>
                 )}
                 <button type="submit" disabled={busy} className={submitCls}>
-                  {busy ? "Connecting…" : mode === "login" ? "Sign in" : "Join workspace"}
+                  <Swap text>
+                    {busy ? "Connecting…" : mode === "login" ? "Sign in" : "Join workspace"}
+                  </Swap>
                 </button>
               </form>
             )}

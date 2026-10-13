@@ -14,8 +14,8 @@ export function LightboxView({ file, onClose }: { file: FileMeta; onClose: () =>
     <Modal
       title={`Image ${file.name}`}
       onClose={onClose}
-      backdropClassName="flex items-center justify-center bg-black/85 p-8"
-      className="flex max-h-full max-w-full flex-col items-center gap-3 outline-none"
+      backdropClassName="flex animate-fade-in items-center justify-center bg-black/85 p-8"
+      className="flex max-h-full max-w-full animate-pop-in flex-col items-center gap-3 outline-none"
     >
       {error && (
         <div role="alert" className="text-center text-ink">
@@ -43,7 +43,7 @@ export function LightboxView({ file, onClose }: { file: FileMeta; onClose: () =>
           src={url}
           alt={file.name}
           onError={() => setDecodeFailed(true)}
-          className="max-h-[80vh] max-w-full rounded-lg object-contain shadow-2xl"
+          className="max-h-[80vh] max-w-full animate-reveal rounded-lg object-contain shadow-2xl"
         />
       )}
       <div className="flex items-center gap-3 text-sm text-ink-dim">

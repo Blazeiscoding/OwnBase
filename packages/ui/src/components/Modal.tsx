@@ -276,6 +276,63 @@ function returnTarget(layer: Layer, active: Layer | null): HTMLElement | null {
   return null;
 }
 
+/**
+ * A dialog is gone the moment whatever drew it stops, so it cannot play its
+ * own way out. A copy of it does: put where it was, inert and hidden from
+ * readers, with no ids or names to be found by, it plays the "-out" twin of
+ * each opening animation (theme.css, under [data-leaving]) and removes itself
+ * when they end. Called while the dialog is still in the document, so the
+ * copy can take its fields' values and its scroll positions. Returns how to
+ * take the copy back, for a dialog that was not closing after all. Nothing is
+ * left for anyone who asked for less motion, or where nothing animates.
+ */
+function leaveBehind(root: HTMLElement): (() => void) | undefined {
+  if (
+    typeof root.getAnimations !== "function" ||
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ||
+    // One closed while still opening, as a loading placeholder is when what
+    // it waited for arrives, was barely there: a copy would flash it whole.
+    root
+      .getAnimations({ subtree: true })
+      .some((animation) => (animation as CSSAnimation).animationName?.endsWith("-in"))
+  )
+    return;
+  const copy = root.cloneNode(true) as HTMLElement;
+  const twins = copy.querySelectorAll<HTMLElement>("*");
+  const scrolled: [HTMLElement, number, number][] = [];
+  root.querySelectorAll<HTMLElement>("*").forEach((element, i) => {
+    const twin = twins[i]!;
+    for (const name of ["id", "name", "for", "role", "autofocus", "autoplay"])
+      twin.removeAttribute(name);
+    if (element.scrollTop || element.scrollLeft)
+      scrolled.push([twin, element.scrollTop, element.scrollLeft]);
+    if (element instanceof HTMLInputElement) {
+      (twin as HTMLInputElement).checked = element.checked;
+      if (element.type !== "file") (twin as HTMLInputElement).value = element.value;
+    } else if (element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement) {
+      (twin as HTMLTextAreaElement).value = element.value;
+    } else if (element instanceof HTMLCanvasElement && element.width && element.height) {
+      (twin as HTMLCanvasElement).getContext("2d")?.drawImage(element, 0, 0);
+    }
+  });
+  copy.removeAttribute("data-tandem-modal");
+  copy.setAttribute("aria-hidden", "true");
+  copy.setAttribute("data-leaving", "");
+  copy.inert = true;
+  root.before(copy);
+  for (const [twin, top, left] of scrolled) {
+    twin.scrollTop = top;
+    twin.scrollLeft = left;
+  }
+  const leaving = copy
+    .getAnimations({ subtree: true })
+    .filter((animation) => (animation as CSSAnimation).animationName?.endsWith("-out"));
+  const remove = () => copy.remove();
+  if (leaving.length === 0) remove();
+  else void Promise.allSettled(leaving.map((animation) => animation.finished)).then(remove);
+  return remove;
+}
+
 interface Props {
   title: string;
   onClose: () => void;
@@ -309,9 +366,13 @@ export function Modal({
   close.current = () => {
     if (dismissible) onClose();
   };
+  const left = useRef<(() => void) | undefined>(undefined);
 
   useLayoutEffect(() => {
     if (!root.current || !panel.current) return;
+    // Development runs this twice on open, closing it in between: the copy
+    // that close left behind goes before anyone sees it.
+    left.current?.();
     const current: Layer = {
       root: root.current,
       panel: panel.current,
@@ -325,6 +386,7 @@ export function Modal({
     layers.add(current);
     reconcile();
     return () => {
+      left.current = leaveBehind(current.root);
       const wasActive = activeLayer() === current;
       lastFocus.current = current.lastFocus;
       layers.delete(current);

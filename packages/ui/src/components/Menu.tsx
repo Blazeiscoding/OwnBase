@@ -177,15 +177,17 @@ function MenuPanel({
     );
     const height = Math.min(el.offsetHeight, window.innerHeight - 16);
     const roomBelow = window.innerHeight - box.bottom - 8;
-    const top =
-      roomBelow >= height || box.top < height
-        ? Math.min(box.bottom + 4, window.innerHeight - height - 8)
-        : Math.max(8, box.top - height - 4);
+    const below = roomBelow >= height || box.top < height;
+    const top = below
+      ? Math.min(box.bottom + 4, window.innerHeight - height - 8)
+      : Math.max(8, box.top - height - 4);
     el.style.width = `${width}px`;
     el.style.top = `${Math.max(8, top)}px`;
     // An aligned menu keeps the trigger's column; nudge back on screen.
     const left = align === "start" ? box.left : box.right - width;
     el.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
+    // It grows from the corner nearest the trigger, and shrinks back into it.
+    el.style.transformOrigin = `${align === "start" ? "left" : "right"} ${below ? "top" : "bottom"}`;
   };
   useLayoutEffect(() => {
     place.current();
@@ -238,7 +240,7 @@ function MenuPanel({
       className={
         asSheet
           ? "surface-float max-h-[60vh] overflow-y-auto rounded-2xl p-1.5 outline-none"
-          : "surface-float fixed max-h-[60vh] animate-pop-in overflow-y-auto rounded-xl p-1 outline-none"
+          : "surface-float fixed max-h-[60vh] animate-menu-in overflow-y-auto rounded-xl p-1 outline-none"
       }
       onKeyDown={(event) => {
         // Tab leaves menus rather than cycling them; stop it reaching the
@@ -360,7 +362,7 @@ function MenuPanel({
     >
       {asSheet ? (
         // Along the bottom, in reach of a thumb, with anything quick above it.
-        <div className="menu-sheet fixed flex animate-rise-in flex-col gap-2">
+        <div className="menu-sheet fixed flex animate-sheet-in flex-col gap-2">
           {header && <div className="surface-float rounded-2xl p-2">{header(onClose)}</div>}
           {menu}
         </div>

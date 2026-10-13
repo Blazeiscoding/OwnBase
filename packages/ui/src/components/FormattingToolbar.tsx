@@ -179,7 +179,7 @@ export function FormattingToolbar({
           aria-label="Choose an emoji"
           className={
             inline
-              ? "surface-float absolute bottom-full left-2 z-20 mb-2 w-72 animate-pop-in rounded-xl p-2"
+              ? "surface-float absolute bottom-full left-2 z-20 mb-2 w-72 origin-bottom-left animate-menu-in rounded-xl p-2"
               : "border-b border-edge/60 p-2"
           }
           onKeyDown={(e) => {

@@ -4,6 +4,7 @@ import type { EventSubscription, ID } from "@slackoss/protocol";
 import { ApiError, type AppDetail } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog, inputCls } from "./Dialog.js";
+import { Swap } from "./Motion.js";
 import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
 import { buttonClass } from "./Button.js";
@@ -51,7 +52,7 @@ function SecretRow({
             copied && !copied.ok ? "text-alert" : "text-ink-dim"
           }`}
         >
-          {copyLabel("Copy", "Copied", "Copy failed")}
+          <Swap text>{copyLabel("Copy", "Copied", "Copy failed")}</Swap>
         </button>
         {onReplace && (
           <button

@@ -1,5 +1,6 @@
 import { useId } from "react";
 import type React from "react";
+import { stepIn } from "../components/Motion.js";
 
 /** Whether the arrow keys, Home or End chose a tab, or a click (Enter and Space click a button). */
 export type TabChoice = "key" | "click";
@@ -34,7 +35,10 @@ export function useTabs<T extends string>({
   const tabId = (tab: T) => `${id}-tab-${tab}`;
   const panelId = `${id}-panel`;
   const choose = (tab: T, how: TabChoice) => {
-    if (tab !== selected) onSelect(tab, how);
+    if (tab === selected) return;
+    onSelect(tab, how);
+    // The panel steps in from the side of the tab chosen.
+    stepIn(document.getElementById(panelId), tabs.indexOf(tab) - tabs.indexOf(selected));
   };
 
   return {

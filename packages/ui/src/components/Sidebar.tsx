@@ -9,6 +9,7 @@ import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { Menu, type MenuItem } from "./Menu.js";
+import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { useOptionalToast } from "./Toast.js";
 import { STATUS_PRESETS } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
@@ -104,6 +105,14 @@ export function Sidebar(props: Props) {
   const unreadConversations = Object.keys(memberships).filter((id) => isUnread(id)).length;
 
   const [collapsed, toggleCollapsed] = useCollapsedSections();
+  // How often each category has been opened again: its rows come in afresh each time.
+  const [reopened, setReopened] = useState<Record<string, number>>({});
+  const toggleSection = (section: string) => {
+    if (collapsed.has(section))
+      setReopened((was) => ({ ...was, [section]: (was[section] ?? 0) + 1 }));
+    toggleCollapsed(section);
+  };
+  const rowsIn = (section: string) => (reopened[section] ? "rows-in" : "");
   // A collapsed category still shows where you are and what is waiting, as Discord's do.
   const shown = (section: string, id: ID) =>
     !collapsed.has(section) ||
@@ -148,7 +157,11 @@ export function Sidebar(props: Props) {
               className="mx-2 mt-2 flex items-center gap-2 rounded-lg bg-copper/10 px-2.5 py-1.5 text-[12px] font-medium text-copper"
             >
               <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
-              <span className="truncate first-letter:uppercase">{props.connectionLabel}</span>
+              <Swap on={props.connectionLabel} text className="min-w-0">
+                <span className="block truncate first-letter:uppercase">
+                  {props.connectionLabel}
+                </span>
+              </Swap>
             </p>
           )}
 
@@ -181,13 +194,9 @@ export function Sidebar(props: Props) {
                   open={props.openPanel === "activity"}
                 >
                   {totalMentions > 0 ? (
-                    <Count label="Unread mentions" strong>
-                      {totalMentions}
-                    </Count>
+                    <Count label="Unread mentions" strong count={totalMentions} />
                   ) : (
-                    unreadConversations > 0 && (
-                      <Count label="Unread conversations">{unreadConversations}</Count>
-                    )
+                    <Count label="Unread conversations" count={unreadConversations} />
                   )}
                 </NavRow>
               </li>
@@ -198,9 +207,7 @@ export function Sidebar(props: Props) {
                   onClick={props.onThreads}
                   open={props.openPanel === "threads"}
                 >
-                  {unreadThreads > 0 && (
-                    <Count label="Threads with unread replies">{unreadThreads}</Count>
-                  )}
+                  <Count label="Threads with unread replies" count={unreadThreads} />
                 </NavRow>
               </li>
               <li>
@@ -216,7 +223,7 @@ export function Sidebar(props: Props) {
             <SectionHeader
               label="Channels"
               collapsed={collapsed.has("channels")}
-              onToggle={() => toggleCollapsed("channels")}
+              onToggle={() => toggleSection("channels")}
               actions={[
                 { label: "Browse channels", icon: "compass", onClick: props.onBrowseChannels },
                 ...(guest
@@ -224,7 +231,7 @@ export function Sidebar(props: Props) {
                   : [{ label: "New channel", icon: "plus" as const, onClick: props.onNewChannel }]),
               ]}
             />
-            <ul className="mb-4 space-y-px">
+            <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
               {rooms
                 .filter((ch) => shown("channels", ch.id))
                 .map((ch) => (
@@ -259,7 +266,7 @@ export function Sidebar(props: Props) {
               <SectionHeader
                 label="Direct messages"
                 collapsed={collapsed.has("dms")}
-                onToggle={() => toggleCollapsed("dms")}
+                onToggle={() => toggleSection("dms")}
                 actions={[
                   {
                     label: "Friends",
@@ -271,7 +278,7 @@ export function Sidebar(props: Props) {
                 ]}
               />
             )}
-            <ul className="space-y-px">
+            <ul key={reopened.dms} className={`space-y-px ${rowsIn("dms")}`}>
               {dms
                 .filter((ch) => shown("dms", ch.id))
                 .map((ch) => {
@@ -385,16 +392,15 @@ function useCollapsedSections(): [Set<string>, (section: string) => void] {
 }
 
 /** A count beside a row: quiet for unread, the accent for what names you. */
-function Count(props: { label: string; strong?: boolean; children: ReactNode }) {
+function Count(props: { label: string; strong?: boolean; count: number }) {
   return (
-    <span
+    <CountBadge
+      count={props.count}
       aria-label={props.label}
       className={`tabular min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold leading-[18px] ${
         props.strong ? "badge-mention" : "bg-ink/[0.08] text-ink-dim"
       }`}
-    >
-      {props.children}
-    </span>
+    />
   );
 }
 
@@ -494,14 +500,11 @@ function RailItem(props: {
           style={{ background: workspaceGradient(title) }}
         >
           {initials(title)}
-          {(props.badge ?? 0) > 0 && (
-            <span
-              aria-hidden="true"
-              className="badge-mention absolute -bottom-1 -right-1 min-w-5 rounded-full px-1 text-center text-[11px] font-bold leading-4 ring-4 ring-deep"
-            >
-              {props.badge}
-            </span>
-          )}
+          <CountBadge
+            count={props.badge ?? 0}
+            aria-hidden="true"
+            className="badge-mention absolute -bottom-1 -right-1 min-w-5 rounded-full px-1 text-center text-[11px] font-bold leading-4 ring-4 ring-deep"
+          />
         </button>
       </Tooltip>
     </div>
@@ -790,12 +793,12 @@ function SectionHeader(props: {
               className="relative flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
             >
               <Icon name={a.icon} size={15} />
-              {(a.badge ?? 0) > 0 && (
-                <span
-                  aria-hidden="true"
-                  className="badge-mention absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-deep"
-                />
-              )}
+              <CountBadge
+                count={a.badge ?? 0}
+                dot
+                aria-hidden="true"
+                className="badge-mention absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-deep"
+              />
             </button>
           </Tooltip>
         ))}
@@ -820,13 +823,17 @@ function ChannelRow(props: {
   onClick: () => void;
 }) {
   const showUnread = props.unread && !props.active && !props.muted;
+  // One that comes while the sidebar is open pops in, as the counts do.
+  const unreadCame = useChanges(showUnread);
   return (
     <li className="relative">
       {/* Discord's unread nub, at the very edge of the sidebar. */}
       {showUnread && (
         <span
           aria-hidden="true"
-          className="absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-ink"
+          className={`absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-ink ${
+            unreadCame ? "animate-badge-in" : ""
+          }`}
         />
       )}
       <button
@@ -871,16 +878,13 @@ function ChannelRow(props: {
             <Icon name="bellOff" size={13} />
           </span>
         )}
-        {props.mentions > 0 && (
-          <span
-            aria-label={`${props.mentions} unread ${
-              props.mentions === 1 ? "mention" : "mentions"
-            } in ${props.label}`}
-            className="badge-mention tabular min-w-5 shrink-0 rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px]"
-          >
-            {props.mentions}
-          </span>
-        )}
+        <CountBadge
+          count={props.mentions}
+          aria-label={`${props.mentions} unread ${
+            props.mentions === 1 ? "mention" : "mentions"
+          } in ${props.label}`}
+          className="badge-mention tabular min-w-5 shrink-0 rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px]"
+        />
       </button>
     </li>
   );

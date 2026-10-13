@@ -38,11 +38,21 @@ interface Props {
 }
 
 const HOVER_DELAY = 400;
+/** Once one hint is showing, the next waits only long enough to skip a pointer passing by. */
+const NEXT_DELAY = 80;
+/** How long after a hint goes the next one still counts as next. */
+const NEXT_WINDOW = 300;
 const LEAVE_GRACE = 120;
 const VISUAL_GAP = 8;
 const VIEWPORT_MARGIN = 8;
 
 let activeTooltip: { owner: object; close: () => void } | null = null;
+/** Where the last hint was drawn, and when it went, so the next can travel from there. */
+let lastHint = { at: -Infinity, left: 0, top: 0, side: "" };
+
+function hintIsNext(): boolean {
+  return activeTooltip !== null || performance.now() - lastHint.at < NEXT_WINDOW;
+}
 
 function chain<E>(theirs: ((event: E) => void) | undefined, ours: (event: E) => void) {
   return (event: E) => {
@@ -101,6 +111,9 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   const focused = useRef(false);
   const pointerPressed = useRef(false);
   const owner = useRef({});
+  /** The hint this one follows on from, which it slides over from rather than growing in. */
+  const travel = useRef<typeof lastHint | null>(null);
+  const followsOn = useRef(false);
   const [open, setOpen] = useState(false);
   const [, refreshHost] = useState(0);
 
@@ -116,6 +129,14 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
     clearOpenTimer();
     clearCloseTimer();
     if (activeTooltip?.owner === owner.current) activeTooltip = null;
+    const shown = bubble.current;
+    if (shown?.style.visibility === "visible")
+      lastHint = {
+        at: performance.now(),
+        left: parseFloat(shown.style.left),
+        top: parseFloat(shown.style.top),
+        side: shown.dataset.side ?? "",
+      };
     setOpen(false);
   }, [clearCloseTimer, clearOpenTimer]);
   const reveal = useCallback(() => {
@@ -123,6 +144,8 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
       activeTooltip?.close();
       activeTooltip = { owner: owner.current, close: hide };
     }
+    travel.current = performance.now() - lastHint.at < NEXT_WINDOW ? lastHint : null;
+    followsOn.current = travel.current !== null;
     setOpen(true);
   }, [hide]);
   const show = useCallback(
@@ -240,6 +263,23 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   useLayoutEffect(() => {
     if (!open || !host) return;
     place();
+    // Following on from the last hint, it slides over from where that one was.
+    const from = travel.current;
+    const tooltip = bubble.current;
+    travel.current = null;
+    if (
+      from &&
+      tooltip?.dataset.side === from.side &&
+      typeof tooltip.animate === "function" &&
+      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
+    ) {
+      const x = from.left - parseFloat(tooltip.style.left);
+      const y = from.top - parseFloat(tooltip.style.top);
+      tooltip.animate(
+        { translate: [`${x}px ${y}px`, "0 0"] },
+        { duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
+      );
+    }
     const onFullscreenChange = () => refreshHost((version) => version + 1);
     const observer =
       typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => place());
@@ -290,7 +330,7 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
     onPointerEnter: chain(children.props.onPointerEnter, (event) => {
       if (event.pointerType === "touch") return;
       triggerHovered.current = true;
-      show(HOVER_DELAY);
+      show(hintIsNext() ? NEXT_DELAY : HOVER_DELAY);
     }),
     onPointerLeave: chain(children.props.onPointerLeave, (event) => {
       if (event.pointerType === "touch") return;
@@ -336,7 +376,11 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
       style={{ left: 0, top: 0, visibility: "hidden", padding: VISUAL_GAP }}
       className="pointer-events-auto fixed z-[70] text-center text-xs text-ground"
     >
-      <span className="flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-lg bg-ink px-2 py-1 font-medium text-ground shadow-[var(--shadow-float)]">
+      <span
+        className={`flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-lg bg-ink px-2 py-1 font-medium text-ground shadow-[var(--shadow-float)] ${
+          followsOn.current ? "" : "animate-tip-in"
+        }`}
+      >
         <span>
           {label}
           {keys && <span className="sr-only">{`. Shortcut: ${keys}`}</span>}

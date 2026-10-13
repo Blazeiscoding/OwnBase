@@ -30,7 +30,9 @@ export function LazyPanel(props: { name: string; onClose: () => void; children: 
             role="status"
             className="w-[380px] max-w-full border-l border-edge p-5 text-sm text-ink-faint"
           >
-            Loading {props.name.toLowerCase()}…
+            <span className="text-shimmer" data-text={`Loading ${props.name.toLowerCase()}…`}>
+              Loading {props.name.toLowerCase()}…
+            </span>
             <button
               className="ml-3 font-medium text-ink-dim hover:text-ink"
               onClick={props.onClose}
@@ -68,7 +70,9 @@ export function LazyDialog(props: { loading: string; onClose: () => void; childr
         fallback={
           <Dialog title={props.loading} onClose={props.onClose}>
             <p role="status" className="text-sm text-ink-faint">
-              Opening this view…
+              <span className="text-shimmer" data-text="Opening this view…">
+                Opening this view…
+              </span>
             </p>
           </Dialog>
         }

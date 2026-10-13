@@ -5,6 +5,7 @@ import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { CALL_LOG_HEADING, diagnosticsFileName, diagnosticsReport } from "../lib/diagnostics.js";
 import { useCopy } from "../lib/useCopy.js";
 import { Dialog } from "./Dialog.js";
+import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 
 type Failed = { error: string };
@@ -171,7 +172,9 @@ export function DiagnosticsDialog({
           disabled={!report}
           onClick={() => report && void copy(report.text)}
         >
-          {label("Copy diagnostics", "Copied", "Could not copy. Select the text instead")}
+          <Swap text>
+            {label("Copy diagnostics", "Copied", "Could not copy. Select the text instead")}
+          </Swap>
         </button>
       </div>
     </Dialog>

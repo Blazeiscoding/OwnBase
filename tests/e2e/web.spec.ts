@@ -189,7 +189,28 @@ async function skipDeviceCheck(page: Page) {
   });
 }
 
+/**
+ * Waits for what is moving to stop, such as a sheet rising or a panel
+ * stepping in, so a place is measured where it comes to rest. Loops, such as
+ * a spinner, never stop and are not waited for.
+ */
+async function atRest(page: Page) {
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.timeline === document.timeline &&
+            animation.effect?.getComputedTiming().endTime !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
+}
+
 async function expectInsideViewport(page: Page, element: Locator) {
+  await atRest(page);
   const box = await element.boundingBox();
   const viewport = page.viewportSize();
   expect(box).not.toBeNull();
@@ -3395,8 +3416,10 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
       const newest = page.getByText("The newest message", { exact: false });
       await expect(newest).toBeInViewport();
 
-      const box = async (locator: import("@playwright/test").Locator) =>
-        (await locator.boundingBox())!;
+      const box = async (locator: import("@playwright/test").Locator) => {
+        await atRest(page);
+        return (await locator.boundingBox())!;
+      };
       const header = await box(page.locator(".channel-header"));
       const timeline = await box(page.locator('[aria-label="Message history"]'));
       const composerShell = await box(page.locator(".composer-shell"));
