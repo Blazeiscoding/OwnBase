@@ -610,6 +610,16 @@
       "concepts": ["request coalescing", "cancellation", "bounded work"]
     },
     {
+      "path": "packages/ui/src/lib/pagedList.ts",
+      "plain": "Reads a long list a page at a time as you scroll, and reads it again quietly when something in it changes, so side panels stay up to date without a Refresh button.",
+      "summary": "Keeps a page-at-a-time list current: more on demand, in-place refresh from the top (UX-08).",
+      "details": [
+        "PagedList keeps every page read so far. loadMore reads the next cursor; a refresh reads again from the first page until it covers as many rows as were shown, at most PAGED_REFRESH_PAGES pages, and swaps the result in at once so nothing blanks or jumps.",
+        "Refreshes go through a CoalescedLoader, so one read from the top runs at a time and a burst of signals is one read; reading more gives way to it. usePagedList starts a different list from nothing whenever its key changes."
+      ],
+      "concepts": ["infinite scroll", "in-place refresh", "request coalescing", "UX-08"]
+    },
+    {
       "path": "packages/ui/src/lib/lastConversation.ts",
       "plain": "Remembers the last conversation you had open in each account on this device.",
       "summary": "Remembers the last conversation for this authenticated account on this device.",
@@ -984,14 +994,22 @@
     },
     {
       "path": "packages/ui/src/components/MessageListPanel.tsx",
-      "plain": "The shared layout for the Pins, Saved and Threads panels, each a list of messages with a Refresh button.",
-      "summary": "Shares the layout and loading behavior for Pins, Saved and followed Threads.",
+      "plain": "The shared layout for the Pins, Saved and Threads panels. Each keeps itself up to date while it is open and shows more as you scroll.",
+      "summary": "Shares the layout and live, scroll-to-load behavior for Pins, Saved and followed Threads.",
       "details": [
-        "The generic panel renders server-loaded message sets, row context, counts, loading/empty/refusal state and an explicit Refresh action.",
-        "Pins are channel-specific, Saved spans readable conversations, and Threads represents followed conversations with unread counts and opens the thread rather than a single message.",
-        "Since Q08 PinsPanel also passes its channel's changedContent marker as refreshKey, so a pin, edit or deletion outside the loaded timeline re-requests the current page in place."
+        "The generic panel renders a PagedList of server-loaded messages with row context, loading/empty/refusal state and a LoadMore end. listKey names a different list; a change of refreshKey, or of changedContent for a conversation it shows, reads it again in place (UX-08).",
+        "Pins are channel-specific, Saved spans readable conversations, and Threads represents followed conversations with unread counts and opens the thread rather than a single message. Saved refreshes on the saved set, Threads on follow state including each thread's lastSeq, so a new reply shows at once.",
+        "Since Q08 PinsPanel also passes its channel's changedContent marker in refreshKey, so a pin, edit or deletion outside the loaded timeline is seen."
       ],
-      "concepts": ["shared panels", "pins", "saved messages", "followed threads", "Q08"]
+      "concepts": [
+        "shared panels",
+        "pins",
+        "saved messages",
+        "followed threads",
+        "live lists",
+        "Q08",
+        "UX-08"
+      ]
     },
     {
       "path": "packages/ui/src/components/SearchDialog.tsx",
@@ -1007,13 +1025,13 @@
     },
     {
       "path": "packages/ui/src/components/ActivityPanel.tsx",
-      "plain": "Lists messages that are unread or mention you, and groups bursts of changes into one refresh.",
-      "summary": "Lists unread or mentioned messages with paged, coalesced refreshes.",
+      "plain": "Lists messages that are unread or mention you. New ones appear while it is open, and more load as you scroll.",
+      "summary": "Lists unread or mentioned messages as a live, scroll-to-load list with coalesced refreshes.",
       "details": [
-        "Filter tabs reset cursor paging; read cursors, thread follows, mention counts and retention state signal changes that can require fresh activity.",
-        "A 250 ms CoalescedLoader merges bursts, cancels obsolete selection requests and preserves existing content during refresh. Rows can jump to or deliberately mark a conversation read."
+        "Each filter tab is its own PagedList. Mention counts, edits and retention in conversations it shows, and in Unread also each conversation's newest seq and each thread's lastSeq, signal that it may be out of date (UX-08).",
+        "A 250 ms coalesced refresh merges bursts, reads again as far as was shown and keeps existing content meanwhile. Rows can jump to or deliberately mark a conversation read."
       ],
-      "concepts": ["unread activity", "mention inbox", "request coalescing"]
+      "concepts": ["unread activity", "mention inbox", "request coalescing", "UX-08"]
     },
     {
       "path": "packages/ui/src/components/ScheduledPanel.tsx",
@@ -1021,9 +1039,10 @@
       "summary": "Shows queued, held and failed schedules and lets the author resolve them.",
       "details": [
         "Loads server-owned schedules and presents future delivery times, status and attachment context.",
-        "Supports editing/rescheduling, cancelling and returning words to the appropriate draft. Server scheduling uses request identity, while the client preserves actionable refusal and refresh state."
+        "Supports editing/rescheduling, cancelling and returning words to the appropriate draft. Server scheduling uses request identity, while the client preserves actionable refusal state and reads the queue again after an edit it could not confirm.",
+        "It reads the queue again whenever scheduledChanges moves: the server's private scheduled event, or a new connection. Only a server without scheduledEvents is still asked every 15 seconds (UX-08)."
       ],
-      "concepts": ["scheduled messages", "retry", "draft recovery"]
+      "concepts": ["scheduled messages", "retry", "draft recovery", "UX-08"]
     },
     {
       "path": "packages/ui/src/components/Attachments.tsx",
@@ -1576,6 +1595,16 @@
         "A stable live region and layout cleanup preserve focus when a Retry/empty-state action is replaced by results. This is a shared usability primitive rather than each panel inventing its own state layout."
       ],
       "concepts": ["loading states", "stable live region", "focus continuity"]
+    },
+    {
+      "path": "packages/ui/src/components/LoadMore.tsx",
+      "plain": "The end of a long list. It loads the next part as you scroll near it, and is also a Show more button for keyboards.",
+      "summary": "End-of-list control that loads the next page when it comes into view (UX-08).",
+      "details": [
+        "An IntersectionObserver rooted in the panel's scroller asks for the next page a little before the end is visible, and is made again after each page, so a short list keeps filling until it fills the panel or ends.",
+        "It stays one button while loading (aria-disabled, not disabled) so focus is not lost, says when more could not load with Try again, and hands focus to its own wrapper when the list ends."
+      ],
+      "concepts": ["infinite scroll", "focus continuity", "UX-08"]
     },
     {
       "path": "packages/ui/src/components/ErrorBoundary.tsx",

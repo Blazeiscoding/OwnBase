@@ -137,10 +137,7 @@ describe("the Activity panel", () => {
     await user.click(within(panel).getByRole("tab", { name: "Mentions" }));
     await within(panel).findByText("Newer mention");
     act(() => client.store.setState({ mentionCounts: { [design.id]: 1 } }));
-    await waitFor(() =>
-      expect(within(panel).getByRole("button", { name: "Next page" })).toBeEnabled(),
-    );
-    await user.click(within(panel).getByRole("button", { name: "Next page" }));
+    await user.click(await within(panel).findByRole("button", { name: "Show more" }));
     await within(panel).findByText("Earlier mention text");
     const requests = spy.mock.calls.length;
 
@@ -148,9 +145,10 @@ describe("the Activity panel", () => {
     act(() => client.store.setState({ mentionCounts: { [design.id]: 1 } }));
     expect(await within(panel).findByText("Updated mention text")).toBeVisible();
     expect(within(panel).queryByText("Earlier mention text")).toBeNull();
-    expect(spy).toHaveBeenCalledTimes(requests + 1);
+    // Read again from the top, as far as it had been read: both pages, in place.
+    expect(spy).toHaveBeenCalledTimes(requests + 2);
     expect(spy).toHaveBeenLastCalledWith("mentions", expect.objectContaining({ cursor: "M5" }));
-    expect(within(panel).getByRole("button", { name: "Previous page" })).toBeEnabled();
+    expect(within(panel).getByText("Newer mention")).toBeVisible();
     expect(within(panel).getByRole("tab", { name: "Mentions" })).toHaveAttribute(
       "aria-selected",
       "true",
@@ -319,7 +317,7 @@ describe("the Activity panel", () => {
     await waitFor(() => expect(within(panel).queryByText("A reply only in its thread")).toBeNull());
   });
 
-  it("goes to the next page by its cursor and back again", async () => {
+  it("shows more after what it has, by the next page's cursor (UX-08)", async () => {
     const user = userEvent.setup();
     const { panel, spy } = renderActivity(async (_mode, { cursor }) =>
       cursor
@@ -327,13 +325,69 @@ describe("the Activity panel", () => {
         : { messages: [message("M5", "Newer", 5)], nextCursor: "M5" },
     );
     await within(panel).findByText("Newer");
-    expect(within(panel).getByRole("button", { name: "Previous page" })).toBeDisabled();
-    await user.click(within(panel).getByRole("button", { name: "Next page" }));
+    expect(within(panel).queryByRole("button", { name: "Refresh" })).toBeNull();
+    expect(within(panel).queryByRole("button", { name: "Previous page" })).toBeNull();
+    const more = within(panel).getByRole("button", { name: "Show more" });
+    more.focus();
+    await user.keyboard("{Enter}");
     expect(await within(panel).findByText("Older")).toBeVisible();
+    expect(within(panel).getByText("Newer")).toBeVisible();
     expect(spy).toHaveBeenLastCalledWith("unread", expect.objectContaining({ cursor: "M5" }));
-    expect(within(panel).getByRole("button", { name: "Next page" })).toBeDisabled();
-    await user.click(within(panel).getByRole("button", { name: "Previous page" }));
-    expect(await within(panel).findByText("Newer")).toBeVisible();
+    // The end of the list: the button goes, and focus stays in the panel.
+    expect(within(panel).queryByRole("button", { name: "Show more" })).toBeNull();
+    expect(panel.contains(document.activeElement)).toBe(true);
+  });
+
+  it("says when more could not load, and Try again reads it", async () => {
+    const user = userEvent.setup();
+    let fail = true;
+    const { panel } = renderActivity(async (_mode, { cursor }) => {
+      if (!cursor) return { messages: [message("M5", "Newer", 5)], nextCursor: "M5" };
+      if (fail) throw new TypeError("Failed to fetch");
+      return { messages: [message("M2", "Older", 2)], nextCursor: null };
+    });
+    await user.click(await within(panel).findByRole("button", { name: "Show more" }));
+    expect(await within(panel).findByRole("alert")).toHaveTextContent("Could not load more.");
+    expect(within(panel).getByText("Newer")).toBeVisible();
+    fail = false;
+    await user.click(within(panel).getByRole("button", { name: "Try again" }));
+    expect(await within(panel).findByText("Older")).toBeVisible();
+    expect(within(panel).queryByRole("alert")).toBeNull();
+  });
+
+  it("brings in a new unread message without a mention, and a new reply in a followed thread", async () => {
+    let messages = [message("M2", "First unread", 2)];
+    const { client, panel, spy } = renderActivity(async () => ({ messages, nextCursor: null }));
+    await within(panel).findByText("First unread");
+    const before = spy.mock.calls.length;
+
+    messages = [message("M3", "Plain new message", 3), ...messages];
+    act(() => client.store.setState({ channelLastSeq: { [design.id]: 3 } }));
+    expect(await within(panel).findByText("Plain new message")).toBeVisible();
+    expect(spy.mock.calls.length).toBe(before + 1);
+
+    const reply = {
+      ...message("M4", "A reply in a followed thread", 4),
+      threadRootId: "M0",
+      broadcast: false,
+    } as Message;
+    messages = [reply, ...messages];
+    act(() =>
+      client.store.setState({
+        threadFollows: {
+          M0: {
+            rootId: "M0",
+            channelId: design.id,
+            following: true,
+            lastReadSeq: 0,
+            lastSeq: 4,
+            revision: 1,
+          },
+        },
+      }),
+    );
+    expect(await within(panel).findByText("A reply in a followed thread")).toBeVisible();
+    expect(within(panel).getByText("Plain new message")).toBeVisible();
   });
 });
 

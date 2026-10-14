@@ -4125,6 +4125,9 @@ async function startWorkspaceServer(
 
   // ---------- scheduled messages ----------
 
+  /** Tells the author's devices their queue changed, so a list open there reads it again. */
+  const scheduledChanged = (userId: ID) => gateway.sendToUser(userId, { type: "scheduled" });
+
   app.post<{ Params: { id: string } }>("/api/channels/:id/scheduled", async (req, reply) => {
     const me = requireUser(req);
     const channel = requireChannelAccess(req.params.id, me);
@@ -4213,6 +4216,7 @@ async function startWorkspaceServer(
       if (body.nonce) store.recordScheduledRequest(me.id, body.nonce, scheduled.id, requestHash);
       return { scheduled, replayed: false };
     });
+    if (!result.replayed) scheduledChanged(me.id);
     return reply.status(result.replayed ? 200 : 201).send({ scheduled: result.scheduled });
   });
 
@@ -4227,6 +4231,7 @@ async function startWorkspaceServer(
     // Only the author may cancel, and a missing one is simply gone.
     if (!scheduled || scheduled.userId !== me.id) throw new HttpError(404, "not_found");
     store.deleteScheduled(scheduled.id);
+    scheduledChanged(me.id);
     return { ok: true };
   });
 
@@ -4240,6 +4245,7 @@ async function startWorkspaceServer(
     const body = rescheduleBody.parse(req.body);
     requireChannelAccess(scheduled.channelId, me);
     store.rescheduleMessage(scheduled.id, body.sendAt);
+    scheduledChanged(me.id);
     return { scheduled: store.getScheduled(scheduled.id)! };
   });
 
@@ -4261,6 +4267,7 @@ async function startWorkspaceServer(
         "This scheduled message has changed. Refresh before editing again.",
       );
     }
+    scheduledChanged(me.id);
     return { scheduled: store.getScheduled(scheduled.id)! };
   });
 
@@ -4578,8 +4585,17 @@ async function startWorkspaceServer(
           : store.getUser(item.userId)?.deactivated
             ? "Your account is deactivated."
             : null;
+    // A row held again for the same reason looks no different to its author.
+    const hold = (reason: string) => {
+      store.holdScheduled(item.id, reason, retryAt);
+      if (item.status !== "held" || item.failureReason !== reason) scheduledChanged(item.userId);
+    };
+    const fail = (reason: string) => {
+      store.failScheduled(item.id, reason);
+      scheduledChanged(item.userId);
+    };
     if (held) {
-      store.holdScheduled(item.id, held, retryAt);
+      hold(held);
       return;
     }
     try {
@@ -4593,16 +4609,17 @@ async function startWorkspaceServer(
         fileIds: item.fileIds,
         scheduledId: item.id,
       });
+      scheduledChanged(item.userId);
     } catch (err) {
       const code = err instanceof HttpError ? err.code : null;
       if (code === "bad_thread_root") {
-        store.failScheduled(item.id, "The message this replied to was deleted.");
+        fail("The message this replied to was deleted.");
       } else if (code === "invalid_attachments") {
-        store.failScheduled(item.id, "Its attachments are no longer available.");
+        fail("Its attachments are no longer available.");
       } else if (store.countScheduledAttempt(item.id) >= SCHEDULED_ATTEMPTS) {
-        store.failScheduled(item.id, "Sending failed repeatedly, so it was not posted.");
+        fail("Sending failed repeatedly, so it was not posted.");
       } else {
-        store.holdScheduled(item.id, "Sending failed. It will be tried again shortly.", retryAt);
+        hold("Sending failed. It will be tried again shortly.");
       }
     }
   };
