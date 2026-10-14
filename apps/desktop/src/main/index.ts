@@ -55,7 +55,7 @@ import {
   RendererRecovery,
   isRendererLoadFailure,
 } from "./rendererRecovery.js";
-import { pickScreen } from "./screenPicker.js";
+import { ScreenChoice, SourceList, THUMBNAIL_SIZE, findSource } from "./screenShare.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
 import { createHostingController } from "./hosting.js";
@@ -209,6 +209,31 @@ handle("deeplink:consume", () => {
   const url = pendingDeepLink;
   pendingDeepLink = null;
   return url;
+});
+
+// The huddle's screen picker is the app's own: it lists every screen and
+// window with a picture of each, then names the one chosen, which the
+// getDisplayMedia request after it shares.
+const screenSources = new SourceList((pictures) =>
+  desktopCapturer.getSources({
+    types: ["screen", "window"],
+    thumbnailSize: pictures ? THUMBNAIL_SIZE : { width: 0, height: 0 },
+    fetchWindowIcons: pictures,
+  }),
+);
+const screenChoice = new ScreenChoice();
+handle("screen:sources", (_event, quick: unknown) =>
+  quick === true ? screenSources.quick() : screenSources.full(),
+);
+handle("screen:choose", async (_event, id: unknown) => {
+  screenChoice.hold(
+    await findSource(id, () =>
+      desktopCapturer.getSources({
+        types: ["screen", "window"],
+        thumbnailSize: { width: 0, height: 0 },
+      }),
+    ),
+  );
 });
 
 // ---------- settings and OS-protected saved sign-ins ----------
@@ -1031,28 +1056,12 @@ function createWindow(): void {
       allowed.has(permission)
     );
   });
-  mainWindow.webContents.session.setDisplayMediaRequestHandler(
-    async (request, callback) => {
-      if (!request.frame || !trustedRenderer(request.frame.url)) {
-        callback({});
-        return;
-      }
-      try {
-        const selected = await pickScreen({
-          screens: () =>
-            desktopCapturer.getSources({
-              types: ["screen"],
-              thumbnailSize: { width: 0, height: 0 },
-            }),
-          ask: (options) => dialog.showMessageBox(mainWindow!, options),
-        });
-        callback(selected ? { video: selected } : {});
-      } catch {
-        callback({});
-      }
-    },
-    { useSystemPicker: true },
-  );
+  // The window chose what to share in its own picker just before asking, so
+  // no system picker is shown: the request shares that choice, or nothing.
+  mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
+    const chosen = request.frame && trustedRenderer(request.frame.url) ? screenChoice.take() : null;
+    callback(chosen ? { video: chosen } : {});
+  });
   mainWindow.webContents.on("will-navigate", (event) => {
     event.preventDefault();
   });

@@ -23,7 +23,7 @@ import { Api, ApiError, type CommandHint } from "./api.js";
 import { FileCache } from "./fileCache.js";
 import { captureFailure } from "./capture.js";
 import { quoteChanges, requote } from "./replies.js";
-import type { CallLogLine, HuddleSession, HuddleState } from "./huddle.js";
+import type { CallLogLine, HuddleSession, HuddleState, ScreenShareQuality } from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
 
 class HuddleJoinRefusedError extends Error {}
@@ -3016,8 +3016,9 @@ export class WorkspaceClient {
     void this.session?.recoverMicrophone();
   }
 
-  async toggleScreenShare(): Promise<void> {
-    await this.session?.toggleScreenShare();
+  /** Starts sharing the screen, at `quality` where given, or stops sharing it. */
+  async toggleScreenShare(quality?: ScreenShareQuality): Promise<void> {
+    await this.session?.toggleScreenShare(quality);
   }
 
   async toggleCamera(): Promise<void> {

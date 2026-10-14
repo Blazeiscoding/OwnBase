@@ -16,6 +16,7 @@ import type {
   LastHosted,
   Platform,
   RestoreInventory,
+  ShareableSource,
 } from "@slackoss/ui";
 
 interface SlackossBridge {
@@ -84,6 +85,8 @@ interface SlackossBridge {
   takePlace: () => Promise<unknown>;
   onPrepareClose: (cb: (id: number) => void) => () => void;
   preparedClose: (id: number, saved: boolean) => Promise<void>;
+  screenSources: (quick: boolean) => Promise<ShareableSource[] | null>;
+  chooseScreen: (id: string) => Promise<void>;
 }
 
 declare global {
@@ -167,6 +170,11 @@ export function electronPlatform(): Platform {
           note.close();
         };
       }
+    },
+    screenShare: {
+      sources: (options) => bridge.screenSources(options?.quick === true),
+      // Says, in the picker's words, when what was chosen has gone.
+      choose: (id) => plainly(bridge.chooseScreen(id)),
     },
     discoverLan: (cb) => {
       void bridge.lanSnapshot().then(cb);

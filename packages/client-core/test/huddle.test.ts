@@ -230,6 +230,26 @@ describe("HuddleSession", () => {
     const video = capture.mock.calls[0]![0]!.video as MediaTrackConstraints;
     expect(video.width).toEqual({ max: 1920 });
     expect(video.height).toEqual({ max: 1080 });
+    expect(video.frameRate).toEqual({ ideal: 15, max: 15 });
+    session.destroy();
+  });
+
+  it("shares a screen at the resolution and frame rate chosen, sixty as motion", async () => {
+    const { session } = makeSession("A");
+    const track: { kind: string; stop(): void; contentHint?: string } = {
+      kind: "video",
+      stop() {},
+    };
+    const capture = vi
+      .spyOn(navigator.mediaDevices, "getDisplayMedia")
+      .mockResolvedValue(new FakeMediaStream([track]) as unknown as MediaStream);
+    await session.toggleScreenShare({ height: 720, frameRate: 60 });
+    const video = capture.mock.calls[0]![0]!.video as MediaTrackConstraints;
+    expect(video.width).toEqual({ max: 1280 });
+    expect(video.height).toEqual({ max: 720 });
+    expect(video.frameRate).toEqual({ ideal: 60, max: 60 });
+    // Asked for smoothness, a game or a video keeps moving and softens instead.
+    expect(track.contentHint).toBe("motion");
     session.destroy();
   });
 

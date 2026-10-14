@@ -4,7 +4,7 @@ export { FileCache } from "./fileCache.js";
 export { quoteOf } from "./replies.js";
 export { decideNotification, isMessageOnScreen, notificationBody } from "./notify.js";
 export type { NotifyDecision, OnScreen } from "./notify.js";
-export { HuddleSession, testMicrophone } from "./huddle.js";
+export { HuddleSession, SCREEN_SHARE_QUALITY, testMicrophone } from "./huddle.js";
 export { CALL_CAUSES } from "./callLog.js";
 export {
   cameraConstraints,
@@ -45,7 +45,13 @@ export {
 export type { DraftChanges } from "./drafts.js";
 export { applyRecordChanges, isRecordChanges, readStoredRecord } from "./records.js";
 export type { RecordChanges } from "./records.js";
-export type { CallLogLine, HuddlePeer, HuddleState, MicrophoneTest } from "./huddle.js";
+export type {
+  CallLogLine,
+  HuddlePeer,
+  HuddleState,
+  MicrophoneTest,
+  ScreenShareQuality,
+} from "./huddle.js";
 export { OUTBOX_LIMIT, WorkspaceClient, isMessageRead, unreadThreadCount } from "./workspace.js";
 export type {
   ChannelTimeline,
