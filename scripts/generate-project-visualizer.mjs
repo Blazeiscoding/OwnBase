@@ -347,7 +347,8 @@ for (const item of [...optimizations, ...flows]) {
 }
 const runtime = files.filter(
   (file) =>
-    /^(packages|apps)\/.+\/src\//.test(file.path) && /\.(tsx?|mts|css|html|svg)$/.test(file.path),
+    /^(packages|apps)\/.+\/src\//.test(file.path) &&
+    /\.(tsx?|mts|css|html|svg|json)$/.test(file.path),
 );
 const missing = runtime.filter((file) => !file.curated).map((file) => file.path);
 if (missing.length) throw new Error(`Runtime files need explanations:\n${missing.join("\n")}`);

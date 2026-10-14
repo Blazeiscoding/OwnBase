@@ -191,7 +191,7 @@ describe("adding a reaction", () => {
     const picker = await screen.findByRole("dialog", { name: "Add a reaction" });
     expect(await accessibilityProblems(picker)).toEqual([]);
     await user.type(within(picker).getByRole("combobox", { name: "Search emoji" }), "rocket");
-    await user.click(within(picker).getByRole("option", { name: "Rocket launch" }));
+    await user.click(within(picker).getByRole("option", { name: "Rocket" }));
     expect(react).toHaveBeenCalledWith(expect.objectContaining({ id: "M_1" }), "🚀");
     expect(screen.queryByRole("dialog", { name: "Add a reaction" })).not.toBeInTheDocument();
   });

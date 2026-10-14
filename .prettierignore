@@ -4,6 +4,10 @@ pnpm-lock.yaml
 # Portable source atlas: generated deterministically with embedded source/data.
 docs/PROJECT-VISUALIZER.html
 
+# Written by scripts/generate-emoji.mjs, which checks they are what it writes.
+packages/ui/src/lib/emojiData.json
+packages/ui/src/emoji.css
+
 # Build output and test artefacts. `out/` is the desktop app's built bundles;
 # .gitignore lists it too, but the check must not depend on that file.
 dist/

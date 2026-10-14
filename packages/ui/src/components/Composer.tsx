@@ -4,7 +4,8 @@ import { ApiError, OUTBOX_LIMIT, quoteOf } from "@slackoss/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { formatBytes } from "../lib/format.js";
-import { emojiStartingWith } from "../lib/emoji.js";
+import { useEmoji } from "../lib/emoji.js";
+import type { Emoji } from "../lib/emojiSet.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { formatScheduleTime } from "../lib/schedule.js";
 import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
@@ -413,9 +414,17 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   }, [text, commands, guest]);
   const commandList = useListbox(commandCandidates.length);
   const mentionList = useListbox(mentionQuery ? candidates.length : 0);
+  // Every emoji arrives on first use; usually the workspace has fetched it already.
+  const emoji = useEmoji(emojiQuery !== null);
   const emojiCandidates = useMemo(
-    () => (emojiQuery ? emojiStartingWith(emojiQuery.query) : []),
-    [emojiQuery],
+    () =>
+      emoji && emojiQuery
+        ? emoji.emojiStartingWith(
+            emojiQuery.query,
+            emoji.likedBy(emoji.emojiPreferences(platform).getState().used),
+          )
+        : [],
+    [emoji, emojiQuery, platform],
   );
   const emojiList = useListbox(emojiCandidates.length);
 
@@ -445,12 +454,37 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     }
   }
 
-  /** Finishes ":rock" as 🚀, in place of the word typed. */
-  function completeEmoji(emoji: string) {
+  /** Finishes ":rock" as 🚀, in place of the word typed, in this device's skin tone. */
+  function completeEmoji(chosen: Emoji) {
     if (scheduleLock.current || recoveryBlocksSend) return;
-    if (!emojiQuery || !box.current) return;
-    const next = field.replaceSelection(`${emoji} `, emojiQuery.start, box.current.selectionStart);
+    if (!emojiQuery || !box.current || !emoji) return;
+    const next = field.replaceSelection(
+      `${emoji.writeEmoji(platform, chosen)} `,
+      emojiQuery.start,
+      box.current.selectionStart,
+    );
     rewrite(next.stored, next.caret);
+  }
+
+  /**
+   * Turns a shortcode written out in full, as ":tada:", into its emoji when
+   * its closing colon is typed, as Slack does. Not in code, where colons are
+   * code. Says whether it did.
+   */
+  function finishShortcode(value: string, caret: number): boolean {
+    if (!emoji || scheduleLock.current || recoveryBlocksSend) return false;
+    const line = value.slice(value.lastIndexOf("\n", caret - 1) + 1, caret);
+    const typed = /(^|\s):([a-z0-9_+-]+):$/i.exec(line);
+    if (!typed || insideCodeBlock(value, caret) || line.split("`").length % 2 === 0) return false;
+    const named = emoji.emojiNamed(typed[2]!);
+    if (!named) return false;
+    const next = field.replaceSelection(
+      emoji.writeEmoji(platform, named),
+      caret - typed[2]!.length - 2,
+      caret,
+    );
+    rewrite(next.stored, next.caret);
+    return true;
   }
 
   function insertMention(candidate: Candidate) {
@@ -743,7 +777,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       if (emojiList.move(e)) return;
       if (e.key === "Enter" || e.key === "Tab") {
         e.preventDefault();
-        completeEmoji(emojiCandidates[emojiList.active]![0]);
+        completeEmoji(emojiCandidates[emojiList.active]!);
         return;
       }
       if (e.key === "Escape") {
@@ -870,19 +904,22 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           aria-label="Emoji"
           className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
         >
-          {emojiCandidates.map(([emoji, label], i) => (
+          {emojiCandidates.map((candidate, i) => (
             <li
-              key={label}
+              key={candidate.id}
               {...emojiList.optionProps(i)}
-              onClick={() => completeEmoji(emoji)}
+              onClick={() => completeEmoji(candidate)}
               className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm ${
                 i === emojiList.active ? "bg-ink/[0.07]" : ""
               }`}
             >
-              <span aria-hidden="true" className="w-[22px] text-center text-lg leading-none">
-                {emoji}
+              <span
+                aria-hidden="true"
+                className="font-emoji w-[22px] text-center text-lg leading-none"
+              >
+                {emoji?.inTone(candidate, emoji.emojiPreferences(platform).getState().tone)}
               </span>
-              <span className="font-medium">{label}</span>
+              <span className="font-medium">:{candidate.id}:</span>
             </li>
           ))}
         </ul>
@@ -1075,6 +1112,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             edited.current = true;
             setText(next.stored);
             refreshMentionState(e.target.value, e.target.selectionStart, next);
+            finishShortcode(e.target.value, e.target.selectionStart);
             const now = Date.now();
             if (now - lastTypingSent.current > 3000 && e.target.value.trim()) {
               lastTypingSent.current = now;

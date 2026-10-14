@@ -13,6 +13,7 @@ import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@slackoss/protocol";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
+import { onlyEmoji } from "../lib/emoji.js";
 import { formatFull, formatTime } from "../lib/format.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
 import { conversationKey, startReply } from "../lib/replyTarget.js";
@@ -433,7 +434,11 @@ export const MessageItem = memo(function MessageItem({
           ) : (
             <>
               {message.text && (
-                <div className="message-text text-[16px] leading-[1.375] text-ink/90">
+                <div
+                  className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
+                    onlyEmoji(message.text) ? "message-jumbo" : ""
+                  }`}
+                >
                   <Mrkdwn
                     text={message.text}
                     users={users}

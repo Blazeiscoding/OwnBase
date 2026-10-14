@@ -3080,7 +3080,8 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
     await expect(picker).toBeVisible();
     // Opening the picker does not raise the keyboard over the emoji.
     await expect(picker.getByRole("combobox", { name: "Search emoji" })).not.toBeFocused();
-    await picker.getByRole("option", { name: "Celebrate party", exact: true }).tap();
+    // 🎉 is in the first row, Frequently used, before anyone has picked anything.
+    await picker.getByRole("option", { name: "Party Popper", exact: true }).first().tap();
     await expect(picker).toHaveCount(0);
     await expect(row.getByRole("button", { name: /🎉\s*1/ })).toBeVisible();
 

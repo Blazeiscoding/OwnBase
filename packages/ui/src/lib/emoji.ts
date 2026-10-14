@@ -1,75 +1,53 @@
-/**
- * The emoji the composer's chooser and the reaction picker offer, each with
- * the words someone might search for it by, which also name its button.
- */
-export const EMOJI = [
-  ["😀", "Smile happy"],
-  ["😂", "Laugh tears joy"],
-  ["❤️", "Heart love"],
-  ["👍", "Thumbs up yes"],
-  ["✅", "Done check complete"],
-  ["👀", "Eyes looking"],
-  ["🎉", "Celebrate party"],
-  ["🙏", "Thanks please"],
-  ["🚀", "Rocket launch"],
-  ["💡", "Idea light bulb"],
-  ["🤔", "Thinking question"],
-  ["🙌", "Raised hands hooray"],
-  ["😊", "Smile blush"],
-  ["😅", "Sweat relieved"],
-  ["😎", "Cool sunglasses"],
-  ["🤩", "Star struck excited"],
-  ["😢", "Sad cry"],
-  ["😭", "Sobbing crying"],
-  ["😴", "Sleep tired"],
-  ["🤯", "Mind blown amazed"],
-  ["🤝", "Handshake agreement"],
-  ["👏", "Clap applause"],
-  ["👋", "Wave hello goodbye"],
-  ["💪", "Strong muscle"],
-  ["🔥", "Fire hot"],
-  ["⭐", "Star favorite"],
-  ["💯", "Hundred perfect"],
-  ["⚠️", "Warning attention"],
-  ["❌", "No cross cancel"],
-  ["❓", "Question help"],
-  ["📌", "Pin reminder"],
-  ["📝", "Notes writing"],
-  ["📅", "Calendar date"],
-  ["⏰", "Alarm clock time"],
-  ["☕", "Coffee break"],
-  ["🍕", "Pizza food"],
-  ["🎂", "Cake birthday"],
-  ["🎁", "Gift present"],
-  ["🌱", "Seedling growth"],
-  ["🌈", "Rainbow"],
-  ["🐛", "Bug insect"],
-  ["🛠️", "Tools fix repair"],
-  ["🔒", "Lock private secure"],
-  ["🔗", "Link connection"],
-  ["📊", "Chart data"],
-  ["💻", "Computer laptop code"],
-  ["🏠", "Home house"],
-  ["🌍", "Earth world"],
-] as const;
+import { useEffect, useState } from "react";
 
-/** Emoji whose words contain the query, or the emoji itself when it is pasted in. */
-export function findEmoji(query: string): (typeof EMOJI)[number][] {
-  const q = query.toLowerCase().trim();
-  return EMOJI.filter(([emoji, label]) => label.toLowerCase().includes(q) || emoji === q);
+/**
+ * The emoji table, its search and this device's emoji choices, fetched on
+ * first use: with every emoji it is far too big for the page every visit
+ * downloads. The workspace asks for it as it opens, so it is usually here
+ * before anyone types a colon.
+ */
+export type EmojiKit = typeof import("./emojiSet.js") & typeof import("./emojiPreferences.js");
+
+let kit: EmojiKit | null = null;
+let loading: Promise<EmojiKit> | null = null;
+
+export function loadEmoji(): Promise<EmojiKit> {
+  return (loading ??= Promise.all([import("./emojiSet.js"), import("./emojiPreferences.js")]).then(
+    ([set, preferences]) => (kit = { ...set, ...preferences }),
+    (error: unknown) => {
+      // Asked for again next time, as after a dropped connection.
+      loading = null;
+      throw error;
+    },
+  ));
 }
 
+/** The kit once it has arrived, or null. It is asked for while `wanted`. */
+export function useEmoji(wanted: boolean): EmojiKit | null {
+  const [, arrived] = useState(false);
+  useEffect(() => {
+    if (!wanted || kit) return;
+    let current = true;
+    loadEmoji().then(
+      () => current && arrived(true),
+      () => undefined,
+    );
+    return () => {
+      current = false;
+    };
+  }, [wanted]);
+  return kit;
+}
+
+// What a message of emoji alone is made of: pictographs, flags' letters, skin
+// tones, keycaps, and the joiners and selectors between them.
+const EMOJI_ALONE =
+  /^(?:\p{Extended_Pictographic}|\p{Regional_Indicator}|\p{Emoji_Modifier}|[#*0-9]️?⃣|[‍️\u{E0020}-\u{E007F}]|\s)+$/u;
+
 /**
- * Emoji for a word typed after a colon, as ":rock" offers 🚀: those with a
- * word that starts so, in the chooser's order. A word's start, so ":ar" does
- * not offer a heart.
+ * A message of nothing but a few emoji, which Slack and Discord show large.
+ * A long run of them stays the size of text.
  */
-export function emojiStartingWith(word: string, limit = 6): (typeof EMOJI)[number][] {
-  const q = word.toLowerCase();
-  return EMOJI.filter(([, label]) =>
-    label
-      .toLowerCase()
-      .split(" ")
-      .some((w) => w.startsWith(q)),
-  ).slice(0, limit);
+export function onlyEmoji(text: string): boolean {
+  return text.length <= 64 && EMOJI_ALONE.test(text) && /[^\s️]/u.test(text);
 }

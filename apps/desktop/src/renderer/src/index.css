@@ -4,6 +4,7 @@
  */
 @import "@fontsource-variable/onest/wght.css";
 @import "@fontsource-variable/geist-mono/wght.css";
+@import "@slackoss/ui/emoji.css";
 @import "tailwindcss";
 @import "@slackoss/ui/theme.css";
 @source "../../../../../packages/ui/src";

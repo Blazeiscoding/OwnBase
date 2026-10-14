@@ -8,6 +8,12 @@ importers:
 
   .:
     devDependencies:
+      '@emoji-mart/data':
+        specifier: 1.2.1
+        version: 1.2.1
+      '@fontsource/noto-color-emoji':
+        specifier: 5.3.2
+        version: 5.3.2
       '@playwright/test':
         specifier: ^1.63.0
         version: 1.63.0
@@ -486,6 +492,9 @@ packages:
     resolution: {integrity: sha512-dfZeox66AvdPtb2lD8OsIIQh12Tp0GNCRUDfBHIKGpbmopZto2/A8nSpYYLoedPIHpqkeblZ/k8OV0Gy7PYuyQ==}
     engines: {node: '>=14.14'}
     hasBin: true
+
+  '@emoji-mart/data@1.2.1':
+    resolution: {integrity: sha512-no2pQMWiBy6gpBEiqGeU77/bFejDqUTRY7KX+0+iur13op3bqUsXdnwoZs6Xb1zbv0gAj5VvS1PWoUUckSr5Dw==}
 
   '@esbuild/aix-ppc64@0.25.12':
     resolution: {integrity: sha512-Hhmwd6CInZ3dwpuGTF8fJG6yoWmsToE+vYgD4nytZVxcu1ulHpUQRAB1UJ8+N1Am3Mz4+xOByoQoSZf4D+CpkA==}
@@ -1008,6 +1017,9 @@ packages:
 
   '@fontsource-variable/onest@5.3.1':
     resolution: {integrity: sha512-xaaw6G4HDB2/RczsWLD/2bnib4ykmQlTlBUN3GOEOiyErilZukQWVJG95h9zwAy0i8KY+QzDa+COPfqhI72Acw==}
+
+  '@fontsource/noto-color-emoji@5.3.2':
+    resolution: {integrity: sha512-rO15sQ45Dc28hMAMz1X1oSOWxcbqNL+CiHHJ7JPn1gmfiGIuR/QyLuHqBrXivSYHsHVTXGT/m6/DuQ42s5xQkw==}
 
   '@isaacs/fs-minipass@4.0.1':
     resolution: {integrity: sha512-wgm9Ehl2jpeqP3zw/7mo3kRHFp5MEDhqAdwy1fTGkHAwnkGOVsgpvQhL8B5n1qlb01jV3n/bI0ZfZp5lWA1k4w==}
@@ -3576,6 +3588,8 @@ snapshots:
       - supports-color
     optional: true
 
+  '@emoji-mart/data@1.2.1': {}
+
   '@esbuild/aix-ppc64@0.25.12':
     optional: true
 
@@ -3877,6 +3891,8 @@ snapshots:
   '@fontsource-variable/geist-mono@5.3.0': {}
 
   '@fontsource-variable/onest@5.3.1': {}
+
+  '@fontsource/noto-color-emoji@5.3.2': {}
 
   '@isaacs/fs-minipass@4.0.1':
     dependencies:
