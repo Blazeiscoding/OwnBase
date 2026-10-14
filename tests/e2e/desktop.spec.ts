@@ -231,7 +231,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   );
 
   // The tray's Stop hosting already says what it does, so it stops the server
-  // without asking. Manage hosting's asks; the next test answers it.
+  // without asking. The next test stops through Manage hosting's.
   await app.evaluate(({ dialog }) => {
     const shown: string[] = [];
     (globalThis as any).messageBoxes = shown;
@@ -300,14 +300,12 @@ test("restarting offers to host the last workspace again instead of reconnecting
     await page.getByRole("button", { name: "Join workspace", exact: true }).click();
     await expect(page.locator("textarea")).toBeVisible();
 
-    // Stop hosting, then quit with nothing hosted: a plain window close quits.
+    // Stop hosting, which does not ask first, then quit with nothing hosted:
+    // a plain window close quits.
     await page.getByRole("button", { name: "Manage hosting", exact: true }).click();
     const live = page.getByRole("dialog", { name: "Workspace is live" });
     await live.getByRole("button", { name: "Stop hosting", exact: true }).click();
-    await page
-      .getByRole("dialog", { name: "Stop hosting?" })
-      .getByRole("button", { name: "Stop hosting", exact: true })
-      .click();
+    await expect(page.getByRole("dialog", { name: "Host a workspace" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Manage hosting", exact: true })).toBeHidden();
     const firstQuit = app.waitForEvent("close");
     await app.evaluate(({ BrowserWindow }) => {
@@ -440,10 +438,8 @@ test("restarting offers to host the last workspace again instead of reconnecting
     await page.getByRole("button", { name: "Manage hosting", exact: true }).click();
     const liveAgain = page.getByRole("dialog", { name: "Workspace is live" });
     await liveAgain.getByRole("button", { name: "Stop hosting", exact: true }).click();
-    await page
-      .getByRole("dialog", { name: "Stop hosting?" })
-      .getByRole("button", { name: "Stop hosting", exact: true })
-      .click();
+    // Closed while still stopping, the window would go to the tray instead.
+    await expect(page.getByRole("dialog", { name: "Host a workspace" })).toBeVisible();
     const secondQuit = app.waitForEvent("close");
     await app.evaluate(({ BrowserWindow }) => {
       setTimeout(() => BrowserWindow.getAllWindows()[0]!.close(), 0);

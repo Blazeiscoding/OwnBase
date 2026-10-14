@@ -44,9 +44,9 @@ Linux; macOS keeps the app in the dock as usual.
 
 A bar under a workspace you are hosting says so and offers **Manage hosting**: the
 workspace's name, the addresses teammates connect to, its port and its data
-folder. Stopping from there, or quitting while hosting other than from the tray,
-asks first, because everyone connected is disconnected. Messages, files and
-accounts stay on disk. Quitting
+folder. Its **Stop hosting** stops at once, as the tray's does, and disconnects
+everyone connected. Quitting while hosting other than from the tray asks first.
+Messages, files and accounts stay on disk. Quitting
 waits for a start already under way, and for the server to finish what it is
 doing. If stopping fails, Tandem stays open and says so. If it fails while
 quitting, you can keep Tandem open or quit anyway; quitting anyway ends at
@@ -121,8 +121,8 @@ scheduled messages waiting, app events not yet delivered and the apps it calls.
 clears the hold for good.
 
 Only Windows has been checked. The packaged tests close the window while hosting,
-read the tray menu, stop hosting from the tray and through Manage hosting's
-confirmation, quit from the tray, and quit with nothing hosted; the system's own
+read the tray menu, stop hosting from the tray and from Manage hosting, quit from
+the tray, and quit with nothing hosted; the system's own
 quit confirmation is answered by the test, never shown. Whether a
 tray appears on Linux depends on the desktop environment, and macOS has not been
 run.
