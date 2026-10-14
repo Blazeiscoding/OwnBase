@@ -1,4 +1,10 @@
-import { test, expect, _electron as electron, type ElectronApplication } from "@playwright/test";
+import {
+  test,
+  expect,
+  _electron as electron,
+  type ElectronApplication,
+  type Page,
+} from "@playwright/test";
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -31,6 +37,17 @@ test.afterEach(async ({}, info) => {
     if (passed) throw error;
   }
 });
+
+/**
+ * The account that founds a workspace lands on inviting people (UX-42): a
+ * link ready to copy, then Done for the workspace behind it.
+ */
+async function dismissWelcome(page: Page) {
+  const welcome = page.getByRole("dialog", { name: "Invite your people", exact: true });
+  await expect(welcome.locator("code").filter({ hasText: "/#/join/" })).toBeVisible();
+  await welcome.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(welcome).toHaveCount(0);
+}
 
 test("packaged Windows app boots with sandbox, hosts a workspace, serves the web client, and keeps hosting only while asked to", async ({}, info) => {
   const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-"));
@@ -94,6 +111,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Join workspace", exact: true }).click();
   await expect(page.locator("textarea")).toBeVisible();
+  await dismissWelcome(page);
   const status = await page.evaluate(() => (window as any).slackoss.hostingStatus());
   // The app grants its own notifications, so it has nothing to ask about;
   // refused, every notification it tried to show failed without a word.
@@ -299,6 +317,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     await page.getByLabel("Password", { exact: true }).fill("password123");
     await page.getByRole("button", { name: "Join workspace", exact: true }).click();
     await expect(page.locator("textarea")).toBeVisible();
+    await dismissWelcome(page);
 
     // Stop hosting, which does not ask first, then quit with nothing hosted:
     // a plain window close quits.
@@ -498,6 +517,7 @@ test("a workspace chosen to start with Tandem starts when it opens, and at sign-
     await page.getByLabel("Password", { exact: true }).fill("password123");
     await page.getByRole("button", { name: "Join workspace", exact: true }).click();
     await expect(page.locator("textarea")).toBeVisible();
+    await dismissWelcome(page);
     const hosted = await page.evaluate(() => (window as any).slackoss.hostingStatus());
 
     // Both choices, made in the host dialog.
@@ -724,6 +744,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     await page.getByLabel("Password", { exact: true }).fill("password123");
     await page.getByRole("button", { name: "Join workspace", exact: true }).click();
     await expect(page.locator("textarea")).toBeVisible();
+    await dismissWelcome(page);
     // Only the hosting confirmation is accepted automatically. A saving failure
     // must keep the window open and make this ordinary-close regression fail.
     // The tray's quit already says it stops hosting: asking again is answered
@@ -871,6 +892,7 @@ test("a window that keeps crashing comes back where it was, Try again included (
   await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Join workspace", exact: true }).click();
   await expect(page.locator("textarea")).toBeVisible();
+  await dismissWelcome(page);
   const saved = page.getByRole("navigation").getByRole("button", { name: "Saved", exact: true });
   await saved.click();
   await expect(saved).toHaveAttribute("aria-current", "true");

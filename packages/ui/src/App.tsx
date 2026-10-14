@@ -38,6 +38,8 @@ type Session =
       server: SavedServer;
       /** Set when a link to a message opened this workspace. */
       target?: { channelId: string; messageId: string } | null;
+      /** This account just founded the workspace: open on inviting people. */
+      welcome?: boolean;
     };
 
 /** What shows while the app starts, or while a screen it needs arrives. */
@@ -158,6 +160,7 @@ export function App({ platform }: { platform: Platform }) {
       server: SavedServer,
       list: SavedServer[],
       target?: { channelId: string; messageId: string } | null,
+      welcome = false,
     ) => {
       navigation.current++;
       clientRef.current?.destroy();
@@ -180,6 +183,7 @@ export function App({ platform }: { platform: Platform }) {
         client,
         server,
         target: target ?? null,
+        welcome,
       });
     },
     [changeServers],
@@ -447,7 +451,7 @@ export function App({ platform }: { platform: Platform }) {
                     savedServers={savedServers}
                     autoProbe={session.autoProbe}
                     inviteCode={session.inviteCode}
-                    onConnected={(server) => {
+                    onConnected={(server, how) => {
                       const pending = pendingTarget.current;
                       pendingTarget.current = null;
                       openWorkspace(
@@ -456,6 +460,7 @@ export function App({ platform }: { platform: Platform }) {
                         pending?.serverUrl === server.url
                           ? { channelId: pending.channelId, messageId: pending.messageId }
                           : null,
+                        how?.founded,
                       );
                     }}
                     onForget={forgetServer}
@@ -474,6 +479,7 @@ export function App({ platform }: { platform: Platform }) {
                 client={session.client}
                 platform={platform}
                 initialTarget={session.target ?? null}
+                welcome={session.welcome}
                 onLeaveWorkspace={leaveWorkspace}
                 onSignedOut={() => endSession(session.server, session.client)}
                 onAccountCreated={(token, handle) =>

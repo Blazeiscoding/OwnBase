@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { encode } from "uqr";
 import type { Invite } from "@slackoss/protocol";
-import { describeExpiry, describeUses, reusableInvite } from "../src/lib/invites.js";
+import {
+  describeExpiry,
+  describeUses,
+  onlyOnItsNetwork,
+  reusableInvite,
+} from "../src/lib/invites.js";
 import { QrCode } from "../src/components/QrCode.js";
 
 /**
@@ -69,6 +74,37 @@ describe("how long an invite lasts", () => {
     expect(describeUses(5, 2)).toBe("3 of 5 uses left");
     expect(describeUses(1, 0)).toBe("1 of 1 use left");
     expect(describeUses(3, 7)).toBe("0 of 3 uses left");
+  });
+});
+
+describe("an address that only its own network reaches", () => {
+  it("is a private, link-local or Tailscale address, or a .local name", () => {
+    for (const url of [
+      "http://10.0.0.7:8543",
+      "http://192.168.1.20:8543",
+      "http://172.16.0.4",
+      "http://172.31.255.1",
+      "http://169.254.10.10",
+      "http://100.101.102.103:8543",
+      "http://studio.local:8543",
+      "http://[fd12:3456::1]:8543",
+      "http://[fe80::1]:8543",
+    ])
+      expect(onlyOnItsNetwork(url), url).toBe(true);
+  });
+
+  it("is not a public address or name, even one that starts like a private one", () => {
+    for (const url of [
+      "https://chat.team.dev",
+      "http://172.32.0.1",
+      "http://100.128.0.1",
+      "http://203.0.113.5:8543",
+      "https://fc-barcelona.example",
+      "https://fdroid.example",
+      "http://[2001:db8::1]",
+      "not a url",
+    ])
+      expect(onlyOnItsNetwork(url), url).toBe(false);
   });
 });
 

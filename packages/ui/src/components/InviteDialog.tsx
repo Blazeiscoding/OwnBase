@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@slackoss/client-core";
 import type { Invite, InviteStatus } from "@slackoss/protocol";
 import { useCopy } from "../lib/useCopy.js";
@@ -9,9 +9,10 @@ import {
   INVITE_USE_CHOICES,
   describeExpiry,
   describeUses,
+  onlyOnItsNetwork,
   reusableInvite,
 } from "../lib/invites.js";
-import { useClient, useWorkspace } from "../context.js";
+import { PlatformContext, useClient, useWorkspace } from "../context.js";
 import { Swap } from "./Motion.js";
 import { Dialog } from "./Dialog.js";
 import { useConfirm } from "./Confirm.js";
@@ -40,9 +41,14 @@ const selectCls =
  * already made that still works like a new one, or a new one for a week and
  * any number of people. Other lengths and limits are a "Change" away, and a QR
  * code carries the link to a phone.
+ *
+ * `welcome` is the step that ends founding a workspace (UX-42): the same link,
+ * said as the next thing to do, with what it takes to reach people elsewhere.
  */
-export function InviteDialog(props: { onClose: () => void }) {
+export function InviteDialog(props: { onClose: () => void; welcome?: boolean }) {
   const client = useClient();
+  // Optional: a test may draw the dialog without the app around it.
+  const hostsHere = !!useContext(PlatformContext)?.hosting;
   const confirm = useConfirm();
   const toast = useOptionalToast();
   const users = useWorkspace((s) => s.users);
@@ -166,11 +172,15 @@ export function InviteDialog(props: { onClose: () => void }) {
   }
 
   return (
-    <Dialog title="Invite people" onClose={props.onClose}>
+    <Dialog title={props.welcome ? "Invite your people" : "Invite people"} onClose={props.onClose}>
       <p className="mb-4 text-sm text-ink-dim">
-        {canInvite
-          ? "Send someone this link. It opens the workspace in their browser with the invite already filled in."
-          : "Anyone joining needs this workspace's address, and an invite code as well if the workspace is invite-only."}
+        {!canInvite
+          ? "Anyone joining needs this workspace's address, and an invite code as well if the workspace is invite-only."
+          : props.welcome
+            ? `Your workspace is ready. Send this link to the people you want in it${
+                shareable.localOnly ? "." : ", or let them scan the code with a phone."
+              }`
+            : "Send someone this link. It opens the workspace in their browser with the invite already filled in."}
       </p>
       {canInvite ? (
         shown && links ? (
@@ -310,6 +320,13 @@ export function InviteDialog(props: { onClose: () => void }) {
           {error}
         </p>
       )}
+      {props.welcome && canInvite && onlyOnItsNetwork(serverUrl) && (
+        <p className="mb-4 text-sm text-ink-dim">
+          {hostsHere
+            ? "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage hosting at the bottom of the window and share the workspace on the internet."
+            : "This link works for people on the same network as the workspace's server."}
+        </p>
+      )}
       <div className="card-warm rounded-xl px-4 py-3">
         <div className="mb-1.5 text-[13px] font-medium text-ink-dim">Server address</div>
         <div className="flex items-center justify-between gap-2">
@@ -340,7 +357,7 @@ export function InviteDialog(props: { onClose: () => void }) {
           </p>
         )}
       </div>
-      {invites && invites.length > 0 && (
+      {!props.welcome && invites && invites.length > 0 && (
         <div className="mt-6">
           <div className="mb-2 text-[13px] font-medium text-ink-dim">Invite codes</div>
           <ul className="max-h-60 space-y-1.5 overflow-y-auto" aria-label="Invite codes">
@@ -393,6 +410,13 @@ export function InviteDialog(props: { onClose: () => void }) {
               );
             })}
           </ul>
+        </div>
+      )}
+      {props.welcome && (
+        <div className="mt-5 flex justify-end">
+          <button type="button" onClick={props.onClose} className={buttonClass("secondary")}>
+            Done
+          </button>
         </div>
       )}
     </Dialog>

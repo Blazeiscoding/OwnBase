@@ -93,6 +93,8 @@ describe("joining a workspace that allows guests", () => {
     expect(join).toHaveBeenCalledWith("Vic");
     expect(onConnected).toHaveBeenCalledWith(
       expect.objectContaining({ url: "http://127.0.0.1:9", token: "guest-token" }),
+      // A guest founds nothing, so the workspace opens as usual.
+      { founded: false },
     );
   });
 

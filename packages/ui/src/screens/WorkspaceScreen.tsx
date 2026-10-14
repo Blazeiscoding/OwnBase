@@ -237,6 +237,8 @@ interface Props {
   platform: Platform;
   /** A message to open on arrival, from a link to it. */
   initialTarget?: { channelId: ID; messageId: ID } | null;
+  /** This account just founded the workspace: open on inviting people (UX-42). */
+  welcome?: boolean;
   onLeaveWorkspace: () => void;
   onSignedOut: () => void;
   /** A guest kept its identity as an account; carry on with this token. */
@@ -252,7 +254,7 @@ type DialogKind =
   | { kind: "new-channel" }
   | { kind: "browse" }
   | { kind: "new-dm"; initialMemberIds?: ID[] }
-  | { kind: "invite" }
+  | { kind: "invite"; welcome?: boolean }
   | { kind: "switcher" }
   | { kind: "search"; query?: string; typing?: boolean }
   | { kind: "account"; section?: AccountSection }
@@ -313,6 +315,7 @@ export function WorkspaceScreen({
   client,
   platform,
   initialTarget,
+  welcome,
   onLeaveWorkspace,
   onSignedOut,
   onAccountCreated,
@@ -335,6 +338,7 @@ export function WorkspaceScreen({
               <WorkspaceInner
                 platform={platform}
                 initialTarget={initialTarget ?? null}
+                welcome={welcome}
                 onLeaveWorkspace={onLeaveWorkspace}
                 onSignedOut={onSignedOut}
                 onAccountCreated={onAccountCreated}
@@ -352,6 +356,7 @@ export function WorkspaceScreen({
 function WorkspaceInner({
   platform,
   initialTarget,
+  welcome,
   onLeaveWorkspace,
   onSignedOut,
   onAccountCreated,
@@ -360,6 +365,7 @@ function WorkspaceInner({
 }: {
   platform: Platform;
   initialTarget: { channelId: ID; messageId: ID } | null;
+  welcome?: boolean;
   onLeaveWorkspace: () => void;
   onSignedOut: () => void;
   onAccountCreated?: (token: string, handle: string) => void;
@@ -391,7 +397,9 @@ function WorkspaceInner({
         ? { kind: initialRoute.view }
         : { kind: "none" },
   );
-  const [dialog, setDialog] = useState<DialogKind>(() => dialogFromRoute(initialRoute?.dialog));
+  const [dialog, setDialog] = useState<DialogKind>(() =>
+    welcome ? { kind: "invite", welcome } : dialogFromRoute(initialRoute?.dialog),
+  );
   const [sidebarOpen, setSidebarOpen] = useState(
     () => initialRoute?.drawer === true && drawerLayout(),
   );
@@ -1431,7 +1439,9 @@ function WorkspaceInner({
               onOpen={openChannel}
             />
           )}
-          {dialog.kind === "invite" && <InviteDialog onClose={closeDialog} />}
+          {dialog.kind === "invite" && (
+            <InviteDialog welcome={dialog.welcome} onClose={closeDialog} />
+          )}
         </LazyDialog>
       )}
       {dialog.kind === "guest-account" && onAccountCreated && (
