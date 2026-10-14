@@ -1,4 +1,4 @@
-import { Suspense, lazy, useId, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useId, useRef, useState } from "react";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -75,10 +75,23 @@ export function FormattingToolbar({
   const [expanded, setExpanded] = useState(false);
   const buttonsId = useId();
   const trigger = useRef<HTMLButtonElement>(null);
+  const chooser = useRef<HTMLDivElement>(null);
   function insert(emoji: string) {
     onInsert(emoji);
     setOpen(false);
   }
+  // A press anywhere else closes the chooser, as Slack's does, and focus goes
+  // where the press put it. The button that opened it closes it itself.
+  useEffect(() => {
+    if (!open) return;
+    const pressed = (event: PointerEvent) => {
+      const target = event.target as Node;
+      if (chooser.current?.contains(target) || trigger.current?.contains(target)) return;
+      setOpen(false);
+    };
+    document.addEventListener("pointerdown", pressed, true);
+    return () => document.removeEventListener("pointerdown", pressed, true);
+  }, [open]);
   return (
     <>
       <div
@@ -172,6 +185,7 @@ export function FormattingToolbar({
       </div>
       {open && (
         <div
+          ref={chooser}
           role="group"
           aria-label="Choose an emoji"
           className={

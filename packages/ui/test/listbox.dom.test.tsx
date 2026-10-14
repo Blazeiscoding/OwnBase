@@ -266,6 +266,33 @@ describe("choosing an emoji", () => {
     expect(screen.queryByRole("combobox", { name: "Search emoji" })).not.toBeInTheDocument();
   });
 
+  it("closes when anything outside it is pressed, and stays open for a press inside", async () => {
+    const { box, user } = await renderComposer();
+    const button = screen.getByRole("button", { name: "Insert emoji" });
+    const chooser = () => screen.queryByRole("group", { name: "Choose an emoji" });
+    await user.click(button);
+    await screen.findByRole("combobox", { name: "Search emoji" });
+    await user.click(within(chooser()!).getByRole("button", { name: "Flags" }));
+    await user.click(within(chooser()!).getByRole("button", { name: /^Skin tone/ }));
+    expect(chooser()).toBeInTheDocument();
+    // Its own button closes it, rather than a press outside closing it and the click opening it again.
+    await user.click(button);
+    expect(chooser()).not.toBeInTheDocument();
+
+    await user.click(button);
+    expect(chooser()).toBeInTheDocument();
+    // Focus goes where the press put it.
+    await user.click(box);
+    expect(chooser()).not.toBeInTheDocument();
+    expect(box).toHaveFocus();
+    expect(button).toHaveAttribute("aria-expanded", "false");
+
+    await user.click(button);
+    expect(chooser()).toBeInTheDocument();
+    await user.click(document.body);
+    expect(chooser()).not.toBeInTheDocument();
+  });
+
   it("says when nothing matches, and points at nothing", async () => {
     const { user } = await renderComposer();
     await user.click(screen.getByRole("button", { name: "Insert emoji" }));
