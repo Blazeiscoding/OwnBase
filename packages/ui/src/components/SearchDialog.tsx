@@ -149,6 +149,11 @@ export function SearchDialog(props: {
   channelId?: ID | null;
   /** Words to search for at once, as typed in the palette. */
   initialQuery?: string;
+  /**
+   * The words were begun in the header's search box and are still being
+   * typed, here now: they are searched once typing pauses, like any.
+   */
+  typing?: boolean;
 }) {
   const client = useClient();
   const recent = useRecentSearches();
@@ -213,8 +218,8 @@ export function SearchDialog(props: {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- asks again for what is showing
   }, [changed, busy]);
 
-  // Words brought from the palette or the header are searched straight away.
-  const initial = useRef(props.initialQuery?.trim().slice(0, 200));
+  // Words brought from the palette are searched straight away.
+  const initial = useRef(props.typing ? undefined : props.initialQuery?.trim().slice(0, 200));
   useEffect(() => {
     if (initial.current)
       void search({ query: initial.current }, undefined, 0, [undefined], { remember: true });
