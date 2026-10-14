@@ -643,31 +643,18 @@ describe("hosting a workspace from the host dialog", () => {
     expect(screen.getByRole("button", { name: "Stop hosting" })).toBeInTheDocument();
   });
 
-  it("asks before stopping, and stopping can be called off", async () => {
+  it("stops at once, since the button already says what it does", async () => {
     const user = userEvent.setup();
     const { hosting } = fakeHosting(running);
     render(<Harness hosting={hosting} />);
 
     await user.click(await screen.findByRole("button", { name: "Stop hosting" }));
-    const confirm = screen.getByRole("dialog", { name: "Stop hosting?" });
-    expect(confirm).toHaveTextContent(/Teammates will be disconnected/);
-    // The trigger was replaced by the confirmation. Focus must stay inside
-    // rather than falling back to the page behind the modal.
-    await waitFor(() => expect(confirm).toContainElement(document.activeElement as HTMLElement));
-    await user.tab();
-    expect(confirm).toContainElement(document.activeElement as HTMLElement);
-    await user.click(within(confirm).getByRole("button", { name: "Keep hosting" }));
-    expect(screen.getByRole("dialog", { name: "Workspace is live" })).toBeInTheDocument();
-    expect(hosting.stop).not.toHaveBeenCalled();
-
-    await user.click(screen.getByRole("button", { name: "Stop hosting" }));
-    await user.click(
-      within(screen.getByRole("dialog", { name: "Stop hosting?" })).getByRole("button", {
-        name: "Stop hosting",
-      }),
-    );
     expect(hosting.stop).toHaveBeenCalledOnce();
-    expect(await screen.findByRole("dialog", { name: "Host a workspace" })).toBeInTheDocument();
+    const stopped = await screen.findByRole("dialog", { name: "Host a workspace" });
+    expect(screen.queryByText(/Teammates will be disconnected/)).not.toBeInTheDocument();
+    // The button left with the running view. Focus must stay inside rather
+    // than falling back to the page behind the modal.
+    await waitFor(() => expect(stopped).toContainElement(document.activeElement as HTMLElement));
   });
 
   it("keeps showing what it knows while it checks the status again", async () => {

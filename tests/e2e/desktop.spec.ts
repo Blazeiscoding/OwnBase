@@ -68,18 +68,20 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
     ),
   ).toBe(true);
   // A test cannot click the tray, but its menu is rebuilt on every change, so
-  // each menu it is given can be read as it is given.
+  // each menu it is given can be read as it is given, and the last one clicked.
   await app.evaluate(({ Tray }) => {
     const menus: { label: string; enabled: boolean }[][] = [];
     (globalThis as any).trayMenus = menus;
     const setContextMenu = Tray.prototype.setContextMenu;
     Tray.prototype.setContextMenu = function (menu) {
-      if (menu)
+      if (menu) {
+        (globalThis as any).trayMenu = menu;
         menus.push(
           menu.items
             .filter((item) => item.type !== "separator")
             .map((item) => ({ label: item.label, enabled: item.enabled })),
         );
+      }
       return setContextMenu.call(this, menu);
     };
   });
@@ -100,7 +102,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await expect.poll(trayMenu).toEqual([
     { label: "Open Tandem", enabled: true },
     { label: `Hosting Desktop Test · port ${status.port} · 1 connected`, enabled: false },
-    { label: "Stop hosting…", enabled: true },
+    { label: "Stop hosting", enabled: true },
     { label: "Stop hosting and quit", enabled: true },
   ]);
   const web = await fetch(`http://127.0.0.1:${status.port}/`);
@@ -228,11 +230,21 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
     "desktop notification check",
   );
 
-  // Stopping asks first, then stops the server.
-  await manage.click();
-  await live.getByRole("button", { name: "Stop hosting", exact: true }).click();
-  const confirm = page.getByRole("dialog", { name: "Stop hosting?" });
-  await confirm.getByRole("button", { name: "Stop hosting", exact: true }).click();
+  // The tray's Stop hosting already says what it does, so it stops the server
+  // without asking. The next test stops through Manage hosting's.
+  await app.evaluate(({ dialog }) => {
+    const shown: string[] = [];
+    (globalThis as any).messageBoxes = shown;
+    dialog.showMessageBox = (async (...args: unknown[]) => {
+      shown.push((args.at(-1) as { message: string }).message);
+      return { response: 0, checkboxChecked: false };
+    }) as unknown as typeof dialog.showMessageBox;
+  });
+  await app.evaluate(() =>
+    (globalThis as any).trayMenu.items
+      .find((item: { label: string }) => item.label === "Stop hosting")
+      .click(),
+  );
   await expect(manage).toBeHidden();
   await expect
     .poll(() =>
@@ -245,9 +257,10 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await expect.poll(trayMenu).toEqual([
     { label: "Open Tandem", enabled: true },
     { label: "Not hosting", enabled: false },
-    { label: "Stop hosting…", enabled: false },
+    { label: "Stop hosting", enabled: false },
     { label: "Quit Tandem", enabled: true },
   ]);
+  expect(await app.evaluate(() => (globalThis as any).messageBoxes)).toEqual([]);
   expect(errors).toEqual([]);
 
   // With nothing hosted, closing the last window quits.
@@ -287,14 +300,12 @@ test("restarting offers to host the last workspace again instead of reconnecting
     await page.getByRole("button", { name: "Join workspace", exact: true }).click();
     await expect(page.locator("textarea")).toBeVisible();
 
-    // Stop hosting, then quit with nothing hosted: a plain window close quits.
+    // Stop hosting, which does not ask first, then quit with nothing hosted:
+    // a plain window close quits.
     await page.getByRole("button", { name: "Manage hosting", exact: true }).click();
     const live = page.getByRole("dialog", { name: "Workspace is live" });
     await live.getByRole("button", { name: "Stop hosting", exact: true }).click();
-    await page
-      .getByRole("dialog", { name: "Stop hosting?" })
-      .getByRole("button", { name: "Stop hosting", exact: true })
-      .click();
+    await expect(page.getByRole("dialog", { name: "Host a workspace" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Manage hosting", exact: true })).toBeHidden();
     const firstQuit = app.waitForEvent("close");
     await app.evaluate(({ BrowserWindow }) => {
@@ -427,10 +438,8 @@ test("restarting offers to host the last workspace again instead of reconnecting
     await page.getByRole("button", { name: "Manage hosting", exact: true }).click();
     const liveAgain = page.getByRole("dialog", { name: "Workspace is live" });
     await liveAgain.getByRole("button", { name: "Stop hosting", exact: true }).click();
-    await page
-      .getByRole("dialog", { name: "Stop hosting?" })
-      .getByRole("button", { name: "Stop hosting", exact: true })
-      .click();
+    // Closed while still stopping, the window would go to the tray instead.
+    await expect(page.getByRole("dialog", { name: "Host a workspace" })).toBeVisible();
     const secondQuit = app.waitForEvent("close");
     await app.evaluate(({ BrowserWindow }) => {
       setTimeout(() => BrowserWindow.getAllWindows()[0]!.close(), 0);
