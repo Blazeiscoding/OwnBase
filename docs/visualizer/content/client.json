@@ -120,6 +120,7 @@
         "setMicrophone and setCamera change devices mid-call: the new device opens (asked for exactly) before the old one stops, so one that will not start rejects and leaves the call as it was. Once open it reaches every peer through replaceTrack on the fixed slot, with no renegotiation, keeping the mute choice. A counter per kind drops an older choice that finishes after a newer one. A camera that reports busy is retried with the current one closed, since a virtual camera built on the webcam (NVIDIA Broadcast over a USB camera, as tested) cannot start while the webcam is held; if it still will not start the previous camera is reopened, and failing that the camera is turned off and announced.",
         "N04 keeps the latest mute intent separate from a particular MediaStreamTrack. Adopting a delayed or replacement microphone applies the current choice, and captured streams arriving after destruction are stopped.",
         "Remote speaking levels come from synchronization-source audio metadata; only the local microphone needs a Web Audio analyser. Samples run every 120 ms with a 500 ms hold, and publish to the UI only when speaking state changes.",
+        "A screen is shared at the ScreenShareQuality asked for, 720p or 1080p (the cap, since a mesh encodes once per viewer) at 15, 30 or 60 frames a second, 1080p at 15 by default. It is hinted as detail, keeping text sharp and dropping frames when bandwidth runs short, except at 60, which is asked for motion.",
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
         "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call."
       ],
@@ -1332,9 +1333,21 @@
       "details": [
         "Used by both the compact bar and fullscreen stage so the call actions stay available in either layout.",
         "Stable accessible names plus aria-pressed describe toggles; captureFailure distinguishes a cancelled picker from a permission/device problem. A lost microphone exposes retry.",
-        "Beside Mute and Camera, a small arrow opens a menu of microphones and speakers, or cameras, with the chosen one ticked (menuitemradio) and a link to Voice & video settings. The menus are left out of the full-screen overlay, because menus open on the page beneath a fullscreen element."
+        "Beside Mute and Camera, a small arrow opens a menu of microphones and speakers, or cameras, with the chosen one ticked (menuitemradio) and a link to Voice & video settings. The menus are left out of the full-screen overlay, because menus open on the page beneath a fullscreen element.",
+        "In the desktop app, Share screen opens ScreenShareDialog rather than asking the browser; a browser shows its own picker, and stopping needs none. Whether the picker is open is one small store for the window: the bar's controls draw it, and the controls in full screen leave full screen first, since a dialog does not show over it and those controls go with it."
       ],
       "concepts": ["media controls", "accessible toggles", "capture errors", "device menus"]
+    },
+    {
+      "path": "packages/ui/src/components/ScreenShareDialog.tsx",
+      "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, and the resolution and frame rate to share at.",
+      "summary": "Picks a window or screen to share, and how sharp and smooth, in the app rather than a system dialog.",
+      "details": [
+        "Windows come first and none is chosen for you, since the window on top is usually Tandem itself; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
+        "The last list shows at once where there has been one (platform.screenShare.sources with quick), then a fresh one, then again every 3 s while open, so pictures move and windows come and go; a chosen window that closes leaves Share with nothing to share. Only a first fresh list that fails with nothing shown says so, with Try again.",
+        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A window that closed since it was listed, or a refusal from the system, is said in the dialog, which stays open; chosen here, even a plain refusal says sharing could not start."
+      ],
+      "concepts": ["screen sharing", "in-app picker", "accessible choices"]
     },
     {
       "path": "packages/ui/src/components/HuddleAudio.tsx",

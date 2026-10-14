@@ -10,7 +10,8 @@
         "Keeps the existing user-data location while applying Tandem branding and reads legacy environment names, so renaming does not abandon settings or hosted databases.",
         "Enforces one primary instance, routes cold/warm deep links, creates a sandboxed window and tray, and registers IPC through the trusted-window guard.",
         "Owns discovery, the embedded server adapter, native dialogs/downloads/media, settings, worker jobs, network/wake refresh, renderer recovery and coordinated quit.",
-        "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12)."
+        "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12).",
+        "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker."
       ],
       "concepts": ["Electron main", "process ownership", "IPC", "lifecycle"]
     },
@@ -171,14 +172,15 @@
       "concepts": ["OS integration", "pure policy", "tray startup"]
     },
     {
-      "path": "apps/desktop/src/main/screenPicker.ts",
-      "plain": "Asks which screen to share in a huddle and explains when screens cannot be listed or shared.",
-      "summary": "Chooses the screen to share and explains listing/permission failures.",
+      "path": "apps/desktop/src/main/screenShare.ts",
+      "plain": "Lists the windows and screens a huddle can share, with a picture of each, and shares the one you pick in the app's own picker.",
+      "summary": "Lists shareable sources for the in-app picker and holds the choice for the getDisplayMedia request after it.",
       "details": [
-        "Takes injectable listing and native-dialog capabilities so selection policy can be tested independently of Electron.",
-        "Cancel returns null quietly; unavailable screens or a failed list show an appropriate explanation, preserving explicit consent before sharing."
+        "SourceList.full takes a picture of every screen and window (desktopCapturer, 480x270, with app icons) and leaves out windows whose picture is empty or black to the last pixel: what Windows gives for a window it cannot capture, such as those tray apps keep open out of sight (Raycast's) or a game overlay (NVIDIA's). Minimized windows are not listed by the system at all. Concurrent asks share one capture.",
+        "Each window the system cannot capture costs about a second, so a full list took 3.4 s on a machine with three of them against 0.4 s for names alone. SourceList.quick answers a picker opening again from the last full list, with its pictures, less what has closed since and with current titles; a window opened since waits for the next full list.",
+        "findSource checks the chosen id against a fresh list of names and says, in the picker's words, when that window has closed or that screen is gone. ScreenChoice holds the choice for one getDisplayMedia request within 15 s; the main process's display-media handler shares it, or nothing, and no system picker is shown."
       ],
-      "concepts": ["screen sharing", "native dialog", "consent"]
+      "concepts": ["screen sharing", "in-app picker", "consent"]
     },
     {
       "path": "apps/desktop/src/main/trayBackups.ts",
@@ -717,10 +719,12 @@
       "concepts": ["regression test", "desktop"]
     },
     {
-      "path": "apps/desktop/test/screenPicker.test.ts",
-      "plain": "Tests choosing a screen to share, cancelling, and the messages shown when no screen is available.",
-      "summary": "Checks native screen selection, cancel and unavailable-screen explanations.",
-      "details": ["Keeps consent and failure feedback distinct."],
+      "path": "apps/desktop/test/screenShare.test.ts",
+      "plain": "Tests which windows the screen picker lists, answering from the last list, and sharing only the one just chosen.",
+      "summary": "Checks blank-window filtering, the quick list, the chosen-source check and the one-use choice.",
+      "details": [
+        "Keeps hidden tray windows out of the picker, and keeps a getDisplayMedia request the picker did not just answer from sharing anything."
+      ],
       "concepts": ["regression test", "desktop"]
     },
     {
