@@ -1120,7 +1120,8 @@
         "A compact workspace rail and workspace menu expose remembered workspaces without presenting saved tokens to the visible navigation.",
         "Channel and DM rows show unread/muted/activity state and choose destinations supplied by the workspace screen. Admin actions appear only where the current account can use them.",
         "Snooze controls compute actual resume times and use the client's latest-choice behavior. Menu grouping saves vertical space so short windows retain room for conversations.",
-        "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings."
+        "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings.",
+        "A channel's row ends with Discord's two buttons while it is pointed at, holds the keyboard, or is open: invite and settings. Invite on a public channel opens the workspace's invite, since everyone in the workspace is in every public channel, and only for someone who may invite; on a private one it is Add people, which opens the channel's Members tab, for someone channelPermissions lets invite. The gear opens the channel's details, opening the channel first if it is not the one on screen. The buttons sit beside the row's button, not in it, and on a touchscreen show on the open channel only."
       ],
       "concepts": ["workspace navigation", "unread state", "compact layout", "Do Not Disturb"]
     },
@@ -1151,7 +1152,8 @@
       "summary": "Edits channel details and manages membership, managers and notification choices.",
       "details": [
         "Presents topic/description and member controls under shared channel permission rules; the server remains responsible for enforcement.",
-        "Updates, inviting/removing members, changing managers and leaving map API refusals into readable actions. Channel notification writes expose retry rather than silently abandoning a refused choice."
+        "Updates, inviting/removing members, changing managers and leaving map API refusals into readable actions. Channel notification writes expose retry rather than silently abandoning a refused choice.",
+        "Opens on About, or on Members (initialTab) when Add people on a private channel's row in the sidebar opens it."
       ],
       "concepts": ["channel administration", "permissions", "notification settings"]
     },

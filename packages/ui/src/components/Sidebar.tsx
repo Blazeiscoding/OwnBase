@@ -1,5 +1,5 @@
 import { useMemo, useState, type ReactNode } from "react";
-import type { Channel, ID } from "@slackoss/protocol";
+import { channelPermissions, type Channel, type ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { unreadThreadCount } from "@slackoss/client-core";
 import { channelTitle, initials, workspaceGradient } from "../lib/format.js";
@@ -31,6 +31,11 @@ interface Props {
   onActivity: () => void;
   onThreads: () => void;
   onInvite: () => void;
+  /**
+   * A channel's details, from the gear on its row; with "members", where
+   * people are added to a private one. Opens that channel first.
+   */
+  onChannelDetails?: (channelId: ID, tab?: "members") => void;
   onSwitchWorkspace: () => void;
   onEditProfile: () => void;
   onAccountSettings: () => void;
@@ -70,6 +75,37 @@ export function Sidebar(props: Props) {
   const self = useWorkspace((s) => s.self);
   // A guest has public channels only: no DMs, rooms of its own, friends or schedules.
   const guest = self?.role === "guest";
+  // Older servers do not send the flag; every member could invite there.
+  const canInvite = !guest && (self?.canInvite ?? true);
+
+  /**
+   * Discord's two actions at the end of a channel's row: invite and settings.
+   * Everyone in a public channel is everyone in the workspace, so inviting to
+   * one invites to the workspace; a private one is joined by being added.
+   */
+  function channelActions(ch: Channel): RowAction[] {
+    const actions: RowAction[] = [];
+    if (ch.type === "private") {
+      if (
+        channelPermissions(self ?? undefined, ch, ch.id in memberships).invite &&
+        props.onChannelDetails
+      )
+        actions.push({
+          label: `Add people to ${ch.name}`,
+          icon: "userPlus",
+          onClick: () => props.onChannelDetails?.(ch.id, "members"),
+        });
+    } else if (canInvite) {
+      actions.push({ label: "Invite people", icon: "userPlus", onClick: props.onInvite });
+    }
+    if (props.onChannelDetails)
+      actions.push({
+        label: `Channel settings for ${ch.name}`,
+        icon: "settings",
+        onClick: () => props.onChannelDetails?.(ch.id),
+      });
+    return actions;
+  }
   const drafts = useWorkspace((s) => s.drafts);
   const prefs = useWorkspace((s) => s.prefs);
   const huddles = useWorkspace((s) => s.huddles);
@@ -244,6 +280,7 @@ export function Sidebar(props: Props) {
                     huddle={huddleWith(ch.id)}
                     mentions={mentions(ch.id)}
                     onClick={() => props.onSelect(ch.id)}
+                    actions={channelActions(ch)}
                     icon={
                       ch.type === "private" ? (
                         <span role="img" aria-label="Private channel" title="Private channel">
@@ -807,6 +844,13 @@ function SectionHeader(props: {
   );
 }
 
+/** One of the small buttons at the end of a channel's row. */
+interface RowAction {
+  label: string;
+  icon: IconName;
+  onClick: () => void;
+}
+
 function ChannelRow(props: {
   active: boolean;
   unread: boolean;
@@ -821,12 +865,21 @@ function ChannelRow(props: {
   /** A row with an avatar in place of the channel mark. */
   roomy?: boolean;
   onClick: () => void;
+  /**
+   * Shown at the row's end while it is pointed at, holds the keyboard, or is
+   * the one open, as Discord shows its invite and settings (theme.css).
+   */
+  actions?: RowAction[];
 }) {
   const showUnread = props.unread && !props.active && !props.muted;
   // One that comes while the sidebar is open pops in, as the counts do.
   const unreadCame = useChanges(showUnread);
   return (
-    <li className="relative">
+    <li
+      className="channel-item relative"
+      data-active={props.active || undefined}
+      data-actions={props.actions?.length || undefined}
+    >
       {/* Discord's unread nub, at the very edge of the sidebar. */}
       {showUnread && (
         <span
@@ -886,6 +939,23 @@ function ChannelRow(props: {
           className="badge-mention tabular min-w-5 shrink-0 rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px]"
         />
       </button>
+      {props.actions && props.actions.length > 0 && (
+        // Beside the row's button, not in it: a button may not hold another.
+        <span className="channel-actions absolute right-1 top-1/2 -translate-y-1/2 items-center gap-0.5">
+          {props.actions.map((action) => (
+            <Tooltip key={action.label} label={action.label}>
+              <button
+                type="button"
+                aria-label={action.label}
+                onClick={action.onClick}
+                className="flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.08] hover:text-ink"
+              >
+                <Icon name={action.icon} size={15} />
+              </button>
+            </Tooltip>
+          ))}
+        </span>
+      )}
     </li>
   );
 }

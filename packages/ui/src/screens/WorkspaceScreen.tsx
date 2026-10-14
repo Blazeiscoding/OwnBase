@@ -257,7 +257,7 @@ type DialogKind =
   | { kind: "search"; query?: string; typing?: boolean }
   | { kind: "account"; section?: AccountSection }
   | { kind: "profile"; userId: ID }
-  | { kind: "channel-details" }
+  | { kind: "channel-details"; tab?: "members" }
   | { kind: "shortcuts" }
   | { kind: "diagnostics"; callLog?: boolean }
   | { kind: "apps" }
@@ -732,6 +732,19 @@ function WorkspaceInner({
   // What a conversation that has only just begun offers to do first.
   const inviteFromIntro = useCallback(() => setDialog({ kind: "invite" }), []);
   const detailsFromIntro = useCallback(() => setDialog({ kind: "channel-details" }), []);
+  /**
+   * A channel's details from the gear on its row, as Discord's channel
+   * settings. Another channel is opened first, since the details are the open
+   * channel's; the one already open stays as it is, thread and all.
+   */
+  const detailsFromRow = useCallback(
+    (id: ID, tab?: "members") => {
+      if (id !== activeChannelId) openChannel(id);
+      setSidebarOpen(false);
+      setDialog(tab ? { kind: "channel-details", tab } : { kind: "channel-details" });
+    },
+    [activeChannelId, openChannel],
+  );
 
   /**
    * Opens a thread from the Threads list. The row already names its root, so
@@ -1127,6 +1140,7 @@ function WorkspaceInner({
         onNewChannel={() => setDialog({ kind: "new-channel" })}
         onNewDm={() => setDialog({ kind: "new-dm" })}
         onInvite={() => setDialog({ kind: "invite" })}
+        onChannelDetails={detailsFromRow}
         onSwitchWorkspace={onLeaveWorkspace}
         otherWorkspaces={otherWorkspaces}
         onOpenWorkspace={onOpenWorkspace}
@@ -1498,6 +1512,7 @@ function WorkspaceInner({
           <ChannelDetailsDialog
             key={activeChannelId}
             channelId={activeChannelId}
+            initialTab={dialog.tab}
             onChangeParticipants={(memberIds) =>
               setDialog({ kind: "new-dm", initialMemberIds: memberIds })
             }
