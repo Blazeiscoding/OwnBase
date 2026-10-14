@@ -1166,6 +1166,25 @@ textarea::placeholder {
 }
 
 /*
+ * A channel's own actions, as Discord's: invite and settings at the end of its
+ * row while the row is pointed at or holds the keyboard, and always on the
+ * channel open. The row's words and counts make room rather than run under
+ * them. Hidden, they are not in the Tab order; Tab onto the row shows them.
+ */
+.channel-actions {
+  display: none;
+}
+.channel-item:is(:hover, :focus-within, [data-active]) .channel-actions {
+  display: flex;
+}
+.channel-item[data-actions]:is(:hover, :focus-within, [data-active]) .channel-row {
+  padding-right: calc(var(--row-actions, 2) * 26px + 6px);
+}
+.channel-item[data-actions="1"] {
+  --row-actions: 1;
+}
+
+/*
  * A message's toolbar rises on hover or focus. A touchscreen has no hover, and
  * a tap that raised it covered the message above with icons too small to hit,
  * so there each message offers its menu instead, with room kept beside it.
