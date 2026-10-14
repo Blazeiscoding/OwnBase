@@ -34,8 +34,9 @@ still works) to choose the desktop profile location.
 
 While a workspace is hosted, or starting or stopping, closing Tandem's window
 does not stop it. The window goes to the system tray, whose icon offers **Open
-Tandem**, what is hosted and on which port, **Stop hosting…** and **Stop
-hosting and quit…**. Launching Tandem again, or opening a `tandem://`
+Tandem**, what is hosted and on which port, **Stop hosting** and **Stop
+hosting and quit**. Neither asks first, since each already says that hosting
+stops. Launching Tandem again, or opening a `tandem://`
 (or older `slackoss://`) link,
 also brings the window back. On a desktop with no tray, closing minimizes the
 window instead. With nothing hosted, closing the last window quits on Windows and
@@ -43,8 +44,9 @@ Linux; macOS keeps the app in the dock as usual.
 
 A bar under a workspace you are hosting says so and offers **Manage hosting**: the
 workspace's name, the addresses teammates connect to, its port and its data
-folder. Stopping, or quitting while hosting, asks first, because everyone
-connected is disconnected. Messages, files and accounts stay on disk. Quitting
+folder. Stopping from there, or quitting while hosting other than from the tray,
+asks first, because everyone connected is disconnected. Messages, files and
+accounts stay on disk. Quitting
 waits for a start already under way, and for the server to finish what it is
 doing. If stopping fails, Tandem stays open and says so. If it fails while
 quitting, you can keep Tandem open or quit anyway; quitting anyway ends at
@@ -118,9 +120,10 @@ scheduled messages waiting, app events not yet delivered and the apps it calls.
 **Put back in use…** asks first, then starts it as the workspace itself, which
 clears the hold for good.
 
-Only Windows has been checked. The packaged test closes the window while hosting,
-reads the tray menu, stops through the confirmation and quits with nothing
-hosted; the confirmations the tray and quitting show are not exercised. Whether a
+Only Windows has been checked. The packaged tests close the window while hosting,
+read the tray menu, stop hosting from the tray and through Manage hosting's
+confirmation, quit from the tray, and quit with nothing hosted; the system's own
+quit confirmation is answered by the test, never shown. Whether a
 tray appears on Linux depends on the desktop environment, and macOS has not been
 run.
 
