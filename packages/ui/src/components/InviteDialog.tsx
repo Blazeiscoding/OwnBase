@@ -141,8 +141,7 @@ export function InviteDialog(props: { onClose: () => void }) {
   }, [canInvite, invites, selfId]);
 
   async function copyLink(link: string) {
-    if (await copy(link, "browser"))
-      toast?.({ message: "Invite link copied.", kind: "success" });
+    if (await copy(link, "browser")) toast?.({ message: "Invite link copied.", kind: "success" });
   }
 
   async function revoke(code: string) {
