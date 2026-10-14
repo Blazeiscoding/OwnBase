@@ -157,7 +157,7 @@ const NewDmDialog = lazy(() =>
   import("../components/dialogs.js").then((module) => ({ default: module.NewDmDialog })),
 );
 const InviteDialog = lazy(() =>
-  import("../components/dialogs.js").then((module) => ({ default: module.InviteDialog })),
+  import("../components/InviteDialog.js").then((module) => ({ default: module.InviteDialog })),
 );
 const HuddleStage = lazy(() =>
   import("../components/HuddleStage.js").then((module) => ({ default: module.HuddleStage })),

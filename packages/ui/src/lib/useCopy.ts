@@ -22,6 +22,7 @@ export function useCopy(resetMs = 1500) {
       const ok = await writeClipboard(text);
       setState({ key, ok });
       timer.current = setTimeout(() => setState(null), resetMs);
+      return ok;
     },
     [resetMs],
   );
