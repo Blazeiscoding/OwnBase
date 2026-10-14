@@ -1,12 +1,22 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useStore } from "zustand";
+import { createStore } from "zustand/vanilla";
 import { canChooseSpeaker, captureFailure, type MediaDeviceOption } from "@slackoss/client-core";
-import { useClient, useWorkspace } from "../context.js";
+import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices } from "../lib/mediaDevices.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Swap } from "./Motion.js";
+import { ScreenShareDialog } from "./ScreenShareDialog.js";
 import { Tooltip } from "./Tooltip.js";
+
+/**
+ * Whether the desktop app's screen picker is open. The bar's controls show
+ * it. The controls in full screen leave full screen to open it, since a
+ * dialog does not show over full screen, and they go away as it ends.
+ */
+const picker = createStore(() => ({ open: false }));
 
 /** The system's default and then each device, the chosen one ticked. */
 function deviceItems(
@@ -82,11 +92,18 @@ export function HuddleControls({
   onOpenSettings?: () => void;
 }) {
   const client = useClient();
+  const platform = usePlatform();
   const huddle = useWorkspace((s) => s.huddle);
   const calls = useCallPreferences();
   const devices = useMediaDevices();
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
+  const choosingScreen = useStore(picker, (s) => s.open);
+  // The picker goes with the huddle, and does not open again with the next one.
+  useEffect(() => {
+    if (overlay) return;
+    return () => picker.setState({ open: false });
+  }, [overlay]);
   if (!huddle) return null;
 
   /**
@@ -116,6 +133,17 @@ export function HuddleControls({
   const lit = overlay
     ? "border-transparent bg-white/90 text-black"
     : "border-transparent bg-ink text-ground";
+
+  const shareScreen = () => {
+    // A browser shows its own picker, and stopping needs none.
+    if (huddle.sharingScreen || !platform.screenShare) {
+      void guarded("screen", () => client.toggleScreenShare());
+      return;
+    }
+    setFailure(null);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    picker.setState({ open: true });
+  };
 
   const choose = (kind: "microphone" | "camera", patch: CallDevices) =>
     void guarded(kind, () => chooseDevices(client, calls.devices, patch, calls.setDevices));
@@ -219,7 +247,7 @@ export function HuddleControls({
           <button
             aria-label="Share screen"
             aria-pressed={huddle.sharingScreen}
-            onClick={() => void guarded("screen", () => client.toggleScreenShare())}
+            onClick={shareScreen}
             disabled={busy !== null}
             className={toggleCls(huddle.sharingScreen, lit)}
           >
@@ -254,6 +282,9 @@ export function HuddleControls({
             Try again
           </button>
         </p>
+      )}
+      {choosingScreen && !overlay && (
+        <ScreenShareDialog onClose={() => picker.setState({ open: false })} />
       )}
       {failure && (
         <p

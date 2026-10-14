@@ -42,6 +42,19 @@ export interface HuddlePeer {
   trouble?: CallCause | null;
 }
 
+/**
+ * How sharp and how smooth a shared screen is sent: at most this many lines
+ * of picture, at most this many frames a second. Each viewer is encoded
+ * separately in a mesh, so even a 4K screen is sent at no more than 1080p.
+ * That is still sharp text.
+ */
+export interface ScreenShareQuality {
+  height: 720 | 1080;
+  frameRate: 15 | 30 | 60;
+}
+
+export const SCREEN_SHARE_QUALITY: ScreenShareQuality = { height: 1080, frameRate: 15 };
+
 /** How many lines a call keeps; the oldest go first. */
 const CALL_LOG_LIMIT = 400;
 /** How long a connection may take before the log says why not, and it tries again. */
@@ -960,8 +973,8 @@ export class HuddleSession {
     void this.publish("camera", null);
   }
 
-  /** Starts or stops sharing the screen. */
-  async toggleScreenShare(): Promise<void> {
+  /** Starts sharing the screen, at `quality`, or stops sharing it. */
+  async toggleScreenShare(quality: ScreenShareQuality = SCREEN_SHARE_QUALITY): Promise<void> {
     if (this.destroyed || this.acquiringScreen) return;
     if (this.screenTrack) {
       this.stopScreenShare();
@@ -972,12 +985,10 @@ export class HuddleSession {
     let display: MediaStream;
     try {
       display = await navigator.mediaDevices.getDisplayMedia({
-        // Each viewer is encoded separately in a mesh, so a 4K screen is sent
-        // at no more than 1080p. That is still sharp text.
         video: {
-          width: { max: 1920 },
-          height: { max: 1080 },
-          frameRate: { ideal: 15, max: 15 },
+          width: { max: (quality.height * 16) / 9 },
+          height: { max: quality.height },
+          frameRate: { ideal: quality.frameRate, max: quality.frameRate },
         },
         audio: false,
       });
@@ -992,8 +1003,9 @@ export class HuddleSession {
     if (!track) return;
     // Screen content: when bandwidth runs short, keep the resolution and drop
     // frames. Without the hint the encoder treats a screen like a camera and
-    // blurs the text first.
-    track.contentHint = "detail";
+    // blurs the text first. Sixty frames a second is asked for motion, a game
+    // or a video, which keeps moving and softens instead.
+    track.contentHint = quality.frameRate === 60 ? "motion" : "detail";
     this.screenTrack = track;
     this.localScreenStream = display;
     // Stopping from the browser's own bar must clean up too.

@@ -64,6 +64,10 @@ export interface SlackossBridge {
   takePlace: () => Promise<unknown>;
   onPrepareClose: (cb: (id: number) => void) => () => void;
   preparedClose: (id: number, saved: boolean) => Promise<void>;
+  /** Every screen and window that can be shared, with a picture of each; `quick` from the last list. */
+  screenSources: (quick: boolean) => Promise<unknown[] | null>;
+  /** Shares this screen or window at the next getDisplayMedia request. */
+  chooseScreen: (id: string) => Promise<void>;
 }
 
 const bridge: SlackossBridge = {
@@ -145,6 +149,8 @@ const bridge: SlackossBridge = {
     return () => ipcRenderer.removeListener("window:prepareClose", listener);
   },
   preparedClose: (id, saved) => ipcRenderer.invoke("window:preparedClose", id, saved),
+  screenSources: (quick) => ipcRenderer.invoke("screen:sources", quick),
+  chooseScreen: (id) => ipcRenderer.invoke("screen:choose", id),
 };
 
 contextBridge.exposeInMainWorld("slackoss", bridge);

@@ -52,6 +52,17 @@ export type CallRelayDraft =
   | { kind: "cloudflare"; keyId: string; apiToken?: string }
   | { kind: "custom"; urls: string[]; username: string; credential?: string };
 
+/** A screen or window the desktop app can share in a huddle. */
+export interface ShareableSource {
+  id: string;
+  name: string;
+  kind: "screen" | "window";
+  /** A picture of it as a data URL, or "" while there is none yet. */
+  thumbnail: string;
+  /** The icon of the app that owns a window as a data URL, or "" for a screen or an app without one. */
+  icon: string;
+}
+
 /** What a restored backup brings with it once it is put back in use. */
 export interface RestoreInventory {
   /** Where its apps are sent events, commands and button clicks. */
@@ -236,6 +247,24 @@ export interface Platform {
   notify: (title: string, body: string, onClick?: () => void, options?: { tag?: string }) => void;
   /** Hand a scoped download URL to the browser/OS; completion is managed there. */
   downloadFile?: (url: string) => Promise<void>;
+  /**
+   * The screens and windows this computer can share, for the app's own
+   * picker. Desktop only: a browser shows its own when a huddle asks.
+   */
+  screenShare?: {
+    /**
+     * Every screen, and every window showing something, each with a picture
+     * taken now, which can take seconds. `quick` answers at once from the
+     * last such list, less what has closed since, or with null when there has
+     * been none.
+     */
+    sources: (options?: { quick?: boolean }) => Promise<ShareableSource[] | null>;
+    /**
+     * Shares this one when the huddle next asks for a screen. Rejects, saying
+     * why, when it has gone since it was listed.
+     */
+    choose: (id: string) => Promise<void>;
+  };
   /** Subscribe to LAN server discovery. Returns unsubscribe. Desktop only. */
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;
   /**

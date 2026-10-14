@@ -12,4 +12,5 @@ export type {
   Platform,
   RestoreInventory,
   SavedServer,
+  ShareableSource,
 } from "./platform.js";
