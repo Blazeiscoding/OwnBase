@@ -778,7 +778,6 @@ export function HostDialog(props: {
   >(null);
   const operationPending = useRef(false);
   const [error, setError] = useState<{ message: string; tunnel?: boolean } | null>(null);
-  const [confirmStop, setConfirmStop] = useState(false);
   /** Null while the saved address is shown; a string while it is being edited. */
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
@@ -812,10 +811,6 @@ export function HostDialog(props: {
   useEffect(() => {
     void refresh();
   }, [refresh]);
-
-  useEffect(() => {
-    if (phase === "stopped") setConfirmStop(false);
-  }, [phase]);
 
   useEffect(() => {
     if (status?.inviteOnly !== undefined) setRequireInvite(status.inviteOnly);
@@ -1037,14 +1032,14 @@ export function HostDialog(props: {
     }
   }
 
+  // The button already says what it does, so it stops without asking first.
   async function stop() {
-    if (operationPending.current || unavailable || !confirmStop) return;
+    if (operationPending.current || unavailable) return;
     operationPending.current = true;
     setBusy("stopping");
     setError(null);
     try {
       await props.hosting.stop();
-      setConfirmStop(false);
     } catch {
       setError({
         message:
@@ -1177,9 +1172,7 @@ export function HostDialog(props: {
 
   return (
     <Dialog
-      title={
-        confirmStop ? "Stop hosting?" : status?.running ? "Workspace is live" : "Host a workspace"
-      }
+      title={status?.running ? "Workspace is live" : "Host a workspace"}
       onClose={() => {
         if (!operationPending.current) props.onClose();
       }}
@@ -1603,73 +1596,43 @@ export function HostDialog(props: {
         </p>
       )}
       {!statusError && status && (status.running || changing) ? (
-        confirmStop ? (
-          <div>
-            <p className="text-sm text-ink-dim">
-              Teammates will be disconnected until hosting starts again. Messages, files and
-              accounts stay in the workspace data folder.
+        <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-4">
+          {backupStatus && <div className="w-full">{backupStatus}</div>}
+          {runningEntry && runningEntry.lastBackupAt === null && backupFn && (
+            <p className="w-full text-xs text-ink-dim">
+              This workspace has not been backed up from this computer yet.
             </p>
-            <div className="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                disabled={!!busy || changing}
-                onClick={() => setConfirmStop(false)}
-                className="rounded-lg border border-edge px-4 py-2.5 text-sm disabled:opacity-40"
-              >
-                Keep hosting
-              </button>
-              <button
-                type="button"
-                disabled={unavailable}
-                onClick={() => void stop()}
-                className={buttonClass("danger")}
-              >
-                {busy === "stopping" || phase === "stopping" ? "Stopping…" : "Stop hosting"}
-              </button>
-            </div>
-          </div>
-        ) : (
-          <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-4">
-            {backupStatus && <div className="w-full">{backupStatus}</div>}
-            {runningEntry && runningEntry.lastBackupAt === null && backupFn && (
-              <p className="w-full text-xs text-ink-dim">
-                This workspace has not been backed up from this computer yet.
-              </p>
-            )}
-            {!props.viewingHosted && (
-              <button
-                type="button"
-                className={buttonClass("primary")}
-                disabled={unavailable || !status.running || status.port === undefined}
-                onClick={() => props.onStarted(status)}
-              >
-                Open it
-              </button>
-            )}
-            {backupFn && status.folder && (
-              <button
-                type="button"
-                disabled={unavailable}
-                className={buttonClass("secondary")}
-                onClick={() => void backUp(status.folder!, status.workspaceName ?? "the workspace")}
-              >
-                {busy === "backing-up" ? "Backing up…" : "Back up now"}
-              </button>
-            )}
-            {/* Ending the workspace for everyone stands apart from the rest. */}
+          )}
+          {!props.viewingHosted && (
+            <button
+              type="button"
+              className={buttonClass("primary")}
+              disabled={unavailable || !status.running || status.port === undefined}
+              onClick={() => props.onStarted(status)}
+            >
+              Open it
+            </button>
+          )}
+          {backupFn && status.folder && (
             <button
               type="button"
               disabled={unavailable}
-              className="ml-auto inline-flex h-9 items-center rounded-lg border border-alert/30 px-3.5 text-sm font-medium text-alert transition-colors hover:bg-alert/10 disabled:opacity-40"
-              onClick={() => {
-                setError(null);
-                setConfirmStop(true);
-              }}
+              className={buttonClass("secondary")}
+              onClick={() => void backUp(status.folder!, status.workspaceName ?? "the workspace")}
             >
-              Stop hosting
+              {busy === "backing-up" ? "Backing up…" : "Back up now"}
             </button>
-          </div>
-        )
+          )}
+          {/* Ending the workspace for everyone stands apart from the rest. */}
+          <button
+            type="button"
+            disabled={unavailable}
+            className="ml-auto inline-flex h-9 items-center rounded-lg border border-alert/30 px-3.5 text-sm font-medium text-alert transition-colors hover:bg-alert/10 disabled:opacity-40"
+            onClick={() => void stop()}
+          >
+            {busy === "stopping" ? "Stopping…" : "Stop hosting"}
+          </button>
+        </div>
       ) : !loading && !statusError && status ? (
         <>
           <p className="mb-4 text-sm text-ink-dim">

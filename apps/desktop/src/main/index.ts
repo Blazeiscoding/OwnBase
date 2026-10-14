@@ -741,8 +741,7 @@ handle("hosting:backup", async (event, folder: unknown) => {
 });
 handle("hosting:start", async (_e, opts: unknown) => {
   if (quitting) throw new Error("Tandem is shutting down. Try again after reopening it.");
-  if (trayStopPending)
-    throw new Error("Finish the stop-hosting confirmation before starting a workspace.");
+  if (trayStopPending) throw new Error("Wait for hosting to stop before starting a workspace.");
   await hosting.start(opts);
   return hostingStatus();
 });
@@ -840,14 +839,14 @@ function showMainWindow(): BrowserWindow | null {
   return win;
 }
 
-async function confirmStop(forQuit: boolean): Promise<boolean> {
+async function confirmStopAndQuit(): Promise<boolean> {
   const choice = await dialog.showMessageBox({
     type: "question",
-    title: forQuit ? "Stop hosting and quit?" : "Stop hosting?",
-    message: forQuit ? "Quit Tandem and stop the hosted workspace?" : "Stop the hosted workspace?",
+    title: "Stop hosting and quit?",
+    message: "Quit Tandem and stop the hosted workspace?",
     detail:
       "Teammates will be disconnected until you start hosting again. Stored messages and files stay on this computer.",
-    buttons: ["Cancel", forQuit ? "Stop hosting and quit" : "Stop hosting"],
+    buttons: ["Cancel", "Stop hosting and quit"],
     defaultId: 0,
     cancelId: 0,
   });
@@ -855,12 +854,13 @@ async function confirmStop(forQuit: boolean): Promise<boolean> {
 }
 
 let trayStopPending = false;
+// The tray's label already says hosting stops, so it does not ask first.
 async function stopFromTray(): Promise<void> {
   if (trayStopPending || quitting) return;
   trayStopPending = true;
   updateTray();
   try {
-    if (await confirmStop(false)) await hosting.stop();
+    await hosting.stop();
   } catch {
     showMainWindow();
     await dialog.showMessageBox({
@@ -923,7 +923,7 @@ function updateTray(): void {
         },
       })),
       {
-        label: "Stop hosting…",
+        label: "Stop hosting",
         enabled: status.phase === "running" && !quitting && !trayStopPending,
         click: () => {
           void stopFromTray().catch(() => {});
@@ -1216,7 +1216,7 @@ function quitTandem(stopConfirmed: boolean): void {
   quitting = true;
   updateTray();
   quitTask = (async () => {
-    if (!stopConfirmed && hosting.status().phase !== "stopped" && !(await confirmStop(true))) {
+    if (!stopConfirmed && hosting.status().phase !== "stopped" && !(await confirmStopAndQuit())) {
       quitting = false;
       updateTray();
       return;
