@@ -61,6 +61,8 @@ const LEVELS: { value: NotifyLevel; label: string; hint: string }[] = [
 /** Channel topic and description, plus who's in it. */
 export function ChannelDetailsDialog(props: {
   channelId: ID;
+  /** The tab it opens on: Members, to add someone, from a private channel's row. */
+  initialTab?: Tab;
   onClose: () => void;
   onLeft: () => void;
   onOpenProfile: (userId: ID) => void;
@@ -73,7 +75,7 @@ export function ChannelDetailsDialog(props: {
   const self = useWorkspace((s) => s.self);
   const selfId = self?.id;
   const membership = useWorkspace((s) => props.channelId in s.memberships);
-  const [tab, setTab] = useState<Tab>("about");
+  const [tab, setTab] = useState<Tab>(props.initialTab ?? "about");
   const tabs = useTabs({ label: "Channel details", tabs: TABS, selected: tab, onSelect: setTab });
   const [memberIds, setMemberIds] = useState<ID[]>([]);
   const [topic, setTopic] = useState(channel?.topic ?? "");
