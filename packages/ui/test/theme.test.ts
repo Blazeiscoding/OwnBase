@@ -234,3 +234,30 @@ describe("avatar colours", () => {
     ).toEqual([]);
   });
 });
+
+describe("emoji in text", () => {
+  it("come from an emoji face named after every text face, so no letter or digit does", () => {
+    const theme = block("@theme {");
+    const stack = (name: string) =>
+      new RegExp(`--font-${name}:([^;]+);`)
+        .exec(theme)![1]!
+        .split(",")
+        .map((face) => face.trim());
+    expect(stack("sans").slice(-3)).toEqual([
+      '"Apple Color Emoji"',
+      '"Noto Color Emoji"',
+      "sans-serif",
+    ]);
+    expect(stack("mono").slice(-3)).toEqual([
+      '"Apple Color Emoji"',
+      '"Noto Color Emoji"',
+      "monospace",
+    ]);
+    // What holds only emoji takes them first.
+    expect(stack("emoji")).toEqual([
+      '"Apple Color Emoji"',
+      '"Noto Color Emoji"',
+      "var(--font-sans)",
+    ]);
+  });
+});

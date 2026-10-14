@@ -45,6 +45,12 @@ export function useListbox(count: number) {
       setChosen((i) => (Math.min(i, count - 1) + step) % count);
       return true;
     },
+    /** Moves the choice to one option, as a key does, so it scrolls into view. */
+    moveTo(index: number) {
+      if (count === 0) return;
+      moved.current = true;
+      setChosen(Math.max(0, Math.min(index, count - 1)));
+    },
     /**
      * For a textarea, which stays a text box: a combobox is an input, and a text
      * box has no `aria-expanded`.

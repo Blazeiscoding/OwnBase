@@ -1,9 +1,12 @@
-import { useId, useRef, useState } from "react";
-import { findEmoji } from "../lib/emoji.js";
-import { isImeKey } from "../lib/textInput.js";
-import { useListbox } from "../lib/useListbox.js";
+import { Suspense, lazy, useId, useRef, useState } from "react";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
+
+// Every emoji is far too much for the first download; the workspace fetches it as it opens.
+const EmojiPicker = lazy(() =>
+  import("./EmojiPicker.js").then((module) => ({ default: module.EmojiPicker })),
+);
 
 export const MESSAGE_LIMIT = 12_000;
 export const formattingShortcut = (key: string) => ({ b: "*", i: "_", e: "`" })[key.toLowerCase()];
@@ -71,10 +74,7 @@ export function FormattingToolbar({
   // for what is being written. theme.css does the folding.
   const [expanded, setExpanded] = useState(false);
   const buttonsId = useId();
-  const [query, setQuery] = useState("");
   const trigger = useRef<HTMLButtonElement>(null);
-  const matches = findEmoji(query);
-  const list = useListbox(matches.length);
   function insert(emoji: string) {
     onInsert(emoji);
     setOpen(false);
@@ -163,10 +163,7 @@ export function FormattingToolbar({
             aria-label="Insert emoji"
             aria-expanded={open}
             onMouseDown={(e) => e.preventDefault()}
-            onClick={() => {
-              setOpen((v) => !v);
-              setQuery("");
-            }}
+            onClick={() => setOpen((v) => !v)}
             className={`${tool} ${open ? "bg-ink/[0.08] text-ink" : ""}`}
           >
             <Icon name="smile" size={16} />
@@ -179,8 +176,8 @@ export function FormattingToolbar({
           aria-label="Choose an emoji"
           className={
             inline
-              ? "surface-float absolute bottom-full left-2 z-20 mb-2 w-72 origin-bottom-left animate-menu-in rounded-xl p-2"
-              : "border-b border-edge/60 p-2"
+              ? "surface-float absolute bottom-full left-2 z-20 mb-2 w-[360px] max-w-[calc(100vw-1rem)] origin-bottom-left animate-menu-in overflow-hidden rounded-xl"
+              : "border-b border-edge/60"
           }
           onKeyDown={(e) => {
             if (e.key === "Escape") {
@@ -191,51 +188,26 @@ export function FormattingToolbar({
             }
           }}
         >
-          <input
-            autoFocus
-            {...list.comboboxProps}
-            aria-label="Search emoji"
-            placeholder="Search emoji"
-            value={query}
-            onChange={(e) => {
-              setQuery(e.target.value);
-              list.choose(0);
-            }}
-            onKeyDown={(e) => {
-              if (isImeKey(e.nativeEvent) || list.move(e)) return;
-              const chosen = matches[list.active];
-              if (e.key === "Enter" && chosen) {
-                e.preventDefault();
-                insert(chosen[0]);
-              }
-            }}
-            className="mb-2 w-full rounded-lg border border-edge bg-ground px-2.5 py-1.5 text-sm outline-none focus:border-copper"
-          />
-          <ul
-            {...list.listProps}
-            aria-label="Emoji"
-            className="grid max-h-36 grid-cols-6 gap-1 overflow-y-auto"
+          <ErrorBoundary
+            fallback={
+              <p role="alert" className="p-3 text-sm text-ink-dim">
+                The emoji picker could not load. Reload the app to try again.
+              </p>
+            }
           >
-            {matches.map(([emoji, label], i) => (
-              <li
-                key={label}
-                {...list.optionProps(i)}
-                aria-label={label}
-                title={label}
-                onClick={() => insert(emoji)}
-                className={`cursor-pointer rounded-lg p-1 text-center text-xl hover:bg-ink/[0.07] ${
-                  i === list.active ? "bg-ink/[0.09]" : ""
-                }`}
-              >
-                {emoji}
-              </li>
-            ))}
-          </ul>
-          {!matches.length && (
-            <p role="status" className="py-2 text-sm text-ink-faint">
-              No emoji matched. Try another word.
-            </p>
-          )}
+            <Suspense
+              fallback={
+                <p role="status" className="p-3 text-sm text-ink-faint">
+                  Loading emoji…
+                </p>
+              }
+            >
+              {/* As wide as it floats in the composer, not the width of the edit box. */}
+              <div className="max-w-[360px]">
+                <EmojiPicker onPick={insert} autoFocus />
+              </div>
+            </Suspense>
+          </ErrorBoundary>
         </div>
       )}
     </>

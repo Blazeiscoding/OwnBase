@@ -23,6 +23,8 @@
     "visualizer:serve": "node scripts/serve-project-visualizer.mjs"
   },
   "devDependencies": {
+    "@emoji-mart/data": "1.2.1",
+    "@fontsource/noto-color-emoji": "5.3.2",
     "@playwright/test": "^1.63.0",
     "@types/node": "^24.3.0",
     "prettier": "^3.6.2",

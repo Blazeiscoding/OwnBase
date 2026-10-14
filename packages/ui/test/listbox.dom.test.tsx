@@ -189,14 +189,20 @@ describe("the composer's suggestions", () => {
     expect(box).toHaveValue("/rename ");
   });
 
-  it("finish a word after a colon as an emoji, and leave a time alone", async () => {
+  it("finish a word after a colon as an emoji, the closest first, and leave a time alone", async () => {
     const { box, client, user } = await renderComposer();
     const send = vi.spyOn(client, "send").mockReturnValue(true);
     await user.type(box, "Shipped :rock");
-    const emoji = screen.getByRole("listbox", { name: "Emoji" });
+    // Every emoji arrives on first use, so the list waits for them.
+    const emoji = await screen.findByRole("listbox", { name: "Emoji" });
     const options = within(emoji).getAllByRole("option");
-    expect(options.map((option) => option.textContent)).toEqual(["🚀Rocket launch"]);
+    // The shortcode itself first, then those starting so: Slack's names.
+    expect(options.slice(0, 2).map((option) => option.textContent)).toEqual([
+      "🪨:rock:",
+      "🚀:rocket:",
+    ]);
     expect(pointedAt(box)).toBe(options[0]);
+    await user.keyboard("{ArrowDown}");
     // Enter chooses the emoji rather than sending half a word.
     await user.keyboard("{Enter}");
     expect(box).toHaveValue("Shipped 🚀 ");
@@ -206,14 +212,24 @@ describe("the composer's suggestions", () => {
     await user.type(box, "at 10:30 :t");
     expect(screen.queryByRole("listbox", { name: "Emoji" })).not.toBeInTheDocument();
     await user.type(box, "h");
+    // :thumbsup: is another name for :+1:; the common ones lead.
     expect(
       within(screen.getByRole("listbox", { name: "Emoji" }))
         .getAllByRole("option")
+        .slice(0, 2)
         .map((option) => option.textContent),
-    ).toEqual(["👍Thumbs up yes", "🙏Thanks please", "🤔Thinking question"]);
+    ).toEqual(["👍:+1:", "🤔:thinking_face:"]);
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("listbox", { name: "Emoji" })).not.toBeInTheDocument();
     expect(box).toHaveValue("at 10:30 :th");
+  });
+
+  it("turn a shortcode typed out in full into its emoji, as Slack does, but not in code", async () => {
+    const { box, user } = await renderComposer();
+    await user.type(box, "Done :ta");
+    await screen.findByRole("listbox", { name: "Emoji" });
+    await user.type(box, "da: and `:tada:` and :not_an_emoji:");
+    expect(box).toHaveValue("Done 🎉 and `:tada:` and :not_an_emoji:");
   });
 });
 
@@ -222,21 +238,30 @@ describe("choosing an emoji", () => {
     const { box, user } = await renderComposer();
     await user.type(box, "Ship it ");
     await user.click(screen.getByRole("button", { name: "Insert emoji" }));
-    const search = screen.getByRole("combobox", { name: "Search emoji" });
+    // The picker arrives on first use.
+    const search = await screen.findByRole("combobox", { name: "Search emoji" });
     expect(search).toHaveFocus();
     expect(search).toHaveAttribute("aria-expanded", "true");
     await user.type(search, "smile");
     const emoji = within(screen.getByRole("listbox", { name: "Emoji" })).getAllByRole("option");
-    expect(emoji.map((o) => o.getAttribute("aria-label"))).toEqual(["Smile happy", "Smile blush"]);
+    expect(emoji.slice(0, 2).map((o) => o.getAttribute("aria-label"))).toEqual([
+      "Grinning Face with Smiling Eyes",
+      "Grinning Face with Sweat",
+    ]);
+    expect(pointedAt(search)).toBe(emoji[0]);
+    // Right moves the caret in what was typed, until the arrows have gone into the grid.
+    await user.keyboard("{ArrowRight}");
     expect(pointedAt(search)).toBe(emoji[0]);
     await user.keyboard("{ArrowDown}");
-    expect(pointedAt(search)).toBe(emoji[1]);
+    expect(pointedAt(search)).toBe(emoji[9]);
+    await user.keyboard("{ArrowRight}");
+    expect(pointedAt(search)).toBe(emoji[10]);
     expect(
       await accessibilityProblems(screen.getByRole("group", { name: "Choose an emoji" })),
     ).toEqual([]);
 
     await user.keyboard("{Enter}");
-    expect(box).toHaveValue("Ship it 😊");
+    expect(box).toHaveValue(`Ship it ${emoji[10]!.textContent}`);
     expect(box).toHaveFocus();
     expect(screen.queryByRole("combobox", { name: "Search emoji" })).not.toBeInTheDocument();
   });
@@ -260,12 +285,15 @@ describe("choosing an emoji", () => {
     try {
       render(<ReactionPicker onPick={() => {}} onClose={() => {}} />);
       const user = userEvent.setup();
-      const emoji = within(screen.getByRole("listbox", { name: "Emoji" })).getAllByRole("option");
+      const emoji = within(screen.getByRole("group", { name: "Frequently used" })).getAllByRole(
+        "option",
+      );
       await user.hover(emoji[3]!);
       expect(scrolled).not.toHaveBeenCalled();
+      // Down is a row down: nine emoji on.
       await user.keyboard("{ArrowDown}");
       expect(scrolled).toHaveBeenCalledOnce();
-      expect(scrolled.mock.contexts[0]).toBe(emoji[4]);
+      expect(scrolled.mock.contexts[0]).toBe(emoji[12]);
     } finally {
       delete (Element.prototype as Partial<Element>).scrollIntoView;
     }

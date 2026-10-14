@@ -57,6 +57,7 @@ import {
   type RouteDialog,
   type RouteView,
 } from "../lib/route.js";
+import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 
 const ActivityPanel = lazy(() =>
@@ -643,9 +644,11 @@ function WorkspaceInner({
   useHistoryKeys(platform.kind === "desktop");
 
   useEffect(() => {
-    // Failing here is not final: opening the palette, or a thread, fetches it again.
+    // Failing here is not final: opening the palette, a thread or an emoji picker fetches it again.
     loadQuickSwitcher().catch(() => undefined);
     loadThreadPanel().catch(() => undefined);
+    loadEmoji().catch(() => undefined);
+    import("../components/EmojiPicker.js").catch(() => undefined);
   }, []);
 
   useEffect(() => {

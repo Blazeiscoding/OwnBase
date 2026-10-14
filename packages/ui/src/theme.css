@@ -77,13 +77,22 @@
   --color-cream: #f3d49b;
   --color-mention: rgba(249, 115, 22, 0.08); /* a message that names you */
 
-  /* Onest: open and round like Discord's own face, and bundled. */
+  /*
+   * Onest: open and round like Discord's own face, and bundled. Emoji are
+   * Apple's on an Apple device and Noto Color Emoji, bundled in emoji.css,
+   * everywhere else, as Slack shows them; named last, so that no letter, digit
+   * or sign a text face has is ever taken from an emoji face.
+   */
   --font-sans:
     "Onest Variable", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system,
-    "Helvetica Neue", sans-serif;
+    "Helvetica Neue", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
   --font-display: var(--font-sans);
   --font-brand: var(--font-sans);
-  --font-mono: "Geist Mono Variable", "Cascadia Code", ui-monospace, "SF Mono", Consolas, monospace;
+  --font-mono:
+    "Geist Mono Variable", "Cascadia Code", ui-monospace, "SF Mono", Consolas, "Apple Color Emoji",
+    "Noto Color Emoji", monospace;
+  /* For what holds only emoji: theirs first, so a heart is never the text face's. */
+  --font-emoji: "Apple Color Emoji", "Noto Color Emoji", var(--font-sans);
 
   --shadow-float:
     0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 4px -1px rgb(0 0 0 / 0.18),
@@ -1329,6 +1338,88 @@ textarea::placeholder {
     translate: 0 -7.5px;
     rotate: 0deg;
   }
+}
+
+/* A message of a few emoji and nothing else shows them large, as Slack does. */
+.message-jumbo {
+  font-size: 32px;
+  line-height: 1.25;
+}
+
+/*
+ * The emoji picker (EmojiPicker.tsx). Rows and titles have fixed heights:
+ * a section not yet drawn is held open at its height (content-visibility),
+ * and a jump to a section lands on it only if that height is exact. Not
+ * drawing the sections out of sight also means the emoji font is not read
+ * for nearly two thousand glyphs at once.
+ */
+.emoji-scroll {
+  position: relative;
+  height: 288px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 8px;
+}
+/* Contained, so it clips what it draws: the sides' room is inside it, not around it. */
+.emoji-section {
+  content-visibility: auto;
+}
+.emoji-section-title {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  height: 28px;
+  padding: 0 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--color-ink-dim);
+  /* Emoji scrolling under it blur away rather than show through. The surface it sits on. */
+  background: color-mix(in oklab, var(--emoji-surface, var(--color-lifted)) 92%, transparent);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+}
+/* In a dialog, as on a touchscreen, the picker sits on the raised surface. */
+.dialog-surface .emoji-picker {
+  --emoji-surface: var(--color-raised);
+}
+.emoji-grid {
+  display: grid;
+  padding: 0 8px;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  grid-auto-rows: 36px;
+}
+.emoji-cell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 24px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  /* Brought into view below the section's title, not under it. */
+  scroll-margin-top: 28px;
+  transition:
+    background-color var(--duration-quick) ease-out,
+    scale var(--duration-quick) var(--ease-smooth);
+}
+.emoji-cell[aria-selected="true"] {
+  background: color-mix(in oklab, var(--color-ink) 9%, transparent);
+  scale: 1.12;
+}
+.emoji-mark[aria-current="true"] {
+  color: var(--color-ink);
+  background: color-mix(in oklab, var(--color-ink) 8%, transparent);
+}
+.emoji-preview {
+  font-size: 30px;
+  line-height: 1;
+}
+.emoji-tone {
+  font-size: 20px;
+  line-height: 1;
 }
 
 /*

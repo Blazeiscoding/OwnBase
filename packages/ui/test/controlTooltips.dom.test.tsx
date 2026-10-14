@@ -148,7 +148,8 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     const emoji = screen.getByRole("button", { name: "Insert emoji" });
     expect(await tabTo(user, emoji)).toHaveTextContent("Insert emoji");
     await user.keyboard("{Enter}");
-    expect(screen.getByRole("combobox", { name: "Search emoji" })).toHaveFocus();
+    // The picker arrives on first use.
+    expect(await screen.findByRole("combobox", { name: "Search emoji" })).toHaveFocus();
     await user.keyboard("{Escape}");
     // The chooser hands focus back through the ref the tooltip wraps.
     expect(emoji).toHaveFocus();
