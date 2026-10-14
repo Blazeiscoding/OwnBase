@@ -1036,9 +1036,10 @@ function createWindow(): void {
 
   // Huddles need the microphone, screen share needs display capture, and
   // notifications need their own permission: refused, the renderer's
-  // Notification reports "denied" and never shows. Grant those to our own
-  // renderer; refuse everything else.
-  const allowed = new Set(["media", "display-capture", "notifications"]);
+  // Notification reports "denied" and never shows. A huddle's stage goes full
+  // screen; refused, its request never settles and the stage stays put.
+  // Grant those to our own renderer; refuse everything else.
+  const allowed = new Set(["media", "display-capture", "notifications", "fullscreen"]);
   mainWindow.webContents.session.setPermissionRequestHandler(
     (wc, permission, callback, details) => {
       callback(
