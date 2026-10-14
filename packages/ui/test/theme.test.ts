@@ -261,3 +261,15 @@ describe("emoji in text", () => {
     ]);
   });
 });
+
+describe("the emoji picker's grid", () => {
+  it("shows its scrollbar before the pointer is over it, unlike the app's others", () => {
+    // Every other scrollbar waits for the pointer.
+    expect(block("until the pointer is over them. */\n* {")).toContain(
+      "scrollbar-color: transparent transparent;",
+    );
+    const grid = block(".emoji-scroll {");
+    expect(grid).toMatch(/scrollbar-color: color-mix\([^;]*var\(--color-ink\)[^;]*\) transparent;/);
+    expect(grid).toContain("scrollbar-gutter: stable;");
+  });
+});

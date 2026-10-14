@@ -1359,6 +1359,16 @@ textarea::placeholder {
   overflow-y: auto;
   overscroll-behavior: contain;
   padding-bottom: 8px;
+  /*
+   * A long grid to drag through, so unlike the app's other scrollbars this
+   * one shows before the pointer is over it, firmer when it is. Its room is
+   * kept, so the grid does not narrow when a search fills less of it.
+   */
+  scrollbar-gutter: stable;
+  scrollbar-color: color-mix(in oklab, var(--color-ink) 28%, transparent) transparent;
+}
+.emoji-scroll:hover {
+  scrollbar-color: color-mix(in oklab, var(--color-ink) 45%, transparent) transparent;
 }
 /* Contained, so it clips what it draws: the sides' room is inside it, not around it. */
 .emoji-section {

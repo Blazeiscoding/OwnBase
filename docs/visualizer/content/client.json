@@ -274,7 +274,7 @@
         "It also holds the dialog layout: a capped column whose scrolling region keeps a constant content width through container units, contains overscroll, and fades at an edge with more beyond it through a scroll timeline.",
         "Theme tests check the project's chosen type/radius scale and color contrast; these checks support consistency without replacing manual usability inspection.",
         "Motion follows transitions.dev's scale, written down as tokens: durations, two easings and distances and blurs, each named for what it is for. Surfaces open in 250 ms and close in 150 ms; arrivals may overshoot and departures never do. The keyframes name only where they start and fill backwards, so a finished animation leaves no transform behind. The phone drawer slides both ways with @starting-style and a discrete display transition, and asking for less motion stops all of it.",
-        "Emoji come from Apple Color Emoji on an Apple device and the bundled Noto Color Emoji elsewhere, named last in every font stack so no letter, digit or sign is taken from them; font-emoji puts them first for what holds only emoji. It also styles the emoji picker's grid and makes an emoji-only message large.",
+        "Emoji come from Apple Color Emoji on an Apple device and the bundled Noto Color Emoji elsewhere, named last in every font stack so no letter, digit or sign is taken from them; font-emoji puts them first for what holds only emoji. It also styles the emoji picker's grid, whose scrollbar shows before it is pointed at where the app's others hide, and makes an emoji-only message large.",
         "Icons move the way Its Hover's do, with its timings, inside a control marked icon-live: the smile blinks, the reply arrow nudges back, the speech bubble draws itself, the bookmark squeezes for as long as it is pointed at, the pencil writes its way up and the three dots land one after another. Distances are in the drawing's own units. The motion plays for a pointer that hovers or for keyboard focus, and not at all for someone who asked for less motion."
       ],
       "concepts": ["design tokens", "themes", "density", "responsive layout", "focus styling"]
@@ -1086,7 +1086,7 @@
       "details": [
         "formatText wraps or inserts syntax and returns the corresponding selection so composer/editor behavior stays consistent.",
         "The toolbar supplies supported formatting and preview affordances; formattingShortcut and MESSAGE_LIMIT keep keyboard handling and validation aligned.",
-        "Its emoji button opens the same EmojiPicker the reactions use, loaded on first use, with a loading line meanwhile and a message if it cannot load."
+        "Its emoji button opens the same EmojiPicker the reactions use, loaded on first use, with a loading line meanwhile and a message if it cannot load. Escape, its own button or a press anywhere outside it closes it, and a press outside leaves focus where it landed."
       ],
       "concepts": ["formatting", "shared input behavior", "message limit"]
     },
