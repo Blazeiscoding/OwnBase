@@ -115,11 +115,31 @@ const HuddleBar = lazy(() =>
 const ViewModal = lazy(() =>
   import("../components/ViewModal.js").then((module) => ({ default: module.ViewModal })),
 );
-/** Fetched as the header's search box is entered, so Enter there opens it at once. */
-const loadSearchDialog = () => import("../components/SearchDialog.js");
-const SearchDialog = lazy(() =>
-  loadSearchDialog().then((module) => ({ default: module.SearchDialog })),
-);
+/**
+ * Search is fetched as the header's search box is entered, and drawn directly
+ * from then on: what is typed there goes on in the dialog's field, so it must
+ * not land on a loading state.
+ */
+let LoadedSearchDialog: (typeof import("../components/SearchDialog.js"))["SearchDialog"] | null =
+  null;
+const loadSearchDialog = () =>
+  import("../components/SearchDialog.js").then((module) => {
+    LoadedSearchDialog = module.SearchDialog;
+    return { default: module.SearchDialog };
+  });
+const LazySearchDialog = lazy(loadSearchDialog);
+function SearchDialog(props: ComponentProps<typeof LazySearchDialog>) {
+  // Chosen once: swapping one for the other when the download lands would
+  // start a search being typed over.
+  const [Loaded] = useState(() => LoadedSearchDialog);
+  return Loaded ? (
+    <Loaded {...props} />
+  ) : (
+    <LazyDialog loading="Loading search" onClose={props.onClose}>
+      <LazySearchDialog {...props} />
+    </LazyDialog>
+  );
+}
 // Forms opened now and then, and the video stage shown only during a call
 // with video, load on first use too.
 const NewChannelDialog = lazy(() =>
@@ -177,8 +197,10 @@ const loadQuickSwitcher = () =>
   });
 const LazySwitcher = lazy(loadQuickSwitcher);
 function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
-  return LoadedSwitcher ? (
-    <LoadedSwitcher {...props} />
+  // Chosen once, as for search: a swap would start the palette over.
+  const [Loaded] = useState(() => LoadedSwitcher);
+  return Loaded ? (
+    <Loaded {...props} />
   ) : (
     <LazyDialog loading="Loading Jump to" onClose={props.onClose}>
       <LazySwitcher {...props} />
@@ -199,8 +221,10 @@ const loadThreadPanel = () =>
   });
 const LazyThreadPanel = lazy(loadThreadPanel);
 function ThreadPanel(props: ComponentProps<typeof LazyThreadPanel>) {
-  return LoadedThreadPanel ? (
-    <LoadedThreadPanel {...props} />
+  // Chosen once, as for search: a swap would start the thread over.
+  const [Loaded] = useState(() => LoadedThreadPanel);
+  return Loaded ? (
+    <Loaded {...props} />
   ) : (
     <LazyPanel name="Thread" onClose={props.onClose}>
       <LazyThreadPanel {...props} />
@@ -230,7 +254,7 @@ type DialogKind =
   | { kind: "new-dm"; initialMemberIds?: ID[] }
   | { kind: "invite" }
   | { kind: "switcher" }
-  | { kind: "search"; query?: string }
+  | { kind: "search"; query?: string; typing?: boolean }
   | { kind: "account"; section?: AccountSection }
   | { kind: "profile"; userId: ID }
   | { kind: "channel-details" }
@@ -1230,7 +1254,9 @@ function WorkspaceInner({
                 }
               />
             )}
-            <HeaderSearch onSearch={(query) => setDialog({ kind: "search", query })} />
+            <HeaderSearch
+              onSearch={(query, typing) => setDialog({ kind: "search", query, typing })}
+            />
           </div>
         </header>
 
@@ -1408,14 +1434,13 @@ function WorkspaceInner({
         />
       )}
       {dialog.kind === "search" && (
-        <LazyDialog loading="Loading search" onClose={closeDialog}>
-          <SearchDialog
-            channelId={activeChannelId}
-            initialQuery={dialog.query}
-            onClose={closeDialog}
-            onJump={jumpToMessage}
-          />
-        </LazyDialog>
+        <SearchDialog
+          channelId={activeChannelId}
+          initialQuery={dialog.query}
+          typing={dialog.typing}
+          onClose={closeDialog}
+          onJump={jumpToMessage}
+        />
       )}
       {dialog.kind === "shortcuts" && (
         <LazyDialog loading="Loading keyboard shortcuts" onClose={closeDialog}>
@@ -1572,12 +1597,31 @@ function NavigationToggle(props: {
 }
 
 /**
- * Discord's search box: a field, where what is typed is searched on Enter and
- * the search then follows further typing. A phone has no room for a field, so
- * there it is a button that opens search.
+ * The header's search box. The first thing typed in it opens search with the
+ * typing carried on in the dialog's field, where results follow it, so nobody
+ * has to press Enter. A phone has no room for a field, so there it is a button
+ * that opens search.
  */
-function HeaderSearch(props: { onSearch: (query: string) => void }) {
+function HeaderSearch(props: { onSearch: (query: string, typing?: boolean) => void }) {
   const [value, setValue] = useState("");
+  /** What is in the box now, for a hand-over that waits on the download. */
+  const typed = useRef("");
+  function carryOn(text: string) {
+    typed.current = text;
+    if (!text.trim()) return;
+    if (LoadedSearchDialog) {
+      typed.current = "";
+      setValue("");
+      props.onSearch(text, true);
+      return;
+    }
+    // Until the dialog has arrived, typing stays here, so no key is lost; it
+    // then takes everything typed by then.
+    loadSearchDialog().then(
+      () => carryOn(typed.current),
+      () => undefined,
+    );
+  }
   return (
     <>
       <div className="header-search relative ml-1 flex h-7 items-center rounded-md bg-deep text-[13px]">
@@ -1589,16 +1633,26 @@ function HeaderSearch(props: { onSearch: (query: string) => void }) {
             placeholder="Search"
             maxLength={200}
             value={value}
-            onFocus={() => void loadSearchDialog()}
-            onChange={(e) => setValue(e.target.value)}
+            onFocus={() => void loadSearchDialog().catch(() => undefined)}
+            onChange={(e) => {
+              setValue(e.target.value);
+              // A word an input method is still putting together is handed
+              // over when it is chosen; moving focus now would break it.
+              if ((e.nativeEvent as InputEvent).isComposing) typed.current = e.target.value;
+              else carryOn(e.target.value);
+            }}
+            onCompositionEnd={(e) => carryOn(e.currentTarget.value)}
             onKeyDown={(e) => {
               if (isImeKey(e.nativeEvent)) return;
+              // Only before the dialog has arrived is there anything here to act on.
               if (e.key === "Enter") {
                 e.preventDefault();
+                typed.current = "";
                 props.onSearch(value.trim());
                 setValue("");
               } else if (e.key === "Escape" && value) {
                 e.preventDefault();
+                typed.current = "";
                 setValue("");
               }
             }}

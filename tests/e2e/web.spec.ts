@@ -1238,13 +1238,14 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   // Search, scheduled messages and channel details are downloaded the first
   // time they open, so each has to arrive, past the content security policy,
   // and work.
-  // Typed in the header's field, a search runs on Enter.
+  // Typed in the header's field, search opens on the first key and the rest
+  // of the typing goes on in its field, every key in order, with no Enter.
   const headerSearch = page.getByRole("searchbox", { name: "Search messages", exact: true });
-  await headerSearch.fill("zebracrossingquartz");
-  await headerSearch.press("Enter");
+  await headerSearch.pressSequentially("zebracrossingquartz");
   const search = page.getByRole("dialog", { name: "Search messages", exact: true });
   const searchBox = search.getByRole("textbox", { name: "Search messages", exact: true });
   await expect(searchBox).toHaveValue("zebracrossingquartz");
+  await expect(searchBox).toBeFocused();
   // A search that finds nothing says so where the dialog says what it is
   // doing, and says what to try instead.
   await expect(search.getByRole("status").filter({ hasText: "Nothing matched" })).toHaveText(
