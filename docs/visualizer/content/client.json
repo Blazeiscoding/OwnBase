@@ -216,6 +216,7 @@
         "The Session union distinguishes loading, failed restore, joining and a connected workspace. Startup strictly parses saved credentials; a corrupt or unavailable store offers retry instead of turning saved sign-ins into an empty list.",
         "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in.",
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
+        "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through inviteAsk, a number that changes with each ask, so a new session does not take an old ask for a new one.",
         "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back."
       ],
       "concepts": [
@@ -1279,14 +1280,16 @@
         "Presents running/stopped/startup status, port and rename controls, LAN and public-address choices, connector failure and launch recovery actions.",
         "Lists hosted workspaces and backup schedules, supports backup/restore and explains a restored copy's pending apps, schedules, deliveries and sessions before activation.",
         "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; Q12 and Q13 closed the startup and queue gaps in the desktop main process, not in this dialog.",
-        "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it."
+        "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it.",
+        "A running workspace is managed in tabs (UX-62): Overview (name with a Live pill, its network and public addresses with Copy and a QR code, who is connected, and Invite people, or Open it when another workspace is on screen), Share on the internet (plain words, then the public link card and the call relay), Backups (last backup, Back up now, the schedule) and Advanced (start-up, data folder, port). A tab shows only where this app can do what it holds. Stop hosting stays in the footer under every tab and stops without asking."
       ],
       "concepts": [
         "desktop hosting",
         "backup and restore",
         "public address",
         "safety hold",
-        "native operations"
+        "native operations",
+        "UX-62"
       ]
     },
     {
