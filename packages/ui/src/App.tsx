@@ -78,6 +78,7 @@ export function App({ platform }: { platform: Platform }) {
   const savedServersRef = useRef<SavedServer[]>([]);
   const [session, setSession] = useState<Session>({ view: "loading" });
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
+  const [inviteAsk, setInviteAsk] = useState(0);
   const hosting = useHostingStatus(platform.hosting);
   const lastHosted = useLastHosted(platform.hosting, hosting.status);
   const clientRef = useRef<WorkspaceClient | null>(null);
@@ -480,6 +481,7 @@ export function App({ platform }: { platform: Platform }) {
                 platform={platform}
                 initialTarget={session.target ?? null}
                 welcome={session.welcome}
+                inviteAsk={inviteAsk}
                 onLeaveWorkspace={leaveWorkspace}
                 onSignedOut={() => endSession(session.server, session.client)}
                 onAccountCreated={(token, handle) =>
@@ -511,6 +513,10 @@ export function App({ platform }: { platform: Platform }) {
                     session.server.url === normalizeServerUrl(`localhost:${hosting.status.port}`)
                   }
                   onClose={() => setHostDialogOpen(false)}
+                  onInvite={() => {
+                    setHostDialogOpen(false);
+                    setInviteAsk((n) => n + 1);
+                  }}
                   onStarted={(status) => {
                     setHostDialogOpen(false);
                     // A host that finishes starting must not replace a newer deep-link navigation.

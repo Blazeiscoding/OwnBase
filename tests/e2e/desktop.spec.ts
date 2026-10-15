@@ -147,10 +147,21 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   const manage = page.getByRole("button", { name: "Manage hosting", exact: true });
   await manage.click();
   const live = page.getByRole("dialog", { name: "Workspace is live" });
+  // Its overview: the workspace, where teammates reach it, and a code for phones.
   await expect(live.getByText("Desktop Test", { exact: true })).toBeVisible();
-  await expect(live.getByText(String(status.port), { exact: true })).toBeVisible();
-  // Already on screen, so there is nothing to open.
+  await expect(live.getByRole("img", { name: /^QR code for http:\/\// })).toBeVisible();
+  // Already on screen, so there is nothing to open; inviting is what is next.
   await expect(live.getByRole("button", { name: "Open it", exact: true })).toHaveCount(0);
+  await live.getByRole("button", { name: "Invite people", exact: true }).click();
+  await expect(live).toBeHidden();
+  const invite = page.getByRole("dialog", { name: "Invite people", exact: true });
+  await expect(invite.locator("code").filter({ hasText: "/#/join/" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(invite).toBeHidden();
+
+  await manage.click();
+  await live.getByRole("tab", { name: "Advanced", exact: true }).click();
+  await expect(live.getByText(String(status.port), { exact: true })).toBeVisible();
 
   // Back it up while it runs, into a folder chosen in the system's own dialog.
   const backups = mkdtempSync(join(tmpdir(), "slackoss-desktop-backup-"));
@@ -161,6 +172,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
         filePaths: [folder],
       })) as unknown as typeof dialog.showOpenDialog;
     }, backups);
+    await live.getByRole("tab", { name: "Backups", exact: true }).click();
     await live.getByRole("button", { name: "Back up now", exact: true }).click();
     await expect(live.getByText(/^Backed up Desktop Test to /)).toBeVisible();
     const made = readdirSync(backups);
@@ -525,6 +537,7 @@ test("a workspace chosen to start with Tandem starts when it opens, and at sign-
     const live = page.getByRole("dialog", { name: "Workspace is live" });
     // The owner's own window is connected to it.
     await expect(live).toContainText("Connected now: 1 person");
+    await live.getByRole("tab", { name: "Advanced", exact: true }).click();
     const choices = live.getByRole("group", { name: "When this computer starts" });
     const withApp = choices.getByRole("checkbox", {
       name: "Start hosting Launch Test when Tandem opens",
@@ -546,6 +559,7 @@ test("a workspace chosen to start with Tandem starts when it opens, and at sign-
         filePaths: [chosen],
       })) as unknown as typeof dialog.showOpenDialog;
     }, scheduledBackups);
+    await live.getByRole("tab", { name: "Backups", exact: true }).click();
     const automatic = live.getByRole("group", { name: "Automatic backups" });
     await automatic.getByRole("button", { name: "Back up automatically…" }).click();
     await expect(
