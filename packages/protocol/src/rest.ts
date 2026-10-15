@@ -284,7 +284,7 @@ export const searchQuery = z.object({
 });
 
 export const activityQuery = z.object({
-  mode: z.enum(["unread", "mentions"]).default("unread"),
+  mode: z.enum(["unread", "mentions", "threads"]).default("unread"),
   cursor: z.string().min(1).max(100).optional(),
   limit: z.coerce.number().int().positive().max(100).default(30),
 });

@@ -245,6 +245,28 @@ describe("mark unread", () => {
 });
 
 describe("reading a thread", () => {
+  it("reads a thread up to a reply named from elsewhere, such as Activity, though it was never opened", async () => {
+    const { message: root } = await owner.sendMessage(channelId, {
+      text: "Where to?",
+      nonce: "r0",
+    });
+    const { message: first } = await owner.sendMessage(channelId, {
+      text: `North <@${member.id}>`,
+      nonce: "r1",
+      threadRootId: root.id,
+    });
+    await owner.sendMessage(channelId, { text: "Or south", nonce: "r2", threadRootId: root.id });
+    expect(client.state.threads[root.id]).toBeUndefined();
+
+    const sent = vi.spyOn(client.api, "markThreadRead");
+    client.markThreadRead(root.id, { explicit: true, through: first });
+    expect(sent).toHaveBeenCalledWith(root.id, first.seq);
+    expect(client.state.threadFollows[root.id]).toMatchObject({
+      following: false,
+      lastReadSeq: first.seq,
+    });
+  });
+
   it("moves only the thread's cursor, so an unseen channel mention stays unread", async () => {
     const root = await incoming("Plans for Friday");
     client.markRead(channelId, root.seq);
