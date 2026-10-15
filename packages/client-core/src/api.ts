@@ -497,12 +497,14 @@ export class Api {
     return this.request("DELETE", `/api/messages/${id}/pin`);
   }
 
+  /** `total` counts every pin, from servers that say; older ones leave it out. */
   listPins(
     channelId: ID,
     signal?: AbortSignal,
     cursor?: string,
-  ): Promise<{ messages: Message[]; nextCursor: string | null }> {
-    const query = new URLSearchParams({ limit: "30" });
+    limit = 30,
+  ): Promise<{ messages: Message[]; nextCursor: string | null; total?: number }> {
+    const query = new URLSearchParams({ limit: String(limit) });
     if (cursor) query.set("cursor", cursor);
     return this.request("GET", `/api/channels/${channelId}/pins?${query}`, undefined, {
       signal,

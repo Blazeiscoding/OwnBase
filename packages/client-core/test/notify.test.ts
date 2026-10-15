@@ -76,6 +76,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     saved: {},
     removedHistory: {},
     changedContent: {},
+    memberChanges: {},
     threadFollows: {},
     mentionCounts: {},
     drafts: {},

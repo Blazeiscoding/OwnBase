@@ -538,6 +538,12 @@ export interface WorkspaceState {
    * shows changes here, whether or not that history is loaded (Q07, Q08).
    */
   changedContent: Record<ID, number>;
+  /**
+   * Per conversation, the seq of the latest person to join or leave it. A
+   * channel's member list is asked for, not held, so a view showing one asks
+   * again when this moves, and when the connection comes back.
+   */
+  memberChanges: Record<ID, number>;
   /** channelId -> unread messages there that name this user. */
   mentionCounts: Record<ID, number>;
   /** threadRootId -> this account's follow state and read cursor for it. */
@@ -585,6 +591,7 @@ const initialState: WorkspaceState = {
   saved: {},
   removedHistory: {},
   changedContent: {},
+  memberChanges: {},
   threadFollows: {},
   mentionCounts: {},
   drafts: {},
@@ -1340,6 +1347,7 @@ export class WorkspaceClient {
         break;
       }
       case "member.joined": {
+        patch.memberChanges = { ...s.memberChanges, [event.channelId]: seq };
         if (event.userId === s.self?.id) {
           patch.memberships = {
             ...s.memberships,
@@ -1358,6 +1366,7 @@ export class WorkspaceClient {
         break;
       }
       case "member.left": {
+        patch.memberChanges = { ...s.memberChanges, [event.channelId]: seq };
         if (event.userId === s.self?.id) {
           changed(event.channelId);
           const { [event.channelId]: _gone, ...rest } = s.memberships;

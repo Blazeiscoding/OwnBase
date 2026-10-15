@@ -726,30 +726,6 @@ textarea::placeholder {
     animation: var(--animate-slide-in);
   }
 }
-.header-search {
-  width: 160px;
-}
-/* Focused as the dialogs' fields are. */
-.header-search:focus-within {
-  box-shadow:
-    0 0 0 1px color-mix(in oklab, var(--color-copper) 70%, transparent),
-    0 0 0 3px color-mix(in oklab, var(--color-copper) 14%, transparent);
-}
-/* The field has its own icon, and Escape empties it. */
-.header-search input::-webkit-search-cancel-button {
-  display: none;
-}
-.header-search-button {
-  display: none;
-}
-@media (max-width: 760px) {
-  .header-search {
-    display: none;
-  }
-  .header-search-button {
-    display: flex;
-  }
-}
 .timeline-scroll {
   position: relative;
   overscroll-behavior: contain;

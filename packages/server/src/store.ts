@@ -2196,21 +2196,23 @@ export class Store {
     return res.changes > 0;
   }
 
-  /** Pinned messages in a channel, newest pin first. */
+  /** Pinned messages in a channel, newest pin first, and how many there are in all. */
   listPins(
     channelId: ID,
     limit = 30,
     cursor?: string,
-  ): { messages: Message[]; nextCursor: string | null } {
+  ): { messages: Message[]; nextCursor: string | null; total: number } {
     const [beforeTime, beforeId] = cursor?.split(":") ?? [];
     const timestamp = beforeTime ? Number(beforeTime) : null;
+    // A pin on a message deleted since, or on a reply whose thread was, is not listed.
+    const shown = `p.channel_id = ? AND m.deleted_at IS NULL
+         AND (m.thread_root_id IS NULL OR EXISTS (
+           SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL
+         ))`;
     const rows = this.db
       .prepare(
         `SELECT m.*, p.created_at AS pinned_at FROM pins p JOIN messages m ON m.id = p.message_id
-         WHERE p.channel_id = ? AND m.deleted_at IS NULL
-         AND (m.thread_root_id IS NULL OR EXISTS (
-           SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL
-         ))
+         WHERE ${shown}
          AND (? IS NULL OR p.created_at < ? OR (p.created_at = ? AND p.message_id < ?))
          ORDER BY p.created_at DESC, p.message_id DESC LIMIT ?`,
       )
@@ -2222,11 +2224,17 @@ export class Store {
         beforeId ?? null,
         limit + 1,
       ) as unknown as (MessageRow & { pinned_at: number })[];
+    const { total } = this.db
+      .prepare(
+        `SELECT COUNT(*) AS total FROM pins p JOIN messages m ON m.id = p.message_id WHERE ${shown}`,
+      )
+      .get(channelId) as { total: number };
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
       messages: this.hydrateMessages(page),
       nextCursor: rows.length > limit && last ? `${last.pinned_at}:${last.id}` : null,
+      total,
     };
   }
 

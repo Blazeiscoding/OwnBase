@@ -38,15 +38,16 @@ import { useAppearance } from "../lib/appearance.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import type { AccountSection } from "../components/AccountDialog.js";
 import { HuddleButton } from "../components/HuddleButton.js";
+import { ConversationMenu, MemberStack, PinnedBar } from "../components/ConversationHeader.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.js";
 import { LazyDialog, LazyPanel } from "../components/LazyView.js";
-import { Icon, type IconName } from "../components/Icon.js";
+import { Icon } from "../components/Icon.js";
 import { DraftPersistence } from "../components/DraftPersistence.js";
 import { useMessageAnnouncer } from "../components/MessageAnnouncer.js";
 import { WorkspaceStorageGate } from "../components/WorkspaceStorageGate.js";
 import { ShareableServerProvider } from "../components/ShareableServer.js";
 import { hasOpenModal } from "../components/Modal.js";
-import { Tooltip, loadTooltipBubble } from "../components/Tooltip.js";
+import { loadTooltipBubble } from "../components/Tooltip.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useLastConversation } from "../lib/lastConversation.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
@@ -115,31 +116,9 @@ const HuddleBar = lazy(() =>
 const ViewModal = lazy(() =>
   import("../components/ViewModal.js").then((module) => ({ default: module.ViewModal })),
 );
-/**
- * Search is fetched as the header's search box is entered, and drawn directly
- * from then on: what is typed there goes on in the dialog's field, so it must
- * not land on a loading state.
- */
-let LoadedSearchDialog: (typeof import("../components/SearchDialog.js"))["SearchDialog"] | null =
-  null;
-const loadSearchDialog = () =>
-  import("../components/SearchDialog.js").then((module) => {
-    LoadedSearchDialog = module.SearchDialog;
-    return { default: module.SearchDialog };
-  });
-const LazySearchDialog = lazy(loadSearchDialog);
-function SearchDialog(props: ComponentProps<typeof LazySearchDialog>) {
-  // Chosen once: swapping one for the other when the download lands would
-  // start a search being typed over.
-  const [Loaded] = useState(() => LoadedSearchDialog);
-  return Loaded ? (
-    <Loaded {...props} />
-  ) : (
-    <LazyDialog loading="Loading search" onClose={props.onClose}>
-      <LazySearchDialog {...props} />
-    </LazyDialog>
-  );
-}
+const SearchDialog = lazy(() =>
+  import("../components/SearchDialog.js").then((module) => ({ default: module.SearchDialog })),
+);
 // Forms opened now and then, and the video stage shown only during a call
 // with video, load on first use too.
 const NewChannelDialog = lazy(() =>
@@ -258,10 +237,10 @@ type DialogKind =
   | { kind: "new-dm"; initialMemberIds?: ID[] }
   | { kind: "invite"; welcome?: boolean }
   | { kind: "switcher" }
-  | { kind: "search"; query?: string; typing?: boolean }
+  | { kind: "search"; query?: string; inConversation?: boolean }
   | { kind: "account"; section?: AccountSection }
   | { kind: "profile"; userId: ID }
-  | { kind: "channel-details"; tab?: "members" }
+  | { kind: "channel-details"; tab?: "members" | "notifications" }
   | { kind: "shortcuts" }
   | { kind: "diagnostics"; callLog?: boolean }
   | { kind: "apps" }
@@ -733,6 +712,10 @@ function WorkspaceInner({
   const activeChannel = activeChannelId ? channels[activeChannelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
   const isRoom = activeChannel?.type === "public" || activeChannel?.type === "private";
+  /** A public channel can be looked into without joining, and then has no settings of one's own. */
+  const isMember = useWorkspace((s) => !!activeChannelId && activeChannelId in s.memberships);
+  const togglePanel = (kind: "pins" | "members") =>
+    setPanel((p) => (p.kind === kind ? { kind: "none" } : { kind }));
 
   const openChannel = useCallback(
     (id: ID) => {
@@ -1268,32 +1251,38 @@ function WorkspaceInner({
               </>
             )}
           </button>
-          <div className="flex shrink-0 items-center gap-0.5">
-            {activeChannelId && <HuddleButton channelId={activeChannelId} />}
-            <HeaderToggle
-              label="Pinned messages"
-              icon="pin"
-              pressed={panel.kind === "pins"}
-              onClick={() =>
-                setPanel((p) => (p.kind === "pins" ? { kind: "none" } : { kind: "pins" }))
-              }
-            />
-            {activeChannelId && (
-              <HeaderToggle
-                label="Members"
-                icon="members"
-                secondary
-                pressed={panel.kind === "members"}
-                onClick={() =>
-                  setPanel((p) => (p.kind === "members" ? { kind: "none" } : { kind: "members" }))
+          {activeChannelId && (
+            <div className="flex shrink-0 items-center gap-1">
+              {activeChannel?.type !== "dm" && (
+                <MemberStack
+                  channelId={activeChannelId}
+                  pressed={panel.kind === "members"}
+                  onToggle={() => togglePanel("members")}
+                />
+              )}
+              <HuddleButton channelId={activeChannelId} />
+              <ConversationMenu
+                title={isRoom ? `#${title}` : title}
+                isRoom={isRoom}
+                onPins={() => setPanel({ kind: "pins" })}
+                onSearch={() => setDialog({ kind: "search", inConversation: true })}
+                onNotifications={
+                  isMember
+                    ? () => setDialog({ kind: "channel-details", tab: "notifications" })
+                    : undefined
                 }
+                onDetails={() => setDialog({ kind: "channel-details" })}
               />
-            )}
-            <HeaderSearch
-              onSearch={(query, typing) => setDialog({ kind: "search", query, typing })}
-            />
-          </div>
+            </div>
+          )}
         </header>
+        {activeChannelId && (
+          <PinnedBar
+            channelId={activeChannelId}
+            open={panel.kind === "pins"}
+            onToggle={() => togglePanel("pins")}
+          />
+        )}
 
         {activeChannelId ? (
           <>
@@ -1471,13 +1460,15 @@ function WorkspaceInner({
         />
       )}
       {dialog.kind === "search" && (
-        <SearchDialog
-          channelId={activeChannelId}
-          initialQuery={dialog.query}
-          typing={dialog.typing}
-          onClose={closeDialog}
-          onJump={jumpToMessage}
-        />
+        <LazyDialog loading="Loading search" onClose={closeDialog}>
+          <SearchDialog
+            channelId={activeChannelId}
+            initialQuery={dialog.query}
+            inConversation={dialog.inConversation}
+            onClose={closeDialog}
+            onJump={jumpToMessage}
+          />
+        </LazyDialog>
       )}
       {dialog.kind === "shortcuts" && (
         <LazyDialog loading="Loading keyboard shortcuts" onClose={closeDialog}>
@@ -1631,112 +1622,5 @@ function NavigationToggle(props: {
         </span>
       )}
     </button>
-  );
-}
-
-/**
- * The header's search box. The first thing typed in it opens search with the
- * typing carried on in the dialog's field, where results follow it, so nobody
- * has to press Enter. A phone has no room for a field, so there it is a button
- * that opens search.
- */
-function HeaderSearch(props: { onSearch: (query: string, typing?: boolean) => void }) {
-  const [value, setValue] = useState("");
-  /** What is in the box now, for a hand-over that waits on the download. */
-  const typed = useRef("");
-  function carryOn(text: string) {
-    typed.current = text;
-    if (!text.trim()) return;
-    if (LoadedSearchDialog) {
-      typed.current = "";
-      setValue("");
-      props.onSearch(text, true);
-      return;
-    }
-    // Until the dialog has arrived, typing stays here, so no key is lost; it
-    // then takes everything typed by then.
-    loadSearchDialog().then(
-      () => carryOn(typed.current),
-      () => undefined,
-    );
-  }
-  return (
-    <>
-      <div className="header-search relative ml-1 flex h-7 items-center rounded-md bg-deep text-[13px]">
-        <Tooltip label="Search messages" keys={shortcutLabel("Mod+F")}>
-          <input
-            type="search"
-            enterKeyHint="search"
-            aria-label="Search messages"
-            placeholder="Search"
-            maxLength={200}
-            value={value}
-            onFocus={() => void loadSearchDialog().catch(() => undefined)}
-            onChange={(e) => {
-              setValue(e.target.value);
-              // A word an input method is still putting together is handed
-              // over when it is chosen; moving focus now would break it.
-              if ((e.nativeEvent as InputEvent).isComposing) typed.current = e.target.value;
-              else carryOn(e.target.value);
-            }}
-            onCompositionEnd={(e) => carryOn(e.currentTarget.value)}
-            onKeyDown={(e) => {
-              if (isImeKey(e.nativeEvent)) return;
-              // Only before the dialog has arrived is there anything here to act on.
-              if (e.key === "Enter") {
-                e.preventDefault();
-                typed.current = "";
-                props.onSearch(value.trim());
-                setValue("");
-              } else if (e.key === "Escape" && value) {
-                e.preventDefault();
-                typed.current = "";
-                setValue("");
-              }
-            }}
-            className="h-full w-full min-w-0 bg-transparent pl-2 pr-7 text-ink placeholder:text-ink-faint focus:outline-none"
-          />
-        </Tooltip>
-        <Icon
-          name="search"
-          size={15}
-          className="pointer-events-none absolute right-2 text-ink-faint"
-        />
-      </div>
-      <Tooltip label="Search messages" keys={shortcutLabel("Mod+F")}>
-        <button
-          onClick={() => props.onSearch("")}
-          aria-label="Search messages"
-          className="header-search-button size-8 items-center justify-center rounded-md text-ink-faint transition-colors hover:text-ink-dim"
-        >
-          <Icon name="search" size={18} />
-        </button>
-      </Tooltip>
-    </>
-  );
-}
-
-/** An icon in the conversation's header that opens a side panel, and shows when it is open. */
-function HeaderToggle(props: {
-  label: string;
-  icon: IconName;
-  pressed: boolean;
-  /** Folded away on a phone, where the header has no room for it. */
-  secondary?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip label={props.label}>
-      <button
-        onClick={props.onClick}
-        aria-label={props.label}
-        aria-pressed={props.pressed}
-        className={`${props.secondary ? "header-secondary " : ""}flex size-8 items-center justify-center rounded-md transition-colors ${
-          props.pressed ? "text-ink" : "text-ink-faint hover:text-ink-dim"
-        }`}
-      >
-        <Icon name={props.icon} size={20} />
-      </button>
-    </Tooltip>
   );
 }
