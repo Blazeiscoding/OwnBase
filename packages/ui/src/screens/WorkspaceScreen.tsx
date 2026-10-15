@@ -239,6 +239,8 @@ interface Props {
   initialTarget?: { channelId: ID; messageId: ID } | null;
   /** This account just founded the workspace: open on inviting people (UX-42). */
   welcome?: boolean;
+  /** Another number each time Invite people is asked for from outside, by Manage hosting. */
+  inviteAsk?: number;
   onLeaveWorkspace: () => void;
   onSignedOut: () => void;
   /** A guest kept its identity as an account; carry on with this token. */
@@ -316,6 +318,7 @@ export function WorkspaceScreen({
   platform,
   initialTarget,
   welcome,
+  inviteAsk,
   onLeaveWorkspace,
   onSignedOut,
   onAccountCreated,
@@ -339,6 +342,7 @@ export function WorkspaceScreen({
                 platform={platform}
                 initialTarget={initialTarget ?? null}
                 welcome={welcome}
+                inviteAsk={inviteAsk}
                 onLeaveWorkspace={onLeaveWorkspace}
                 onSignedOut={onSignedOut}
                 onAccountCreated={onAccountCreated}
@@ -357,6 +361,7 @@ function WorkspaceInner({
   platform,
   initialTarget,
   welcome,
+  inviteAsk,
   onLeaveWorkspace,
   onSignedOut,
   onAccountCreated,
@@ -366,6 +371,7 @@ function WorkspaceInner({
   platform: Platform;
   initialTarget: { channelId: ID; messageId: ID } | null;
   welcome?: boolean;
+  inviteAsk?: number;
   onLeaveWorkspace: () => void;
   onSignedOut: () => void;
   onAccountCreated?: (token: string, handle: string) => void;
@@ -403,6 +409,12 @@ function WorkspaceInner({
   const [sidebarOpen, setSidebarOpen] = useState(
     () => initialRoute?.drawer === true && drawerLayout(),
   );
+  const inviteAsked = useRef(inviteAsk);
+  useEffect(() => {
+    if (inviteAsk === inviteAsked.current) return;
+    inviteAsked.current = inviteAsk;
+    setDialog({ kind: "invite" });
+  }, [inviteAsk]);
   const sidebarOpenRef = useRef(sidebarOpen);
   sidebarOpenRef.current = sidebarOpen;
   /**

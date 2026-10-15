@@ -121,53 +121,60 @@ describe("creating an account", () => {
   });
 });
 
+/** The owner's workspace, with #general on screen and no invites made yet. */
+function ownersWorkspace() {
+  vi.stubGlobal("matchMedia", (query: string) => ({
+    matches: query.includes("min-width"),
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }));
+  const general: Channel = {
+    id: "C_GENERAL",
+    type: "public",
+    name: "general",
+    topic: "",
+    description: "",
+    creatorId: owner.id,
+    archived: false,
+    createdAt: 0,
+  };
+  const client = new WorkspaceClient("http://192.168.1.20:8543", "synthetic-test-token");
+  clients.push(client);
+  client.store.setState({
+    self: owner,
+    users: { [owner.id]: owner },
+    workspaceId: "W_NEW",
+    channels: { [general.id]: general },
+    memberships: { [general.id]: 0 },
+    status: "online",
+  });
+  writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
+  vi.spyOn(client, "loadTimeline").mockResolvedValue();
+  vi.spyOn(client, "loadCommands").mockResolvedValue();
+  vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
+  const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
+  const screenOf = (props: { welcome?: boolean; inviteAsk?: number }) => (
+    <ConfirmProvider>
+      <PlatformContext.Provider value={webPlatform}>
+        <ClientContext.Provider value={client}>
+          <WorkspaceScreen
+            client={client}
+            platform={webPlatform}
+            {...props}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>
+    </ConfirmProvider>
+  );
+  return { create, screenOf };
+}
+
 describe("the workspace a founder opens", () => {
   it("opens on inviting people, and Done leaves the workspace behind it", async () => {
-    vi.stubGlobal("matchMedia", (query: string) => ({
-      matches: query.includes("min-width"),
-      addEventListener: () => {},
-      removeEventListener: () => {},
-    }));
-    const general: Channel = {
-      id: "C_GENERAL",
-      type: "public",
-      name: "general",
-      topic: "",
-      description: "",
-      creatorId: owner.id,
-      archived: false,
-      createdAt: 0,
-    };
-    const client = new WorkspaceClient("http://192.168.1.20:8543", "synthetic-test-token");
-    clients.push(client);
-    client.store.setState({
-      self: owner,
-      users: { [owner.id]: owner },
-      workspaceId: "W_NEW",
-      channels: { [general.id]: general },
-      memberships: { [general.id]: 0 },
-      status: "online",
-    });
-    writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
-    vi.spyOn(client, "loadTimeline").mockResolvedValue();
-    vi.spyOn(client, "loadCommands").mockResolvedValue();
-    vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
-    const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
-    render(
-      <ConfirmProvider>
-        <PlatformContext.Provider value={webPlatform}>
-          <ClientContext.Provider value={client}>
-            <WorkspaceScreen
-              client={client}
-              platform={webPlatform}
-              welcome
-              onLeaveWorkspace={() => {}}
-              onSignedOut={() => {}}
-            />
-          </ClientContext.Provider>
-        </PlatformContext.Provider>
-      </ConfirmProvider>,
-    );
+    const { create, screenOf } = ownersWorkspace();
+    render(screenOf({ welcome: true }));
     const welcome = await screen.findByRole(
       "dialog",
       { name: "Invite your people" },
@@ -181,6 +188,29 @@ describe("the workspace a founder opens", () => {
     await waitFor(() =>
       expect(screen.queryByRole("dialog", { name: "Invite your people" })).toBeNull(),
     );
+  });
+});
+
+describe("Invite people, asked for by Manage hosting", () => {
+  it("opens each time it is asked for, and not for an ask made before the workspace opened", async () => {
+    const { screenOf } = ownersWorkspace();
+    // Asked for once already, by Manage hosting over another session.
+    const { rerender } = render(screenOf({ inviteAsk: 1 }));
+    await screen.findByRole("textbox", { name: /Message/ });
+    expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull();
+
+    rerender(screenOf({ inviteAsk: 2 }));
+    const invite = await screen.findByRole("dialog", { name: "Invite people" }, { timeout: 3_000 });
+    expect(
+      await within(invite).findByText("http://192.168.1.20:8543/#/join/WELC0ME1"),
+    ).toBeVisible();
+    await userEvent.setup().keyboard("{Escape}");
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull());
+
+    rerender(screenOf({ inviteAsk: 3 }));
+    expect(
+      await screen.findByRole("dialog", { name: "Invite people" }, { timeout: 3_000 }),
+    ).toBeVisible();
   });
 });
 
