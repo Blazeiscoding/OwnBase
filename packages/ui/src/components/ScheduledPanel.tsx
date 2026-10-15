@@ -8,7 +8,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { MESSAGE_LIMIT } from "./FormattingToolbar.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
-import { PanelLink, RefreshButton } from "./MessageListPanel.js";
+import { PanelLink } from "./MessageListPanel.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 
 function draftText(value: string | undefined): string | undefined {
@@ -35,6 +35,8 @@ export function ScheduledPanel(props: {
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
+  const scheduledChanges = useWorkspace((s) => s.scheduledChanges);
+  const live = useWorkspace((s) => s.scheduledEvents);
   const [items, setItems] = useState<ScheduledMessage[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,6 +67,7 @@ export function ScheduledPanel(props: {
     setLoading(false);
     setBusy(editing.id);
     setEditError(null);
+    let failed = false;
     try {
       const result = await client.api.editScheduledMessage(editing.id, {
         text: editText,
@@ -79,16 +82,19 @@ export function ScheduledPanel(props: {
         setEditing(null);
       }
     } catch (err) {
+      failed = true;
       if (alive.current)
         setEditError(
           err instanceof ApiError && err.code === "scheduled_changed"
-            ? "The text changed on another device. Refresh and load the current text before saving again. Your draft is kept."
-            : "Could not confirm the edit. Your draft is kept. Refresh to check whether this message has already sent or changed.",
+            ? "The text changed on another device, so this edit was not saved. Your draft is kept."
+            : "Could not confirm the edit. Your draft is kept. Check the list for whether this message has already sent or changed.",
         );
     } finally {
       mutating.current = false;
       if (alive.current) setBusy(null);
     }
+    // What the queue holds now: the current text to compare, or the message gone.
+    if (failed && alive.current) void load();
   }
 
   const load = useCallback(async () => {
@@ -112,14 +118,25 @@ export function ScheduledPanel(props: {
   useEffect(() => {
     alive.current = true;
     void load();
-    // Entries vanish as they send, so keep the list honest while it is open.
-    const timer = setInterval(load, 15_000);
     return () => {
       alive.current = false;
       request.current?.abort();
-      clearInterval(timer);
     };
   }, [load]);
+
+  // The server says when the queue changes, as entries send, fail or change on
+  // another device (UX-08). One that does not is asked every 15 seconds.
+  useEffect(() => {
+    if (live) return;
+    const timer = setInterval(load, 15_000);
+    return () => clearInterval(timer);
+  }, [load, live]);
+  const heard = useRef(scheduledChanges);
+  useEffect(() => {
+    if (heard.current === scheduledChanges) return;
+    heard.current = scheduledChanges;
+    void load();
+  }, [load, scheduledChanges]);
 
   async function change(id: ID, sendAt?: number) {
     if (mutating.current) return;
@@ -169,7 +186,6 @@ export function ScheduledPanel(props: {
           Scheduled
         </h2>
         {props.onSaved && <PanelLink icon="bookmark" label="Saved" onClick={props.onSaved} />}
-        <RefreshButton busy={loading || busy !== null} onClick={() => void load()} />
         <button
           onClick={props.onClose}
           aria-label="Close scheduled messages"
@@ -180,8 +196,8 @@ export function ScheduledPanel(props: {
       </header>
       <div className="min-h-0 flex-1 overflow-y-auto p-3" aria-busy={loading}>
         <ListStatus
-          // The list refreshes itself every 15 seconds; only the first load,
-          // with nothing to show yet, is worth saying.
+          // The list keeps itself current; only the first load, with nothing
+          // to show yet, is worth saying.
           loading={loading && items === null}
           placeholder
           loadingLabel="Loading scheduled messages…"

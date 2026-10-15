@@ -139,7 +139,7 @@ function StandInRows({ label }: { label: string }) {
  * of falling to the page. A layout cleanup runs while the wrapped content is
  * still in the document, so it can still tell where focus is.
  */
-function KeepsFocus({
+export function KeepsFocus({
   home,
   children,
 }: {

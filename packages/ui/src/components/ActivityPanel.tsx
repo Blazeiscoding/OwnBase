@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { isMessageRead } from "@slackoss/client-core";
-import type { ID } from "@slackoss/protocol";
+import type { ID, Message } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatTime, formatWhen } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon } from "./Icon.js";
-import { RefreshButton } from "./MessageListPanel.js";
 import { Tooltip } from "./Tooltip.js";
 import { ListStatus } from "./ListStatus.js";
+import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useTabs } from "../lib/useTabs.js";
-import { CoalescedLoader } from "../lib/coalescedLoader.js";
+import { usePagedList } from "../lib/pagedList.js";
 
 const MODES = ["unread", "mentions"] as const;
 /**
@@ -36,83 +36,69 @@ export function ActivityPanel({
   const repliesRead = useWorkspace((s) => s.repliesRead);
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
   const removedHistory = useWorkspace((s) => s.removedHistory);
-  const { panel, heading } = usePanelFocus({ takeFocus: true });
+  const changedContent = useWorkspace((s) => s.changedContent);
   const [mode, setMode] = useState<ActivityMode>("unread");
-  const [cursors, setCursors] = useState<(ID | undefined)[]>([undefined]);
+  // In Unread, a new message anywhere, or a new reply in a thread, may belong here.
+  const arrivals = useWorkspace((s) =>
+    mode === "unread"
+      ? [
+          ...Object.entries(s.channelLastSeq)
+            .filter(([channelId]) => channelId in s.memberships)
+            .map(([channelId, seq]) => `${channelId}:${seq}`),
+          ...Object.values(s.threadFollows).map((f) => `${f.rootId}:${f.lastSeq}`),
+        ]
+          .sort()
+          .join(",")
+      : "",
+  );
+  const { panel, heading } = usePanelFocus({ takeFocus: true });
+  const scroller = useRef<HTMLDivElement>(null);
   const tabs = useTabs({
     label: "Activity filter",
     tabs: MODES,
     selected: mode,
-    onSelect(next) {
-      setMode(next);
-      setCursors([undefined]);
-    },
+    onSelect: setMode,
   });
-  const [result, setResult] = useState<Awaited<ReturnType<typeof client.api.activity>> | null>(
-    null,
+  // Another filter is another list, read from the top. A sign that what is
+  // shown may be out of date reads it again in place, and a burst of them is
+  // one read, with what is shown kept meanwhile (REV-05).
+  const paged = usePagedList<Message>(
+    (cursor, signal) =>
+      client.api
+        .activity(mode, { cursor, signal })
+        .then((page) => ({ items: page.messages, nextCursor: page.nextCursor })),
+    mode,
+    ACTIVITY_REFRESH_DELAY_MS,
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [revision, setRevision] = useState(0);
-  const cursor = cursors.at(-1);
+  const { list, items: result } = paged;
 
-  // One loader for the panel's life: what each load asks for is read when it starts.
-  const query = useRef({ mode, cursor });
-  query.current = { mode, cursor };
-  const [loader] = useState(
-    () =>
-      new CoalescedLoader(async (signal) => {
-        const { mode, cursor } = query.current;
-        setLoading(true);
-        setError(null);
-        try {
-          const page = await client.api.activity(mode, { cursor, signal });
-          if (!signal.aborted) setResult(page);
-        } catch {
-          if (!signal.aborted)
-            setError("Could not load activity. Check your connection and try again.");
-        } finally {
-          if (!signal.aborted) setLoading(false);
-        }
-      }, ACTIVITY_REFRESH_DELAY_MS),
-  );
-  useEffect(() => () => loader.stop(), [loader]);
-
-  // Another filter or page is another list: clear it and load at once.
   useEffect(() => {
-    setResult(null);
-    loader.now();
-  }, [loader, mode, cursor]);
+    // Another list starts at its top.
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [mode]);
 
-  // Refresh and Retry load at once, keeping what is shown until the answer.
-  const asked = useRef(revision);
+  // Each of these says the list may be out of date. The server refreshes the
+  // mention counts for mention edits even when a count stays the same, so every
+  // change of them is a reason to look again.
+  const heard = useRef({ mode, mentionCounts, arrivals, changedContent, removedHistory });
   useEffect(() => {
-    if (asked.current === revision) return;
-    asked.current = revision;
-    loader.now();
-  }, [loader, revision]);
+    const before = heard.current;
+    heard.current = { mode, mentionCounts, arrivals, changedContent, removedHistory };
+    // Another filter is read from the top already.
+    if (before.mode !== mode) return;
+    const shown = (seqs: Record<ID, number>, was: Record<ID, number>) =>
+      result?.some((m) => seqs[m.channelId] !== was[m.channelId]) ?? false;
+    if (
+      before.mentionCounts !== mentionCounts ||
+      before.arrivals !== arrivals ||
+      // Edited or deleted, or retention took threads from a conversation shown here.
+      shown(changedContent, before.changedContent) ||
+      shown(removedHistory, before.removedHistory)
+    )
+      list.refresh();
+  }, [list, mode, mentionCounts, arrivals, changedContent, removedHistory, result]);
 
-  // The server refreshes this identity for mention edits, even when the unread
-  // count stays the same, so every change is a reason to look again. A burst of
-  // them is one load, and what is shown stays until it answers (REV-05).
-  const heardCounts = useRef(mentionCounts);
-  useEffect(() => {
-    if (heardCounts.current === mentionCounts) return;
-    heardCounts.current = mentionCounts;
-    loader.soon();
-  }, [loader, mentionCounts]);
-
-  // Retention took threads from a conversation this page shows: load it again,
-  // rather than go on listing what the server no longer has.
-  const heardRemoved = useRef(removedHistory);
-  useEffect(() => {
-    const before = heardRemoved.current;
-    heardRemoved.current = removedHistory;
-    if (result?.messages.some((m) => removedHistory[m.channelId] !== before[m.channelId]))
-      setRevision((v) => v + 1);
-  }, [removedHistory, result]);
-
-  const messages = (result?.messages ?? []).filter(
+  const messages = (result ?? []).filter(
     (message) =>
       channels[message.channelId] &&
       message.channelId in memberships &&
@@ -129,13 +115,6 @@ export function ActivityPanel({
         <h2 ref={heading} tabIndex={-1} className="flex-1 text-[15px] font-semibold outline-none">
           Activity
         </h2>
-        <RefreshButton
-          busy={loading}
-          onClick={() => {
-            setCursors([undefined]);
-            setRevision((v) => v + 1);
-          }}
-        />
         <button
           aria-label="Close activity"
           className="flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
@@ -158,25 +137,30 @@ export function ActivityPanel({
           </button>
         ))}
       </div>
-      <div {...tabs.panelProps} className="min-h-0 flex-1 overflow-y-auto p-3" aria-busy={loading}>
+      <div
+        {...tabs.panelProps}
+        ref={scroller}
+        className="min-h-0 flex-1 overflow-y-auto p-3"
+        aria-busy={paged.loading || paged.refreshing}
+      >
         <p className="mb-2 px-1 text-xs text-ink-faint">
           {mode === "unread"
             ? "Unread messages in conversations you joined."
             : "Direct and room-wide mentions in conversations you joined."}
         </p>
         <ListStatus
-          loading={loading}
+          loading={paged.loading}
           placeholder={!result}
           loadingLabel="Loading activity…"
-          error={error}
-          onRetry={() => setRevision((v) => v + 1)}
+          error={
+            paged.failed ? "Could not load activity. Check your connection and try again." : null
+          }
+          onRetry={() => list.retry()}
           empty={
-            result && !messages.length
-              ? cursors.length > 1 || result.nextCursor
-                ? "Nothing unread on this page."
-                : mode === "unread"
-                  ? "You're caught up."
-                  : "No mentions yet."
+            result && !messages.length && !paged.nextCursor
+              ? mode === "unread"
+                ? "You're caught up."
+                : "No mentions yet."
               : null
           }
           emptyIcon={mode === "unread" ? "check" : "at"}
@@ -262,25 +246,14 @@ export function ActivityPanel({
             );
           })}
         </ul>
-        <div
-          hidden={cursors.length === 1 && !result?.nextCursor}
-          className="mt-4 flex justify-between px-1 text-sm font-medium text-ink-dim"
-        >
-          <button
-            disabled={loading || cursors.length === 1}
-            onClick={() => setCursors((values) => values.slice(0, -1))}
-          >
-            Previous page
-          </button>
-          <button
-            disabled={loading || !result?.nextCursor}
-            onClick={() =>
-              result?.nextCursor && setCursors((values) => [...values, result.nextCursor!])
-            }
-          >
-            Next page
-          </button>
-        </div>
+        <LoadMore
+          more={!!paged.nextCursor}
+          loading={paged.loadingMore}
+          failed={paged.moreFailed}
+          count={result?.length ?? 0}
+          onMore={() => list.loadMore()}
+          scroller={scroller}
+        />
       </div>
     </aside>
   );

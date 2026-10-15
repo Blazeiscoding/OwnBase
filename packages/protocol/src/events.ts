@@ -69,6 +69,12 @@ export type EphemeralEvent =
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
   | { type: "thread.follow"; state: ThreadFollow }
+  /**
+   * This user's queue of messages to send later changed: one was queued,
+   * edited, moved, cancelled, sent, held for a new reason or given up on. Read
+   * `GET /api/scheduled` for what it holds now. Private to their own sockets.
+   */
+  | { type: "scheduled" }
   | { type: "prefs"; channelId: ID; prefs: ChannelPrefs }
   /** This user's unread mention count per conversation, replacing what it had. */
   | { type: "mentions"; counts: Record<ID, number> }
@@ -152,6 +158,8 @@ export interface ReadySnapshot {
   huddleReports?: true;
   /** This server keeps inline replies; older ones post one as an ordinary message. */
   inlineReplies?: true;
+  /** This server sends `scheduled` when the queue changes; an older one has to be asked. */
+  scheduledEvents?: true;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;
