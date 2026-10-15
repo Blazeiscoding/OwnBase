@@ -738,8 +738,7 @@ function ChannelIntro({
           )
         ) : person ? (
           <>
-            This is the beginning of your conversation with{" "}
-            <span className="highlight">{person.displayName}</span>.
+            <span className="highlight">Your direct messages</span> start here.
           </>
         ) : (
           "This conversation is just between you. It starts here."

@@ -4,7 +4,7 @@ import type { FileMeta, FileType, ID, Message } from "@slackoss/protocol";
 import { parseSearchQuery } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
-import { channelTitle, formatBytes, formatTime, formatWhen } from "../lib/format.js";
+import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { isImeKey } from "../lib/textInput.js";
@@ -81,12 +81,13 @@ function Attachments({ files, terms }: { files: FileMeta[]; terms: readonly stri
   );
 }
 
-/** A YYYY-MM-DD day in the reader's own date style, without moving it a day. */
+// Read in UTC, so a day written as YYYY-MM-DD is not moved a day by the reader's zone.
+const calendarDay = new Intl.DateTimeFormat(undefined, { timeZone: "UTC" });
+
+/** A YYYY-MM-DD day in the reader's own date style. */
 function dayLabel(day: string): string {
   const [year, month, date] = day.split("-").map(Number) as [number, number, number];
-  return new Date(Date.UTC(year, month - 1, date)).toLocaleDateString(undefined, {
-    timeZone: "UTC",
-  });
+  return calendarDay.format(Date.UTC(year, month - 1, date));
 }
 
 /** Shows the modifiers, then what the current query was understood to mean. */
@@ -596,7 +597,7 @@ export function SearchDialog(props: {
                         {(!ch || ch.name) && <span>{users[m.userId]?.displayName}</span>}
                         <time
                           dateTime={new Date(m.createdAt).toISOString()}
-                          title={`${new Date(m.createdAt).toLocaleDateString()} ${formatTime(m.createdAt)}`}
+                          title={formatFull(m.createdAt)}
                           className="ml-auto text-right"
                         >
                           {formatWhen(m.createdAt)}

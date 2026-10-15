@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ID, Message } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle, formatDay, formatTime, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -128,21 +128,28 @@ export function MessageListPanel(props: Props) {
             .filter((message) => channels[message.channelId])
             .map((m) => {
               const channel = channels[m.channelId];
+              // A one-to-one conversation is named by its other person, who
+              // may be the author named just below: say the name once.
+              const others = (channel?.memberIds ?? []).filter((id) => id !== selfId);
+              const namedBelow =
+                channel?.type === "dm" && others.length === 1 && others[0] === m.userId;
               return (
                 <li key={m.id}>
                   <div className="w-full rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-ink/[0.035]">
                     <div className="mb-1.5 flex items-center gap-2 text-[12px] text-ink-faint">
                       <span className="truncate font-medium text-ink-dim">
-                        {channel
-                          ? channel.name
-                            ? `#${channel.name}`
-                            : channelTitle(channel, users, selfId)
-                          : "unknown"}
+                        {namedBelow
+                          ? "Direct message"
+                          : channel
+                            ? channel.name
+                              ? `#${channel.name}`
+                              : channelTitle(channel, users, selfId)
+                            : "unknown"}
                       </span>
                       {props.itemBadge?.(m)}
                       <time
                         dateTime={new Date(m.createdAt).toISOString()}
-                        title={`${formatDay(m.createdAt)} · ${formatTime(m.createdAt)}`}
+                        title={formatFull(m.createdAt)}
                         className="ml-auto shrink-0"
                       >
                         {formatWhen(m.createdAt)}

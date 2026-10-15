@@ -235,7 +235,8 @@
         "Address probing normalizes the input and checks application/protocol compatibility before presenting authentication. A probe-attempt number rejects success from an ordinary cancelled or superseded address probe.",
         "Saved sign-ins first validate their token and fall back to a password card when expired. The auth form handles registration, invites and initial-owner claiming through the typed API. A new account that comes back as owner founded the workspace, and onConnected says so, so the workspace opens on inviting people (UX-42).",
         "Since Q06 the saved-token path and the forced password replacement carry the same attempt ownership as ordinary probes, so a late answer after Cancel, another choice or unmount does nothing.",
-        "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry."
+        "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry.",
+        "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code."
       ],
       "concepts": [
         "LAN discovery",
@@ -676,6 +677,7 @@
       "summary": "Centralizes byte/time labels, conversation titles and deterministic avatars.",
       "details": [
         "Reusable Intl.DateTimeFormat instances avoid constructing a formatter for every message row. Day labels recognize Today and Yesterday in the reader's local time.",
+        "formatWhen is the one rule for times in lists (the time today, Yesterday, the weekday within six days, then the date, with the year only for another one), counted in calendar days so a day with a clock change is not miscounted; formatFull is the whole date and time a list's hint gives.",
         "DM titles derive from other participants, and deterministic hues/initials give each account a consistent avatar without image requests."
       ],
       "concepts": ["formatter reuse", "local time", "deterministic presentation"]
