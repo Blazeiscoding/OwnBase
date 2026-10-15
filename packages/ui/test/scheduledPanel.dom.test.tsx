@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, ScheduledMessage, User } from "@slackoss/protocol";
@@ -8,8 +8,9 @@ import { ClientContext } from "../src/context.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
- * The Scheduled panel: its first load, a failed load and Refresh, and each
- * change it makes asking first and saying when it could not be confirmed.
+ * The Scheduled panel: its first load, a failed load and Refresh, keeping
+ * itself current, and each change it makes asking first and saying when it
+ * could not be confirmed.
  */
 const sam: User = {
   id: "U_SAM",
@@ -51,13 +52,17 @@ const queued = (id: string, text: string, hours = 2): ScheduledMessage =>
     messageId: null,
   }) as unknown as ScheduledMessage;
 
-function renderPanel(list: () => Promise<{ scheduled: ScheduledMessage[] }>) {
+function renderPanel(
+  list: () => Promise<{ scheduled: ScheduledMessage[] }>,
+  { scheduledEvents = true } = {},
+) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
     users: { [sam.id]: sam },
     channels: { [design.id]: design },
     status: "online",
+    scheduledEvents,
   });
   const api = {
     list: vi.spyOn(client.api, "listScheduled").mockImplementation(list),
@@ -87,7 +92,42 @@ describe("the Scheduled panel", () => {
     expect(within(panel).getByRole("status")).toHaveTextContent("Loading scheduled messages…");
     finish({ scheduled: [] });
     expect(await within(panel).findByText(/Nothing queued/)).toBeVisible();
+    // It keeps itself current, so there is no Refresh to press.
+    expect(within(panel).queryByRole("button", { name: "Refresh" })).toBeNull();
     expect(await accessibilityProblems(panel)).toEqual([]);
+  });
+
+  it("reads the queue again when the server says it changed, as on another device (UX-08)", async () => {
+    let queue = [queued("S1", "Standup notes")];
+    const { panel, api, client } = renderPanel(async () => ({ scheduled: queue }));
+    await within(panel).findByText("Standup notes");
+    expect(api.list).toHaveBeenCalledTimes(1);
+
+    queue = [queued("S1", "Standup notes"), queued("S2", "Queued on the phone", 3)];
+    act(() => client.store.setState({ scheduledChanges: client.state.scheduledChanges + 1 }));
+    expect(await within(panel).findByText("Queued on the phone")).toBeVisible();
+    expect(api.list).toHaveBeenCalledTimes(2);
+
+    // Sent on time: it leaves the list as the server says so.
+    queue = [queued("S2", "Queued on the phone", 3)];
+    act(() => client.store.setState({ scheduledChanges: client.state.scheduledChanges + 1 }));
+    await waitFor(() => expect(within(panel).queryByText("Standup notes")).toBeNull());
+  });
+
+  it("asks every 15 seconds only a server that does not say when the queue changes", async () => {
+    const every = vi.spyOn(globalThis, "setInterval");
+    try {
+      const live = renderPanel(async () => ({ scheduled: [] }));
+      await within(live.panel).findByText(/Nothing queued/);
+      expect(every.mock.calls.some(([, ms]) => ms === 15_000)).toBe(false);
+      cleanup();
+
+      const older = renderPanel(async () => ({ scheduled: [] }), { scheduledEvents: false });
+      await within(older.panel).findByText(/Nothing queued/);
+      expect(every.mock.calls.some(([, ms]) => ms === 15_000)).toBe(true);
+    } finally {
+      every.mockRestore();
+    }
   });
 
   it("says which replies will also appear in the channel", async () => {
@@ -198,9 +238,8 @@ describe("the Scheduled panel", () => {
 
   it("edits the text against what it started from, and keeps the draft when another device changed it", async () => {
     const user = userEvent.setup();
-    const { panel, api, client } = renderPanel(async () => ({
-      scheduled: [queued("S1", "Standup notes")],
-    }));
+    let queue = [queued("S1", "Standup notes")];
+    const { panel, api, client } = renderPanel(async () => ({ scheduled: queue }));
     await within(panel).findByText("Standup notes");
     await user.click(within(panel).getByRole("button", { name: "Edit text" }));
     const box = within(panel).getByLabelText("Edit scheduled text");
@@ -208,14 +247,18 @@ describe("the Scheduled panel", () => {
     await user.type(box, "Standup moved to 10");
 
     api.edit.mockRejectedValueOnce(new ApiError(409, "scheduled_changed"));
+    queue = [queued("S1", "Standup at 9:30")];
     await user.click(within(panel).getByRole("button", { name: "Save text" }));
     expect(api.edit).toHaveBeenCalledWith("S1", {
       text: "Standup moved to 10",
       expectedText: "Standup notes",
     });
     expect(await within(panel).findByRole("alert")).toHaveTextContent(
-      "The text changed on another device. Refresh and load the current text before saving again. Your draft is kept.",
+      "The text changed on another device, so this edit was not saved. Your draft is kept.",
     );
+    // It reads the queue again by itself, to show what the other device wrote.
+    expect(await within(panel).findByText(/The queued text has changed/)).toBeVisible();
+    expect(api.list).toHaveBeenCalledTimes(2);
     expect(box).toHaveValue("Standup moved to 10");
     expect(client.state.drafts["C_DESIGN:scheduled-edit:S1"]).toBe(
       JSON.stringify({ text: "Standup moved to 10" }),
