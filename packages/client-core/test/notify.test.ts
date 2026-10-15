@@ -56,6 +56,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     workspaceId: null,
     inlineReplies: true,
     scheduledEvents: true,
+    activityThreads: true,
     scheduledChanges: 0,
     self: me,
     users: { [me.id]: me, [them.id]: them },

@@ -4289,6 +4289,13 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
       text: `Can you check the venue <@${hana.user.id}>`,
     });
     await expect(activity.getByText(/Can you check the venue/)).toBeVisible();
+    // Under one heading for their conversation, and read at once (UX-52).
+    await expect(
+      activity.getByRole("region", { name: "#general, 2 new", exact: true }),
+    ).toBeVisible();
+    await activity.getByRole("button", { name: "Mark all read", exact: true }).click();
+    await expect(activity.getByText("You're caught up.")).toBeVisible();
+    await expect(activity.getByRole("button", { name: "Mark all read" })).toHaveCount(0);
     await activity.getByRole("button", { name: "Close activity", exact: true }).click();
 
     // Threads: Omar answers the thread Hana follows.

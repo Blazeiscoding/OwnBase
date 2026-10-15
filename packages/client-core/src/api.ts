@@ -697,7 +697,7 @@ export class Api {
   }
 
   activity(
-    mode: "unread" | "mentions",
+    mode: "unread" | "mentions" | "threads",
     opts: { cursor?: ID; signal?: AbortSignal } = {},
   ): Promise<{ messages: Message[]; nextCursor: ID | null }> {
     const params = new URLSearchParams({ mode });

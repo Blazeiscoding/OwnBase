@@ -160,6 +160,8 @@ export interface ReadySnapshot {
   inlineReplies?: true;
   /** This server sends `scheduled` when the queue changes; an older one has to be asked. */
   scheduledEvents?: true;
+  /** This server answers Activity's `threads` mode; an older one refuses it. */
+  activityThreads?: true;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;

@@ -222,6 +222,30 @@ describe("thread following", () => {
     ]);
   });
 
+  it("lists unread replies in followed threads, newest first, as Activity's threads mode", async () => {
+    const followed = await post("Ship it Friday?", owner.token);
+    const elsewhere = await post("Lunch plans", peer.token);
+    const first = await post("Friday works", peer.token, followed.id);
+    const second = await post("Or Monday", peer.token, followed.id);
+    // Not a reply, and a reply in a thread the owner does not follow.
+    await post("Build is green", peer.token);
+    await post("Tacos", peer.token, elsewhere.id);
+
+    const threads = async () =>
+      ((await request("/api/activity?mode=threads", undefined, "GET")).body.messages as any[]).map(
+        (message) => message.id,
+      );
+    expect(await threads()).toEqual([second.id, first.id]);
+
+    // Read, the thread leaves the list.
+    await request(`/api/messages/${followed.id}/thread/read`, { seq: second.seq });
+    expect(await threads()).toEqual([]);
+
+    // The ready snapshot says this server answers the mode.
+    const { frames } = await connect(owner.token);
+    expect((frames.find((f) => f.type === "ready") as any).activityThreads).toBe(true);
+  });
+
   it("drops a thread from the list when its root is deleted", async () => {
     const root = await post("Doomed", owner.token);
     await post("Reply", peer.token, root.id);

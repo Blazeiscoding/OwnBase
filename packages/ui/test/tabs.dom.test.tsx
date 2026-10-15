@@ -207,7 +207,7 @@ describe("views that were pressed buttons", () => {
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 
-  it("Activity switches between unread messages and mentions as tabs", async () => {
+  it("Activity switches between everything unread and mentions as tabs", async () => {
     const user = userEvent.setup();
     const client = offlineClient();
     const activity = vi
@@ -222,9 +222,9 @@ describe("views that were pressed buttons", () => {
     );
     const panel = screen.getByRole("complementary", { name: "Activity" });
     const list = within(panel).getByRole("tablist", { name: "Activity filter" });
-    const unread = within(list).getByRole("tab", { name: "Unread" });
+    const unread = within(list).getByRole("tab", { name: "All" });
     expect(unread).toHaveAttribute("aria-selected", "true");
-    expect(within(panel).getByRole("tabpanel", { name: "Unread" })).toHaveTextContent(
+    expect(within(panel).getByRole("tabpanel", { name: "All" })).toHaveTextContent(
       "Unread messages in conversations you joined.",
     );
     expect(await within(panel).findByText("You're caught up.")).toBeVisible();

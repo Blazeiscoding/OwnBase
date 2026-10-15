@@ -484,6 +484,8 @@ export interface WorkspaceState {
   inlineReplies: boolean;
   /** The server says when this account's scheduled queue changes; an older one has to be asked. */
   scheduledEvents: boolean;
+  /** The server lists unread replies in followed threads as Activity's own mode. */
+  activityThreads: boolean;
   /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
@@ -563,6 +565,7 @@ const initialState: WorkspaceState = {
   workspaceId: null,
   inlineReplies: false,
   scheduledEvents: false,
+  activityThreads: false,
   scheduledChanges: 0,
   self: null,
   users: {},
@@ -959,6 +962,7 @@ export class WorkspaceClient {
       workspaceId: snap.workspaceId ?? prev.workspaceId,
       inlineReplies: snap.inlineReplies === true,
       scheduledEvents: snap.scheduledEvents === true,
+      activityThreads: snap.activityThreads === true,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -2697,15 +2701,21 @@ export class WorkspaceClient {
    * Marks a thread read up to its loaded tail. This is the only cursor that
    * reading a thread moves: the channel's stays put, so unseen channel
    * messages and mentions stay unread. A thread you do not follow keeps its
-   * cursor too, without following it.
+   * cursor too, without following it. `through`, a reply named from outside
+   * the thread such as in Activity, reads it up to that reply instead, loaded
+   * or not.
    */
-  markThreadRead(rootId: ID, opts: { explicit?: boolean } = {}): void {
+  markThreadRead(
+    rootId: ID,
+    opts: { explicit?: boolean; through?: Pick<Message, "channelId" | "seq"> } = {},
+  ): void {
     if (opts.explicit) this.threadReadHold.delete(rootId);
     else if (this.threadReadHold.has(rootId)) return;
     const before = this.state.threadFollows[rootId];
-    const channelId = before?.channelId ?? this.threadRoot(rootId)?.channelId;
+    const channelId =
+      before?.channelId ?? opts.through?.channelId ?? this.threadRoot(rootId)?.channelId;
     if (!channelId) return;
-    const seq = this.threadTailSeq(rootId);
+    const seq = opts.through?.seq ?? this.threadTailSeq(rootId);
     if (seq <= (before?.lastReadSeq ?? 0)) return;
     this.writeThreadFollow(
       {

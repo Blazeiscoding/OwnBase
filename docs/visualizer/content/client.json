@@ -1039,13 +1039,14 @@
     },
     {
       "path": "packages/ui/src/components/ActivityPanel.tsx",
-      "plain": "Lists messages that are unread or mention you. New ones appear while it is open, and more load as you scroll.",
-      "summary": "Lists unread or mentioned messages as a live, scroll-to-load list with coalesced refreshes.",
+      "plain": "Lists what is new for you, everything unread, mentions or replies in threads you follow, grouped by conversation, one line each. New ones appear while it is open, and more load as you scroll.",
+      "summary": "Lists unread messages, mentions and followed-thread replies in groups, as a live, scroll-to-load list with coalesced refreshes.",
       "details": [
-        "Each filter tab is its own PagedList. Mention counts, edits and retention in conversations it shows, and in Unread also each conversation's newest seq and each thread's lastSeq, signal that it may be out of date (UX-08).",
-        "A 250 ms coalesced refresh merges bursts, reads again as far as was shown and keeps existing content meanwhile. Rows can jump to or deliberately mark a conversation read."
+        "Tabs All, Mentions and Threads (UX-52) ask the server's unread, mentions and threads modes; Threads shows only where the ready snapshot says activityThreads. Each tab is its own PagedList. Mention counts, edits and retention in conversations it shows, and in All and Threads each followed thread's lastSeq (All also each conversation's newest seq), signal that it may be out of date (UX-08).",
+        "A 250 ms coalesced refresh merges bursts, reads again as far as was shown and keeps existing content meanwhile.",
+        "groupActivity puts rows under one heading per conversation (per thread in Threads), in the order each group's newest came, named like \"#design, 3 new\"; a one-to-one DM's group is \"Direct message\" since its rows name the person. A row is one line (author, in a thread, time, the start of the text from notificationBody) and opens the message; Mark read reads a conversation, or a thread through markThreadRead's through, up to that row, and Save toggles saved. Mark all read reads every conversation and followed thread to its newest, and any listed reply in a thread not followed. Focus moves to the next row when the one holding it leaves."
       ],
-      "concepts": ["unread activity", "mention inbox", "request coalescing", "UX-08"]
+      "concepts": ["unread activity", "mention inbox", "request coalescing", "UX-08", "UX-52"]
     },
     {
       "path": "packages/ui/src/components/ScheduledPanel.tsx",

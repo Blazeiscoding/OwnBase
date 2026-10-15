@@ -3561,7 +3561,7 @@ export class Store {
    */
   activityMessages(
     userId: ID,
-    opts: { mode: "unread" | "mentions"; cursor?: ID; limit: number },
+    opts: { mode: "unread" | "mentions" | "threads"; cursor?: ID; limit: number },
   ): Message[] {
     const conditions = ["cm.user_id = ?", "m.user_id != ?", "m.deleted_at IS NULL"];
     const params: (string | number)[] = [userId, userId];
@@ -3575,6 +3575,14 @@ export class Store {
           WHERE tf.user_id = cm.user_id AND tf.root_id = m.thread_root_id AND tf.following = 1))`,
       );
       params.push(`<@${userId}>`);
+    } else if (opts.mode === "threads") {
+      // Unread replies in the threads this account follows.
+      conditions.push(
+        Store.UNREAD,
+        `m.thread_root_id IS NOT NULL AND EXISTS (
+          SELECT 1 FROM thread_follows tf
+          WHERE tf.user_id = cm.user_id AND tf.root_id = m.thread_root_id AND tf.following = 1)`,
+      );
     } else {
       // Read from who each message names, not by walking every message.
       conditions.push(Store.NAMES_ME);
@@ -3587,11 +3595,11 @@ export class Store {
     conditions.push(
       "(m.thread_root_id IS NULL OR EXISTS (SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL))",
     );
-    // Unread walks messages newest first and stops at the page's end. Mentions
-    // start from who each message names, where one message can appear twice
-    // (named, and the whole room), so they are grouped by message.
+    // Unread and threads walk messages newest first and stop at the page's
+    // end. Mentions start from who each message names, where one message can
+    // appear twice (named, and the whole room), so they are grouped by message.
     const query =
-      opts.mode === "unread"
+      opts.mode !== "mentions"
         ? `SELECT m.* FROM messages m JOIN channels c ON c.id = m.channel_id
            JOIN channel_members cm ON cm.channel_id = c.id
            WHERE ${conditions.join(" AND ")} ORDER BY m.id DESC LIMIT ?`
