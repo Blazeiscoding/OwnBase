@@ -3,7 +3,6 @@ import {
   useCallback,
   useEffect,
   useId,
-  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -13,8 +12,6 @@ import {
   type Ref,
   type RefCallback,
 } from "react";
-import { createPortal } from "react-dom";
-import { isImeKey } from "../lib/textInput.js";
 
 interface TriggerProps {
   ref?: Ref<HTMLElement>;
@@ -43,8 +40,6 @@ const NEXT_DELAY = 80;
 /** How long after a hint goes the next one still counts as next. */
 const NEXT_WINDOW = 300;
 const LEAVE_GRACE = 120;
-const VISUAL_GAP = 8;
-const VIEWPORT_MARGIN = 8;
 
 let activeTooltip: { owner: object; close: () => void } | null = null;
 /** Where the last hint was drawn, and when it went, so the next can travel from there. */
@@ -85,13 +80,24 @@ function describedBy(existing: string | undefined, id: string) {
   return [...new Set(`${existing ?? ""} ${id}`.trim().split(/\s+/))].join(" ");
 }
 
-function portalHost(trigger: HTMLElement): HTMLElement {
-  const fullscreen = document.fullscreenElement;
-  if (fullscreen instanceof HTMLElement && fullscreen.contains(trigger)) return fullscreen;
-  return (
-    trigger.closest<HTMLElement>('[role="dialog"], main, nav, aside, [data-tandem-modal]') ??
-    document.body
+type Bubble = (typeof import("./TooltipBubble.js"))["TooltipBubble"];
+/**
+ * The floating text is out of the first download. It is fetched as the
+ * workspace opens, or when a hint is first wanted, and drawn directly from
+ * then on; a hover waits longer than it takes to arrive.
+ */
+let LoadedBubble: Bubble | null = null;
+let loadingBubble: Promise<Bubble> | null = null;
+export function loadTooltipBubble(): Promise<Bubble> {
+  loadingBubble ??= import("./TooltipBubble.js").then(
+    (module) => (LoadedBubble = module.TooltipBubble),
+    (error: unknown) => {
+      // Asked again later, it tries again.
+      loadingBubble = null;
+      throw error;
+    },
   );
+  return loadingBubble;
 }
 
 /**
@@ -115,7 +121,7 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   const travel = useRef<typeof lastHint | null>(null);
   const followsOn = useRef(false);
   const [open, setOpen] = useState(false);
-  const [, refreshHost] = useState(0);
+  const [, bubbleArrived] = useState(0);
 
   const clearOpenTimer = useCallback(() => {
     if (openTimer.current !== null) clearTimeout(openTimer.current);
@@ -150,6 +156,7 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   }, [hide]);
   const show = useCallback(
     (delay: number) => {
+      if (!LoadedBubble) loadTooltipBubble().catch(() => undefined);
       clearOpenTimer();
       clearCloseTimer();
       if (delay === 0) reveal();
@@ -186,140 +193,20 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
     () => mergeRef(children.props.ref, rememberTrigger),
     [children.props.ref, rememberTrigger],
   );
-  const host = open && trigger.current ? portalHost(trigger.current) : null;
+  const waiting = useCallback(() => closeTimer.current !== null || bubbleHovered.current, []);
 
-  const place = useCallback(() => {
-    const anchor = trigger.current;
-    const tooltip = bubble.current;
-    if (!anchor?.isConnected || !tooltip) {
-      hide();
-      return;
-    }
-    // A hover-only message toolbar may disappear in the instant between the
-    // pointer leaving its button and entering this portalled hit area. Keep
-    // the last useful position; the leave grace closes it unless the pointer
-    // arrives and cancels that timer.
-    const anchorRects = Array.from(anchor.getClientRects());
-    const hasArea = anchorRects.some((rect) => rect.width > 0 && rect.height > 0);
-    if (!hasArea) {
-      if (closeTimer.current === null && !bubbleHovered.current) hide();
-      return;
-    }
-    const boundingBox = anchor.getBoundingClientRect();
-    const anchorBox =
-      boundingBox.width > 0 && boundingBox.height > 0
-        ? boundingBox
-        : anchorRects.find((rect) => rect.width > 0 && rect.height > 0)!;
-    if (
-      anchorBox.bottom <= 0 ||
-      anchorBox.top >= window.innerHeight ||
-      anchorBox.right <= 0 ||
-      anchorBox.left >= window.innerWidth
-    ) {
-      hide();
-      return;
-    }
-    const tooltipBox = tooltip.getBoundingClientRect();
-    const width = tooltipBox.width || tooltip.offsetWidth;
-    const height = tooltipBox.height || tooltip.offsetHeight;
-    const fitsTop = anchorBox.top - height >= VIEWPORT_MARGIN;
-    const fitsBottom = anchorBox.bottom + height <= window.innerHeight - VIEWPORT_MARGIN;
-    const fitsRight = anchorBox.right + width <= window.innerWidth - VIEWPORT_MARGIN;
-    const side =
-      preferredSide === "right" && fitsRight
-        ? "right"
-        : preferredSide === "top" || preferredSide === "right"
-          ? !fitsTop && fitsBottom
-            ? "bottom"
-            : "top"
-          : !fitsBottom && fitsTop
-            ? "top"
-            : "bottom";
-    const maxLeft = Math.max(VIEWPORT_MARGIN, window.innerWidth - width - VIEWPORT_MARGIN);
-    const left = Math.max(
-      VIEWPORT_MARGIN,
-      Math.min(
-        side === "right" ? anchorBox.right : anchorBox.left + anchorBox.width / 2 - width / 2,
-        maxLeft,
-      ),
-    );
-    const wantedTop =
-      side === "right"
-        ? anchorBox.top + anchorBox.height / 2 - height / 2
-        : side === "top"
-          ? anchorBox.top - height
-          : anchorBox.bottom;
-    const maxTop = Math.max(VIEWPORT_MARGIN, window.innerHeight - height - VIEWPORT_MARGIN);
-
-    const top = Math.max(VIEWPORT_MARGIN, Math.min(wantedTop, maxTop));
-    const nextLeft = `${left}px`;
-    const nextTop = `${top}px`;
-    if (tooltip.style.left !== nextLeft) tooltip.style.left = nextLeft;
-    if (tooltip.style.top !== nextTop) tooltip.style.top = nextTop;
-    if (tooltip.style.visibility !== "visible") tooltip.style.visibility = "visible";
-    if (tooltip.dataset.side !== side) tooltip.dataset.side = side;
-  }, [hide, preferredSide]);
-
-  useLayoutEffect(() => {
-    if (!open || !host) return;
-    place();
-    // Following on from the last hint, it slides over from where that one was.
-    const from = travel.current;
-    const tooltip = bubble.current;
-    travel.current = null;
-    if (
-      from &&
-      tooltip?.dataset.side === from.side &&
-      typeof tooltip.animate === "function" &&
-      !window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    ) {
-      const x = from.left - parseFloat(tooltip.style.left);
-      const y = from.top - parseFloat(tooltip.style.top);
-      tooltip.animate(
-        { translate: [`${x}px ${y}px`, "0 0"] },
-        { duration: 160, easing: "cubic-bezier(0.22, 1, 0.36, 1)" },
-      );
-    }
-    const onFullscreenChange = () => refreshHost((version) => version + 1);
-    const observer =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(() => place());
-    let followFrame = 0;
-    const followPosition = () => {
-      place();
-      followFrame = window.requestAnimationFrame(followPosition);
-    };
-    observer?.observe(host);
-    if (trigger.current) observer?.observe(trigger.current);
-    if (bubble.current) observer?.observe(bubble.current);
-    followFrame = window.requestAnimationFrame(followPosition);
-    document.addEventListener("scroll", place, true);
-    document.addEventListener("fullscreenchange", onFullscreenChange);
-    window.addEventListener("resize", place);
-    return () => {
-      document.removeEventListener("scroll", place, true);
-      document.removeEventListener("fullscreenchange", onFullscreenChange);
-      window.removeEventListener("resize", place);
-      window.cancelAnimationFrame(followFrame);
-      observer?.disconnect();
-    };
-  }, [host, label, keys, open, place]);
-
+  // Open before its text has arrived: draw it once it has.
   useEffect(() => {
-    if (!open) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key !== "Escape" || event.defaultPrevented || isImeKey(event)) return;
-      event.preventDefault();
-      event.stopPropagation();
-      hide();
-    };
-    const onWindowBlur = () => hide();
-    document.addEventListener("keydown", onKeyDown, true);
-    window.addEventListener("blur", onWindowBlur);
+    if (!open || LoadedBubble) return;
+    let alive = true;
+    loadTooltipBubble().then(
+      () => alive && bubbleArrived((version) => version + 1),
+      () => undefined,
+    );
     return () => {
-      document.removeEventListener("keydown", onKeyDown, true);
-      window.removeEventListener("blur", onWindowBlur);
+      alive = false;
     };
-  }, [hide, open]);
+  }, [open]);
 
   const child = cloneElement(children, {
     ref: mergedRef,
@@ -357,49 +244,31 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
     }),
   });
 
-  const content = open ? (
-    <span
-      ref={bubble}
-      id={id}
-      role="tooltip"
-      data-side={preferredSide}
-      onPointerEnter={(event) => {
-        if (event.pointerType === "touch") return;
-        bubbleHovered.current = true;
-        clearCloseTimer();
-      }}
-      onPointerLeave={(event) => {
-        if (event.pointerType === "touch") return;
-        bubbleHovered.current = false;
-        closeIfInactive();
-      }}
-      style={{ left: 0, top: 0, visibility: "hidden", padding: VISUAL_GAP }}
-      className="pointer-events-auto fixed z-[70] text-center text-xs text-ground"
-    >
-      <span
-        className={`flex max-w-[calc(100vw-2rem)] items-center gap-2 rounded-lg bg-ink px-2 py-1 font-medium text-ground shadow-[var(--shadow-float)] ${
-          followsOn.current ? "" : "animate-tip-in"
-        }`}
-      >
-        <span>
-          {label}
-          {keys && <span className="sr-only">{`. Shortcut: ${keys}`}</span>}
-        </span>
-        {keys && (
-          <kbd
-            aria-hidden="true"
-            className="shrink-0 rounded bg-ground/15 px-1 text-[10px] font-medium text-ground/80"
-          >
-            {keys}
-          </kbd>
-        )}
-      </span>
-    </span>
-  ) : null;
   return (
     <>
       {child}
-      {host && content && createPortal(content, host)}
+      {open && LoadedBubble && (
+        <LoadedBubble
+          id={id}
+          label={label}
+          keys={keys}
+          side={preferredSide}
+          trigger={trigger}
+          bubble={bubble}
+          travel={travel}
+          followsOn={followsOn.current}
+          hide={hide}
+          waiting={waiting}
+          onPointerEnter={() => {
+            bubbleHovered.current = true;
+            clearCloseTimer();
+          }}
+          onPointerLeave={() => {
+            bubbleHovered.current = false;
+            closeIfInactive();
+          }}
+        />
+      )}
     </>
   );
 }

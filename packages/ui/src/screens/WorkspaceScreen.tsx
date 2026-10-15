@@ -46,7 +46,7 @@ import { useMessageAnnouncer } from "../components/MessageAnnouncer.js";
 import { WorkspaceStorageGate } from "../components/WorkspaceStorageGate.js";
 import { ShareableServerProvider } from "../components/ShareableServer.js";
 import { hasOpenModal } from "../components/Modal.js";
-import { Tooltip } from "../components/Tooltip.js";
+import { Tooltip, loadTooltipBubble } from "../components/Tooltip.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useLastConversation } from "../lib/lastConversation.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
@@ -688,9 +688,10 @@ function WorkspaceInner({
   useHistoryKeys(platform.kind === "desktop");
 
   useEffect(() => {
-    // Failing here is not final: opening the palette, a thread or an emoji picker fetches it again.
+    // Failing here is not final: opening the palette, a thread, a hint or an emoji picker fetches it again.
     loadQuickSwitcher().catch(() => undefined);
     loadThreadPanel().catch(() => undefined);
+    loadTooltipBubble().catch(() => undefined);
     loadEmoji().catch(() => undefined);
     import("../components/EmojiPicker.js").catch(() => undefined);
   }, []);

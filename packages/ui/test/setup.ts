@@ -1,6 +1,12 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach } from "vitest";
+import { loadTooltipBubble } from "../src/components/Tooltip.js";
+
+// A hint's floating text comes in a chunk of its own, which an open workspace
+// fetches at once. Have it from the start here too, so a hint opens in the same
+// tick as in the app; tooltip.dom.test.tsx covers one opened before it arrives.
+await loadTooltipBubble();
 
 // Testing Library unmounts after each test by itself only when vitest's globals
 // are on, and they are not.
