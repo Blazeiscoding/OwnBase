@@ -272,4 +272,22 @@ describe("a tooltip", () => {
     expect(cleanup).toHaveBeenCalledOnce();
     expect(ref).not.toHaveBeenCalledWith(null);
   });
+
+  it("opens before its floating text has arrived, and draws it once it has", async () => {
+    // A copy of the module that has not fetched the text yet, as in the first
+    // moment after the app starts.
+    vi.resetModules();
+    const fresh = await import("../src/components/Tooltip.js");
+    render(
+      <fresh.Tooltip label="Start a huddle">
+        <button aria-label="Start a huddle">huddle</button>
+      </fresh.Tooltip>,
+    );
+    const trigger = screen.getByRole("button", { name: "Start a huddle" });
+    act(() => trigger.focus());
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Start a huddle");
+    expect(trigger).toHaveAccessibleDescription("Start a huddle");
+  });
 });
