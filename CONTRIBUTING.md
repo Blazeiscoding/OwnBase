@@ -109,6 +109,13 @@ request. CI checks
 formatting, so an unformatted file fails the build rather than starting an
 argument in review.
 
+The project atlas, `docs/PROJECT-VISUALIZER.html`, explains every runtime file
+and embeds the text of every tracked one. A new file under `apps/*/src` or
+`packages/*/src` needs an entry in `docs/visualizer/content/*.json`, or
+`pnpm visualizer:build` stops and names it. Run `pnpm visualizer:build` after a
+change so the atlas matches it; `pnpm visualizer:check` says whether it does.
+The [atlas guide](docs/visualizer/README.md) has the rest.
+
 Browser checks: `pnpm exec playwright install chromium`, then `pnpm test:e2e`
 after building. Windows checks: `pnpm build:win`,
 then `pnpm test:desktop`. These tests use temporary workspaces and fake media.
@@ -156,6 +163,85 @@ Other UI tests keep the Node environment, including static rendering tests.
 The DOM setup approximates visible element boxes for focus checks; it cannot
 test layout, colour contrast, or screen-reader output. Use the browser suite
 for real geometry and check assistive technology separately.
+
+A view in the client opens in one of three places, chosen by what it is for:
+
+- A side panel holds what someone reads beside the conversation: a thread, the
+  members, pinned messages, Activity, Threads, Saved, Scheduled and search
+  results. One is open at a time. It loads in `LazyPanel` and takes focus and
+  hands it back with `usePanelFocus`. Below 1024 px wide it covers the
+  conversation, and what it covers goes inert.
+- A dialog is a short task with an end, such as creating a channel, starting a
+  message, inviting people or answering a confirmation. `Dialog` owns its
+  focus, Escape and the inert page behind it, and it loads in `LazyDialog`.
+- A full page is for settings someone sets up and comes back to: preferences,
+  workspace settings and hosting.
+
+A few actions on one control are a `Menu`, which is a sheet on a touch phone and
+a dropdown elsewhere. A small form on one control, like Send later, is a
+`Popover`. Tabs inside any of these use `useTabs`. A panel or dialog worth
+coming back to has an address in `packages/ui/src/lib/route.ts`, so Back,
+Forward and a copied link reach it. Forms, pickers and search get none.
+
+Some views break the rule today, so follow the rule rather than them. Account
+settings is a 760 px dialog with eight sections, due to become a page. Manage
+hosting is a dialog with four tabs, and there is no Workspace settings yet.
+Search results and Friends are lists, and both open as dialogs.
+
+Check a change to the interface against this list before asking for review. The
+pull request template repeats it in short.
+
+- It works from the keyboard alone, in a sensible Tab order. Escape closes the
+  top layer and focus goes back to what opened it. `Dialog`, `Menu`, `Popover`
+  and `usePanelFocus` already do both, so build on them. An icon-only button
+  has an `aria-label` and a `Tooltip`.
+- Focus is visible on everything that takes it. `theme.css` draws the ring on
+  buttons, links and `tabindex="0"`, and fields show focus in their border.
+  Anything else draws its own, as the New channel cards do with
+  `has-[:focus-visible]`.
+- It reads well in Onyx and in White, and axe in a real browser finds nothing in
+  either. The DOM tests' `accessibilityProblems` leaves out colour contrast,
+  because jsdom cannot judge it.
+- It works 390 px wide and in 844 by 390 landscape, with nothing to tap smaller
+  than 24 px, which axe's `target-size` rule checks. Whatever appears on hover
+  also appears on focus. A touch screen has no hover, so there it is always
+  shown or offered in a menu.
+- A view says when it is empty, loading or failed. A list says it through
+  `ListStatus`: rows shaped like what is coming, what failed with Retry, and for
+  an empty list what fills it. A long list reads more with `LoadMore`, not
+  Previous and Next.
+- No submit button is disabled until the form is filled in. The form checks on
+  submit, says what is missing next to the field, and moves focus to the first
+  field with a problem. A button may wait while its request runs, and Send stays
+  off while a message is empty, as Save does when editing one.
+- No Refresh button sits on data the socket already delivers. Such a list
+  updates itself while it is open, and `PagedList` reads it again in place.
+  Retry is only for a load that failed.
+- A view opened now and then loads on first use, inside `LazyPanel` or
+  `LazyDialog`, so the entry stays within the budget above.
+
+Some forms still disable their button until something is typed or changed:
+Create account for a guest, the forms in Apps, Save in channel details and in
+call relay settings, Rename in Manage hosting, Share in the screen picker, and
+Search, which also still pages with Previous and Next. Fix one when you touch
+it.
+
+To look at a change, start a throwaway workspace that serves the web build, on
+this computer only, and fill it with the demo:
+
+```sh
+pnpm build
+node apps/server-cli/dist/slackoss-server.js --data <empty folder> --port 18600 --host 127.0.0.1 --no-mdns --web apps/web/dist
+node scripts/seed-demo.mjs http://127.0.0.1:18600
+```
+
+The server reads `apps/web/dist` from disk, so after
+`pnpm --filter @slackoss/web build` a reload shows the change. Drive it with
+Playwright for screenshots and axe. A context needs `isMobile: true` and
+`hasTouch: true` before `(hover: none)` matches; a phone-sized window alone
+keeps hover. Injecting axe needs `bypassCSP: true`, because the server's content
+security policy allows only its own scripts. Headless Chromium prefers light, so
+pass `colorScheme: "dark"` to see Onyx.
 
 Two things about the desktop suite are easy to trip over. A terminal inside an
 Electron-based tool can export `ELECTRON_RUN_AS_NODE=1`, which makes any Electron
