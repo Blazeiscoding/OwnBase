@@ -323,7 +323,7 @@ export function InviteDialog(props: { onClose: () => void; welcome?: boolean }) 
       {props.welcome && canInvite && onlyOnItsNetwork(serverUrl) && (
         <p className="mb-4 text-sm text-ink-dim">
           {hostsHere
-            ? "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage hosting at the bottom of the window and share the workspace on the internet."
+            ? "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage under the workspace's name and share the workspace on the internet."
             : "This link works for people on the same network as the workspace's server."}
         </p>
       )}

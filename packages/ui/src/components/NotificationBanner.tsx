@@ -23,14 +23,21 @@ function current(): NotificationPermission | "unsupported" {
 export function NotificationBanner({
   storage,
   now = Date.now,
+  onShowing,
 }: {
   storage: Platform["storage"];
   now?: () => number;
+  /** Told whether it is on show, so what comes after it in the banner place waits. */
+  onShowing?: (showing: boolean) => void;
 }) {
   const [permission, setPermission] = useState(current);
   // Unknown until storage answers, so a snoozed banner does not flash first.
   const [snoozed, setSnoozed] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
+  const showing = permission === "default" && snoozed === false;
+
+  useEffect(() => onShowing?.(showing), [onShowing, showing]);
+  useEffect(() => () => onShowing?.(false), [onShowing]);
 
   useEffect(() => {
     if (permission !== "default") return;
@@ -47,7 +54,7 @@ export function NotificationBanner({
     };
   }, [storage, now, permission]);
 
-  if (permission !== "default" || snoozed !== false) return null;
+  if (!showing) return null;
 
   async function enable() {
     if (busy) return;

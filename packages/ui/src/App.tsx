@@ -10,6 +10,8 @@ import { LazyDialog } from "./components/LazyView.js";
 import { useHostingStatus, useLastHosted } from "./lib/hosting.js";
 import { useApplyAppearance } from "./lib/appearance.js";
 import { buttonClass } from "./components/Button.js";
+import { Banner, BannerAction } from "./components/Banner.js";
+import type { HostingLine } from "./components/Sidebar.js";
 
 // Joining is the first screen once per device; someone returning opens straight
 // into their workspace, so it loads on first use and stays out of every start.
@@ -358,30 +360,68 @@ export function App({ platform }: { platform: Platform }) {
     }
   }
 
+  const saveErrorText = `Could not save changes to sign-ins on this device. This session can continue.${
+    platform.kind === "desktop"
+      ? " Unlock your system key store and retry; new sign-ins are never saved as plain text."
+      : " Check browser storage and retry before closing."
+  }`;
+  const retrySaving = () => void changeServers(unsaved.current ?? ((stored) => stored));
+  // In a workspace it waits its turn in the one banner place there (UX-25).
+  const saveErrorAbove = saveError && session.view !== "workspace";
+  const hostingStatus = hosting.status;
+  const viewingHosted =
+    session.view === "workspace" &&
+    hostingStatus?.port !== undefined &&
+    session.server.url === normalizeServerUrl(`localhost:${hostingStatus.port}`);
+  const hostingLine: HostingLine | undefined =
+    platform.hosting &&
+    (hostingStatus?.running ||
+      hostingStatus?.phase === "starting" ||
+      hostingStatus?.phase === "stopping" ||
+      hosting.error)
+      ? {
+          text: hosting.error
+            ? "Hosting status unavailable"
+            : hostingStatus?.openToAllError
+              ? hostingStatus.openToAllError
+              : hostingStatus?.warning
+                ? hostingStatus.warning
+                : hostingStatus?.phase === "starting"
+                  ? "Starting your hosted workspace…"
+                  : hostingStatus?.phase === "stopping"
+                    ? "Stopping your hosted workspace…"
+                    : // The sidebar names the workspace on screen already.
+                      `Hosting ${viewingHosted ? "" : `${hostingStatus?.workspaceName ?? "a workspace"} `}on this computer${hostingStatus?.openToAll?.phase === "open" ? " · open to all" : ""}`,
+          state:
+            hosting.error || hostingStatus?.warning || hostingStatus?.openToAllError
+              ? "trouble"
+              : hostingStatus?.running
+                ? "live"
+                : "busy",
+          alert: !!(hostingStatus?.warning || hostingStatus?.openToAllError),
+          onManage: () => setHostDialogOpen(true),
+        }
+      : undefined;
+
   return (
     <PlatformContext.Provider value={platform}>
       <Appearance />
       <AppBoundary>
         <div className="flex h-full flex-col">
           {platform.kind === "desktop" &&
-            (saveError || session.view === "loading" || session.view === "restore_failed") && (
+            (saveErrorAbove || session.view === "loading" || session.view === "restore_failed") && (
               <div className="titlebar-drag h-10 shrink-0 border-b border-edge" />
             )}
-          {saveError && (
+          {saveErrorAbove && (
             <div
               role="alert"
               className="flex shrink-0 items-center gap-3 border-b border-alert/30 bg-raised px-4 py-3 text-sm text-ink"
             >
-              <span className="flex-1">
-                Could not save changes to sign-ins on this device. This session can continue.
-                {platform.kind === "desktop"
-                  ? " Unlock your system key store and retry; new sign-ins are never saved as plain text."
-                  : " Check browser storage and retry before closing."}
-              </span>
+              <span className="flex-1">{saveErrorText}</span>
               <button
                 type="button"
                 className="shrink-0 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
-                onClick={() => void changeServers(unsaved.current ?? ((stored) => stored))}
+                onClick={retrySaving}
               >
                 Retry saving
               </button>
@@ -500,6 +540,17 @@ export function App({ platform }: { platform: Platform }) {
                   const saved = savedServersRef.current.find((s) => s.url === url);
                   if (saved) openWorkspace(saved, savedServersRef.current);
                 }}
+                banner={
+                  saveError ? (
+                    <Banner
+                      tone="alert"
+                      actions={<BannerAction onClick={retrySaving}>Retry saving</BannerAction>}
+                    >
+                      {saveErrorText}
+                    </Banner>
+                  ) : undefined
+                }
+                hosting={hostingLine}
               />
             )}
             {hostDialogOpen && platform.hosting && (
@@ -507,11 +558,7 @@ export function App({ platform }: { platform: Platform }) {
                 <HostDialog
                   hosting={platform.hosting}
                   state={hosting}
-                  viewingHosted={
-                    session.view === "workspace" &&
-                    hosting.status?.port !== undefined &&
-                    session.server.url === normalizeServerUrl(`localhost:${hosting.status.port}`)
-                  }
+                  viewingHosted={viewingHosted}
                   onClose={() => setHostDialogOpen(false)}
                   onInvite={() => {
                     setHostDialogOpen(false);
@@ -568,50 +615,6 @@ export function App({ platform }: { platform: Platform }) {
               </Dialog>
             )}
           </div>
-          {session.view === "workspace" &&
-            platform.hosting &&
-            (hosting.status?.running ||
-              hosting.status?.phase === "starting" ||
-              hosting.status?.phase === "stopping" ||
-              hosting.error) && (
-              <div className="-mt-1 flex h-8 shrink-0 items-center gap-2.5 bg-deep px-4 text-[12px]">
-                <span
-                  aria-hidden="true"
-                  className={`size-1.5 shrink-0 rounded-full ${
-                    hosting.error || hosting.status?.warning || hosting.status?.openToAllError
-                      ? "bg-alert"
-                      : hosting.status?.running
-                        ? "bg-online"
-                        : "animate-pulse bg-ink-faint"
-                  }`}
-                />
-                <span
-                  role={
-                    hosting.status?.warning || hosting.status?.openToAllError ? "alert" : "status"
-                  }
-                  className="min-w-0 flex-1 truncate text-ink-faint"
-                >
-                  {hosting.error
-                    ? "Hosting status unavailable"
-                    : hosting.status?.openToAllError
-                      ? hosting.status.openToAllError
-                      : hosting.status?.warning
-                        ? hosting.status.warning
-                        : hosting.status?.phase === "starting"
-                          ? "Starting your hosted workspace…"
-                          : hosting.status?.phase === "stopping"
-                            ? "Stopping your hosted workspace…"
-                            : `Hosting ${hosting.status?.workspaceName ?? "a workspace"} on this computer${hosting.status?.openToAll?.phase === "open" ? " · open to all" : ""}`}
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setHostDialogOpen(true)}
-                  className="shrink-0 font-medium text-ink hover:underline"
-                >
-                  Manage hosting
-                </button>
-              </div>
-            )}
         </div>
       </AppBoundary>
     </PlatformContext.Provider>
