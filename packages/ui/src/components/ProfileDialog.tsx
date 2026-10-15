@@ -9,7 +9,13 @@ import { avatarColor } from "../lib/format.js";
 import { Dialog, inputCls } from "./Dialog.js";
 import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
-import { STATUS_PRESETS } from "../lib/status.js";
+import {
+  CLEAR_AFTER,
+  STATUS_PRESETS,
+  statusEnd,
+  statusUntil,
+  type ClearAfter,
+} from "../lib/status.js";
 
 /**
  * Someone's profile card, with a shortcut to open a DM with them; or your own,
@@ -116,6 +122,10 @@ export function ProfileDialog(props: {
             <p className="mt-3 border-t border-edge pt-3 text-sm">
               {user.statusEmoji && <span className="mr-1.5">{user.statusEmoji}</span>}
               {user.statusText}
+              {/* A status that clears itself says when, in this reader's time. */}
+              {user.statusExpiresAt && (
+                <span className="text-ink-faint"> · {statusUntil(user.statusExpiresAt)}</span>
+              )}
             </p>
           )}
           {user.id !== selfId && !user.isBot && (
@@ -156,6 +166,10 @@ export function ProfileForm() {
   const [displayName, setDisplayName] = useState(self?.displayName ?? "");
   const [statusEmoji, setStatusEmoji] = useState(self?.statusEmoji ?? "");
   const [statusText, setStatusText] = useState(self?.statusText ?? "");
+  /** How long the status lasts; "kept" leaves the end it was set with. */
+  const [clearAfter, setClearAfter] = useState<ClearAfter | "kept">(
+    self?.statusExpiresAt ? "kept" : "never",
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
@@ -166,12 +180,21 @@ export function ProfileForm() {
     setBusy(true);
     setError(null);
     setSaved(false);
+    const hasStatus = !!(statusEmoji.trim() || statusText.trim());
+    const statusExpiresAt = !hasStatus
+      ? null
+      : clearAfter === "kept"
+        ? (self?.statusExpiresAt ?? null)
+        : statusEnd(clearAfter);
     try {
       await client.api.updateMe({
         displayName: displayName.trim() || self?.handle || "",
         statusEmoji: statusEmoji.trim(),
         statusText: statusText.trim(),
+        statusExpiresAt,
       });
+      // Saved again, it keeps this end rather than starting the time over.
+      setClearAfter(statusExpiresAt ? "kept" : "never");
       setSaved(true);
     } catch (err) {
       // What was typed stays in the form, so saving again is one press.
@@ -244,6 +267,7 @@ export function ProfileForm() {
               onClick={() => {
                 setStatusEmoji(p.emoji);
                 setStatusText(p.text);
+                setClearAfter(p.clearAfter);
                 setSaved(false);
               }}
               className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink"
@@ -257,6 +281,7 @@ export function ProfileForm() {
               onClick={() => {
                 setStatusEmoji("");
                 setStatusText("");
+                setClearAfter("never");
                 setSaved(false);
               }}
               className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-faint transition-colors hover:border-alert hover:text-alert"
@@ -265,6 +290,25 @@ export function ProfileForm() {
             </button>
           )}
         </div>
+        {(statusEmoji.trim() || statusText.trim()) && (
+          <label className="mt-3 flex items-center gap-2 text-[13px] text-ink-dim">
+            Clear after
+            <select
+              value={clearAfter}
+              onChange={(e) => setClearAfter(e.target.value as ClearAfter | "kept")}
+              className="rounded-lg border border-edge bg-ground px-2 py-1 text-ink"
+            >
+              {clearAfter === "kept" && self?.statusExpiresAt && (
+                <option value="kept">As set, {statusUntil(self.statusExpiresAt)}</option>
+              )}
+              {CLEAR_AFTER.map((choice) => (
+                <option key={choice.id} value={choice.id}>
+                  {choice.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </fieldset>
 
       {error && (

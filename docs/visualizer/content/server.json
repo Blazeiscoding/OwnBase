@@ -82,7 +82,8 @@
         "An existing database receives a consistent pre-upgrade copy before migration by default. Up to three recognized restorable copies are retained; damaged or unrelated files do not displace a usable copy.",
         "Schema 37 removes actions from deleted messages and superseded/purged replay copies, and blanks text/file IDs from sent schedules. Current live buttons and every unsent schedule remain usable.",
         "Indexes support mention lookup, delegated managers and due cleanup/retry work instead of repeated broad scans.",
-        "A newer schema is refused by an older build. Logical cleanup affects active database records; it does not promise erasure of historical backups or freed disk bytes."
+        "A newer schema is refused by an older build. Logical cleanup affects active database records; it does not promise erasure of historical backups or freed disk bytes.",
+        "Schema 39 adds users.status_expires_at, when a status clears itself, or NULL for one kept until changed (UX-61)."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -304,7 +305,8 @@
         "N09 checks a pressed message's text/edit/actions fingerprint before delayed replace/delete. A missing or externally changed origin is a no-op; the same response URL can advance its own result.",
         "Shutdown stops new work, aborts outbound requests and closes sockets/listeners/database/ownership in coordinated retryable cleanup. The library also exposes operations used by desktop hosting.",
         "The file is an orchestration boundary with many domains; narrower modules carry SQL, crypto, networking and parsing. Callback exclusion cannot promise exactly-once business effects after an uncertain external retry.",
-        "Who may join is an access policy (invite_only, account_required, guest_allowed) kept with the legacy invite_only flag in one write. POST /api/auth/guest admits a display name alone while guests are allowed and an owner exists, rationed by address and capped at 200 live guests; POST /api/auth/guest/account converts the same identity to a member and replaces its sessions. requireUser refuses a guest any route outside GUEST_ROUTES, so new routes start closed to guests; guests cannot be put in private rooms, DMs or friendships, sign in with a password, or be promoted or reset by an admin. Turning guests off revokes their sessions and sockets."
+        "Who may join is an access policy (invite_only, account_required, guest_allowed) kept with the legacy invite_only flag in one write. POST /api/auth/guest admits a display name alone while guests are allowed and an owner exists, rationed by address and capped at 200 live guests; POST /api/auth/guest/account converts the same identity to a member and replaces its sessions. requireUser refuses a guest any route outside GUEST_ROUTES, so new routes start closed to guests; guests cannot be put in private rooms, DMs or friendships, sign in with a password, or be promoted or reset by an admin. Turning guests off revokes their sessions and sockets.",
+        "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped."
       ],
       "concepts": ["HTTP API", "transactional publication", "N08", "N09", "background queues"]
     },

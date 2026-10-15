@@ -36,6 +36,11 @@ export interface User {
   role: Role;
   statusText: string;
   statusEmoji: string;
+  /**
+   * Epoch ms when the status clears itself (UX-61). Absent or null when it
+   * stays until changed, and absent from servers before schema v39.
+   */
+  statusExpiresAt?: number | null;
   isBot: boolean;
   deactivated: boolean;
   /** Epoch ms until which notifications are snoozed, or null when available. */

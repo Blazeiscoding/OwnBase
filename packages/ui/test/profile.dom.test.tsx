@@ -5,6 +5,7 @@ import { ApiError, WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, User } from "@slackoss/protocol";
 import { ClientContext } from "../src/context.js";
 import { ProfileDialog, ProfileForm } from "../src/components/ProfileDialog.js";
+import { statusEnd, statusUntil } from "../src/lib/status.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const person = (id: string, handle: string, displayName: string): User => ({
@@ -165,6 +166,7 @@ describe("editing your own profile", () => {
       displayName: "Sam R.",
       statusEmoji: "",
       statusText: "Heads down",
+      statusExpiresAt: null,
     });
     expect(await screen.findByRole("status")).toHaveTextContent("Profile saved.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -200,5 +202,113 @@ describe("editing your own profile", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "A display name can be up to 80 characters and a status up to 120.",
     );
+  });
+});
+
+describe("a status that clears itself", () => {
+  it("says on someone's card when their status ends", () => {
+    const client = workspace();
+    const ends = Date.now() + 30 * 60_000;
+    client.store.setState({
+      users: {
+        [sam.id]: sam,
+        [priya.id]: {
+          ...priya,
+          statusEmoji: "💬",
+          statusText: "In a meeting",
+          statusExpiresAt: ends,
+        },
+      },
+    });
+    const { rerender } = render(
+      <ClientContext.Provider value={client}>
+        <ProfileDialog userId={priya.id} onClose={() => {}} onOpenDm={() => {}} />
+      </ClientContext.Provider>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Profile" });
+    expect(dialog).toHaveTextContent(`In a meeting · ${statusUntil(ends)}`);
+
+    // Cleared by the server at its time, it goes from the card with its end.
+    client.store.setState({ users: { [sam.id]: sam, [priya.id]: priya } });
+    rerender(
+      <ClientContext.Provider value={client}>
+        <ProfileDialog userId={priya.id} onClose={() => {}} onOpenDm={() => {}} />
+      </ClientContext.Provider>,
+    );
+    expect(dialog).not.toHaveTextContent("In a meeting");
+    expect(dialog).not.toHaveTextContent("until");
+  });
+
+  const saving = (client: WorkspaceClient) =>
+    vi.spyOn(client.api, "updateMe").mockImplementation(async (body) => ({
+      user: { ...sam, ...body },
+    }));
+
+  it("takes a preset's usual end, which Clear after can change", async () => {
+    const user = userEvent.setup();
+    const client = workspace();
+    const updateMe = saving(client);
+    render(
+      <ClientContext.Provider value={client}>
+        <ProfileForm />
+      </ClientContext.Provider>,
+    );
+    // Nothing to clear before there is a status.
+    expect(screen.queryByRole("combobox", { name: "Clear after" })).toBeNull();
+    await user.click(screen.getByRole("button", { name: /Out for lunch/ }));
+    const clearAfter = screen.getByRole("combobox", { name: "Clear after" });
+    expect(clearAfter).toHaveValue("1h");
+    expect(await accessibilityProblems()).toEqual([]);
+
+    await user.selectOptions(clearAfter, "Today");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(updateMe).toHaveBeenLastCalledWith(
+      expect.objectContaining({ statusText: "Out for lunch", statusExpiresAt: statusEnd("today") }),
+    );
+
+    await user.selectOptions(screen.getByRole("combobox", { name: "Clear after" }), "Don't clear");
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(updateMe).toHaveBeenLastCalledWith(
+      expect.objectContaining({ statusText: "Out for lunch", statusExpiresAt: null }),
+    );
+  });
+
+  it("keeps the end a status was set with when saved again", async () => {
+    const user = userEvent.setup();
+    const client = workspace();
+    const ends = Date.now() + 45 * 60_000;
+    client.store.setState({
+      self: { ...sam, statusEmoji: "💬", statusText: "In a meeting", statusExpiresAt: ends },
+    });
+    const updateMe = saving(client);
+    render(
+      <ClientContext.Provider value={client}>
+        <ProfileForm />
+      </ClientContext.Provider>,
+    );
+    const clearAfter = screen.getByRole("combobox", { name: "Clear after" });
+    expect(clearAfter).toHaveValue("kept");
+    expect(
+      screen.getByRole("option", { name: `As set, ${statusUntil(ends)}` }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(updateMe).toHaveBeenLastCalledWith(
+      expect.objectContaining({ statusText: "In a meeting", statusExpiresAt: ends }),
+    );
+  });
+});
+
+describe("statusEnd", () => {
+  // Thursday 15 October 2026, 10:30 on this device's clock.
+  const now = new Date(2026, 9, 15, 10, 30);
+  it("counts minutes from now, and days to their last moment", () => {
+    expect(statusEnd("never", now)).toBeNull();
+    expect(statusEnd("30m", now)).toBe(now.getTime() + 30 * 60_000);
+    expect(statusEnd("1h", now)).toBe(now.getTime() + 60 * 60_000);
+    expect(statusEnd("today", now)).toBe(new Date(2026, 9, 16).getTime() - 1);
+    // This week ends with Sunday, from any day of it.
+    expect(statusEnd("week", now)).toBe(new Date(2026, 9, 19).getTime() - 1);
+    expect(statusEnd("week", new Date(2026, 9, 18, 9))).toBe(new Date(2026, 9, 19).getTime() - 1);
+    expect(statusEnd("week", new Date(2026, 9, 19, 9))).toBe(new Date(2026, 9, 26).getTime() - 1);
   });
 });

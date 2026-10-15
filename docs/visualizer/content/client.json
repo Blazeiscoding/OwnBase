@@ -756,12 +756,13 @@
     },
     {
       "path": "packages/ui/src/lib/status.ts",
-      "plain": "The common statuses people pick, offered in both the profile form and the quick status menu.",
+      "plain": "The common statuses people pick and how long each usually lasts, offered in both the profile form and the quick status menu, and the words for when a status ends.",
       "summary": "The statuses people set most, offered wherever a status is chosen.",
       "details": [
-        "One list of emoji and text presets shared by the profile form and quick status, so both offer the same choices."
+        "One list of emoji and text presets shared by the profile form and quick status, so both offer the same choices.",
+        "Each preset carries how long it usually lasts (In a meeting and Out for lunch an hour, Heads down and Off sick today, On holiday until changed). statusEnd turns a Clear after choice into an end: minutes from now, or the last moment of today or of Sunday on this device's clock. statusUntil says it as until 3:41 PM, or until a day (UX-61)."
       ],
-      "concepts": ["status presets"]
+      "concepts": ["status presets", "status expiry", "UX-61"]
     },
     {
       "path": "packages/ui/src/lib/textInput.ts",
@@ -1230,9 +1231,10 @@
       "summary": "Displays a person's profile and provides the shared self-profile editor.",
       "details": [
         "ProfileForm updates the current user's name and status through Api. Another person's profile can start/open a direct message.",
-        "Since Q11 a press on Message is dropped once the card closes or shows someone else, so a late answer neither navigates nor changes the card."
+        "Since Q11 a press on Message is dropped once the card closes or shows someone else, so a late answer neither navigates nor changes the card.",
+        "Your own form offers Clear after (30 minutes, 1 hour, Today, This week, Don't clear) once there is a status; a preset picks its usual length, and a status saved again keeps the end it was set with. Someone else's card says until when their status lasts (UX-61)."
       ],
-      "concepts": ["profile", "direct message action", "Q11"]
+      "concepts": ["profile", "direct message action", "Q11", "status expiry"]
     },
     {
       "path": "packages/ui/src/components/FriendsDialog.tsx",

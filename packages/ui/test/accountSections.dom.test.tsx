@@ -198,6 +198,8 @@ describe("account settings, a section at a time", () => {
       displayName: "Sam Rivera",
       statusEmoji: "",
       statusText: "Heads down",
+      // Typed, it stays until changed.
+      statusExpiresAt: null,
     });
     expect(await within(dialog).findByText("Profile saved.")).toBeVisible();
   });

@@ -564,6 +564,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE messages ADD COLUMN reply_ping INTEGER NOT NULL DEFAULT 0;
   CREATE INDEX idx_messages_reply_to ON messages(reply_to_id) WHERE reply_to_id IS NOT NULL;
   `,
+  // v39 — a status that clears itself (UX-61): when, in epoch ms, or NULL for
+  // one that stays until it is changed.
+  `
+  ALTER TABLE users ADD COLUMN status_expires_at INTEGER;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */
