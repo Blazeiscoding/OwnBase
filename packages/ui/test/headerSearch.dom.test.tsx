@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@slackoss/client-core";
@@ -54,6 +54,9 @@ const found = {
 
 const clients: WorkspaceClient[] = [];
 afterEach(() => {
+  // Unmount before the globals go: the setup file's cleanup runs after this
+  // hook, and a screen still mounting would reach for matchMedia without them.
+  cleanup();
   for (const client of clients.splice(0)) client.destroy();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import { WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, Message, User } from "@slackoss/protocol";
 import { App } from "../src/App.js";
@@ -107,6 +107,9 @@ async function lookingAtGeneral(previews: Record<string, string> | null = null) 
 
 describe("notifying about a message in the conversation on screen", () => {
   afterEach(() => {
+    // Unmount before the globals go: the setup file's cleanup runs after this
+    // hook, and a screen still mounting would reach for matchMedia without them.
+    cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });

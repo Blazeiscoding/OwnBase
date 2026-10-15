@@ -48,11 +48,13 @@ const longDateFormat = new Intl.DateTimeFormat(undefined, {
 export function formatWhen(ts: number, now = Date.now()): string {
   const then = new Date(ts);
   const today = new Date(now);
-  const startOfToday = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const day = 24 * 60 * 60 * 1000;
-  if (ts >= startOfToday) return timeFormat.format(ts);
-  if (ts >= startOfToday - day) return `Yesterday ${timeFormat.format(ts)}`;
-  if (ts >= startOfToday - 6 * day) return `${weekdayFormat.format(ts)} ${timeFormat.format(ts)}`;
+  // Days are counted on the calendar, since a day with a clock change is
+  // not 24 hours long.
+  const daysBefore = (n: number) =>
+    new Date(today.getFullYear(), today.getMonth(), today.getDate() - n).getTime();
+  if (ts >= daysBefore(0)) return timeFormat.format(ts);
+  if (ts >= daysBefore(1)) return `Yesterday ${timeFormat.format(ts)}`;
+  if (ts >= daysBefore(6)) return `${weekdayFormat.format(ts)} ${timeFormat.format(ts)}`;
   if (then.getFullYear() === today.getFullYear()) return shortDateFormat.format(ts);
   return longDateFormat.format(ts);
 }

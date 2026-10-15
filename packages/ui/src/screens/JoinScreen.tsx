@@ -1157,7 +1157,17 @@ function errorMessage(err: unknown, mode: Mode): string {
           : mode === "register"
             ? "Usernames are lowercase letters and digits; passwords need 8+ characters."
             : "Check the username and password.";
+      case "too_many_requests":
+        return "Too many tries for now. Wait a minute, then try again.";
     }
+    // The server answered, so it was reached: say what it said where it said something.
+    if (err.message && err.message !== err.code) return err.message;
+    if (err.status >= 500)
+      return "The workspace's server ran into a problem. Try again in a moment, and tell whoever runs it if it keeps happening.";
+    return `The workspace's server turned that down (${err.code}). Try again, or ask whoever runs it.`;
   }
+  // No answer came: the request failed on the way, or waited too long.
+  if (err instanceof DOMException && err.name === "TimeoutError")
+    return "The server took too long to answer. Check the address and your connection, then try again.";
   return "Could not reach the server. Check the address and try again.";
 }

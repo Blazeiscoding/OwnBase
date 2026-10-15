@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { isMessageRead } from "@slackoss/client-core";
 import type { ID, Message } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle, formatTime, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon } from "./Icon.js";
@@ -197,7 +197,7 @@ export function ActivityPanel({
                       {unread && <span className="sr-only">, unread</span>}
                       <time
                         dateTime={new Date(message.createdAt).toISOString()}
-                        title={`${new Date(message.createdAt).toLocaleDateString()} ${formatTime(message.createdAt)}`}
+                        title={formatFull(message.createdAt)}
                         className="ml-auto shrink-0 text-[12px] text-ink-faint"
                       >
                         {formatWhen(message.createdAt)}

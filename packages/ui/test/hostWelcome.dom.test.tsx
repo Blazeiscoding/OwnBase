@@ -72,6 +72,9 @@ const madeInvite: Invite = {
 
 const clients: WorkspaceClient[] = [];
 afterEach(() => {
+  // Unmount before the globals go: the setup file's cleanup runs after this
+  // hook, and a screen still mounting would reach for matchMedia without them.
+  cleanup();
   for (const client of clients.splice(0)) client.destroy();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
