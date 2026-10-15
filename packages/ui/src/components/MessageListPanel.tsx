@@ -5,9 +5,10 @@ import { channelTitle, formatDay, formatTime, formatWhen } from "../lib/format.j
 import { Avatar } from "./Avatar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon, type IconName } from "./Icon.js";
-import { Tooltip } from "./Tooltip.js";
 import { ListStatus } from "./ListStatus.js";
+import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
+import { usePagedList } from "../lib/pagedList.js";
 
 interface Props {
   title: string;
@@ -17,24 +18,22 @@ interface Props {
   /** One thing to do about an empty list, such as clearing its filter. */
   emptyAction?: { label: string; run: () => void };
   load: (
-    cursor?: string,
-    signal?: AbortSignal,
+    cursor: string | undefined,
+    signal: AbortSignal,
   ) => Promise<{ messages: Message[]; nextCursor?: string | null }>;
-  /** Re-runs `load` whenever this changes (channel switch, save toggled). */
-  reloadKey: string;
+  /** A different list whenever this changes, such as another channel's pins: read from the top. */
+  listKey: string;
   /**
-   * Asks for the page showing again, in place, whenever this changes: what is
-   * listed may have changed somewhere this panel cannot see for itself.
+   * Reads the list again, in place, whenever this changes: what is listed may
+   * have changed somewhere this panel cannot see for itself (UX-08).
    */
-  refreshKey?: number;
-  /** A control for the header, left of Refresh — a filter, usually. */
+  refreshKey?: string | number;
+  /** A control for the header, left of Close — a filter, usually. */
   headerExtra?: ReactNode;
   /** Extra detail beside a row's channel, such as an unread count. */
   itemBadge?: (message: Message) => ReactNode;
   /** Overrides the row's action wording when "Open message" is wrong. */
   jumpLabel?: (message: Message) => string;
-  /** Wording for the row count, singular and plural. Defaults to messages. */
-  countNoun?: [string, string];
   onClose: () => void;
   onJump: (channelId: ID, messageId: ID) => void;
 }
@@ -44,67 +43,44 @@ interface Props {
  * user's saved items. Shares the thread panel's shape so the layout stays put.
  */
 export function MessageListPanel(props: Props) {
-  const client = useClient();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  const [messages, setMessages] = useState<Message[] | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState(false);
-  const [page, setPage] = useState(0);
-  const [cursors, setCursors] = useState<(string | undefined)[]>([undefined]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
-  const request = useRef<AbortController | null>(null);
-  const retry = useRef<(() => void) | null>(null);
-  /** The page last asked for, asked for again without moving the reader. */
-  const again = useRef<(() => void) | null>(null);
+  const changedContent = useWorkspace((s) => s.changedContent);
   const scroller = useRef<HTMLDivElement>(null);
-
-  async function loadPage(
-    cursor: string | undefined,
-    targetPage: number,
-    targetCursors: (string | undefined)[],
-    keepPlace = false,
-  ) {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    retry.current = () => void loadPage(cursor, targetPage, targetCursors);
-    again.current = () => void loadPage(cursor, targetPage, targetCursors, true);
-    setBusy(true);
-    setError(false);
-    try {
-      const result = await props.load(cursor, controller.signal);
-      if (controller.signal.aborted) return;
-      setMessages(result.messages);
-      setPage(targetPage);
-      setCursors(targetCursors);
-      setNextCursor(result.nextCursor ?? null);
-      if (!keepPlace) scroller.current?.scrollTo({ top: 0 });
-    } catch {
-      if (!controller.signal.aborted) setError(true);
-    } finally {
-      if (request.current === controller && !controller.signal.aborted) setBusy(false);
-    }
-  }
+  const paged = usePagedList<Message>(
+    (cursor, signal) =>
+      props.load(cursor, signal).then((page) => ({
+        items: page.messages,
+        nextCursor: page.nextCursor ?? null,
+      })),
+    props.listKey,
+  );
+  const { list, items: messages } = paged;
 
   useEffect(() => {
-    setMessages(null);
-    setNextCursor(null);
-    setPage(0);
-    setCursors([undefined]);
-    void loadPage(undefined, 0, [undefined]);
-    return () => {
-      request.current?.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [client, props.reloadKey]);
-  const refreshed = useRef(props.refreshKey);
+    // Another list starts at its top.
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [props.listKey]);
+
+  // Told that the list may have changed: read it again in place. A new list is
+  // read from the top already, so its own change of signs is not news.
+  const heard = useRef({ list: props.listKey, refresh: props.refreshKey });
   useEffect(() => {
-    if (refreshed.current === props.refreshKey) return;
-    refreshed.current = props.refreshKey;
-    again.current?.();
-  }, [props.refreshKey]);
+    const before = heard.current;
+    heard.current = { list: props.listKey, refresh: props.refreshKey };
+    if (before.list === props.listKey && before.refresh !== props.refreshKey) list.refresh();
+  }, [list, props.listKey, props.refreshKey]);
+
+  // A message shown here was edited, deleted or unpinned, or its conversation
+  // lost history: this copy of it is out of date.
+  const heardChanges = useRef(changedContent);
+  useEffect(() => {
+    const before = heardChanges.current;
+    heardChanges.current = changedContent;
+    if (messages?.some((m) => changedContent[m.channelId] !== before[m.channelId])) list.refresh();
+  }, [list, changedContent, messages]);
+
   const { panel, heading } = usePanelFocus({ takeFocus: true });
 
   return (
@@ -118,7 +94,6 @@ export function MessageListPanel(props: Props) {
           {props.title}
         </h2>
         {props.headerExtra}
-        <RefreshButton busy={busy} onClick={() => void loadPage(undefined, 0, [undefined])} />
         <button
           onClick={props.onClose}
           aria-label={`Close ${props.title}`}
@@ -127,20 +102,24 @@ export function MessageListPanel(props: Props) {
           <Icon name="close" size={16} />
         </button>
       </header>
-      <div ref={scroller} className="min-h-0 flex-1 overflow-y-auto p-3" aria-busy={busy}>
+      <div
+        ref={scroller}
+        className="min-h-0 flex-1 overflow-y-auto p-3"
+        aria-busy={paged.loading || paged.refreshing}
+      >
         <ListStatus
-          loading={busy}
+          loading={paged.loading}
           placeholder={messages === null}
           loadingLabel="Loading messages…"
           error={
-            error
+            paged.failed
               ? `Could not load ${props.title.toLowerCase()}.${
-                  messages ? " The last loaded page is kept." : ""
+                  messages ? " What was shown is kept." : ""
                 }`
               : null
           }
-          onRetry={() => retry.current?.()}
-          empty={messages?.length === 0 ? props.emptyHint : null}
+          onRetry={() => list.retry()}
+          empty={messages?.length === 0 && !paged.nextCursor ? props.emptyHint : null}
           emptyIcon={props.emptyIcon}
           emptyAction={props.emptyAction}
         />
@@ -203,41 +182,15 @@ export function MessageListPanel(props: Props) {
               );
             })}
         </ul>
+        <LoadMore
+          more={!!paged.nextCursor}
+          loading={paged.loadingMore}
+          failed={paged.moreFailed}
+          count={messages?.length ?? 0}
+          onMore={() => list.loadMore()}
+          scroller={scroller}
+        />
       </div>
-      <footer
-        // An empty list says so above; a count of nothing beneath it is noise.
-        hidden={messages?.length === 0 && page === 0 && !nextCursor}
-        className="border-t border-edge px-4 py-2 text-[12px] text-ink-faint"
-      >
-        <div role="status">
-          {messages?.length ?? 0}{" "}
-          {messages?.length === 1
-            ? (props.countNoun?.[0] ?? "message")
-            : (props.countNoun?.[1] ?? "messages")}
-          {(page > 0 || nextCursor) && ` · Page ${page + 1}`}
-        </div>
-        {(page > 0 || nextCursor) && (
-          <div className="mt-2 flex justify-between text-xs">
-            <button
-              disabled={busy || page === 0}
-              className="font-medium text-ink-dim hover:text-ink disabled:opacity-40"
-              onClick={() => void loadPage(cursors[page - 1], page - 1, cursors)}
-            >
-              Previous page
-            </button>
-            <button
-              disabled={busy || !nextCursor}
-              className="font-medium text-ink-dim hover:text-ink disabled:opacity-40"
-              onClick={() => {
-                if (nextCursor)
-                  void loadPage(nextCursor, page + 1, [...cursors.slice(0, page + 1), nextCursor]);
-              }}
-            >
-              Next page
-            </button>
-          </div>
-        )}
-      </footer>
     </aside>
   );
 }
@@ -265,8 +218,8 @@ export function PinsPanel(props: {
       emptyIcon="pin"
       emptyHint="Nothing pinned here yet. Pin a message to keep it handy for everyone in the channel."
       load={(cursor, signal) => client.api.listPins(props.channelId, signal, cursor)}
-      reloadKey={`${props.channelId}:${pinSignature}`}
-      refreshKey={changed}
+      listKey={props.channelId}
+      refreshKey={`${pinSignature}:${changed}`}
       onClose={props.onClose}
       onJump={props.onJump}
     />
@@ -298,7 +251,8 @@ export function SavedPanel(props: {
         </>
       }
       load={(cursor, signal) => client.api.listSaved(cursor, signal)}
-      reloadKey={`saved:${savedSignature}`}
+      listKey="saved"
+      refreshKey={savedSignature}
       onClose={props.onClose}
       onJump={props.onJump}
     />
@@ -317,11 +271,12 @@ export function ThreadsPanel(props: {
   const client = useClient();
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [unread, setUnread] = useState<Record<ID, number>>({});
-  // Following, unfollowing and reading all change what belongs in this list.
+  // Following, unfollowing, reading and a new reply all change what belongs in
+  // this list, or where, or what it says about a thread.
   const followSignature = useWorkspace((s) =>
     Object.values(s.threadFollows)
       .filter((f) => f.following)
-      .map((f) => `${f.rootId}:${f.lastReadSeq}`)
+      .map((f) => `${f.rootId}:${f.lastReadSeq}:${f.lastSeq}`)
       .sort()
       .join(","),
   );
@@ -329,7 +284,6 @@ export function ThreadsPanel(props: {
     <MessageListPanel
       title="Threads"
       emptyIcon="thread"
-      countNoun={["thread", "threads"]}
       emptyHint={
         unreadOnly
           ? "No unread replies. Threads you follow show up here when someone answers."
@@ -353,10 +307,15 @@ export function ThreadsPanel(props: {
       }
       load={async (cursor, signal) => {
         const result = await client.api.listFollowedThreads({ cursor, unreadOnly }, signal);
-        setUnread(Object.fromEntries(result.threads.map((t) => [t.root.id, t.unreadCount])));
+        if (!signal.aborted)
+          setUnread((known) => ({
+            ...known,
+            ...Object.fromEntries(result.threads.map((t) => [t.root.id, t.unreadCount])),
+          }));
         return { messages: result.threads.map((t) => t.root), nextCursor: result.nextCursor };
       }}
-      reloadKey={`threads:${unreadOnly}:${followSignature}`}
+      listKey={`threads:${unreadOnly}`}
+      refreshKey={followSignature}
       itemBadge={(m) =>
         unread[m.id] ? (
           <span className="rounded-full bg-copper px-2 font-semibold text-ground">
@@ -368,22 +327,6 @@ export function ThreadsPanel(props: {
       onClose={props.onClose}
       onJump={props.onJump}
     />
-  );
-}
-
-/** Loads a panel's list again; it turns while it does. */
-export function RefreshButton(props: { busy: boolean; onClick: () => void }) {
-  return (
-    <Tooltip label="Refresh">
-      <button
-        disabled={props.busy}
-        aria-label="Refresh"
-        onClick={props.onClick}
-        className="flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-60"
-      >
-        <Icon name="refresh" size={15} className={props.busy ? "animate-spin" : ""} />
-      </button>
-    </Tooltip>
   );
 }
 

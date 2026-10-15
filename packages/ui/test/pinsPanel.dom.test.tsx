@@ -128,20 +128,27 @@ describe("the Pinned panel", () => {
     await within(panel).findByText("House rules, revised");
   });
 
-  it("asks again for the page it is on", async () => {
+  it("shows more after what it has, and asks again as far as it had read", async () => {
     const user = userEvent.setup();
+    let older = "Older pin";
     const { client, spy, panel } = renderPins(async (cursor) =>
       cursor
-        ? { messages: [pinned("M1", "Older pin", 1)], nextCursor: null }
+        ? { messages: [pinned("M1", older, 1)], nextCursor: null }
         : { messages: [pinned("M5", "Newer pin", 5)], nextCursor: "M5" },
     );
     await within(panel).findByText("Newer pin");
-    await user.click(within(panel).getByRole("button", { name: "Next page" }));
+    // No pages to step through: more follows what is shown (UX-08).
+    expect(within(panel).queryByRole("button", { name: "Next page" })).toBeNull();
+    await user.click(within(panel).getByRole("button", { name: "Show more" }));
     await within(panel).findByText("Older pin");
+    expect(within(panel).getByText("Newer pin")).toBeVisible();
+    expect(within(panel).queryByRole("button", { name: "Show more" })).toBeNull();
 
+    older = "Older pin, edited";
     act(() => client.store.setState({ changedContent: { [design.id]: 10 } }));
-    await waitFor(() => expect(spy).toHaveBeenCalledTimes(3));
-    expect(spy.mock.calls[2]![2]).toBe("M5");
-    expect(panel).toHaveTextContent("Page 2");
+    await within(panel).findByText("Older pin, edited");
+    expect(spy).toHaveBeenCalledTimes(4);
+    expect(spy.mock.calls.slice(2).map((call) => call[2])).toEqual([undefined, "M5"]);
+    expect(within(panel).getByText("Newer pin")).toBeVisible();
   });
 });

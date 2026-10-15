@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import WebSocket from "ws";
+import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -8,9 +10,11 @@ import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
  */
 let server: WorkspaceServer | undefined;
 let base: string;
+const sockets: WebSocket[] = [];
 
 afterEach(async () => {
   vi.restoreAllMocks();
+  for (const ws of sockets.splice(0)) ws.terminate();
   await server?.stop();
   server = undefined;
 });
@@ -179,5 +183,108 @@ describe("a held scheduled message", () => {
     expect(server!.store.listMessages({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
       "for the leads",
     ]);
+  });
+});
+
+describe("telling the author's devices that their queue changed (UX-08)", () => {
+  async function connect(token: string) {
+    const ws = new WebSocket(base.replace("http", "ws") + "/ws");
+    sockets.push(ws);
+    const frames: ServerToClient[] = [];
+    ws.on("message", (raw) => frames.push(JSON.parse(String(raw)) as ServerToClient));
+    ws.on("open", () =>
+      ws.send(
+        JSON.stringify({
+          type: "hello",
+          token,
+          lastSeq: null,
+          syncVersion: 1,
+          protocolVersion: PROTOCOL_VERSION,
+        }),
+      ),
+    );
+    await expect.poll(() => frames.some((f) => f.type === "ready")).toBe(true);
+    const told = () =>
+      frames.filter((f) => f.type === "ephemeral" && f.event.type === "scheduled").length;
+    return { frames, told };
+  }
+
+  it("says so to the author alone as a message is queued, edited, moved, held, sent and cancelled", async () => {
+    await start({ heldRetryMs: 60_000 });
+    const owner = await register("owner");
+    const other = await register("other");
+    const mine = await connect(owner.token);
+    const theirs = await connect(other.token);
+    const ready = mine.frames.find((f) => f.type === "ready");
+    expect(ready && "scheduledEvents" in ready && ready.scheduledEvents).toBe(true);
+
+    const id = (await schedule(owner.token, "first")).body.scheduled.id as string;
+    await expect.poll(mine.told).toBe(1);
+    await request(
+      `/api/scheduled/${id}/text`,
+      owner.token,
+      { text: "edited", expectedText: "first" },
+      "PATCH",
+    );
+    await expect.poll(mine.told).toBe(2);
+    await request(`/api/scheduled/${id}`, owner.token, { sendAt: Date.now() + 7_200_000 }, "PATCH");
+    await expect.poll(mine.told).toBe(3);
+
+    // Held because its room closed: the author's list should say why.
+    await request(`/api/channels/${general()}`, owner.token, { archived: true }, "PATCH");
+    allDue();
+    server!.flushScheduled();
+    await expect.poll(mine.told).toBe(4);
+    // Held again for the same reason a minute later: nothing new to say.
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
+    server!.flushScheduled();
+    vi.mocked(Date.now).mockRestore();
+    expect(server!.store.getScheduled(id)!.status).toBe("held");
+
+    // Sent once the room reopens: it leaves the list.
+    await request(`/api/channels/${general()}`, owner.token, { archived: false }, "PATCH");
+    server!.flushScheduled();
+    expect(sent()).toBe(1);
+    await expect.poll(mine.told).toBe(5);
+
+    const second = (await schedule(owner.token, "second")).body.scheduled.id as string;
+    await expect.poll(mine.told).toBe(6);
+    await request(`/api/scheduled/${second}`, owner.token, undefined, "DELETE");
+    await expect.poll(mine.told).toBe(7);
+
+    // A request replayed by its nonce changed nothing, so it says nothing.
+    const body = { text: "once", nonce: "same-request", sendAt: Date.now() + 3_600_000 };
+    const path = `/api/channels/${general()}/scheduled`;
+    await request(path, owner.token, body);
+    await expect.poll(mine.told).toBe(8);
+    expect((await request(path, owner.token, body)).status).toBe(200);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(mine.told()).toBe(8);
+
+    expect(theirs.told()).toBe(0);
+  });
+
+  it("says so when a message is given up on", async () => {
+    await start();
+    const owner = await register("owner");
+    const mine = await connect(owner.token);
+    const root = await request(`/api/channels/${general()}/messages`, owner.token, {
+      text: "a thread",
+    });
+    const rootId = root.body.message.id as string;
+    const id = (
+      await request(`/api/channels/${general()}/scheduled`, owner.token, {
+        text: "a late reply",
+        threadRootId: rootId,
+        sendAt: Date.now() + 3_600_000,
+      })
+    ).body.scheduled.id as string;
+    await expect.poll(mine.told).toBe(1);
+    await request(`/api/messages/${rootId}`, owner.token, undefined, "DELETE");
+    allDue();
+    server!.flushScheduled();
+    expect(server!.store.getScheduled(id)!.status).toBe("failed");
+    await expect.poll(mine.told).toBe(2);
   });
 });
