@@ -482,6 +482,14 @@ export interface WorkspaceState {
   workspaceId: ID | null;
   /** The server keeps inline replies; an older one would post one as a plain message. */
   inlineReplies: boolean;
+  /** The server says when this account's scheduled queue changes; an older one has to be asked. */
+  scheduledEvents: boolean;
+  /**
+   * Counts up whenever this account's scheduled queue may have changed: the
+   * server said so, or this client connected and could have missed it saying so.
+   * A list of scheduled messages reads the queue again when it moves.
+   */
+  scheduledChanges: number;
   self: User | null;
   users: Record<ID, User>;
   channels: Record<ID, Channel>;
@@ -554,6 +562,8 @@ const initialState: WorkspaceState = {
   workspaceName: "",
   workspaceId: null,
   inlineReplies: false,
+  scheduledEvents: false,
+  scheduledChanges: 0,
   self: null,
   users: {},
   channels: {},
@@ -948,6 +958,9 @@ export class WorkspaceClient {
       workspaceName: snap.workspaceName,
       workspaceId: snap.workspaceId ?? prev.workspaceId,
       inlineReplies: snap.inlineReplies === true,
+      scheduledEvents: snap.scheduledEvents === true,
+      // Whatever was said while this client was away was not heard.
+      scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
       users,
       channels,
@@ -1593,6 +1606,8 @@ export class WorkspaceClient {
       });
     } else if (event.type === "thread.follow") {
       this.applyThreadFollow(event.state);
+    } else if (event.type === "scheduled") {
+      this.store.setState({ scheduledChanges: s.scheduledChanges + 1 });
     } else if (event.type === "ephemeral.message") {
       this.addEphemeral({
         id: event.id,

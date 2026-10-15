@@ -55,6 +55,8 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     workspaceName: "W",
     workspaceId: null,
     inlineReplies: true,
+    scheduledEvents: true,
+    scheduledChanges: 0,
     self: me,
     users: { [me.id]: me, [them.id]: them },
     channels: { C1: channel("public") },

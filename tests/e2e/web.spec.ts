@@ -4197,3 +4197,131 @@ test("a message is answered in place or in its thread, as in Discord", async ({ 
       .getByRole("button", { name: /Replying to @bobby Unless the migration slips/ }),
   ).toBeVisible();
 });
+
+test("Activity, Threads and Scheduled keep themselves current while open (UX-08)", async ({
+  browser,
+}) => {
+  test.setTimeout(90_000);
+  const port = 18551;
+  const origin = `http://127.0.0.1:${port}`;
+  const liveData = mkdtempSync(join(tmpdir(), "slackoss-e2e-live-panels-"));
+  const liveServer = spawn(
+    process.execPath,
+    [
+      "apps/server-cli/dist/slackoss-server.js",
+      "--data",
+      liveData,
+      "--port",
+      String(port),
+      "--host",
+      "127.0.0.1",
+      "--no-mdns",
+      "--name",
+      "Live Team",
+      "--no-rate-limits",
+    ],
+    { windowsHide: true, stdio: "pipe" },
+  );
+  const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
+  try {
+    await expect
+      .poll(async () => {
+        try {
+          return (await fetch(`${origin}/api/health`)).status;
+        } catch {
+          return 0;
+        }
+      })
+      .toBe(200);
+    const account = async (handle: string) =>
+      (await (
+        await fetch(`${origin}/api/auth/register`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ handle, displayName: handle, password: "password123" }),
+        })
+      ).json()) as { token: string; user: { id: string } };
+    const hana = await account("hana");
+    const omar = await account("omar");
+    const call = async (token: string, path: string, body?: unknown, method = "POST") =>
+      (
+        await fetch(`${origin}${path}`, {
+          method,
+          headers: {
+            authorization: `Bearer ${token}`,
+            ...(body === undefined ? {} : { "content-type": "application/json" }),
+          },
+          body: body === undefined ? undefined : JSON.stringify(body),
+        })
+      ).json();
+    const { channels } = await call(hana.token, "/api/channels", undefined, "GET");
+    const general = channels.find((c: { name: string }) => c.name === "general");
+    const { channel: design } = await call(hana.token, "/api/channels", {
+      type: "public",
+      name: "design",
+    });
+    // Hana starts a thread and follows it.
+    const { message: root } = await call(hana.token, `/api/channels/${general.id}/messages`, {
+      text: "Where do we ship from?",
+    });
+    await call(hana.token, `/api/messages/${root.id}/follow`, { following: true }, "PUT");
+
+    const page = await context.newPage();
+    await page.goto(origin);
+    await page.evaluate(
+      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      { url: origin, token: hana.token, workspaceName: "Live Team", handle: "hana", lastUsedAt: 1 },
+    );
+    // Hana reads #design, so what arrives in #general stays unread.
+    await page.goto(`${origin}/#/c/${design.id}`);
+    await page.reload();
+    await expect(page.locator("textarea")).toBeVisible();
+    const nav = page.getByRole("navigation", { name: "Workspace navigation" });
+
+    // Activity: a plain message and a mention from Omar arrive while it is open.
+    await nav.getByRole("button", { name: /^Activity\b/ }).click();
+    const activity = page.getByRole("complementary", { name: "Activity", exact: true });
+    await expect(activity.getByText("You're caught up.")).toBeVisible();
+    await expect(activity.getByRole("button", { name: "Refresh" })).toHaveCount(0);
+    await call(omar.token, `/api/channels/${general.id}/messages`, { text: "Build is green" });
+    await expect(activity.getByText("Build is green", { exact: true })).toBeVisible();
+    await call(omar.token, `/api/channels/${general.id}/messages`, {
+      text: `Can you check the venue <@${hana.user.id}>`,
+    });
+    await expect(activity.getByText(/Can you check the venue/)).toBeVisible();
+    await activity.getByRole("button", { name: "Close activity", exact: true }).click();
+
+    // Threads: Omar answers the thread Hana follows.
+    await nav.getByRole("button", { name: /^Threads\b/ }).click();
+    const threads = page.getByRole("complementary", { name: "Threads", exact: true });
+    await expect(threads.getByText("Where do we ship from?", { exact: true })).toBeVisible();
+    await expect(threads.getByText(/new repl/)).toHaveCount(0);
+    await call(omar.token, `/api/channels/${general.id}/messages`, {
+      text: "From the north dock",
+      threadRootId: root.id,
+    });
+    await expect(threads.getByText("1 new reply", { exact: true })).toBeVisible();
+    await threads.getByRole("button", { name: "Close Threads", exact: true }).click();
+
+    // Scheduled: Hana queues a message on another device, and cancels it there.
+    await page.getByRole("button", { name: /, your account$/ }).click();
+    await page.getByRole("menuitem", { name: "Scheduled messages", exact: true }).click();
+    const scheduled = page.getByRole("complementary", { name: "Scheduled messages", exact: true });
+    await expect(scheduled.getByText(/Nothing queued/)).toBeVisible();
+    const { scheduled: queued } = await call(hana.token, `/api/channels/${general.id}/scheduled`, {
+      text: "Reminder from the phone",
+      sendAt: Date.now() + 3_600_000,
+    });
+    await expect(scheduled.getByText("Reminder from the phone", { exact: true })).toBeVisible();
+    await call(hana.token, `/api/scheduled/${queued.id}`, undefined, "DELETE");
+    await expect(scheduled.getByText(/Nothing queued/)).toBeVisible();
+  } finally {
+    await context.close().catch(() => {});
+    if (liveServer.exitCode === null) {
+      const exited = new Promise((resolve) => liveServer.once("exit", resolve));
+      liveServer.kill();
+      await exited;
+    }
+    rmSync(liveData, { recursive: true, force: true });
+  }
+});
