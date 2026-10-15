@@ -42,6 +42,7 @@ interface UserRow {
   role: string;
   status_text: string;
   status_emoji: string;
+  status_expires_at?: number | null;
   is_bot: number;
   deactivated: number;
   dnd_until: number | null;
@@ -111,6 +112,7 @@ function toUser(r: UserRow): User {
     role: r.role as Role,
     statusText: r.status_text,
     statusEmoji: r.status_emoji,
+    ...(r.status_expires_at != null ? { statusExpiresAt: r.status_expires_at } : {}),
     isBot: r.is_bot === 1,
     deactivated: r.deactivated === 1,
     dndUntil: r.dnd_until,
@@ -287,6 +289,27 @@ export class Store {
     return rows.map(toUser);
   }
 
+  /** The accounts whose status was to clear itself by `now`. */
+  expiredStatusUserIds(now: number): ID[] {
+    return (
+      this.db
+        .prepare(
+          "SELECT id FROM users WHERE status_expires_at IS NOT NULL AND status_expires_at <= ?",
+        )
+        .all(now) as { id: string }[]
+    ).map((row) => row.id);
+  }
+
+  /** When the next status clears itself, or null when none will. */
+  nextStatusExpiry(): number | null {
+    const row = this.db
+      .prepare(
+        "SELECT MIN(status_expires_at) AS next FROM users WHERE status_expires_at IS NOT NULL",
+      )
+      .get() as { next: number | null } | undefined;
+    return row?.next ?? null;
+  }
+
   /** The explicit member grant, independent of permission conferred by an admin role. */
   getMemberInvitePermission(id: ID): boolean {
     return this.db.prepare("SELECT can_invite FROM users WHERE id = ?").get(id)?.can_invite === 1;
@@ -298,6 +321,7 @@ export class Store {
       displayName?: string;
       statusText?: string;
       statusEmoji?: string;
+      statusExpiresAt?: number | null;
       dndUntil?: number | null;
       role?: Role;
       deactivated?: boolean;
@@ -317,6 +341,10 @@ export class Store {
     if (patch.statusEmoji !== undefined) {
       sets.push("status_emoji = ?");
       params.push(patch.statusEmoji);
+    }
+    if (patch.statusExpiresAt !== undefined) {
+      sets.push("status_expires_at = ?");
+      params.push(patch.statusExpiresAt);
     }
     if (patch.dndUntil !== undefined) {
       sets.push("dnd_until = ?");

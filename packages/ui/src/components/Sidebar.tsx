@@ -11,7 +11,7 @@ import { Tooltip } from "./Tooltip.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { useOptionalToast } from "./Toast.js";
-import { STATUS_PRESETS } from "../lib/status.js";
+import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 
@@ -640,9 +640,9 @@ function AccountMenu(props: {
   const client = useClient();
   const toast = useOptionalToast();
   const items: MenuItem[] = [];
-  /** Sets a status straight from the menu: two clicks for the common ones. */
-  const setStatus = (statusEmoji: string, statusText: string) => {
-    client.api.updateMe({ statusEmoji, statusText }).catch(() => {
+  /** Sets a status straight from the menu: two clicks for the common ones, each ending when it usually does. */
+  const setStatus = (statusEmoji: string, statusText: string, statusExpiresAt: number | null) => {
+    client.api.updateMe({ statusEmoji, statusText, statusExpiresAt }).catch(() => {
       toast?.({
         message: "Your status was not changed. Check your connection and try again.",
         kind: "error",
@@ -650,7 +650,9 @@ function AccountMenu(props: {
     });
   };
   if (!props.guest && self) {
-    const current = `${self.statusEmoji} ${self.statusText}`.trim();
+    const ends = self.statusExpiresAt;
+    const current =
+      `${self.statusEmoji} ${self.statusText}`.trim() + (ends ? ` · ${statusUntil(ends)}` : "");
     if (current)
       items.push({
         id: "clear-status",
@@ -658,20 +660,25 @@ function AccountMenu(props: {
         icon: "close",
         section: current,
         ariaLabel: `Clear status, ${current}`,
-        onSelect: () => setStatus("", ""),
+        onSelect: () => setStatus("", "", null),
       });
     STATUS_PRESETS.slice(0, 3)
       .filter((p) => p.text !== self.statusText)
-      .forEach((p, i) =>
+      .forEach((p, i) => {
+        const lasts =
+          p.clearAfter === "never"
+            ? undefined
+            : CLEAR_AFTER.find((c) => c.id === p.clearAfter)!.label;
         items.push({
           id: `status-${p.text}`,
           label: p.text,
           emoji: p.emoji,
+          hint: lasts,
           section: !current && i === 0 ? "Set a status" : undefined,
-          ariaLabel: `Set status: ${p.text}`,
-          onSelect: () => setStatus(p.emoji, p.text),
-        }),
-      );
+          ariaLabel: `Set status: ${p.text}${lasts ? `, for ${lasts.toLowerCase()}` : ""}`,
+          onSelect: () => setStatus(p.emoji, p.text, statusEnd(p.clearAfter)),
+        });
+      });
   }
   if (props.guest && props.onCreateAccount)
     items.push({

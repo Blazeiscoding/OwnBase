@@ -40,6 +40,11 @@ export const updateMeBody = z.object({
   displayName: z.string().min(1).max(80).optional(),
   statusText: z.string().max(120).optional(),
   statusEmoji: z.string().max(32).optional(),
+  /**
+   * When the status clears itself, epoch ms; null to keep it until changed.
+   * A status set without one keeps no earlier one's.
+   */
+  statusExpiresAt: z.number().int().positive().nullable().optional(),
   /** Snooze notifications until this epoch ms; null clears it. */
   dndUntil: z.number().int().nullable().optional(),
 });

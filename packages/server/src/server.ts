@@ -1959,11 +1959,24 @@ async function startWorkspaceServer(
   app.patch("/api/me", async (req) => {
     const me = requireUser(req);
     const body = updateMeBody.parse(req.body);
-    return mutate((emit) => {
-      const user = store.updateUser(me.id, body);
+    const statusChanged =
+      body.statusText !== undefined ||
+      body.statusEmoji !== undefined ||
+      body.statusExpiresAt !== undefined;
+    const result = mutate((emit) => {
+      const user = store.updateUser(me.id, {
+        ...body,
+        // A new status without an end keeps no earlier status's end.
+        ...((body.statusText !== undefined || body.statusEmoji !== undefined) &&
+        body.statusExpiresAt === undefined
+          ? { statusExpiresAt: null }
+          : {}),
+      });
       emit({ type: "user.updated", user }, null);
       return { user };
     });
+    if (statusChanged) armStatusExpiry();
+    return result;
   });
 
   app.get("/api/users", async (req) => {
@@ -4669,6 +4682,44 @@ async function startWorkspaceServer(
     });
     void sweepRetention();
   }, 3600_000);
+  // A status set to clear itself (UX-61) is cleared at its time, for everyone
+  // to see, by one timer set for the soonest.
+  let statusExpiry: ReturnType<typeof setTimeout> | null = null;
+  function clearExpiredStatuses() {
+    statusExpiry = null;
+    if (closing) return;
+    maintain("expired statuses", () => {
+      const due = store.expiredStatusUserIds(Date.now());
+      if (due.length > 0)
+        mutate((emit) => {
+          for (const id of due) {
+            const user = store.updateUser(id, {
+              statusText: "",
+              statusEmoji: "",
+              statusExpiresAt: null,
+            });
+            emit({ type: "user.updated", user }, null);
+          }
+        });
+    });
+    armStatusExpiry();
+  }
+  /** Sets the timer for the soonest end. One later than a timer can wait wakes it to wait again. */
+  function armStatusExpiry() {
+    if (statusExpiry) clearTimeout(statusExpiry);
+    statusExpiry = null;
+    if (closing) return;
+    const next = store.nextStatusExpiry();
+    if (next === null) return;
+    statusExpiry = setTimeout(
+      clearExpiredStatuses,
+      Math.min(Math.max(0, next - Date.now()), 2_147_483_647),
+    );
+    statusExpiry.unref();
+  }
+  // Statuses that ended while the server was stopped clear as it starts.
+  armStatusExpiry();
+
   let stopping: Promise<void> | null = null;
   // The stages of stopping that have finished. A stop that fails part-way
   // can be asked again, and the next try picks up at the first stage not yet
@@ -4740,6 +4791,7 @@ async function startWorkspaceServer(
         clearInterval(eventDeliveryTimer);
         clearInterval(pruneTimer);
         clearInterval(loopDelayTimer);
+        if (statusExpiry) clearTimeout(statusExpiry);
         loopDelay.disable();
         mdnsHandle?.stop();
         // Before waiting on anything, so whatever is waiting on an app hears

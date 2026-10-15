@@ -5,6 +5,7 @@ import { WorkspaceClient } from "@slackoss/client-core";
 import type { User } from "@slackoss/protocol";
 import { ClientContext } from "../src/context.js";
 import { Sidebar, type OtherWorkspace } from "../src/components/Sidebar.js";
+import { statusUntil } from "../src/lib/status.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const sam: User = {
@@ -127,9 +128,10 @@ describe("the account menu", () => {
     const { user } = sidebar({ admin: true });
     const { menu, items } = await accountMenu(user);
     expect(items).toEqual([
-      "💬In a meeting",
-      "🎧Heads down",
-      "🍜Out for lunch",
+      // Each says how long it lasts.
+      "💬In a meeting1 hour",
+      "🎧Heads downToday",
+      "🍜Out for lunch1 hour",
       "Profile and status",
       "Account settings",
       "Scheduled messages",
@@ -137,29 +139,58 @@ describe("the account menu", () => {
     expect(await accessibilityProblems(menu)).toEqual([]);
   });
 
-  it("sets a common status in two clicks, and clears it the same way", async () => {
+  it("sets a common status for as long as it usually lasts in two clicks, and clears it the same way", async () => {
     const { user, client } = sidebar({ admin: false });
     const updateMe = vi
       .spyOn(client.api, "updateMe")
       .mockImplementation(async (body) => ({ user: { ...sam, ...body } }));
     await accountMenu(user);
-    await user.click(screen.getByRole("menuitem", { name: "Set status: In a meeting" }));
-    expect(updateMe).toHaveBeenCalledWith({ statusEmoji: "💬", statusText: "In a meeting" });
+    const before = Date.now();
+    await user.click(
+      screen.getByRole("menuitem", { name: "Set status: In a meeting, for 1 hour" }),
+    );
+    const ends = updateMe.mock.calls[0]![0].statusExpiresAt!;
+    expect(updateMe).toHaveBeenCalledWith({
+      statusEmoji: "💬",
+      statusText: "In a meeting",
+      statusExpiresAt: expect.any(Number),
+    });
+    // An hour from the click (UX-61).
+    expect(ends - before).toBeGreaterThanOrEqual(3_600_000);
+    expect(ends - Date.now()).toBeLessThanOrEqual(3_600_000);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
 
-    // With a status set, the menu offers to clear it, and not the one already set.
+    // With a status set, the menu offers to clear it, says until when, and
+    // does not offer the one already set.
     act(() =>
       client.store.setState((state) => ({
-        self: { ...state.self!, statusEmoji: "💬", statusText: "In a meeting" },
+        self: {
+          ...state.self!,
+          statusEmoji: "💬",
+          statusText: "In a meeting",
+          statusExpiresAt: ends,
+        },
       })),
     );
     expect(screen.getByRole("button", { name: /, your account$/ })).toHaveTextContent(
       "💬 In a meeting",
     );
     const { items } = await accountMenu(user);
-    expect(items.slice(0, 3)).toEqual(["Clear status", "🎧Heads down", "🍜Out for lunch"]);
-    await user.click(screen.getByRole("menuitem", { name: "Clear status, 💬 In a meeting" }));
-    expect(updateMe).toHaveBeenLastCalledWith({ statusEmoji: "", statusText: "" });
+    expect(items.slice(0, 3)).toEqual([
+      "Clear status",
+      "🎧Heads downToday",
+      "🍜Out for lunch1 hour",
+    ]);
+    await user.click(
+      screen.getByRole("menuitem", {
+        name: `Clear status, 💬 In a meeting · ${statusUntil(ends)}`,
+      }),
+    );
+    expect(updateMe).toHaveBeenLastCalledWith({
+      statusEmoji: "",
+      statusText: "",
+      statusExpiresAt: null,
+    });
   });
 
   it("offers the shortcut sheet, diagnostics and scheduled messages when the screen can open them", async () => {
@@ -193,9 +224,10 @@ describe("the account menu", () => {
     const user = userEvent.setup();
     const { items } = await accountMenu(user);
     expect(items).toEqual([
-      "💬In a meeting",
-      "🎧Heads down",
-      "🍜Out for lunch",
+      // Each says how long it lasts.
+      "💬In a meeting1 hour",
+      "🎧Heads downToday",
+      "🍜Out for lunch1 hour",
       "Profile and status",
       "Account settings",
       "Scheduled messages",

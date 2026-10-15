@@ -21,6 +21,8 @@ export interface MenuItem {
   destructive?: boolean;
   /** One of a set to choose from, ticked when it is the one chosen. */
   checked?: boolean;
+  /** A word or two after the label, such as how long a status lasts. */
+  hint?: string;
   disabled?: boolean;
   onSelect: () => void;
 }
@@ -338,11 +340,14 @@ function MenuPanel({
                   {item.emoji}
                 </span>
               )}
-              {item.checked === undefined ? (
+              {item.checked === undefined && !item.hint ? (
                 item.label
               ) : (
                 <>
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  {item.hint && (
+                    <span className="shrink-0 pl-3 text-[12px] text-ink-faint">{item.hint}</span>
+                  )}
                   {item.checked && <Icon name="check" size={14} className="shrink-0 text-copper" />}
                 </>
               )}
