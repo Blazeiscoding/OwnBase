@@ -155,6 +155,11 @@ function fakeHosting(
   return { hosting, push };
 }
 
+/** Opens one section of a running workspace's management. */
+async function showSection(name: "Overview" | "Share on the internet" | "Backups" | "Advanced") {
+  await userEvent.setup().click(await screen.findByRole("tab", { name }));
+}
+
 /** Holds the status the way the app does, above a dialog that may not be open yet. */
 function Harness(props: {
   hosting: Hosting;
@@ -162,6 +167,7 @@ function Harness(props: {
   viewingHosted?: boolean;
   onStarted?: (status: HostingStatus) => void;
   onClose?: () => void;
+  onInvite?: () => void;
 }) {
   const state = useHostingStatus(props.hosting);
   return (
@@ -172,6 +178,7 @@ function Harness(props: {
           hosting={props.hosting}
           state={state}
           viewingHosted={props.viewingHosted}
+          onInvite={props.onInvite}
           onClose={props.onClose ?? (() => {})}
           onStarted={props.onStarted ?? (() => {})}
         />
@@ -382,6 +389,7 @@ describe("hosting a workspace from the host dialog", () => {
       },
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     expect(
       await screen.findByText("This workspace has not been backed up from this computer yet."),
     ).toBeVisible();
@@ -499,24 +507,128 @@ describe("hosting a workspace from the host dialog", () => {
   });
 
   it("says where teammates connect, and what closing the window does, while hosting", async () => {
+    const user = userEvent.setup();
     const { hosting } = fakeHosting(running);
     render(<Harness hosting={hosting} />);
 
+    // It opens on the overview: the workspace, live, and where to reach it.
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    expect(within(dialog).getByRole("tab", { name: "Overview" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
     expect(within(dialog).getByText("Rocket Team")).toBeVisible();
+    expect(within(dialog).getByText("Live")).toBeVisible();
     expect(within(dialog).getByText("192.168.1.20:8543")).toBeVisible();
-    expect(within(dialog).getByText("8543")).toBeVisible();
-    expect(within(dialog).getByText(running.dataDir!)).toBeVisible();
+    // A phone's camera opens a whole address.
+    expect(
+      within(dialog).getByRole("img", { name: "QR code for http://192.168.1.20:8543" }),
+    ).toBeVisible();
     expect(
       within(dialog).getByText(/keeps the workspace running in the system tray/),
     ).toBeVisible();
     expect(await accessibilityProblems(dialog)).toEqual([]);
+
+    const copy = within(dialog).getByRole("button", { name: "Copy" });
+    expect(copy).toHaveAccessibleDescription("192.168.1.20:8543");
+    await user.click(copy);
+    expect(await navigator.clipboard.readText()).toBe("192.168.1.20:8543");
+    expect(within(dialog).getByRole("button", { name: "Copied" })).toBeVisible();
+
+    // Its folder and port are kept for later.
+    expect(within(dialog).queryByText(running.dataDir!)).toBeNull();
+    await showSection("Advanced");
+    expect(within(dialog).getByText("8543")).toBeVisible();
+    expect(within(dialog).getByText(running.dataDir!)).toBeVisible();
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+    // Stopping stays in sight from every section.
+    expect(within(dialog).getByRole("button", { name: "Stop hosting" })).toBeEnabled();
+  });
+
+  it("puts a public address first on the overview, and in its code", async () => {
+    const { hosting } = fakeHosting({
+      ...running,
+      tunnelAvailable: true,
+      openToAll: { phase: "open", url: publicUrl },
+    });
+    render(<Harness hosting={hosting} />);
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    expect(within(dialog).getByText("Anyone can join at")).toBeVisible();
+    expect(within(dialog).getByText("On this network")).toBeVisible();
+    expect(within(dialog).getByRole("img", { name: `QR code for ${publicUrl}` })).toBeVisible();
+    expect(within(dialog).getAllByRole("button", { name: "Copy" })).toHaveLength(2);
+  });
+
+  it("opens Invite people from the overview of the workspace on screen", async () => {
+    const user = userEvent.setup();
+    const { hosting } = fakeHosting(running);
+    const onInvite = vi.fn();
+    const { rerender } = render(<Harness hosting={hosting} viewingHosted onInvite={onInvite} />);
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    await user.click(within(dialog).getByRole("button", { name: "Invite people" }));
+    expect(onInvite).toHaveBeenCalledOnce();
+
+    // Another workspace on screen opens this one instead.
+    rerender(<Harness hosting={hosting} onInvite={onInvite} />);
+    expect(within(dialog).queryByRole("button", { name: "Invite people" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Open it" })).toBeEnabled();
+  });
+
+  it("moves between its sections with the arrow keys, as tabs", async () => {
+    const user = userEvent.setup();
+    const { hosting } = fakeHosting(
+      { ...running, folder: "team-a", tunnelAvailable: true },
+      {
+        workspaces: [
+          {
+            folder: "team-a",
+            name: "Rocket Team",
+            port: 8543,
+            lastHostedAt: 1,
+            lastBackupAt: null,
+            running: true,
+            missing: false,
+          },
+        ],
+        unreadable: [],
+      },
+    );
+    render(<Harness hosting={hosting} />);
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    const list = within(dialog).getByRole("tablist", { name: "Hosting" });
+    expect(
+      within(list)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Overview", "Share on the internet", "Backups", "Advanced"]);
+    within(list).getByRole("tab", { name: "Overview" }).focus();
+    await user.keyboard("{ArrowRight}");
+    expect(within(list).getByRole("tab", { name: "Share on the internet" })).toHaveFocus();
+    expect(within(dialog).getByRole("tabpanel")).toHaveAccessibleName("Share on the internet");
+    expect(within(dialog).getByText("Let people outside your network join")).toBeVisible();
+    await user.keyboard("{End}");
+    expect(within(dialog).getByRole("tabpanel")).toHaveAccessibleName("Advanced");
+  });
+
+  it("offers only the sections this app can do", async () => {
+    const { hosting } = fakeHosting(running);
+    const bare = { ...hosting } as Partial<typeof hosting>;
+    delete bare.openToAll;
+    render(<Harness hosting={bare as typeof hosting} />);
+    const list = await screen.findByRole("tablist", { name: "Hosting" });
+    // No public link, no relay and nothing to back up with.
+    expect(
+      within(list)
+        .getAllByRole("tab")
+        .map((tab) => tab.textContent),
+    ).toEqual(["Overview", "Advanced"]);
   });
 
   it("opens, copies, secures, and closes a public Cloudflare address", async () => {
     const user = userEvent.setup();
     const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     const inviteRequired = within(dialog).getByRole("checkbox", {
@@ -569,6 +681,7 @@ describe("hosting a workspace from the host dialog", () => {
       { guests: true },
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     const account = () =>
       within(dialog).getByRole("checkbox", { name: "Require an account to join." });
@@ -607,6 +720,7 @@ describe("hosting a workspace from the host dialog", () => {
     const user = userEvent.setup();
     const { hosting } = fakeHosting({ ...running, tunnelAvailable: false });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByText(/Install Cloudflare’s cloudflared tool/)).toBeVisible();
@@ -621,6 +735,7 @@ describe("hosting a workspace from the host dialog", () => {
     const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });
     hosting.openToAll.mockRejectedValueOnce(new Error("cloudflared could not reach the edge"));
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
@@ -628,7 +743,7 @@ describe("hosting a workspace from the host dialog", () => {
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
       /public link could not be opened/,
     );
-    expect(within(dialog).getByText("Rocket Team")).toBeVisible();
+    expect(screen.getByRole("dialog", { name: "Workspace is live" })).toBe(dialog);
     expect(within(dialog).getByRole("button", { name: "Open to all" })).toBeEnabled();
     expect(hosting.stop).not.toHaveBeenCalled();
   });
@@ -871,6 +986,7 @@ describe("starting with the computer", () => {
     const user = userEvent.setup();
     const { hosting } = withLaunch({ ...running, folder: "team-a" });
     render(<Harness hosting={hosting} />);
+    await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     const start = within(group).getByRole("checkbox", {
       name: "Start hosting Rocket Team when Tandem opens",
@@ -912,6 +1028,7 @@ describe("starting with the computer", () => {
       return reopen;
     });
     render(<Harness hosting={withReopen} />);
+    await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     const reopen = within(group).getByRole("checkbox", {
       name: /Also reopen https:\/\/chat\.example\.org when Rocket Team starts with Tandem/,
@@ -929,6 +1046,7 @@ describe("starting with the computer", () => {
     const { hosting } = withLaunch({ ...running, folder: "team-a" });
     (hosting as { setReopenPublicOnLaunch?: unknown }).setReopenPublicOnLaunch = vi.fn();
     render(<Harness hosting={hosting} />);
+    await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     expect(within(group).queryByRole("checkbox", { name: /Also reopen/ })).toBeNull();
   });
@@ -936,6 +1054,7 @@ describe("starting with the computer", () => {
   it("offers only what this copy of the app can do", async () => {
     const { hosting } = withLaunch({ ...running, folder: "team-a" }, null);
     render(<Harness hosting={hosting} />);
+    await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     await waitFor(() => expect(hosting.openAtLogin.get).toHaveBeenCalled());
     expect(within(group).queryByRole("checkbox", { name: /sign in/ })).toBeNull();
@@ -951,6 +1070,7 @@ describe("starting with the computer", () => {
       ),
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Advanced");
     const start = await screen.findByRole("checkbox", {
       name: "Start hosting Rocket Team when Tandem opens",
     });
@@ -1078,6 +1198,11 @@ describe("a workspace restored from a backup", () => {
       "status",
     );
     expect(within(dialog).queryByRole("heading", { name: "Open to all" })).toBeNull();
+    expect(within(dialog).queryByRole("tab", { name: "Share on the internet" })).toBeNull();
+    // Only this computer reaches it, so it gives no address to share.
+    expect(within(dialog).queryByText("192.168.1.20:8543")).toBeNull();
+    expect(within(dialog).queryByRole("img", { name: /^QR code/ })).toBeNull();
+    expect(within(dialog).getByText("Only on this computer")).toBeVisible();
   });
 
   const daily: AutoBackup = { destination: "D:\\Backups", everyDays: 1, keep: 7 };
@@ -1100,6 +1225,7 @@ describe("a workspace restored from a backup", () => {
       { workspaces: [{ ...restored, running: true, autoBackup: daily }], unreadable: [] },
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
     expect(group).toHaveTextContent(
       "Rocket Team is not backed up by itself until it is back in use, and nothing already in D:\\Backups is removed. Then it is backed up every day, keeping the newest 7.",
@@ -1113,6 +1239,7 @@ describe("a workspace restored from a backup", () => {
       { workspaces: [{ ...restored, running: true }], unreadable: [] },
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     // Shown once the list has said which entry is running.
     await screen.findByText("This workspace has not been backed up from this computer yet.");
     expect(screen.queryByRole("group", { name: "Automatic backups" })).toBeNull();
@@ -1324,6 +1451,7 @@ describe("automatic backups", () => {
     const user = userEvent.setup();
     const { hosting } = scheduled(null);
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
     expect(group).toHaveTextContent(/Back Rocket Team up by itself every day/);
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
@@ -1351,6 +1479,7 @@ describe("automatic backups", () => {
     const { hosting } = scheduled(null);
     hosting.setAutoBackup!.mockResolvedValueOnce(undefined);
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     await user.click(await screen.findByRole("button", { name: "Back up automatically…" }));
     expect(hosting.setAutoBackup).toHaveBeenCalledOnce();
     expect(screen.queryByText(/will be backed up/)).toBeNull();
@@ -1362,6 +1491,7 @@ describe("automatic backups", () => {
     const user = userEvent.setup();
     const { hosting } = scheduled({ destination: "D:\\Backups", everyDays: 1, keep: 7 });
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
 
     await user.selectOptions(within(group).getByRole("combobox", { name: "How often" }), "7");
@@ -1405,6 +1535,7 @@ describe("automatic backups", () => {
       new Error("That folder is not there any more. Choose another."),
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
     expect(within(group).getByRole("alert")).toHaveTextContent(
       "The scheduled backup of Rocket Team did not finish. There is not enough free space there.",
@@ -1432,6 +1563,7 @@ describe("automatic backups", () => {
       });
     });
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
     expect(within(group).queryByText(/Last backed up there/)).toBeNull();
     await user.click(within(group).getByRole("button", { name: "Try again" }));
@@ -1447,6 +1579,7 @@ describe("automatic backups", () => {
       "The scheduled backup of Rocket Team was made, but older ones there could not be removed.",
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
     expect(within(group).getByRole("alert")).toHaveTextContent("was made, but older ones");
     expect(within(group).queryByRole("button", { name: "Try again" })).toBeNull();
@@ -1506,6 +1639,7 @@ describe("a stable public address configured for the desktop app", () => {
       publicAddress: configured,
     });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByText(configured)).toBeVisible();
@@ -1523,6 +1657,7 @@ describe("a stable public address configured for the desktop app", () => {
       publicAddressManaged: true,
     });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(
@@ -1542,6 +1677,7 @@ describe("a stable public address configured for the desktop app", () => {
     };
     const { hosting } = fakeHosting(open);
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(await within(dialog).findByRole("link", { name: configured })).toHaveAttribute(
@@ -1564,6 +1700,7 @@ describe("a stable public address configured for the desktop app", () => {
       publicAddressError: "Set both TANDEM_TUNNEL_URL and TANDEM_TUNNEL_TOKEN_FILE.",
     });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByRole("alert")).toHaveTextContent(/Set both TANDEM_TUNNEL_URL/);
@@ -1583,6 +1720,7 @@ describe("an address the host already has", () => {
     const user = userEvent.setup();
     const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
@@ -1605,6 +1743,7 @@ describe("an address the host already has", () => {
       new Error("Use a public HTTPS hostname without a path, credentials, query, or fragment."),
     );
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     await user.type(within(dialog).getByLabelText("Your own address"), "http://localhost:8543");
@@ -1627,6 +1766,7 @@ describe("an address the host already has", () => {
       inviteOnly: true,
     });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByText(/may already make this workspace reachable/)).toBeVisible();
@@ -1643,6 +1783,7 @@ describe("an address the host already has", () => {
       publicAddressLocked: true,
     });
     render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByLabelText("Your own address")).toBeDisabled();
@@ -1661,6 +1802,7 @@ describe("a relay for calls from other networks", () => {
       test: vi.fn(),
     };
     render(<Harness hosting={{ ...hosting, relay }} />);
+    await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     const card = await within(dialog).findByRole("region", { name: "Calls from other networks" });

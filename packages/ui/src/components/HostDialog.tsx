@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type {
   AutoBackup,
   HostedWorkspaces,
@@ -13,12 +13,23 @@ import { useHostingStatus } from "../lib/hosting.js";
 import { useCopy } from "../lib/useCopy.js";
 import { formatDay, formatTime } from "../lib/format.js";
 import { isImeKey } from "../lib/textInput.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { useTabs } from "../lib/useTabs.js";
+import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
+import { QrCode } from "./QrCode.js";
 
 type Hosting = NonNullable<Platform["hosting"]>;
+
+/** The parts of managing a running workspace, each a tab (UX-62). */
+type Section = "overview" | "internet" | "backups" | "advanced";
+const SECTION_NAMES: Record<Section, string> = {
+  overview: "Overview",
+  internet: "Share on the internet",
+  backups: "Backups",
+  advanced: "Advanced",
+};
 
 /**
  * Whether the running workspace starts when Tandem opens, and whether the
@@ -744,6 +755,31 @@ function useHostedWorkspaces(hosting: Hosting, phase: string, revision: number) 
   return { hosted, failed };
 }
 
+/** An address to give people, with a button that copies it. */
+function AddressRow(props: {
+  url: string;
+  id: string;
+  copyKey: string;
+  copyLabel: ReturnType<typeof useCopy>["label"];
+  onCopy: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-2">
+      <span id={props.id} className="min-w-0 break-all font-mono text-ink">
+        {props.url}
+      </span>
+      <button
+        type="button"
+        aria-describedby={props.id}
+        onClick={props.onCopy}
+        className="shrink-0 rounded px-2 py-1 text-xs text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
+      >
+        <Swap text>{props.copyLabel("Copy", "Copied", "Copy failed", props.copyKey)}</Swap>
+      </button>
+    </div>
+  );
+}
+
 /** "today, 3:04 PM" or "Monday, September 22, 3:04 PM". */
 function backedUpWhen(at: number): string {
   const day = formatDay(at);
@@ -757,6 +793,8 @@ export function HostDialog(props: {
   viewingHosted?: boolean;
   onClose: () => void;
   onStarted: (status: HostingStatus) => void;
+  /** Opens Invite people in the hosted workspace, which is on screen. */
+  onInvite?: () => void;
 }) {
   const { status, loading, error: statusError, refresh } = props.state;
   const [name, setName] = useState("");
@@ -777,6 +815,7 @@ export function HostDialog(props: {
     | null
   >(null);
   const operationPending = useRef(false);
+  const [section, setSection] = useState<Section>("overview");
   const [error, setError] = useState<{ message: string; tunnel?: boolean } | null>(null);
   /** Null while the saved address is shown; a string while it is being edited. */
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
@@ -1170,6 +1209,23 @@ export function HostDialog(props: {
     }
   }
 
+  /** The sections of a running workspace, each only where this app can do what it holds. */
+  const sections: Section[] = [];
+  if (!statusError && status && (status.running || changing)) {
+    sections.push("overview");
+    if (!status.isolated && (props.hosting.openToAll || props.hosting.relay))
+      sections.push("internet");
+    if (status.folder && (backupFn || props.hosting.setAutoBackup)) sections.push("backups");
+    sections.push("advanced");
+  }
+  const live = sections.length > 0;
+  const shown = sections.includes(section) ? section : "overview";
+  const tabs = useTabs({ label: "Hosting", tabs: sections, selected: shown, onSelect: setSection });
+  const addressId = useId();
+  // A phone opens what the code holds, so it holds a whole address: the
+  // public one where there is one, as it works from anywhere.
+  const qrTarget = publicUrl ?? (status?.lanUrls?.[0] ? `http://${status.lanUrls[0]}` : null);
+
   return (
     <Dialog
       title={status?.running ? "Workspace is live" : "Host a workspace"}
@@ -1177,750 +1233,940 @@ export function HostDialog(props: {
         if (!operationPending.current) props.onClose();
       }}
       dismissible={!busy}
-      width={500}
+      width={live ? 560 : 500}
+      ownScroll
     >
-      {loading && (
-        <p role="status" className="mb-4 text-sm text-ink-dim">
-          Checking hosting status…
-        </p>
-      )}
-      {statusError && (
-        <div
-          role="alert"
-          className="mb-4 rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm"
-        >
-          <p>Could not check whether this computer is hosting a workspace.</p>
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="mt-2 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
-          >
-            Retry status
-          </button>
-        </div>
-      )}
-      {!statusError && status && (status.running || changing) && (
-        <div className="mb-4 space-y-3 text-sm">
-          {renameFn && status.folder && renaming === status.folder && phase === "running" ? (
-            <RenameForm
-              folder={status.folder}
-              name={status.workspaceName ?? ""}
-              blocked={unavailable}
-              saving={busy === "renaming"}
-              onSave={(next) => saveName(status.folder!, status.workspaceName ?? "", next)}
-              onCancel={closeRename}
-            />
-          ) : (
-            <div className="flex items-start justify-between gap-3">
-              <p role="status" className="min-w-0 break-words font-medium text-ink">
-                {phase === "starting"
-                  ? "Starting workspace…"
-                  : phase === "stopping"
-                    ? "Stopping workspace…"
-                    : (status.workspaceName ?? "Workspace hosted on this computer")}
-              </p>
-              {renameFn && status.folder && status.workspaceName && phase === "running" && (
-                <button
-                  id={`rename-${status.folder}`}
-                  type="button"
-                  disabled={unavailable}
-                  aria-label={`Rename ${status.workspaceName}`}
-                  onClick={() => setRenaming(status.folder!)}
-                  className={`${linkBtnCls} shrink-0`}
-                >
-                  Rename
-                </button>
-              )}
-            </div>
-          )}
-          <LaunchProblem
-            hosting={props.hosting}
-            message={status.launchError}
-            onRetry={
-              status.launchErrorPart === "public-address" &&
-              status.launchErrorFolder === status.folder &&
-              phase === "running" &&
-              !status.isolated &&
-              !status.openToAll &&
-              !status.publicAddressError &&
-              status.tunnelAvailable !== false &&
-              props.hosting.openToAll
-                ? () => void openToAll()
-                : null
-            }
-            disabled={unavailable}
-            onDismissed={() => void refresh()}
-            onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-          />
-          {status.running && phase !== "stopping" && (
-            <p className="text-ink-dim">
-              {status.backgroundAvailable === true
-                ? "Closing this window keeps the workspace running in the system tray. Use the tray to reopen Tandem or stop hosting."
-                : status.backgroundAvailable === false
-                  ? "Closing this window minimizes Tandem while hosting. Keep the app running so teammates can stay connected."
-                  : "Keep Tandem running so teammates can stay connected."}
-            </p>
-          )}
-          {!!status.lanUrls?.length && (
-            <div>
-              <p className="mb-1 text-ink-dim">Teammates can connect at</p>
-              <ul className="space-y-1 break-all font-mono text-ink">
-                {status.lanUrls.map((url) => (
-                  <li key={url}>{url}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {status.running && !status.lanUrls?.length && (
-            <p className="text-ink-dim">
-              No network address is available. Check this computer’s network connection.
-            </p>
-          )}
-          {status.port !== undefined && (
-            <p className="text-ink-dim">
-              Local port: <span className="font-mono text-ink">{status.port}</span>
-            </p>
-          )}
-          {status.connected !== undefined && phase === "running" && (
-            <p className="text-ink-dim">
-              Connected now:{" "}
-              <span className="text-ink">
-                {status.connected === 0
-                  ? "nobody"
-                  : status.connected === 1
-                    ? "1 person"
-                    : `${status.connected} people`}
-              </span>
-            </p>
-          )}
-          {status.dataDir && (
-            <div>
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-ink-dim">Workspace data folder</p>
-                {openFolderFn && status.folder && (
-                  <button
-                    type="button"
-                    onClick={() => void openFolder(status.folder!)}
-                    className={`${linkBtnCls} shrink-0`}
-                  >
-                    Open folder
-                  </button>
-                )}
-              </div>
-              <p className="break-all font-mono text-xs text-ink">{status.dataDir}</p>
-            </div>
-          )}
-          {status.folder && status.workspaceName && phase === "running" && runningEntry && (
-            <AutoBackupSettings
-              hosting={props.hosting}
-              folder={status.folder}
-              name={status.workspaceName}
-              schedule={runningEntry.autoBackup ?? null}
-              error={runningEntry.autoBackupError ?? null}
-              held={!!runningEntry.restored}
-              disabled={unavailable}
-              onNote={setBackupNote}
-              onChanged={() => setListRevision((n) => n + 1)}
-            />
-          )}
-          {status.folder && status.workspaceName && phase === "running" && (
-            <StartWithComputer
-              hosting={props.hosting}
-              folder={status.folder}
-              name={status.workspaceName}
-              startsOnLaunch={!!status.startsOnLaunch}
-              publicAddress={status.publicAddressError ? undefined : status.publicAddress}
-              reopensPublic={!!status.reopensPublicOnLaunch}
-              disabled={unavailable}
-              onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-            />
-          )}
-          {status.isolated && (
-            <p role="status" className="card-warm rounded-xl p-3 text-sm">
-              You are looking inside {status.workspaceName ?? "a restored workspace"}. Only this
-              computer can reach it, nothing it had waiting is sent, and no app is called. Stop it,
-              then choose Put back in use from the list when it is ready.
-            </p>
-          )}
-          {props.hosting.openToAll && !status.isolated && (
-            <div className="card-warm rounded-xl p-3">
-              <div className="mb-1 flex items-center justify-between gap-3">
-                <h3 className="font-semibold text-ink">Open to all</h3>
-                {publicUrl && (
-                  <span className="rounded-full bg-copper/15 px-2 py-0.5 text-xs text-copper">
-                    Public
-                  </span>
-                )}
-              </div>
-              <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
-                {publicUrl
-                  ? `Public link open at ${publicUrl}`
-                  : status.openToAll?.phase === "opening"
-                    ? "Opening public link"
-                    : "Public link closed"}
-              </p>
-              {tunnelError && (
-                <p role="alert" className="mb-2 text-xs text-alert">
-                  {tunnelError}
-                </p>
-              )}
-              {publicUrl ? (
-                <>
-                  <p className="mb-2 text-xs text-ink-dim">
-                    {!status.publicAddress
-                      ? "This temporary address works from anywhere while Tandem and cloudflared stay running."
-                      : status.publicAddressManaged
-                        ? "This configured address stays the same when you reopen the public link. Keep Tandem and its Cloudflare connector running so teammates can connect."
-                        : "This configured address stays the same when you reopen it. Tandem can stop publishing the address, but only you can stop its external tunnel or proxy and make it unreachable."}
-                  </p>
-                  <div className="flex items-center justify-between gap-2 rounded-lg border border-edge bg-raised p-2">
-                    <a
-                      href={publicUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="min-w-0 break-all font-mono text-xs text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
-                    >
-                      {publicUrl}
-                    </a>
-                    <button
-                      type="button"
-                      onClick={() => void copy(publicUrl, "public-address")}
-                      className="shrink-0 rounded px-2 py-1 text-xs text-ink-dim hover:bg-ink/[0.05]"
-                    >
-                      <Swap text>
-                        {copyLabel("Copy address", "Copied", "Copy failed", "public-address")}
-                      </Swap>
-                    </button>
-                  </div>
-                  {guestsSupported && livePolicy ? (
-                    <JoinPolicy
-                      policy={livePolicy}
-                      disabled={!!busy}
-                      onChange={(next) => void changeAccessPolicy(next)}
-                    />
-                  ) : (
-                    <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
-                      <input
-                        type="checkbox"
-                        checked={status.inviteOnly ?? requireInvite}
-                        disabled={!!busy || !props.hosting.setInviteOnly}
-                        onChange={(event) => void changeInvitePolicy(event.target.checked)}
-                        className="mt-0.5"
-                      />
-                      <span>
-                        Require an invite link to create an account. Recommended for every public
-                        workspace.
-                      </span>
-                    </label>
-                  )}
-                  <p className="mt-2 text-xs text-ink-dim">
-                    {livePolicy === "guest_allowed"
-                      ? "Anyone with this address can join as a guest for a day and post in public channels. Requiring an account again signs every guest out."
-                      : status.inviteOnly
-                        ? "In the workspace, choose Workspace → Invite people, generate a code, and copy its Browser link."
-                        : "Anyone with this address can create an account. Send the address only to people you trust."}
-                  </p>
-                  <button
-                    type="button"
-                    disabled={!!busy}
-                    onClick={() => void endOpenToAll()}
-                    className="mt-3 rounded-lg border border-edge px-3 py-2 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
-                  >
-                    {busy === "closing"
-                      ? externallyCarried
-                        ? "Stopping use of address…"
-                        : "Closing public link…"
-                      : externallyCarried
-                        ? "Stop using address"
-                        : "Close public link"}
-                  </button>
-                </>
-              ) : (
-                <>
-                  {status.publicAddress ? (
-                    <div className="space-y-2 text-xs text-ink-dim">
-                      <p>Open this workspace at your own address, which does not change:</p>
-                      <p className="break-all font-mono text-ink">{status.publicAddress}</p>
-                      {status.port !== undefined && (
-                        <p>
-                          {status.publicAddressManaged ? "In Cloudflare, route" : "Send"} this
-                          address to{" "}
-                          <code className="break-all text-ink">{`http://127.0.0.1:${status.port}`}</code>
-                          .
-                        </p>
-                      )}
-                      <p>Keep Tandem running so teammates can connect.</p>
-                      {externallyCarried && (
-                        <p>
-                          Its external tunnel or proxy may already make this workspace reachable.
-                          Tandem requires invites when you save the address; stop the carrier
-                          separately when you want the address itself to become unreachable.
-                        </p>
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-xs text-ink-dim">
-                      Create a temporary HTTPS address through Cloudflare Tunnel. No router setup or
-                      Cloudflare account is needed.
-                    </p>
-                  )}
-                  {props.hosting.setPublicAddress && (
-                    <div className="mt-3 border-t border-edge pt-3">
-                      <label
-                        htmlFor="public-address"
-                        className="block text-xs font-medium text-ink-dim"
-                      >
-                        Your own address
-                      </label>
-                      <p id="public-address-help" className="mt-1 text-xs text-ink-dim">
-                        Already have a Tailscale Funnel, reverse proxy, or tunnel of your own
-                        pointing here? Enter its address to reuse the same link every time. Leave it
-                        empty to{" "}
-                        {status.publicAddressManaged
-                          ? "use the configured Cloudflare address"
-                          : "create a temporary address"}
-                        .
-                      </p>
-                      <div className="mt-2 flex gap-2">
-                        <input
-                          id="public-address"
-                          type="url"
-                          inputMode="url"
-                          spellCheck={false}
-                          placeholder="https://box.tail1234.ts.net"
-                          value={addressValue}
-                          disabled={!!busy || status.publicAddressLocked}
-                          aria-describedby={`public-address-help${addressError ? " public-address-error" : ""}`}
-                          aria-invalid={!!addressError}
-                          aria-errormessage={addressError ? "public-address-error" : undefined}
-                          onChange={(event) => {
-                            setAddressDraft(event.target.value);
-                            setAddressError(null);
-                          }}
-                          className="min-w-0 flex-1 rounded-lg border border-edge bg-raised px-2 py-1.5 font-mono text-xs text-ink disabled:opacity-40"
-                        />
-                        <button
-                          type="button"
-                          disabled={!!busy || !addressDirty || status.publicAddressLocked}
-                          onClick={() => void saveAddress()}
-                          className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
-                        >
-                          {busy === "address" ? "Saving…" : "Save"}
-                        </button>
-                      </div>
-                      {status.publicAddressLocked && (
-                        <p className="mt-2 text-xs text-ink-dim">
-                          This address comes from an environment variable, so it cannot be changed
-                          here.
-                        </p>
-                      )}
-                      {addressError && (
-                        <p
-                          id="public-address-error"
-                          role="alert"
-                          className="mt-2 text-xs text-alert"
-                        >
-                          {addressError}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                  {status.tunnelAvailable === false ? (
-                    <div className="mt-3 text-xs text-ink-dim">
-                      <p>Install Cloudflare’s cloudflared tool, then check again.</p>
-                      <button
-                        type="button"
-                        disabled={!!busy}
-                        onClick={() => void refresh()}
-                        className="mt-2 font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40"
-                      >
-                        Check again
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                      {guestsSupported ? (
-                        <JoinPolicy
-                          policy={openPolicy}
-                          disabled={!!busy}
-                          onChange={setOpenPolicy}
-                        />
-                      ) : (
-                        <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
-                          <input
-                            type="checkbox"
-                            checked={requireInvite}
-                            disabled={!!busy}
-                            onChange={(event) => setRequireInvite(event.target.checked)}
-                            className="mt-0.5"
-                          />
-                          <span>
-                            Require an invite link to create an account. Recommended and enabled by
-                            default.
-                          </span>
-                        </label>
-                      )}
-                      <button
-                        type="button"
-                        disabled={
-                          unavailable ||
-                          !!status.publicAddressError ||
-                          status.openToAll?.phase === "opening"
-                        }
-                        onClick={() => void openToAll()}
-                        className={buttonClass("primary", "mt-3 w-full")}
-                      >
-                        {busy === "opening" || status.openToAll?.phase === "opening"
-                          ? "Opening public link…"
-                          : "Open to all"}
-                      </button>
-                    </>
-                  )}
-                </>
-              )}
-            </div>
-          )}
-          {props.hosting.relay && !status.isolated && (
-            <CallRelaySettings relay={props.hosting.relay} disabled={unavailable} />
-          )}
-        </div>
-      )}
-      {status?.warning && (
-        <p role="alert" className="mb-4 rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm">
-          {status.warning}
-        </p>
-      )}
-      {error && !(error.tunnel && tunnelError) && (
-        <p role="alert" className="mb-4 text-sm text-alert">
-          {error.message}
-        </p>
-      )}
       {!statusError && status && (status.running || changing) ? (
-        <div className="flex flex-wrap items-center gap-2 border-t border-edge pt-4">
-          {backupStatus && <div className="w-full">{backupStatus}</div>}
-          {runningEntry && runningEntry.lastBackupAt === null && backupFn && (
-            <p className="w-full text-xs text-ink-dim">
-              This workspace has not been backed up from this computer yet.
-            </p>
-          )}
-          {!props.viewingHosted && (
-            <button
-              type="button"
-              className={buttonClass("primary")}
-              disabled={unavailable || !status.running || status.port === undefined}
-              onClick={() => props.onStarted(status)}
-            >
-              Open it
-            </button>
-          )}
-          {backupFn && status.folder && (
-            <button
-              type="button"
-              disabled={unavailable}
-              className={buttonClass("secondary")}
-              onClick={() => void backUp(status.folder!, status.workspaceName ?? "the workspace")}
-            >
-              {busy === "backing-up" ? "Backing up…" : "Back up now"}
-            </button>
-          )}
-          {/* Ending the workspace for everyone stands apart from the rest. */}
-          <button
-            type="button"
-            disabled={unavailable}
-            className="ml-auto inline-flex h-9 items-center rounded-lg border border-alert/30 px-3.5 text-sm font-medium text-alert transition-colors hover:bg-alert/10 disabled:opacity-40"
-            onClick={() => void stop()}
-          >
-            {busy === "stopping" ? "Stopping…" : "Stop hosting"}
-          </button>
-        </div>
-      ) : !loading && !statusError && status ? (
         <>
-          <p className="mb-4 text-sm text-ink-dim">
-            Your computer becomes the server. Teammates on your network can connect while Tandem is
-            running. Messages, files and accounts are stored on this machine.
-          </p>
-          <LaunchProblem
-            hosting={props.hosting}
-            message={status.launchError}
-            onRetry={null}
-            disabled={unavailable}
-            className="mb-4"
-            onDismissed={() => void refresh()}
-            onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-          />
-          {listFailed && (
-            <p role="alert" className="mb-4 text-sm text-alert">
-              {listFailed}
-            </p>
-          )}
-          {backupStatus}
-          <StartupWhileStopped
-            hosting={props.hosting}
-            chosen={existing.find((w) => w.startsOnLaunch) ?? null}
-            launchError={status.launchError}
-            disabled={unavailable}
-            onChanged={() => setListRevision((n) => n + 1)}
-            onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
-          />
-          {existing.length > 0 && (
-            <section aria-label="Hosted on this computer" className="mb-5">
-              <h3 className="mb-2 text-[13px] font-semibold text-ink">Hosted on this computer</h3>
-              <ul className="space-y-2">
-                {existing.map((w) => (
-                  <li
-                    key={w.folder}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge px-3 py-2"
-                  >
-                    {setPortFn && changingPort === w.folder && !w.missing ? (
-                      <PortForm
-                        folder={w.folder}
-                        name={w.name}
-                        port={w.port}
-                        saving={busy === "renaming"}
-                        onSave={(port) => savePort(w.folder, w.name, port)}
-                        onCancel={() => {
-                          portReturn.current = w.folder;
-                          setChangingPort(null);
-                        }}
-                      />
-                    ) : renameFn && renaming === w.folder && !w.missing ? (
+          <div
+            {...tabs.listProps}
+            className="tab-strip mx-6 mb-3 flex shrink-0 gap-1 overflow-x-auto rounded-lg bg-ground p-1"
+          >
+            {sections.map((s) => (
+              <button
+                key={s}
+                {...tabs.tabProps(s)}
+                className={`flex-auto whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-colors ${
+                  shown === s ? "bg-lifted text-ink" : "text-ink-dim hover:text-ink"
+                }`}
+              >
+                {SECTION_NAMES[s]}
+              </button>
+            ))}
+          </div>
+          <div {...tabs.panelProps} className="flex min-h-0 flex-1 flex-col">
+            {/* A section opens at its top. */}
+            <DialogScroll key={shown}>
+              {/* Tall enough for the overview, so moving between sections keeps Stop hosting where it was. */}
+              <div className="space-y-4 text-sm sm:min-h-[21rem]">
+                {shown === "overview" && (
+                  <>
+                    {renameFn &&
+                    status.folder &&
+                    renaming === status.folder &&
+                    phase === "running" ? (
                       <RenameForm
-                        folder={w.folder}
-                        name={w.name}
+                        folder={status.folder}
+                        name={status.workspaceName ?? ""}
                         blocked={unavailable}
                         saving={busy === "renaming"}
-                        onSave={(next) => saveName(w.folder, w.name, next)}
+                        onSave={(next) =>
+                          saveName(status.folder!, status.workspaceName ?? "", next)
+                        }
                         onCancel={closeRename}
                       />
                     ) : (
-                      <>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm text-ink">{w.name}</p>
-                          <p className="text-xs text-ink-dim">
-                            {w.missing
-                              ? "Its folder is missing, so it cannot start"
-                              : `${w.restored ? "Restored, not in use yet · " : ""}Port ${w.port}${w.startsOnLaunch ? " · Starts with Tandem" : ""}${
-                                  w.autoBackup
-                                    ? `${w.autoBackup.everyDays === 1 ? " · Backs up daily" : " · Backs up weekly"}${
-                                        w.restored ? " once back in use" : ""
-                                      }`
-                                    : ""
-                                }${
-                                  backupFn
-                                    ? w.lastBackupAt === null
-                                      ? " · Not backed up yet"
-                                      : ` · Backed up ${backedUpWhen(w.lastBackupAt)}`
-                                    : ""
-                                }`}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+                          <p
+                            role="status"
+                            className="min-w-0 break-words text-[15px] font-semibold text-ink"
+                          >
+                            {phase === "starting"
+                              ? "Starting workspace…"
+                              : phase === "stopping"
+                                ? "Stopping workspace…"
+                                : (status.workspaceName ?? "Workspace hosted on this computer")}
                           </p>
-                          {/* The running one says so under Automatic backups, with Try again. */}
-                          {w.autoBackupError && !w.running && (
-                            <p className="text-xs text-alert">{w.autoBackupError}</p>
-                          )}
-                          {!w.missing && (renameFn || openFolderFn || setPortFn) && (
-                            <div className="mt-1 flex gap-3">
-                              {renameFn && (
-                                <button
-                                  id={`rename-${w.folder}`}
-                                  type="button"
-                                  disabled={unavailable}
-                                  aria-label={`Rename ${w.name}`}
-                                  onClick={() => setRenaming(w.folder)}
-                                  className={linkBtnCls}
-                                >
-                                  Rename
-                                </button>
-                              )}
-                              {setPortFn && (
-                                <button
-                                  id={`port-${w.folder}`}
-                                  type="button"
-                                  disabled={unavailable}
-                                  aria-label={`Change port for ${w.name}`}
-                                  onClick={() => {
-                                    setRenaming(null);
-                                    setChangingPort(w.folder);
-                                  }}
-                                  className={linkBtnCls}
-                                >
-                                  Change port
-                                </button>
-                              )}
-                              {openFolderFn && (
-                                <button
-                                  type="button"
-                                  aria-label={`Open folder for ${w.name}`}
-                                  onClick={() => void openFolder(w.folder)}
-                                  className={linkBtnCls}
-                                >
-                                  Open folder
-                                </button>
-                              )}
-                            </div>
+                          {phase === "running" && (
+                            <span className="inline-flex items-center gap-1.5 rounded-full bg-online/15 px-2 py-0.5 text-xs font-medium text-online">
+                              <span
+                                aria-hidden="true"
+                                className="size-1.5 rounded-full bg-online"
+                              />
+                              {status.isolated ? "Only on this computer" : "Live"}
+                            </span>
                           )}
                         </div>
-                        {backupFn && !w.missing && (
-                          <button
-                            type="button"
-                            disabled={unavailable}
-                            aria-label={`Back up ${w.name}`}
-                            onClick={() => void backUp(w.folder, w.name)}
-                            className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
-                          >
-                            Back up
-                          </button>
+                        {renameFn &&
+                          status.folder &&
+                          status.workspaceName &&
+                          phase === "running" && (
+                            <button
+                              id={`rename-${status.folder}`}
+                              type="button"
+                              disabled={unavailable}
+                              aria-label={`Rename ${status.workspaceName}`}
+                              onClick={() => setRenaming(status.folder!)}
+                              className={`${linkBtnCls} shrink-0`}
+                            >
+                              Rename
+                            </button>
+                          )}
+                      </div>
+                    )}
+                    <LaunchProblem
+                      hosting={props.hosting}
+                      message={status.launchError}
+                      onRetry={
+                        status.launchErrorPart === "public-address" &&
+                        status.launchErrorFolder === status.folder &&
+                        phase === "running" &&
+                        !status.isolated &&
+                        !status.openToAll &&
+                        !status.publicAddressError &&
+                        status.tunnelAvailable !== false &&
+                        props.hosting.openToAll
+                          ? () => void openToAll()
+                          : null
+                      }
+                      disabled={unavailable}
+                      onDismissed={() => void refresh()}
+                      onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
+                    />
+                    {status.isolated && (
+                      <p role="status" className="card-warm rounded-xl p-3 text-sm">
+                        You are looking inside {status.workspaceName ?? "a restored workspace"}.
+                        Only this computer can reach it, nothing it had waiting is sent, and no app
+                        is called. Stop it, then choose Put back in use from the list when it is
+                        ready.
+                      </p>
+                    )}
+                    {/* Only this computer reaches a workspace being looked inside. */}
+                    {!status.isolated && (publicUrl || !!status.lanUrls?.length) && (
+                      <div className="flex gap-4 rounded-xl border border-edge p-3">
+                        <div className="min-w-0 flex-1 space-y-3">
+                          {publicUrl && (
+                            <div>
+                              <p className="mb-1 text-ink-dim">Anyone can join at</p>
+                              <AddressRow
+                                url={publicUrl}
+                                id={`${addressId}-public`}
+                                copyLabel={copyLabel}
+                                onCopy={() => void copy(publicUrl, "public-overview")}
+                                copyKey="public-overview"
+                              />
+                            </div>
+                          )}
+                          {!!status.lanUrls?.length && (
+                            <div>
+                              <p className="mb-1 text-ink-dim">
+                                {publicUrl ? "On this network" : "Teammates can connect at"}
+                              </p>
+                              <ul className="space-y-1">
+                                {status.lanUrls.map((url, at) => (
+                                  <li key={url}>
+                                    <AddressRow
+                                      url={url}
+                                      id={`${addressId}-lan-${at}`}
+                                      copyLabel={copyLabel}
+                                      onCopy={() => void copy(url, `lan-${url}`)}
+                                      copyKey={`lan-${url}`}
+                                    />
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                          {qrTarget && (
+                            <p className="text-xs text-ink-faint">
+                              {publicUrl
+                                ? "Or scan the code with a phone to open the workspace."
+                                : "Or scan the code with a phone on this network to open the workspace."}
+                            </p>
+                          )}
+                        </div>
+                        {qrTarget && (
+                          <QrCode value={qrTarget} label={`QR code for ${qrTarget}`} size={104} />
                         )}
-                        {w.missing && forgetFn ? (
+                      </div>
+                    )}
+                    {status.running &&
+                      !status.isolated &&
+                      !status.lanUrls?.length &&
+                      !publicUrl && (
+                        <p className="text-ink-dim">
+                          No network address is available. Check this computer’s network connection.
+                        </p>
+                      )}
+                    {status.connected !== undefined && phase === "running" && (
+                      <p className="text-ink-dim">
+                        Connected now:{" "}
+                        <span className="text-ink">
+                          {status.connected === 0
+                            ? "nobody"
+                            : status.connected === 1
+                              ? "1 person"
+                              : `${status.connected} people`}
+                        </span>
+                      </p>
+                    )}
+                    {phase === "running" &&
+                      (props.viewingHosted ? (
+                        props.onInvite && (
                           <button
                             type="button"
+                            className={buttonClass("primary")}
                             disabled={unavailable}
-                            aria-label={`Remove ${w.name} from the list`}
-                            onClick={() => void removeMissing(w.folder, w.name)}
-                            className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
+                            onClick={props.onInvite}
                           >
-                            Remove
+                            Invite people
                           </button>
+                        )
+                      ) : (
+                        <button
+                          type="button"
+                          className={buttonClass("primary")}
+                          disabled={unavailable || !status.running || status.port === undefined}
+                          onClick={() => props.onStarted(status)}
+                        >
+                          Open it
+                        </button>
+                      ))}
+                    {status.running && phase !== "stopping" && (
+                      <p className="text-ink-dim">
+                        {status.backgroundAvailable === true
+                          ? "Closing this window keeps the workspace running in the system tray. Use the tray to reopen Tandem or stop hosting."
+                          : status.backgroundAvailable === false
+                            ? "Closing this window minimizes Tandem while hosting. Keep the app running so teammates can stay connected."
+                            : "Keep Tandem running so teammates can stay connected."}
+                      </p>
+                    )}
+                  </>
+                )}
+                {shown === "internet" && (
+                  <>
+                    {props.hosting.openToAll && (
+                      <div>
+                        <h3 className="font-semibold text-ink">
+                          Let people outside your network join
+                        </h3>
+                        <p className="mt-1 text-ink-dim">
+                          {publicUrl
+                            ? "People anywhere can reach this workspace at its public address while it is open. Messages and files still stay on this computer."
+                            : "Only people on the same network as this computer can join now. Give the workspace an address on the internet so people at home or on mobile data can join too. Messages and files stay on this computer."}
+                        </p>
+                      </div>
+                    )}
+                    {props.hosting.openToAll && !status.isolated && (
+                      <div className="card-warm rounded-xl p-3">
+                        <div className="mb-1 flex items-center justify-between gap-3">
+                          <h3 className="font-semibold text-ink">Open to all</h3>
+                          {publicUrl && (
+                            <span className="rounded-full bg-copper/15 px-2 py-0.5 text-xs text-copper">
+                              Public
+                            </span>
+                          )}
+                        </div>
+                        <p role="status" aria-live="polite" aria-atomic="true" className="sr-only">
+                          {publicUrl
+                            ? `Public link open at ${publicUrl}`
+                            : status.openToAll?.phase === "opening"
+                              ? "Opening public link"
+                              : "Public link closed"}
+                        </p>
+                        {tunnelError && (
+                          <p role="alert" className="mb-2 text-xs text-alert">
+                            {tunnelError}
+                          </p>
+                        )}
+                        {publicUrl ? (
+                          <>
+                            <p className="mb-2 text-xs text-ink-dim">
+                              {!status.publicAddress
+                                ? "This temporary address works from anywhere while Tandem and cloudflared stay running."
+                                : status.publicAddressManaged
+                                  ? "This configured address stays the same when you reopen the public link. Keep Tandem and its Cloudflare connector running so teammates can connect."
+                                  : "This configured address stays the same when you reopen it. Tandem can stop publishing the address, but only you can stop its external tunnel or proxy and make it unreachable."}
+                            </p>
+                            <div className="flex items-center justify-between gap-2 rounded-lg border border-edge bg-raised p-2">
+                              <a
+                                href={publicUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="min-w-0 break-all font-mono text-xs text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
+                              >
+                                {publicUrl}
+                              </a>
+                              <button
+                                type="button"
+                                onClick={() => void copy(publicUrl, "public-address")}
+                                className="shrink-0 rounded px-2 py-1 text-xs text-ink-dim hover:bg-ink/[0.05]"
+                              >
+                                <Swap text>
+                                  {copyLabel(
+                                    "Copy address",
+                                    "Copied",
+                                    "Copy failed",
+                                    "public-address",
+                                  )}
+                                </Swap>
+                              </button>
+                            </div>
+                            {guestsSupported && livePolicy ? (
+                              <JoinPolicy
+                                policy={livePolicy}
+                                disabled={!!busy}
+                                onChange={(next) => void changeAccessPolicy(next)}
+                              />
+                            ) : (
+                              <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
+                                <input
+                                  type="checkbox"
+                                  checked={status.inviteOnly ?? requireInvite}
+                                  disabled={!!busy || !props.hosting.setInviteOnly}
+                                  onChange={(event) =>
+                                    void changeInvitePolicy(event.target.checked)
+                                  }
+                                  className="mt-0.5"
+                                />
+                                <span>
+                                  Require an invite link to create an account. Recommended for every
+                                  public workspace.
+                                </span>
+                              </label>
+                            )}
+                            <p className="mt-2 text-xs text-ink-dim">
+                              {livePolicy === "guest_allowed"
+                                ? "Anyone with this address can join as a guest for a day and post in public channels. Requiring an account again signs every guest out."
+                                : status.inviteOnly
+                                  ? "In the workspace, choose Workspace → Invite people, generate a code, and copy its Browser link."
+                                  : "Anyone with this address can create an account. Send the address only to people you trust."}
+                            </p>
+                            <button
+                              type="button"
+                              disabled={!!busy}
+                              onClick={() => void endOpenToAll()}
+                              className="mt-3 rounded-lg border border-edge px-3 py-2 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
+                            >
+                              {busy === "closing"
+                                ? externallyCarried
+                                  ? "Stopping use of address…"
+                                  : "Closing public link…"
+                                : externallyCarried
+                                  ? "Stop using address"
+                                  : "Close public link"}
+                            </button>
+                          </>
                         ) : (
                           <>
-                            {w.restored && !w.missing && (
+                            {status.publicAddress ? (
+                              <div className="space-y-2 text-xs text-ink-dim">
+                                <p>
+                                  Open this workspace at your own address, which does not change:
+                                </p>
+                                <p className="break-all font-mono text-ink">
+                                  {status.publicAddress}
+                                </p>
+                                {status.port !== undefined && (
+                                  <p>
+                                    {status.publicAddressManaged ? "In Cloudflare, route" : "Send"}{" "}
+                                    this address to{" "}
+                                    <code className="break-all text-ink">{`http://127.0.0.1:${status.port}`}</code>
+                                    .
+                                  </p>
+                                )}
+                                <p>Keep Tandem running so teammates can connect.</p>
+                                {externallyCarried && (
+                                  <p>
+                                    Its external tunnel or proxy may already make this workspace
+                                    reachable. Tandem requires invites when you save the address;
+                                    stop the carrier separately when you want the address itself to
+                                    become unreachable.
+                                  </p>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-ink-dim">
+                                Create a temporary HTTPS address through Cloudflare Tunnel. No
+                                router setup or Cloudflare account is needed.
+                              </p>
+                            )}
+                            {props.hosting.setPublicAddress && (
+                              <div className="mt-3 border-t border-edge pt-3">
+                                <label
+                                  htmlFor="public-address"
+                                  className="block text-xs font-medium text-ink-dim"
+                                >
+                                  Your own address
+                                </label>
+                                <p id="public-address-help" className="mt-1 text-xs text-ink-dim">
+                                  Already have a Tailscale Funnel, reverse proxy, or tunnel of your
+                                  own pointing here? Enter its address to reuse the same link every
+                                  time. Leave it empty to{" "}
+                                  {status.publicAddressManaged
+                                    ? "use the configured Cloudflare address"
+                                    : "create a temporary address"}
+                                  .
+                                </p>
+                                <div className="mt-2 flex gap-2">
+                                  <input
+                                    id="public-address"
+                                    type="url"
+                                    inputMode="url"
+                                    spellCheck={false}
+                                    placeholder="https://box.tail1234.ts.net"
+                                    value={addressValue}
+                                    disabled={!!busy || status.publicAddressLocked}
+                                    aria-describedby={`public-address-help${addressError ? " public-address-error" : ""}`}
+                                    aria-invalid={!!addressError}
+                                    aria-errormessage={
+                                      addressError ? "public-address-error" : undefined
+                                    }
+                                    onChange={(event) => {
+                                      setAddressDraft(event.target.value);
+                                      setAddressError(null);
+                                    }}
+                                    className="min-w-0 flex-1 rounded-lg border border-edge bg-raised px-2 py-1.5 font-mono text-xs text-ink disabled:opacity-40"
+                                  />
+                                  <button
+                                    type="button"
+                                    disabled={!!busy || !addressDirty || status.publicAddressLocked}
+                                    onClick={() => void saveAddress()}
+                                    className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
+                                  >
+                                    {busy === "address" ? "Saving…" : "Save"}
+                                  </button>
+                                </div>
+                                {status.publicAddressLocked && (
+                                  <p className="mt-2 text-xs text-ink-dim">
+                                    This address comes from an environment variable, so it cannot be
+                                    changed here.
+                                  </p>
+                                )}
+                                {addressError && (
+                                  <p
+                                    id="public-address-error"
+                                    role="alert"
+                                    className="mt-2 text-xs text-alert"
+                                  >
+                                    {addressError}
+                                  </p>
+                                )}
+                              </div>
+                            )}
+                            {status.tunnelAvailable === false ? (
+                              <div className="mt-3 text-xs text-ink-dim">
+                                <p>Install Cloudflare’s cloudflared tool, then check again.</p>
+                                <button
+                                  type="button"
+                                  disabled={!!busy}
+                                  onClick={() => void refresh()}
+                                  className="mt-2 font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40"
+                                >
+                                  Check again
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                {guestsSupported ? (
+                                  <JoinPolicy
+                                    policy={openPolicy}
+                                    disabled={!!busy}
+                                    onChange={setOpenPolicy}
+                                  />
+                                ) : (
+                                  <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
+                                    <input
+                                      type="checkbox"
+                                      checked={requireInvite}
+                                      disabled={!!busy}
+                                      onChange={(event) => setRequireInvite(event.target.checked)}
+                                      className="mt-0.5"
+                                    />
+                                    <span>
+                                      Require an invite link to create an account. Recommended and
+                                      enabled by default.
+                                    </span>
+                                  </label>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={
+                                    unavailable ||
+                                    !!status.publicAddressError ||
+                                    status.openToAll?.phase === "opening"
+                                  }
+                                  onClick={() => void openToAll()}
+                                  className={buttonClass("primary", "mt-3 w-full")}
+                                >
+                                  {busy === "opening" || status.openToAll?.phase === "opening"
+                                    ? "Opening public link…"
+                                    : "Open to all"}
+                                </button>
+                              </>
+                            )}
+                          </>
+                        )}
+                      </div>
+                    )}
+                    {props.hosting.relay && !status.isolated && (
+                      <CallRelaySettings relay={props.hosting.relay} disabled={unavailable} />
+                    )}
+                  </>
+                )}
+                {shown === "backups" && (
+                  <>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <p className="min-w-0 text-ink-dim">
+                        {!runningEntry
+                          ? "Backups copy the workspace into a folder you choose."
+                          : runningEntry.lastBackupAt === null
+                            ? "This workspace has not been backed up from this computer yet."
+                            : `Last backed up ${backedUpWhen(runningEntry.lastBackupAt)}.`}
+                      </p>
+                      {backupFn && status.folder && (
+                        <button
+                          type="button"
+                          disabled={unavailable}
+                          className={buttonClass("secondary", "shrink-0")}
+                          onClick={() =>
+                            void backUp(status.folder!, status.workspaceName ?? "the workspace")
+                          }
+                        >
+                          {busy === "backing-up" ? "Backing up…" : "Back up now"}
+                        </button>
+                      )}
+                    </div>
+                    {status.folder &&
+                      status.workspaceName &&
+                      phase === "running" &&
+                      runningEntry && (
+                        <AutoBackupSettings
+                          hosting={props.hosting}
+                          folder={status.folder}
+                          name={status.workspaceName}
+                          schedule={runningEntry.autoBackup ?? null}
+                          error={runningEntry.autoBackupError ?? null}
+                          held={!!runningEntry.restored}
+                          disabled={unavailable}
+                          onNote={setBackupNote}
+                          onChanged={() => setListRevision((n) => n + 1)}
+                        />
+                      )}
+                  </>
+                )}
+                {shown === "advanced" && (
+                  <>
+                    {status.folder && status.workspaceName && phase === "running" && (
+                      <StartWithComputer
+                        hosting={props.hosting}
+                        folder={status.folder}
+                        name={status.workspaceName}
+                        startsOnLaunch={!!status.startsOnLaunch}
+                        publicAddress={status.publicAddressError ? undefined : status.publicAddress}
+                        reopensPublic={!!status.reopensPublicOnLaunch}
+                        disabled={unavailable}
+                        onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
+                      />
+                    )}
+                    {status.dataDir && (
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-ink-dim">Workspace data folder</p>
+                          {openFolderFn && status.folder && (
+                            <button
+                              type="button"
+                              onClick={() => void openFolder(status.folder!)}
+                              className={`${linkBtnCls} shrink-0`}
+                            >
+                              Open folder
+                            </button>
+                          )}
+                        </div>
+                        <p className="break-all font-mono text-xs text-ink">{status.dataDir}</p>
+                      </div>
+                    )}
+                    {status.port !== undefined && (
+                      <div>
+                        <p className="text-ink-dim">
+                          Local port: <span className="font-mono text-ink">{status.port}</span>
+                        </p>
+                        {setPortFn && (
+                          <p className="mt-1 text-xs text-ink-faint">
+                            To use another port, stop hosting, then choose Change port beside the
+                            workspace.
+                          </p>
+                        )}
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </DialogScroll>
+          </div>
+          {/* The footer's own padding outranks a utility, so the space under its rule is inside. */}
+          <div className="dialog-foot border-t border-edge">
+            <div className="pt-4">
+              {backupStatus}
+              {status.warning && (
+                <p
+                  role="alert"
+                  className="mb-3 rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm"
+                >
+                  {status.warning}
+                </p>
+              )}
+              {/* A public link's own problem is said in its card, when that is in sight. */}
+              {error && !(error.tunnel && tunnelError && shown === "internet") && (
+                <p role="alert" className="mb-3 text-sm text-alert">
+                  {error.message}
+                </p>
+              )}
+              <div className="flex items-center justify-between gap-3">
+                <p role="status" className="min-w-0 text-sm text-ink-dim">
+                  {loading ? "Checking hosting status…" : ""}
+                </p>
+                {/* Ending the workspace for everyone stands apart from the rest. */}
+                <button
+                  type="button"
+                  disabled={unavailable}
+                  className="inline-flex h-9 shrink-0 items-center rounded-lg border border-alert/30 px-3.5 text-sm font-medium text-alert transition-colors hover:bg-alert/10 disabled:opacity-40"
+                  onClick={() => void stop()}
+                >
+                  {busy === "stopping" ? "Stopping…" : "Stop hosting"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <DialogScroll>
+          {loading && (
+            <p role="status" className="mb-4 text-sm text-ink-dim">
+              Checking hosting status…
+            </p>
+          )}
+          {statusError && (
+            <div
+              role="alert"
+              className="mb-4 rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm"
+            >
+              <p>Could not check whether this computer is hosting a workspace.</p>
+              <button
+                type="button"
+                onClick={() => void refresh()}
+                className="mt-2 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
+              >
+                Retry status
+              </button>
+            </div>
+          )}
+          {status?.warning && (
+            <p
+              role="alert"
+              className="mb-4 rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm"
+            >
+              {status.warning}
+            </p>
+          )}
+          {error && !(error.tunnel && tunnelError) && (
+            <p role="alert" className="mb-4 text-sm text-alert">
+              {error.message}
+            </p>
+          )}
+          {!loading && !statusError && status ? (
+            <>
+              <p className="mb-4 text-sm text-ink-dim">
+                Your computer becomes the server. Teammates on your network can connect while Tandem
+                is running. Messages, files and accounts are stored on this machine.
+              </p>
+              <LaunchProblem
+                hosting={props.hosting}
+                message={status.launchError}
+                onRetry={null}
+                disabled={unavailable}
+                className="mb-4"
+                onDismissed={() => void refresh()}
+                onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
+              />
+              {listFailed && (
+                <p role="alert" className="mb-4 text-sm text-alert">
+                  {listFailed}
+                </p>
+              )}
+              {backupStatus}
+              <StartupWhileStopped
+                hosting={props.hosting}
+                chosen={existing.find((w) => w.startsOnLaunch) ?? null}
+                launchError={status.launchError}
+                disabled={unavailable}
+                onChanged={() => setListRevision((n) => n + 1)}
+                onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
+              />
+              {existing.length > 0 && (
+                <section aria-label="Hosted on this computer" className="mb-5">
+                  <h3 className="mb-2 text-[13px] font-semibold text-ink">
+                    Hosted on this computer
+                  </h3>
+                  <ul className="space-y-2">
+                    {existing.map((w) => (
+                      <li
+                        key={w.folder}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge px-3 py-2"
+                      >
+                        {setPortFn && changingPort === w.folder && !w.missing ? (
+                          <PortForm
+                            folder={w.folder}
+                            name={w.name}
+                            port={w.port}
+                            saving={busy === "renaming"}
+                            onSave={(port) => savePort(w.folder, w.name, port)}
+                            onCancel={() => {
+                              portReturn.current = w.folder;
+                              setChangingPort(null);
+                            }}
+                          />
+                        ) : renameFn && renaming === w.folder && !w.missing ? (
+                          <RenameForm
+                            folder={w.folder}
+                            name={w.name}
+                            blocked={unavailable}
+                            saving={busy === "renaming"}
+                            onSave={(next) => saveName(w.folder, w.name, next)}
+                            onCancel={closeRename}
+                          />
+                        ) : (
+                          <>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm text-ink">{w.name}</p>
+                              <p className="text-xs text-ink-dim">
+                                {w.missing
+                                  ? "Its folder is missing, so it cannot start"
+                                  : `${w.restored ? "Restored, not in use yet · " : ""}Port ${w.port}${w.startsOnLaunch ? " · Starts with Tandem" : ""}${
+                                      w.autoBackup
+                                        ? `${w.autoBackup.everyDays === 1 ? " · Backs up daily" : " · Backs up weekly"}${
+                                            w.restored ? " once back in use" : ""
+                                          }`
+                                        : ""
+                                    }${
+                                      backupFn
+                                        ? w.lastBackupAt === null
+                                          ? " · Not backed up yet"
+                                          : ` · Backed up ${backedUpWhen(w.lastBackupAt)}`
+                                        : ""
+                                    }`}
+                              </p>
+                              {/* The running one says so under Automatic backups, with Try again. */}
+                              {w.autoBackupError && !w.running && (
+                                <p className="text-xs text-alert">{w.autoBackupError}</p>
+                              )}
+                              {!w.missing && (renameFn || openFolderFn || setPortFn) && (
+                                <div className="mt-1 flex gap-3">
+                                  {renameFn && (
+                                    <button
+                                      id={`rename-${w.folder}`}
+                                      type="button"
+                                      disabled={unavailable}
+                                      aria-label={`Rename ${w.name}`}
+                                      onClick={() => setRenaming(w.folder)}
+                                      className={linkBtnCls}
+                                    >
+                                      Rename
+                                    </button>
+                                  )}
+                                  {setPortFn && (
+                                    <button
+                                      id={`port-${w.folder}`}
+                                      type="button"
+                                      disabled={unavailable}
+                                      aria-label={`Change port for ${w.name}`}
+                                      onClick={() => {
+                                        setRenaming(null);
+                                        setChangingPort(w.folder);
+                                      }}
+                                      className={linkBtnCls}
+                                    >
+                                      Change port
+                                    </button>
+                                  )}
+                                  {openFolderFn && (
+                                    <button
+                                      type="button"
+                                      aria-label={`Open folder for ${w.name}`}
+                                      onClick={() => void openFolder(w.folder)}
+                                      className={linkBtnCls}
+                                    >
+                                      Open folder
+                                    </button>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            {backupFn && !w.missing && (
                               <button
                                 type="button"
                                 disabled={unavailable}
-                                aria-label={`Put ${w.name} back in use`}
-                                onClick={() => setActivating(w.folder)}
+                                aria-label={`Back up ${w.name}`}
+                                onClick={() => void backUp(w.folder, w.name)}
                                 className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
                               >
-                                Put back in use…
+                                Back up
                               </button>
                             )}
-                            <button
-                              type="button"
-                              disabled={unavailable || w.missing}
-                              aria-label={
-                                w.restored ? `Look inside ${w.name}` : `Start hosting ${w.name}`
-                              }
-                              onClick={() => void launch({ folder: w.folder })}
-                              className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink hover:border-copper disabled:opacity-40"
-                            >
-                              {w.restored ? "Look inside" : "Start"}
-                            </button>
+                            {w.missing && forgetFn ? (
+                              <button
+                                type="button"
+                                disabled={unavailable}
+                                aria-label={`Remove ${w.name} from the list`}
+                                onClick={() => void removeMissing(w.folder, w.name)}
+                                className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
+                              >
+                                Remove
+                              </button>
+                            ) : (
+                              <>
+                                {w.restored && !w.missing && (
+                                  <button
+                                    type="button"
+                                    disabled={unavailable}
+                                    aria-label={`Put ${w.name} back in use`}
+                                    onClick={() => setActivating(w.folder)}
+                                    className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink-dim hover:text-ink disabled:opacity-40"
+                                  >
+                                    Put back in use…
+                                  </button>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={unavailable || w.missing}
+                                  aria-label={
+                                    w.restored ? `Look inside ${w.name}` : `Start hosting ${w.name}`
+                                  }
+                                  onClick={() => void launch({ folder: w.folder })}
+                                  className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-sm text-ink hover:border-copper disabled:opacity-40"
+                                >
+                                  {w.restored ? "Look inside" : "Start"}
+                                </button>
+                              </>
+                            )}
                           </>
                         )}
-                      </>
-                    )}
-                    {activating === w.folder && (
-                      <div
-                        role="region"
-                        aria-label={`Put ${w.name} back in use?`}
-                        className="mt-2 w-full space-y-2 rounded-lg border border-edge bg-ground p-3 text-sm text-ink-dim"
-                      >
-                        <p>
-                          {w.name} starts as the workspace itself: it sends the messages it had
-                          waiting, calls its apps again, and accepts every sign-in it held when the
-                          backup was taken, including ones ended since. Ask people to check their
-                          signed-in devices afterwards.
-                        </p>
-                        <div className="flex gap-3">
-                          <button
-                            type="button"
-                            disabled={unavailable}
-                            onClick={() => {
-                              setActivating(null);
-                              void launch({ folder: w.folder, activate: true });
-                            }}
-                            className="btn-shape bg-copper px-3 py-1.5 text-sm font-medium text-ground disabled:opacity-40"
+                        {activating === w.folder && (
+                          <div
+                            role="region"
+                            aria-label={`Put ${w.name} back in use?`}
+                            className="mt-2 w-full space-y-2 rounded-lg border border-edge bg-ground p-3 text-sm text-ink-dim"
                           >
-                            Put back in use
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setActivating(null)}
-                            className={linkBtnCls}
-                          >
-                            Not yet
-                          </button>
-                        </div>
-                      </div>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {hosted!.unreadable.length > 0 && (
-                <p className="mt-2 text-xs text-ink-dim">
-                  Could not read the workspace in{" "}
-                  {hosted!.unreadable.length === 1 ? "the folder" : "the folders"}{" "}
-                  {hosted!.unreadable.join(", ")}, so it is not listed.
-                </p>
+                            <p>
+                              {w.name} starts as the workspace itself: it sends the messages it had
+                              waiting, calls its apps again, and accepts every sign-in it held when
+                              the backup was taken, including ones ended since. Ask people to check
+                              their signed-in devices afterwards.
+                            </p>
+                            <div className="flex gap-3">
+                              <button
+                                type="button"
+                                disabled={unavailable}
+                                onClick={() => {
+                                  setActivating(null);
+                                  void launch({ folder: w.folder, activate: true });
+                                }}
+                                className="btn-shape bg-copper px-3 py-1.5 text-sm font-medium text-ground disabled:opacity-40"
+                              >
+                                Put back in use
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setActivating(null)}
+                                className={linkBtnCls}
+                              >
+                                Not yet
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {hosted!.unreadable.length > 0 && (
+                    <p className="mt-2 text-xs text-ink-dim">
+                      Could not read the workspace in{" "}
+                      {hosted!.unreadable.length === 1 ? "the folder" : "the folders"}{" "}
+                      {hosted!.unreadable.join(", ")}, so it is not listed.
+                    </p>
+                  )}
+                  <h3 className="mt-5 text-[13px] font-semibold text-ink">New workspace</h3>
+                </section>
               )}
-              <h3 className="mt-5 text-[13px] font-semibold text-ink">New workspace</h3>
-            </section>
-          )}
-          <form onSubmit={start} className="space-y-3">
-            <label className="block">
-              <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">
-                Workspace name
-              </span>
-              <input
-                ref={nameInput}
-                autoFocus
-                maxLength={80}
-                value={name}
-                disabled={!!busy}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Workspace name (e.g. Rocket Team)"
-                className={inputCls}
-              />
-            </label>
-            <details className="text-sm text-ink-dim">
-              <summary className="cursor-pointer">Choose a port</summary>
-              <label className="mt-2 block">
-                Port
-                <input
-                  inputMode="numeric"
-                  maxLength={5}
-                  value={portText}
-                  disabled={!!busy}
-                  onChange={(e) => setPortText(e.target.value)}
-                  placeholder="8543"
-                  aria-describedby="host-port-hint"
-                  className={`${inputCls} mt-1 w-32 font-mono`}
-                />
-              </label>
-              <p id="host-port-hint" className="mt-1 text-xs text-ink-faint">
-                Leave it empty to use 8543, or a free port if another program has that one. A port
-                you choose is kept, or the workspace does not start.
-              </p>
-            </details>
-            {sameName && (
-              <p className="text-xs text-ink-dim">
-                {sameName.name} is already hosted here. Start it from the list to keep its messages;
-                this starts a separate, empty workspace.
-              </p>
-            )}
-            <button
-              type="submit"
-              disabled={unavailable}
-              className={buttonClass("primary", "w-full")}
-            >
-              {busy === "starting"
-                ? "Starting…"
-                : existing.length > 0
-                  ? "Start new workspace"
-                  : "Start hosting"}
-            </button>
-          </form>
-          {restoreFn && (
-            <button
-              type="button"
-              disabled={unavailable}
-              onClick={() => void restoreBackup()}
-              className={buttonClass("secondary", "mt-3 w-full")}
-            >
-              {busy === "restoring" ? "Restoring…" : "Restore from a backup…"}
-            </button>
-          )}
-        </>
-      ) : null}
+              <form onSubmit={start} className="space-y-3">
+                <label className="block">
+                  <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">
+                    Workspace name
+                  </span>
+                  <input
+                    ref={nameInput}
+                    autoFocus
+                    maxLength={80}
+                    value={name}
+                    disabled={!!busy}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="Workspace name (e.g. Rocket Team)"
+                    className={inputCls}
+                  />
+                </label>
+                <details className="text-sm text-ink-dim">
+                  <summary className="cursor-pointer">Choose a port</summary>
+                  <label className="mt-2 block">
+                    Port
+                    <input
+                      inputMode="numeric"
+                      maxLength={5}
+                      value={portText}
+                      disabled={!!busy}
+                      onChange={(e) => setPortText(e.target.value)}
+                      placeholder="8543"
+                      aria-describedby="host-port-hint"
+                      className={`${inputCls} mt-1 w-32 font-mono`}
+                    />
+                  </label>
+                  <p id="host-port-hint" className="mt-1 text-xs text-ink-faint">
+                    Leave it empty to use 8543, or a free port if another program has that one. A
+                    port you choose is kept, or the workspace does not start.
+                  </p>
+                </details>
+                {sameName && (
+                  <p className="text-xs text-ink-dim">
+                    {sameName.name} is already hosted here. Start it from the list to keep its
+                    messages; this starts a separate, empty workspace.
+                  </p>
+                )}
+                <button
+                  type="submit"
+                  disabled={unavailable}
+                  className={buttonClass("primary", "w-full")}
+                >
+                  {busy === "starting"
+                    ? "Starting…"
+                    : existing.length > 0
+                      ? "Start new workspace"
+                      : "Start hosting"}
+                </button>
+              </form>
+              {restoreFn && (
+                <button
+                  type="button"
+                  disabled={unavailable}
+                  onClick={() => void restoreBackup()}
+                  className={buttonClass("secondary", "mt-3 w-full")}
+                >
+                  {busy === "restoring" ? "Restoring…" : "Restore from a backup…"}
+                </button>
+              )}
+            </>
+          ) : null}
+        </DialogScroll>
+      )}
     </Dialog>
   );
 }
