@@ -1,7 +1,7 @@
-// Fails when the script every visit to the client downloads grows past the
-// size at which Vite starts warning, so the next addition to it is a decision
-// rather than a warning scrolled past in a build log. Anything opened now and
-// then belongs in a chunk of its own, loaded on first use.
+// Fails when the script every visit to the client downloads grows past 700 kB,
+// so an addition that crosses it is a decision rather than a warning scrolled
+// past in a build log. Anything opened now and then belongs in a chunk of its
+// own, loaded on first use.
 //
 //   node scripts/check-web-bundle.mjs [built client directory...]
 //
@@ -10,8 +10,13 @@
 import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
-/** Bytes, the size at which Vite warns about a chunk. */
-const ENTRY_LIMIT = 500_000;
+/**
+ * Bytes. Vite's 500 kB warning size left no room for features by October 2026,
+ * when parsing cost about 0.02 ms a kB; this still fails an accidental jump like
+ * the 125 kB of request schemas one import once brought in (#57). The Vite
+ * configs warn at the same size.
+ */
+const ENTRY_LIMIT = 700_000;
 
 const dirs = process.argv.slice(2);
 if (dirs.length === 0) dirs.push("apps/web/dist");

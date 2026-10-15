@@ -23,4 +23,6 @@ export default defineConfig({
   // (`?inline`), which Vite does for assets it knows; WebAssembly is not one.
   assetsInclude: ["**/*.wasm"],
   plugins: [react(), tailwindcss(), stampBuild, precompress()],
+  // kB, the entry budget scripts/check-web-bundle.mjs enforces.
+  build: { chunkSizeWarningLimit: 700 },
 });

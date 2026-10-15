@@ -492,10 +492,11 @@
     },
     {
       "path": "scripts/check-web-bundle.mjs",
-      "plain": "Keeps the code the web version loads first under its limit of 500,000 bytes.",
+      "plain": "Keeps the code the web version and the desktop app load first under 700,000 bytes.",
       "summary": "Finds the initial JavaScript entry rather than summing deferred chunks.",
       "details": [
-        "Enforces the existing 500,000-byte entry budget for web or desktop; a size gate is not a startup-latency benchmark."
+        "Enforces the 700,000-byte entry budget for web or desktop; a size gate is not a startup-latency benchmark.",
+        "Raised from Vite's 500,000-byte warning size on 2026-10-15, when the desktop entry stood at 499,152 bytes. Chromium parsed it in about 10.8 ms, on a background thread, so the gate now leaves room for features and still fails an accidental jump."
       ],
       "concepts": ["tooling", "bundle budget"]
     },

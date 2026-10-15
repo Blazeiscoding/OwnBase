@@ -1601,7 +1601,7 @@
       "summary": "An open tooltip's floating text: placement, follow-on slide, Escape and window blur.",
       "details": [
         "Placed in a portal on the trigger's dialog, main, nav or aside, or the fullscreen element holding it; flips sides when the preferred one does not fit, and follows its trigger on scroll, resize and every frame.",
-        "Split from Tooltip to pay for slice 7's status that clears itself: about 2.9 kB out of the desktop entry, which stood at 499.2 of 500 kB."
+        "Split from Tooltip to make room for slice 7's status that clears itself, when the desktop entry stood at 499.2 kB of a 500 kB limit (since raised to 700 kB by #301): about 2.9 kB less for every first download."
       ],
       "concepts": ["portal position", "lazy chunk", "entry budget"]
     },
