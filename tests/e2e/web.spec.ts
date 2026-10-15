@@ -2227,8 +2227,10 @@ test("an invite code that got out can be revoked from the dialog that made it", 
     await page.getByRole("button", { name: /, workspace menu$/ }).click();
     await page.getByRole("menuitem", { name: "Invite people", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Invite people" });
-    await dialog.getByRole("button", { name: "Generate invite code", exact: true }).click();
-    const code = (await dialog.locator("code.text-lg").textContent())!.trim();
+    // It opens with a link ready to copy (UX-43); the code is the link's last part.
+    const link = dialog.locator("code").filter({ hasText: "/#/join/" });
+    await expect(link).toBeVisible();
+    const code = (await link.textContent())!.trim().split("/#/join/")[1]!;
     expect(code.length).toBeGreaterThan(4);
 
     // The new code is listed with the others, and usable.
@@ -2351,8 +2353,9 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
     await hostPage.getByRole("button", { name: /, workspace menu$/ }).click();
     await hostPage.getByRole("menuitem", { name: "Invite people", exact: true }).click();
     const dialog = hostPage.getByRole("dialog", { name: "Invite people" });
-    await dialog.getByRole("button", { name: "Generate invite code", exact: true }).click();
-    const code = (await dialog.locator("code.text-lg").textContent())!.trim();
+    const link = dialog.locator("code").filter({ hasText: "/#/join/" });
+    await expect(link).toBeVisible();
+    const code = (await link.textContent())!.trim().split("/#/join/")[1]!;
     const inviteLink = `${origin}/#/join/${code}`;
     await expect(dialog.getByText(inviteLink, { exact: true })).toBeVisible();
     await expect(

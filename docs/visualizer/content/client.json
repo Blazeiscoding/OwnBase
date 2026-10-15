@@ -610,6 +610,16 @@
       "concepts": ["request coalescing", "cancellation", "bounded work"]
     },
     {
+      "path": "packages/ui/src/lib/invites.ts",
+      "plain": "Decides which invite link to show again instead of making a new one, and says how long a link lasts and how many people it lets in.",
+      "summary": "Invite reuse rule plus expiry and use wording for the invite dialog (UX-43).",
+      "details": [
+        "reusableInvite picks this person's newest invite that is active, unlimited and has at least a day left. describeExpiry rounds up through minutes, hours and days, so a one-day link reads 1 day.",
+        "INVITE_EXPIRY_CHOICES and INVITE_USE_CHOICES are what Change offers; DEFAULT_INVITE is a week for anyone."
+      ],
+      "concepts": ["invite links", "UX-43"]
+    },
+    {
       "path": "packages/ui/src/lib/pagedList.ts",
       "plain": "Reads a long list a page at a time as you scroll, and reads it again quietly when something in it changes, so side panels stay up to date without a Refresh button.",
       "summary": "Keeps a page-at-a-time list current: more on demand, in-place refresh from the top (UX-08).",
@@ -1178,15 +1188,35 @@
     },
     {
       "path": "packages/ui/src/components/dialogs.tsx",
-      "plain": "Windows for making and browsing channels, starting a direct message, managing invite links and turning a guest into an account.",
-      "summary": "Groups channel creation/browsing, new conversations and invite management forms.",
+      "plain": "Windows for making and browsing channels, starting a direct message and turning a guest into an account.",
+      "summary": "Groups channel creation/browsing, new conversations and guest account forms.",
       "details": [
         "NewChannelDialog creates public/private channels; BrowseChannelsDialog lists and joins available channels; NewDmDialog chooses participants and opens a direct/group conversation.",
-        "InviteDialog creates shareable invite links, lists their status and lets permitted users revoke them. Clipboard outcome and readable server refusal state are preserved.",
-        "These occasional forms are lazy-loaded by the workspace screen rather than required for every returning conversation view.",
+        "These occasional forms are lazy-loaded by the workspace screen rather than required for every returning conversation view. Invite people moved to InviteDialog.tsx, so its QR encoder loads with it alone.",
         "GuestAccountDialog keeps a guest's identity as an account; the new session token reopens the workspace as the same person."
       ],
-      "concepts": ["channel creation", "direct messages", "invite links", "lazy forms"]
+      "concepts": ["channel creation", "direct messages", "lazy forms"]
+    },
+    {
+      "path": "packages/ui/src/components/InviteDialog.tsx",
+      "plain": "The Invite people window. It opens with a link ready to copy, a QR code for phones, and a way to make a link that lasts longer or lets fewer people in.",
+      "summary": "Invite people: a link ready on opening, inline length and use limits, QR code, and the list of codes (UX-43).",
+      "details": [
+        "On opening it shows the newest invite this person made that still works like a new one, or makes one for seven days and any number of people, so there is no generate step and opening it again does not mint another code.",
+        "Change makes a new link from Expires after and Number of uses choices. Copy link confirms with a toast as well as on the button; the QR code is left out when the only address reaches this computer alone.",
+        "It lists invites with their status and lets the creator or an administrator revoke one after a confirmation. Clipboard outcome and readable server refusal state are preserved."
+      ],
+      "concepts": ["invite links", "QR code", "UX-43", "lazy forms"]
+    },
+    {
+      "path": "packages/ui/src/components/QrCode.tsx",
+      "plain": "Draws a QR code for a link on this device, dark on white in either theme, so a phone camera can open it.",
+      "summary": "Renders a QR code as one SVG path with a quiet zone, using the uqr encoder.",
+      "details": [
+        "Encodes with error correction level M, which survives about 15 percent of the code being smudged or covered, and keeps the four-module quiet zone scanners need.",
+        "Nothing leaves the device: the encoder runs in the page, never through a service."
+      ],
+      "concepts": ["QR code", "offline"]
     },
     {
       "path": "packages/ui/src/components/ProfileDialog.tsx",

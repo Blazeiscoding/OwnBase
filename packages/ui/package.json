@@ -16,6 +16,7 @@
     "@sapphi-red/web-noise-suppressor": "0.4.1",
     "@slackoss/client-core": "workspace:*",
     "@slackoss/protocol": "workspace:*",
+    "uqr": "0.1.3",
     "zustand": "^5.0.7"
   },
   "peerDependencies": {

@@ -259,6 +259,9 @@ importers:
       '@slackoss/protocol':
         specifier: workspace:*
         version: link:../protocol
+      uqr:
+        specifier: 0.1.3
+        version: 0.1.3
       zustand:
         specifier: ^5.0.7
         version: 5.0.15(@types/react@19.2.18)(react@19.2.8)
@@ -3128,6 +3131,9 @@ packages:
     hasBin: true
     peerDependencies:
       browserslist: '>= 4.21.0'
+
+  uqr@0.1.3:
+    resolution: {integrity: sha512-0rjE8iEJe4YmT9TOhwsZtqCMRLc5DXZUI2UEYUUg63ikBkqqE5EYWaI0etFe/5KUcmcYwLih2RND1kq+hrUJXA==}
 
   utf8-byte-length@1.0.5:
     resolution: {integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==}
@@ -6056,6 +6062,8 @@ snapshots:
       browserslist: 4.28.8
       escalade: 3.2.0
       picocolors: 1.1.1
+
+  uqr@0.1.3: {}
 
   utf8-byte-length@1.0.5: {}
 
