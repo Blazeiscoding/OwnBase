@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, User } from "@slackoss/protocol";
@@ -48,6 +48,9 @@ const dm = { ...channel("C_DM", "", "dm"), memberIds: ["U_SAM", "U_MAYA"] };
 
 const clients: WorkspaceClient[] = [];
 afterEach(() => {
+  // Unmount before the globals go: the setup file's cleanup runs after this
+  // hook, and a screen still mounting would reach for matchMedia without them.
+  cleanup();
   for (const client of clients.splice(0)) client.destroy();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();

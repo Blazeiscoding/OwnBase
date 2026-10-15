@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
 import { App } from "../src/App.js";
@@ -115,6 +115,9 @@ describe("reopening a workspace this computer hosted", () => {
 
 describe("switching workspace from the sidebar", () => {
   afterEach(() => {
+    // Unmount before the globals go: the setup file's cleanup runs after this
+    // hook, and a screen still mounting would reach for matchMedia without them.
+    cleanup();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
