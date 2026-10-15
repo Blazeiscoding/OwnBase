@@ -116,6 +116,23 @@ describe("paging with tied timestamps", () => {
     expect(pages.flat().sort()).toEqual(posted.map((m) => m.text).sort());
   });
 
+  it("says how many pins there are in all, on any page, without deleted messages", async () => {
+    const posted: { id: string; text: string }[] = [];
+    for (let i = 1; i <= 3; i++) posted.push(await post(general, owner, `Counted ${i}`));
+    for (const message of posted)
+      await request(`/api/messages/${message.id}/pin`, owner.token, "PUT");
+    await request(`/api/messages/${posted[0]!.id}`, owner.token, "DELETE");
+
+    const first = await request(`/api/channels/${general}/pins?limit=1`, member.token);
+    expect(first.data.messages).toHaveLength(1);
+    expect(first.data.total).toBe(2);
+    const second = await request(
+      `/api/channels/${general}/pins?limit=1&cursor=${encodeURIComponent(first.data.nextCursor)}`,
+      member.token,
+    );
+    expect(second.data.total).toBe(2);
+  });
+
   it("carries on from a cursor whose message was deleted after the page was read", async () => {
     const posted: { id: string; text: string }[] = [];
     for (let i = 1; i <= 4; i++) posted.push(await post(general, owner, `Kept ${i}`));

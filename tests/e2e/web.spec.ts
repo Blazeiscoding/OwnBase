@@ -15,6 +15,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 
+/**
+ * For a server a scenario starts and never reads from. A pipe nobody reads
+ * fills up, and on Linux the server then stops at its next log line: the
+ * Back and Forward scenario hung that way while its server was stopping.
+ */
+const UNREAD = { windowsHide: true, stdio: "ignore" } as const;
+
 /** A real PNG of the given size, so the server reads its dimensions as it would a photo's. */
 function solidPng(width: number, height: number): Buffer {
   const rows = Buffer.alloc((width * 3 + 1) * height, 0x5a);
@@ -999,6 +1006,12 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   expect(response.ok).toBe(true);
   const { channel } = await response.json();
   await page.getByRole("navigation").getByRole("button", { name: "design-studio" }).click();
+  // Other scenarios share the server, so the count is compared, not known.
+  const membersToggle = page.getByRole("button", { name: /^Members \(\d+\)$/ });
+  const memberCount = async () =>
+    Number((await membersToggle.getAttribute("aria-label"))?.match(/\d+/)?.[0]);
+  await expect(membersToggle).toBeVisible();
+  const membersBefore = await memberCount();
   for (const name of ["announcements", "engineering", "game-night"]) {
     expect(
       (
@@ -1052,40 +1065,41 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
     ).toBe(true);
   }
   await expect(page.getByText(messages[2]!.text, { exact: true })).toBeVisible();
-  // A field at this width; at a phone's, a button that opens search.
-  const searchField = page.getByRole("searchbox", { name: "Search messages", exact: true });
-  await expectTooltipInsideViewport(page, searchField, "Search messages");
-  const pinnedToggle = page.getByRole("button", { name: "Pinned messages", exact: true });
-  await pinnedToggle.focus();
-  const pinnedTooltip = page.getByRole("tooltip").filter({ hasText: "Pinned messages" });
-  await expect(pinnedTooltip).toBeVisible();
-  const pinnedCenterDifference = async () => {
+  // The header counts Maya, who joined after it opened, without a reload (UX-23).
+  await expect.poll(memberCount).toBeGreaterThan(membersBefore);
+  // Its last control sits at the window's edge, and its hint stays inside.
+  const options = page.getByRole("button", { name: "Conversation options", exact: true });
+  await expectTooltipInsideViewport(page, options, "More");
+  await membersToggle.focus();
+  const membersTooltip = page.getByRole("tooltip").filter({ hasText: "Members" });
+  await expect(membersTooltip).toBeVisible();
+  const membersCenterDifference = async () => {
     const [buttonBox, tooltipBox] = await Promise.all([
-      pinnedToggle.boundingBox(),
-      pinnedTooltip.boundingBox(),
+      membersToggle.boundingBox(),
+      membersTooltip.boundingBox(),
     ]);
     if (!buttonBox || !tooltipBox) return Infinity;
     return Math.abs(buttonBox.x + buttonBox.width / 2 - (tooltipBox.x + tooltipBox.width / 2));
   };
   // A same-sized trigger can move without notifying ResizeObserver. The open
   // hint still follows its live geometry.
-  await pinnedToggle.evaluate((element) => {
+  await membersToggle.evaluate((element) => {
     (element as HTMLElement).style.transform = "translateX(-24px)";
   });
-  await expect.poll(pinnedCenterDifference).toBeLessThan(2);
-  await pinnedToggle.evaluate((element) => {
+  await expect.poll(membersCenterDifference).toBeLessThan(2);
+  await membersToggle.evaluate((element) => {
     (element as HTMLElement).style.transform = "";
   });
-  await expect.poll(pinnedCenterDifference).toBeLessThan(2);
+  await expect.poll(membersCenterDifference).toBeLessThan(2);
   await page.keyboard.press("Enter");
-  await expect(pinnedToggle).toHaveAttribute("aria-pressed", "true");
+  await expect(membersToggle).toHaveAttribute("aria-pressed", "true");
   // Opening the side panel shrinks the main column without resizing the
   // window. The open tooltip must follow the focused button across that reflow.
-  await expect.poll(pinnedCenterDifference).toBeLessThan(2);
+  await expect.poll(membersCenterDifference).toBeLessThan(2);
   await page.keyboard.press("Escape");
-  await expect(pinnedTooltip).toHaveCount(0);
+  await expect(membersTooltip).toHaveCount(0);
   await page.keyboard.press("Escape");
-  await expect(pinnedToggle).toHaveAttribute("aria-pressed", "false");
+  await expect(membersToggle).toHaveAttribute("aria-pressed", "false");
   await page.screenshot({ path: info.outputPath("tandem-conversation.png") });
   const latestArticle = page.getByRole("article").last();
   await latestArticle.hover();
@@ -1148,6 +1162,15 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(shortcuts).toHaveCount(0);
   await expect(latestArticle.getByText("Pinned to this channel", { exact: true })).toBeVisible();
   await page.unroute("**/api/messages/*/pin");
+  // The pin shows under the header as a slim line that opens the list (UX-23).
+  const pinnedLine = page.getByRole("button", { name: /^1 pinned: Love where this is heading/ });
+  await expect(pinnedLine).toBeVisible();
+  await pinnedLine.click();
+  const pinnedPanel = page.getByRole("complementary", { name: "Pinned", exact: true });
+  await expect(pinnedPanel.getByText(/Love where this is heading/)).toBeVisible();
+  await expect(pinnedLine).toHaveAttribute("aria-pressed", "true");
+  await pinnedLine.click();
+  await expect(pinnedPanel).toHaveCount(0);
 
   await page.getByRole("textbox", { name: "Message #design-studio", exact: true }).focus();
   for (let i = 0; i < 315; i++) {
@@ -1251,14 +1274,17 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   // Search, scheduled messages and channel details are downloaded the first
   // time they open, so each has to arrive, past the content security policy,
   // and work.
-  // Typed in the header's field, search opens on the first key and the rest
-  // of the typing goes on in its field, every key in order, with no Enter.
-  const headerSearch = page.getByRole("searchbox", { name: "Search messages", exact: true });
-  await headerSearch.pressSequentially("zebracrossingquartz");
+  // Chosen from the conversation's menu, search opens on this conversation,
+  // ready to type in, and follows the typing with no Enter.
+  await options.click();
+  await page.getByRole("menuitem", { name: "Search in #design-studio", exact: true }).click();
   const search = page.getByRole("dialog", { name: "Search messages", exact: true });
   const searchBox = search.getByRole("textbox", { name: "Search messages", exact: true });
-  await expect(searchBox).toHaveValue("zebracrossingquartz");
   await expect(searchBox).toBeFocused();
+  await expect(search.getByRole("combobox", { name: "Conversation", exact: true })).toHaveValue(
+    channel.id,
+  );
+  await searchBox.pressSequentially("zebracrossingquartz");
   // A search that finds nothing says so where the dialog says what it is
   // doing, and says what to try instead.
   await expect(search.getByRole("status").filter({ hasText: "Nothing matched" })).toHaveText(
@@ -1352,9 +1378,11 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await expect(searchField).toBeHidden();
-  const searchToggle = page.getByRole("button", { name: "Search messages", exact: true });
-  await expectTooltipInsideViewport(page, searchToggle, "Search messages");
+  // A phone's header keeps the same controls, with one face beside the count.
+  await expectTooltipInsideViewport(page, options, "More");
+  const extraFaces = await membersToggle.locator(".header-secondary").all();
+  expect(extraFaces.length).toBeGreaterThan(0);
+  for (const face of extraFaces) await expect(face).toBeHidden();
   // At phone width a notice still fits the window.
   await page.route("**/api/messages/*/save", (route) => route.abort("connectionfailed"));
   const newest = page.getByRole("article").last();
@@ -1403,13 +1431,12 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(bold).toBeHidden();
   // A panel covers the conversation there, so it takes focus even from its
   // toggle, and what it covers is out of reach until it closes.
-  const pinsToggle = page.getByRole("button", { name: "Pinned messages", exact: true });
-  await pinsToggle.click();
-  await expect(page.getByRole("heading", { name: "Pinned", exact: true })).toBeFocused();
+  await membersToggle.click();
+  await expect(page.getByRole("heading", { name: "Members", exact: true })).toBeFocused();
   await expect(page.locator("main")).toHaveAttribute("inert", "");
-  await page.getByRole("button", { name: "Close Pinned", exact: true }).click();
+  await page.getByRole("button", { name: "Close Members", exact: true }).click();
   await expect(page.locator("main")).not.toHaveAttribute("inert");
-  await expect(pinsToggle).toBeFocused();
+  await expect(membersToggle).toBeFocused();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await page.getByRole("button", { name: "Saved", exact: true }).click();
   await expect(page.getByRole("navigation")).not.toBeVisible();
@@ -2296,7 +2323,7 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
       "--invite-only",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const contexts: BrowserContext[] = [];
   try {
@@ -2606,7 +2633,7 @@ test("the demo seed fills a new workspace with something to try, and leaves one 
       "Demo Team",
       "--invite-only",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const seed = () =>
     new Promise<{ code: number | null; output: string }>((resolve) => {
@@ -2712,7 +2739,7 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
       "Route Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   try {
@@ -3028,7 +3055,7 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
       "Touch Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   // A phone: no hover, and taps rather than a pointer.
   const context = await browser.newContext({
@@ -3180,7 +3207,7 @@ test("somebody with only a keyboard signs in, switches channel, replies, reacts,
       "Keys Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   try {
@@ -3365,7 +3392,7 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
       "Layout Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   try {
     await expect
@@ -3627,7 +3654,7 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
       "--access-policy",
       "guest_allowed",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext();
   try {
@@ -3759,7 +3786,7 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
       "Read Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
@@ -4220,7 +4247,7 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
       "Live Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   try {

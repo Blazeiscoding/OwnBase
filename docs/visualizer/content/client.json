@@ -20,7 +20,8 @@
         "The private request helper adds the bearer token and JSON body, combines caller cancellation with optional deadlines, and translates non-success responses into ApiError with a status and code.",
         "Methods cover authentication, profiles, channels, message history and search, reactions, schedules, app administration, audit entries and operating status. UI code calls these methods instead of constructing endpoints repeatedly.",
         "File uploads expose progress and cancellation. File bytes use authenticated fetch; a separately scoped download ticket supports native downloads without placing the session token into a download URL.",
-        "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust."
+        "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust.",
+        "listPins takes a page size and passes on the server's total, which older servers leave out."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -35,7 +36,8 @@
         "send creates a random request nonce and an optimistic PendingMessage, uploads files, posts the message and reconciles the response or socket echo by nonce. The outbox accepts up to 50 waiting sends per account. A known server refusal waits for deliberate Retry; an uncertain outcome can retry the same nonce.",
         "Restored outbox entries contain attachment descriptions rather than File objects. Missing attachment bytes and sends older than the retry window remain visibly failed instead of silently sending incomplete or stale content. destroy releases sockets, timers, media, previews and cached files.",
         "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choice sequencing covers pins, saves, snooze and channel preferences. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation. changedContent records, per conversation, the seq of the latest edit, deletion, pin, history removal or own departure, so views holding copied messages can ask again without loaded history (Q07, Q08).",
-        "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving."
+        "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving.",
+        "memberChanges holds, per conversation, the seq of the latest member.joined or member.left, so views that ask for a channel's members (the header's faces, the Members panel) ask again (UX-23)."
       ],
       "concepts": [
         "workspace replica",
@@ -255,8 +257,9 @@
         "Provides the active client and gates account-local consumers through WorkspaceStorageGate. The central conversation combines Sidebar, MessageTimeline, Composer and an optional thread, members or utility panel.",
         "Only one side panel is selected at a time. Persistent places such as channels, threads, saved panels and account sections map to route/history state; transient forms and pickers stay component state.",
         "The screen tracks what is truly visible and focused when deciding notifications and read acknowledgement. Missed messages are grouped through CatchUpSummary, and live messages can be announced politely to a screen reader.",
-        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. Search is fetched as the header's search box is entered and drawn the same way: the first key typed there opens it with the typing carried on in its field (a word an input method is still composing waits until it is chosen, and keys typed before the download lands wait in the box), so results follow typing with no Enter. These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
-        "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues."
+        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. The thread panel is drawn the same way. These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
+        "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues.",
+        "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu."
       ],
       "concepts": [
         "screen orchestration",
@@ -264,7 +267,9 @@
         "responsive UI",
         "lazy loading",
         "notifications",
-        "N04"
+        "N04",
+        "conversation header",
+        "UX-23"
       ]
     },
     {
@@ -1034,7 +1039,8 @@
         "Displays search modifiers and the parsed interpretation, scope/date/file-type controls, pagination, matched terms and attachment-name reasons for a result. The search field stays above the filters and results, which scroll, and each new page is shown from its top.",
         "Results follow what is typed and the filters chosen a quarter-second after typing pauses. Enter searches at once; a search is kept among the recent ones only when someone settles on it (Enter, a recent search repeated, a result opened). Words brought from the palette are searched at once and kept; words handed over from the header's box (typing) are still being typed, so they wait for the pause like any.",
         "Recent searches are kept in the authenticated local scope; choosing a result requests an in-app message jump rather than treating a result excerpt as the whole conversation.",
-        "Since Q07 the dialog re-requests its current page when changedContent advances for a channel among its results, leaving a request in flight to finish first. Results are still a copy: after a resync beyond the event log they are stale until asked again."
+        "Since Q07 the dialog re-requests its current page when changedContent advances for a channel among its results, leaving a request in flight to finish first. Results are still a copy: after a resync beyond the event log they are stale until asked again.",
+        "inConversation opens it on the conversation it was asked from, with the Conversation filter already set, from the header's menu (UX-23). The typing hand-over from the header's search box went with the box."
       ],
       "concepts": ["full-text search", "filters", "result excerpts", "Q07"]
     },
@@ -1177,7 +1183,8 @@
       "summary": "Shows the active conversation's people grouped by online presence.",
       "details": [
         "DMs use their known participant IDs; channels fetch membership when opened and ignore results after disposal.",
-        "Active users are sorted by name, grouped online/offline and linked to profiles. Shared loading and focus helpers make failure/retry and dismissal consistent."
+        "Active users are sorted by name, grouped online/offline and linked to profiles. Shared loading and focus helpers make failure/retry and dismissal consistent.",
+        "A channel's list is asked for again, in place, when someone joins or leaves (memberChanges)."
       ],
       "concepts": ["conversation membership", "presence", "request lifetime"]
     },
@@ -1374,6 +1381,18 @@
         "Names the action by the room's state (Start a huddle, Join the huddle (n), In huddle) and joins through the same preference-aware path as other entry points."
       ],
       "concepts": ["huddle entry point"]
+    },
+    {
+      "path": "packages/ui/src/components/ConversationHeader.tsx",
+      "plain": "The parts of a conversation's header besides its name: the faces of who is in it, the menu with everything else, and the line that says how many messages are pinned.",
+      "summary": "Member faces and count, the conversation's ⋯ menu, and the pinned line under the header.",
+      "details": [
+        "MemberStack shows up to three faces, people online first, and a count; it opens and closes the Members panel. A group message knows its people; a channel's are asked for, and asked again when memberChanges moves or the connection comes back. A phone shows one face.",
+        "ConversationMenu holds Pinned messages, Search in #name (search opened on this conversation), Notification settings (the details' Notifications tab, only for a member) and the details.",
+        "PinnedBar asks for one pin and the total, shows \"3 pinned\" with the newest pin's first words, and opens the Pinned panel; it asks again when changedContent moves, so a pin, an unpin or an edit shows at once. A server too old to count says only \"Pinned\".",
+        "The last answers are kept per client, so going back to a conversation shows its faces and pins at once instead of the header moving as they arrive."
+      ],
+      "concepts": ["conversation header", "UX-23", "live panels"]
     },
     {
       "path": "packages/ui/src/components/HuddleBar.tsx",

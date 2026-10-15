@@ -150,11 +150,8 @@ export function SearchDialog(props: {
   channelId?: ID | null;
   /** Words to search for at once, as typed in the palette. */
   initialQuery?: string;
-  /**
-   * The words were begun in the header's search box and are still being
-   * typed, here now: they are searched once typing pauses, like any.
-   */
-  typing?: boolean;
+  /** Opens on `channelId` alone, from the conversation's own menu. */
+  inConversation?: boolean;
 }) {
   const client = useClient();
   const recent = useRecentSearches();
@@ -166,7 +163,9 @@ export function SearchDialog(props: {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [scope, setScope] = useState("");
+  const [scope, setScope] = useState(
+    props.inConversation && props.channelId ? props.channelId : "",
+  );
   const [author, setAuthor] = useState("");
   /** The Contains choice, as the modifier it adds: has:file, type:pdf and so on. */
   const [contains, setContains] = useState("");
@@ -220,7 +219,7 @@ export function SearchDialog(props: {
   }, [changed, busy]);
 
   // Words brought from the palette are searched straight away.
-  const initial = useRef(props.typing ? undefined : props.initialQuery?.trim().slice(0, 200));
+  const initial = useRef(props.initialQuery?.trim().slice(0, 200));
   useEffect(() => {
     if (initial.current)
       void search({ query: initial.current }, undefined, 0, [undefined], { remember: true });

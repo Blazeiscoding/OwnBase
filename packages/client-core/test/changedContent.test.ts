@@ -76,3 +76,26 @@ describe("what changed in a conversation", () => {
     await expect.poll(() => changed(channel.id)).toBeGreaterThan(0);
   });
 });
+
+describe("who is in a conversation", () => {
+  const moved = () => client.state.memberChanges[general] ?? 0;
+
+  it("moves when someone joins or leaves, and not for a message", async () => {
+    const { message } = await owner.sendMessage(general, { text: "Hello", nonce: "one" });
+    await expect.poll(() => client.state.channelLastSeq[general]).toBe(message.seq);
+    expect(moved()).toBe(0);
+
+    // A new account joins the public channels.
+    const base = `http://127.0.0.1:${server.port}`;
+    const joined = await new Api(base).register({
+      handle: "newcomer",
+      displayName: "Newcomer",
+      password: "password123",
+    });
+    await expect.poll(moved).toBeGreaterThan(0);
+    const first = moved();
+
+    await new Api(base, joined.token).leaveChannel(general);
+    await expect.poll(moved).toBeGreaterThan(first);
+  });
+});

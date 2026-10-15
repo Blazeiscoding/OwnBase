@@ -9,7 +9,8 @@ import { ListStatus } from "./ListStatus.js";
 /**
  * Who is in this conversation, Discord's member list: online first, then
  * everyone else, each by name with their status. A direct message knows its
- * people already; a channel asks the server when the panel opens.
+ * people already; a channel asks the server when the panel opens, and again
+ * when someone joins or leaves.
  */
 export function MembersPanel(props: {
   channelId: ID;
@@ -21,6 +22,8 @@ export function MembersPanel(props: {
   const users = useWorkspace((s) => s.users);
   const presence = useWorkspace((s) => s.presence);
   const known = channel?.memberIds;
+  /** Asked again, in place, when someone joins or leaves. */
+  const moved = useWorkspace((s) => s.memberChanges[props.channelId] ?? 0);
   const [loaded, setLoaded] = useState<ID[] | null>(known ?? null);
   const [failed, setFailed] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -40,7 +43,7 @@ export function MembersPanel(props: {
     return () => {
       active = false;
     };
-  }, [client, props.channelId, known, attempt]);
+  }, [client, props.channelId, known, attempt, moved]);
 
   const { online, offline } = useMemo(() => {
     const people = (loaded ?? [])
