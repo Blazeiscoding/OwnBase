@@ -73,7 +73,7 @@ const AccountDialog = lazy(() =>
   import("../components/AccountDialog.js").then((module) => ({ default: module.AccountDialog })),
 );
 // Opened now and then rather than on every visit, so they load on first use
-// and keep what every visit downloads under half a megabyte.
+// and keep what every visit downloads small.
 // Shown to the owner until the first steps are done, then never again.
 const GettingStarted = lazy(() =>
   import("../components/GettingStarted.js").then((module) => ({

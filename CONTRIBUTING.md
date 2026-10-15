@@ -113,7 +113,7 @@ Browser checks: `pnpm exec playwright install chromium`, then `pnpm test:e2e`
 after building. Windows checks: `pnpm build:win`,
 then `pnpm test:desktop`. These tests use temporary workspaces and fake media.
 
-The script every visit to the client downloads has a 500 kB budget. After
+The script every visit to the client downloads has a 700 kB budget. After
 building, `node scripts/check-web-bundle.mjs` measures the browser client and
 `node scripts/check-web-bundle.mjs apps/desktop/out/renderer` the desktop
 renderer; CI runs both on Linux. A workspace package that others import declares

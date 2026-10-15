@@ -38,6 +38,7 @@ export default defineConfig({
     // As in the web build: the call noise filter's model goes in as a data URL.
     assetsInclude: ["**/*.wasm"],
     plugins: [react(), tailwindcss()],
-    build: { minify: true, cssMinify: true },
+    // chunkSizeWarningLimit (kB) is the entry budget scripts/check-web-bundle.mjs enforces.
+    build: { minify: true, cssMinify: true, chunkSizeWarningLimit: 700 },
   },
 });

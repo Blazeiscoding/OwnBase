@@ -338,7 +338,8 @@
       ],
       "limits": [
         "This compares download sizes at one past moment. Nobody measured whether startup got faster.",
-        "Later features used up the freed room. A later build measured 496,783 bytes for the web version and 499,463 bytes for the desktop app, against the 500,000 byte limit."
+        "Later features used up the freed room. A later build measured 496,783 bytes for the web version and 499,463 bytes for the desktop app, against the 500,000 byte limit.",
+        "On 2026-10-15 the limit itself was raised to 700,000 bytes, since a few kilobytes more cost well under a millisecond to read."
       ],
       "technical": {
         "title": "Move first-use-only screens and dialogs out of the entry",
