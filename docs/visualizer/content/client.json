@@ -233,7 +233,7 @@
       "details": [
         "A browser quietly recognizes the workspace serving its own origin; desktop discovery subscribes to LAN announcements. Hosted-but-stopped workspaces can offer resume instead of an endless connection attempt.",
         "Address probing normalizes the input and checks application/protocol compatibility before presenting authentication. A probe-attempt number rejects success from an ordinary cancelled or superseded address probe.",
-        "Saved sign-ins first validate their token and fall back to a password card when expired. The auth form handles registration, invites and initial-owner claiming through the typed API.",
+        "Saved sign-ins first validate their token and fall back to a password card when expired. The auth form handles registration, invites and initial-owner claiming through the typed API. A new account that comes back as owner founded the workspace, and onConnected says so, so the workspace opens on inviting people (UX-42).",
         "Since Q06 the saved-token path and the forced password replacement carry the same attempt ownership as ordinary probes, so a late answer after Cancel, another choice or unmount does nothing.",
         "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry."
       ],
@@ -615,7 +615,8 @@
       "summary": "Invite reuse rule plus expiry and use wording for the invite dialog (UX-43).",
       "details": [
         "reusableInvite picks this person's newest invite that is active, unlimited and has at least a day left. describeExpiry rounds up through minutes, hours and days, so a one-day link reads 1 day.",
-        "INVITE_EXPIRY_CHOICES and INVITE_USE_CHOICES are what Change offers; DEFAULT_INVITE is a week for anyone."
+        "INVITE_EXPIRY_CHOICES and INVITE_USE_CHOICES are what Change offers; DEFAULT_INVITE is a week for anyone.",
+        "onlyOnItsNetwork tells a private, link-local, carrier-grade NAT (Tailscale) or .local address, which a phone on mobile data cannot reach, from one anyone can."
       ],
       "concepts": ["invite links", "UX-43"]
     },
@@ -1204,9 +1205,10 @@
       "details": [
         "On opening it shows the newest invite this person made that still works like a new one, or makes one for seven days and any number of people, so there is no generate step and opening it again does not mint another code.",
         "Change makes a new link from Expires after and Number of uses choices. Copy link confirms with a toast as well as on the button; the QR code is left out when the only address reaches this computer alone.",
-        "It lists invites with their status and lets the creator or an administrator revoke one after a confirmation. Clipboard outcome and readable server refusal state are preserved."
+        "It lists invites with their status and lets the creator or an administrator revoke one after a confirmation. Clipboard outcome and readable server refusal state are preserved.",
+        "With welcome it is the step that ends founding a workspace (UX-42): titled Invite your people, it leaves out the list, ends with Done, and says when the link only works on its own network, pointing a desktop host to Manage hosting to share the workspace on the internet."
       ],
-      "concepts": ["invite links", "QR code", "UX-43", "lazy forms"]
+      "concepts": ["invite links", "QR code", "UX-42", "UX-43", "lazy forms"]
     },
     {
       "path": "packages/ui/src/components/QrCode.tsx",

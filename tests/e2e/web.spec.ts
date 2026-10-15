@@ -162,6 +162,19 @@ async function register(page: Page, handle: string, claim?: string) {
   }
   await page.getByRole("button", { name: "Join workspace", exact: true }).click();
   await expect(page.locator("textarea")).toBeVisible();
+  // The claim makes this account the workspace's first, its owner.
+  if (claim) await dismissWelcome(page);
+}
+
+/**
+ * The account that founds a workspace lands on inviting people (UX-42): a
+ * link ready to copy, then Done for the workspace behind it.
+ */
+async function dismissWelcome(page: Page) {
+  const welcome = page.getByRole("dialog", { name: "Invite your people", exact: true });
+  await expect(welcome.locator("code").filter({ hasText: "/#/join/" })).toBeVisible();
+  await welcome.getByRole("button", { name: "Done", exact: true }).click();
+  await expect(welcome).toHaveCount(0);
 }
 
 /** Signs an existing account in, rather than creating one. */

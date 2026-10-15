@@ -17,6 +17,12 @@ import { buttonClass } from "../components/Button.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
 
+/** How a sign-in came about, where it matters to what opens next. */
+export interface Connected {
+  /** This account was just created as the workspace's first, so its owner. */
+  founded?: boolean;
+}
+
 interface Props {
   platform: Platform;
   savedServers: SavedServer[];
@@ -24,7 +30,7 @@ interface Props {
   autoProbe?: string;
   /** Prefilled from an invite link. */
   inviteCode?: string;
-  onConnected: (server: SavedServer) => void;
+  onConnected: (server: SavedServer, how?: Connected) => void;
   onForget: (url: string) => void;
   onHostClick?: () => void;
   hostingStatus?: HostingStatus | null;
@@ -658,7 +664,7 @@ function AuthCard(props: {
   savedHandle?: string;
   presetInviteCode?: string;
   onBack: () => void;
-  onConnected: (server: SavedServer) => void;
+  onConnected: (server: SavedServer, how?: Connected) => void;
 }) {
   const hasUsers = props.info.userCount > 0;
   const isFirstUser = !hasUsers;
@@ -785,13 +791,17 @@ function AuthCard(props: {
         setBusy(false);
         return;
       }
-      props.onConnected({
-        url: props.url,
-        token: result.token,
-        workspaceName: props.info.workspaceName,
-        handle: result.user.handle,
-        lastUsedAt: Date.now(),
-      });
+      props.onConnected(
+        {
+          url: props.url,
+          token: result.token,
+          workspaceName: props.info.workspaceName,
+          handle: result.user.handle,
+          lastUsedAt: Date.now(),
+        },
+        // The first account owns the workspace: it was made just now (UX-42).
+        { founded: mode === "register" && result.user.role === "owner" },
+      );
     } catch (err) {
       if (ticket !== attempt.current) return;
       if (err instanceof ApiError && err.code === "claim_required") setRequiresClaim(true);

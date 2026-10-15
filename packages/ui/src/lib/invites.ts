@@ -59,3 +59,31 @@ export function describeUses(maxUses: number | null, uses: number): string {
   const left = Math.max(0, maxUses - uses);
   return `${left} of ${maxUses} ${maxUses === 1 ? "use" : "uses"} left`;
 }
+
+/**
+ * Whether a link on this address opens only on its own network: a private,
+ * link-local or carrier-grade NAT address (Tailscale's), or a .local name.
+ * A phone on mobile data, or a friend at home, cannot reach it.
+ */
+export function onlyOnItsNetwork(url: string): boolean {
+  let host: string;
+  try {
+    host = new URL(url).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  } catch {
+    return false;
+  }
+  if (host.endsWith(".local")) return true;
+  const v4 = /^(\d+)\.(\d+)\.\d+\.\d+$/.exec(host);
+  if (v4) {
+    const [a, b] = [Number(v4[1]), Number(v4[2])];
+    return (
+      a === 10 ||
+      (a === 192 && b === 168) ||
+      (a === 172 && b >= 16 && b <= 31) ||
+      (a === 169 && b === 254) ||
+      (a === 100 && b >= 64 && b <= 127)
+    );
+  }
+  // Unique local and link-local IPv6; only a literal has a colon in it.
+  return host.includes(":") && /^(fc|fd|fe80:)/.test(host);
+}
