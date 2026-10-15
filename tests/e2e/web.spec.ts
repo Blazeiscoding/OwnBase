@@ -15,6 +15,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 
+/**
+ * For a server a scenario starts and never reads from. A pipe nobody reads
+ * fills up, and on Linux the server then stops at its next log line: the
+ * Back and Forward scenario hung that way while its server was stopping.
+ */
+const UNREAD = { windowsHide: true, stdio: "ignore" } as const;
+
 /** A real PNG of the given size, so the server reads its dimensions as it would a photo's. */
 function solidPng(width: number, height: number): Buffer {
   const rows = Buffer.alloc((width * 3 + 1) * height, 0x5a);
@@ -2316,7 +2323,7 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
       "--invite-only",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const contexts: BrowserContext[] = [];
   try {
@@ -2626,7 +2633,7 @@ test("the demo seed fills a new workspace with something to try, and leaves one 
       "Demo Team",
       "--invite-only",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const seed = () =>
     new Promise<{ code: number | null; output: string }>((resolve) => {
@@ -2732,7 +2739,7 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
       "Route Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   try {
@@ -3048,7 +3055,7 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
       "Touch Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   // A phone: no hover, and taps rather than a pointer.
   const context = await browser.newContext({
@@ -3200,7 +3207,7 @@ test("somebody with only a keyboard signs in, switches channel, replies, reacts,
       "Keys Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
   try {
@@ -3385,7 +3392,7 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
       "Layout Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   try {
     await expect
@@ -3647,7 +3654,7 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
       "--access-policy",
       "guest_allowed",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext();
   try {
@@ -3779,7 +3786,7 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
       "Read Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   try {
@@ -4240,7 +4247,7 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
       "Live Team",
       "--no-rate-limits",
     ],
-    { windowsHide: true, stdio: "pipe" },
+    UNREAD,
   );
   const context = await browser.newContext({ viewport: { width: 1280, height: 800 } });
   try {
