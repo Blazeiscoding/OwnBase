@@ -349,13 +349,13 @@ describe("the workspace switcher", () => {
     const nav = screen.getByRole("navigation");
     const channels = within(nav).getByRole("button", { name: "Channels" });
     expect(channels).toHaveAttribute("aria-expanded", "true");
-    expect(within(nav).getByRole("button", { name: /beta/ })).toBeVisible();
+    expect(within(nav).getByRole("button", { name: /^#\s*beta$/ })).toBeVisible();
     await user.click(channels);
     expect(channels).toHaveAttribute("aria-expanded", "false");
-    expect(within(nav).queryByRole("button", { name: /beta/ })).toBeNull();
-    expect(within(nav).getByRole("button", { name: /alpha/ })).toBeVisible();
+    expect(within(nav).queryByRole("button", { name: /^#\s*beta$/ })).toBeNull();
+    expect(within(nav).getByRole("button", { name: /^#\s*alpha$/ })).toBeVisible();
     await user.click(channels);
-    expect(within(nav).getByRole("button", { name: /beta/ })).toBeVisible();
+    expect(within(nav).getByRole("button", { name: /^#\s*beta$/ })).toBeVisible();
   });
 });
 

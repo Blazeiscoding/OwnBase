@@ -5,7 +5,9 @@ import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
+import { useOptionalToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
+import { starItem } from "../lib/conversationChoices.js";
 
 /**
  * The last answer to each question the header asks, per client, so a
@@ -109,6 +111,7 @@ export function MemberStack(props: { channelId: ID; pressed: boolean; onToggle: 
 
 /** The rest of what a conversation offers, behind `⋯`. */
 export function ConversationMenu(props: {
+  channelId: ID;
   /** "#design", or the people in a direct message. */
   title: string;
   isRoom: boolean;
@@ -118,6 +121,15 @@ export function ConversationMenu(props: {
   onNotifications?: () => void;
   onDetails: () => void;
 }) {
+  const client = useClient();
+  const toast = useOptionalToast();
+  // A star is kept with a membership, by a server that keeps stars.
+  const canStar = useWorkspace((s) => s.stars && props.channelId in s.memberships);
+  const starred = useWorkspace((s) => s.prefs[props.channelId]?.starred === true);
+  const conversation = {
+    id: props.channelId,
+    noun: props.isRoom ? ("channel" as const) : ("conversation" as const),
+  };
   const items: MenuItem[] = [
     { id: "pins", label: "Pinned messages", icon: "pin", onSelect: props.onPins },
     {
@@ -126,6 +138,7 @@ export function ConversationMenu(props: {
       icon: "search",
       onSelect: props.onSearch,
     },
+    ...(canStar ? [starItem(client, toast, conversation, starred)] : []),
     ...(props.onNotifications
       ? [
           {

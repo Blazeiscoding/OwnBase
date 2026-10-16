@@ -307,6 +307,7 @@ export class Gateway {
           inlineReplies: true,
           scheduledEvents: true,
           activityThreads: true,
+          stars: true,
           workspaceName: this.workspaceName(),
           workspaceId: this.store.getMeta("workspace_id") ?? undefined,
           friends: this.store.listFriends(user.id),

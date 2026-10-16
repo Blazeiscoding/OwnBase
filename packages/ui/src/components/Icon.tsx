@@ -14,6 +14,8 @@ const paths = {
   friends:
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",
   pin: "m16 3 5 5-4 1-4 5v4l-7-7h4l5-4zM9 15l-6 6",
+  /** A five-pointed star: a conversation kept at the top of the sidebar. */
+  star: "M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5-4.8-4.6 6.6-.9z",
   bookmark: { ribbon: "M12 17l8.5 5V4A2.5 2.5 0 0 0 18 1.5H6A2.5 2.5 0 0 0 3.5 4v18z" },
   clock: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M12 6v6l4 2",
   attach: "m21 11-9 9a6 6 0 0 1-8.5-8.5l9-9a4 4 0 0 1 5.7 5.7l-9 9a2 2 0 0 1-2.8-2.8L15 6",

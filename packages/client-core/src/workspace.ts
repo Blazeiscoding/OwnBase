@@ -487,6 +487,11 @@ export interface WorkspaceState {
   /** The server lists unread replies in followed threads as Activity's own mode. */
   activityThreads: boolean;
   /**
+   * The server keeps a star per conversation (`ChannelPrefs.starred`). An
+   * older one would drop a star without saying so, so none is offered there.
+   */
+  stars: boolean;
+  /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
    * A list of scheduled messages reads the queue again when it moves.
@@ -572,6 +577,7 @@ const initialState: WorkspaceState = {
   inlineReplies: false,
   scheduledEvents: false,
   activityThreads: false,
+  stars: false,
   scheduledChanges: 0,
   self: null,
   users: {},
@@ -970,6 +976,7 @@ export class WorkspaceClient {
       inlineReplies: snap.inlineReplies === true,
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
+      stars: snap.stars === true,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,

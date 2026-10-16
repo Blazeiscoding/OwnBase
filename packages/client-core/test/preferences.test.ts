@@ -91,7 +91,9 @@ describe("a notification choice for a channel", () => {
     expect(client.state.prefsWrites[channelId]).toEqual({ saving: true, failed: null });
 
     first.pass();
-    await expect.poll(() => stored()).toEqual({ notifyLevel: "nothing", muted: true });
+    await expect
+      .poll(() => stored())
+      .toEqual({ notifyLevel: "nothing", muted: true, starred: false });
     // What was chosen meanwhile went as one request.
     expect(sent).toHaveBeenCalledTimes(2);
     expect(sent.mock.calls[1]).toEqual([channelId, { notifyLevel: "nothing", muted: true }]);
@@ -125,7 +127,9 @@ describe("a notification choice for a channel", () => {
     expect(shown()?.notifyLevel).toBe("all");
 
     mine.fail();
-    await expect.poll(() => shown()).toEqual({ notifyLevel: "nothing", muted: true });
+    await expect
+      .poll(() => shown())
+      .toEqual({ notifyLevel: "nothing", muted: true, starred: false });
   });
 
   it("sends nothing more from a closed client, so its replacement's choice stands (REV-11)", async () => {
@@ -139,7 +143,9 @@ describe("a notification choice for a channel", () => {
     try {
       await expect.poll(() => replacement.state.status).toBe("online");
       replacement.setChannelPrefs(channelId, { muted: false, notifyLevel: "nothing" });
-      await expect.poll(() => stored()).toEqual({ notifyLevel: "nothing", muted: false });
+      await expect
+        .poll(() => stored())
+        .toEqual({ notifyLevel: "nothing", muted: false, starred: false });
       first.pass();
       await new Promise((resolve) => setTimeout(resolve, 100));
       // The held request went; the closed client's waiting "muted" did not.
@@ -170,6 +176,72 @@ describe("a notification choice for a channel", () => {
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(client.state.prefs[channel.id]).toBeUndefined();
     expect(client.state.prefsWrites[channel.id]).toBeUndefined();
+  });
+});
+
+/** A star on a conversation (UX-20) is one more of these choices, and travels the same way. */
+describe("a star on a conversation", () => {
+  it("shows at once, is saved, and says the server keeps stars", async () => {
+    expect(client.state.stars).toBe(true);
+    expect(shown()?.starred).toBe(false);
+    const held = holdNextPrefsRequest();
+    client.setChannelPrefs(channelId, { starred: true });
+    expect(shown()?.starred).toBe(true);
+    held.pass();
+    await expect.poll(() => stored()?.starred).toBe(true);
+    await expect.poll(() => client.state.prefsWrites[channelId]).toBeUndefined();
+    expect(shown()).toEqual({ notifyLevel: "mentions", muted: false, starred: true });
+  });
+
+  it("goes back when the server refuses it, and can be tried again", async () => {
+    const refused = holdNextPrefsRequest();
+    client.setChannelPrefs(channelId, { starred: true });
+    expect(shown()?.starred).toBe(true);
+    refused.fail();
+    await expect
+      .poll(() => client.state.prefsWrites[channelId])
+      .toEqual({ saving: false, failed: { starred: true } });
+    expect(shown()?.starred).toBe(false);
+
+    client.retryChannelPrefs(channelId);
+    await expect.poll(() => stored()?.starred).toBe(true);
+    await expect.poll(() => client.state.prefsWrites[channelId]).toBeUndefined();
+    expect(shown()?.starred).toBe(true);
+  });
+
+  it("arrives from the account's other device", async () => {
+    await elsewhere.setChannelPrefs(channelId, { starred: true });
+    await expect.poll(() => shown()?.starred).toBe(true);
+    await elsewhere.setChannelPrefs(channelId, { starred: false });
+    await expect.poll(() => shown()?.starred).toBe(false);
+  });
+
+  it("is not offered by a server that keeps none", () => {
+    // A server before v40 sends neither the flag nor `starred`.
+    const older = new WorkspaceClient("http://127.0.0.1:9", "token");
+    try {
+      const self = client.state.self!;
+      const connection = older as unknown as { handleServerMessage(message: unknown): void };
+      connection.handleServerMessage({
+        type: "ready",
+        seq: 0,
+        self,
+        users: [self],
+        channels: [client.state.channels[channelId]],
+        memberships: [
+          { channelId, lastReadSeq: 0, prefs: { notifyLevel: "mentions", muted: false } },
+        ],
+        channelLastSeq: {},
+        presence: {},
+        savedMessageIds: [],
+        huddles: {},
+        workspaceName: "W",
+      });
+      expect(older.state.stars).toBe(false);
+      expect(older.state.prefs[channelId]?.starred).toBeUndefined();
+    } finally {
+      older.destroy();
+    }
   });
 });
 
