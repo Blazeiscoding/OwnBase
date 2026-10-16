@@ -1762,7 +1762,7 @@
       "summary": "Search keeps its own copy of the results it found. It now asks for the same page again when a conversation in those results changes.",
       "before": "Text that was deleted, removed by automatic history removal, or edited stayed in a search that was already open until you searched again.",
       "after": "When a message is edited or deleted, history is removed, or you leave a conversation, an open search with results from that conversation asks the server for its page again, in place. This works even when that conversation's messages are not loaded.",
-      "mechanism": "Record per conversation the seq of the latest content-changing event; the dialog re-requests its current page when that advances for a conversation among its results, never cutting a newer request short.",
+      "mechanism": "Record per conversation the seq of the latest content-changing event; the dialog re-requests its current page when that advances for a conversation among its results, never cutting a newer request short. Since UX-51 the results load more as they scroll, so the dialog reads them again from the top, in place, as far as they had been read.",
       "files": [
         "packages/ui/src/components/SearchDialog.tsx",
         "packages/client-core/src/workspace.ts",

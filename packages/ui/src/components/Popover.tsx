@@ -6,7 +6,8 @@ import { Modal } from "./Modal.js";
  * later's choices. Built on the modal layer, like Menu: Escape and a press
  * outside close it, the page beneath waits, and focus goes back to the
  * control. It sits above the control and lines up with its end, or below
- * when there is no room above, and follows it as the page scrolls.
+ * when there is no room above, and follows it as the page scrolls. A control
+ * at the top of what it changes, such as a search filter, asks for below.
  */
 export function Popover(props: {
   /** What a screen reader calls it. */
@@ -16,6 +17,8 @@ export function Popover(props: {
   children: ReactNode;
   width?: number;
   align?: "start" | "end";
+  /** Where it would rather sit; it takes the other side when there is no room. */
+  side?: "above" | "below";
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(props.onClose);
@@ -30,13 +33,17 @@ export function Popover(props: {
     }
     const width = Math.min(props.width ?? 260, window.innerWidth - 16);
     const height = el.offsetHeight;
-    const above = box.top - height - 8;
-    const top = above >= 8 ? above : Math.min(box.bottom + 8, window.innerHeight - height - 8);
+    const roomAbove = box.top - height - 8 >= 8;
+    const roomBelow = box.bottom + 8 + height <= window.innerHeight - 8;
+    const above = props.side === "below" ? !roomBelow && roomAbove : roomAbove;
+    const top = above
+      ? box.top - height - 8
+      : Math.min(box.bottom + 8, window.innerHeight - height - 8);
     const left = props.align === "start" ? box.left : box.right - width;
     el.style.width = `${width}px`;
     el.style.top = `${Math.max(8, top)}px`;
     el.style.left = `${Math.max(8, Math.min(left, window.innerWidth - width - 8))}px`;
-    el.style.transformOrigin = `${props.align === "start" ? "left" : "right"} ${above >= 8 ? "bottom" : "top"}`;
+    el.style.transformOrigin = `${props.align === "start" ? "left" : "right"} ${above ? "bottom" : "top"}`;
   };
   useLayoutEffect(() => place.current(), []);
   useEffect(() => {
