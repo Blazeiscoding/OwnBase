@@ -167,10 +167,11 @@ for real geometry and check assistive technology separately.
 A view in the client opens in one of three places, chosen by what it is for:
 
 - A side panel holds what someone reads beside the conversation: a thread, the
-  members, pinned messages, Activity, Threads, Saved, Scheduled and search
-  results. One is open at a time. It loads in `LazyPanel` and takes focus and
-  hands it back with `usePanelFocus`. Below 1024 px wide it covers the
-  conversation, and what it covers goes inert.
+  members, pinned messages, Activity, Threads, Saved, Scheduled, Direct
+  messages and search results. One is open at a time. It loads in `LazyPanel`
+  and takes focus and hands it back with `usePanelFocus`. Below 1024 px wide it
+  covers the conversation, and what it covers goes inert. On a phone it stops
+  above the bottom bar, whose height the workspace keeps free.
 - A dialog is a short task with an end, such as creating a channel, starting a
   message, inviting people or answering a confirmation. `Dialog` owns its
   focus, Escape and the inert page behind it, and it loads in `LazyDialog`.
