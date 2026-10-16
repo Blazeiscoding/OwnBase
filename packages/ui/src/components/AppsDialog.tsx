@@ -1,6 +1,20 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useCopy } from "../lib/useCopy.js";
-import type { EventSubscription, ID } from "@slackoss/protocol";
+import { useTabs } from "../lib/useTabs.js";
+import {
+  APP_TEMPLATES,
+  CI_SECRET,
+  CI_TEST_MESSAGE,
+  TEMPLATE_TITLES,
+  WEBHOOK_EXAMPLE,
+  ciExample,
+  commandExample,
+  commandName,
+  curlExample,
+  suggestedAppName,
+  type AppTemplate,
+} from "../lib/appTemplates.js";
+import type { App, Channel, EventSubscription, ID, SlashCommand } from "@slackoss/protocol";
 import { ApiError, type AppDetail } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog, inputCls } from "./Dialog.js";
@@ -8,10 +22,12 @@ import { Swap } from "./Motion.js";
 import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
 import { buttonClass } from "./Button.js";
+import { Icon } from "./Icon.js";
+import { useOptionalToast } from "./Toast.js";
 
 /** What an integration can rely on from this server, and where it differs from Slack. */
 const INTEGRATION_CONTRACT_URL =
-  "https://github.com/Blazeiscoding/SlackOSS/blob/main/docs/INTEGRATIONS.md";
+  "https://github.com/Blazeiscoding/Tandem/blob/main/docs/INTEGRATIONS.md";
 
 /** A secret with a copy button. Bot tokens are shown once; others can be re-read. */
 function SecretRow({
@@ -140,6 +156,25 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     (c) => (c.type === "public" || c.type === "private") && !c.archived,
   );
 
+  /**
+   * Shows an app the server just made. A bot token is returned only once, so
+   * its row stays visible even if the follow-up list request fails, and the
+   * admin can still copy the token.
+   */
+  function adopt(r: { app: App; token: string; signingSecret: string }): AppDetail {
+    const shown: AppDetail = {
+      ...r.app,
+      signingSecret: r.signingSecret,
+      webhooks: [],
+      commands: [],
+      subscriptions: [],
+    };
+    setApps((list) => [shown, ...(list ?? []).filter((app) => app.id !== r.app.id)]);
+    setSecrets((s) => ({ ...s, [r.app.id]: r.token }));
+    load();
+    return shown;
+  }
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) {
@@ -150,22 +185,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     setCreateError(null);
     setBusy(true);
     try {
-      const r = await client.api.createApp({ name: name.trim() });
-      // A bot token is returned only once. Keep its row visible even if the
-      // follow-up list request fails, so the admin can still copy the token.
-      setApps((shown) => [
-        {
-          ...r.app,
-          signingSecret: r.signingSecret,
-          webhooks: [],
-          commands: [],
-          subscriptions: [],
-        },
-        ...(shown ?? []).filter((app) => app.id !== r.app.id),
-      ]);
-      setSecrets((s) => ({ ...s, [r.app.id]: r.token }));
+      adopt(await client.api.createApp({ name: name.trim() }));
       setName("");
-      load();
     } catch {
       setCreateError("Could not create the app. Check your connection and try again.");
     } finally {
@@ -221,33 +242,34 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       },
     );
 
-  async function addWebhook(appId: ID, channelId: ID) {
+  /** Returns the webhook's URL, which the server shows only this once. */
+  async function addWebhook(appId: ID, channelId: ID): Promise<string> {
     const r = await client.api.createWebhook(appId, { channelId });
     // The path comes back relative; show the address a tool would actually call.
-    setHookUrls((h) => ({ ...h, [r.webhook.id]: `${client.baseUrl}${r.url}` }));
+    const url = `${client.baseUrl}${r.url}`;
+    setHookUrls((h) => ({ ...h, [r.webhook.id]: url }));
     load();
+    return url;
   }
 
   return (
     <Dialog title="Apps and integrations" onClose={onClose} width={620}>
-      <p className="text-sm text-ink-dim">
-        Connect bots, webhooks and slash commands. Each app posts as its own bot user, and many
-        Slack integrations work when pointed here.
-      </p>
-      <p className="mb-5 mt-1.5 text-[13px] leading-relaxed text-ink-faint">
-        Not everything carries over: there is no OAuth, Socket Mode or scopes, and a message&rsquo;s{" "}
-        <code className="font-mono text-ink-dim">ts</code> is an id rather than a time.{" "}
-        <a
-          href={INTEGRATION_CONTRACT_URL}
-          target="_blank"
-          rel="noreferrer"
-          className="font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
-        >
-          <code className="font-mono">docs/INTEGRATIONS.md</code>
-        </a>{" "}
-        lists every supported method.
+      <p className="mb-4 text-sm text-ink-dim">
+        Start from what you want to happen. Each app you make posts as its own bot.
       </p>
 
+      <AppTemplates
+        apps={apps ?? []}
+        rooms={rooms}
+        hookUrls={hookUrls}
+        makeApp={async (appName) => adopt(await client.api.createApp({ name: appName }))}
+        makeWebhook={addWebhook}
+        onChanged={load}
+      />
+
+      <SlackDifferences />
+
+      <h3 className="mb-2 mt-6 text-[13px] font-medium text-ink-dim">Your apps</h3>
       <form onSubmit={create} noValidate className="mb-5 flex gap-2">
         <input
           ref={nameInput}
@@ -261,7 +283,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
           placeholder="App name, e.g. Deploy Bot"
           className={inputCls}
         />
-        <button type="submit" disabled={busy} className={buttonClass("primary")}>
+        {/* Beside a template's own primary action, this one stays secondary. */}
+        <button type="submit" disabled={busy} className={buttonClass("secondary")}>
           Create
         </button>
       </form>
@@ -393,6 +416,572 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
         ))}
       </ul>
     </Dialog>
+  );
+}
+
+const fieldLabel = "min-w-0 flex-1 basis-40 text-[12px] font-medium text-ink-dim";
+const field =
+  "mt-1 h-8 w-full min-w-0 rounded-lg border border-edge bg-raised px-2 text-[13px] font-normal text-ink outline-none placeholder:text-ink-faint focus:border-copper/60";
+
+/**
+ * A choice with its label beside it rather than around it: a label wrapped
+ * round a select holds every option's text too, so the field would be named
+ * "Post as A new app Webhook" wherever a label is read as its text.
+ */
+function SelectField(props: {
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  children: React.ReactNode;
+}) {
+  const id = useId();
+  return (
+    <div className={fieldLabel}>
+      <label htmlFor={id}>{props.label}</label>
+      <select
+        id={id}
+        value={props.value}
+        onChange={(e) => props.onChange(e.target.value)}
+        className={field}
+      >
+        {props.children}
+      </select>
+    </div>
+  );
+}
+
+/** What each template's choices come to, shared so that one made in a template is ready in the next. */
+interface TemplateChoice {
+  /** The app chosen to post as, or null for a new one. */
+  app: AppDetail | null;
+  /** What a new app would be called. */
+  newName: string;
+  channel: Channel | null;
+  /** The chosen app, made first when it is to be a new one. */
+  ensureApp: () => Promise<AppDetail>;
+  /** The Post as field, with the new app's name beside it when there is one to name. */
+  postAs: React.ReactNode;
+  channelField: (label: string) => React.ReactNode;
+}
+
+/**
+ * Where Apps and integrations starts (UX-63): the three things most people
+ * come here for, each set up in a click or two, with an example to copy and a
+ * test that goes the whole way, so nobody has to read how this differs from
+ * Slack before something posts. The app and channel chosen are shared between
+ * them, so a webhook made in one is ready in another.
+ */
+function AppTemplates(props: {
+  apps: AppDetail[];
+  rooms: Channel[];
+  hookUrls: Record<ID, string>;
+  /** Makes an app and shows it below with its one-time token. */
+  makeApp: (name: string) => Promise<AppDetail>;
+  makeWebhook: (appId: ID, channelId: ID) => Promise<string>;
+  onChanged: () => void;
+}) {
+  const [template, setTemplate] = useState<AppTemplate>("webhook");
+  const tabs = useTabs({
+    label: "Templates",
+    tabs: APP_TEMPLATES,
+    selected: template,
+    onSelect: setTemplate,
+  });
+  const [appId, setAppId] = useState<ID>("");
+  const [typedName, setTypedName] = useState<string | null>(null);
+  const [channelId, setChannelId] = useState<ID>("");
+  const [command, setCommand] = useState("/deploy");
+  const rooms = [...props.rooms].sort((a, b) => a.name.localeCompare(b.name));
+  // An app deleted below, or a channel archived, falls back rather than vanishing.
+  const app = props.apps.find((a) => a.id === appId) ?? null;
+  const channel =
+    rooms.find((c) => c.id === channelId) ??
+    rooms.find((c) => c.name === "general") ??
+    rooms[0] ??
+    null;
+  const newName = typedName ?? suggestedAppName(template, commandName(command));
+
+  const choice: TemplateChoice = {
+    app,
+    newName,
+    channel,
+    ensureApp: async () => {
+      if (app) return app;
+      const made = await props.makeApp(newName.trim());
+      setAppId(made.id);
+      return made;
+    },
+    postAs: (
+      <>
+        <SelectField label="Post as" value={app?.id ?? ""} onChange={setAppId}>
+          <option value="">A new app</option>
+          {props.apps.map((a) => (
+            <option key={a.id} value={a.id}>
+              {a.name}
+            </option>
+          ))}
+        </SelectField>
+        {!app && (
+          <label className={fieldLabel}>
+            New app name
+            <input
+              value={newName}
+              onChange={(e) => setTypedName(e.target.value)}
+              className={field}
+            />
+          </label>
+        )}
+      </>
+    ),
+    channelField: (label) => (
+      <SelectField label={label} value={channel?.id ?? ""} onChange={setChannelId}>
+        {rooms.map((c) => (
+          <option key={c.id} value={c.id}>
+            #{c.name}
+          </option>
+        ))}
+      </SelectField>
+    ),
+  };
+
+  return (
+    <>
+      <div {...tabs.listProps} className="mb-3 flex gap-1 rounded-lg bg-ground p-1">
+        {APP_TEMPLATES.map((t) => (
+          <button
+            key={t}
+            {...tabs.tabProps(t)}
+            className={`flex-1 rounded-md px-2 py-1.5 text-[13px] font-medium transition-colors ${
+              template === t ? "bg-lifted text-ink" : "text-ink-dim hover:text-ink"
+            }`}
+          >
+            {TEMPLATE_TITLES[t]}
+          </button>
+        ))}
+      </div>
+      <div {...tabs.panelProps} className="rounded-xl border border-edge p-3">
+        {template === "command" ? (
+          <CommandTemplate
+            choice={choice}
+            command={command}
+            onCommand={setCommand}
+            onChanged={props.onChanged}
+          />
+        ) : (
+          <WebhookTemplate
+            // The two keep nothing of each other's beyond the shared choice.
+            key={template}
+            ci={template === "ci"}
+            choice={choice}
+            hookUrls={props.hookUrls}
+            makeWebhook={props.makeWebhook}
+          />
+        )}
+      </div>
+    </>
+  );
+}
+
+/** Why a test post to a webhook did not arrive, said as what to do about it. */
+function webhookTestError(err: unknown, channelName: string): string {
+  if (!(err instanceof ApiError)) {
+    return "Could not reach the workspace at this URL. Check your connection and try again.";
+  }
+  if (err.code === "invalid_webhook") {
+    return "This URL no longer works: it was replaced or removed. Create the webhook again.";
+  }
+  if (err.code === "channel_not_found") return `#${channelName} is gone or archived.`;
+  if (err.code === "not_in_channel") {
+    return `The app is no longer in #${channelName}. Add it back, then try again.`;
+  }
+  if (err.code === "too_many_requests") return "Too many posts to this webhook. Try again shortly.";
+  return `The workspace refused the test (${err.code}).`;
+}
+
+/**
+ * Incoming webhook and Post CI results: both are a webhook in a channel, with
+ * a different example. The test posts what the example would, to the URL
+ * itself, the way the tool will.
+ */
+function WebhookTemplate({
+  ci,
+  choice,
+  hookUrls,
+  makeWebhook,
+}: {
+  ci: boolean;
+  choice: TemplateChoice;
+  hookUrls: Record<ID, string>;
+  makeWebhook: (appId: ID, channelId: ID) => Promise<string>;
+}) {
+  const client = useClient();
+  const { app, channel } = choice;
+  /** The one made here, until the app list that includes it comes back. */
+  const [made, setMade] = useState<{ appId: ID; channelId: ID; url: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sending, setSending] = useState(false);
+  const [result, setResult] = useState<{ url: string; ok: boolean; text: string } | null>(null);
+  // A webhook URL is shown once, so only one made in this session can be filled in.
+  const known = app?.webhooks.find((w) => w.channelId === channel?.id && hookUrls[w.id]);
+  const url = known
+    ? hookUrls[known.id]!
+    : made && made.appId === app?.id && made.channelId === channel?.id
+      ? made.url
+      : null;
+  const shownResult = result && result.url === url ? result : null;
+
+  async function create(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    if (!channel) {
+      setError("A webhook posts to a channel. Create one first.");
+      return;
+    }
+    if (!app && !choice.newName.trim()) {
+      setError("Name the new app first.");
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const target = await choice.ensureApp();
+      const madeUrl = await makeWebhook(target.id, channel.id);
+      setMade({ appId: target.id, channelId: channel.id, url: madeUrl });
+    } catch {
+      setError("Could not create the webhook. Check your connection and try again.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function send() {
+    if (!url || !channel || sending) return;
+    setSending(true);
+    try {
+      await client.api.postToWebhook(url, ci ? CI_TEST_MESSAGE : WEBHOOK_EXAMPLE);
+      setResult({ url, ok: true, text: `Posted to #${channel.name}.` });
+    } catch (err) {
+      setResult({ url, ok: false, text: webhookTestError(err, channel.name) });
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="mb-3 text-[13px] text-ink-dim">
+        {ci
+          ? "Tell a channel how each build went. Add the step below to the end of a GitHub Actions job."
+          : "Post to a channel from a script, a scheduled job, or any tool that can send a web request."}
+      </p>
+      <form onSubmit={create} noValidate className="flex flex-wrap items-end gap-2">
+        {choice.channelField("Channel")}
+        {choice.postAs}
+        {!url && (
+          <button
+            type="submit"
+            aria-disabled={busy || undefined}
+            className={buttonClass("primary", "h-8 shrink-0 px-3 text-[13px]")}
+          >
+            {busy ? "Creating…" : "Create webhook"}
+          </button>
+        )}
+      </form>
+      {error && (
+        <p role="alert" className="mt-2 text-[12px] text-alert">
+          {error}
+        </p>
+      )}
+      {ci && url && (
+        <>
+          <SecretRow label="Webhook URL" value={url} once />
+          <p className="mt-1 text-[12px] text-ink-faint">
+            Save it in the repository&rsquo;s secrets as{" "}
+            <code className="font-mono text-ink-dim">{CI_SECRET}</code>.
+          </p>
+        </>
+      )}
+      <Example
+        label={ci ? "GitHub Actions step" : "Example with curl"}
+        code={ci ? ciExample() : curlExample(url ?? `${client.baseUrl}/hooks/…`)}
+      />
+      {url ? (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
+          <button
+            type="button"
+            onClick={() => void send()}
+            aria-disabled={sending || undefined}
+            className={buttonClass("secondary", "h-8 shrink-0 px-3 text-[13px]")}
+          >
+            {sending ? "Sending…" : "Send test message"}
+          </button>
+          <p
+            role="status"
+            className={`min-w-0 text-[12px] ${shownResult && !shownResult.ok ? "text-alert" : "text-ink-dim"}`}
+          >
+            {shownResult?.text}
+          </p>
+        </div>
+      ) : (
+        <p className="mt-2 text-[12px] text-ink-faint">
+          {ci
+            ? "Create the webhook to get the URL the step posts to."
+            : "Create the webhook to fill in its URL."}
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * A slash command answered by the admin's own service. The test runs the
+ * command for real in a channel, so it goes through the same signed request
+ * and the same reply as when anyone types it.
+ */
+function CommandTemplate({
+  choice,
+  command,
+  onCommand,
+  onChanged,
+}: {
+  choice: TemplateChoice;
+  command: string;
+  onCommand: (typed: string) => void;
+  onChanged: () => void;
+}) {
+  const client = useClient();
+  const { app, channel } = choice;
+  const [url, setUrl] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  /** The one added here, until the app list that includes it comes back. */
+  const [made, setMade] = useState<SlashCommand | null>(null);
+  const [running, setRunning] = useState(false);
+  const [result, setResult] = useState<{ key: string; ok: boolean; text: string } | null>(null);
+  const name = commandName(command);
+  const ready =
+    app?.commands.find((c) => c.command === name) ??
+    (made && made.appId === app?.id && made.command === name ? made : null);
+  const runKey = ready && channel ? `${ready.id}:${channel.id}` : null;
+  const shownResult = result && result.key === runKey ? result : null;
+
+  async function add(e: React.FormEvent) {
+    e.preventDefault();
+    if (busy) return;
+    const missing = !name
+      ? "Name the command, such as /deploy."
+      : !url.trim()
+        ? "Give the address your service answers on, such as https://bot.example.com."
+        : !app && !choice.newName.trim()
+          ? "Name the new app first."
+          : null;
+    if (missing) {
+      setError(missing);
+      return;
+    }
+    setBusy(true);
+    setError(null);
+    try {
+      const target = await choice.ensureApp();
+      const r = await client.api.createCommand(target.id, { command: name, url: url.trim() });
+      setMade(r.command);
+      onChanged();
+      // The composer's hint list is loaded once, so refresh it now.
+      void client.loadCommands();
+    } catch (err) {
+      setError(
+        !(err instanceof ApiError)
+          ? "Could not add the command. Check your connection and try again."
+          : err.code === "invalid_request"
+            ? "Use letters, digits, - and _ in the command, and an http or https address."
+            : err.message,
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function run() {
+    if (!ready || !channel || !runKey || running) return;
+    const typed = `/${ready.command} test`;
+    setRunning(true);
+    try {
+      const answer = await client.api.runCommand(channel.id, { text: typed });
+      setResult({
+        key: runKey,
+        ok: answer.ok,
+        text: answer.ok
+          ? `Your service answered ${typed}. Its reply, if it sent one, is in #${channel.name}.`
+          : answer.message
+            ? `${typed} failed: ${answer.message}.`
+            : `${typed} failed. #${channel.name} says why.`,
+      });
+    } catch (err) {
+      setResult({
+        key: runKey,
+        ok: false,
+        text: `Could not run ${typed}: ${err instanceof ApiError ? err.message : "the workspace did not answer"}.`,
+      });
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  return (
+    <>
+      <p className="mb-3 text-[13px] text-ink-dim">
+        Run your own service when someone types a command. Start the example below where the
+        workspace can reach it, then add the command with its address.
+      </p>
+      <form onSubmit={add} noValidate className="flex flex-wrap items-end gap-2">
+        <label className="w-28 shrink-0 text-[12px] font-medium text-ink-dim">
+          Command
+          <input value={command} onChange={(e) => onCommand(e.target.value)} className={field} />
+        </label>
+        <label className={fieldLabel}>
+          Request URL
+          <input
+            value={url}
+            onChange={(e) => setUrl(e.target.value)}
+            placeholder="https://bot.example.com"
+            className={field}
+          />
+        </label>
+        {choice.postAs}
+        <button
+          type="submit"
+          aria-disabled={busy || undefined}
+          className={buttonClass(ready ? "secondary" : "primary", "h-8 shrink-0 px-3 text-[13px]")}
+        >
+          {busy ? "Adding…" : "Add command"}
+        </button>
+      </form>
+      <p className="mt-1.5 text-[12px] text-ink-faint">
+        The server calls this address itself. It refuses a private or loopback one unless it was
+        started with <code className="whitespace-nowrap font-mono">--allow-private-hooks</code>.
+      </p>
+      {error && (
+        <p role="alert" className="mt-2 text-[12px] text-alert">
+          {error}
+        </p>
+      )}
+      {ready && (
+        <div className="mt-3">
+          <div className="flex flex-wrap items-end gap-2">
+            {choice.channelField("Try it in")}
+            <button
+              type="button"
+              onClick={() => void run()}
+              aria-disabled={running || undefined}
+              className={buttonClass("primary", "h-8 shrink-0 px-3 text-[13px]")}
+            >
+              {running ? "Sending…" : "Send test command"}
+            </button>
+          </div>
+          <p
+            role="status"
+            className={`mt-1.5 text-[12px] ${shownResult && !shownResult.ok ? "text-alert" : "text-ink-dim"}`}
+          >
+            {shownResult?.text}
+          </p>
+        </div>
+      )}
+      <Example
+        label="Example service in Node.js"
+        code={commandExample(name, app?.signingSecret ?? null)}
+        secret={app?.signingSecret}
+      />
+      {!app && (
+        <p className="mt-2 text-[12px] text-ink-faint">
+          The app&rsquo;s signing secret goes in once the app exists.
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * An example to copy. A secret in it is dotted out on screen until revealed,
+ * as SecretRow does, and copied whole either way.
+ */
+function Example({ label, code, secret }: { label: string; code: string; secret?: string }) {
+  const toast = useOptionalToast();
+  const { copy, label: copyLabel, copied } = useCopy();
+  const [revealed, setRevealed] = useState(false);
+  const shown = secret && !revealed ? code.replaceAll(secret, "•".repeat(24)) : code;
+
+  async function copyCode() {
+    if (await copy(code)) toast?.({ message: `${label} copied.`, kind: "success" });
+  }
+
+  return (
+    <figure className="mt-3 overflow-hidden rounded-lg border border-edge bg-ground">
+      <figcaption className="flex items-center gap-1 border-b border-edge py-1 pl-2.5 pr-1">
+        <span className="mr-auto text-[12px] font-medium text-ink-dim">{label}</span>
+        {secret && (
+          <button
+            type="button"
+            onClick={() => setRevealed((v) => !v)}
+            className="shrink-0 rounded px-2 py-1 text-[11px] text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
+          >
+            {revealed ? "Hide secret" : "Reveal secret"}
+          </button>
+        )}
+        <button
+          type="button"
+          onClick={() => void copyCode()}
+          className={`shrink-0 rounded px-2 py-1 text-[11px] hover:bg-ink/[0.05] hover:text-ink ${
+            copied && !copied.ok ? "text-alert" : "text-ink-dim"
+          }`}
+        >
+          <Swap text>{copyLabel("Copy", "Copied", "Copy failed")}</Swap>
+        </button>
+      </figcaption>
+      {/* Wrapped rather than scrolled sideways: a phone shows all of it, and
+          nothing scrolls that a keyboard could not reach. */}
+      <pre className="whitespace-pre-wrap p-2.5 font-mono text-[11.5px] leading-[1.6] text-ink [overflow-wrap:anywhere]">
+        <code>{shown}</code>
+      </pre>
+    </figure>
+  );
+}
+
+/**
+ * How apps here differ from Slack's, for someone bringing an integration
+ * across. Folded away (UX-63): posting from a webhook should not need any of it.
+ */
+function SlackDifferences() {
+  return (
+    <details className="group mt-4 rounded-xl border border-edge">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink-dim hover:text-ink">
+        <Icon name="chevronDown" size={14} className="transition-transform group-open:rotate-180" />
+        How this differs from Slack
+      </summary>
+      <div className="space-y-2 border-t border-edge px-3 py-2.5 text-[13px] leading-relaxed text-ink-dim">
+        <p>
+          Many Slack integrations work when pointed at this workspace: incoming webhooks, slash
+          commands, buttons, event subscriptions and{" "}
+          <code className="font-mono">chat.postMessage</code> take the shapes Slack&rsquo;s do.
+        </p>
+        <p>
+          Not everything carries over. There is no OAuth, Socket Mode or scopes: an app gets a bot
+          token and a signing secret here, and receives events and button presses over HTTP. A
+          message&rsquo;s <code className="font-mono">ts</code> is an id rather than a time.
+        </p>
+        <p>
+          <a
+            href={INTEGRATION_CONTRACT_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
+          >
+            The integration contract
+          </a>{" "}
+          lists every supported method and where each one differs.
+        </p>
+      </div>
+    </details>
   );
 }
 

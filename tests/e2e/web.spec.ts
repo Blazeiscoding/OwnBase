@@ -10,7 +10,7 @@ import {
 import { spawn, type ChildProcess } from "node:child_process";
 import { createServer, type Server } from "node:http";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
@@ -2253,6 +2253,95 @@ test("an admin who never copied a bot token can replace it, and the old one stop
     expect(await tryToken(secondToken)).not.toBe("invalid_auth");
   } finally {
     await context.close().catch(() => {});
+  }
+});
+
+test("Apps starts from templates: a webhook posts a test message, and the copied command service answers (UX-63)", async ({
+  browser,
+}) => {
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 820 },
+    permissions: ["clipboard-read", "clipboard-write"],
+  });
+  const page = await context.newPage();
+  const folder = mkdtempSync(join(tmpdir(), "tandem-command-example-"));
+  let service: ChildProcess | undefined;
+  try {
+    await signIn(page, "alice");
+    await page.getByRole("button", { name: /, workspace menu$/ }).click();
+    await page.getByRole("menuitem", { name: "Apps and integrations", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Apps and integrations" });
+    const notes = dialog.locator("details", { hasText: "How this differs from Slack" });
+    const notesOpen = () => notes.evaluate((element) => (element as HTMLDetailsElement).open);
+
+    // A test message in two clicks, with the notes on Slack never opened.
+    const hooks = dialog.getByRole("tabpanel", { name: "Incoming webhook" });
+    await hooks.getByRole("button", { name: "Create webhook", exact: true }).click();
+    const curl = hooks.locator("pre code");
+    await expect(curl).toContainText(`curl -X POST '${base}/hooks/`);
+    await hooks.getByRole("button", { name: "Send test message", exact: true }).click();
+    await expect(hooks.getByRole("status")).toHaveText("Posted to #general.");
+    expect(await notesOpen()).toBe(false);
+    // The URL in the example is one any other tool can post to.
+    const hookUrl = /'(http\S+\/hooks\/\S+)'/.exec((await curl.textContent()) ?? "")?.[1];
+    const fromTool = await fetch(hookUrl!, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ text: "Posted with the copied URL" }),
+    });
+    expect(fromTool.status).toBe(200);
+
+    // A slash command, answered by the example service copied from the dialog.
+    await dialog.getByRole("tab", { name: "Slash command", exact: true }).click();
+    const commands = dialog.getByRole("tabpanel", { name: "Slash command" });
+    await commands.getByLabel("Post as", { exact: true }).selectOption({ label: "A new app" });
+    await expect(commands.getByLabel("New app name", { exact: true })).toHaveValue("Deploy Bot");
+    const port = await freePort();
+    await commands.getByLabel("Request URL", { exact: true }).fill(`http://127.0.0.1:${port}/`);
+    await commands.getByRole("button", { name: "Add command", exact: true }).click();
+    const example = commands.locator("figure", { hasText: "Example service in Node.js" });
+    // Once the app exists its signing secret is in the example: dotted out on
+    // screen, and copied whole.
+    await expect(example.locator("code")).toContainText('const signingSecret = "••••');
+    await example.getByRole("button", { name: "Copy", exact: true }).click();
+    const code = await page.evaluate(() => navigator.clipboard.readText());
+    expect(code).toMatch(/const signingSecret = "[0-9a-f]{48}";/);
+    const file = join(folder, "deploy.mjs");
+    writeFileSync(file, code);
+    service = spawn(process.execPath, [file], {
+      ...UNREAD,
+      env: { ...process.env, PORT: String(port) },
+    });
+    // Up, and refusing what the workspace did not sign.
+    await expect
+      .poll(async () => {
+        try {
+          return (await fetch(`http://127.0.0.1:${port}/`, { method: "POST" })).status;
+        } catch {
+          return 0;
+        }
+      })
+      .toBe(401);
+
+    await commands.getByRole("button", { name: "Send test command", exact: true }).click();
+    await expect(commands.getByRole("status")).toHaveText(
+      "Your service answered /deploy test. Its reply, if it sent one, is in #general.",
+    );
+    expect(await notesOpen()).toBe(false);
+
+    // Both posts are in #general, and the service's private answer too.
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(
+      page.getByRole("textbox", { name: "Message #general", exact: true }),
+    ).toBeVisible();
+    await expect(page.getByText("Hello from a webhook", { exact: true })).toBeVisible();
+    await expect(page.getByText("Posted with the copied URL", { exact: true })).toBeVisible();
+    await expect(page.getByText(/^Got \/deploy test from @?alice/)).toBeVisible();
+  } finally {
+    service?.kill();
+    await context.close().catch(() => {});
+    rmSync(folder, { recursive: true, force: true });
   }
 });
 

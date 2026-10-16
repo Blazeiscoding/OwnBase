@@ -189,14 +189,19 @@ describe("account and administration dialogs", () => {
       </ConfirmProvider>,
     );
     const dialog = screen.getByRole("dialog", { name: "Apps and integrations" });
-    await within(dialog).findByText("Deploy Bot");
+    await within(dialog).findByText("Deploy Bot", { selector: "span" });
     listApps.mockRejectedValueOnce(new Error("still offline"));
 
     expect(dialog).not.toHaveTextContent(/work by changing the URL/);
-    const contract = within(dialog).getByRole("link", { name: "docs/INTEGRATIONS.md" });
+    // The notes on Slack are folded away (UX-63), and link to the published contract.
+    await user.click(within(dialog).getByText("How this differs from Slack"));
+    expect(within(dialog).getByText("How this differs from Slack").closest("details")!.open).toBe(
+      true,
+    );
+    const contract = within(dialog).getByRole("link", { name: "The integration contract" });
     expect(contract).toHaveAttribute(
       "href",
-      "https://github.com/Blazeiscoding/SlackOSS/blob/main/docs/INTEGRATIONS.md",
+      "https://github.com/Blazeiscoding/Tandem/blob/main/docs/INTEGRATIONS.md",
     );
     for (const field of [
       "App name",
@@ -227,7 +232,7 @@ describe("account and administration dialogs", () => {
     ).toHaveAttribute("role", "alert");
     expect(within(dialog).getByRole("button", { name: "Retry" })).toBeVisible();
     expect(listApps).toHaveBeenCalledTimes(2);
-    expect(within(dialog).getByText("Deploy Bot")).toBeVisible();
+    expect(within(dialog).getByText("Deploy Bot", { selector: "span" })).toBeVisible();
     expect(within(dialog).queryByText("No apps yet.")).toBeNull();
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });

@@ -121,13 +121,13 @@ describe("Apps list status", () => {
 
     await user.type(within(dialog).getByRole("textbox", { name: "App name" }), "Deploy Bot");
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
-    expect(await within(dialog).findByText("Deploy Bot")).toBeVisible();
-    expect(await within(dialog).findByText("Listed Bot")).toBeVisible();
+    expect(await within(dialog).findByText("Deploy Bot", { selector: "span" })).toBeVisible();
+    expect(await within(dialog).findByText("Listed Bot", { selector: "span" })).toBeVisible();
     expect(listApps).toHaveBeenCalledTimes(2);
 
     await act(async () => firstLoad.resolve({ apps: [] }));
-    expect(within(dialog).getByText("Deploy Bot")).toBeVisible();
-    expect(within(dialog).getByText("Listed Bot")).toBeVisible();
+    expect(within(dialog).getByText("Deploy Bot", { selector: "span" })).toBeVisible();
+    expect(within(dialog).getByText("Listed Bot", { selector: "span" })).toBeVisible();
     expect(within(dialog).queryByText(/No apps yet/)).not.toBeInTheDocument();
   });
 
@@ -149,7 +149,7 @@ describe("Apps list status", () => {
     await user.click(within(dialog).getByRole("button", { name: "Create" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent("Could not load apps");
-    expect(within(dialog).getByText("Deploy Bot")).toBeVisible();
+    expect(within(dialog).getByText("Deploy Bot", { selector: "span" })).toBeVisible();
     expect(within(dialog).getByText("test-bot-token-not-a-credential")).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "Retry" })).toBeVisible();
     expect(within(dialog).queryByText(/No apps yet/)).not.toBeInTheDocument();
@@ -177,13 +177,13 @@ describe("Apps list status", () => {
       .mockRejectedValueOnce(new Error("offline"));
     const dialog = renderDialog();
     await act(async () => {});
-    expect(within(dialog).getByText("Deploy Bot")).toBeVisible();
+    expect(within(dialog).getByText("Deploy Bot", { selector: "span" })).toBeVisible();
 
     await act(async () => vi.advanceTimersByTimeAsync(5_000));
 
     expect(listApps).toHaveBeenCalledTimes(2);
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Could not load apps");
     expect(within(dialog).getByRole("button", { name: "Retry" })).toBeVisible();
-    expect(within(dialog).getByText("Deploy Bot")).toBeVisible();
+    expect(within(dialog).getByText("Deploy Bot", { selector: "span" })).toBeVisible();
   });
 });

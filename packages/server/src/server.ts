@@ -3430,14 +3430,13 @@ async function startWorkspaceServer(
           signal: shutdown.signal,
           headers: signatureHeaders(store.appSigningSecret(found.app.id) ?? "", form),
         });
+        // Why it failed goes in the answer as well as to the channel: a test
+        // from Apps and integrations is drawn over the conversation the note
+        // lands in. Older clients read only `ok` and `error`.
         if (res.status < 200 || res.status >= 300) {
-          sayEphemeral(
-            channel.id,
-            me.id,
-            found.app.botUserId,
-            `\`/${name}\` failed: the app answered ${res.status}.`,
-          );
-          return { ok: false, error: "command_failed" };
+          const why = `the app answered ${res.status}`;
+          sayEphemeral(channel.id, me.id, found.app.botUserId, `\`/${name}\` failed: ${why}.`);
+          return { ok: false, error: "command_failed", message: why };
         }
         deliverCommandReply(target, res.body, res.contentType);
         return { ok: true };
@@ -3447,7 +3446,7 @@ async function startWorkspaceServer(
             ? err.message
             : "the app did not answer";
         sayEphemeral(channel.id, me.id, found.app.botUserId, `\`/${name}\` failed: ${why}.`);
-        return { ok: false, error: "command_failed" };
+        return { ok: false, error: "command_failed", message: why };
       }
     } finally {
       release();
