@@ -67,9 +67,15 @@ import {
 } from "../lib/route.js";
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
+import { PhoneNavigation } from "../components/PhoneNavigation.js";
 
 const ActivityPanel = lazy(() =>
   import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
+);
+const DirectMessagesPanel = lazy(() =>
+  import("../components/DirectMessagesPanel.js").then((module) => ({
+    default: module.DirectMessagesPanel,
+  })),
 );
 const AppsDialog = lazy(() =>
   import("../components/AppsDialog.js").then((module) => ({ default: module.AppsDialog })),
@@ -304,6 +310,7 @@ type SidePanel =
   | { kind: "threads" }
   | { kind: "scheduled" }
   | { kind: "activity" }
+  | { kind: "dms" }
   | { kind: "members" };
 
 export function WorkspaceScreen({
@@ -1439,6 +1446,38 @@ function WorkspaceInner({
             onSaved={() => setPanel({ kind: "saved" })}
           />
         </LazyPanel>
+      )}
+      {panel.kind === "dms" && (
+        <LazyPanel name="Direct messages" onClose={() => setPanel({ kind: "none" })}>
+          <DirectMessagesPanel
+            activeChannelId={activeChannelId}
+            onClose={() => setPanel({ kind: "none" })}
+            onOpen={openChannel}
+            onNewMessage={() => setDialog({ kind: "new-dm" })}
+            onFriends={() => setDialog({ kind: "friends" })}
+          />
+        </LazyPanel>
+      )}
+      {/* On a phone: the bottom bar, the swipe that opens the drawer, and room for the keyboard. */}
+      {platform.kind === "web" && (
+        <PhoneNavigation
+          activeChannelId={activeChannelId}
+          openPanel={panel.kind}
+          drawerOpen={sidebarOpen}
+          onOpenDrawer={() => setSidebarOpen(true)}
+          onCloseDrawer={closeDrawer}
+          onConversation={() => setPanel({ kind: "none" })}
+          onDirectMessages={() => setPanel({ kind: "dms" })}
+          onActivity={() => setPanel({ kind: "activity" })}
+          account={{
+            onCreateAccount: () => setDialog({ kind: "guest-account" }),
+            onEditProfile: () => setDialog({ kind: "account", section: "profile" }),
+            onAccountSettings: () => setDialog({ kind: "account" }),
+            onScheduled: () => setPanel({ kind: "scheduled" }),
+            onShortcuts: () => setDialog({ kind: "shortcuts" }),
+            onDiagnostics: () => setDialog({ kind: "diagnostics" }),
+          }}
+        />
       )}
 
       {(dialog.kind === "new-channel" ||

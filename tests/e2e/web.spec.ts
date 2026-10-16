@@ -1417,9 +1417,9 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await refusedSave.getByRole("button", { name: "Dismiss", exact: true }).click();
   await expect(refusedSave).toHaveCount(0);
   await page.unroute("**/api/messages/*/save");
-  await expect(page.getByRole("navigation")).not.toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).not.toBeVisible();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-  await expect(page.getByRole("navigation")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(page.getByRole("button", { name: "Open navigation", exact: true })).toBeFocused();
   // The drawer is a step in history, not a place: a phone's Back closes it,
@@ -1427,10 +1427,10 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   const conversation = page.url();
   expect(conversation).toMatch(/#\/c\/[^/]+$/);
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-  await expect(page.getByRole("navigation")).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
   expect(page.url()).toBe(conversation);
   await page.goBack();
-  await expect(page.getByRole("navigation")).not.toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).not.toBeVisible();
   await expect(page).toHaveURL(conversation);
   // Going somewhere from the drawer takes the drawer's step, so Back returns
   // to the conversation as it was, not to the open drawer.
@@ -1439,7 +1439,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(page).toHaveURL(`${conversation}/p/saved`);
   await page.goBack();
   await expect(page).toHaveURL(conversation);
-  await expect(page.getByRole("navigation")).not.toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).not.toBeVisible();
   await expect(page.getByRole("complementary", { name: "Saved", exact: true })).toHaveCount(0);
   // On a phone the formatting buttons fold behind one, leaving the row to the message.
   const bold = page.getByRole("button", { name: "Bold", exact: true });
@@ -1460,7 +1460,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(membersToggle).toBeFocused();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await page.getByRole("button", { name: "Saved", exact: true }).click();
-  await expect(page.getByRole("navigation")).not.toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).not.toBeVisible();
   // Opened from the navigation rather than a toggle, the panel takes focus.
   await expect(page.getByRole("heading", { name: "Saved", exact: true })).toBeFocused();
   await page.keyboard.press("Escape");
@@ -3284,6 +3284,158 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
       await exited;
     }
     rmSync(touchData, { recursive: true, force: true });
+  }
+});
+
+test("on a phone the bottom bar reaches Activity and a DM without the drawer, below the composer (UX-70)", async ({
+  browser,
+}) => {
+  const login = async (handle: string) =>
+    (await (
+      await fetch(`${base}/api/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle, password: "password123" }),
+      })
+    ).json()) as { token: string; user: { id: string } };
+  const alice = await login("alice");
+  const bobby = await login("bobby");
+  const call = async (token: string, path: string, body: unknown) =>
+    (
+      await fetch(`${base}${path}`, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+        body: JSON.stringify(body),
+      })
+    ).json();
+  const { channels } = await (
+    await fetch(`${base}/api/channels`, { headers: { authorization: `Bearer ${alice.token}` } })
+  ).json();
+  const general = channels.find((c: { name: string }) => c.name === "general");
+  const { channel: design } = await call(alice.token, "/api/channels", {
+    type: "public",
+    name: "design",
+  });
+  // While Alice reads #design, Bobby writes to her directly and names her in #general.
+  const { channel: dm } = await call(bobby.token, "/api/channels", {
+    type: "dm",
+    memberIds: [alice.user.id],
+  });
+  await call(bobby.token, `/api/channels/${dm.id}/messages`, { text: "Lunch at one?" });
+  await call(bobby.token, `/api/channels/${general.id}/messages`, {
+    text: `Can you look at the venue <@${alice.user.id}>`,
+  });
+
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(base);
+    await page.evaluate(
+      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      {
+        url: base,
+        token: alice.token,
+        workspaceName: "Product Test",
+        handle: "alice",
+        lastUsedAt: 1,
+      },
+    );
+    await page.goto(`${base}/#/c/${design.id}`);
+    await page.reload();
+    await expect(page.locator("textarea")).toBeVisible();
+
+    const bar = page.getByRole("navigation", { name: "Main navigation" });
+    const item = (name: string) => bar.getByRole("button", { name, exact: true });
+    const drawer = page.getByRole("navigation", { name: "Workspace navigation" });
+    await expect(bar).toBeVisible();
+    await expect(drawer).toBeHidden();
+    // What waits elsewhere is on the bar, in words too.
+    await expect(item("Activity")).toHaveAccessibleDescription("1 mention");
+    await expect(item("DMs")).toHaveAccessibleDescription("1 unread conversation");
+    await expect(item("Home")).toHaveAttribute("aria-current", "page");
+
+    // The bar is under the composer, never over it, and each place is a
+    // thumb's size.
+    await atRest(page);
+    const barBox = (await bar.boundingBox())!;
+    const composerBox = (await page.locator("main .composer-shell").boundingBox())!;
+    expect(composerBox.y + composerBox.height).toBeLessThanOrEqual(barBox.y + 1);
+    expect(barBox.y + barBox.height).toBeLessThanOrEqual(844 + 1);
+    for (const button of await bar.getByRole("button").all()) {
+      const box = (await button.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+    }
+
+    // Activity, without opening the drawer.
+    await item("Activity").tap();
+    const activity = page.getByRole("complementary", { name: "Activity", exact: true });
+    await expect(activity.getByText(/Can you look at the venue/)).toBeVisible();
+    await expect(item("Activity")).toHaveAttribute("aria-current", "page");
+    await expect(drawer).toBeHidden();
+    // It covers the conversation and stops above the bar, which stays in reach.
+    await atRest(page);
+    const activityBox = (await activity.boundingBox())!;
+    expect(activityBox.y + activityBox.height).toBeLessThanOrEqual(barBox.y + 1);
+
+    // The DMs, and from them the conversation with Bobby.
+    await item("DMs").tap();
+    const dms = page.getByRole("complementary", { name: "Direct messages", exact: true });
+    await expect(page).toHaveURL(`${base}/#/c/${design.id}/p/dms`);
+    await dms.getByRole("button", { name: /bobby/ }).tap();
+    await expect(page).toHaveURL(`${base}/#/c/${dm.id}`);
+    await expect(dms).toHaveCount(0);
+    await expect(drawer).toBeHidden();
+    await expect(item("Home")).toHaveAttribute("aria-current", "page");
+    const lunch = page.getByRole("article").filter({ hasText: "Lunch at one?" });
+    await expect(lunch).toBeInViewport({ ratio: 1 });
+    // Read now, so it no longer waits.
+    await expect(item("DMs")).not.toHaveAccessibleDescription(/./);
+    // The last message is above the composer, and the composer above the bar.
+    await atRest(page);
+    const lunchBox = (await lunch.boundingBox())!;
+    const dmComposer = (await page.locator("main .composer-shell").boundingBox())!;
+    expect(lunchBox.y + lunchBox.height).toBeLessThanOrEqual(dmComposer.y + 1);
+    expect(dmComposer.y + dmComposer.height).toBeLessThanOrEqual(barBox.y + 1);
+    // Back is the DMs again.
+    await page.goBack();
+    await expect(page).toHaveURL(`${base}/#/c/${design.id}/p/dms`);
+    await expect(item("DMs")).toHaveAttribute("aria-current", "page");
+
+    // Home goes back to the conversation; from there it opens the drawer,
+    // with every channel.
+    await item("Home").tap();
+    await expect(dms).toHaveCount(0);
+    await item("Home").tap();
+    await expect(drawer).toBeVisible();
+    await expect(drawer.getByRole("button", { name: /^#\s*general\b/ })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(drawer).toBeHidden();
+
+    // A swipe in from the left edge opens it too.
+    await page.locator("main").evaluate(async (main) => {
+      const at = (x: number) =>
+        new Touch({ identifier: 1, target: main, clientX: x, clientY: 400 });
+      const send = (type: string, touch: Touch | null, last: Touch) =>
+        main.dispatchEvent(
+          new TouchEvent(type, {
+            bubbles: true,
+            touches: touch ? [touch] : [],
+            changedTouches: [last],
+          }),
+        );
+      send("touchstart", at(14), at(14));
+      send("touchmove", at(50), at(50));
+      send("touchmove", at(110), at(110));
+      send("touchend", null, at(110));
+    });
+    await expect(drawer).toBeVisible();
+  } finally {
+    await context.close().catch(() => {});
   }
 });
 

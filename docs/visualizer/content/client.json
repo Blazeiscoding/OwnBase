@@ -263,7 +263,8 @@
         "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. The thread panel is drawn the same way. These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
         "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues.",
         "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu.",
-        "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting."
+        "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting.",
+        "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address."
       ],
       "concepts": [
         "screen orchestration",
@@ -275,7 +276,8 @@
         "conversation header",
         "UX-23",
         "banners",
-        "UX-25"
+        "UX-25",
+        "UX-70"
       ]
     },
     {
@@ -289,9 +291,20 @@
         "Theme tests check the project's chosen type/radius scale and color contrast; these checks support consistency without replacing manual usability inspection.",
         "Motion follows transitions.dev's scale, written down as tokens: durations, two easings and distances and blurs, each named for what it is for. Surfaces open in 250 ms and close in 150 ms; arrivals may overshoot and departures never do. The keyframes name only where they start and fill backwards, so a finished animation leaves no transform behind. The phone drawer slides both ways with @starting-style and a discrete display transition, and asking for less motion stops all of it.",
         "Emoji come from Apple Color Emoji on an Apple device and the bundled Noto Color Emoji elsewhere, named last in every font stack so no letter, digit or sign is taken from them; font-emoji puts them first for what holds only emoji. It also styles the emoji picker's grid, whose scrollbar shows before it is pointed at where the app's others hide, and makes an emoji-only message large.",
-        "Icons move the way Its Hover's do, with its timings, inside a control marked icon-live: the smile blinks, the reply arrow nudges back, the speech bubble draws itself, the bookmark squeezes for as long as it is pointed at, the pencil writes its way up and the three dots land one after another. Distances are in the drawing's own units. The motion plays for a pointer that hovers or for keyboard focus, and not at all for someone who asked for less motion."
+        "Icons move the way Its Hover's do, with its timings, inside a control marked icon-live: the smile blinks, the reply arrow nudges back, the speech bubble draws itself, the bookmark squeezes for as long as it is pointed at, the pencil writes its way up and the three dots land one after another. Distances are in the drawing's own units. The motion plays for a pointer that hovers or for keyboard focus, and not at all for someone who asked for less motion.",
+        "On a phone held upright the workspace keeps the bottom bar's height free (--bottom-bar, 56 px and the home indicator's inset) through :has(> .bottom-bar), so the bar never covers the composer or the last message, and a side panel stops above it. The drawer opens over it. Under data-keyboard (onScreenKeyboard.ts) the bar is hidden and its room given back, and the composer drops its home-indicator padding.",
+        "Safe areas (UX-71): the page is drawn under a notch and home indicator (viewport-fit=cover), so in the phone layout the conversation keeps clear of the sides, its header of the top, the drawer of the top, left and bottom, a covering side panel of the top, and on a phone on its side the panel sheet of the top, right and bottom. Under data-visual-viewport #root takes --visual-height and moves by --visual-top, for a browser that does not shrink the page for the keyboard. On a touchscreen text fields write at 16 px, so iOS does not zoom in on them. On a short window the drawer's body grows to what it holds, so its footer comes after the list rather than over it."
       ],
-      "concepts": ["design tokens", "themes", "density", "responsive layout", "focus styling"]
+      "concepts": [
+        "design tokens",
+        "themes",
+        "density",
+        "responsive layout",
+        "focus styling",
+        "UX-70",
+        "safe areas",
+        "UX-71"
+      ]
     },
     {
       "path": "packages/ui/src/emoji.css",
@@ -526,7 +539,8 @@
         "A WorkspaceRoute combines a channel with one optional thread or side panel and a persistent dialog. Strict token and enum parsing refuses malformed hashes or unsupported account sections.",
         "History state is bound to the workspace server, so an entry from one connected workspace cannot choose a channel in another. Fresh browser hashes are accepted only for the workspace serving the page.",
         "writeRoute adds a Back/Forward step for normal movement and replaces automatic or initial corrections. Phone drawer state stays in history rather than becoming a shareable link.",
-        "ReadingPosition stores a message ID and viewport offset in the current history entry. Late position updates check the server/channel so an old scroller cannot rewrite a newer destination."
+        "ReadingPosition stores a message ID and viewport offset in the current history entry. Late position updates check the server/channel so an old scroller cannot rewrite a newer destination.",
+        "The side panels with an address of their own are Pinned, Saved, Threads, Scheduled, Activity and the phone's Direct messages (/p/dms)."
       ],
       "concepts": ["routing", "history ownership", "deep linking", "reading position"]
     },
@@ -883,6 +897,27 @@
       "concepts": ["responsive UI", "subscription lifetime"]
     },
     {
+      "path": "packages/ui/src/lib/onScreenKeyboard.ts",
+      "plain": "Keeps the conversation and the message box in the part of a phone's screen the keyboard leaves, and tells the bottom bar to step aside while you type.",
+      "summary": "Follows visualViewport where the browser does not resize the page for the keyboard, and marks the root while a keyboard is up.",
+      "details": [
+        "The web client's viewport asks to be resized for the keyboard (interactive-widget=resizes-content), which Chrome on Android does. iOS Safari does not: it keeps the page its full height and slides it up under the keyboard. Rather than ask which browser it is, the hook looks at what it did: where visualViewport is more than a pixel shorter than the window and nobody has zoomed in, it sets --visual-height and --visual-top (the visible part's height and pageTop) and data-visual-viewport on the root, and theme.css then sizes and moves #root to the visible part. Anywhere else nothing is set.",
+        "data-keyboard marks the root while a field that raises a keyboard (a textarea, a text-like input or something editable) has focus and the visible part is at least 150 px shorter than the tallest the window has been at this width. The tallest starts again when the width changes, as when a phone turns. theme.css hides the bottom bar and gives its room back while the mark is there.",
+        "It listens to visualViewport's resize and scroll, and to focus moving, which it reads a frame later so going from one field to the next does not bring the bar back for a moment. It writes two attributes and two values and draws nothing again. It takes all of them away when the screen goes. toggleAttribute is always handed a boolean, since it toggles when handed undefined."
+      ],
+      "concepts": ["on-screen keyboard", "visualViewport", "UX-71", "feature detection"]
+    },
+    {
+      "path": "packages/ui/src/lib/edgeSwipe.ts",
+      "plain": "Lets a swipe in from the left edge of a phone's screen open the list of channels, and a swipe back close it.",
+      "summary": "Recognises an edge swipe to open the phone drawer, and a swipe back to close it, from passive touch listeners.",
+      "details": [
+        "A swipe opening the drawer starts within 40 px of the left edge, wider than the strip Android keeps for its own Back gesture; once open, a swipe left anywhere closes it. It counts after 56 px sideways and at least twice as far across as down; a drag that goes more than 12 px up or down first is a scroll and is let go. A touch with more than one finger, or one starting in a field, is left alone.",
+        "The listeners are passive and never cancel anything, so scrolling still scrolls and a browser or system Back gesture from the very edge stays the browser's. The drawer's own transition does the moving, which theme.css stills for anyone who asked for less motion."
+      ],
+      "concepts": ["touch gestures", "navigation drawer", "UX-70"]
+    },
+    {
       "path": "packages/ui/src/lib/useCopy.ts",
       "plain": "Copies text to the clipboard and only reports success once the copy really worked, with a fallback when the browser refuses.",
       "summary": "Copies text and reports success only after a real clipboard operation.",
@@ -1107,6 +1142,18 @@
       "concepts": ["unread activity", "mention inbox", "request coalescing", "UX-08", "UX-52"]
     },
     {
+      "path": "packages/ui/src/components/DirectMessagesPanel.tsx",
+      "plain": "A side panel listing your direct messages, newest first, with what is unread, so a conversation with someone is two taps away on a phone.",
+      "summary": "Lists the account's direct and group conversations from live state as a side panel, with unread, mention, draft and muted marks.",
+      "details": [
+        "Opened by DMs in the phone's bottom bar, and at #/c/<channel>/p/dms. Like every side panel it loads on first use in LazyPanel, takes focus on its heading through usePanelFocus, and below 1024 px covers the conversation.",
+        "The list is the sidebar's own: conversations of type dm or group_dm this account is in and that are not archived, newest first by channelLastSeq. It comes from the workspace's live state, so it keeps itself current with nothing to load once the workspace has arrived; before then it shows ListStatus's stand-in rows.",
+        "Each row is a button at least 48 px tall with the first other person's avatar and presence, the conversation's name, and Draft, Muted, a red mention count or an Unread dot; the one open is marked. Choosing one opens it, which closes the panel. The header has Friends (with a dot for requests waiting) and New message, which a guest does not get.",
+        "Empty, it says how to start one and offers New message; a guest is told direct messages are for members. While the connection is down a line says the list may be out of date, and what this device knows stays listed."
+      ],
+      "concepts": ["direct messages", "side panel", "live state", "UX-70"]
+    },
+    {
       "path": "packages/ui/src/components/ScheduledPanel.tsx",
       "plain": "Shows the messages you scheduled to send later, including failed ones, and lets you edit, reschedule or cancel them.",
       "summary": "Shows queued, held and failed schedules and lets the author resolve them.",
@@ -1214,7 +1261,8 @@
         "Snooze controls compute actual resume times and use the client's latest-choice behavior. Menu grouping saves vertical space so short windows retain room for conversations.",
         "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings. Once the guest has posted, KeepAccountOffer sits above the account panel (UX-44).",
         "A channel's row ends with Discord's two buttons while it is pointed at, holds the keyboard, or is open: invite and settings. Invite on a public channel opens the workspace's invite, since everyone in the workspace is in every public channel, and only for someone who may invite; on a private one it is Add people, which opens the channel's Members tab, for someone channelPermissions lets invite. The gear opens the channel's details, opening the channel first if it is not the one on screen. The buttons sit beside the row's button, not in it, and on a touchscreen show on the open channel only.",
-        "HostingStatus is this computer's hosting, under the workspace's name and its connection line (UX-25): a dot for live, starting or stopping, or trouble, what it is doing or what is wrong, and Manage (named Manage hosting for a screen reader). A warning is an alert. It replaced a bar along the bottom of the window, and leaves out the workspace's name when the hosted workspace is the one on screen. The storage gate's waiting screen shows it too."
+        "HostingStatus is this computer's hosting, under the workspace's name and its connection line (UX-25): a dot for live, starting or stopping, or trouble, what it is doing or what is wrong, and Manage (named Manage hosting for a screen reader). A warning is an alert. It replaced a bar along the bottom of the window, and leaves out the workspace's name when the hosted workspace is the one on screen. The storage gate's waiting screen shows it too.",
+        "AccountMenu is exported for the phone's bottom bar, which opens the same menu from its own You button by passing trigger (its label, class and content); the menu then rises as a sheet on a touch phone. The sidebar's own trigger is unchanged."
       ],
       "concepts": [
         "workspace navigation",
@@ -1224,6 +1272,19 @@
         "hosting status",
         "UX-25"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/PhoneNavigation.tsx",
+      "plain": "On a phone, a bar along the bottom of the screen with Home, DMs, Activity and You, so the places people look for most are in sight. It also lets a swipe in from the left edge open the list of channels, and keeps the screen clear of the on-screen keyboard.",
+      "summary": "The phone's bottom navigation bar, the edge swipe that opens the drawer, and the on-screen keyboard handling, for the web client.",
+      "details": [
+        "The bar shows at the width half of theme.css's drawer query (760 px and narrower), so on a phone held upright; on its side a phone keeps the drawer alone, since height is what it lacks there. The web client only: the desktop app's window is never a phone. It is a nav named Main navigation, each place a button 56 px tall with an icon and its label, the one you are in marked with aria-current.",
+        "Home goes back to the conversation from a panel, and from the conversation opens the drawer with every channel, as a tab bar's current tab goes to its top. DMs opens the Direct messages panel and Activity the Activity panel; both cover the conversation and stop above the bar, so moving between them is one tap. You opens the sidebar's AccountMenu from its own button, as a sheet on a touch phone. A guest has no DMs, so the bar has three places.",
+        "Badges count what waits elsewhere, as the drawer's button does: the conversation on screen and muted ones do not count. Home has a dot for unread channels, DMs a red count of unread conversations, Activity a red count of mentions or a dot for unread replies in followed threads. Each is also said in words, as the button's description.",
+        "The bar is inert under the open drawer, which covers it. useEdgeSwipe opens the drawer while theme.css's drawer query matches and no dialog is open; useOnScreenKeyboard runs on every size, so the layout follows the keyboard on a phone on its side too.",
+        "With the drawer closed, the sidebar's heading, the workspace's name, is hidden with it, so a visually hidden copy stays the page's h1, in a top-level header (the page's banner)."
+      ],
+      "concepts": ["bottom navigation", "UX-70", "UX-71", "touch gestures", "responsive UI"]
     },
     {
       "path": "packages/ui/src/components/QuickSwitcher.tsx",
@@ -1621,7 +1682,8 @@
       "details": [
         "IconName maps to shared vector paths, stroke/size conventions and accessible usage supplied by parent controls.",
         "Inline vectors avoid an icon font, extra network fetch and a large icon runtime dependency while keeping common controls visually consistent.",
-        "Six icons (smile, reply, thread, bookmark, edit and the three dots) are redrawn after Its Hover's and kept as named parts. Such an icon carries data-icon and each path data-part, and every part has a path length of 1, so the stylesheet can move or draw one part without a motion library in the bundle."
+        "Six icons (smile, reply, thread, bookmark, edit and the three dots) are redrawn after Its Hover's and kept as named parts. Such an icon carries data-icon and each path data-part, and every part has a path length of 1, so the stylesheet can move or draw one part without a motion library in the bundle.",
+        "home (a house) and messages (two speech bubbles) are the phone's bottom bar's Home and DMs."
       ],
       "concepts": [
         "inline SVG",
