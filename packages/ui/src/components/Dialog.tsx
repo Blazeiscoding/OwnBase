@@ -66,6 +66,3 @@ export function DialogScroll({ children, ...scroller }: ComponentProps<"div">) {
     </div>
   );
 }
-
-export const inputCls =
-  "w-full rounded-lg border border-edge bg-ground px-3 py-2 text-sm outline-none transition-colors placeholder:text-ink-faint hover:border-ink-faint/40 focus:border-copper/70 focus:shadow-[0_0_0_3px_color-mix(in_oklab,var(--color-copper)_14%,transparent)]";

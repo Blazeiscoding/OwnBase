@@ -10,7 +10,7 @@ import { useClient } from "../context.js";
 import { microphoneOf, useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices, useSpeaker } from "../lib/mediaDevices.js";
 import { useSaved } from "../lib/savedNote.js";
-import { inputCls } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { MicrophoneCheck } from "./MicrophoneCheck.js";
 import { buttonClass } from "./Button.js";
 

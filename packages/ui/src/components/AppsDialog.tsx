@@ -17,7 +17,8 @@ import {
 import type { App, Channel, EventSubscription, ID, SlashCommand } from "@slackoss/protocol";
 import { ApiError, type AppDetail } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
