@@ -1,19 +1,44 @@
-import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  useEffect,
+  useId,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import { ApiError } from "@slackoss/client-core";
 import type { FileMeta, FileType, ID, Message } from "@slackoss/protocol";
 import { parseSearchQuery } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
 import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";
+import { usePagedList } from "../lib/pagedList.js";
+import {
+  DATE_PRESETS,
+  FILE_TYPE_LABELS,
+  filterLabel,
+  kindOf,
+  localDay,
+  takeFilters,
+  withFilter,
+} from "../lib/searchFilters.js";
+import { useTabs } from "../lib/useTabs.js";
 import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { isImeKey } from "../lib/textInput.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
-import { buttonClass } from "./Button.js";
+import { LoadMore } from "./LoadMore.js";
+import { Menu, type MenuItem } from "./Menu.js";
+import { Popover } from "./Popover.js";
+import { Tooltip } from "./Tooltip.js";
+import { iconFor } from "./Attachments.js";
 
 /** How long typing pauses before what is typed is searched. */
 const LIVE_DELAY = 250;
+/** How many results each read brings. */
+const PAGE_SIZE = 30;
 
 const MODIFIER_HELP = [
   { token: "from:@name", what: "by one person" },
@@ -25,17 +50,12 @@ const MODIFIER_HELP = [
   { token: "before:2026-02-01", what: "before a day" },
 ];
 
-/** Each kind of file `type:` asks for, as the Contains choice and the hints name it. */
-const FILE_TYPE_LABELS: Record<FileType, string> = {
-  image: "Images",
-  video: "Videos",
-  audio: "Audio",
-  pdf: "PDFs",
-  document: "Documents",
-  spreadsheet: "Spreadsheets",
-  presentation: "Presentations",
-  archive: "Archives",
-};
+const RESULT_TABS = ["messages", "files"] as const;
+type ResultTab = (typeof RESULT_TABS)[number];
+
+/** A filter that is not chosen yet, as a small pill that opens its choices. */
+const ADD_FILTER =
+  "inline-flex h-7 items-center gap-1 rounded-full border border-edge px-2.5 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink aria-expanded:bg-ink/[0.05] aria-expanded:text-ink";
 
 /** A file's name with the words searched for marked, as message text marks them. */
 function markTerms(value: string, terms: readonly string[]): ReactNode {
@@ -81,69 +101,145 @@ function Attachments({ files, terms }: { files: FileMeta[]; terms: readonly stri
   );
 }
 
-// Read in UTC, so a day written as YYYY-MM-DD is not moved a day by the reader's zone.
-const calendarDay = new Intl.DateTimeFormat(undefined, { timeZone: "UTC" });
-
-/** A YYYY-MM-DD day in the reader's own date style. */
-function dayLabel(day: string): string {
-  const [year, month, date] = day.split("-").map(Number) as [number, number, number];
-  return calendarDay.format(Date.UTC(year, month - 1, date));
+/** A filter in force, with the one click that takes it away. */
+function FilterChip({ label, onRemove }: { label: string; onRemove: () => void }) {
+  return (
+    <span className="inline-flex h-7 max-w-full items-center gap-0.5 rounded-full border border-copper/40 bg-copper/[0.1] pl-2.5 pr-0.5 text-[12px] font-medium text-ink">
+      <span className="truncate">{label}</span>
+      <button
+        type="button"
+        aria-label={`Remove filter: ${label}`}
+        onClick={onRemove}
+        className="grid size-6 shrink-0 place-items-center rounded-full text-ink-dim transition-colors hover:bg-ink/[0.08] hover:text-ink"
+      >
+        <Icon name="close" size={12} />
+      </button>
+    </span>
+  );
 }
 
-/** Shows the modifiers, then what the current query was understood to mean. */
-function SearchHints({ query }: { query: string }) {
-  const parsed = useMemo(() => parseSearchQuery(query), [query]);
-  const chips: string[] = [
-    ...parsed.from.map((h) => `from @${h}`),
-    ...parsed.in.map((c) => `in #${c}`),
-    ...parsed.has.map((h) => (h === "link" ? "has a link" : "has a file")),
-    ...parsed.types.map((type) => FILE_TYPE_LABELS[type].toLowerCase()),
-    ...(parsed.afterDay ? [`after ${dayLabel(parsed.afterDay)}`] : []),
-    ...(parsed.beforeDay ? [`before ${dayLabel(parsed.beforeDay)}`] : []),
-  ];
-
-  if (chips.length === 0 && parsed.invalid.length === 0) return null;
-
+/** The Date choices: a few spans of time, or a day on either side. */
+function DateFilter(props: {
+  after: string | null;
+  before: string | null;
+  onChange: (kind: "after" | "before", day: string | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-1.5 text-[12px]">
-      <span className="text-ink-faint">Filtering:</span>
-      {chips.map((c) => (
-        <span
-          key={c}
-          className="rounded-full border border-edge bg-ink/[0.04] px-2 py-0.5 font-medium text-ink"
+    <>
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        onClick={() => setOpen(true)}
+        className={ADD_FILTER}
+      >
+        Date
+        <Icon name="chevronDown" size={12} />
+      </button>
+      {open && (
+        <Popover
+          label="Date"
+          anchor={trigger}
+          align="start"
+          side="below"
+          width={320}
+          onClose={() => setOpen(false)}
         >
-          {c}
-        </span>
-      ))}
-      {parsed.invalid.map((token) => (
-        <span key={token} className="rounded-full border border-alert/40 px-2 py-0.5 text-alert">
-          not a date: {token}
-        </span>
-      ))}
-      {parsed.terms.length > 0 && (
-        <span className="text-ink-faint">matching “{parsed.terms.join(" ")}”</span>
+          <div className="flex flex-col p-1">
+            {DATE_PRESETS.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => {
+                  props.onChange("after", localDay(preset.offset));
+                  props.onChange("before", null);
+                  setOpen(false);
+                }}
+                className="rounded-lg px-2.5 py-1.5 text-left text-sm text-ink-dim transition-colors hover:bg-copper/[0.12] hover:text-ink"
+              >
+                {preset.label}
+              </button>
+            ))}
+            <div role="separator" className="mx-1.5 my-1 h-px bg-edge" />
+            {/* A day counts as it is typed, so Enter only puts the choices away. */}
+            <div
+              className="grid grid-cols-2 gap-2 px-1.5 pb-1.5 pt-1"
+              onKeyDown={(e) => {
+                if (e.key !== "Enter" || isImeKey(e.nativeEvent)) return;
+                e.preventDefault();
+                setOpen(false);
+              }}
+            >
+              <label className="min-w-0 text-xs text-ink-faint">
+                After
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={props.after ?? ""}
+                  onChange={(e) => props.onChange("after", e.target.value || null)}
+                />
+              </label>
+              <label className="min-w-0 text-xs text-ink-faint">
+                Before
+                <input
+                  type="date"
+                  className={inputCls}
+                  value={props.before ?? ""}
+                  onChange={(e) => props.onChange("before", e.target.value || null)}
+                />
+              </label>
+            </div>
+          </div>
+        </Popover>
       )}
-    </div>
+    </>
   );
 }
 
 /** One search's words and conversation as a single comparable value. */
-const keyOf = (criteria: { query: string; channelId?: ID }) =>
-  JSON.stringify([criteria.query, criteria.channelId ?? null]);
+const keyOf = (criteria: { query: string; channelId?: ID } | null) =>
+  JSON.stringify(criteria ? [criteria.query, criteria.channelId ?? null] : null);
 
 /**
- * Full-text search over the workspace's messages and the names of their
- * files. It searches as it is typed; Enter searches at once and keeps the
- * search among the recent ones.
+ * What is searched for: the words, then the filters, in one order, so the same
+ * search is always asked the same way. The Files tab asks only for messages
+ * with files, unless a filter already does. Null when nothing is asked.
  */
+function criteriaOf(
+  text: string,
+  filters: readonly string[],
+  scope: string,
+  tab: ResultTab,
+): { query: string; channelId?: ID } | null {
+  const words = [text.trim(), ...filters];
+  if (
+    tab === "files" &&
+    !filters.some((filter) => filter === "has:file" || kindOf(filter) === "type")
+  )
+    words.push("has:file");
+  const query = words.filter(Boolean).join(" ");
+  if (!text.trim() && filters.length === 0 && !scope) return null;
+  return { query, channelId: scope || undefined };
+}
+
 /** The latest change heard in any conversation these results come from. */
-function latestChange(found: { messages: Message[] }, changedContent: Record<ID, number>): number {
+function latestChange(messages: readonly Message[], changedContent: Record<ID, number>): number {
   let latest = 0;
-  for (const message of found.messages)
-    latest = Math.max(latest, changedContent[message.channelId] ?? 0);
+  for (const message of messages) latest = Math.max(latest, changedContent[message.channelId] ?? 0);
   return latest;
 }
 
+/**
+ * Full-text search over the workspace's messages and the names of their
+ * files (UX-51). Results come first, under the field and a row of filters as
+ * chips: typed modifiers such as `from:@sam` become chips, and each chip is
+ * one click to remove. It searches as it is typed, reads more as the end
+ * scrolls into view, and stays current while open. Enter searches at once and
+ * keeps the search among the recent ones, which show before anything is asked.
+ */
 export function SearchDialog(props: {
   onClose: () => void;
   onJump: (channelId: ID, messageId: ID) => void;
@@ -157,178 +253,298 @@ export function SearchDialog(props: {
   const recent = useRecentSearches();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
-  const [q, setQ] = useState(props.initialQuery ?? "");
-  const [results, setResults] = useState<Awaited<ReturnType<typeof client.api.search>> | null>(
-    null,
-  );
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [scope, setScope] = useState(
-    props.inConversation && props.channelId ? props.channelId : "",
-  );
-  const [author, setAuthor] = useState("");
-  /** The Contains choice, as the modifier it adds: has:file, type:pdf and so on. */
-  const [contains, setContains] = useState("");
-  const [after, setAfter] = useState("");
-  const [before, setBefore] = useState("");
-  const [submitted, setSubmitted] = useState<{ query: string; channelId?: ID } | null>(null);
-  const highlightTerms = useMemo(
-    () => parseSearchQuery(submitted?.query ?? "").terms,
-    [submitted?.query],
-  );
-  const [cursors, setCursors] = useState<(ID | undefined)[]>([undefined]);
-  const [page, setPage] = useState(0);
-  const request = useRef<AbortController | null>(null);
-  const failed = useRef<(() => void) | null>(null);
-  const list = useRef<HTMLUListElement>(null);
+  const selfId = client.state.self?.id ?? "";
+  const [opening] = useState(() => {
+    const words = props.initialQuery?.trim().slice(0, 200) ?? "";
+    const taken = takeFilters(words, words.length, true);
+    const scope = props.inConversation && props.channelId ? props.channelId : "";
+    const filters = taken.tokens.reduce<string[]>(withFilter, []);
+    return {
+      text: taken.text,
+      filters,
+      scope,
+      criteria: words || scope ? criteriaOf(taken.text, filters, scope, "messages") : null,
+    };
+  });
+  const [text, setText] = useState(opening.text);
+  const [filters, setFilters] = useState<string[]>(opening.filters);
+  const [scope, setScope] = useState(opening.scope);
+  const [tab, setTab] = useState<ResultTab>("messages");
+  const [help, setHelp] = useState(false);
+  /** What was last asked of the server, which can lag what is typed by a pause. */
+  const [asked, setAsked] = useState(opening.criteria);
+  const [searchError, setSearchError] = useState<string | null>(null);
+  /** The words of the question the results on show answer, which may not be the one out. */
+  const [shownQuery, setShownQuery] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
   const scroller = useRef<HTMLDivElement>(null);
-  const formId = useId();
-  /** The first page last asked for, so the same question is not asked twice. */
-  const asked = useRef<string | null>(null);
-  /** A search Enter was pressed on before it answered, to remember when it does. */
-  const committed = useRef<string | null>(null);
-  // The results are a copy. When a conversation among them has had a message
-  // edited or taken away since they were asked for, or has been left, the same
-  // page is asked for again, so nothing deleted stays on show (Q07).
-  const changed = useWorkspace((s) => (results ? latestChange(results, s.changedContent) : 0));
-  /** How far those changes had got when the results showing were asked for. */
+  const list = useRef<HTMLUListElement>(null);
+  const helpId = useId();
+  /** Where the caret goes once a modifier typed in the field has become a chip. */
+  const caret = useRef<number | null>(null);
+  /**
+   * A search Enter settled on, to keep among the recent ones once it answers.
+   * Words brought from the palette were settled on there; a conversation's own
+   * menu only opens search on it.
+   */
+  const committed = useRef<string | null>(
+    props.initialQuery?.trim() && opening.criteria ? keyOf(opening.criteria) : null,
+  );
+  /** The question the results showing answer. */
+  const answered = useRef<string | null>(null);
+  /** The results last scrolled to the top for, so only a new question moves them. */
+  const scrolledFor = useRef<string | null>(null);
+  /** How far changes had got in the results' conversations when they were asked for. */
   const heard = useRef(0);
-  const query = [
-    q.trim(),
-    author && `from:${author}`,
-    contains,
-    after && `after:${after}`,
-    before && `before:${before}`,
-  ]
-    .filter(Boolean)
-    .join(" ");
-  const criteria = { query, channelId: scope || undefined };
+
+  const criteria = criteriaOf(text, filters, scope, tab);
   const key = keyOf(criteria);
-  const unreadable = useMemo(() => parseSearchQuery(query).invalid.length > 0, [query]);
+  const askedKey = keyOf(asked);
+  const query = criteria?.query ?? "";
+  const parsed = useMemo(() => parseSearchQuery(query), [query]);
+  const unreadable = parsed.invalid.length > 0;
+  const terms = useMemo(() => parseSearchQuery(shownQuery ?? "").terms, [shownQuery]);
 
-  useEffect(() => () => request.current?.abort(), []);
+  const paged = usePagedList<Message>(
+    async (cursor, signal) => {
+      if (!asked) {
+        answered.current = null;
+        return { items: [], nextCursor: null };
+      }
+      const known = client.state.changedContent;
+      const question = keyOf(asked);
+      try {
+        const found = await client.api.search(asked.query, PAGE_SIZE, {
+          cursor,
+          channelId: asked.channelId,
+          signal,
+        });
+        if (signal.aborted) return { items: [], nextCursor: null };
+        // Measured against what was known when this was asked: a change that
+        // arrived while it was out may not be in the answer, and asks once more.
+        const latest = latestChange(found.messages, known);
+        heard.current = cursor ? Math.max(heard.current, latest) : latest;
+        if (!cursor) {
+          answered.current = question;
+          setShownQuery(asked.query);
+          setSearchError(null);
+          // Only a search someone settled on is kept, not each one typed on the way.
+          if (committed.current === question) {
+            committed.current = null;
+            recent.remember(asked);
+          }
+        }
+        return { items: found.messages, nextCursor: found.nextCursor };
+      } catch (err) {
+        if (!signal.aborted && !cursor)
+          setSearchError(
+            err instanceof ApiError && err.code === "invalid_search_date"
+              ? err.message
+              : "Could not search this workspace. Check your connection and try again.",
+          );
+        throw err;
+      }
+    },
+    askedKey,
+    undefined,
+    // The answer to the last question stays on show until the next one's comes.
+    { keep: true },
+  );
+  const { list: results } = paged;
+  const messages = useMemo(
+    () => (paged.items ?? []).filter((m) => !!channels[m.channelId]),
+    [paged.items, channels],
+  );
 
+  // The results are a copy. When a conversation among them has had a message
+  // edited or taken away since they were asked for, or has been left, they
+  // are read again in place, so nothing deleted stays on show (Q07). A read
+  // still out is left to finish: its answer is measured when it comes.
+  const changed = useWorkspace((s) => latestChange(paged.items ?? [], s.changedContent));
   useEffect(() => {
-    // A search still out is left to finish: it may be a newer question, and
-    // its answer is checked against the same changes when it arrives.
-    if (busy || !submitted || changed <= heard.current) return;
-    // Asked once for each change: an answer that fails says so and offers Retry.
+    if (paged.loading || paged.refreshing || changed <= heard.current) return;
     heard.current = changed;
-    void search(submitted, cursors[page], page, cursors, { keepPlace: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- asks again for what is showing
-  }, [changed, busy]);
+    results.refresh();
+  }, [changed, paged.loading, paged.refreshing, results]);
 
-  // Words brought from the palette are searched straight away.
-  const initial = useRef(props.initialQuery?.trim().slice(0, 200));
-  useEffect(() => {
-    if (initial.current)
-      void search({ query: initial.current }, undefined, 0, [undefined], { remember: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, on opening
-  }, []);
+  // A new question's answer is read from its top; one read again stays put.
+  useLayoutEffect(() => {
+    if (answered.current === scrolledFor.current) return;
+    scrolledFor.current = answered.current;
+    if (scroller.current) scroller.current.scrollTop = 0;
+  }, [paged.items]);
+
+  useLayoutEffect(() => {
+    if (caret.current === null || !field.current) return;
+    field.current.setSelectionRange(caret.current, caret.current);
+    caret.current = null;
+  }, [text]);
 
   // Results follow what is typed and chosen, once typing pauses. A date still
   // being written is left alone: the hints already say it is not one yet.
   useEffect(() => {
-    if (!query && !scope) {
-      request.current?.abort();
-      asked.current = null;
-      setResults(null);
-      setSubmitted(null);
-      setBusy(false);
-      setError(null);
+    if (!criteria) {
+      setAsked(null);
       return;
     }
-    if (query.length > 200 || unreadable || asked.current === key) return;
-    const timer = setTimeout(() => {
-      if (asked.current !== key) void search(criteria, undefined, 0, [undefined]);
-    }, LIVE_DELAY);
+    if (query.length > 200 || unreadable || key === askedKey) return;
+    const timer = setTimeout(
+      () => setAsked((before) => (keyOf(before) === key ? before : criteria)),
+      LIVE_DELAY,
+    );
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for the criteria
   }, [key, unreadable]);
 
-  async function search(
-    criteria: { query: string; channelId?: ID },
-    cursor: ID | undefined,
-    nextPage: number,
-    nextCursors: (ID | undefined)[],
-    opts: { remember?: boolean; keepPlace?: boolean } = {},
-  ) {
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    const known = client.state.changedContent;
-    failed.current = () => {
-      void search(criteria, cursor, nextPage, nextCursors, opts);
-    };
-    if (nextPage === 0) asked.current = keyOf(criteria);
-    setBusy(true);
-    setError(null);
-    try {
-      const found = await client.api.search(criteria.query, 30, {
-        cursor,
-        channelId: criteria.channelId,
-        signal: controller.signal,
-      });
-      if (controller.signal.aborted) return;
-      // Measured against what was known when this was asked: a change that
-      // arrived while it was out may not be in the answer, and asks once more.
-      heard.current = latestChange(found, known);
-      setResults(found);
-      setSubmitted(criteria);
-      setPage(nextPage);
-      setCursors(nextCursors);
-      // Only a search someone settled on is kept, not each one typed on the way.
-      if (nextPage === 0 && (opts.remember || committed.current === keyOf(criteria))) {
-        committed.current = null;
-        recent.remember(criteria);
-      }
-      if (!opts.keepPlace && scroller.current) scroller.current.scrollTop = 0;
-    } catch (err) {
-      if (!controller.signal.aborted)
-        setError(
-          err instanceof ApiError && err.code === "invalid_search_date"
-            ? err.message
-            : "Could not search this workspace. Check your connection and try again.",
-        );
-    } finally {
-      if (request.current === controller && !controller.signal.aborted) setBusy(false);
-    }
+  function addFilter(token: string) {
+    setFilters((before) => withFilter(before, token));
+  }
+  function removeFilter(token: string) {
+    setFilters((before) => before.filter((filter) => filter !== token));
+    field.current?.focus();
+  }
+  function setDay(kind: "after" | "before", day: string | null) {
+    setFilters((before) => {
+      const others = before.filter((filter) => kindOf(filter) !== kind);
+      return day ? withFilter(others, `${kind}:${day}`) : others;
+    });
   }
 
   function run(e: React.FormEvent) {
     e.preventDefault();
-    if ((!query && !scope) || query.length > 200) return;
-    // Already asked as it was typed: wait for that answer, or keep it.
-    if (asked.current === key && !error) {
-      if (busy) committed.current = key;
-      else if (submitted) recent.remember(submitted);
+    // Enter takes every modifier left in the field, finished or not.
+    const taken = takeFilters(text, field.current?.selectionStart ?? text.length, true);
+    const nextFilters = taken.tokens.reduce(withFilter, filters);
+    if (taken.tokens.length > 0) {
+      setFilters(nextFilters);
+      setText(taken.text);
+    }
+    const settled = criteriaOf(taken.text, nextFilters, scope, tab);
+    if (!settled || settled.query.length > 200) return;
+    const settledKey = keyOf(settled);
+    committed.current = settledKey;
+    if (settledKey !== askedKey) {
+      setAsked(settled);
       return;
     }
-    void search(criteria, undefined, 0, [undefined], { remember: true });
+    // Already asked as it was typed: keep it, wait for its answer, or ask again.
+    if (paged.failed) results.retry();
+    else if (!paged.loading && answered.current === settledKey) {
+      committed.current = null;
+      recent.remember(settled);
+    }
   }
 
   function repeat(entry: RecentSearch) {
-    setQ(entry.query);
+    const taken = takeFilters(entry.query, entry.query.length, true);
+    const nextFilters = taken.tokens.reduce<string[]>(withFilter, []);
+    setText(taken.text);
+    setFilters(nextFilters);
     setScope(entry.channelId ?? "");
-    setAuthor("");
-    setContains("");
-    setAfter("");
-    setBefore("");
-    void search(entry, undefined, 0, [undefined], { remember: true });
+    setTab("messages");
+    recent.remember(entry);
+    setAsked(criteriaOf(taken.text, nextFilters, entry.channelId ?? "", "messages"));
+  }
+
+  const conversationName = (id: ID) => {
+    const channel = channels[id];
+    if (!channel) return "Unavailable conversation";
+    return channel.name ? `#${channel.name}` : channelTitle(channel, users, selfId);
+  };
+  const after = filters.find((filter) => kindOf(filter) === "after")?.slice(6) ?? null;
+  const before = filters.find((filter) => kindOf(filter) === "before")?.slice(7) ?? null;
+
+  const people: MenuItem[] = Object.values(users)
+    .filter((user) => !user.deactivated || filters.includes(`from:${user.handle.toLowerCase()}`))
+    .sort((a, b) => a.displayName.localeCompare(b.displayName))
+    .map((user) => {
+      const token = `from:${user.handle.toLowerCase()}`;
+      return {
+        id: user.id,
+        label: user.displayName,
+        hint: `@${user.handle}`,
+        checked: filters.includes(token),
+        onSelect: () => (filters.includes(token) ? removeFilter(token) : addFilter(token)),
+      };
+    });
+  const here = props.channelId && channels[props.channelId] ? props.channelId : null;
+  const places: MenuItem[] = [
+    ...(here ? [here] : []),
+    ...Object.values(channels)
+      .filter((channel) => channel.id !== here)
+      .sort((a, b) => conversationName(a.id).localeCompare(conversationName(b.id)))
+      .map((channel) => channel.id),
+  ].map((id, index) => ({
+    id,
+    label: conversationName(id),
+    hint: id === here ? "This conversation" : undefined,
+    section: here && index === 1 ? true : undefined,
+    checked: scope === id,
+    onSelect: () => setScope(scope === id ? "" : id),
+  }));
+  const kinds: MenuItem[] = (
+    [
+      ["has:file", "A file"],
+      ["has:link", "A link"],
+      ...(Object.entries(FILE_TYPE_LABELS) as [FileType, string][]).map(
+        ([type, label]): [string, string] => [`type:${type}`, label],
+      ),
+    ] satisfies [string, string][]
+  ).map(([token, label], index) => ({
+    id: token,
+    label,
+    section: index === 2 ? "Kind of file" : undefined,
+    checked: filters.includes(token),
+    onSelect: () => (filters.includes(token) ? removeFilter(token) : addFilter(token)),
+  }));
+
+  const tabs = useTabs({
+    label: "Results",
+    tabs: RESULT_TABS,
+    selected: tab,
+    onSelect: (next) => {
+      setTab(next);
+      // Another tab is another question, asked at once rather than after a pause.
+      const switched = criteriaOf(text, filters, scope, next);
+      if (switched && switched.query.length <= 200 && !unreadable) setAsked(switched);
+    },
+  });
+  const files = useMemo(
+    () => messages.flatMap((m) => m.files.map((file) => ({ file, message: m }))),
+    [messages],
+  );
+  const shown = tab === "files" ? files.length : messages.length;
+  const answeredHere = !!asked && paged.items !== null;
+  const chipCount = filters.length + (scope ? 1 : 0);
+
+  function open(m: Message) {
+    // A result someone opens is one they were looking for.
+    if (asked) recent.remember(asked);
+    props.onJump(m.channelId, m.id);
   }
 
   return (
     <Dialog title="Search messages" onClose={props.onClose} width={640} ownScroll>
-      {/* The field stays in sight over what it found, to be changed from any
-          way down the results. */}
-      <form id={formId} onSubmit={run} className="shrink-0 space-y-3 px-6 pb-2">
+      {/* The field and the filters stay in sight over what they found, to be
+          changed from any way down the results. */}
+      <form onSubmit={run} className="shrink-0 space-y-2 px-6 pb-3">
         <div className="flex gap-2">
           <input
+            ref={field}
             autoFocus
             aria-label="Search messages"
+            enterKeyHint="search"
             maxLength={200}
-            value={q}
-            onChange={(e) => setQ(e.target.value)}
+            value={text}
+            onChange={(e) => {
+              const typed = e.target.value;
+              const taken = takeFilters(typed, e.target.selectionStart ?? typed.length);
+              if (taken.tokens.length > 0) {
+                setFilters((before) => taken.tokens.reduce(withFilter, before));
+                caret.current = taken.caret;
+              }
+              setText(taken.text);
+            }}
             onKeyDown={(e) => {
               // A form submits on Enter from a text field, which would run the
               // search on the Enter that picked an input method's candidate.
@@ -337,330 +553,359 @@ export function SearchDialog(props: {
             placeholder="Search messages and file names"
             className={inputCls}
           />
-          <button
-            type="submit"
-            className={buttonClass("primary")}
-            disabled={(!query && !scope) || query.length > 200}
-          >
-            Search
-          </button>
+          <Tooltip label="Search syntax">
+            <button
+              type="button"
+              aria-label="Search syntax"
+              aria-expanded={help}
+              aria-controls={helpId}
+              onClick={() => setHelp((open) => !open)}
+              className="grid size-[38px] shrink-0 place-items-center rounded-lg border border-edge text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink aria-expanded:bg-ink/[0.05] aria-expanded:text-ink"
+            >
+              <Icon name="help" size={16} />
+            </button>
+          </Tooltip>
         </div>
         {query.length > 200 && (
           <p role="alert" className="text-xs text-ink-dim">
             Shorten the search or remove a filter (200 characters maximum).
           </p>
         )}
-      </form>
-      <DialogScroll ref={scroller}>
-        <details
-          open={!!(scope || author || contains || after || before) || undefined}
-          className="group mb-3 rounded-xl border border-edge"
-        >
-          <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-2 text-[13px] font-medium text-ink-dim hover:text-ink">
-            <Icon
-              name="chevronDown"
-              size={14}
-              className="transition-transform group-open:rotate-180"
+        <div className="flex flex-wrap items-center gap-1.5">
+          {scope && (
+            <FilterChip
+              label={`In ${conversationName(scope)}`}
+              onRemove={() => {
+                setScope("");
+                field.current?.focus();
+              }}
             />
-            Filters
-            {[scope, author, contains, after, before].filter(Boolean).length > 0 && (
-              <span className="rounded-full bg-copper px-1.5 text-[11px] font-semibold leading-[18px] text-ground">
-                {[scope, author, contains, after, before].filter(Boolean).length}
-              </span>
-            )}
-            <span className="ml-auto text-[12px] font-normal text-ink-faint">
-              Who, where, what, when
-            </span>
-          </summary>
-          <div className="space-y-3 border-t border-edge p-3">
-            <div className="grid grid-cols-2 gap-2">
-              <label className="text-xs text-ink-faint">
-                Conversation
-                <select
-                  className={inputCls}
-                  value={scope}
-                  onChange={(e) => setScope(e.target.value)}
-                >
-                  <option value="">All conversations</option>
-                  {Object.values(channels).map((ch) => (
-                    <option key={ch.id} value={ch.id}>
-                      {channelTitle(ch, users, client.state.self?.id ?? "")}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs text-ink-faint">
+          )}
+          {filters.map((filter) => (
+            <FilterChip
+              key={filter}
+              label={filterLabel(filter, users)}
+              onRemove={() => removeFilter(filter)}
+            />
+          ))}
+          <Menu
+            label="From"
+            items={people}
+            align="start"
+            multiple
+            width={260}
+            triggerClassName={ADD_FILTER}
+            triggerContent={
+              <>
                 From
-                <select
-                  className={inputCls}
-                  value={author}
-                  onChange={(e) => setAuthor(e.target.value)}
-                >
-                  <option value="">Anyone</option>
-                  {Object.values(users).map((user) => (
-                    <option key={user.id} value={user.handle}>
-                      {user.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label className="text-xs text-ink-faint">
-                Contains
-                <select
-                  className={inputCls}
-                  value={contains}
-                  onChange={(e) => setContains(e.target.value)}
-                >
-                  <option value="">Anything</option>
-                  <option value="has:file">Any file</option>
-                  {(Object.entries(FILE_TYPE_LABELS) as [FileType, string][]).map(
-                    ([type, label]) => (
-                      <option key={type} value={`type:${type}`}>
-                        {label}
-                      </option>
-                    ),
-                  )}
-                  <option value="has:link">Links</option>
-                </select>
-              </label>
-              <div className="flex items-end">
-                <button
-                  type="button"
-                  className="py-2 text-xs font-medium text-ink-dim hover:text-ink"
-                  onClick={() => {
-                    setScope("");
-                    setAuthor("");
-                    setContains("");
-                    setAfter("");
-                    setBefore("");
-                  }}
-                >
-                  Clear filters
-                </button>
-              </div>
-              <label className="min-w-0 text-xs text-ink-faint">
-                After
-                <input
-                  type="date"
-                  // Enter in a date still searches, from outside the form.
-                  form={formId}
-                  className={inputCls}
-                  value={after}
-                  onChange={(e) => setAfter(e.target.value)}
-                />
-              </label>
-              <label className="min-w-0 text-xs text-ink-faint">
-                Before
-                <input
-                  type="date"
-                  form={formId}
-                  className={inputCls}
-                  value={before}
-                  onChange={(e) => setBefore(e.target.value)}
-                />
-              </label>
-            </div>
-            {props.channelId && scope !== props.channelId && (
-              <button
-                type="button"
-                className="text-xs font-medium text-ink-dim hover:text-ink"
-                onClick={() => setScope(props.channelId!)}
+                <Icon name="chevronDown" size={12} />
+              </>
+            }
+          />
+          <Menu
+            label="In"
+            items={places}
+            align="start"
+            width={260}
+            triggerClassName={ADD_FILTER}
+            triggerContent={
+              <>
+                In
+                <Icon name="chevronDown" size={12} />
+              </>
+            }
+          />
+          <Menu
+            label="Has"
+            items={kinds}
+            align="start"
+            multiple
+            width={220}
+            triggerClassName={ADD_FILTER}
+            triggerContent={
+              <>
+                Has
+                <Icon name="chevronDown" size={12} />
+              </>
+            }
+          />
+          <DateFilter after={after} before={before} onChange={setDay} />
+          {chipCount > 1 && (
+            <button
+              type="button"
+              onClick={() => {
+                setFilters([]);
+                setScope("");
+                field.current?.focus();
+              }}
+              className="h-7 px-1.5 text-[12px] font-medium text-ink-faint transition-colors hover:text-ink"
+            >
+              Clear all
+            </button>
+          )}
+        </div>
+        {parsed.invalid.length > 0 && (
+          <p className="flex flex-wrap gap-1.5 text-[12px]">
+            {parsed.invalid.map((token) => (
+              <span
+                key={token}
+                className="rounded-full border border-alert/40 px-2 py-0.5 text-alert"
               >
-                Search this conversation
-              </button>
-            )}
-            <div className="flex flex-wrap gap-x-3 gap-y-1 border-t border-edge pt-3 text-[11px] text-ink-faint">
-              {MODIFIER_HELP.map((m) => (
-                <span key={m.token}>
-                  <code className="rounded bg-ink/[0.06] px-1 font-mono text-ink-dim">
-                    {m.token}
-                  </code>{" "}
-                  {m.what}
-                </span>
-              ))}
-            </div>
-          </div>
-        </details>
-        {(recent.items.length > 0 || recent.error) && (
-          <details open={!results} className="mb-3 rounded-xl border border-edge p-3">
-            <summary className="flex cursor-pointer list-none items-center gap-2 text-[13px] font-medium text-ink-dim hover:text-ink">
-              <Icon name="clock" size={14} className="text-ink-faint" />
-              Recent searches
-            </summary>
-            <div className="mb-2 mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
-              <span>Saved on this device for this account and workspace.</span>
-              <button
-                disabled={busy || recent.busy}
-                className="shrink-0 font-medium text-ink-dim underline disabled:opacity-40"
-                onClick={recent.clear}
-              >
-                Clear recent searches
-              </button>
-            </div>
-            {recent.error && (
-              <p role="status" className="mb-2 text-xs text-ink-dim">
-                {recent.error}
-              </p>
-            )}
-            <ul aria-label="Recent searches" className="space-y-1">
-              {recent.items.map((entry) => {
-                const channel = entry.channelId ? channels[entry.channelId] : undefined;
-                const scopeLabel = entry.channelId
-                  ? channel
-                    ? channelTitle(channel, users, client.state.self?.id ?? "")
-                    : "Unavailable conversation"
-                  : "All conversations";
-                return (
-                  <li
-                    key={JSON.stringify([entry.query, entry.channelId])}
-                    className="flex items-center gap-2"
-                  >
-                    <button
-                      disabled={busy || (!!entry.channelId && !channel)}
-                      className="min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-sm hover:bg-ink/[0.05] disabled:opacity-40"
-                      onClick={() => repeat(entry)}
-                    >
-                      <span className="block truncate">{entry.query || "All messages"}</span>
-                      <span className="block truncate text-xs text-ink-faint">{scopeLabel}</span>
-                    </button>
-                    <button
-                      disabled={recent.busy}
-                      aria-label={`Remove recent search: ${entry.query || "All messages"} (${scopeLabel})`}
-                      className="rounded-md p-1.5 text-ink-faint hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
-                      onClick={() => recent.remove(entry)}
-                    >
-                      <Icon name="close" size={14} />
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          </details>
-        )}
-        <SearchHints query={query} />
-        {results && (
-          <p role="status" className="mb-2 text-xs text-ink-faint">
-            {results.messages.length} results · Page {page + 1} · Newest first
-            {submitted?.query ? ` · “${submitted.query}”` : ""}
+                not a date: {token}
+              </span>
+            ))}
           </p>
         )}
-        <ListStatus
-          loading={busy}
-          placeholder={!results}
-          loadingLabel="Searching…"
-          error={error}
-          onRetry={() => failed.current?.()}
-          empty={results?.messages.length === 0 ? "Nothing matched. Try different words." : null}
-          emptyIcon="search"
-        />
-        {results && (
+        <div
+          id={helpId}
+          hidden={!help}
+          className="rounded-xl border border-edge p-3 text-[12px] text-ink-faint"
+        >
+          <p className="mb-2">Type a filter, then a space, and it becomes a chip.</p>
+          <ul className="flex flex-wrap gap-x-3 gap-y-1">
+            {MODIFIER_HELP.map((m) => (
+              <li key={m.token}>
+                <code className="rounded bg-ink/[0.06] px-1 font-mono text-ink-dim">{m.token}</code>{" "}
+                {m.what}
+              </li>
+            ))}
+          </ul>
+        </div>
+      </form>
+      <DialogScroll ref={scroller}>
+        {!asked ? (
+          <RecentSearches recent={recent} onRepeat={repeat} name={conversationName} />
+        ) : (
           <>
-            <ul
-              ref={list}
-              className="space-y-2"
-              aria-busy={busy}
-              onKeyDown={(e) => {
-                if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
-                const buttons = [
-                  ...(list.current?.querySelectorAll<HTMLButtonElement>("[data-search-open]") ??
-                    []),
-                ];
-                const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
-                if (index < 0) return;
-                e.preventDefault();
-                buttons[
-                  Math.max(
-                    0,
-                    Math.min(buttons.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)),
-                  )
-                ]?.focus();
-              }}
-            >
-              {results.messages
-                .filter((m) => !!channels[m.channelId])
-                .map((m) => {
-                  const ch = channels[m.channelId];
-                  return (
-                    <li
-                      key={m.id}
-                      className="rounded-xl border border-edge p-3 transition-colors hover:bg-ink/[0.025]"
-                    >
-                      <div className="mb-1 flex items-baseline gap-2 text-[12px] text-ink-faint">
-                        <span className="font-semibold text-ink-dim">
-                          {ch
-                            ? ch.name
-                              ? `#${ch.name}`
-                              : channelTitle(ch, users, client.state.self?.id ?? "")
-                            : "Unavailable conversation"}
-                        </span>
-                        {(!ch || ch.name) && <span>{users[m.userId]?.displayName}</span>}
-                        <time
-                          dateTime={new Date(m.createdAt).toISOString()}
-                          title={formatFull(m.createdAt)}
-                          className="ml-auto text-right"
-                        >
-                          {formatWhen(m.createdAt)}
-                        </time>
-                      </div>
-                      <div className="text-sm">
-                        <Mrkdwn
-                          text={m.text}
-                          users={users}
-                          channels={channels}
-                          highlightTerms={highlightTerms}
-                        />
-                      </div>
-                      <Attachments files={m.files} terms={highlightTerms} />
-                      <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
-                        <span>{m.threadRootId ? "Thread reply" : "Message"}</span>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
+              <div {...tabs.listProps} className="flex gap-1 rounded-lg bg-ink/[0.05] p-0.5">
+                {RESULT_TABS.map((name) => (
+                  <button
+                    key={name}
+                    {...tabs.tabProps(name)}
+                    className="rounded-md px-2.5 py-1 text-[12px] font-medium text-ink-dim transition-colors hover:text-ink aria-selected:bg-ground aria-selected:text-ink aria-selected:shadow-sm"
+                  >
+                    {name === "messages" ? "Messages" : "Files"}
+                  </button>
+                ))}
+              </div>
+              {answeredHere && (
+                <p role="status" className="text-xs text-ink-faint">
+                  {shown}{" "}
+                  {tab === "files"
+                    ? shown === 1
+                      ? "file"
+                      : "files"
+                    : shown === 1
+                      ? "result"
+                      : "results"}
+                  {paged.nextCursor ? " so far" : ""} · Newest first
+                  {terms.length > 0 ? ` · “${terms.join(" ")}”` : ""}
+                </p>
+              )}
+            </div>
+            <div {...tabs.panelProps}>
+              <ListStatus
+                loading={paged.loading}
+                placeholder={paged.items === null}
+                loadingLabel="Searching…"
+                error={paged.failed ? searchError : null}
+                onRetry={() => results.retry()}
+                empty={
+                  paged.items !== null && shown === 0 && !paged.nextCursor
+                    ? tab === "files"
+                      ? "No files matched. Try different words."
+                      : "Nothing matched. Try different words."
+                    : null
+                }
+                emptyIcon={tab === "files" ? "file" : "search"}
+              />
+              <ul
+                ref={list}
+                className="space-y-2"
+                aria-busy={paged.loading || paged.refreshing}
+                onKeyDown={(e) => {
+                  if (e.key !== "ArrowDown" && e.key !== "ArrowUp") return;
+                  const buttons = [
+                    ...(list.current?.querySelectorAll<HTMLButtonElement>("[data-search-open]") ??
+                      []),
+                  ];
+                  const index = buttons.indexOf(document.activeElement as HTMLButtonElement);
+                  if (index < 0) return;
+                  e.preventDefault();
+                  buttons[
+                    Math.max(
+                      0,
+                      Math.min(buttons.length - 1, index + (e.key === "ArrowDown" ? 1 : -1)),
+                    )
+                  ]?.focus();
+                }}
+              >
+                {tab === "files"
+                  ? files.map(({ file, message: m }) => (
+                      <li key={file.id}>
                         <button
+                          type="button"
                           data-search-open
-                          className="inline-flex items-center gap-1 font-medium text-ink-dim hover:text-ink"
-                          disabled={busy || !ch}
-                          onClick={() => {
-                            // A result someone opens is one they were looking for.
-                            if (submitted) recent.remember(submitted);
-                            props.onJump(m.channelId, m.id);
-                          }}
+                          onClick={() => open(m)}
+                          className="flex w-full items-center gap-3 rounded-xl border border-edge p-3 text-left transition-colors hover:bg-ink/[0.025]"
                         >
-                          Open in conversation
-                          <Icon name="arrow" size={12} />
+                          <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-ink/[0.05] text-ink-dim">
+                            <Icon name={iconFor(file.mime, file.name)} size={16} />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-medium text-ink">
+                              {markTerms(file.name, terms)}
+                            </span>
+                            <span className="block truncate text-xs text-ink-faint">
+                              {conversationName(m.channelId)} · {users[m.userId]?.displayName} ·{" "}
+                              <time
+                                dateTime={new Date(m.createdAt).toISOString()}
+                                title={formatFull(m.createdAt)}
+                              >
+                                {formatWhen(m.createdAt)}
+                              </time>
+                            </span>
+                          </span>
+                          <span className="shrink-0 text-xs text-ink-faint">
+                            {formatBytes(file.size)}
+                          </span>
                         </button>
-                      </div>
-                    </li>
-                  );
-                })}
-            </ul>
-            <div
-              hidden={page === 0 && !results.nextCursor}
-              className="mt-4 flex justify-between text-sm font-medium text-ink-dim"
-            >
-              <button
-                disabled={busy || page === 0}
-                onClick={() =>
-                  submitted &&
-                  void search(submitted, cursors[page - 1], page - 1, cursors.slice(0, page))
-                }
-              >
-                Previous page
-              </button>
-              <button
-                disabled={busy || !results.nextCursor}
-                onClick={() =>
-                  submitted &&
-                  results.nextCursor &&
-                  void search(submitted, results.nextCursor, page + 1, [
-                    ...cursors,
-                    results.nextCursor,
-                  ])
-                }
-              >
-                Next page
-              </button>
+                      </li>
+                    ))
+                  : messages.map((m) => {
+                      const ch = channels[m.channelId];
+                      return (
+                        <li
+                          key={m.id}
+                          className="rounded-xl border border-edge p-3 transition-colors hover:bg-ink/[0.025]"
+                        >
+                          <div className="mb-1 flex items-baseline gap-2 text-[12px] text-ink-faint">
+                            <span className="font-semibold text-ink-dim">
+                              {conversationName(m.channelId)}
+                            </span>
+                            {(!ch || ch.name) && <span>{users[m.userId]?.displayName}</span>}
+                            <time
+                              dateTime={new Date(m.createdAt).toISOString()}
+                              title={formatFull(m.createdAt)}
+                              className="ml-auto text-right"
+                            >
+                              {formatWhen(m.createdAt)}
+                            </time>
+                          </div>
+                          <div className="text-sm">
+                            <Mrkdwn
+                              text={m.text}
+                              users={users}
+                              channels={channels}
+                              highlightTerms={terms}
+                            />
+                          </div>
+                          <Attachments files={m.files} terms={terms} />
+                          <div className="mt-2 flex items-center justify-between gap-2 text-xs text-ink-faint">
+                            <span>{m.threadRootId ? "Thread reply" : "Message"}</span>
+                            <button
+                              type="button"
+                              data-search-open
+                              className="inline-flex items-center gap-1 font-medium text-ink-dim hover:text-ink"
+                              onClick={() => open(m)}
+                            >
+                              Open in conversation
+                              <Icon name="arrow" size={12} />
+                            </button>
+                          </div>
+                        </li>
+                      );
+                    })}
+              </ul>
+              {paged.items !== null && !paged.loading && (
+                <LoadMore
+                  more={!!paged.nextCursor}
+                  loading={paged.loadingMore}
+                  failed={paged.moreFailed}
+                  count={paged.items.length}
+                  onMore={() => results.loadMore()}
+                  scroller={scroller}
+                />
+              )}
             </div>
           </>
         )}
       </DialogScroll>
     </Dialog>
+  );
+}
+
+/** Before anything is asked: the searches kept on this device, to ask again in one click. */
+function RecentSearches(props: {
+  recent: ReturnType<typeof useRecentSearches>;
+  onRepeat: (entry: RecentSearch) => void;
+  name: (id: ID) => string;
+}) {
+  const { recent } = props;
+  const heading = useId();
+  if (recent.items.length === 0 && !recent.error)
+    return (
+      <p className="py-6 text-center text-sm text-ink-faint">
+        Search messages and file names. Add a filter above, or type one such as{" "}
+        <code className="rounded bg-ink/[0.06] px-1 font-mono text-ink-dim">from:@name</code>.
+      </p>
+    );
+  return (
+    <section aria-labelledby={heading}>
+      <div className="mb-2 flex items-center justify-between gap-2">
+        <h3 id={heading} className="flex items-center gap-2 text-[13px] font-medium text-ink-dim">
+          <Icon name="clock" size={14} className="text-ink-faint" />
+          Recent searches
+        </h3>
+        <button
+          type="button"
+          disabled={recent.busy}
+          className="shrink-0 text-xs font-medium text-ink-dim underline disabled:opacity-40"
+          onClick={recent.clear}
+        >
+          Clear recent searches
+        </button>
+      </div>
+      <p className="mb-2 text-xs text-ink-faint">
+        Saved on this device for this account and workspace.
+      </p>
+      {recent.error && (
+        <p role="status" className="mb-2 text-xs text-ink-dim">
+          {recent.error}
+        </p>
+      )}
+      <ul aria-label="Recent searches" className="space-y-1">
+        {recent.items.map((entry) => {
+          const scopeLabel = entry.channelId ? props.name(entry.channelId) : "All conversations";
+          const gone = scopeLabel === "Unavailable conversation";
+          return (
+            <li
+              key={JSON.stringify([entry.query, entry.channelId])}
+              className="flex items-center gap-2"
+            >
+              <button
+                type="button"
+                disabled={gone}
+                className="min-w-0 flex-1 rounded-lg px-2 py-1 text-left text-sm hover:bg-ink/[0.05] disabled:opacity-40"
+                onClick={() => props.onRepeat(entry)}
+              >
+                <span className="block truncate">{entry.query || "All messages"}</span>
+                <span className="block truncate text-xs text-ink-faint">{scopeLabel}</span>
+              </button>
+              <button
+                type="button"
+                disabled={recent.busy}
+                aria-label={`Remove recent search: ${entry.query || "All messages"} (${scopeLabel})`}
+                className="rounded-md p-1.5 text-ink-faint hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
+                onClick={() => recent.remove(entry)}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }

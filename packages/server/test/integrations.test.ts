@@ -393,17 +393,42 @@ describe("slash commands", () => {
     const a = connectWs(aliceToken);
     await a.next((m) => m.type === "ready");
 
-    const res = await api<{ ok: boolean; error: string }>(`/api/channels/${channelId}/commands`, {
-      token: aliceToken,
-      body: { text: "/deploy broken" },
-    });
+    const res = await api<{ ok: boolean; error: string; message: string }>(
+      `/api/channels/${channelId}/commands`,
+      { token: aliceToken, body: { text: "/deploy broken" } },
+    );
     expect(res.data.error).toBe("command_failed");
+    // The answer says why too, for a test run from Apps and integrations.
+    expect(res.data.message).toBe("the app answered 500");
 
     const note = (await a.next(
       (m) => m.type === "ephemeral" && m.event.type === "ephemeral.message",
     )) as { type: "ephemeral"; event: { text: string } };
     expect(note.event.text).toContain("500");
     a.ws.close();
+  });
+
+  it("says in its answer when the app could not be reached", async () => {
+    const created = await newApp("Gone Bot");
+    // A port that was free a moment ago: nothing answers there.
+    const closed = createServer();
+    await new Promise<void>((r) => closed.listen(0, "127.0.0.1", r));
+    const port = (closed.address() as { port: number }).port;
+    await new Promise<void>((r) => closed.close(() => r()));
+    await api(`/api/apps/${created.id}/commands`, {
+      token: aliceToken,
+      body: { command: "/gone", url: `http://127.0.0.1:${port}/gone` },
+    });
+
+    const res = await api<{ ok: boolean; error: string; message: string }>(
+      `/api/channels/${channelId}/commands`,
+      { token: aliceToken, body: { text: "/gone test" } },
+    );
+    expect(res.data).toEqual({
+      ok: false,
+      error: "command_failed",
+      message: "the app did not answer",
+    });
   });
 
   it("refuses to register a command name twice, or over a built-in", async () => {

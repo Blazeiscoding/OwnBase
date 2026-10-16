@@ -224,9 +224,8 @@ pull request template repeats it in short.
 
 Some forms still disable their button until something is typed or changed:
 Create account for a guest, the forms in Apps, Save in channel details and in
-call relay settings, Rename in Manage hosting, Share in the screen picker, and
-Search, which also still pages with Previous and Next. Fix one when you touch
-it.
+call relay settings, Rename in Manage hosting, and Share in the screen picker.
+Fix one when you touch it.
 
 To look at a change, start a throwaway workspace that serves the web build, on
 this computer only, and fill it with the demo:

@@ -21,7 +21,8 @@
         "Methods cover authentication, profiles, channels, message history and search, reactions, schedules, app administration, audit entries and operating status. UI code calls these methods instead of constructing endpoints repeatedly.",
         "File uploads expose progress and cancellation. File bytes use authenticated fetch; a separately scoped download ticket supports native downloads without placing the session token into a download URL.",
         "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust.",
-        "listPins takes a page size and passes on the server's total, which older servers leave out."
+        "listPins takes a page size and passes on the server's total, which older servers leave out.",
+        "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -654,14 +655,37 @@
       "concepts": ["invite links", "UX-43"]
     },
     {
+      "path": "packages/ui/src/lib/appTemplates.ts",
+      "plain": "The three ways Apps and integrations offers to start, an incoming webhook, a slash command and posting CI results, and the examples each one gives to copy.",
+      "summary": "Template names, test messages and copyable examples for Apps and integrations (UX-63).",
+      "details": [
+        "curlExample posts WEBHOOK_EXAMPLE, the same message Send test message posts. ciExample is a GitHub Actions step that reads the webhook URL from the TANDEM_WEBHOOK_URL repository secret and builds its JSON with jq from environment variables, so a quote in a branch name cannot break it.",
+        "commandExample is a Node service with nothing to install that checks the request's signature and timestamp as INTEGRATIONS.md describes and answers privately. appTemplates.test.ts runs it against signed, unsigned and stale requests.",
+        "commandName stores a command as the server does (no slash, lower case); suggestedAppName names the app a template makes."
+      ],
+      "concepts": ["integration templates", "UX-63"]
+    },
+    {
       "path": "packages/ui/src/lib/pagedList.ts",
       "plain": "Reads a long list a page at a time as you scroll, and reads it again quietly when something in it changes, so side panels stay up to date without a Refresh button.",
       "summary": "Keeps a page-at-a-time list current: more on demand, in-place refresh from the top (UX-08).",
       "details": [
         "PagedList keeps every page read so far. loadMore reads the next cursor; a refresh reads again from the first page until it covers as many rows as were shown, at most PAGED_REFRESH_PAGES pages, and swaps the result in at once so nothing blanks or jumps.",
-        "Refreshes go through a CoalescedLoader, so one read from the top runs at a time and a burst of signals is one read; reading more gives way to it. usePagedList starts a different list from nothing whenever its key changes."
+        "Refreshes go through a CoalescedLoader, so one read from the top runs at a time and a burst of signals is one read; reading more gives way to it. usePagedList starts a different list from nothing whenever its key changes.",
+        "start({ keep: true }), or usePagedList's keep option, leaves the rows shown in place until the different list's first page replaces them, and reads only that one page, so search does not flash empty between questions (UX-51)."
       ],
       "concepts": ["infinite scroll", "in-place refresh", "request coalescing", "UX-08"]
+    },
+    {
+      "path": "packages/ui/src/lib/searchFilters.ts",
+      "plain": "Turns a filter typed into search, such as from:@sam, into a chip you can remove with one click, and says what each chip means in plain words.",
+      "summary": "Search filters as modifier tokens: parsing typed ones, combining them and naming them for chips (UX-51).",
+      "details": [
+        "A filter is held as the modifier it adds to the query (from:sam, in:design, has:link, type:pdf, after:2026-01-01), so chips, typed modifiers and recent searches all reach the server as the same query text. filterToken reads one word with the protocol's parseSearchQuery and writes it one way; a word that cannot be read, such as a date that does not exist, is left in the field for the hints to point at.",
+        "takeFilters moves a modifier out of the field once a space follows it and the caret has left it, keeping the caret where it was in what is left; Enter takes every one. withFilter lets people, places and kinds add up, as the server ORs them, and lets a new day replace the old one on its side.",
+        "DATE_PRESETS name after: days relative to today where the reader is (after: leaves out the day it names), and filterLabel says Today or Last 7 days for them, a person by display name, and a day in the reader's own style."
+      ],
+      "concepts": ["search filters", "chips", "UX-51"]
     },
     {
       "path": "packages/ui/src/lib/lastConversation.ts",
@@ -1060,16 +1084,16 @@
     },
     {
       "path": "packages/ui/src/components/SearchDialog.tsx",
-      "plain": "The search window, which finds words in messages and file names with filters for where, when and what kind of file.",
-      "summary": "Searches server-side message text and attachment names with understandable filters.",
+      "plain": "The search window, which finds words in messages and file names. Results come straight under the box, filters are chips you add from From, In, Has and Date or by typing from:@name, and more results load as you scroll.",
+      "summary": "Searches server-side message text and attachment names, results first, with filters as removable chips (UX-51).",
       "details": [
-        "Displays search modifiers and the parsed interpretation, scope/date/file-type controls, pagination, matched terms and attachment-name reasons for a result. The search field stays above the filters and results, which scroll, and each new page is shown from its top.",
-        "Results follow what is typed and the filters chosen a quarter-second after typing pauses. Enter searches at once; a search is kept among the recent ones only when someone settles on it (Enter, a recent search repeated, a result opened). Words brought from the palette are searched at once and kept; words handed over from the header's box (typing) are still being typed, so they wait for the pause like any.",
-        "Recent searches are kept in the authenticated local scope; choosing a result requests an in-app message jump rather than treating a result excerpt as the whole conversation.",
-        "Since Q07 the dialog re-requests its current page when changedContent advances for a channel among its results, leaving a request in flight to finish first. Results are still a copy: after a resync beyond the event log they are stale until asked again.",
-        "inConversation opens it on the conversation it was asked from, with the Conversation filter already set, from the header's menu (UX-23). The typing hand-over from the header's search box went with the box."
+        "Under the field sit the filters in force as chips, each one click to remove, then From, In and Has menus and a Date popover (Today, Last 7 days, Last 30 days, or a day either side) to add more; a ? button shows the modifier syntax. Typed modifiers become chips through lib/searchFilters.ts. The field and chips stay above the results, which scroll, so results start within about 90 px of the field at 1280x820.",
+        "Results follow what is typed and the filters chosen a quarter-second after typing pauses, and the previous answer stays on show while the next question is out, its status line and marked words still those of the question it answers. Enter searches at once; a search is kept among the recent ones only when someone settles on it (Enter, a recent search repeated, a result opened). Words brought from the palette are searched at once and kept. Recent searches show before anything is asked, and repeating one turns its modifiers back into chips.",
+        "Messages and Files tabs: Files asks the same question with has:file (unless a filter already asks for files) and shows one row per file, marked with the words searched for. Results are read through usePagedList, 30 at a time, with LoadMore at the end instead of Previous and Next pages.",
+        "Since Q07 the results are read again in place, from the top as far as they had been read, when changedContent advances for a channel among them, leaving a read in flight to finish first and asking once more if it began before the change. Results are still a copy: after a resync beyond the event log they are stale until asked again.",
+        "inConversation opens it on the conversation it was asked from, as an In chip, from the header's menu (UX-23), without adding a recent search."
       ],
-      "concepts": ["full-text search", "filters", "result excerpts", "Q07"]
+      "concepts": ["full-text search", "filters", "chips", "result excerpts", "Q07", "UX-51"]
     },
     {
       "path": "packages/ui/src/components/ActivityPanel.tsx",
@@ -1320,13 +1344,17 @@
       "details": [
         "Creates and removes integrations and exposes explicit credential replacement actions. Bot tokens shown once stay only in this UI session; rereadable secrets have reveal/copy controls.",
         "Configures slash commands, event subscriptions and verified interactivity URLs; refreshes composer command hints when those change.",
-        "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported. The integration contract link explains supported behavior and differences from Slack."
+        "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported.",
+        "It opens on templates (UX-63): Incoming webhook, Slash command and Post CI results, as tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another. A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails.",
+        "OAuth, Socket Mode, ts and the link to the published integration contract are folded into How this differs from Slack."
       ],
       "concepts": [
         "integration administration",
         "credential rotation",
         "delivery queues",
-        "callback contract"
+        "callback contract",
+        "integration templates",
+        "UX-63"
       ]
     },
     {
@@ -1637,7 +1665,8 @@
       "plain": "A small panel that opens beside the button that opened it, such as the choices for Send later.",
       "summary": "A small panel anchored to the control that opened it, such as Send later's choices.",
       "details": [
-        "Built on the modal layer like Menu: Escape or a press outside closes it, the page beneath waits, and focus returns to the control. It sits above the control, or below when there is no room, and follows it as the page scrolls."
+        "Built on the modal layer like Menu: Escape or a press outside closes it, the page beneath waits, and focus returns to the control. It sits above the control, or below when there is no room, and follows it as the page scrolls.",
+        "side: \"below\" asks for the other way round, for a control at the top of what it changes, such as search's Date filter (UX-51)."
       ],
       "concepts": ["anchored panel", "focus return"]
     },
@@ -1648,7 +1677,8 @@
       "details": [
         "Built on the modal layer, with arrow navigation, Enter selection, Escape/outside dismissal and focus return to the trigger.",
         "Repositions with scrolling instead of abandoning an action when a live timeline shifts. Destructive and disabled items keep consistent presentation.",
-        "It grows from the corner nearest its trigger, which depends on whether it opened below or above it, and a phone's sheet rises from the bottom edge."
+        "It grows from the corner nearest its trigger, which depends on whether it opened below or above it, and a phone's sheet rises from the bottom edge.",
+        "Ticked items are menuitemradio, one of a set, unless the menu is multiple: then each is a menuitemcheckbox, as search's From and Has filters are (UX-51)."
       ],
       "concepts": ["action menu", "keyboard navigation", "floating position"]
     },
