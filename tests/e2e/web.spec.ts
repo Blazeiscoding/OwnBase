@@ -2993,6 +2993,11 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     await expect(page).toHaveURL(`${here}/d/account`);
     await settings.getByRole("tab", { name: "Security" }).click();
     await expect(page).toHaveURL(`${here}/d/account/security`);
+    // A setting found by searching takes the address to its section the same way (UX-60).
+    await settings.getByRole("searchbox", { name: "Search settings" }).fill("dark mode");
+    await page.keyboard.press("Enter");
+    await expect(page).toHaveURL(`${here}/d/account/appearance`);
+    await expect(settings.getByRole("radio", { name: /^Match this device/ })).toBeFocused();
     expect(await page.evaluate(() => history.length)).toBe(steps + 1);
     await page.keyboard.press("Escape");
     await expect(settings).toHaveCount(0);

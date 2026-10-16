@@ -35,9 +35,13 @@ interface Preferences {
   saving: boolean;
   error: string | null;
   unreadable: boolean;
-  setJoinMuted: (value: boolean) => Promise<void>;
-  /** Saves device choices; a key set to undefined goes back to the default. */
-  setDevices: (patch: CallDevices) => Promise<void>;
+  /** Resolves true once the choice is kept. */
+  setJoinMuted: (value: boolean) => Promise<boolean>;
+  /**
+   * Saves device choices; a key set to undefined goes back to the default.
+   * Resolves true once they are kept.
+   */
+  setDevices: (patch: CallDevices) => Promise<boolean>;
   retryLoad: () => Promise<void>;
   /**
    * Every join waits for device preferences; unknown preferences keep the
@@ -91,8 +95,13 @@ function createPreferences(platform: Platform) {
   let loadVersion = 0;
   /** Gives a join waiting on the device question its answer. */
   let answer: ((choice: CallDevices | null) => void) | null = null;
-  const write = (joinMuted: boolean, devices: CallDevices, devicesChecked: boolean) => {
-    if (store.getState().saving) return initialization;
+  const write = (
+    joinMuted: boolean,
+    devices: CallDevices,
+    devicesChecked: boolean,
+  ): Promise<boolean> => {
+    // Another choice is being kept, so this one is not.
+    if (store.getState().saving) return initialization.then(() => false);
     // An explicit acknowledged choice supersedes every older preference read.
     const version = ++loadVersion;
     const known = store.getState().loaded;
@@ -108,6 +117,7 @@ function createPreferences(platform: Platform) {
       .then(() => {
         if (version === loadVersion)
           store.setState({ joinMuted, devices, devicesChecked, loaded: true, unreadable: false });
+        return true;
       })
       .catch(() => {
         if (version === loadVersion)
@@ -116,9 +126,10 @@ function createPreferences(platform: Platform) {
             unreadable: !known || store.getState().unreadable,
             error: "Could not save this preference. Please try again.",
           });
+        return false;
       })
       .finally(() => store.setState({ saving: false }));
-    initialization = writing;
+    initialization = writing.then(() => {});
     return writing;
   };
   /**

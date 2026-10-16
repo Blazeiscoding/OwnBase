@@ -68,7 +68,8 @@ interface Previews {
   damaged: boolean;
   saving: boolean;
   error: string | null;
-  setPreview: (account: string, preview: NotificationPreview) => Promise<void>;
+  /** Resolves true once the choice is kept; false when it was not, or another was being kept. */
+  setPreview: (account: string, preview: NotificationPreview) => Promise<boolean>;
 }
 
 const KEY = "notification-previews";
@@ -136,7 +137,7 @@ function createPreviews(platform: Platform) {
     error: null,
     setPreview: async (account, preview) => {
       const { loaded, saving, byAccount, damaged } = store.getState();
-      if (!loaded || saving) return;
+      if (!loaded || saving) return false;
       // Choosing again after saved choices were lost or damaged keeps every
       // account whose choice is not known private, rather than showing all.
       const changes: Record<string, string> = { [account]: preview };
@@ -164,6 +165,7 @@ function createPreviews(platform: Platform) {
         saving: false,
         ...(saved ? {} : { error: "Could not save this choice. Please try again." }),
       });
+      return saved;
     },
   }));
   /**

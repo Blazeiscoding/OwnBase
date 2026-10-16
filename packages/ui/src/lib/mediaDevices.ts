@@ -71,15 +71,15 @@ export async function chooseDevices(
   client: WorkspaceClient,
   current: CallDevices,
   patch: CallDevices,
-  save: (patch: CallDevices) => Promise<void>,
-): Promise<void> {
+  save: (patch: CallDevices) => Promise<boolean>,
+): Promise<boolean> {
   if (client.state.huddle) {
     const next = { ...current, ...patch };
     if (MICROPHONE_KEYS.some((key) => key in patch))
       await client.setMicrophone(microphoneOf(stripped(next)));
     if ("cameraId" in patch) await client.setCamera(next.cameraId || undefined);
   }
-  await save(patch);
+  return save(patch);
 }
 
 /** Without keys set to undefined, which `microphoneOf` would pass along. */

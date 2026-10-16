@@ -1447,6 +1447,35 @@ textarea::placeholder {
 }
 
 /*
+ * Account settings as a page (UX-60): its list of sections on the app's own
+ * colour, as the sidebar is, and the section on the conversation's. In the
+ * desktop app it starts under the title bar, whose window controls would
+ * otherwise sit over its corner.
+ */
+.settings-nav {
+  background: var(--color-deep);
+}
+.settings-page-under-titlebar {
+  top: 2.5rem;
+}
+/* A setting a search went to, marked for a moment for whoever sees no focus ring. */
+.setting-found {
+  border-radius: 0.5rem;
+  animation: setting-found 1.6s var(--ease-smooth);
+}
+@keyframes setting-found {
+  from,
+  30% {
+    background: color-mix(in oklab, var(--color-copper) 10%, transparent);
+    box-shadow: 0 0 0 6px color-mix(in oklab, var(--color-copper) 10%, transparent);
+  }
+  to {
+    background: transparent;
+    box-shadow: 0 0 0 6px transparent;
+  }
+}
+
+/*
  * The theme cards in Account settings: each shows its theme in miniature
  * (the window, the sidebar and the conversation card) whatever theme is on now.
  */

@@ -9,6 +9,7 @@ import {
 import { useClient } from "../context.js";
 import { microphoneOf, useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices, useSpeaker } from "../lib/mediaDevices.js";
+import { useSaved } from "../lib/savedNote.js";
 import { inputCls } from "./Dialog.js";
 import { MicrophoneCheck } from "./MicrophoneCheck.js";
 import { buttonClass } from "./Button.js";
@@ -59,10 +60,12 @@ const PROCESSING = [
  * Voice & video: which microphone, speaker and camera huddles use, how the
  * microphone's sound is cleaned up, and a way to hear and see each before a
  * call. Each choice is kept on this device for every workspace, and changes
- * a huddle in progress at once.
+ * a huddle in progress at once. Untitled where the page around it already
+ * names it.
  */
-export function VoiceVideoSettings() {
+export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {}) {
   const client = useClient();
+  const saved = useSaved();
   const calls = useCallPreferences();
   const devices = useMediaDevices();
   const [failure, setFailure] = useState<{ kind: CaptureKind; message: string } | null>(null);
@@ -76,7 +79,7 @@ export function VoiceVideoSettings() {
     setBusy(true);
     setFailure(null);
     try {
-      await chooseDevices(client, chosen, patch, calls.setDevices);
+      if (await chooseDevices(client, chosen, patch, calls.setDevices)) saved();
     } catch (err) {
       setFailure({
         kind,
@@ -96,10 +99,12 @@ export function VoiceVideoSettings() {
     );
 
   return (
-    <section aria-labelledby="account-calls-title" className="space-y-6">
-      <h3 id="account-calls-title" className="font-semibold">
-        Voice &amp; video
-      </h3>
+    <section aria-labelledby={titled ? "account-calls-title" : undefined} className="space-y-6">
+      {titled && (
+        <h3 id="account-calls-title" className="font-semibold">
+          Voice &amp; video
+        </h3>
+      )}
 
       {devices.listed && !devices.named && (
         <div className="rounded-lg border border-edge p-3 text-sm text-ink-dim">
@@ -141,7 +146,9 @@ export function VoiceVideoSettings() {
             value={chosen.speakerId}
             systemDefault={devices.defaultSpeaker}
             disabled={disabled}
-            onChange={(speakerId) => void calls.setDevices({ speakerId })}
+            onChange={(speakerId) =>
+              void calls.setDevices({ speakerId }).then((kept) => kept && saved())
+            }
           />
           <SpeakerTest speakerId={chosen.speakerId ?? ""} />
         </div>
@@ -206,7 +213,9 @@ export function VoiceVideoSettings() {
             type="checkbox"
             checked={calls.joinMuted}
             disabled={!calls.loaded || calls.saving}
-            onChange={(event) => void calls.setJoinMuted(event.target.checked)}
+            onChange={(event) =>
+              void calls.setJoinMuted(event.target.checked).then((kept) => kept && saved())
+            }
           />
           Join huddles with my microphone off
         </label>
