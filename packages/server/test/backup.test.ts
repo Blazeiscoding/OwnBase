@@ -402,7 +402,11 @@ describe("an isolated restore", () => {
     const ran = await api(`/api/channels/${world.general}/commands`, owner.token, "POST", {
       text: "/deploy staging",
     });
-    expect(ran.body).toEqual({ ok: false, error: "command_failed" });
+    expect(ran.body).toEqual({
+      ok: false,
+      error: "command_failed",
+      message: "this is an isolated copy of the workspace, which does not contact apps",
+    });
     await server!.flushEventDeliveries();
     expect(received).toEqual([]);
 

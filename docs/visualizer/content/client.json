@@ -21,7 +21,8 @@
         "Methods cover authentication, profiles, channels, message history and search, reactions, schedules, app administration, audit entries and operating status. UI code calls these methods instead of constructing endpoints repeatedly.",
         "File uploads expose progress and cancellation. File bytes use authenticated fetch; a separately scoped download ticket supports native downloads without placing the session token into a download URL.",
         "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust.",
-        "listPins takes a page size and passes on the server's total, which older servers leave out."
+        "listPins takes a page size and passes on the server's total, which older servers leave out.",
+        "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -631,6 +632,17 @@
         "onlyOnItsNetwork tells a private, link-local, carrier-grade NAT (Tailscale) or .local address, which a phone on mobile data cannot reach, from one anyone can."
       ],
       "concepts": ["invite links", "UX-43"]
+    },
+    {
+      "path": "packages/ui/src/lib/appTemplates.ts",
+      "plain": "The three ways Apps and integrations offers to start, an incoming webhook, a slash command and posting CI results, and the examples each one gives to copy.",
+      "summary": "Template names, test messages and copyable examples for Apps and integrations (UX-63).",
+      "details": [
+        "curlExample posts WEBHOOK_EXAMPLE, the same message Send test message posts. ciExample is a GitHub Actions step that reads the webhook URL from the TANDEM_WEBHOOK_URL repository secret and builds its JSON with jq from environment variables, so a quote in a branch name cannot break it.",
+        "commandExample is a Node service with nothing to install that checks the request's signature and timestamp as INTEGRATIONS.md describes and answers privately. appTemplates.test.ts runs it against signed, unsigned and stale requests.",
+        "commandName stores a command as the server does (no slash, lower case); suggestedAppName names the app a template makes."
+      ],
+      "concepts": ["integration templates", "UX-63"]
     },
     {
       "path": "packages/ui/src/lib/pagedList.ts",
@@ -1309,13 +1321,17 @@
       "details": [
         "Creates and removes integrations and exposes explicit credential replacement actions. Bot tokens shown once stay only in this UI session; rereadable secrets have reveal/copy controls.",
         "Configures slash commands, event subscriptions and verified interactivity URLs; refreshes composer command hints when those change.",
-        "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported. The integration contract link explains supported behavior and differences from Slack."
+        "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported.",
+        "It opens on templates (UX-63): Incoming webhook, Slash command and Post CI results, as tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another. A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails.",
+        "OAuth, Socket Mode, ts and the link to the published integration contract are folded into How this differs from Slack."
       ],
       "concepts": [
         "integration administration",
         "credential rotation",
         "delivery queues",
-        "callback contract"
+        "callback contract",
+        "integration templates",
+        "UX-63"
       ]
     },
     {

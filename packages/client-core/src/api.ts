@@ -597,6 +597,29 @@ export class Api {
     return this.request("DELETE", `/api/webhooks/${id}`);
   }
 
+  /**
+   * Posts to an incoming webhook the way any other tool would, so a test
+   * proves the URL itself works. The URL is the webhook's whole authority, so
+   * no session token goes with it, and success is Slack's plain-text "ok"
+   * rather than JSON, which `request` would fail to read.
+   */
+  async postToWebhook(url: string, payload: { text: string }): Promise<void> {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10_000),
+    });
+    if (res.ok) return;
+    let code = "http_error";
+    try {
+      code = ((await res.json()) as { error?: string }).error ?? code;
+    } catch {
+      /* non-JSON error body */
+    }
+    throw new ApiError(res.status, code);
+  }
+
   createCommand(
     appId: ID,
     body: { command: string; url: string; description?: string; usageHint?: string },
@@ -629,7 +652,14 @@ export class Api {
     return this.request("GET", "/api/commands");
   }
 
-  runCommand(channelId: ID, body: { text: string; threadRootId?: ID }): Promise<{ ok: boolean }> {
+  /**
+   * A command whose app failed answers `ok: false` with why, in `message`;
+   * older servers leave the reason out and only tell the channel.
+   */
+  runCommand(
+    channelId: ID,
+    body: { text: string; threadRootId?: ID },
+  ): Promise<{ ok: boolean; error?: string; message?: string }> {
     return this.request("POST", `/api/channels/${channelId}/commands`, body);
   }
 
