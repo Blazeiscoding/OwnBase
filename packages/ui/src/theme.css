@@ -1085,6 +1085,14 @@ textarea::placeholder {
     flex: none;
     overflow: visible;
   }
+  /*
+   * The rail and the list take their whole height too, so what comes under
+   * them (a guest's offer, the account panel) follows the last channel
+   * rather than being drawn over it.
+   */
+  .workspace-sidebar > :has(> .sidebar-column) {
+    flex: 1 0 auto;
+  }
 }
 
 /*
