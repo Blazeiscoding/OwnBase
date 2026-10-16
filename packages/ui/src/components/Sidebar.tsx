@@ -10,6 +10,7 @@ import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, Swap, useChanges } from "./Motion.js";
+import { KeepAccountOffer } from "./KeepAccountOffer.js";
 import { useOptionalToast } from "./Toast.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
@@ -416,6 +417,7 @@ export function Sidebar(props: Props) {
           </div>
         </div>
       </div>
+      {guest && props.onCreateAccount && <KeepAccountOffer onKeep={props.onCreateAccount} />}
       {/* Discord's floating panel: you, across the foot of the rail and the list. */}
       <footer className="user-panel m-2 mt-0 shrink-0 rounded-xl border border-edge bg-raised p-1.5 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)]">
         {snoozed && <SnoozedNotice until={dndUntil!} />}

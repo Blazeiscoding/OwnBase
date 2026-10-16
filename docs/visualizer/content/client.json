@@ -284,7 +284,7 @@
       "summary": "Defines the shared visual system, responsive layout and accessibility styling.",
       "details": [
         "Semantic surface, ink, accent, border and alert tokens support Onyx, White and system appearance. Density attributes adjust message and sidebar spacing without changing component behavior.",
-        "The stylesheet centralizes font, spacing, radius and focus conventions, plus compact-window/drawer behavior and motion-related presentation. UI theme controls and native shell colors are intended to stay consistent with these tokens.",
+        "The stylesheet centralizes font, spacing, radius and focus conventions, plus compact-window/drawer behavior and motion-related presentation. UI theme controls and native shell colors are intended to stay consistent with these tokens. In a short window, such as a phone on its side, the drawer scrolls as one column, and the rail and the list keep their whole height, so the account panel and a guest's offer come after the last channel rather than over it.",
         "It also holds the dialog layout: a capped column whose scrolling region keeps a constant content width through container units, contains overscroll, and fades at an edge with more beyond it through a scroll timeline.",
         "Theme tests check the project's chosen type/radius scale and color contrast; these checks support consistency without replacing manual usability inspection.",
         "Motion follows transitions.dev's scale, written down as tokens: durations, two easings and distances and blurs, each named for what it is for. Surfaces open in 250 ms and close in 150 ms; arrivals may overshoot and departures never do. The keyframes name only where they start and fill backwards, so a finished animation leaves no transform behind. The phone drawer slides both ways with @starting-style and a discrete display transition, and asking for less motion stops all of it.",
@@ -1212,7 +1212,7 @@
         "A compact workspace rail and workspace menu expose remembered workspaces without presenting saved tokens to the visible navigation.",
         "Channel and DM rows show unread/muted/activity state and choose destinations supplied by the workspace screen. Admin actions appear only where the current account can use them.",
         "Snooze controls compute actual resume times and use the client's latest-choice behavior. Menu grouping saves vertical space so short windows retain room for conversations.",
-        "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings.",
+        "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings. Once the guest has posted, KeepAccountOffer sits above the account panel (UX-44).",
         "A channel's row ends with Discord's two buttons while it is pointed at, holds the keyboard, or is open: invite and settings. Invite on a public channel opens the workspace's invite, since everyone in the workspace is in every public channel, and only for someone who may invite; on a private one it is Add people, which opens the channel's Members tab, for someone channelPermissions lets invite. The gear opens the channel's details, opening the channel first if it is not the one on screen. The buttons sit beside the row's button, not in it, and on a touchscreen show on the open channel only.",
         "HostingStatus is this computer's hosting, under the workspace's name and its connection line (UX-25): a dot for live, starting or stopping, or trouble, what it is doing or what is wrong, and Manage (named Manage hosting for a screen reader). A warning is an alert. It replaced a bar along the bottom of the window, and leaves out the workspace's name when the hosted workspace is the one on screen. The storage gate's waiting screen shows it too."
       ],
@@ -1417,6 +1417,17 @@
         "The checklist can disappear after completion or explicit dismissal. N04's screen wiring makes its huddle action use the preference-aware join operation."
       ],
       "concepts": ["onboarding", "observed completion", "N04"]
+    },
+    {
+      "path": "packages/ui/src/components/KeepAccountOffer.tsx",
+      "plain": "A small card in a guest's sidebar, shown after their first message, offering to keep them as an account with their name, their messages and a place in private conversations.",
+      "summary": "Offers a guest the keep-account form once, after the server has accepted their first message.",
+      "details": [
+        "A guest has posted once the replica holds a message of theirs: only the server's copy reaches a timeline or a thread, while one still sending or failed waits in pending. A guest who posted before the card existed is found the same way, and the first sighting is stored, so a reload offers it even where that message is not loaded.",
+        "Not now, or Keep this account, puts it away for that account on this device: stored per workspace and account like the setup checklist, and remembered by the page as well, so a save that fails does not bring it back before a reload. Storage that cannot be read means it is not offered at all, since an earlier Not now cannot be ruled out; the menus still have Create an account.",
+        "Keep this account opens the same form as Create an account in the menus. The card sits above the account panel, so the channel list does not move when it appears, and its width is contained, so its words never widen the sidebar; it takes no focus and makes no announcement, and focus inside it when it is put away goes to the account button. It goes as soon as the guest is a member."
+      ],
+      "concepts": ["guest access", "onboarding", "per-device memory", "UX-44"]
     },
     {
       "path": "packages/ui/src/components/NotificationBanner.tsx",
