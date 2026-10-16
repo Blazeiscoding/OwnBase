@@ -178,7 +178,9 @@ describe("the conversation's header", () => {
 
     await user.click(within(menu).getByRole("menuitem", { name: "Search in #general" }));
     const dialog = await screen.findByRole("dialog", { name: "Search messages" });
-    expect(within(dialog).getByRole("combobox", { name: "Conversation" })).toHaveValue(general.id);
+    expect(
+      within(dialog).getByRole("button", { name: "Remove filter: In #general" }),
+    ).toBeVisible();
     await waitFor(() =>
       expect(search).toHaveBeenCalledWith(
         "",

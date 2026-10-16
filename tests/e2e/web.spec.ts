@@ -1281,9 +1281,10 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   const search = page.getByRole("dialog", { name: "Search messages", exact: true });
   const searchBox = search.getByRole("textbox", { name: "Search messages", exact: true });
   await expect(searchBox).toBeFocused();
-  await expect(search.getByRole("combobox", { name: "Conversation", exact: true })).toHaveValue(
-    channel.id,
-  );
+  // The conversation is a filter like any other, one click to take away (UX-51).
+  await expect(
+    search.getByRole("button", { name: "Remove filter: In #design-studio", exact: true }),
+  ).toBeVisible();
   await searchBox.pressSequentially("zebracrossingquartz");
   // A search that finds nothing says so where the dialog says what it is
   // doing, and says what to try instead.
@@ -1293,8 +1294,28 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   // It follows further typing without being asked again, a word found from
   // its start.
   await searchBox.fill("welc");
-  await expect(search.getByRole("status").filter({ hasText: "results" })).toContainText("“welc”");
+  await expect(search.getByRole("status").filter({ hasText: "Newest first" })).toContainText(
+    "“welc”",
+  );
   await expect(search.getByText(/A little space for big ideas/)).toBeVisible();
+  // A modifier typed in the field becomes a chip once a space follows it, and
+  // what it finds starts close under the field, not under a panel of filters.
+  await searchBox.fill("");
+  await searchBox.pressSequentially("from:@maya direction");
+  const fromMaya = search.getByRole("button", {
+    name: "Remove filter: From Maya Chen",
+    exact: true,
+  });
+  await expect(fromMaya).toBeVisible();
+  await expect(searchBox).toHaveValue("direction");
+  const found = search.getByRole("listitem").filter({ hasText: "The new direction is ready" });
+  await expect(found).toBeVisible();
+  const fieldBox = (await searchBox.boundingBox())!;
+  const foundBox = (await found.boundingBox())!;
+  expect(foundBox.y - (fieldBox.y + fieldBox.height)).toBeLessThan(150);
+  await fromMaya.click();
+  await expect(fromMaya).toHaveCount(0);
+  await expect(searchBox).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(search).toHaveCount(0);
   // Scheduled messages are yours, so they are in the menu on your name. Chosen

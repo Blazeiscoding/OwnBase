@@ -51,6 +51,8 @@ export class PagedList<T extends { id: string }> {
   private more: AbortController | null = null;
   /** The next read from the top is one the reader asked for, so it is seen. */
   private shown = true;
+  /** The next read from the top is of a different list, so one page is enough. */
+  private fresh = true;
   private reading = false;
 
   constructor(
@@ -65,11 +67,21 @@ export class PagedList<T extends { id: string }> {
     return this.state;
   }
 
-  /** A different list, or the first time: drop what is shown and read the first page now. */
-  start(): void {
+  /**
+   * A different list, or the first time: read its first page now. What is
+   * shown goes at once, unless `keep` is set and there is something to keep:
+   * then it stays until the first page replaces it, as search results do
+   * while the next question is out, so typing does not flash the list empty.
+   */
+  start(opts: { keep?: boolean } = {}): void {
     this.dropMore();
     this.shown = true;
-    this.set({ ...EMPTY });
+    this.fresh = true;
+    this.set(
+      opts.keep && this.state.items?.length
+        ? { loading: true, refreshing: false, failed: false, moreFailed: false }
+        : { ...EMPTY },
+    );
     this.loader.now();
   }
 
@@ -125,7 +137,8 @@ export class PagedList<T extends { id: string }> {
     this.dropMore();
     const shown = this.shown;
     this.shown = false;
-    const want = Math.max(this.state.items?.length ?? 0, 1);
+    // Rows kept from another list say nothing about how far to read this one.
+    const want = this.fresh ? 1 : Math.max(this.state.items?.length ?? 0, 1);
     this.reading = true;
     this.set(shown ? { loading: true, failed: false } : { refreshing: true });
     try {
@@ -137,6 +150,7 @@ export class PagedList<T extends { id: string }> {
         if (!page.nextCursor || items.length >= want || pages >= PAGED_REFRESH_PAGES) break;
         page = await this.load(page.nextCursor, signal);
       }
+      this.fresh = false;
       this.set({
         items,
         nextCursor: page.nextCursor,
@@ -172,13 +186,15 @@ function joined<T extends { id: string }>(before: T[], after: T[]): T[] {
 
 /**
  * A `PagedList` for a component. A change in `key` is a different list, read
- * from its first page; `load` is read when each page is asked for, so it may
- * close over the latest props.
+ * from its first page, with what is shown kept meanwhile when `keep` is set;
+ * `load` is read when each page is asked for, so it may close over the latest
+ * props.
  */
 export function usePagedList<T extends { id: string }>(
   load: (cursor: string | undefined, signal: AbortSignal) => Promise<Page<T>>,
   key: string,
   delayMs = PAGED_REFRESH_DELAY_MS,
+  { keep = false }: { keep?: boolean } = {},
 ) {
   const latest = useRef(load);
   latest.current = load;
@@ -187,8 +203,9 @@ export function usePagedList<T extends { id: string }>(
     () => new PagedList<T>((cursor, signal) => latest.current(cursor, signal), setState, delayMs),
   );
   useEffect(() => {
-    list.start();
+    list.start({ keep });
     return () => list.stop();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a list keeps rows or not for good
   }, [list, key]);
   return { ...state, list };
 }
