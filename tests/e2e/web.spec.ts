@@ -4528,6 +4528,72 @@ test("a message is answered in place or in its thread, as in Discord", async ({ 
   ).toBeVisible();
 });
 
+test("a starred channel sits under Starred, stays there after a reload, and goes back when unstarred (UX-20)", async ({
+  page,
+}) => {
+  const login = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ handle: "alice", password: "password123" }),
+  });
+  const alice = { authorization: `Bearer ${((await login.json()) as { token: string }).token}` };
+  const created = await fetch(`${base}/api/channels`, {
+    method: "POST",
+    headers: { ...alice, "content-type": "application/json" },
+    body: JSON.stringify({ name: "design", type: "public" }),
+  });
+  expect(created.status).toBe(201);
+  const design = ((await created.json()) as { channel: { id: string } }).channel.id;
+
+  await signIn(page, "alice");
+  const nav = page.getByRole("navigation", { name: "Workspace navigation" });
+  /** The rows listed under a section's header. */
+  const under = (section: string) =>
+    nav.locator(`div:has(> [data-section-toggle="${section}"]) + ul`);
+  const designRow = (within: Locator) => within.getByRole("button", { name: /^#\s*design$/ });
+  const starred = nav.getByRole("button", { name: "Starred", exact: true });
+  await expect(designRow(under("channels"))).toBeVisible();
+  await expect(starred).toHaveCount(0);
+
+  // From the row's own More menu, which shows while the row is pointed at.
+  await designRow(nav).hover();
+  await nav.getByRole("button", { name: "More options for design" }).click();
+  await page.getByRole("menuitem", { name: "Star channel" }).click();
+  await expect(starred).toHaveAttribute("aria-expanded", "true");
+  await expect(designRow(under("starred"))).toBeVisible();
+  await expect(designRow(under("channels"))).toHaveCount(0);
+  // Kept by the workspace for this account: an empty change answers with what it has.
+  const stored = async () =>
+    (
+      (await (
+        await fetch(`${base}/api/channels/${design}/prefs`, {
+          method: "PATCH",
+          headers: { ...alice, "content-type": "application/json" },
+          body: "{}",
+        })
+      ).json()) as { prefs: { starred?: boolean } }
+    ).prefs.starred;
+  await expect.poll(stored).toBe(true);
+
+  await page.reload();
+  await expect(page.locator("textarea")).toBeVisible();
+  await expect(designRow(under("starred"))).toBeVisible();
+  await expect(designRow(under("channels"))).toHaveCount(0);
+
+  // Unstarred from the conversation's own menu, it goes back among the channels.
+  await designRow(under("starred")).click();
+  await expect(page.getByRole("textbox", { name: "Message #design" })).toBeVisible();
+  await page.getByRole("button", { name: "Conversation options" }).click();
+  await page.getByRole("menuitem", { name: "Unstar channel" }).click();
+  await expect(starred).toHaveCount(0);
+  await expect(designRow(under("channels"))).toBeVisible();
+  await expect.poll(stored).toBe(false);
+  await page.reload();
+  await expect(page.locator("textarea")).toBeVisible();
+  await expect(designRow(under("channels"))).toBeVisible();
+  await expect(starred).toHaveCount(0);
+});
+
 test("Activity, Threads and Scheduled keep themselves current while open (UX-08)", async ({
   browser,
 }) => {

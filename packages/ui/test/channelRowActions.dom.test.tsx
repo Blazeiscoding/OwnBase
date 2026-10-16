@@ -14,9 +14,10 @@ import { accessibilityProblems } from "./accessibility.js";
 
 /**
  * Discord's two buttons at the end of a channel's row: invite, and the
- * channel's settings. Inviting to a public channel is inviting to the
- * workspace, since everyone in it is in every public channel; a private one
- * is joined by being added, from its Members tab.
+ * channel's settings, then More, with Star and Mute (UX-20). Inviting to a
+ * public channel is inviting to the workspace, since everyone in it is in
+ * every public channel; a private one is joined by being added, from its
+ * Members tab.
  */
 const person = (role: User["role"], canInvite?: boolean): User => ({
   id: "U_SAM",
@@ -62,7 +63,7 @@ function sidebar(self: User) {
   clients.push(client);
   client.store.setState({
     self,
-    users: { [self.id]: self },
+    users: { [self.id]: self, U_MAYA: { ...person("member"), id: "U_MAYA", displayName: "Maya" } },
     channels: { [general.id]: general, [leads.id]: leads, [dm.id]: dm },
     memberships: { [general.id]: 0, [leads.id]: 0, [dm.id]: 0 },
     status: "online",
@@ -101,19 +102,26 @@ function sidebar(self: User) {
 }
 
 describe("a channel's row in the sidebar", () => {
-  it("ends with invite and settings, which do what they say", async () => {
+  it("ends with invite, settings and More, which do what they say", async () => {
     const { onInvite, onChannelDetails, row, user } = sidebar(person("member"));
     expect(row(/^#\s*general$/).slice(1)).toEqual([
       "Invite people",
       "Channel settings for general",
+      "More options for general",
     ]);
     expect(row(/^Private channel\s*leads$/).slice(1)).toEqual([
       "Add people to leads",
       "Channel settings for leads",
+      "More options for leads",
     ]);
-    // A direct message has neither.
+    // A direct message has neither invite nor settings, only More.
     const dmRow = [...document.querySelectorAll<HTMLElement>("li.channel-item")].at(-1)!;
-    expect(within(dmRow).getAllByRole("button")).toHaveLength(1);
+    expect(
+      within(dmRow)
+        .getAllByRole("button")
+        .map((button) => button.getAttribute("aria-label"))
+        .slice(1),
+    ).toEqual(["More options for Maya"]);
 
     await user.click(screen.getByRole("button", { name: "Invite people" }));
     expect(onInvite).toHaveBeenCalledOnce();
@@ -125,17 +133,24 @@ describe("a channel's row in the sidebar", () => {
 
   it("offers inviting only to someone who may invite", () => {
     const { row } = sidebar(person("member", false));
-    expect(row(/^#\s*general$/).slice(1)).toEqual(["Channel settings for general"]);
+    expect(row(/^#\s*general$/).slice(1)).toEqual([
+      "Channel settings for general",
+      "More options for general",
+    ]);
     // Adding to a private channel is the channel's to allow, not the workspace's.
     expect(row(/^Private channel\s*leads$/).slice(1)).toEqual([
       "Add people to leads",
       "Channel settings for leads",
+      "More options for leads",
     ]);
   });
 
-  it("offers a guest the settings only", () => {
+  it("offers a guest the settings and More only", () => {
     const { row } = sidebar(person("guest"));
-    expect(row(/^#\s*general$/).slice(1)).toEqual(["Channel settings for general"]);
+    expect(row(/^#\s*general$/).slice(1)).toEqual([
+      "Channel settings for general",
+      "More options for general",
+    ]);
   });
 
   it("keeps the buttons beside the row's own, not inside it", async () => {
@@ -147,11 +162,11 @@ describe("a channel's row in the sidebar", () => {
 });
 
 describe("the stylesheet", () => {
-  it("shows a row's buttons only while it is pointed at, holds focus, or is open", () => {
+  it("shows a row's buttons only while it is pointed at, holds focus, is open, or has its menu open", () => {
     const css = readFileSync(join(process.cwd(), "src/theme.css"), "utf8");
     expect(css).toMatch(/\.channel-actions \{\s*display: none;\s*\}/);
     expect(css).toContain(
-      ".channel-item:is(:hover, :focus-within, [data-active]) .channel-actions {\n  display: flex;",
+      ".channel-item:is(:hover, :focus-within, [data-active], [data-menu-open]) .channel-actions {\n  display: flex;",
     );
   });
 });

@@ -162,6 +162,11 @@ export interface ReadySnapshot {
   scheduledEvents?: true;
   /** This server answers Activity's `threads` mode; an older one refuses it. */
   activityThreads?: true;
+  /**
+   * This server keeps a star per conversation, `ChannelPrefs.starred`. An
+   * older one drops a star sent to it without saying so, so it is not offered.
+   */
+  stars?: true;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;

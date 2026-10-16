@@ -79,6 +79,12 @@ export interface ChannelPrefs {
   notifyLevel: NotifyLevel;
   /** Muted channels never notify and stay quiet in the sidebar. */
   muted: boolean;
+  /**
+   * Listed under Starred, above Channels, for this account alone (UX-20).
+   * Absent from servers before schema v40, which keep no stars: read it as
+   * false. See `ReadySnapshot.stars`.
+   */
+  starred?: boolean;
 }
 
 export interface ChannelMembership extends ChannelPrefs {

@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { channelPermissions, type Channel, type ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { unreadThreadCount } from "@slackoss/client-core";
@@ -15,6 +15,7 @@ import { useOptionalToast } from "./Toast.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
+import { muteItem, starItem, type Conversation } from "../lib/conversationChoices.js";
 
 interface Props {
   activeChannelId: ID | null;
@@ -125,13 +126,15 @@ export function Sidebar(props: Props) {
   const users = useWorkspace((s) => s.users);
   const presence = useWorkspace((s) => s.presence);
   const self = useWorkspace((s) => s.self);
+  const selfId = self?.id;
   // A guest has public channels only: no DMs, rooms of its own, friends or schedules.
   const guest = self?.role === "guest";
   // Older servers do not send the flag; every member could invite there.
   const canInvite = !guest && (self?.canInvite ?? true);
 
   /**
-   * Discord's two actions at the end of a channel's row: invite and settings.
+   * Discord's two actions at the end of a channel's row: invite and settings,
+   * before the row's More menu.
    * Everyone in a public channel is everyone in the workspace, so inviting to
    * one invites to the workspace; a private one is joined by being added.
    */
@@ -160,6 +163,8 @@ export function Sidebar(props: Props) {
   }
   const drafts = useWorkspace((s) => s.drafts);
   const prefs = useWorkspace((s) => s.prefs);
+  // An older server keeps no stars, so none is offered there.
+  const stars = useWorkspace((s) => s.stars);
   const huddles = useWorkspace((s) => s.huddles);
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
@@ -167,21 +172,26 @@ export function Sidebar(props: Props) {
   const others = props.otherWorkspaces ?? [];
   const name = workspaceName || "Connecting…";
 
-  const { rooms, dms } = useMemo(() => {
+  const { starred, rooms, dms } = useMemo(() => {
+    const starred: Channel[] = [];
     const rooms: Channel[] = [];
     const dms: Channel[] = [];
     for (const ch of Object.values(channels)) {
-      if (ch.archived) continue;
-      if (ch.type === "dm" || ch.type === "group_dm") {
-        if (ch.id in memberships) dms.push(ch);
-      } else if (ch.id in memberships) {
-        rooms.push(ch);
-      }
+      // An archived channel keeps its star, and comes back to Starred with it.
+      if (ch.archived || !(ch.id in memberships)) continue;
+      // Starred moves a conversation out of its usual section, as Slack's does.
+      if (prefs[ch.id]?.starred) starred.push(ch);
+      else if (isDirect(ch)) dms.push(ch);
+      else rooms.push(ch);
     }
+    // By name, channels and people together, so a row stays where it was put
+    // rather than jumping each time a message arrives.
+    const named = (ch: Channel) => (isDirect(ch) ? channelTitle(ch, users, selfId) : ch.name);
+    starred.sort((a, b) => named(a).localeCompare(named(b)));
     rooms.sort((a, b) => a.name.localeCompare(b.name));
     dms.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
-    return { rooms, dms };
-  }, [channels, memberships, channelLastSeq]);
+    return { starred, rooms, dms };
+  }, [channels, memberships, channelLastSeq, prefs, users, selfId]);
 
   const isUnread = (id: ID) => (channelLastSeq[id] ?? 0) > (memberships[id] ?? 0);
   const hasDraft = (id: ID) => !!drafts[id];
@@ -208,8 +218,118 @@ export function Sidebar(props: Props) {
     (isUnread(id) && !isMuted(id)) ||
     mentions(id) > 0;
 
+  const client = useClient();
+  const toast = useOptionalToast();
+  const nav = useRef<HTMLElement>(null);
+  /**
+   * A row starred or unstarred from its own menu moves to another section, and
+   * the menu's button goes with it. Focus follows it there, or to the header
+   * of a folded section it went into, rather than falling out of the sidebar.
+   */
+  const moved = useRef<{ id: ID; section: string } | null>(null);
+  useEffect(() => {
+    const to = moved.current;
+    if (!to) return;
+    moved.current = null;
+    const row = nav.current?.querySelector<HTMLElement>(`[data-conversation="${to.id}"]`);
+    if (row) {
+      // A row's buttons are hidden until it holds focus (theme.css), and a
+      // hidden button cannot take it, so the row's own button takes it first.
+      row.querySelector<HTMLElement>(".channel-row")?.focus();
+      row.querySelector<HTMLElement>('[aria-haspopup="menu"]')?.focus();
+    } else {
+      nav.current?.querySelector<HTMLElement>(`[data-section-toggle="${to.section}"]`)?.focus();
+    }
+  });
+
+  /** A row's own menu: Star or Unstar, and Mute or Unmute, named by what they do now. */
+  function rowMenu(ch: Channel, label: string): RowMenu {
+    const conversation: Conversation = {
+      id: ch.id,
+      noun: isDirect(ch) ? "conversation" : "channel",
+    };
+    const items: MenuItem[] = [];
+    if (stars) {
+      const isStarred = prefs[ch.id]?.starred === true;
+      const star = starItem(client, toast, conversation, isStarred);
+      const to = !isStarred ? "starred" : isDirect(ch) ? "dms" : "channels";
+      items.push({
+        ...star,
+        onSelect: () => {
+          moved.current = { id: ch.id, section: to };
+          star.onSelect();
+        },
+      });
+    }
+    items.push(muteItem(client, toast, conversation, isMuted(ch.id)));
+    return { label, items };
+  }
+
+  function roomRow(ch: Channel) {
+    return (
+      <ChannelRow
+        key={ch.id}
+        id={ch.id}
+        active={ch.id === props.activeChannelId}
+        unread={isUnread(ch.id)}
+        muted={isMuted(ch.id)}
+        draft={hasDraft(ch.id)}
+        huddle={huddleWith(ch.id)}
+        mentions={mentions(ch.id)}
+        onClick={() => props.onSelect(ch.id)}
+        actions={channelActions(ch)}
+        menu={rowMenu(ch, ch.name)}
+        icon={
+          ch.type === "private" ? (
+            <span role="img" aria-label="Private channel" title="Private channel">
+              <Icon name="lock" size={14} />
+            </span>
+          ) : (
+            // Drawn, and still read as "# general" as it was typed.
+            <>
+              <Icon name="hash" size={15} />
+              <span className="sr-only">#</span>
+            </>
+          )
+        }
+        label={ch.name}
+      />
+    );
+  }
+
+  function dmRow(ch: Channel) {
+    const others = (ch.memberIds ?? []).filter((id) => id !== self?.id);
+    const online = others.some((id) => presence[id] === "online");
+    const first = users[others[0] ?? ""];
+    const title = channelTitle(ch, users, self?.id);
+    return (
+      <ChannelRow
+        key={ch.id}
+        id={ch.id}
+        active={ch.id === props.activeChannelId}
+        unread={isUnread(ch.id)}
+        muted={isMuted(ch.id)}
+        draft={hasDraft(ch.id)}
+        huddle={huddleWith(ch.id)}
+        mentions={mentions(ch.id)}
+        onClick={() => props.onSelect(ch.id)}
+        menu={rowMenu(ch, title)}
+        icon={
+          first ? (
+            <AvatarWithPresence user={first} online={online} size={20} ring="var(--color-deep)" />
+          ) : (
+            <PresenceDot online={online} />
+          )
+        }
+        label={title}
+        roomy
+      />
+    );
+  }
+
   return (
     <nav
+      ref={nav}
       aria-label="Workspace navigation"
       // On a phone this is a drawer, closed by the time a panel opened from it
       // closes; focus then goes to the button that opens the drawer.
@@ -309,8 +429,26 @@ export function Sidebar(props: Props) {
               </li>
             </ul>
 
+            {starred.length > 0 && (
+              <>
+                <SectionHeader
+                  label="Starred"
+                  section="starred"
+                  collapsed={collapsed.has("starred")}
+                  onToggle={() => toggleSection("starred")}
+                  actions={[]}
+                />
+                <ul key={reopened.starred} className={`mb-4 space-y-px ${rowsIn("starred")}`}>
+                  {starred
+                    .filter((ch) => shown("starred", ch.id))
+                    .map((ch) => (isDirect(ch) ? dmRow(ch) : roomRow(ch)))}
+                </ul>
+              </>
+            )}
+
             <SectionHeader
               label="Channels"
+              section="channels"
               collapsed={collapsed.has("channels")}
               onToggle={() => toggleSection("channels")}
               actions={[
@@ -321,40 +459,13 @@ export function Sidebar(props: Props) {
               ]}
             />
             <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
-              {rooms
-                .filter((ch) => shown("channels", ch.id))
-                .map((ch) => (
-                  <ChannelRow
-                    key={ch.id}
-                    active={ch.id === props.activeChannelId}
-                    unread={isUnread(ch.id)}
-                    muted={isMuted(ch.id)}
-                    draft={hasDraft(ch.id)}
-                    huddle={huddleWith(ch.id)}
-                    mentions={mentions(ch.id)}
-                    onClick={() => props.onSelect(ch.id)}
-                    actions={channelActions(ch)}
-                    icon={
-                      ch.type === "private" ? (
-                        <span role="img" aria-label="Private channel" title="Private channel">
-                          <Icon name="lock" size={14} />
-                        </span>
-                      ) : (
-                        // Drawn, and still read as "# general" as it was typed.
-                        <>
-                          <Icon name="hash" size={15} />
-                          <span className="sr-only">#</span>
-                        </>
-                      )
-                    }
-                    label={ch.name}
-                  />
-                ))}
+              {rooms.filter((ch) => shown("channels", ch.id)).map(roomRow)}
             </ul>
 
             {!guest && (
               <SectionHeader
                 label="Direct messages"
+                section="dms"
                 collapsed={collapsed.has("dms")}
                 onToggle={() => toggleSection("dms")}
                 actions={[
@@ -369,41 +480,10 @@ export function Sidebar(props: Props) {
               />
             )}
             <ul key={reopened.dms} className={`space-y-px ${rowsIn("dms")}`}>
-              {dms
-                .filter((ch) => shown("dms", ch.id))
-                .map((ch) => {
-                  const others = (ch.memberIds ?? []).filter((id) => id !== self?.id);
-                  const online = others.some((id) => presence[id] === "online");
-                  const first = users[others[0] ?? ""];
-                  return (
-                    <ChannelRow
-                      key={ch.id}
-                      active={ch.id === props.activeChannelId}
-                      unread={isUnread(ch.id)}
-                      muted={isMuted(ch.id)}
-                      draft={hasDraft(ch.id)}
-                      huddle={huddleWith(ch.id)}
-                      mentions={mentions(ch.id)}
-                      onClick={() => props.onSelect(ch.id)}
-                      icon={
-                        first ? (
-                          <AvatarWithPresence
-                            user={first}
-                            online={online}
-                            size={20}
-                            ring="var(--color-deep)"
-                          />
-                        ) : (
-                          <PresenceDot online={online} />
-                        )
-                      }
-                      label={channelTitle(ch, users, self?.id)}
-                      roomy
-                    />
-                  );
-                })}
+              {dms.filter((ch) => shown("dms", ch.id)).map(dmRow)}
             </ul>
-            {dms.length === 0 && !guest && (
+            {/* For someone with nobody to talk to yet; starred ones still count. */}
+            {dms.length === 0 && !starred.some(isDirect) && !guest && (
               <button
                 onClick={props.onNewDm}
                 className="group mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"
@@ -876,6 +956,8 @@ function SnoozeControl() {
 
 function SectionHeader(props: {
   label: string;
+  /** Which section this heads, for focus to find its toggle by. */
+  section: string;
   /** Folded away, as Discord's categories fold; a click opens it again. */
   collapsed?: boolean;
   onToggle?: () => void;
@@ -887,6 +969,7 @@ function SectionHeader(props: {
       <button
         type="button"
         onClick={props.onToggle}
+        data-section-toggle={props.section}
         aria-expanded={props.onToggle ? !props.collapsed : undefined}
         className="flex min-w-0 flex-1 items-center gap-0.5 rounded-md py-1 pl-0.5 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-faint transition-colors hover:text-ink-dim"
       >
@@ -927,7 +1010,22 @@ interface RowAction {
   onClick: () => void;
 }
 
+/** The More menu at the very end of a conversation's row, named for the conversation. */
+interface RowMenu {
+  label: string;
+  items: MenuItem[];
+}
+
+/** A direct message or a group one, rather than a channel. */
+function isDirect(ch: Channel): boolean {
+  return ch.type === "dm" || ch.type === "group_dm";
+}
+
+const ROW_ACTION =
+  "flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.08] hover:text-ink";
+
 function ChannelRow(props: {
+  id: ID;
   active: boolean;
   unread: boolean;
   muted: boolean;
@@ -946,15 +1044,22 @@ function ChannelRow(props: {
    * the one open, as Discord shows its invite and settings (theme.css).
    */
   actions?: RowAction[];
+  /** More, after the actions; a right-click on the row opens it too. */
+  menu?: RowMenu;
 }) {
   const showUnread = props.unread && !props.active && !props.muted;
   // One that comes while the sidebar is open pops in, as the counts do.
   const unreadCame = useChanges(showUnread);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const actions = props.actions ?? [];
+  const count = actions.length + (props.menu ? 1 : 0);
   return (
     <li
       className="channel-item relative"
+      data-conversation={props.id}
       data-active={props.active || undefined}
-      data-actions={props.actions?.length || undefined}
+      data-actions={count || undefined}
+      data-menu-open={menuOpen || undefined}
     >
       {/* Discord's unread nub, at the very edge of the sidebar. */}
       {showUnread && (
@@ -967,6 +1072,13 @@ function ChannelRow(props: {
       )}
       <button
         onClick={props.onClick}
+        onContextMenu={
+          props.menu &&
+          ((event) => {
+            event.preventDefault();
+            setMenuOpen(true);
+          })
+        }
         aria-current={props.active ? "page" : undefined}
         className={`channel-row flex h-[34px] w-full items-center gap-2 rounded-lg px-2 text-left text-[15px] font-medium transition-colors ${
           props.active
@@ -1015,21 +1127,34 @@ function ChannelRow(props: {
           className="badge-mention tabular min-w-5 shrink-0 rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px]"
         />
       </button>
-      {props.actions && props.actions.length > 0 && (
+      {count > 0 && (
         // Beside the row's button, not in it: a button may not hold another.
         <span className="channel-actions absolute right-1 top-1/2 -translate-y-1/2 items-center gap-0.5">
-          {props.actions.map((action) => (
+          {actions.map((action) => (
             <Tooltip key={action.label} label={action.label}>
               <button
                 type="button"
                 aria-label={action.label}
                 onClick={action.onClick}
-                className="flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.08] hover:text-ink"
+                className={ROW_ACTION}
               >
                 <Icon name={action.icon} size={15} />
               </button>
             </Tooltip>
           ))}
+          {props.menu && (
+            <Menu
+              label={`Options for ${props.menu.label}`}
+              items={props.menu.items}
+              sheet
+              open={menuOpen}
+              onOpenChange={setMenuOpen}
+              tooltip="More"
+              triggerLabel={`More options for ${props.menu.label}`}
+              triggerContent={<Icon name="dots" size={15} strokeWidth={2} />}
+              triggerClassName={`icon-live ${ROW_ACTION}`}
+            />
+          )}
         </span>
       )}
     </li>

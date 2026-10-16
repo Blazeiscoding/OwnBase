@@ -1233,22 +1233,27 @@ textarea::placeholder {
 }
 
 /*
- * A channel's own actions, as Discord's: invite and settings at the end of its
- * row while the row is pointed at or holds the keyboard, and always on the
- * channel open. The row's words and counts make room rather than run under
- * them. Hidden, they are not in the Tab order; Tab onto the row shows them.
+ * A conversation's own actions, as Discord's: invite, settings and More at the
+ * end of its row while the row is pointed at or holds the keyboard, and always
+ * on the conversation open, or while its More menu is. The row's words and
+ * counts make room rather than run under them. Hidden, they are not in the Tab
+ * order; Tab onto the row shows them.
  */
 .channel-actions {
   display: none;
 }
-.channel-item:is(:hover, :focus-within, [data-active]) .channel-actions {
+.channel-item:is(:hover, :focus-within, [data-active], [data-menu-open]) .channel-actions {
   display: flex;
 }
-.channel-item[data-actions]:is(:hover, :focus-within, [data-active]) .channel-row {
+.channel-item[data-actions]:is(:hover, :focus-within, [data-active], [data-menu-open])
+  .channel-row {
   padding-right: calc(var(--row-actions, 2) * 26px + 6px);
 }
 .channel-item[data-actions="1"] {
   --row-actions: 1;
+}
+.channel-item[data-actions="3"] {
+  --row-actions: 3;
 }
 
 /*
