@@ -146,7 +146,9 @@ export function HuddleControls({
   };
 
   const choose = (kind: "microphone" | "camera", patch: CallDevices) =>
-    void guarded(kind, () => chooseDevices(client, calls.devices, patch, calls.setDevices));
+    void guarded(kind, async () => {
+      await chooseDevices(client, calls.devices, patch, calls.setDevices);
+    });
   const settings: MenuItem[] = onOpenSettings
     ? [
         {

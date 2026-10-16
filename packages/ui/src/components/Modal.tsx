@@ -179,13 +179,14 @@ const SCROLL_KEYS: Record<string, number> = {
 
 /**
  * A key that scrolls does so only from inside what scrolls, and a dialog's
- * name, its close button and a field kept above a list are outside it. Page Up
- * and Page Down reach it from those, and every key here from the dialog
- * itself, which is where focus is when nothing in it asked for it.
+ * name, its close button and a field kept above a list are outside it, as a
+ * settings page's list of sections is. Page Up and Page Down reach it from
+ * those, and every key here from the dialog itself, which is where focus is
+ * when nothing in it asked for it.
  */
 function scrollFromOutside(event: KeyboardEvent, panel: HTMLElement): boolean {
   const from = event.target as Element;
-  const scroller = panel.querySelector(".dialog-scroll");
+  const scroller = panel.querySelector(".dialog-scroll, .settings-scroll");
   const by = SCROLL_KEYS[event.key];
   if (!by || !scroller || scroller.contains(from)) return false;
   if (event.ctrlKey || event.altKey || event.metaKey) return false;

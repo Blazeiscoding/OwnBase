@@ -19,7 +19,8 @@ interface Appearance {
   density: Density;
   loaded: boolean;
   error: string | null;
-  set: (change: Partial<Pick<Appearance, "theme" | "density">>) => Promise<void>;
+  /** Resolves true once the choice is kept, false when it could not be and was put back. */
+  set: (change: Partial<Pick<Appearance, "theme" | "density">>) => Promise<boolean>;
 }
 
 const KEY = "appearance";
@@ -42,12 +43,14 @@ function createAppearance(platform: Platform) {
       store.setState({ ...next, error: null });
       try {
         await platform.storage.set(KEY, next);
+        return true;
       } catch {
         store.setState({
           theme: before.theme,
           density: before.density,
           error: "Could not save how Tandem looks on this device. Please try again.",
         });
+        return false;
       }
     },
   }));

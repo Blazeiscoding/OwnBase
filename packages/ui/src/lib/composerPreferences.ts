@@ -10,7 +10,8 @@ interface Preferences {
   error: string | null;
   /** The saved choice is there but could not be read; `retry` reads it again. */
   unread: boolean;
-  setEnterSends: (value: boolean) => Promise<void>;
+  /** Resolves true once the choice is kept. */
+  setEnterSends: (value: boolean) => Promise<boolean>;
   retry: () => Promise<void>;
 }
 
@@ -26,13 +27,15 @@ function createPreferences(platform: Platform) {
     error: null,
     unread: false,
     setEnterSends: async (enterSends) => {
-      if (!store.getState().loaded || store.getState().saving) return;
+      if (!store.getState().loaded || store.getState().saving) return false;
       store.setState({ saving: true, error: null });
       try {
         await platform.storage.set(KEY, { enterSends });
         store.setState({ enterSends, unread: false });
+        return true;
       } catch {
         store.setState({ error: "Could not save this preference. Please try again." });
+        return false;
       } finally {
         store.setState({ saving: false });
       }

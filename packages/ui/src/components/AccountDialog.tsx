@@ -11,10 +11,14 @@ import {
   previewFor,
   useNotificationPreviews,
 } from "../lib/notificationPreview.js";
-import type { AccountSection } from "../lib/accountSections.js";
+import { ACCOUNT_SECTIONS, type AccountSection } from "../lib/accountSections.js";
+import { SavedContext, useSaved } from "../lib/savedNote.js";
+import { SECTION_LABELS, findSettings, type Setting } from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
-import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
+import { inputCls } from "./Dialog.js";
+import { Icon } from "./Icon.js";
+import { Modal } from "./Modal.js";
 import { ListStatus } from "./ListStatus.js";
 import { stepIn } from "./Motion.js";
 import { ProfileForm } from "./ProfileDialog.js";
@@ -26,16 +30,37 @@ type Confirmation =
 
 export type { AccountSection };
 
-const SECTIONS: readonly { id: AccountSection; label: string }[] = [
-  { id: "profile", label: "Profile" },
-  { id: "notifications", label: "Notifications" },
-  { id: "appearance", label: "Appearance" },
-  { id: "composing", label: "Composing" },
-  { id: "calls", label: "Voice & video" },
-  { id: "security", label: "Security" },
-  { id: "devices", label: "Devices" },
-  { id: "storage", label: "Storage" },
-];
+const SECTIONS = ACCOUNT_SECTIONS.map((id) => ({ id, label: SECTION_LABELS[id] }));
+
+/** How long "Saved" stays after a choice is kept. */
+const SAVED_FOR_MS = 2000;
+
+/**
+ * Where a setting a search found is shown in its section: the field it names,
+ * or the first one in its group, and the part of the page to mark.
+ */
+function settingOnPage(panel: HTMLElement, label: string) {
+  const name = label.toLowerCase();
+  const named = [...panel.querySelectorAll<HTMLElement>("h3, h4, legend, label")].find((element) =>
+    (element.textContent ?? "").trim().toLowerCase().startsWith(name),
+  );
+  if (!named) return null;
+  const group =
+    named instanceof HTMLLabelElement
+      ? named
+      : named.tagName === "LEGEND"
+        ? named.parentElement!
+        : named.id && named.closest("section")?.getAttribute("aria-labelledby") === named.id
+          ? named.closest("section")!
+          : named.parentElement!;
+  const control =
+    named instanceof HTMLLabelElement
+      ? named.control
+      : group.querySelector<HTMLElement>(
+          "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)",
+        );
+  return { group, control: control instanceof HTMLElement ? control : null, named };
+}
 
 /** Where an arrow key, Home or End moves from one section, wrapping at either end. */
 function sectionAfter(key: string, current: AccountSection): AccountSection | null {
@@ -50,7 +75,10 @@ function sectionAfter(key: string, current: AccountSection): AccountSection | nu
 
 /**
  * Everything about your own account in one place, a section at a time:
- * profile, notifications, composing, security, devices and storage.
+ * profile, notifications, composing, security, devices and storage. A page
+ * over the workspace rather than a box in it (UX-60): its own list of
+ * sections and a search on one side, the section on the other, scrolled as a
+ * page is. Choices save as they are made, and say so quietly.
  */
 export function AccountDialog({
   onClose,
@@ -66,8 +94,20 @@ export function AccountDialog({
   onSectionChange?: (section: AccountSection) => void;
 }) {
   const client = useClient();
+  const platform = usePlatform();
   const tabsId = useId();
   const [section, setSection] = useState<AccountSection>(initialSection);
+  const [query, setQuery] = useState("");
+  /** A setting a search went to, to bring into view once its section shows. */
+  const [goingTo, setGoingTo] = useState<Setting | null>(null);
+  const [saved, setSaved] = useState(false);
+  const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const markSaved = useCallback(() => {
+    setSaved(true);
+    clearTimeout(savedTimer.current);
+    savedTimer.current = setTimeout(() => setSaved(false), SAVED_FOR_MS);
+  }, []);
+  useEffect(() => () => clearTimeout(savedTimer.current), []);
   const self = useWorkspace((s) => s.self);
   const composer = useComposerPreferences();
   const alive = useRef(true);
@@ -201,7 +241,41 @@ export function AccountDialog({
     setError(null);
     setNotice(null);
     setConfirmation(null);
+    setSaved(false);
   }
+
+  /** Opens the section a setting is in and brings the setting into view. */
+  function goTo(setting: Setting) {
+    setQuery("");
+    choose(setting.section);
+    setGoingTo(setting);
+  }
+
+  useEffect(() => {
+    if (!goingTo || !panel.current) return;
+    setGoingTo(null);
+    const found = settingOnPage(panel.current, goingTo.label);
+    if (!found) {
+      document.getElementById(`${tabsId}-tab-${goingTo.section}`)?.focus();
+      return;
+    }
+    found.group.scrollIntoView?.({ block: "center" });
+    if (found.control) found.control.focus({ preventScroll: true });
+    else {
+      found.named.tabIndex = -1;
+      found.named.focus({ preventScroll: true });
+    }
+    // Marked for a moment, for whoever chose it with a pointer and sees no focus ring.
+    for (const marked of panel.current.querySelectorAll(".setting-found"))
+      marked.classList.remove("setting-found");
+    void found.group.offsetWidth;
+    found.group.classList.add("setting-found");
+    found.group.addEventListener(
+      "animationend",
+      () => found.group.classList.remove("setting-found"),
+      { once: true },
+    );
+  }, [goingTo, section, tabsId]);
 
   // On a phone the sections are a strip that scrolls sideways, and the one
   // opened on may be past its end. Brought to the middle, it shows its neighbours.
@@ -221,334 +295,436 @@ export function AccountDialog({
     setConfirmation(value);
     setError(null);
   };
+  const results = query.trim() ? findSettings(query) : null;
+  const closeButton = (className: string) => (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="Close"
+      className={`flex size-9 items-center justify-center rounded-full border border-edge text-ink-dim transition-colors hover:border-ink-faint hover:text-ink ${className}`}
+    >
+      <Icon name="close" size={16} />
+    </button>
+  );
   return (
-    <Dialog title="Account settings" onClose={onClose} width={760} ownScroll>
-      <p className="mb-4 shrink-0 px-6 text-sm text-ink-dim">
-        Signed in as <span className="font-medium text-ink">{self?.displayName}</span> · @
-        {self?.handle}
-      </p>
-      {/* One height for every section, so choosing another does not resize the
-          dialog under the pointer. The sections stay put beside the one being
-          read, and only that one scrolls. */}
-      <div className="flex h-[36rem] min-h-0 flex-col gap-y-3 sm:flex-row">
-        <div
-          role="tablist"
-          aria-label="Account settings"
-          aria-orientation="vertical"
-          // Padded by the width of a focus ring, which its scrolling would clip.
-          className="tab-strip mx-5 flex shrink-0 gap-0.5 overflow-auto p-1 sm:mb-5 sm:mr-0 sm:w-45 sm:flex-col sm:border-r sm:border-edge sm:pr-3"
-          onKeyDown={(event) => {
-            const next = sectionAfter(event.key, section);
-            if (!next) return;
-            event.preventDefault();
-            choose(next);
-            document.getElementById(`${tabsId}-tab-${next}`)?.focus();
-          }}
-        >
-          {SECTIONS.map((s) => (
-            <button
-              key={s.id}
-              id={`${tabsId}-tab-${s.id}`}
-              type="button"
-              role="tab"
-              aria-selected={section === s.id}
-              aria-controls={`${tabsId}-panel`}
-              tabIndex={section === s.id ? 0 : -1}
-              onClick={() => choose(s.id)}
-              className={`shrink-0 rounded-md px-3 py-1.5 text-left text-sm font-medium transition-colors ${
-                section === s.id
-                  ? "channel-row-active text-ink"
-                  : "text-ink-faint hover:bg-ink/[0.04] hover:text-ink"
-              }`}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-        <DialogScroll
-          ref={panel}
-          id={`${tabsId}-panel`}
-          role="tabpanel"
-          aria-labelledby={`${tabsId}-tab-${section}`}
-        >
-          {error && (
-            <p
-              role="alert"
-              className="mb-4 rounded-lg border border-alert/30 bg-alert/10 p-3 text-sm text-alert"
-            >
-              {error}
-            </p>
-          )}
-          {notice && (
-            <p
-              role="status"
-              className="mb-4 rounded-lg border border-online/30 bg-online/10 p-3 text-sm text-online"
-            >
-              {notice}
-            </p>
-          )}
-          {section === "profile" && <ProfileForm />}
-          {section === "notifications" && <NotificationSettings />}
-          {section === "appearance" && <AppearanceSettings />}
-          {section === "composing" && (
-            <section aria-labelledby="account-composer-title">
-              <h3 id="account-composer-title" className="font-semibold">
-                Writing messages
-              </h3>
-              <label className="mt-3 block text-sm">
-                When I press Enter
-                <select
-                  className={`${inputCls} mt-1`}
-                  value={composer.enterSends ? "send" : "newline"}
-                  disabled={!composer.loaded || composer.saving}
-                  onChange={(event) => void composer.setEnterSends(event.target.value === "send")}
-                >
-                  <option value="send">Send the message</option>
-                  <option value="newline">Start a new line</option>
-                </select>
-              </label>
-              <p className="mt-2 text-sm text-ink-dim">
-                Applies to channels and threads across workspaces on this device. Ctrl+Enter or
-                Cmd+Enter always sends; Shift+Enter adds a new line.
-              </p>
-              {composer.saving && (
-                <p role="status" className="mt-2 text-sm text-ink-dim">
-                  Saving preference…
+    <SavedContext.Provider value={markSaved}>
+      <Modal
+        title="Account settings"
+        onClose={onClose}
+        backdropClassName={`settings-page animate-fade-in${platform.kind === "desktop" ? " settings-page-under-titlebar" : ""}`}
+        className="flex h-full w-full flex-col bg-ground outline-none sm:flex-row"
+      >
+        {/* The page's own navigation: its name, whose account it is, a search
+            and the sections. It stays put while a section scrolls. */}
+        <div className="settings-nav flex shrink-0 justify-end sm:flex-[1_0_15rem] sm:overflow-y-auto">
+          <div className="flex w-full min-w-0 flex-col gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] sm:w-60 sm:gap-4 sm:px-3 sm:pb-6 sm:pt-12">
+            <div className="flex items-start gap-2 sm:px-2">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-[13px] font-semibold text-ink-dim">Account settings</h2>
+                <p className="mt-0.5 truncate text-xs text-ink-faint">
+                  {self?.displayName} · @{self?.handle}
                 </p>
-              )}
-              {composer.error && (
-                <p role="alert" className="mt-2 text-sm text-alert">
-                  {composer.error}
-                  {composer.unread && (
-                    <>
-                      {" "}
+              </div>
+              {closeButton("sm:hidden")}
+            </div>
+            <input
+              type="search"
+              aria-label="Search settings"
+              aria-controls={`${tabsId}-found`}
+              placeholder="Search settings"
+              value={query}
+              maxLength={80}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && query) {
+                  // Clears the search first; the next Escape closes the page.
+                  event.preventDefault();
+                  setQuery("");
+                } else if (event.key === "Enter" && results?.[0]) {
+                  event.preventDefault();
+                  goTo(results[0]);
+                }
+              }}
+              className={inputCls}
+            />
+            <div
+              role="tablist"
+              aria-label="Account settings"
+              aria-orientation="vertical"
+              hidden={results !== null}
+              // Padded by the width of a focus ring, which its scrolling would clip.
+              className="tab-strip -mx-1 flex shrink-0 gap-0.5 overflow-auto p-1 sm:mx-0 sm:flex-col"
+              onKeyDown={(event) => {
+                const next = sectionAfter(event.key, section);
+                if (!next) return;
+                event.preventDefault();
+                choose(next);
+                document.getElementById(`${tabsId}-tab-${next}`)?.focus();
+              }}
+            >
+              {SECTIONS.map((s) => (
+                <button
+                  key={s.id}
+                  id={`${tabsId}-tab-${s.id}`}
+                  type="button"
+                  role="tab"
+                  aria-selected={section === s.id}
+                  aria-controls={`${tabsId}-panel`}
+                  tabIndex={section === s.id ? 0 : -1}
+                  onClick={() => choose(s.id)}
+                  className={`shrink-0 rounded-md px-3 py-1.5 text-left text-sm font-medium transition-colors ${
+                    section === s.id
+                      ? "channel-row-active text-ink"
+                      : "text-ink-faint hover:bg-ink/[0.04] hover:text-ink"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+            <div id={`${tabsId}-found`} hidden={results === null}>
+              {results && results.length > 0 ? (
+                <ul aria-label="Settings found" className="flex flex-col gap-0.5">
+                  {results.map((setting) => (
+                    <li key={`${setting.section}:${setting.label}`}>
                       <button
                         type="button"
-                        className="underline underline-offset-2"
-                        onClick={() => void composer.retry()}
+                        onClick={() => goTo(setting)}
+                        className="w-full rounded-md px-3 py-1.5 text-left text-sm text-ink-dim transition-colors hover:bg-ink/[0.04] hover:text-ink"
                       >
-                        Try again
+                        <span className="block font-medium text-ink">{setting.label}</span>
+                        <span className="block text-xs text-ink-faint">
+                          {SECTION_LABELS[setting.section]}
+                        </span>
                       </button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p role="status" className="px-3 py-1.5 text-sm text-ink-faint">
+                  No settings match &ldquo;{query.trim()}&rdquo;.
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+        <div className="flex min-h-0 min-w-0 flex-1 sm:flex-[1_1_50rem]">
+          <div
+            ref={panel}
+            id={`${tabsId}-panel`}
+            role="tabpanel"
+            aria-labelledby={`${tabsId}-tab-${section}`}
+            className="settings-scroll min-w-0 flex-1 overflow-y-auto"
+          >
+            <div className="max-w-[46rem] px-4 pb-16 pt-2 sm:px-10 sm:pt-12">
+              <div className="mb-5 flex items-baseline gap-3">
+                <h3 className="text-[17px] font-semibold tracking-tight">
+                  {SECTION_LABELS[section]}
+                </h3>
+                {/* Always there, so "Saved" is read out when it appears; not a
+                    status of its own, which would crowd out the section's. */}
+                <p
+                  aria-live="polite"
+                  className="ml-auto flex items-center gap-1 text-xs text-ink-faint"
+                >
+                  {saved && (
+                    <>
+                      <Icon name="check" size={13} />
+                      Saved
                     </>
                   )}
                 </p>
-              )}
-            </section>
-          )}
-          {section === "calls" && <VoiceVideoSettings />}
-          {section === "security" && (
-            <>
-              <section aria-labelledby="account-password-title">
-                <h3 id="account-password-title" className="font-semibold">
-                  Change password
-                </h3>
-                <p className="mb-3 mt-1 text-sm text-ink-dim">
-                  Changing your password signs out your other devices.
+              </div>
+              {error && (
+                <p
+                  role="alert"
+                  className="mb-4 rounded-lg border border-alert/30 bg-alert/10 p-3 text-sm text-alert"
+                >
+                  {error}
                 </p>
-                <form onSubmit={(event) => void changePassword(event)}>
-                  <fieldset disabled={busy || confirmation !== null} className="space-y-3">
-                    <label className="block text-sm">
-                      Current password
-                      <input
-                        className={`${inputCls} mt-1`}
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="current-password"
-                        value={currentPassword}
-                        onChange={(e) => setCurrentPassword(e.target.value)}
-                        required
-                        maxLength={256}
-                      />
-                    </label>
-                    <label className="block text-sm">
-                      New password
-                      <input
-                        className={`${inputCls} mt-1`}
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="new-password"
-                        value={newPassword}
-                        onChange={(e) => setNewPassword(e.target.value)}
-                        required
-                        minLength={8}
-                        maxLength={256}
-                        aria-describedby="account-password-hint"
-                      />
-                    </label>
-                    <p id="account-password-hint" className="text-xs text-ink-faint">
-                      Use at least 8 characters. A long, unique password is best.
+              )}
+              {notice && (
+                <p
+                  role="status"
+                  className="mb-4 rounded-lg border border-online/30 bg-online/10 p-3 text-sm text-online"
+                >
+                  {notice}
+                </p>
+              )}
+              {section === "profile" && <ProfileForm />}
+              {section === "notifications" && <NotificationSettings />}
+              {section === "appearance" && <AppearanceSettings />}
+              {section === "composing" && (
+                <section aria-labelledby="account-composer-title">
+                  <h3 id="account-composer-title" className="font-semibold">
+                    Writing messages
+                  </h3>
+                  <label className="mt-3 block text-sm">
+                    When I press Enter
+                    <select
+                      className={`${inputCls} mt-1`}
+                      value={composer.enterSends ? "send" : "newline"}
+                      disabled={!composer.loaded || composer.saving}
+                      onChange={(event) =>
+                        void composer
+                          .setEnterSends(event.target.value === "send")
+                          .then((kept) => kept && markSaved())
+                      }
+                    >
+                      <option value="send">Send the message</option>
+                      <option value="newline">Start a new line</option>
+                    </select>
+                  </label>
+                  <p className="mt-2 text-sm text-ink-dim">
+                    Applies to channels and threads across workspaces on this device. Ctrl+Enter or
+                    Cmd+Enter always sends; Shift+Enter adds a new line.
+                  </p>
+                  {composer.saving && (
+                    <p role="status" className="mt-2 text-sm text-ink-dim">
+                      Saving preference…
                     </p>
-                    <label className="block text-sm">
-                      Confirm new password
-                      <input
-                        className={`${inputCls} mt-1`}
-                        type={showPassword ? "text" : "password"}
-                        autoComplete="new-password"
-                        value={repeatPassword}
-                        onChange={(e) => setRepeatPassword(e.target.value)}
-                        required
-                        minLength={8}
-                        maxLength={256}
-                      />
-                    </label>
-                    <label className="flex items-center gap-2 text-sm text-ink-dim">
-                      <input
-                        type="checkbox"
-                        checked={showPassword}
-                        onChange={(e) => setShowPassword(e.target.checked)}
-                      />
-                      Show passwords
-                    </label>
-                    <button className={buttonClass("primary")} type="submit">
-                      {busy && !confirmation ? "Saving…" : "Update password"}
-                    </button>
-                  </fieldset>
-                </form>
-              </section>
-              <section
-                aria-labelledby="account-signout-title"
-                className="mt-6 border-t border-edge pt-5"
-              >
-                <h3 id="account-signout-title" className="font-semibold">
-                  Sign out
-                </h3>
-                <p className="mb-3 mt-1 text-sm text-ink-dim">
-                  Switching workspaces keeps you signed in. Signing out removes this device's saved
-                  sign-in.
-                </p>
-                <button
-                  className={buttonClass("secondary")}
-                  disabled={busy || confirmation !== null}
-                  onClick={() => askToConfirm({ kind: "signout" })}
-                >
-                  Sign out of this workspace
-                </button>
-              </section>
-            </>
-          )}
-          {section === "devices" && (
-            <section aria-labelledby="account-devices-title">
-              <div className="flex items-center justify-between gap-3">
-                <h3 id="account-devices-title" className="font-semibold">
-                  Signed-in devices
-                </h3>
-                <button
-                  className={buttonClass("secondary")}
-                  disabled={busy || loading}
-                  onClick={() => void load()}
-                >
-                  Refresh
-                </button>
-              </div>
-              <p className="mt-1 text-sm text-ink-dim">
-                Each sign-in appears separately. Remove a device you no longer use.
-              </p>
-              <ListStatus
-                className="mt-3"
-                loading={loading}
-                placeholder={!loaded}
-                loadingLabel="Loading devices…"
-                error={loadError}
-                onRetry={() => void load()}
-                empty={
-                  loaded && !loadError && sessions.length === 0
-                    ? "No active devices were returned. Refresh to check your session."
-                    : null
-                }
-              />
-              <ul
-                aria-label="Signed-in devices"
-                className="mt-3 divide-y divide-edge"
-                aria-busy={loading}
-              >
-                {sessions.map((session) => (
-                  <li key={session.id} className="flex flex-wrap items-center gap-3 py-3">
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium">
-                        {deviceLabel(session.userAgent)}{" "}
-                        {session.current && (
-                          <span className="ml-1 text-xs text-online">This device</span>
-                        )}
-                      </p>
-                      {/* Said as the rest of the app says times, with the exact
-                          one on hover, rather than to the second twice over. */}
-                      <p className="mt-1 text-xs text-ink-faint">
-                        {session.current ? (
-                          "Active now"
-                        ) : (
-                          <span title={formatFull(session.lastSeenAt)}>
-                            Last active {formatWhen(session.lastSeenAt)}
-                          </span>
-                        )}
-                        {" · "}
-                        <span title={formatFull(session.createdAt)}>
-                          signed in {formatWhen(session.createdAt)}
-                        </span>
-                      </p>
-                    </div>
-                    {!session.current && (
-                      <button
-                        className={buttonClass("secondary")}
-                        disabled={busy || confirmation !== null}
-                        aria-label={`Sign out ${deviceLabel(session.userAgent)}, signed in ${formatWhen(session.createdAt)}`}
-                        onClick={() => askToConfirm({ kind: "device", session })}
-                      >
-                        Sign out
-                      </button>
-                    )}
-                  </li>
-                ))}
-              </ul>
-              {otherSessions.length > 0 && (
-                <button
-                  className={buttonClass("secondary", "mt-3")}
-                  disabled={busy || confirmation !== null}
-                  onClick={() => askToConfirm({ kind: "others" })}
-                >
-                  Sign out all other devices
-                </button>
+                  )}
+                  {composer.error && (
+                    <p role="alert" className="mt-2 text-sm text-alert">
+                      {composer.error}
+                      {composer.unread && (
+                        <>
+                          {" "}
+                          <button
+                            type="button"
+                            className="underline underline-offset-2"
+                            onClick={() => void composer.retry()}
+                          >
+                            Try again
+                          </button>
+                        </>
+                      )}
+                    </p>
+                  )}
+                </section>
               )}
-            </section>
-          )}
-          {section === "storage" && <WorkspaceStorage />}
-          {confirmation && (
-            <section
-              ref={confirmationPanel}
-              tabIndex={-1}
-              aria-label="Confirm sign out"
-              className="mt-4 rounded-xl border border-alert/40 bg-ground p-4"
-            >
-              <h3 className="font-semibold">
-                {confirmation.kind === "signout"
-                  ? "Sign out of this workspace?"
-                  : confirmation.kind === "others"
-                    ? "Sign out your other devices?"
-                    : `Sign out ${deviceLabel(confirmation.session.userAgent)}?`}
-              </h3>
-              <p className="mt-2 text-sm text-ink-dim">
-                {confirmation.kind === "signout"
-                  ? "You will need your password to sign in again. Your account's saved drafts stay on this device."
-                  : "Affected devices will need to sign in again. Your current device stays connected."}
-              </p>
-              <div className="mt-4 flex flex-wrap justify-end gap-2">
-                <button
-                  className={buttonClass("secondary")}
-                  disabled={busy}
-                  onClick={() => setConfirmation(null)}
+              {section === "calls" && <VoiceVideoSettings titled={false} />}
+              {section === "security" && (
+                <>
+                  <section aria-labelledby="account-password-title">
+                    <h3 id="account-password-title" className="font-semibold">
+                      Change password
+                    </h3>
+                    <p className="mb-3 mt-1 text-sm text-ink-dim">
+                      Changing your password signs out your other devices.
+                    </p>
+                    <form onSubmit={(event) => void changePassword(event)}>
+                      <fieldset disabled={busy || confirmation !== null} className="space-y-3">
+                        <label className="block text-sm">
+                          Current password
+                          <input
+                            className={`${inputCls} mt-1`}
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="current-password"
+                            value={currentPassword}
+                            onChange={(e) => setCurrentPassword(e.target.value)}
+                            required
+                            maxLength={256}
+                          />
+                        </label>
+                        <label className="block text-sm">
+                          New password
+                          <input
+                            className={`${inputCls} mt-1`}
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={newPassword}
+                            onChange={(e) => setNewPassword(e.target.value)}
+                            required
+                            minLength={8}
+                            maxLength={256}
+                            aria-describedby="account-password-hint"
+                          />
+                        </label>
+                        <p id="account-password-hint" className="text-xs text-ink-faint">
+                          Use at least 8 characters. A long, unique password is best.
+                        </p>
+                        <label className="block text-sm">
+                          Confirm new password
+                          <input
+                            className={`${inputCls} mt-1`}
+                            type={showPassword ? "text" : "password"}
+                            autoComplete="new-password"
+                            value={repeatPassword}
+                            onChange={(e) => setRepeatPassword(e.target.value)}
+                            required
+                            minLength={8}
+                            maxLength={256}
+                          />
+                        </label>
+                        <label className="flex items-center gap-2 text-sm text-ink-dim">
+                          <input
+                            type="checkbox"
+                            checked={showPassword}
+                            onChange={(e) => setShowPassword(e.target.checked)}
+                          />
+                          Show passwords
+                        </label>
+                        <button className={buttonClass("primary")} type="submit">
+                          {busy && !confirmation ? "Saving…" : "Update password"}
+                        </button>
+                      </fieldset>
+                    </form>
+                  </section>
+                  <section
+                    aria-labelledby="account-signout-title"
+                    className="mt-6 border-t border-edge pt-5"
+                  >
+                    <h3 id="account-signout-title" className="font-semibold">
+                      Sign out
+                    </h3>
+                    <p className="mb-3 mt-1 text-sm text-ink-dim">
+                      Switching workspaces keeps you signed in. Signing out removes this device's
+                      saved sign-in.
+                    </p>
+                    <button
+                      className={buttonClass("secondary")}
+                      disabled={busy || confirmation !== null}
+                      onClick={() => askToConfirm({ kind: "signout" })}
+                    >
+                      Sign out of this workspace
+                    </button>
+                  </section>
+                </>
+              )}
+              {section === "devices" && (
+                <section aria-labelledby="account-devices-title">
+                  <div className="flex items-center justify-between gap-3">
+                    <h3 id="account-devices-title" className="font-semibold">
+                      Signed-in devices
+                    </h3>
+                    <button
+                      className={buttonClass("secondary")}
+                      disabled={busy || loading}
+                      onClick={() => void load()}
+                    >
+                      Refresh
+                    </button>
+                  </div>
+                  <p className="mt-1 text-sm text-ink-dim">
+                    Each sign-in appears separately. Remove a device you no longer use.
+                  </p>
+                  <ListStatus
+                    className="mt-3"
+                    loading={loading}
+                    placeholder={!loaded}
+                    loadingLabel="Loading devices…"
+                    error={loadError}
+                    onRetry={() => void load()}
+                    empty={
+                      loaded && !loadError && sessions.length === 0
+                        ? "No active devices were returned. Refresh to check your session."
+                        : null
+                    }
+                  />
+                  <ul
+                    aria-label="Signed-in devices"
+                    className="mt-3 divide-y divide-edge"
+                    aria-busy={loading}
+                  >
+                    {sessions.map((session) => (
+                      <li key={session.id} className="flex flex-wrap items-center gap-3 py-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">
+                            {deviceLabel(session.userAgent)}{" "}
+                            {session.current && (
+                              <span className="ml-1 text-xs text-online">This device</span>
+                            )}
+                          </p>
+                          {/* Said as the rest of the app says times, with the exact
+                          one on hover, rather than to the second twice over. */}
+                          <p className="mt-1 text-xs text-ink-faint">
+                            {session.current ? (
+                              "Active now"
+                            ) : (
+                              <span title={formatFull(session.lastSeenAt)}>
+                                Last active {formatWhen(session.lastSeenAt)}
+                              </span>
+                            )}
+                            {" · "}
+                            <span title={formatFull(session.createdAt)}>
+                              signed in {formatWhen(session.createdAt)}
+                            </span>
+                          </p>
+                        </div>
+                        {!session.current && (
+                          <button
+                            className={buttonClass("secondary")}
+                            disabled={busy || confirmation !== null}
+                            aria-label={`Sign out ${deviceLabel(session.userAgent)}, signed in ${formatWhen(session.createdAt)}`}
+                            onClick={() => askToConfirm({ kind: "device", session })}
+                          >
+                            Sign out
+                          </button>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {otherSessions.length > 0 && (
+                    <button
+                      className={buttonClass("secondary", "mt-3")}
+                      disabled={busy || confirmation !== null}
+                      onClick={() => askToConfirm({ kind: "others" })}
+                    >
+                      Sign out all other devices
+                    </button>
+                  )}
+                </section>
+              )}
+              {section === "storage" && <WorkspaceStorage />}
+              {confirmation && (
+                <section
+                  ref={confirmationPanel}
+                  tabIndex={-1}
+                  aria-label="Confirm sign out"
+                  className="mt-4 rounded-xl border border-alert/40 bg-ground p-4"
                 >
-                  Cancel
-                </button>
-                <button
-                  className={buttonClass("primary")}
-                  disabled={busy}
-                  onClick={() => void confirm()}
-                >
-                  {busy ? "Signing out…" : "Confirm sign out"}
-                </button>
-              </div>
-            </section>
-          )}
-        </DialogScroll>
-      </div>
-    </Dialog>
+                  <h3 className="font-semibold">
+                    {confirmation.kind === "signout"
+                      ? "Sign out of this workspace?"
+                      : confirmation.kind === "others"
+                        ? "Sign out your other devices?"
+                        : `Sign out ${deviceLabel(confirmation.session.userAgent)}?`}
+                  </h3>
+                  <p className="mt-2 text-sm text-ink-dim">
+                    {confirmation.kind === "signout"
+                      ? "You will need your password to sign in again. Your account's saved drafts stay on this device."
+                      : "Affected devices will need to sign in again. Your current device stays connected."}
+                  </p>
+                  <div className="mt-4 flex flex-wrap justify-end gap-2">
+                    <button
+                      className={buttonClass("secondary")}
+                      disabled={busy}
+                      onClick={() => setConfirmation(null)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className={buttonClass("primary")}
+                      disabled={busy}
+                      onClick={() => void confirm()}
+                    >
+                      {busy ? "Signing out…" : "Confirm sign out"}
+                    </button>
+                  </div>
+                </section>
+              )}
+            </div>
+          </div>
+          <div className="hidden shrink-0 flex-col items-center gap-1 pr-5 pt-12 sm:flex">
+            {closeButton("")}
+            <span aria-hidden="true" className="text-[11px] font-semibold text-ink-faint">
+              Esc
+            </span>
+          </div>
+        </div>
+      </Modal>
+    </SavedContext.Provider>
   );
 }
 
@@ -657,6 +833,7 @@ function PreviewSettings() {
   const client = useClient();
   const selfId = useWorkspace((s) => s.self?.id ?? null);
   const previews = useNotificationPreviews();
+  const saved = useSaved();
   const account = selfId ? previewAccount(client.baseUrl, selfId) : null;
   const chosen = previewFor(previews, account);
   return (
@@ -676,7 +853,10 @@ function PreviewSettings() {
               name="notification-preview"
               className="mt-1"
               checked={previews.loaded && chosen === option.id}
-              onChange={() => account && void previews.setPreview(account, option.id)}
+              onChange={() =>
+                account &&
+                void previews.setPreview(account, option.id).then((kept) => kept && saved())
+              }
             />
             <span>
               {option.label}
@@ -703,6 +883,7 @@ const THEME_LABELS: Record<Theme, { label: string; hint: string }> = {
 /** How Tandem looks on this device: its theme, and how much it fits in. */
 function AppearanceSettings() {
   const appearance = useAppearance();
+  const saved = useSaved();
   return (
     <>
       <fieldset disabled={!appearance.loaded}>
@@ -725,7 +906,7 @@ function AppearanceSettings() {
                     name="theme"
                     className="mt-1 accent-[var(--color-copper)]"
                     checked={chosen}
-                    onChange={() => void appearance.set({ theme })}
+                    onChange={() => void appearance.set({ theme }).then((kept) => kept && saved())}
                   />
                   <span>
                     <span className="font-semibold">{THEME_LABELS[theme].label}</span>
@@ -748,7 +929,7 @@ function AppearanceSettings() {
                 name="density"
                 className="mt-1"
                 checked={appearance.density === density}
-                onChange={() => void appearance.set({ density })}
+                onChange={() => void appearance.set({ density }).then((kept) => kept && saved())}
               />
               <span>
                 {density === "compact" ? "Compact" : "Comfortable"}

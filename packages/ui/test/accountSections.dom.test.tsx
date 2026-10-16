@@ -136,8 +136,8 @@ describe("account settings, a section at a time", () => {
     const { dialog, moveTo, user } = settings("calls");
     const panel = within(dialog).getByRole("tabpanel", { name: "Voice & video" });
     // The section is what scrolls; its name, and the list of sections, are beside it.
-    expect(panel).toHaveClass("dialog-scroll");
-    expect(dialog.querySelectorAll(".dialog-scroll")).toHaveLength(1);
+    expect(panel).toHaveClass("settings-scroll");
+    expect(dialog.querySelectorAll(".settings-scroll")).toHaveLength(1);
     expect(panel).not.toContainElement(within(dialog).getByRole("tablist"));
     expect(panel).not.toContainElement(
       within(dialog).getByRole("heading", { name: "Account settings" }),
