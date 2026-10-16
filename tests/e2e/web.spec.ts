@@ -2234,6 +2234,12 @@ test("an admin who never copied a bot token can replace it, and the old one stop
       .first();
     const firstToken = (await tokenRow.locator("code").textContent())!;
     expect(firstToken.startsWith("xoxb-")).toBe(true);
+    // An app's own forms work before anything is typed, and say what is missing.
+    const events = app.getByRole("group", { name: "Event subscriptions" });
+    await events.getByRole("button", { name: "Subscribe", exact: true }).click();
+    const eventsUrl = events.getByLabel("Request URL", { exact: true });
+    await expect(eventsUrl).toBeFocused();
+    await expect(eventsUrl).toHaveAccessibleDescription("Give the address that receives events.");
 
     // Closing the dialog is how a token shown once gets lost.
     await page.keyboard.press("Escape");
@@ -4046,6 +4052,17 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
     await nav.getByRole("button", { name: /, workspace menu$/ }).click();
     await page.getByRole("menuitem", { name: "Create an account", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Create an account", exact: true });
+    // The button works before anything is typed: sent empty, the form says
+    // what is missing beside each field and puts the cursor in the first.
+    await dialog.getByRole("button", { name: "Create account", exact: true }).click();
+    await expect(dialog.getByLabel("Username", { exact: true })).toBeFocused();
+    await expect(dialog.getByLabel("Username", { exact: true })).toHaveAccessibleDescription(
+      /^Choose a username\./,
+    );
+    await expect(dialog.getByLabel("Password", { exact: true })).toHaveAttribute(
+      "aria-invalid",
+      "true",
+    );
     await dialog.getByLabel("Username", { exact: true }).fill("vic");
     await dialog.getByLabel("Password", { exact: true }).fill("password123");
     await dialog.getByRole("button", { name: "Create account", exact: true }).click();

@@ -18,7 +18,7 @@ import type { App, Channel, EventSubscription, ID, SlashCommand } from "@slackos
 import { ApiError, type AppDetail } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
-import { inputCls } from "./TextField.js";
+import { inputCls, TextField } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
@@ -405,14 +405,17 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
               ))}
             </div>
 
-            <SectionLabel>Slash commands</SectionLabel>
-            <CommandList app={a} onChanged={load} />
+            <FormSection label="Slash commands">
+              <CommandList app={a} onChanged={load} />
+            </FormSection>
 
-            <SectionLabel>Event subscriptions</SectionLabel>
-            <SubscriptionList app={a} onChanged={load} />
+            <FormSection label="Event subscriptions">
+              <SubscriptionList app={a} onChanged={load} />
+            </FormSection>
 
-            <SectionLabel>Interactivity</SectionLabel>
-            <InteractivityUrl app={a} onChanged={load} />
+            <FormSection label="Interactivity">
+              <InteractivityUrl app={a} onChanged={load} />
+            </FormSection>
           </li>
         ))}
       </ul>
@@ -986,21 +989,55 @@ function SlackDifferences() {
   );
 }
 
-const smallInput =
-  "min-w-0 rounded-lg border border-edge bg-raised px-2 py-1 text-[12px] outline-none focus:border-copper/60";
+/** A row form's button, beside small fields and lined up with them under their labels. */
+const rowButton =
+  "mt-5 h-8 shrink-0 rounded-lg border border-edge px-3 text-[12px] font-medium text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink";
+
+/** The server's reason, as a sentence. */
+function reason(err: ApiError): string {
+  const text = err.message || err.code;
+  return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
+}
+
+/**
+ * A part of an app's card with a form in it. Its name groups the fields, so
+ * a screen reader says which Request URL is which.
+ */
+function FormSection({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <fieldset className="mt-3 min-w-0">
+      <legend className="mb-1 text-[12px] text-ink-faint">{label}</legend>
+      {children}
+    </fieldset>
+  );
+}
 
 function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void }) {
   const client = useClient();
   const [command, setCommand] = useState("");
   const [url, setUrl] = useState("");
   const [description, setDescription] = useState("");
+  /** What is missing, said under each field once the form is sent. */
+  const [problems, setProblems] = useState<{ command?: string; url?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const commandField = useRef<HTMLInputElement>(null);
+  const urlField = useRef<HTMLInputElement>(null);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
+    if (busy) return;
     setError(null);
+    const found = {
+      command: commandName(command) ? undefined : "Name the command, such as /deploy.",
+      url: url.trim() ? undefined : "Give the address your service answers on.",
+    };
+    setProblems(found);
+    if (found.command || found.url) {
+      (found.command ? commandField : urlField).current?.focus();
+      return;
+    }
+    setBusy(true);
     try {
       await client.api.createCommand(app.id, {
         command: command.trim(),
@@ -1014,7 +1051,13 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
       // The composer's hint list is loaded once, so refresh it now.
       void client.loadCommands();
     } catch (err) {
-      setError(err instanceof ApiError ? (err.message ?? err.code) : "could not add that command");
+      setError(
+        !(err instanceof ApiError)
+          ? "Could not add the command. Check your connection and try again."
+          : err.code === "invalid_request"
+            ? "Use letters, digits, - and _ in the command, and an http or https address."
+            : reason(err),
+      );
     } finally {
       setBusy(false);
     }
@@ -1042,37 +1085,56 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
           </li>
         ))}
       </ul>
-      <form onSubmit={add} className="mt-1.5 flex flex-wrap gap-1.5">
-        <input
-          aria-label="Command"
+      {/* Never off until filled in: sent empty, it says what is missing. */}
+      <form onSubmit={add} noValidate className="mt-1.5 flex flex-wrap items-start gap-2">
+        <TextField
+          ref={commandField}
+          size="small"
+          label="Command"
+          error={problems.command}
           value={command}
-          onChange={(e) => setCommand(e.target.value)}
+          onChange={(e) => {
+            setCommand(e.target.value);
+            setProblems((found) => ({ ...found, command: undefined }));
+          }}
           placeholder="/deploy"
-          className={`${smallInput} w-24`}
+          spellCheck={false}
+          autoCapitalize="none"
+          className="w-28 shrink-0"
         />
-        <input
-          aria-label="Command request URL"
+        <TextField
+          ref={urlField}
+          size="small"
+          label="Request URL"
+          error={problems.url}
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setProblems((found) => ({ ...found, url: undefined }));
+          }}
           placeholder="https://bot.example.com/deploy"
-          className={`${smallInput} flex-1`}
+          inputMode="url"
+          spellCheck={false}
+          autoCapitalize="none"
+          className="min-w-0 flex-1 basis-48"
         />
-        <input
-          aria-label="Command description"
+        <TextField
+          size="small"
+          label="Description"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
           placeholder="What it does"
-          className={`${smallInput} w-32`}
+          className="min-w-0 flex-1 basis-32"
         />
-        <button
-          type="submit"
-          disabled={busy || !command.trim() || !url.trim()}
-          className="rounded-lg border border-edge px-2 py-1 text-[12px] text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink disabled:opacity-40"
-        >
-          Add
+        <button type="submit" aria-disabled={busy || undefined} className={rowButton}>
+          {busy ? "Adding…" : "Add"}
         </button>
       </form>
-      {error && <p className="mt-1 text-[11px] text-alert">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-1 text-[11px] text-alert">
+          {error}
+        </p>
+      )}
     </>
   );
 }
@@ -1121,21 +1183,35 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
   const client = useClient();
   const [url, setUrl] = useState("");
   const [types, setTypes] = useState<string[]>([]);
+  /** What is wrong with the address, said under it. */
+  const [urlProblem, setUrlProblem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [retrying, setRetrying] = useState<ID | null>(null);
+  const urlField = useRef<HTMLInputElement>(null);
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
-    setBusy(true);
+    if (busy) return;
     setError(null);
+    if (!url.trim()) {
+      setUrlProblem("Give the address that receives events.");
+      urlField.current?.focus();
+      return;
+    }
+    setUrlProblem(null);
+    setBusy(true);
     try {
       await client.api.createSubscription(app.id, { url: url.trim(), eventTypes: types });
       setUrl("");
       setTypes([]);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? (err.message ?? err.code) : "could not subscribe");
+      // The server refused the address: it did not answer, or answered wrongly.
+      if (err instanceof ApiError) {
+        setUrlProblem(reason(err));
+        urlField.current?.focus();
+      } else setError("Could not subscribe. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
@@ -1187,20 +1263,25 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           </li>
         ))}
       </ul>
-      <form onSubmit={add} className="mt-1.5">
-        <div className="flex gap-1.5">
-          <input
-            aria-label="Event request URL"
+      <form onSubmit={add} noValidate className="mt-1.5">
+        <div className="flex items-start gap-2">
+          <TextField
+            ref={urlField}
+            size="small"
+            label="Request URL"
+            error={urlProblem}
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => {
+              setUrl(e.target.value);
+              setUrlProblem(null);
+            }}
             placeholder="https://bot.example.com/events"
-            className={`${smallInput} flex-1`}
+            inputMode="url"
+            spellCheck={false}
+            autoCapitalize="none"
+            className="min-w-0 flex-1"
           />
-          <button
-            type="submit"
-            disabled={busy || !url.trim()}
-            className="rounded-lg border border-edge px-2 py-1 text-[12px] text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink disabled:opacity-40"
-          >
+          <button type="submit" aria-disabled={busy || undefined} className={rowButton}>
             {busy ? "Verifying…" : "Subscribe"}
           </button>
         </div>
@@ -1228,7 +1309,11 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           only receives events from channels it has been added to.
         </p>
       </form>
-      {error && <p className="mt-1 text-[11px] text-alert">{error}</p>}
+      {error && (
+        <p role="alert" className="mt-1 text-[11px] text-alert">
+          {error}
+        </p>
+      )}
     </>
   );
 }
@@ -1236,49 +1321,78 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
 /**
  * Where this app's button clicks go. One URL per app, like Slack's
  * interactivity request URL, and it has to answer the same verification
- * handshake a subscription does before it is accepted.
+ * handshake a subscription does before it is accepted. Saving the same
+ * address again checks it again.
  */
 function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () => void }) {
   const client = useClient();
   const [url, setUrl] = useState(app.interactivityUrl);
+  /** What is wrong with the address, said under it. */
+  const [problem, setProblem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  /** The address last saved from here, to say so while it is still the one in the field. */
+  const [saved, setSaved] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setBusy(true);
+    setProblem(null);
     setError(null);
+    setSaved(null);
     try {
       await client.api.setInteractivityUrl(app.id, url.trim());
+      setSaved(url);
       onChanged();
     } catch (err) {
-      setError(err instanceof ApiError ? (err.message ?? err.code) : "could not save");
+      // The server refused the address: it did not answer, or answered wrongly.
+      if (err instanceof ApiError) {
+        setProblem(reason(err));
+        field.current?.focus();
+      } else setError("Could not save. Check your connection and try again.");
     } finally {
       setBusy(false);
     }
   }
 
   return (
-    <form onSubmit={save}>
-      <div className="flex gap-1.5">
-        <input
-          aria-label="Interactivity request URL"
+    <form onSubmit={save} noValidate>
+      <div className="flex items-start gap-2">
+        <TextField
+          ref={field}
+          size="small"
+          label="Request URL"
+          hint={
+            <>
+              Buttons in this app&apos;s messages post Slack&apos;s{" "}
+              <code className="font-mono">block_actions</code> payload here. Leave empty to turn
+              them off.
+            </>
+          }
+          error={problem}
           value={url}
-          onChange={(e) => setUrl(e.target.value)}
+          onChange={(e) => {
+            setUrl(e.target.value);
+            setProblem(null);
+          }}
           placeholder="https://bot.example.com/interactions"
-          className={`${smallInput} flex-1`}
+          inputMode="url"
+          spellCheck={false}
+          autoCapitalize="none"
+          className="min-w-0 flex-1"
         />
-        <button
-          type="submit"
-          disabled={busy || url.trim() === app.interactivityUrl}
-          className="rounded-lg border border-edge px-2 py-1 text-[12px] text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink disabled:opacity-40"
-        >
+        <button type="submit" aria-disabled={busy || undefined} className={rowButton}>
           {busy ? "Checking…" : "Save"}
         </button>
       </div>
-      <p className="mt-1 text-[11px] text-ink-faint">
-        Buttons in this app&apos;s messages post Slack&apos;s{" "}
-        <code className="font-mono">block_actions</code> payload here. Leave empty to turn them off.
+      <p role="status" className="mt-1 text-[11px] text-ink-dim empty:hidden">
+        {saved !== null && saved === url
+          ? url.trim()
+            ? "Saved and verified."
+            : "Saved. Buttons are off."
+          : ""}
       </p>
       {error && (
         <p role="alert" className="mt-1 text-[11px] text-alert">
