@@ -1081,13 +1081,17 @@ textarea::placeholder {
   .workspace-sidebar {
     overflow-y: auto;
   }
-  /* As tall as what it holds, so the footer comes after the list, not over it. */
-  .workspace-sidebar > :first-child {
-    min-height: auto;
-  }
   .sidebar-scroll {
     flex: none;
     overflow: visible;
+  }
+  /*
+   * The rail and the list take their whole height too, so what comes under
+   * them (a guest's offer, the account panel) follows the last channel
+   * rather than being drawn over it.
+   */
+  .workspace-sidebar > :has(> .sidebar-column) {
+    flex: 1 0 auto;
   }
 }
 

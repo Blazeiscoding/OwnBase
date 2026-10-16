@@ -3986,10 +3986,37 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
     await expect(nav.getByText("Guest", { exact: true })).toBeVisible();
     await expect(nav.getByRole("button", { name: "New channel", exact: true })).toHaveCount(0);
     await expect(nav.getByText("leadership")).toHaveCount(0);
+    // Nothing asks a guest to stay before they have said anything (UX-44).
+    const offer = nav.getByRole("region", { name: "You're a guest for a day", exact: true });
+    await expect(offer).toHaveCount(0);
+    const sidebarWidth = () => nav.evaluate((el) => el.getBoundingClientRect().width);
+    const widthBefore = await sidebarWidth();
 
     await composer.fill("hello from a guest");
     await composer.press("Enter");
     await expect.poll(messages).toContainEqual(expect.stringMatching(/:hello from a guest$/));
+    await expect(offer).toBeVisible();
+    await expect(offer).toContainText("your name and your messages");
+    await expect(composer).toBeFocused();
+    // The sidebar is as wide as what it holds; the offer's words must not widen it.
+    expect(await sidebarWidth()).toBe(widthBefore);
+    // A phone on its side: the drawer scrolls as one column, with the offer
+    // after the last channel and the account panel after the offer.
+    const wide = page.viewportSize()!;
+    await page.setViewportSize({ width: 844, height: 390 });
+    await page.getByRole("button", { name: "Open navigation", exact: true }).click();
+    await expect(offer).toBeAttached();
+    const edges = (locator: Locator) =>
+      locator.evaluate((el) => {
+        const box = el.getBoundingClientRect();
+        return { top: box.top, bottom: box.bottom };
+      });
+    const lastRow = await edges(nav.locator(".channel-item").last());
+    const offerBox = await edges(offer);
+    expect(offerBox.top).toBeGreaterThanOrEqual(lastRow.bottom);
+    expect((await edges(nav.locator(".user-panel"))).top).toBeGreaterThanOrEqual(offerBox.bottom);
+    await page.setViewportSize(wide);
+    await expect(composer).toBeVisible();
     const [guestMessage] = (await messages()).filter((m) => m.endsWith(":hello from a guest"));
     const guest = guestMessage!.split(":")[0]!;
     // Everyone else sees who wrote it, marked as a guest.
@@ -4001,10 +4028,19 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
     ).toBeVisible();
 
     await page.screenshot({ path: test.info().outputPath("guest-workspace.png") });
-    // A reload resumes the same guest.
+    // A reload resumes the same guest, still offered to stay until they answer.
     await page.reload();
     await expect(composer).toBeVisible();
     await expect(nav.getByText("Guest", { exact: true })).toBeVisible();
+    await expect(offer).toBeVisible();
+    await offer.getByRole("button", { name: "Not now", exact: true }).click();
+    await expect(offer).toHaveCount(0);
+    // Put away for good: the guest's message is on screen again, and no offer.
+    await page.reload();
+    await expect(
+      page.getByRole("article").filter({ hasText: "hello from a guest" }).first(),
+    ).toBeVisible();
+    await expect(offer).toHaveCount(0);
 
     // Keeping the identity as an account: same person, now a member.
     await nav.getByRole("button", { name: /, workspace menu$/ }).click();
