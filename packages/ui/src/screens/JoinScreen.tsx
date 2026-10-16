@@ -14,6 +14,7 @@ import { connectionFailure, host, incompatibleWorkspace } from "../lib/connectio
 import { workspaceGradient } from "../lib/format.js";
 import { resumeTarget } from "../lib/resume.js";
 import { buttonClass } from "../components/Button.js";
+import { inputClass } from "../components/TextField.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
 
@@ -846,8 +847,7 @@ function AuthCard(props: {
     }
   }
 
-  const inputCls =
-    "field-spot h-10 w-full rounded-xl border border-edge bg-ground px-3.5 text-sm outline-none placeholder:text-ink-faint hover:border-ink-faint/40 focus:border-copper";
+  const fieldCls = inputClass("large");
   const labelCls = "mb-1.5 block text-[13px] font-medium text-ink-dim";
   const hintCls = "mt-1.5 text-xs text-ink-faint";
   const submitCls = buttonClass("primary", "h-10 w-full rounded-xl");
@@ -892,7 +892,7 @@ function AuthCard(props: {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 aria-describedby={`${id}-new-password-hint`}
-                className={inputCls}
+                className={fieldCls}
               />
               <p id={`${id}-new-password-hint`} className={hintCls}>
                 At least 8 characters.
@@ -908,7 +908,7 @@ function AuthCard(props: {
                 autoComplete="new-password"
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
-                className={inputCls}
+                className={fieldCls}
               />
             </div>
             {error && (
@@ -975,7 +975,7 @@ function AuthCard(props: {
                     autoComplete="nickname"
                     maxLength={80}
                     aria-describedby={`${id}-guest-name-hint`}
-                    className={inputCls}
+                    className={fieldCls}
                   />
                   <p id={`${id}-guest-name-hint`} className={hintCls}>
                     What everyone sees. As a guest you can read and post in public channels for a
@@ -1006,7 +1006,7 @@ function AuthCard(props: {
                     spellCheck={false}
                     autoCapitalize="none"
                     aria-describedby={mode === "register" ? `${id}-handle-hint` : undefined}
-                    className={inputCls}
+                    className={fieldCls}
                   />
                   {mode === "register" && (
                     <p id={`${id}-handle-hint`} className={hintCls}>
@@ -1025,7 +1025,7 @@ function AuthCard(props: {
                       onChange={(e) => setDisplayName(e.target.value)}
                       autoComplete="nickname"
                       aria-describedby={`${id}-display-name-hint`}
-                      className={inputCls}
+                      className={fieldCls}
                     />
                     <p id={`${id}-display-name-hint`} className={hintCls}>
                       What everyone sees. Left empty, it is your username.
@@ -1043,7 +1043,7 @@ function AuthCard(props: {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     aria-describedby={mode === "register" ? `${id}-password-hint` : undefined}
-                    className={inputCls}
+                    className={fieldCls}
                   />
                   {mode === "register" && (
                     <p id={`${id}-password-hint`} className={hintCls}>
@@ -1063,7 +1063,7 @@ function AuthCard(props: {
                       autoComplete="off"
                       spellCheck={false}
                       aria-describedby={`${id}-invite-code-hint`}
-                      className={`${inputCls} font-mono`}
+                      className={`${fieldCls} font-mono`}
                     />
                     <p id={`${id}-invite-code-hint`} className={hintCls}>
                       From whoever invited you. This workspace takes new accounts only with one.
@@ -1084,7 +1084,7 @@ function AuthCard(props: {
                       placeholder="Claim code from the host"
                       aria-describedby="workspace-claim-help"
                       spellCheck={false}
-                      className={`${inputCls} font-mono`}
+                      className={`${fieldCls} font-mono`}
                     />
                     <p id="workspace-claim-help" className="mt-1 text-xs text-ink-dim">
                       Enter the code shown when the host started this workspace to create its owner

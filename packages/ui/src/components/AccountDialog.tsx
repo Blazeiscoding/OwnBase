@@ -16,7 +16,7 @@ import { SavedContext, useSaved } from "../lib/savedNote.js";
 import { SECTION_LABELS, findSettings, type Setting } from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
-import { inputCls } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { Icon } from "./Icon.js";
 import { Modal } from "./Modal.js";
 import { ListStatus } from "./ListStatus.js";

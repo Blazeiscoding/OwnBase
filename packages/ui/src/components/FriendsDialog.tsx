@@ -3,7 +3,8 @@ import type { ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Avatar, PresenceDot } from "./Avatar.js";
-import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 
 const FRIENDS_TABS = ["friends", "requests", "people"] as const;

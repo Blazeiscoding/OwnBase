@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import type { CallRelayDraft, CallRelaySetting, Platform } from "../platform.js";
 import { probeRelay } from "../lib/relayProbe.js";
-import { inputCls } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 
 type RelayApi = NonNullable<NonNullable<Platform["hosting"]>["relay"]>;

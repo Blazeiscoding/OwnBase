@@ -1,6 +1,8 @@
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { useState } from "react";
-import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
+import { Kbd } from "./Kbd.js";
 import { modKey } from "../lib/shortcuts.js";
 
 /** The key held for shortcuts, as this keyboard labels it: ⌘ on a Mac, Ctrl elsewhere. */
@@ -112,12 +114,7 @@ export function ShortcutsDialog({ onClose }: { onClose: () => void }) {
                     <span className="text-ink-dim">{what}</span>
                     <span className="flex shrink-0 items-center gap-1">
                       {keys.split(" ").map((k) => (
-                        <kbd
-                          key={k}
-                          className="inline-flex h-6 min-w-6 items-center justify-center rounded border border-b-2 border-edge bg-lifted px-1.5 font-mono text-[11px] text-ink"
-                        >
-                          {k}
-                        </kbd>
+                        <Kbd key={k}>{k}</Kbd>
                       ))}
                     </span>
                   </li>

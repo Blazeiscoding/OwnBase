@@ -203,15 +203,19 @@ describe("account and administration dialogs", () => {
       "href",
       "https://github.com/Blazeiscoding/Tandem/blob/main/docs/INTEGRATIONS.md",
     );
-    for (const field of [
-      "App name",
-      "Command",
-      "Command request URL",
-      "Command description",
-      "Event request URL",
-      "Interactivity request URL",
-    ]) {
-      expect(within(dialog).getByLabelText(field)).toBeVisible();
+    expect(within(dialog).getByLabelText("App name")).toBeVisible();
+    // Each of an app's forms is a group named for what it adds, so its fields
+    // can say only "Request URL" and still be told apart.
+    for (const [group, fields] of [
+      ["Slash commands", ["Command", "Request URL", "Description"]],
+      ["Event subscriptions", ["Request URL"]],
+      ["Interactivity", ["Request URL"]],
+    ] as const) {
+      const section = within(dialog).getByRole("group", { name: group });
+      for (const field of fields) {
+        expect(within(section).getByText(field, { selector: "label" })).toBeVisible();
+        expect(within(section).getByLabelText(field)).toBeVisible();
+      }
     }
 
     await user.click(within(dialog).getByRole("button", { name: "Delete" }));

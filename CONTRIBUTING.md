@@ -191,13 +191,25 @@ Some views break the rule today, so follow the rule rather than them. Manage
 hosting is a dialog with four tabs, and there is no Workspace settings yet.
 Search results and Friends are lists, and both open as dialogs.
 
+New interface code is built from the shared parts in
+`packages/ui/src/components` rather than from restyled native elements:
+`Button`, `IconButton` for a button that shows only an icon, `TextField` for a
+field with its label, hint and error, and `Kbd` for a key, beside `Modal`,
+`Menu`, `Popover`, `Tooltip`, `Toast` and `ListStatus`. A field drawn by hand
+takes its classes from `inputClass` in `TextField.tsx`. Move older code over
+when you touch it, not in one sweep. The gallery shows each part in its states
+in Onyx and in White, and is what a review compares against: run
+`pnpm --filter @slackoss/web dev` and open `http://localhost:5173/#/gallery`,
+or `#/gallery/onyx` or `#/gallery/white` for one theme. Only the development
+server has it; a build leaves it out.
+
 Check a change to the interface against this list before asking for review. The
 pull request template repeats it in short.
 
 - It works from the keyboard alone, in a sensible Tab order. Escape closes the
   top layer and focus goes back to what opened it. `Dialog`, `Menu`, `Popover`
   and `usePanelFocus` already do both, so build on them. An icon-only button
-  has an `aria-label` and a `Tooltip`.
+  is an `IconButton`, whose label is both its name and its tooltip.
 - Focus is visible on everything that takes it. `theme.css` draws the ring on
   buttons, links and `tabindex="0"`, and fields show focus in their border.
   Anything else draws its own, as the New channel cards do with
@@ -224,9 +236,8 @@ pull request template repeats it in short.
   `LazyDialog`, so the entry stays within the budget above.
 
 Some forms still disable their button until something is typed or changed:
-Create account for a guest, the forms in Apps, Save in channel details and in
-call relay settings, Rename in Manage hosting, and Share in the screen picker.
-Fix one when you touch it.
+Save in channel details and in call relay settings, Rename in Manage hosting,
+and Share in the screen picker. Fix one when you touch it.
 
 To look at a change, start a throwaway workspace that serves the web build, on
 this computer only, and fill it with the demo:

@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./theme.css": "./src/theme.css",
-    "./emoji.css": "./src/emoji.css"
+    "./emoji.css": "./src/emoji.css",
+    "./gallery": "./src/gallery/Gallery.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -3,7 +3,8 @@ import { ApiError } from "@slackoss/client-core";
 import type { Channel, ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
-import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll } from "./Dialog.js";
+import { inputCls, TextField } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 import { useTabs } from "../lib/useTabs.js";
@@ -168,8 +169,13 @@ export function GuestAccountDialog(props: {
   const client = useClient();
   const [handle, setHandle] = useState("");
   const [password, setPassword] = useState("");
+  /** What is wrong with each field, said under it once the form is sent. */
+  const [problems, setProblems] = useState<{ handle?: string; password?: string }>({});
+  /** What went wrong that neither field explains. */
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const handleField = useRef<HTMLInputElement>(null);
+  const passwordField = useRef<HTMLInputElement>(null);
   const alive = useRef(true);
   useEffect(
     () => () => {
@@ -178,11 +184,31 @@ export function GuestAccountDialog(props: {
     [],
   );
 
+  /** The same rules the server applies, checked first so each can be said beside its field. */
+  function check(): { handle?: string; password?: string } {
+    const name = handle.trim().toLowerCase();
+    return {
+      handle: !name
+        ? "Choose a username."
+        : !/^[a-z0-9][a-z0-9._-]{1,31}$/.test(name)
+          ? "Usernames are 2 to 32 lowercase letters or numbers, and may use . _ or -."
+          : undefined,
+      password: !password
+        ? "Choose a password."
+        : password.length < 8
+          ? "Use at least 8 characters for the password."
+          : undefined,
+    };
+  }
+
   async function create(e: React.FormEvent) {
     e.preventDefault();
+    if (busy) return;
     setError(null);
-    if (password.length < 8) {
-      setError("Use at least 8 characters for the password.");
+    const found = check();
+    setProblems(found);
+    if (found.handle || found.password) {
+      (found.handle ? handleField : passwordField).current?.focus();
       return;
     }
     setBusy(true);
@@ -196,14 +222,17 @@ export function GuestAccountDialog(props: {
     } catch (err) {
       if (!alive.current) return;
       setBusy(false);
+      if (err instanceof ApiError && err.code === "handle_taken") {
+        setProblems({ handle: "That username is taken. Choose another." });
+        handleField.current?.focus();
+        return;
+      }
       setError(
-        err instanceof ApiError && err.code === "handle_taken"
-          ? "That username is taken. Choose another."
-          : err instanceof ApiError && err.code === "invalid_request"
-            ? "Usernames are lowercase letters and digits; passwords need 8+ characters."
-            : err instanceof ApiError && err.code === "invite_required"
-              ? "This workspace now needs an invite to create an account."
-              : "Could not create the account. Try again.",
+        err instanceof ApiError && err.code === "invalid_request"
+          ? "Usernames are lowercase letters and digits; passwords need 8+ characters."
+          : err instanceof ApiError && err.code === "invite_required"
+            ? "This workspace now needs an invite to create an account."
+            : "Could not create the account. Try again.",
       );
     }
   }
@@ -214,37 +243,44 @@ export function GuestAccountDialog(props: {
         You are here as a guest, for a day. An account keeps your name, messages and channels, and
         lets you sign in again from anywhere.
       </p>
-      <form onSubmit={create} className="space-y-3">
-        <label className="block text-sm font-medium">
-          Username
-          <input
-            autoFocus
-            value={handle}
-            onChange={(e) => setHandle(e.target.value)}
-            autoComplete="username"
-            spellCheck={false}
-            autoCapitalize="none"
-            className={`${inputCls} mt-1`}
-          />
-        </label>
-        <label className="block text-sm font-medium">
-          Password
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-            className={`${inputCls} mt-1`}
-          />
-        </label>
+      <form onSubmit={create} noValidate className="space-y-3">
+        <TextField
+          ref={handleField}
+          label="Username"
+          hint="Lowercase letters and numbers, such as maya or sam.r"
+          error={problems.handle}
+          autoFocus
+          value={handle}
+          onChange={(e) => {
+            setHandle(e.target.value);
+            setProblems((found) => ({ ...found, handle: undefined }));
+          }}
+          autoComplete="username"
+          spellCheck={false}
+          autoCapitalize="none"
+        />
+        <TextField
+          ref={passwordField}
+          label="Password"
+          hint="At least 8 characters."
+          error={problems.password}
+          type="password"
+          value={password}
+          onChange={(e) => {
+            setPassword(e.target.value);
+            setProblems((found) => ({ ...found, password: undefined }));
+          }}
+          autoComplete="new-password"
+        />
         {error && (
           <p role="alert" className="text-sm text-alert">
             {error}
           </p>
         )}
+        {/* Never off until filled in: sent empty, the form says what is missing. */}
         <button
           type="submit"
-          disabled={busy || !handle.trim() || !password}
+          aria-disabled={busy || undefined}
           className={buttonClass("primary", "w-full")}
         >
           {busy ? "Creating…" : "Create account"}

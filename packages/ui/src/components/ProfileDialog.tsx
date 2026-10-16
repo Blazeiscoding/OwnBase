@@ -6,7 +6,8 @@ import { Avatar } from "./Avatar.js";
 import { Modal } from "./Modal.js";
 import { Icon } from "./Icon.js";
 import { avatarColor } from "../lib/format.js";
-import { Dialog, inputCls } from "./Dialog.js";
+import { Dialog } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
 import {

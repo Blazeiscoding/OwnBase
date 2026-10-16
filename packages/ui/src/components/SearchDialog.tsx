@@ -24,7 +24,8 @@ import {
   withFilter,
 } from "../lib/searchFilters.js";
 import { useTabs } from "../lib/useTabs.js";
-import { Dialog, DialogScroll, inputCls } from "./Dialog.js";
+import { Dialog, DialogScroll } from "./Dialog.js";
+import { inputCls } from "./TextField.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { isImeKey } from "../lib/textInput.js";
 import { Icon } from "./Icon.js";
