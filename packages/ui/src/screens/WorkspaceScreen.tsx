@@ -1273,6 +1273,7 @@ function WorkspaceInner({
               )}
               <HuddleButton channelId={activeChannelId} />
               <ConversationMenu
+                channelId={activeChannelId}
                 title={isRoom ? `#${title}` : title}
                 isRoom={isRoom}
                 onPins={() => setPanel({ kind: "pins" })}

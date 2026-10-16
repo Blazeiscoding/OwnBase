@@ -668,10 +668,12 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
   const stored = useWorkspace((s) => s.prefs[channelId]);
   const prefs = stored ?? DEFAULT_PREFS;
   const write = useWorkspace((s) => s.prefsWrites[channelId]);
+  // A refused star says so where it was chosen; this speaks for these choices only.
+  const failed = write?.failed && ("notifyLevel" in write.failed || "muted" in write.failed);
 
   return (
     <div className="space-y-4">
-      {write?.failed ? (
+      {failed ? (
         <div role="alert" className="rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm">
           <p>
             Your notification choice was not saved, so this shows what the workspace has.{" "}
