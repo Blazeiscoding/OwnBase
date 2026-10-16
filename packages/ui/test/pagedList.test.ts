@@ -216,6 +216,142 @@ describe("a paged list", () => {
     expect(list.current.moreFailed).toBe(false);
   });
 
+  describe("keeping what it shows for a different list", () => {
+    it("keeps the rows while the next list's first page is out, never blank, then replaces them", async () => {
+      const { list, asks, states, ids } = harness();
+      list.start();
+      asks[0]!.answer({ items: rows("a", "b"), nextCursor: "b" });
+      await vi.advanceTimersByTimeAsync(0);
+      list.loadMore();
+      expect(list.current.loadingMore).toBe(true);
+      const before = states.length;
+
+      list.start({ keep: true });
+      // The page being added was the old list's.
+      expect(asks[1]!.signal.aborted).toBe(true);
+      expect(list.current.loadingMore).toBe(false);
+      expect(asks[2]!.cursor).toBeUndefined();
+      expect(list.current.loading).toBe(true);
+      expect(ids()).toEqual(["a", "b"]);
+      // Nothing more is read after rows that belong to another list.
+      list.loadMore();
+      expect(asks).toHaveLength(3);
+
+      asks[1]!.answer({ items: rows("late"), nextCursor: null });
+      asks[2]!.answer({ items: rows("x"), nextCursor: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ids()).toEqual(["x"]);
+      expect(list.current.loading).toBe(false);
+      expect(list.current.nextCursor).toBeNull();
+      const between = states.slice(before, -1);
+      expect(between.length).toBeGreaterThan(0);
+      expect(between.every((state) => state.items?.length === 2)).toBe(true);
+    });
+
+    it("reads one page of the next list, however far the last was read, then as far as it goes", async () => {
+      const { list, asks, ids } = harness();
+      list.start();
+      asks[0]!.answer({ items: rows("a"), nextCursor: "a" });
+      await vi.advanceTimersByTimeAsync(0);
+      for (const id of ["b", "c"]) {
+        list.loadMore();
+        asks.at(-1)!.answer({ items: rows(id), nextCursor: id });
+        await vi.advanceTimersByTimeAsync(0);
+      }
+      expect(ids()).toEqual(["a", "b", "c"]);
+
+      list.start({ keep: true });
+      expect(asks).toHaveLength(4);
+      asks[3]!.answer({ items: rows("x"), nextCursor: "x" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(asks).toHaveLength(4);
+      expect(ids()).toEqual(["x"]);
+      expect(list.current.nextCursor).toBe("x");
+
+      // From then on the new list's own length is how far it is read again.
+      list.loadMore();
+      asks[4]!.answer({ items: rows("y"), nextCursor: "y" });
+      await vi.advanceTimersByTimeAsync(0);
+      list.refresh();
+      await vi.advanceTimersByTimeAsync(250);
+      expect(asks[5]!.cursor).toBeUndefined();
+      asks[5]!.answer({ items: rows("x"), nextCursor: "x" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(asks[6]!.cursor).toBe("x");
+      asks[6]!.answer({ items: rows("y"), nextCursor: "y" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(asks).toHaveLength(7);
+      expect(ids()).toEqual(["x", "y"]);
+    });
+
+    it("reads one page on Retry when the next list's first page failed", async () => {
+      const { list, asks, ids } = harness();
+      list.start();
+      asks[0]!.answer({ items: rows("a"), nextCursor: "a" });
+      await vi.advanceTimersByTimeAsync(0);
+      list.loadMore();
+      asks[1]!.answer({ items: rows("b"), nextCursor: "b" });
+      await vi.advanceTimersByTimeAsync(0);
+
+      list.start({ keep: true });
+      asks[2]!.fail();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(list.current.failed).toBe(true);
+      expect(list.current.loading).toBe(false);
+
+      list.retry();
+      expect(asks[3]!.cursor).toBeUndefined();
+      asks[3]!.answer({ items: rows("x"), nextCursor: "x" });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(asks).toHaveLength(4);
+      expect(ids()).toEqual(["x"]);
+      expect(list.current.failed).toBe(false);
+    });
+
+    it("clears what failed before, for the next list", async () => {
+      const { list, asks } = harness();
+      list.start();
+      asks[0]!.answer({ items: rows("a"), nextCursor: "a" });
+      await vi.advanceTimersByTimeAsync(0);
+      list.loadMore();
+      asks[1]!.fail();
+      await vi.advanceTimersByTimeAsync(0);
+      expect(list.current.moreFailed).toBe(true);
+
+      list.start({ keep: true });
+      expect(list.current.moreFailed).toBe(false);
+      expect(list.current.failed).toBe(false);
+      expect(list.current.refreshing).toBe(false);
+    });
+
+    it("blanks as before when there is nothing to keep", async () => {
+      const { list, asks, ids } = harness();
+      list.start({ keep: true });
+      expect(ids()).toBeNull();
+      expect(list.current.loading).toBe(true);
+      asks[0]!.answer({ items: [], nextCursor: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ids()).toEqual([]);
+
+      list.start({ keep: true });
+      expect(ids()).toBeNull();
+      expect(list.current.loading).toBe(true);
+      asks[1]!.answer({ items: rows("x"), nextCursor: null });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(ids()).toEqual(["x"]);
+    });
+
+    it("drops the rows without `keep`, as a different list always did", async () => {
+      const { list, asks, ids } = harness();
+      list.start({ keep: true });
+      asks[0]!.answer({ items: rows("a"), nextCursor: null });
+      await vi.advanceTimersByTimeAsync(0);
+      list.start();
+      expect(ids()).toBeNull();
+      expect(list.current.loading).toBe(true);
+    });
+  });
+
   it("drops everything on stop, and starts again cleanly", async () => {
     const { list, asks, ids } = harness();
     list.start();

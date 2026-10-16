@@ -19,7 +19,7 @@ export interface MenuItem {
   section?: string | true;
   /** Danger-zone actions read red. */
   destructive?: boolean;
-  /** One of a set to choose from, ticked when it is the one chosen. */
+  /** Ticked when chosen: the one of a set, or each of several in a `multiple` menu. */
   checked?: boolean;
   /** A word or two after the label, such as how long a status lasts. */
   hint?: string;
@@ -55,6 +55,8 @@ interface MenuProps {
   sheet?: boolean;
   /** How wide it opens, for items such as device names that need the room. */
   width?: number;
+  /** Any number of its items can be ticked, each on its own, as filters are. */
+  multiple?: boolean;
 }
 
 /**
@@ -79,6 +81,7 @@ export function Menu({
   header,
   sheet = false,
   width,
+  multiple = false,
 }: MenuProps) {
   const [openState, setOpenState] = useState(false);
   const open = openProp ?? openState;
@@ -116,6 +119,7 @@ export function Menu({
           sheet={sheet}
           width={width}
           align={align}
+          multiple={multiple}
           anchor={() => trigger.current?.getBoundingClientRect() ?? null}
           onClose={() => setOpen(false)}
         />
@@ -134,6 +138,7 @@ function MenuPanel({
   sheet,
   align,
   width: wanted,
+  multiple,
   anchor,
   onClose,
 }: {
@@ -143,6 +148,7 @@ function MenuPanel({
   sheet: boolean;
   align: "start" | "end";
   width?: number;
+  multiple: boolean;
   anchor: () => DOMRect | null;
   onClose: () => void;
 }) {
@@ -301,7 +307,13 @@ function MenuPanel({
             )}
             <button
               type="button"
-              role={item.checked === undefined ? "menuitem" : "menuitemradio"}
+              role={
+                item.checked === undefined
+                  ? "menuitem"
+                  : multiple
+                    ? "menuitemcheckbox"
+                    : "menuitemradio"
+              }
               aria-checked={item.checked}
               data-menu-index={index}
               tabIndex={-1}
