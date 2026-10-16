@@ -677,8 +677,9 @@ function WorkspaceMenu(props: {
 /**
  * You, at the foot of the sidebar: your name and status, and what concerns
  * only you — your profile, your settings, your queued messages, and help.
+ * The phone's bottom bar opens the same menu from a button of its own.
  */
-function AccountMenu(props: {
+export function AccountMenu(props: {
   guest: boolean;
   snoozed: boolean;
   onCreateAccount?: () => void;
@@ -687,6 +688,8 @@ function AccountMenu(props: {
   onScheduled?: () => void;
   onShortcuts?: () => void;
   onDiagnostics?: () => void;
+  /** Another button to open it, drawn by its owner; on a phone it opens as a sheet. */
+  trigger?: { label: string; className: string; content: ReactNode };
 }) {
   const self = useWorkspace((s) => s.self);
   const client = useClient();
@@ -778,6 +781,18 @@ function AccountMenu(props: {
       section: props.onShortcuts ? undefined : true,
       onSelect: props.onDiagnostics,
     });
+  if (props.trigger)
+    return (
+      <Menu
+        label="Your account"
+        triggerLabel={props.trigger.label}
+        items={items}
+        align="start"
+        sheet
+        triggerClassName={props.trigger.className}
+        triggerContent={props.trigger.content}
+      />
+    );
   const status = props.guest
     ? "Guest"
     : self?.statusText || self?.statusEmoji

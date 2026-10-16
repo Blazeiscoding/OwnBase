@@ -1081,6 +1081,10 @@ textarea::placeholder {
   .workspace-sidebar {
     overflow-y: auto;
   }
+  /* As tall as what it holds, so the footer comes after the list, not over it. */
+  .workspace-sidebar > :first-child {
+    min-height: auto;
+  }
   .sidebar-scroll {
     flex: none;
     overflow: visible;
@@ -1121,6 +1125,87 @@ textarea::placeholder {
 }
 
 /*
+ * The phone's bottom bar (UX-70): Home, DMs, Activity and You along the foot
+ * of the screen, clear of the home indicator. The workspace keeps the bar's
+ * height free, so the bar never covers the composer or the last message, and
+ * a side panel stops above it, so Activity and DMs are one tap apart. The
+ * drawer opens over it. While the on-screen keyboard is up it steps aside and
+ * the composer has the room (onScreenKeyboard.ts sets data-keyboard).
+ */
+.workspace-shell:has(> .bottom-bar) {
+  --bottom-bar: calc(3.5rem + env(safe-area-inset-bottom));
+  padding-bottom: var(--bottom-bar);
+}
+:root[data-keyboard] .workspace-shell {
+  --bottom-bar: 0px;
+}
+.bottom-bar {
+  position: absolute;
+  inset: auto 0 0;
+  z-index: 20;
+  height: var(--bottom-bar);
+  padding: 0 env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  background: var(--color-deep);
+  box-shadow: 0 -1px 0 var(--color-edge);
+}
+:root[data-keyboard] .bottom-bar {
+  display: none;
+}
+
+/*
+ * Safe areas (UX-71). The page is drawn under a phone's notch, its rounded
+ * corners and its home indicator (viewport-fit=cover), so where the phone
+ * layout meets an edge it keeps the inset from it: the conversation, its
+ * header and the composer from the sides and the top, the drawer from the
+ * top, the left and the bottom, and a side panel covering the conversation
+ * from the top. Everywhere without a notch the insets are 0.
+ */
+@media (max-width: 760px), (max-height: 480px) {
+  .workspace-main {
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  .channel-header {
+    height: calc(3rem + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+  .workspace-sidebar {
+    padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+}
+@media (max-width: 760px) {
+  .workspace-shell > aside {
+    bottom: var(--bottom-bar, 0px);
+    padding-top: env(safe-area-inset-top);
+  }
+  /* The bar keeps clear of the home indicator now, and a keyboard covers it. */
+  .workspace-shell:has(> .bottom-bar) .composer-shell,
+  :root[data-keyboard] .composer-shell {
+    padding-bottom: 10px;
+  }
+}
+
+/*
+ * Where the browser does not shrink the page for the on-screen keyboard, as
+ * iOS Safari does not honour interactive-widget, the app takes the height of
+ * the part left in sight and follows it (onScreenKeyboard.ts).
+ */
+:root[data-visual-viewport] #root {
+  height: var(--visual-height);
+  translate: 0 var(--visual-top);
+}
+/*
+ * iOS zooms into a field whose text is smaller than 16 px when it is tapped,
+ * and stays zoomed once the keyboard has gone. On a touchscreen fields write
+ * at 16 px, which none is larger than.
+ */
+@media (hover: none) and (pointer: coarse) {
+  textarea,
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="color"], [type="file"]) {
+    font-size: 16px;
+  }
+}
+
+/*
  * Between a phone and a laptop, the sidebar and a side panel beside it left
  * the conversation about 124 px at 768 wide. There a panel opens as a sheet
  * over the conversation instead, which goes inert beneath it as on a phone.
@@ -1129,7 +1214,9 @@ textarea::placeholder {
 @media (min-width: 761px) and (max-width: 1023px) {
   .workspace-shell > aside {
     position: absolute;
-    inset: var(--inset) var(--inset) var(--inset) auto;
+    /* Clear of a phone's notch and home indicator when it is on its side. */
+    inset: max(var(--inset), env(safe-area-inset-top)) max(var(--inset), env(safe-area-inset-right))
+      max(var(--inset), env(safe-area-inset-bottom)) auto;
     z-index: 30;
     width: min(420px, calc(100% - 2 * var(--inset)));
     max-width: 100%;
