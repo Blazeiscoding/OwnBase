@@ -337,9 +337,10 @@
       "summary": "Starts the same application using browser capabilities.",
       "details": [
         "Mounts App with webPlatform under React StrictMode and imports shared styling.",
-        "Notification permission is requested after sign-in from a deliberate banner interaction, preserving the browser's user-gesture requirement."
+        "Notification permission is requested after sign-in from a deliberate banner interaction, preserving the browser's user-gesture requirement.",
+        "In development only, #/gallery (or #/gallery/onyx, #/gallery/white) renders the primitives gallery from @slackoss/ui/gallery instead of the app. The branch is guarded by import.meta.env.DEV, which a build replaces with false, so the gallery's import is dropped and nothing of it ships."
       ],
-      "concepts": ["React entry", "web platform", "permission timing"]
+      "concepts": ["React entry", "web platform", "permission timing", "development gallery"]
     },
     {
       "path": "apps/web/src/index.css",

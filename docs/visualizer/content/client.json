@@ -242,7 +242,8 @@
         "Saved sign-ins first validate their token and fall back to a password card when expired. The auth form handles registration, invites and initial-owner claiming through the typed API. A new account that comes back as owner founded the workspace, and onConnected says so, so the workspace opens on inviting people (UX-42).",
         "Since Q06 the saved-token path and the forced password replacement carry the same attempt ownership as ordinary probes, so a late answer after Cancel, another choice or unmount does nothing.",
         "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry.",
-        "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code."
+        "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code.",
+        "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field."
       ],
       "concepts": [
         "LAN discovery",
@@ -1326,7 +1327,7 @@
       "details": [
         "NewChannelDialog creates public/private channels; BrowseChannelsDialog lists and joins available channels; NewDmDialog chooses participants and opens a direct/group conversation.",
         "These occasional forms are lazy-loaded by the workspace screen rather than required for every returning conversation view. Invite people moved to InviteDialog.tsx, so its QR encoder loads with it alone.",
-        "GuestAccountDialog keeps a guest's identity as an account; the new session token reopens the workspace as the same person."
+        "GuestAccountDialog keeps a guest's identity as an account; the new session token reopens the workspace as the same person. Its Username and Password are TextFields checked on submit with the server's rules (2 to 32 lowercase letters, digits, . _ or -, and at least 8 characters): the button is never off until filled in, each problem is said under its field, the first gets focus, and a taken username comes back under the username."
       ],
       "concepts": ["channel creation", "direct messages", "lazy forms"]
     },
@@ -1407,7 +1408,8 @@
         "Configures slash commands, event subscriptions and verified interactivity URLs; refreshes composer command hints when those change.",
         "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported.",
         "It opens on templates (UX-63): Incoming webhook, Slash command and Post CI results, as tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another. A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails.",
-        "OAuth, Socket Mode, ts and the link to the published integration contract are folded into How this differs from Slack."
+        "OAuth, Socket Mode, ts and the link to the published integration contract are folded into How this differs from Slack.",
+        "Each app's Slash commands, Event subscriptions and Interactivity forms are fieldsets named by their legend, with small TextFields (Command, Request URL, Description). Their buttons are never off until filled in: sent empty, a form says what is missing under each field and focuses the first, and a request in flight is only aria-disabled. A refused event or interactivity address is said under the field. Saving the interactivity address works unchanged too, rechecking it, and says Saved and verified, or that buttons are off when it is empty."
       ],
       "concepts": [
         "integration administration",
@@ -1661,7 +1663,8 @@
       "summary": "Lists and filters keyboard shortcuts using the current composing preference.",
       "details": [
         "Writing-key descriptions change with Enter-to-send so the help reflects active behavior.",
-        "A query matches words across keys and explanations, exposing navigation, message, formatting and call shortcuts without requiring the reader to memorize them."
+        "A query matches words across keys and explanations, exposing navigation, message, formatting and call shortcuts without requiring the reader to memorize them.",
+        "Each key is drawn with the shared Kbd keycap."
       ],
       "concepts": ["keyboard help", "preference-aware documentation"]
     },
@@ -1703,6 +1706,44 @@
       "concepts": ["shared styles", "native semantics"]
     },
     {
+      "path": "packages/ui/src/components/IconButton.tsx",
+      "plain": "A button that shows only an icon. It cannot be made without a name, which a screen reader says and which appears as its hint.",
+      "summary": "The shared icon-only button: a required label used as accessible name and tooltip.",
+      "details": [
+        "The label prop is required by its type and becomes both aria-label and the Tooltip's text; keys adds a shortcut to the tooltip. It takes an Icon name or other non-text children.",
+        "Two sizes: regular is 32 px (size-8) for dialogs, panels and headers, small is 24 px (size-6), the smallest target axe's target-size rule accepts. round draws a circle for one on a chip.",
+        "Unlike Button it defaults to type=button, since an icon rarely sends a form. It forwards its ref through Tooltip's ref merge and passes aria-pressed, aria-expanded and aria-haspopup through, tinting while pressed or expanded."
+      ],
+      "concepts": ["icon-only control", "required accessible name", "tooltip", "target size"]
+    },
+    {
+      "path": "packages/ui/src/components/TextField.tsx",
+      "plain": "A text box with its name above it and, under it, a line on what to enter or what is wrong. It also holds the one set of styles every text box uses.",
+      "summary": "Labelled input with hint and error wiring, and the single source of field classes.",
+      "details": [
+        "TextField draws a visible label tied by htmlFor, then the input, then an error (role=alert, with an icon) and a hint. aria-describedby lists the error first, then the hint, then any the caller passes; aria-invalid is set only while there is an error. Its ref reaches the input, so a form checked on submit can put the cursor in the first field with a problem.",
+        "inputClass(size, extra) returns the classes for small (a row of fields in a card), regular (dialogs and settings) and large (the sign-in card, with field-spot). Each size is a whole set, because two utilities for one property are settled by Tailwind's order rather than the class list's. aria-invalid:border-alert turns any of them red.",
+        "inputCls is the regular size, for an input, textarea or select still drawn by hand; it used to live in Dialog.tsx, with a second copy in JoinScreen."
+      ],
+      "concepts": [
+        "labelled field",
+        "error message",
+        "aria-describedby",
+        "shared styles",
+        "focus on submit"
+      ]
+    },
+    {
+      "path": "packages/ui/src/components/Kbd.tsx",
+      "plain": "Draws one keyboard key as a small keycap, as the shortcuts list shows them.",
+      "summary": "The shared keycap style for a key.",
+      "details": [
+        "A kbd element with a raised face and a deeper lower edge; a shortcut of several keys is several side by side. It passes its props through and adds any classes given.",
+        "Keyboard shortcuts uses it. The plain shortcut hints in the quick switcher, the sidebar's Jump to button and a tooltip's bubble keep their own quieter styles."
+      ],
+      "concepts": ["keycap", "keyboard help"]
+    },
+    {
       "path": "packages/ui/src/components/Modal.tsx",
       "plain": "The layer under every dialog, menu and full-size image, which keeps the keyboard inside the top one and returns focus on close.",
       "summary": "Owns the shared stack of modal portals and keyboard/focus isolation.",
@@ -1723,15 +1764,14 @@
     },
     {
       "path": "packages/ui/src/components/Dialog.tsx",
-      "plain": "The standard dialog frame. Its title and close button stay in sight while what is under them scrolls, and it supplies matching form fields.",
-      "summary": "Adds standard dialog structure, one scrolling region and form styling on top of Modal.",
+      "plain": "The standard dialog frame. Its title and close button stay in sight while what is under them scrolls.",
+      "summary": "Adds standard dialog structure and one scrolling region on top of Modal.",
       "details": [
         "Supplies a titled surface, accessible description relationship, close affordance and configurable width.",
         "The title row is fixed and the content scrolls in DialogScroll. A dialog that sets ownScroll places that region itself, between the parts it keeps in sight: a search field, the list of settings sections, or the buttons that finish a form.",
-        "The scrolling content takes its width from a container around the scroller, so a scrollbar appearing does not shift it, and it fades at an edge only while there is more to scroll to there. Both are stylesheet rules, with a plain edge where scroll timelines are unsupported.",
-        "Exports shared input classes so forms use the same focus, border and disabled appearance."
+        "The scrolling content takes its width from a container around the scroller, so a scrollbar appearing does not shift it, and it fades at an edge only while there is more to scroll to there. Both are stylesheet rules, with a plain edge where scroll timelines are unsupported."
       ],
-      "concepts": ["accessible dialog", "single scroll region", "shared form surface"]
+      "concepts": ["accessible dialog", "single scroll region"]
     },
     {
       "path": "packages/ui/src/components/Popover.tsx",
@@ -1848,6 +1888,17 @@
         "An ErrorBoundary confines a failed download to that view and provides close/reload actions, allowing the rest of the workspace to remain usable."
       ],
       "concepts": ["lazy loading", "chunk failure isolation", "recoverable navigation"]
+    },
+    {
+      "path": "packages/ui/src/gallery/Gallery.tsx",
+      "plain": "A page for people building Tandem that shows every shared control in its states, in the dark and the light theme. Only the development version has it.",
+      "summary": "Development-only gallery of the UI primitives in Onyx and White, the reference for review.",
+      "details": [
+        "apps/web/src/main.tsx imports it, through the package's ./gallery export, only when import.meta.env.DEV is true and the address is #/gallery, #/gallery/onyx or #/gallery/white. A build replaces that condition with false and drops the import, so neither the web build nor the desktop renderer contains it.",
+        "A theme belongs to the whole document, menus and tooltips included, so #/gallery shows each theme in an iframe of its own (#/gallery/onyx and #/gallery/white), and each sets data-theme on its own document. A framed sheet tells the page its height by postMessage, checked against the page's origin, so the page scrolls rather than the frames.",
+        "Sections show Button's variants and disabled and waiting states, IconButton's sizes and pressed, disabled and round forms, TextField with hint, error and disabled at each size, a form checked on submit (also inside a Dialog), Kbd, Tooltip, Menu, Popover, Toast and ListStatus's loading, refreshing, failed and empty states. Hover and focus are seen by pointing and tabbing."
+      ],
+      "concepts": ["development only", "component gallery", "themes", "review reference"]
     }
   ],
   "flows": [
