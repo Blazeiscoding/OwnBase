@@ -121,6 +121,21 @@ function toUser(r: UserRow): User {
   };
 }
 
+/** One member's own choices for a conversation, as `channel_members` keeps them. */
+type PrefsRow = {
+  notify_level: string;
+  muted: number;
+  starred: number;
+};
+
+function toPrefs(r: PrefsRow): ChannelPrefs {
+  return {
+    notifyLevel: r.notify_level as NotifyLevel,
+    muted: r.muted === 1,
+    starred: r.starred === 1,
+  };
+}
+
 /**
  * The one rule for who may create invite codes, used for the flag clients see
  * and for the codes a creator has already handed out. An app never may.
@@ -808,38 +823,35 @@ export class Store {
   }[] {
     const rows = this.db
       .prepare(
-        `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, muted
+        `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, muted, starred
          FROM channel_members WHERE user_id = ?`,
       )
-      .all(userId) as {
+      .all(userId) as ({
       channel_id: string;
       last_read_seq: number;
       replies_read_seq: number;
-      notify_level: string;
-      muted: number;
-    }[];
+    } & PrefsRow)[];
     return rows.map((r) => ({
       channelId: r.channel_id,
       lastReadSeq: r.last_read_seq,
       repliesReadSeq: r.replies_read_seq,
-      prefs: { notifyLevel: r.notify_level as NotifyLevel, muted: r.muted === 1 },
+      prefs: toPrefs(r),
     }));
   }
 
   getChannelPrefs(channelId: ID, userId: ID): ChannelPrefs | null {
     const r = this.db
       .prepare(
-        "SELECT notify_level, muted FROM channel_members WHERE channel_id = ? AND user_id = ?",
+        "SELECT notify_level, muted, starred FROM channel_members WHERE channel_id = ? AND user_id = ?",
       )
-      .get(channelId, userId) as { notify_level: string; muted: number } | undefined;
-    if (!r) return null;
-    return { notifyLevel: r.notify_level as NotifyLevel, muted: r.muted === 1 };
+      .get(channelId, userId) as PrefsRow | undefined;
+    return r ? toPrefs(r) : null;
   }
 
   setChannelPrefs(
     channelId: ID,
     userId: ID,
-    patch: { notifyLevel?: NotifyLevel; muted?: boolean },
+    patch: { notifyLevel?: NotifyLevel; muted?: boolean; starred?: boolean },
   ): ChannelPrefs | null {
     const sets: string[] = [];
     const params: (string | number)[] = [];
@@ -850,6 +862,10 @@ export class Store {
     if (patch.muted !== undefined) {
       sets.push("muted = ?");
       params.push(patch.muted ? 1 : 0);
+    }
+    if (patch.starred !== undefined) {
+      sets.push("starred = ?");
+      params.push(patch.starred ? 1 : 0);
     }
     if (sets.length > 0) {
       this.db

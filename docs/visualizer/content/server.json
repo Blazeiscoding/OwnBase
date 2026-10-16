@@ -83,7 +83,8 @@
         "Schema 37 removes actions from deleted messages and superseded/purged replay copies, and blanks text/file IDs from sent schedules. Current live buttons and every unsent schedule remain usable.",
         "Indexes support mention lookup, delegated managers and due cleanup/retry work instead of repeated broad scans.",
         "A newer schema is refused by an older build. Logical cleanup affects active database records; it does not promise erasure of historical backups or freed disk bytes.",
-        "Schema 39 adds users.status_expires_at, when a status clears itself, or NULL for one kept until changed (UX-61)."
+        "Schema 39 adds users.status_expires_at, when a status clears itself, or NULL for one kept until changed (UX-61).",
+        "Schema 40 adds channel_members.starred, one member's star on a conversation (UX-20). It sits on the membership beside muted, so leaving drops it, joining again starts unstarred, and an archived channel keeps it."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -108,7 +109,8 @@
         "byUser groups a person's sockets for targeted updates. Presence lists only online accounts, avoiding a second full offline-account listing at every handshake.",
         "Huddles and typing are ephemeral. Signaling relays only between authorized participants in the same huddle; the server carries signaling, not media.",
         "Socket callbacks contain thrown failures and close the affected connection with a retryable server error. Heartbeats, authentication timeout, payload limits and idempotent close bound abandoned connections.",
-        "Writes huddle joins, refusals, departures with their reason, relayed offers and answers, signals it could not pass on and why, and clients' huddle.report summaries to an in-memory CallLog; the ready snapshot advertises huddleReports."
+        "Writes huddle joins, refusals, departures with their reason, relayed offers and answers, signals it could not pass on and why, and clients' huddle.report summaries to an in-memory CallLog; the ready snapshot advertises huddleReports.",
+        "The ready snapshot also advertises stars, so a client offers Star only where it is kept (UX-20)."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -350,7 +352,8 @@
         "Already delivered app copies and prior backups are outside active-store cleanup; the SQL rules do not constitute physical disk erasure.",
         "Inline replies keep the message they answer (reply_to_id) and whether its author was notified (reply_ping). Hydration reads each quoted message as it now is, cut to replyExcerpt, or says it was deleted; a notified author is indexed as mentioned. Editing, deleting or purging a quoted message rewrites the quotes in its replies' logged copies too, so the log never keeps words that were taken back.",
         "Guest sessions keep their 24-hour expiry instead of sliding; canAccess and listChannelsVisibleTo give a guest public channels only, whatever membership it might hold. convertGuest turns a guest into a member in place, and revokeGuestSessions reports the ended tokens so their sockets close.",
-        "listPins also counts every pin it would list (deleted messages and replies in deleted threads left out), so the header's pinned line can say how many from one row (UX-23)."
+        "listPins also counts every pin it would list (deleted messages and replies in deleted threads left out), so the header's pinned line can say how many from one row (UX-23).",
+        "A member's own choices for a conversation (notify level, muted, starred) live on their membership row, read in one shape by toPrefs for the ready snapshot, channel.access and the prefs route. Another member's row, and so their choices, is never touched."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -397,7 +400,8 @@
         "Follow records include revision and unread-hold state; operational status models storage, queues, retention, connections and event-loop delay.",
         "Optional capability/metadata fields allow older servers and clients to interoperate without assuming support.",
         "The shared 30-day send retry window aligns client automatic retries with server retention of minimal send keys after content is removed.",
-        "Role includes guest, and ServerInfo.accessPolicy says who may join; an older server omits it, which clients read as accounts only."
+        "Role includes guest, and ServerInfo.accessPolicy says who may join; an older server omits it, which clients read as accounts only.",
+        "ChannelPrefs.starred is one account's star on a conversation (UX-20). Servers before schema 40 leave it out, which reads as unstarred."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -410,7 +414,8 @@
         "history.removed names whole thread roots so clients can invalidate removed root/reply content and files even when history is evicted.",
         "EphemeralEvent carries presence, typing, read/unread changes, private saves/preferences/follows, correlated huddle admission and one-user app replies/forms; these are never replayed as durable history.",
         "ReadySnapshot describes current visible state and replayFrom, while synced marks completion. A null replay cursor replaces cached history; resync is the legacy fallback.",
-        "The distinction lets a lost ephemeral notice recover through a new snapshot without preserving private/transient UI messages forever."
+        "The distinction lets a lost ephemeral notice recover through a new snapshot without preserving private/transient UI messages forever.",
+        "Flags on ReadySnapshot (huddleReports, inlineReplies, scheduledEvents, activityThreads, stars) say what this server does, so a client offers nothing an older server would refuse or quietly drop."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -470,7 +475,8 @@
         "Messages require words or attachments; DM creation has a fixed counterpart count and group DMs have a bounded participant list.",
         "Scheduling carries a stable nonce; editing a scheduled message carries expectedText so a conflicting edit can be refused.",
         "Integration URLs reject embedded credentials and non-HTTP(S) schemes. Modal submissions bound nested IDs and values before echoing them to an app.",
-        "Types are inferred from the schemas, keeping compile-time client contracts aligned with the server's runtime parsing. Parsed shape alone does not imply authorization."
+        "Types are inferred from the schemas, keeping compile-time client contracts aligned with the server's runtime parsing. Parsed shape alone does not imply authorization.",
+        "channelPrefsBody takes notifyLevel, muted and starred, each optional. An older server's schema drops starred without an error, which is why clients wait for ReadySnapshot.stars."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },

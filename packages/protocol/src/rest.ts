@@ -52,6 +52,8 @@ export const updateMeBody = z.object({
 export const channelPrefsBody = z.object({
   notifyLevel: z.enum(["all", "mentions", "nothing"]).optional(),
   muted: z.boolean().optional(),
+  /** A server before schema v40 drops this unread; see `ReadySnapshot.stars`. */
+  starred: z.boolean().optional(),
 });
 
 export const savedMessagesQuery = z.object({

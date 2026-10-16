@@ -569,6 +569,12 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE users ADD COLUMN status_expires_at INTEGER;
   `,
+  // v40 — a conversation starred by one member, listed under Starred above
+  // Channels for them alone (UX-20). It lives on the membership, as muting
+  // does, so leaving drops it and an archived channel keeps it.
+  `
+  ALTER TABLE channel_members ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */
