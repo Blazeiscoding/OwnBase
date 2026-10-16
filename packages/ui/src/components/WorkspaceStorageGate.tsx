@@ -16,6 +16,10 @@ interface Props {
   onLeaveWorkspace: () => void;
   onSignedOut: () => void;
   children: ReactNode;
+  /** Shown across the top while it waits, as the workspace would in its banner place. */
+  banner?: ReactNode;
+  /** Shown under what it is waiting for, such as this computer's hosting. */
+  footer?: ReactNode;
 }
 
 interface Scope {
@@ -38,6 +42,8 @@ export function WorkspaceStorageGate({
   onLeaveWorkspace,
   onSignedOut,
   children,
+  banner,
+  footer,
 }: Props) {
   const userId = useStore(client.store, (state) => state.self?.id);
   const workspaceId = useStore(client.store, (state) => state.workspaceId);
@@ -113,68 +119,75 @@ export function WorkspaceStorageGate({
           : "Connecting to the workspace…";
 
   return (
-    <div className="flex h-full items-center justify-center bg-ground p-6 text-ink">
-      {asking && access ? (
-        <Dialog title="Confirm workspace address" onClose={onLeaveWorkspace} width={520}>
-          <div className="space-y-4 text-sm">
-            <p>
-              This address claims to be a workspace you have used before. Check that you recognize
-              it before sharing work saved on this device.
-            </p>
-            <div className="space-y-3 rounded-lg border border-edge bg-ground p-3">
-              <div>
-                <p className="mb-1 font-semibold">Previously trusted</p>
-                <ul className="max-h-32 space-y-1 overflow-y-auto text-ink-dim">
-                  {access.addresses.map((address) => (
-                    <li key={address} className="break-all font-mono text-xs">
-                      {address}
-                    </li>
-                  ))}
-                </ul>
+    <div className="flex h-full flex-col bg-ground text-ink">
+      {banner}
+      <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+        {asking && access ? (
+          <Dialog title="Confirm workspace address" onClose={onLeaveWorkspace} width={520}>
+            <div className="space-y-4 text-sm">
+              <p>
+                This address claims to be a workspace you have used before. Check that you recognize
+                it before sharing work saved on this device.
+              </p>
+              <div className="space-y-3 rounded-lg border border-edge bg-ground p-3">
+                <div>
+                  <p className="mb-1 font-semibold">Previously trusted</p>
+                  <ul className="max-h-32 space-y-1 overflow-y-auto text-ink-dim">
+                    {access.addresses.map((address) => (
+                      <li key={address} className="break-all font-mono text-xs">
+                        {address}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+                <div>
+                  <p className="mb-1 font-semibold">Connecting to</p>
+                  <p className="break-all font-mono text-xs">{access.address}</p>
+                </div>
               </div>
-              <div>
-                <p className="mb-1 font-semibold">Connecting to</p>
-                <p className="break-all font-mono text-xs">{access.address}</p>
+              <p className="text-ink-dim">
+                Continuing gives this address access to your saved drafts and recent searches.
+                Queued messages may be sent automatically, and scheduling recovery becomes
+                available.
+              </p>
+              <div className="flex flex-wrap justify-end gap-2 pt-1">
+                <button type="button" className={buttonClass("quiet")} onClick={onLeaveWorkspace}>
+                  Back to workspaces
+                </button>
+                <button
+                  type="button"
+                  className={buttonClass("primary")}
+                  disabled={current?.phase === "saving"}
+                  onClick={() => approve.current?.()}
+                >
+                  {current?.phase === "saving" ? "Saving approval…" : "Trust address and continue"}
+                </button>
               </div>
             </div>
-            <p className="text-ink-dim">
-              Continuing gives this address access to your saved drafts and recent searches. Queued
-              messages may be sent automatically, and scheduling recovery becomes available.
+          </Dialog>
+        ) : (
+          <div className="max-w-md space-y-4 text-center">
+            <p role={current?.phase === "error" ? "alert" : "status"}>
+              {current?.error ?? waiting}
             </p>
-            <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <div className="flex flex-wrap justify-center gap-2">
               <button type="button" className={buttonClass("quiet")} onClick={onLeaveWorkspace}>
                 Back to workspaces
               </button>
-              <button
-                type="button"
-                className={buttonClass("primary")}
-                disabled={current?.phase === "saving"}
-                onClick={() => approve.current?.()}
-              >
-                {current?.phase === "saving" ? "Saving approval…" : "Trust address and continue"}
-              </button>
+              {current?.phase === "error" && (
+                <button
+                  type="button"
+                  className={buttonClass("primary")}
+                  onClick={() => retry.current?.()}
+                >
+                  Retry
+                </button>
+              )}
             </div>
+            {footer}
           </div>
-        </Dialog>
-      ) : (
-        <div className="max-w-md space-y-4 text-center">
-          <p role={current?.phase === "error" ? "alert" : "status"}>{current?.error ?? waiting}</p>
-          <div className="flex flex-wrap justify-center gap-2">
-            <button type="button" className={buttonClass("quiet")} onClick={onLeaveWorkspace}>
-              Back to workspaces
-            </button>
-            {current?.phase === "error" && (
-              <button
-                type="button"
-                className={buttonClass("primary")}
-                onClick={() => retry.current?.()}
-              >
-                Retry
-              </button>
-            )}
-          </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }

@@ -219,14 +219,16 @@
         "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in.",
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
         "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through inviteAsk, a number that changes with each ask, so a new session does not take an old ask for a new one.",
-        "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back."
+        "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back.",
+        "Sign-ins this device could not save (the key-store bar, with Retry saving) show across the top of the window outside a workspace; in one they take their turn in its banner place (UX-25). App also works out this computer's hosting line (hosting, starting, stopping or what is wrong, with Manage) and hands it to the workspace's sidebar, in place of the bar that ran along the bottom of the window."
       ],
       "concepts": [
         "application lifecycle",
         "saved credentials",
         "lazy chunks",
         "navigation identity",
-        "Q05"
+        "Q05",
+        "UX-25"
       ]
     },
     {
@@ -259,7 +261,8 @@
         "The screen tracks what is truly visible and focused when deciding notifications and read acknowledgement. Missed messages are grouped through CatchUpSummary, and live messages can be announced politely to a screen reader.",
         "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. The thread panel is drawn the same way. These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
         "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues.",
-        "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu."
+        "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu.",
+        "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting."
       ],
       "concepts": [
         "screen orchestration",
@@ -269,7 +272,9 @@
         "notifications",
         "N04",
         "conversation header",
-        "UX-23"
+        "UX-23",
+        "banners",
+        "UX-25"
       ]
     },
     {
@@ -936,7 +941,8 @@
       "details": [
         "Reads workspace and account identity from the ready replica, then checks the local trusted-address record. The gate shows checking, explicit approval, saving or retryable error before mounting drafts/search-history consumers.",
         "Approval explains that the address can access saved local work and may resume queued sends. Effects fence results to their current client/workspace/account scope.",
-        "The gate relies on the trust helper's answer and cannot compensate for an incorrectly admitted address; Q02 closed the helper's simultaneous first-registration gap."
+        "The gate relies on the trust helper's answer and cannot compensate for an incorrectly admitted address; Q02 closed the helper's simultaneous first-registration gap.",
+        "While it waits it shows the workspace's banner across the top (such as sign-ins this device could not save) and, under its message, this computer's hosting line, so a hosted workspace that will not start still offers Manage hosting (UX-25)."
       ],
       "concepts": ["local-work admission", "explicit trust", "scope fencing", "Q02"]
     },
@@ -1162,9 +1168,17 @@
         "Channel and DM rows show unread/muted/activity state and choose destinations supplied by the workspace screen. Admin actions appear only where the current account can use them.",
         "Snooze controls compute actual resume times and use the client's latest-choice behavior. Menu grouping saves vertical space so short windows retain room for conversations.",
         "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings.",
-        "A channel's row ends with Discord's two buttons while it is pointed at, holds the keyboard, or is open: invite and settings. Invite on a public channel opens the workspace's invite, since everyone in the workspace is in every public channel, and only for someone who may invite; on a private one it is Add people, which opens the channel's Members tab, for someone channelPermissions lets invite. The gear opens the channel's details, opening the channel first if it is not the one on screen. The buttons sit beside the row's button, not in it, and on a touchscreen show on the open channel only."
+        "A channel's row ends with Discord's two buttons while it is pointed at, holds the keyboard, or is open: invite and settings. Invite on a public channel opens the workspace's invite, since everyone in the workspace is in every public channel, and only for someone who may invite; on a private one it is Add people, which opens the channel's Members tab, for someone channelPermissions lets invite. The gear opens the channel's details, opening the channel first if it is not the one on screen. The buttons sit beside the row's button, not in it, and on a touchscreen show on the open channel only.",
+        "HostingStatus is this computer's hosting, under the workspace's name and its connection line (UX-25): a dot for live, starting or stopping, or trouble, what it is doing or what is wrong, and Manage (named Manage hosting for a screen reader). A warning is an alert. It replaced a bar along the bottom of the window, and leaves out the workspace's name when the hosted workspace is the one on screen. The storage gate's waiting screen shows it too."
       ],
-      "concepts": ["workspace navigation", "unread state", "compact layout", "Do Not Disturb"]
+      "concepts": [
+        "workspace navigation",
+        "unread state",
+        "compact layout",
+        "Do Not Disturb",
+        "hosting status",
+        "UX-25"
+      ]
     },
     {
       "path": "packages/ui/src/components/QuickSwitcher.tsx",
@@ -1218,7 +1232,7 @@
         "On opening it shows the newest invite this person made that still works like a new one, or makes one for seven days and any number of people, so there is no generate step and opening it again does not mint another code.",
         "Change makes a new link from Expires after and Number of uses choices. Copy link confirms with a toast as well as on the button; the QR code is left out when the only address reaches this computer alone.",
         "It lists invites with their status and lets the creator or an administrator revoke one after a confirmation. Clipboard outcome and readable server refusal state are preserved.",
-        "With welcome it is the step that ends founding a workspace (UX-42): titled Invite your people, it leaves out the list, ends with Done, and says when the link only works on its own network, pointing a desktop host to Manage hosting to share the workspace on the internet."
+        "With welcome it is the step that ends founding a workspace (UX-42): titled Invite your people, it leaves out the list, ends with Done, and says when the link only works on its own network, pointing a desktop host to Manage, under the workspace's name, to share the workspace on the internet."
       ],
       "concepts": ["invite links", "QR code", "UX-42", "UX-43", "lazy forms"]
     },
@@ -1359,9 +1373,10 @@
       "summary": "Requests browser notification permission from an intentional visible gesture.",
       "details": [
         "Appears after sign-in rather than asking from an unrelated first click. Not now defers the banner for two weeks on this device.",
-        "An explicit browser denial remains quiet until site permission changes, and the native desktop notification adapter does not need this banner."
+        "An explicit browser denial remains quiet until site permission changes, and the native desktop notification adapter does not need this banner.",
+        "It sits in the workspace's one banner place and gives way to anything more pressing (UX-25). onShowing tells the workspace whether it is on show, so the Opening message… hint behind it waits."
       ],
-      "concepts": ["notification permission", "gesture ownership", "respectful prompting"]
+      "concepts": ["notification permission", "gesture ownership", "respectful prompting", "UX-25"]
     },
     {
       "path": "packages/ui/src/components/MessageAnnouncer.tsx",
@@ -1393,6 +1408,17 @@
         "The last answers are kept per client, so going back to a conversation shows its faces and pins at once instead of the header moving as they arrive."
       ],
       "concepts": ["conversation header", "UX-23", "live panels"]
+    },
+    {
+      "path": "packages/ui/src/components/Banner.tsx",
+      "plain": "One row in the place for banners under a conversation's header: what happened, and what can be done about it.",
+      "summary": "The banner row (alert or status) and its actions, for the workspace's one banner place (UX-25).",
+      "details": [
+        "Banner takes a tone, its words and optional actions at its end. An alert is tinted and read out at once by a screen reader; a status is a quiet passing note.",
+        "BannerAction is a button whose words underline on hover, as a link would, such as Dismiss or Retry saving.",
+        "Which banner shows is WorkspaceScreen's choice, one at a time. App builds the one for sign-ins this device could not save, which the storage gate also shows while the workspace is not open yet."
+      ],
+      "concepts": ["banners", "UX-25"]
     },
     {
       "path": "packages/ui/src/components/HuddleBar.tsx",

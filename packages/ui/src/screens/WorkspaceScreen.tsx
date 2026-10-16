@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
   type ComponentProps,
+  type ReactNode,
 } from "react";
 import type { ID, Message } from "@slackoss/protocol";
 import {
@@ -19,7 +20,12 @@ import {
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import { channelTitle } from "../lib/format.js";
-import { Sidebar, type OtherWorkspace } from "../components/Sidebar.js";
+import {
+  HostingStatus,
+  Sidebar,
+  type HostingLine,
+  type OtherWorkspace,
+} from "../components/Sidebar.js";
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
 import { huddleHasVideo, type HuddleView } from "../lib/huddleView.js";
@@ -38,6 +44,7 @@ import { useAppearance } from "../lib/appearance.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import type { AccountSection } from "../components/AccountDialog.js";
 import { HuddleButton } from "../components/HuddleButton.js";
+import { Banner, BannerAction } from "../components/Banner.js";
 import { ConversationMenu, MemberStack, PinnedBar } from "../components/ConversationHeader.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.js";
 import { LazyDialog, LazyPanel } from "../components/LazyView.js";
@@ -227,6 +234,13 @@ interface Props {
   /** This device's other saved workspaces, for the sidebar's switcher. */
   otherWorkspaces?: OtherWorkspace[];
   onOpenWorkspace?: (url: string) => void;
+  /**
+   * A banner from outside this workspace, such as sign-ins this device could
+   * not save. It takes the banner place unless a message could not be opened.
+   */
+  banner?: ReactNode;
+  /** This computer's hosting, shown in the sidebar's header. */
+  hosting?: HostingLine;
 }
 
 type DialogKind =
@@ -303,6 +317,8 @@ export function WorkspaceScreen({
   onAccountCreated,
   otherWorkspaces,
   onOpenWorkspace,
+  banner,
+  hosting,
 }: Props) {
   return (
     <ClientContext.Provider value={client}>
@@ -315,6 +331,12 @@ export function WorkspaceScreen({
             platform={platform}
             onLeaveWorkspace={onLeaveWorkspace}
             onSignedOut={onSignedOut}
+            // Until the workspace opens: a hosted one that will not start must
+            // still offer Manage hosting.
+            banner={banner}
+            footer={
+              hosting && <HostingStatus hosting={hosting} className="mx-auto mt-6 w-72 text-left" />
+            }
           >
             <ShareableServerProvider platform={platform}>
               <WorkspaceInner
@@ -327,6 +349,8 @@ export function WorkspaceScreen({
                 onAccountCreated={onAccountCreated}
                 otherWorkspaces={otherWorkspaces}
                 onOpenWorkspace={onOpenWorkspace}
+                banner={banner}
+                hosting={hosting}
               />
             </ShareableServerProvider>
           </WorkspaceStorageGate>
@@ -346,6 +370,8 @@ function WorkspaceInner({
   onAccountCreated,
   otherWorkspaces,
   onOpenWorkspace,
+  banner,
+  hosting,
 }: {
   platform: Platform;
   initialTarget: { channelId: ID; messageId: ID } | null;
@@ -356,6 +382,8 @@ function WorkspaceInner({
   onAccountCreated?: (token: string, handle: string) => void;
   otherWorkspaces?: OtherWorkspace[];
   onOpenWorkspace?: (url: string) => void;
+  banner?: ReactNode;
+  hosting?: HostingLine;
 }) {
   const status = useWorkspace((s) => s.status);
   const channels = useWorkspace((s) => s.channels);
@@ -427,6 +455,8 @@ function WorkspaceInner({
   const chatCovered = huddleView === "expanded" && huddleVideo;
   const navigation = useRef(0);
   const [navigationError, setNavigationError] = useState<string | null>(null);
+  /** The notifications ask is on show, so a hint waits behind it. */
+  const [asking, setAsking] = useState(false);
   const [navigating, setNavigating] = useState(false);
   useEffect(
     () => () => {
@@ -1189,39 +1219,13 @@ function WorkspaceInner({
         onManageApps={isAdmin ? () => setDialog({ kind: "apps" }) : undefined}
         onManagePeople={isAdmin ? () => setDialog({ kind: "people" }) : undefined}
         connectionLabel={connectionLabel}
+        hosting={hosting}
       />
 
       <main
         inert={sidebarOpen || panelCovers}
         className="workspace-main flex min-w-0 flex-1 flex-col"
       >
-        {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
-          // The ask is a courtesy: if it cannot load, the workspace carries on without it.
-          <ErrorBoundary fallback={<span hidden />}>
-            <Suspense fallback={null}>
-              <NotificationBanner storage={platform.storage} />
-            </Suspense>
-          </ErrorBoundary>
-        )}
-        {navigating && (
-          <p role="status" className="px-5 py-2 text-sm text-ink-faint">
-            Opening message…
-          </p>
-        )}
-        {navigationError && (
-          <div
-            role="alert"
-            className="flex items-center justify-between gap-3 border-b border-edge px-5 py-2 text-sm text-ink-dim"
-          >
-            {navigationError}
-            <button
-              className="font-medium text-ink hover:underline"
-              onClick={() => setNavigationError(null)}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
         <header className="channel-header titlebar-drag flex h-12 shrink-0 items-center gap-1 pl-2 pr-2 shadow-[0_1px_0_var(--color-edge)]">
           <NavigationToggle
             activeChannelId={activeChannelId}
@@ -1282,6 +1286,31 @@ function WorkspaceInner({
             open={panel.kind === "pins"}
             onToggle={() => togglePanel("pins")}
           />
+        )}
+        {/* One banner at a time, the most pressing (UX-25): a message that could
+            not be opened, then what the app could not save, then the ask to
+            turn on notifications, then a message on its way. */}
+        {navigationError ? (
+          <Banner
+            tone="alert"
+            actions={<BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>}
+          >
+            {navigationError}
+          </Banner>
+        ) : banner ? (
+          banner
+        ) : (
+          <>
+            {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
+              // The ask is a courtesy: if it cannot load, the workspace carries on without it.
+              <ErrorBoundary fallback={<span hidden />}>
+                <Suspense fallback={null}>
+                  <NotificationBanner storage={platform.storage} onShowing={setAsking} />
+                </Suspense>
+              </ErrorBoundary>
+            )}
+            {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
+          </>
         )}
 
         {activeChannelId ? (

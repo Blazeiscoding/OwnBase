@@ -244,7 +244,7 @@ describe("the welcome step", () => {
       "Your workspace is ready. Send this link to the people you want in it, or let them scan the code with a phone.",
     );
     expect(dialog).toHaveTextContent(
-      "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage hosting at the bottom of the window and share the workspace on the internet.",
+      "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage under the workspace's name and share the workspace on the internet.",
     );
     // Its one code is the link above; a list of one says nothing more.
     expect(within(dialog).queryByRole("list", { name: "Invite codes" })).toBeNull();

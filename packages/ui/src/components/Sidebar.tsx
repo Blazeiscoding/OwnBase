@@ -49,9 +49,60 @@ interface Props {
   onManageApps?: () => void;
   onManagePeople?: () => void;
   connectionLabel: string | null;
+  /** This computer's hosting, while it hosts or something is wrong with it. */
+  hosting?: HostingLine;
   /** This device's other saved sign-ins, most recently used first. */
   otherWorkspaces?: OtherWorkspace[];
   onOpenWorkspace?: (url: string) => void;
+}
+
+/**
+ * What this computer's hosting is doing, for the line under the workspace's
+ * name (UX-25), where it replaced a bar along the bottom of the window.
+ */
+export interface HostingLine {
+  /** Hosting, starting, stopping, or what is wrong. */
+  text: string;
+  state: "live" | "busy" | "trouble";
+  /** Something wrong that a screen reader says at once. */
+  alert?: boolean;
+  onManage: () => void;
+}
+
+/** The hosting line: a dot for how it is going, what is happening, and Manage. */
+export function HostingStatus(props: { hosting: HostingLine; className?: string }) {
+  const { hosting } = props;
+  return (
+    <div
+      className={`flex items-center gap-2 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] ${props.className ?? ""}`}
+    >
+      <span
+        aria-hidden="true"
+        className={`size-1.5 shrink-0 rounded-full ${
+          hosting.state === "trouble"
+            ? "bg-alert"
+            : hosting.state === "live"
+              ? "bg-online"
+              : "animate-pulse bg-ink-faint"
+        }`}
+      />
+      <span
+        role={hosting.alert ? "alert" : "status"}
+        title={hosting.text}
+        className="min-w-0 flex-1 truncate text-ink-faint"
+      >
+        {hosting.text}
+      </span>
+      <button
+        type="button"
+        onClick={hosting.onManage}
+        aria-label="Manage hosting"
+        className="shrink-0 font-medium text-ink hover:underline"
+      >
+        Manage
+      </button>
+    </div>
+  );
 }
 
 /** A saved sign-in to another workspace, without its credentials. */
@@ -200,6 +251,7 @@ export function Sidebar(props: Props) {
               </Swap>
             </p>
           )}
+          {props.hosting && <HostingStatus hosting={props.hosting} className="mx-2 mt-2" />}
 
           <div className="px-2 pb-1 pt-2.5">
             {/* Its words and shortcut are on the button already, so it needs no
