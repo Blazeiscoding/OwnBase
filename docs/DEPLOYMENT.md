@@ -1119,11 +1119,12 @@ applied on every start, so a service or compose file that passed them put the
 rule back at each restart. They now apply to a new workspace only. To change the
 rule of a running workspace, use Workspace settings; a restart keeps it.
 
-The desktop app that hosts a workspace shows the same rule in **Manage hosting**
-and can change it there too; a change made in either place shows in the other.
-Two things there still change it for the host: while a stable public address is
-configured, every start closes joining to invited accounts, and **Open to all**
-uses the rule chosen beside it while the public link is open.
+In the desktop app that hosts a workspace, **Open to all** in **Manage hosting**
+sets the rule chosen beside it for the public link. While the link is open,
+Manage hosting shows the workspace's rule and can change it, and a change made
+in Workspace settings shows there at once. One start still changes the rule:
+while a stable public address is configured, every start closes joining to
+invited accounts.
 
 ## Guests
 

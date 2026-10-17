@@ -73,7 +73,7 @@ export function WorkspaceSettings({
   hostedHere = false,
 }: {
   onClose: () => void;
-  /** This computer hosts the workspace, so Manage hosting shows the same rule. */
+  /** This computer hosts the workspace, so Manage hosting can change who may join too. */
   hostedHere?: boolean;
 }) {
   const platform = usePlatform();
@@ -418,8 +418,9 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
         <p className="mt-4 flex items-start gap-2 text-[13px] text-ink-faint">
           <Icon name="server" size={14} className="mt-0.5 shrink-0" />
           <span>
-            You host this workspace on this computer, and Manage hosting shows and changes this same
-            setting.
+            You host this workspace on this computer. Opening it to all from Manage hosting chooses
+            who can join for the public link, and while the link is open Manage hosting shows and
+            changes this same setting.
           </span>
         </p>
       )}

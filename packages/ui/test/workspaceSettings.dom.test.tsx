@@ -289,7 +289,9 @@ describe("who can join", () => {
 
   it("says Manage hosting has the same setting, where this computer hosts it", async () => {
     const { dialog } = await joining({ hostedHere: true });
-    expect(dialog).toHaveTextContent("Manage hosting shows and changes this same setting.");
+    expect(dialog).toHaveTextContent(
+      "while the link is open Manage hosting shows and changes this same setting.",
+    );
   });
 });
 
