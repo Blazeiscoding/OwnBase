@@ -1423,7 +1423,7 @@
         "General has the workspace's name in a TextField with Save. Save is never disabled: sent empty or with a tab or line break, the field says what is wrong and takes the cursor; a server refusal lands under the field too. While nothing is typed, a rename made elsewhere replaces what the field shows.",
         "Who can join is a radio group of the three policies, each with a plain explanation, saved the moment one is chosen through WorkspaceClient.setAccessPolicy. The title row says \"Saved\" for two seconds through savedNote. A failed change shows what the server has and says why.",
         "While guests are allowed a line says that choosing either other rule signs every guest out. When guests have joined, leaving guest_allowed asks first with useConfirm, since signed-out guests have to join again.",
-        "When this desktop app hosts the workspace on screen (hostedHere), the page says Manage hosting shows and changes the same setting.",
+        "When this desktop app hosts the workspace on screen (hostedHere), the page says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",
         "On a server without ReadySnapshot.workspaceSettings it shows the name, offers neither control, and says the workspace is changed where it is hosted."
       ],
       "concepts": ["workspace settings", "join policy", "check on send", "UX-60"]
