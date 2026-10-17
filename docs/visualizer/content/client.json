@@ -266,7 +266,8 @@
         "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues.",
         "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu.",
         "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting.",
-        "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address."
+        "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address.",
+        "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert)."
       ],
       "concepts": [
         "screen orchestration",
@@ -1818,7 +1819,7 @@
       "plain": "The small hint that appears over a button when you point at it or reach it with the keyboard.",
       "summary": "Explains compact controls without taking focus or blocking the page.",
       "details": [
-        "Hover opens after a short delay; keyboard focus opens immediately; Escape dismisses the hint. The floating portal follows its trigger and flips when needed.",
+        "Hover opens after a short delay; keyboard focus opens immediately; Escape dismisses the hint. On the control that has focus, the first Escape dismisses only the hint, as in a dialog; a hint the pointer opened on another control goes, and the key carries on to wherever focus is. The floating portal follows its trigger and flips when needed.",
         "Composes event handlers, accessible descriptions and refs, including React ref-cleanup behavior, so decorating a control does not replace its own lifetime contract.",
         "The first hint waits 400 ms. Once one is showing, or has just gone, the next waits only 80 ms and slides over from where the last one was instead of growing in again. Hiding is immediate.",
         "The floating text itself is TooltipBubble, out of the first download: loadTooltipBubble fetches it as the workspace opens or a hint is first wanted, and a hint opened before it arrives is drawn once it has."
@@ -1831,6 +1832,7 @@
       "summary": "An open tooltip's floating text: placement, follow-on slide, Escape and window blur.",
       "details": [
         "Placed in a portal on the trigger's dialog, main, nav or aside, or the fullscreen element holding it; flips sides when the preferred one does not fit, and follows its trigger on scroll, resize and every frame.",
+        "Escape closes it. Only while its trigger has focus does it keep that Escape from everything else. A hint opened by the pointer elsewhere used to hold it too: the phone drawer slides in under the pointer that opened it, onto the rail of workspaces, and that rail's hint kept Escape from closing the drawer while focus was on Jump to…",
         "Split from Tooltip to make room for slice 7's status that clears itself, when the desktop entry stood at 499.2 kB of a 500 kB limit (since raised to 700 kB by #301): about 2.9 kB less for every first download."
       ],
       "concepts": ["portal position", "lazy chunk", "entry budget"]
