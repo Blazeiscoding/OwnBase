@@ -1333,9 +1333,15 @@
         "Presents topic/description and member controls under shared channel permission rules; the server remains responsible for enforcement.",
         "Updates, inviting/removing members, changing managers and leaving map API refusals into readable actions. Channel notification writes expose retry rather than silently abandoning a refused choice.",
         "Opens on About, or on Members (initialTab) when Add people on a private channel's row in the sidebar opens it.",
-        "The Notifications tab's not-saved notice speaks for the notify level and muting only. A star that was not saved says so where it was chosen."
+        "The Notifications tab's not-saved notice speaks for the notify level and muting only. A star that was not saved says so where it was chosen.",
+        "About's Save changes is never off until something changes. The name and topic are TextFields. Sent with no name it says so under the name and puts the cursor there; a name another channel has comes back under the name too, and other refusals go in the alert at the top. Sent unchanged, it writes nothing, so the channel's members are not sent the same details again: a quiet status line says there is nothing to save, and says Saved after a save."
       ],
-      "concepts": ["channel administration", "permissions", "notification settings"]
+      "concepts": [
+        "channel administration",
+        "permissions",
+        "notification settings",
+        "checked forms"
+      ]
     },
     {
       "path": "packages/ui/src/components/dialogs.tsx",
@@ -1457,7 +1463,8 @@
         "Lists hosted workspaces and backup schedules, supports backup/restore and explains a restored copy's pending apps, schedules, deliveries and sessions before activation.",
         "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; Q12 and Q13 closed the startup and queue gaps in the desktop main process, not in this dialog.",
         "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it.",
-        "A running workspace is managed in tabs (UX-62): Overview (name with a Live pill, its network and public addresses with Copy and a QR code, who is connected, and Invite people, or Open it when another workspace is on screen), Share on the internet (plain words, then the public link card and the call relay), Backups (last backup, Back up now, the schedule) and Advanced (start-up, data folder, port). A tab shows only where this app can do what it holds. Stop hosting stays in the footer under every tab and stops without asking."
+        "A running workspace is managed in tabs (UX-62): Overview (name with a Live pill, its network and public addresses with Copy and a QR code, who is connected, and Invite people, or Open it when another workspace is on screen), Share on the internet (plain words, then the public link card and the call relay), Backups (last backup, Back up now, the schedule) and Advanced (start-up, data folder, port). A tab shows only where this app can do what it holds. Stop hosting stays in the footer under every tab and stops without asking.",
+        "Rename and Change port, edited in place in the list, never grey out Save: an empty name or a port that is not one is said under the field with the cursor put back, a refusal from the app lands there too, and the name or port it has already just closes the form, since there is nothing to save. Your own address is a small form whose Save is off only when the environment fixes the address: sent empty with none saved it asks for one under the field, and sent unchanged it says there is nothing to save rather than saving again, because saving an address also turns invites back on. A button waiting on its request is aria-disabled, so focus stays on it."
       ],
       "concepts": [
         "desktop hosting",
@@ -1474,9 +1481,10 @@
       "summary": "The Calls from other networks card in Manage hosting: no relay, Cloudflare, or another TURN server.",
       "details": [
         "Shows the saved relay without its secret; a token or password left empty keeps the saved one for the same key or username. Save reaches calls that start afterwards.",
-        "Test asks the app for the relay servers a call would be given and runs probeRelay, saying whether the relay works, refused the password, or could not be reached. A refusal calls found out about since is shown as an alert."
+        "Test asks the app for the relay servers a call would be given and runs probeRelay, saying whether the relay works, refused the password, or could not be reached. A refusal calls found out about since is shown as an alert.",
+        "Save and Test are never off for want of a change. Both first check the app's own rules (a key ID of letters, digits, - and _, a token unless one is kept for that key, turn: or turns: addresses, at most eight, a username, a password unless one is kept, no spaces in any) and say each problem under its field, with focus on the first. A refusal from the app names its field by its words (Cloudflare refusing the token lands under API token); one about no field, such as the key store being locked, is an alert under the buttons. Saving what is already saved saves it again, which hands it to running workspaces afresh and replaces a saved relay that could not be read. Fields are read-only, not disabled, while a request runs."
       ],
-      "concepts": ["TURN", "hosting settings"]
+      "concepts": ["TURN", "hosting settings", "checked forms"]
     },
     {
       "path": "packages/ui/src/components/ShareableServer.tsx",
@@ -1591,9 +1599,10 @@
       "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, and the resolution and frame rate to share at.",
       "summary": "Picks a window or screen to share, and how sharp and smooth, in the app rather than a system dialog.",
       "details": [
-        "Windows come first and none is chosen for you, since the window on top is usually Tandem itself; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
-        "The last list shows at once where there has been one (platform.screenShare.sources with quick), then a fresh one, then again every 3 s while open, so pictures move and windows come and go; a chosen window that closes leaves Share with nothing to share. Only a first fresh list that fails with nothing shown says so, with Try again.",
-        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A window that closed since it was listed, or a refusal from the system, is said in the dialog, which stays open; chosen here, even a plain refusal says sharing could not start."
+        "Windows come first and none is chosen for you, since the window on top is usually Tandem itself and one chosen for you could be one nobody was meant to see; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
+        "The last list shows at once where there has been one (platform.screenShare.sources with quick), then a fresh one, then again every 3 s while open, so pictures move and windows come and go; a chosen window that closes leaves Share asking for another. Only a first fresh list that fails with nothing shown says so, with Try again.",
+        "Share is never off for want of a choice. Pressed with nothing chosen, an alert beside the list says what is needed and focus goes to the first tile, without choosing it: choose a window, that window has closed, the list is still being found, or (with no window listed) open one or share a screen, with focus on the Screens tab. When the list failed, focus goes to Try again. The words follow the list as it changes, and choosing a tile or another tab takes them away. A window that closed between choosing and sharing is said there too.",
+        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A refusal from the system is said in the footer, and the dialog stays open; chosen here, even a plain refusal says sharing could not start."
       ],
       "concepts": ["screen sharing", "in-app picker", "accessible choices"]
     },
