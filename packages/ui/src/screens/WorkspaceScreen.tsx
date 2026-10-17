@@ -86,6 +86,11 @@ const PeopleDialog = lazy(() =>
 const AccountDialog = lazy(() =>
   import("../components/AccountDialog.js").then((module) => ({ default: module.AccountDialog })),
 );
+const WorkspaceSettings = lazy(() =>
+  import("../components/WorkspaceSettings.js").then((module) => ({
+    default: module.WorkspaceSettings,
+  })),
+);
 // Opened now and then rather than on every visit, so they load on first use
 // and keep what every visit downloads small.
 // Shown to the owner until the first steps are done, then never again.
@@ -247,6 +252,8 @@ interface Props {
   banner?: ReactNode;
   /** This computer's hosting, shown in the sidebar's header. */
   hosting?: HostingLine;
+  /** This computer hosts the workspace on screen, so Manage hosting can change it too. */
+  hostedHere?: boolean;
 }
 
 type DialogKind =
@@ -265,6 +272,7 @@ type DialogKind =
   | { kind: "diagnostics"; callLog?: boolean }
   | { kind: "apps" }
   | { kind: "people" }
+  | { kind: "workspace" }
   | { kind: "guest-account" };
 
 /** The opposite of the query in theme.css that turns the sidebar into a drawer. */
@@ -293,6 +301,7 @@ function routeDialogOf(dialog: DialogKind): RouteDialog | null {
       return { name: "details" };
     case "people":
     case "apps":
+    case "workspace":
     case "invite":
     case "shortcuts":
       return { name: dialog.kind };
@@ -326,6 +335,7 @@ export function WorkspaceScreen({
   onOpenWorkspace,
   banner,
   hosting,
+  hostedHere,
 }: Props) {
   return (
     <ClientContext.Provider value={client}>
@@ -358,6 +368,7 @@ export function WorkspaceScreen({
                 onOpenWorkspace={onOpenWorkspace}
                 banner={banner}
                 hosting={hosting}
+                hostedHere={hostedHere}
               />
             </ShareableServerProvider>
           </WorkspaceStorageGate>
@@ -379,6 +390,7 @@ function WorkspaceInner({
   onOpenWorkspace,
   banner,
   hosting,
+  hostedHere,
 }: {
   platform: Platform;
   initialTarget: { channelId: ID; messageId: ID } | null;
@@ -391,6 +403,7 @@ function WorkspaceInner({
   onOpenWorkspace?: (url: string) => void;
   banner?: ReactNode;
   hosting?: HostingLine;
+  hostedHere?: boolean;
 }) {
   const status = useWorkspace((s) => s.status);
   const channels = useWorkspace((s) => s.channels);
@@ -657,11 +670,16 @@ function WorkspaceInner({
     routeRequest,
   ]);
 
-  // People and Apps are for administrators. An address can name them all the
-  // same, so they close for anyone else once the account is known.
+  // People, Apps and Workspace settings are for administrators. An address
+  // can name them all the same, so they close for anyone else once the
+  // account is known.
   const isAdmin = self?.role === "owner" || self?.role === "admin";
   useEffect(() => {
-    if (self && !isAdmin && (dialog.kind === "people" || dialog.kind === "apps")) {
+    if (
+      self &&
+      !isAdmin &&
+      (dialog.kind === "people" || dialog.kind === "apps" || dialog.kind === "workspace")
+    ) {
       replaceDialogStep.current = true;
       setDialog({ kind: "none" });
     }
@@ -967,6 +985,13 @@ function WorkspaceInner({
                   keywords: "bots webhooks commands",
                   run: () => setDialog({ kind: "apps" }),
                 },
+                {
+                  id: "workspace-settings",
+                  label: "Workspace settings",
+                  icon: "settings" as const,
+                  keywords: "rename name who can join guests invite only access",
+                  run: () => setDialog({ kind: "workspace" }),
+                },
               ]
             : []),
           ...(isGuest
@@ -1225,6 +1250,7 @@ function WorkspaceInner({
         onDiagnostics={() => setDialog({ kind: "diagnostics" })}
         onManageApps={isAdmin ? () => setDialog({ kind: "apps" }) : undefined}
         onManagePeople={isAdmin ? () => setDialog({ kind: "people" }) : undefined}
+        onWorkspaceSettings={isAdmin ? () => setDialog({ kind: "workspace" }) : undefined}
         connectionLabel={connectionLabel}
         hosting={hosting}
       />
@@ -1549,11 +1575,15 @@ function WorkspaceInner({
           <DiagnosticsDialog onClose={closeDialog} showCallLog={dialog.callLog} />
         </LazyDialog>
       )}
-      {(((dialog.kind === "apps" || dialog.kind === "people") && isAdmin) ||
+      {(((dialog.kind === "apps" || dialog.kind === "people" || dialog.kind === "workspace") &&
+        isAdmin) ||
         dialog.kind === "account") && (
         <LazyDialog key={dialog.kind} loading="Loading settings" onClose={closeDialog}>
           {dialog.kind === "apps" && <AppsDialog onClose={closeDialog} />}
           {dialog.kind === "people" && <PeopleDialog onClose={closeDialog} />}
+          {dialog.kind === "workspace" && (
+            <WorkspaceSettings onClose={closeDialog} hostedHere={hostedHere} />
+          )}
           {dialog.kind === "account" && (
             <AccountDialog
               onClose={closeDialog}

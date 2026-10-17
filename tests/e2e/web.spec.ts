@@ -4745,3 +4745,77 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
     rmSync(liveData, { recursive: true, force: true });
   }
 });
+
+test("an admin renames the workspace and chooses who can join in Workspace settings, and both hold (UX-60)", async ({
+  page,
+  browser,
+}) => {
+  const info = async () =>
+    (await (await fetch(`${base}/api/server-info`)).json()) as {
+      workspaceName: string;
+      accessPolicy: string;
+    };
+  expect(await info()).toMatchObject({
+    workspaceName: "Product Test",
+    accessPolicy: "account_required",
+  });
+  // Bobby is a member: the workspace's own settings are not his to open.
+  const other = await browser.newContext();
+  try {
+    const bobby = await other.newPage();
+    await signIn(bobby, "bobby");
+    await bobby.getByRole("button", { name: /, workspace menu$/ }).click();
+    await expect(bobby.getByRole("menuitem", { name: "People", exact: true })).toHaveCount(0);
+    await expect(bobby.getByRole("menuitem", { name: "Workspace settings" })).toHaveCount(0);
+    await bobby.keyboard.press("Escape");
+
+    await signIn(page, "alice");
+    await page.getByRole("button", { name: "Product Test, workspace menu", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Workspace settings", exact: true }).click();
+    const settings = page.getByRole("dialog", { name: "Workspace settings", exact: true });
+    const field = settings.getByLabel("Workspace name", { exact: true });
+    await expect(field).toHaveValue("Product Test");
+    await expect(page).toHaveURL(/\/d\/workspace$/);
+
+    // Save works before anything is typed: sent empty, it says what is missing.
+    await field.fill("");
+    await settings.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(field).toBeFocused();
+    await expect(field).toHaveAccessibleDescription(/^Give the workspace a name\./);
+    await expect(field).toHaveAttribute("aria-invalid", "true");
+    await field.fill("Northwind Crew");
+    await settings.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(settings.getByText("Saved", { exact: true })).toBeVisible();
+    // Another person signed in sees the new name at once, without reloading.
+    await expect(
+      bobby.getByRole("button", { name: "Northwind Crew, workspace menu", exact: true }),
+    ).toBeVisible();
+    await expect.poll(async () => (await info()).workspaceName).toBe("Northwind Crew");
+
+    // Who can join saves the moment it is chosen, and says so quietly.
+    await settings.getByRole("tab", { name: "Who can join", exact: true }).click();
+    const guests = settings.getByRole("radio", { name: /^Anyone, guests included/ });
+    await expect(
+      settings.getByRole("radio", { name: /^Anyone who creates an account/ }),
+    ).toBeChecked();
+    await expect(settings.getByText(/signs every guest out/)).toHaveCount(0);
+    await settings.getByText("Anyone, guests included", { exact: true }).click();
+    await expect(guests).toBeChecked();
+    await expect(settings.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(settings.getByText(/signs every guest out/)).toBeVisible();
+    await expect.poll(async () => (await info()).accessPolicy).toBe("guest_allowed");
+
+    // A reload keeps the page open and both choices with it.
+    await page.reload();
+    await expect(field).toHaveValue("Northwind Crew");
+    await settings.getByRole("tab", { name: "Who can join", exact: true }).click();
+    await expect(guests).toBeChecked();
+    await page.keyboard.press("Escape");
+    await expect(settings).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "Northwind Crew, workspace menu", exact: true }),
+    ).toBeVisible();
+  } finally {
+    await other.close().catch(() => {});
+  }
+});

@@ -50,6 +50,7 @@ interface Props {
   /** Admins only; absent for members. */
   onManageApps?: () => void;
   onManagePeople?: () => void;
+  onWorkspaceSettings?: () => void;
   connectionLabel: string | null;
   /** This computer's hosting, while it hosts or something is wrong with it. */
   hosting?: HostingLine;
@@ -356,6 +357,7 @@ export function Sidebar(props: Props) {
                 onInvite={props.onInvite}
                 onManagePeople={props.onManagePeople}
                 onManageApps={props.onManageApps}
+                onWorkspaceSettings={props.onWorkspaceSettings}
               />
             </h1>
           </header>
@@ -698,6 +700,7 @@ function WorkspaceMenu(props: {
   onInvite: () => void;
   onManagePeople?: () => void;
   onManageApps?: () => void;
+  onWorkspaceSettings?: () => void;
 }) {
   const items: MenuItem[] = props.onCreateAccount
     ? [
@@ -717,6 +720,13 @@ function WorkspaceMenu(props: {
       label: "Apps and integrations",
       icon: "grid",
       onSelect: props.onManageApps,
+    });
+  if (props.onWorkspaceSettings)
+    items.push({
+      id: "workspace-settings",
+      label: "Workspace settings",
+      icon: "settings",
+      onSelect: props.onWorkspaceSettings,
     });
   const names = props.others.map((w) => w.name);
   props.others.forEach((w, i) => {

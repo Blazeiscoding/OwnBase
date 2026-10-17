@@ -551,6 +551,7 @@ export function App({ platform }: { platform: Platform }) {
                   ) : undefined
                 }
                 hosting={hostingLine}
+                hostedHere={viewingHosted && !!hostingStatus?.running}
               />
             )}
             {hostDialogOpen && platform.hosting && (

@@ -46,6 +46,14 @@ export function describeAuditEntry(
       }`;
     case "workspace.ownership_transferred":
       return `${actor} handed the workspace over to ${target}`;
+    case "workspace.renamed":
+      return has("to")
+        ? `${actor} renamed the workspace${at("from", " from ")} to ${d.to}`
+        : `${actor} renamed the workspace`;
+    case "workspace.access_policy_changed":
+      return typeof d.to === "string" && d.to in WHO_CAN_JOIN
+        ? `${actor} changed who can join to ${WHO_CAN_JOIN[d.to]}`
+        : `${actor} changed who can join`;
     case "app.created":
       return `${actor} created the app ${app}`;
     case "app.deleted":
@@ -82,6 +90,13 @@ export function describeAuditEntry(
       return `${actor} revoked an invite code`;
   }
 }
+
+/** Who may join, as the record's sentences say it. */
+const WHO_CAN_JOIN: Record<string, string> = {
+  invite_only: "people with an invite",
+  account_required: "anyone who creates an account",
+  guest_allowed: "anyone, guests included",
+};
 
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);

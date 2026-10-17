@@ -15,6 +15,7 @@ function isView(value: unknown): value is RouteView {
  */
 export const ROUTE_DIALOGS = [
   "account",
+  "workspace",
   "people",
   "apps",
   "invite",
