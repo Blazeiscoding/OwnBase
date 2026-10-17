@@ -83,6 +83,20 @@ describe("modal keyboard and focus ownership", () => {
     expect(screen.getByRole("button", { name: "Open settings" })).toHaveFocus();
   });
 
+  it("returns focus through its openers after a press outside, as after Escape", async () => {
+    render(<Stacked />);
+    const user = await openStack();
+    const lower = screen.getByRole("dialog", { name: "Settings" });
+
+    // A real press: its mousedown would move focus to the page if let.
+    await user.click(screen.getByRole("dialog", { name: "App form" }).parentElement!);
+    expect(screen.queryByRole("dialog", { name: "App form" })).not.toBeInTheDocument();
+    expect(within(lower).getByRole("button", { name: "Open app form" })).toHaveFocus();
+    await user.click(lower.parentElement!);
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Open settings" })).toHaveFocus();
+  });
+
   it("moves focus into the layer underneath when the closed one has nothing to return to", async () => {
     function OpenedTogether() {
       const [notice, setNotice] = useState(true);

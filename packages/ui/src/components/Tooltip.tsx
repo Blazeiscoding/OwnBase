@@ -31,6 +31,11 @@ interface Props {
   keys?: string;
   /** Where it prefers to open; it flips to the other side when that does not fit. */
   side?: "top" | "bottom" | "right";
+  /**
+   * Keeps the hint away, and puts away one that is up, for as long as what the
+   * control opened is showing: a menu's own items say more than its hint.
+   */
+  disabled?: boolean;
   children: ReactElement<TriggerProps>;
 }
 
@@ -105,7 +110,13 @@ export function loadTooltipBubble(): Promise<Bubble> {
  * inert: hover waits a beat, keyboard focus opens immediately, and Escape
  * dismisses only the hint. The floating text follows its trigger on scroll.
  */
-export function Tooltip({ label, keys, side: preferredSide = "top", children }: Props) {
+export function Tooltip({
+  label,
+  keys,
+  side: preferredSide = "top",
+  disabled = false,
+  children,
+}: Props) {
   const id = `tooltip-${useId().replace(/:/g, "")}`;
   const trigger = useRef<HTMLElement | null>(null);
   const bubble = useRef<HTMLSpanElement | null>(null);
@@ -122,6 +133,9 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   const followsOn = useRef(false);
   const [open, setOpen] = useState(false);
   const [, bubbleArrived] = useState(0);
+  const off = useRef(disabled);
+  off.current = disabled;
+  const shown = open && !disabled;
 
   const clearOpenTimer = useCallback(() => {
     if (openTimer.current !== null) clearTimeout(openTimer.current);
@@ -146,6 +160,7 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
     setOpen(false);
   }, [clearCloseTimer, clearOpenTimer]);
   const reveal = useCallback(() => {
+    if (off.current) return;
     if (activeTooltip?.owner !== owner.current) {
       activeTooltip?.close();
       activeTooltip = { owner: owner.current, close: hide };
@@ -185,6 +200,11 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
     },
     [clearCloseTimer, clearOpenTimer],
   );
+  // Turned off with its hint up or on the way, it puts that away, and comes
+  // back only when asked for again.
+  useEffect(() => {
+    if (disabled) hide();
+  }, [disabled, hide]);
 
   const rememberTrigger = useCallback((value: HTMLElement | null) => {
     trigger.current = value;
@@ -211,7 +231,7 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   const child = cloneElement(children, {
     ref: mergedRef,
     title: undefined,
-    "aria-describedby": open
+    "aria-describedby": shown
       ? describedBy(children.props["aria-describedby"], id)
       : children.props["aria-describedby"],
     onPointerEnter: chain(children.props.onPointerEnter, (event) => {
@@ -247,7 +267,7 @@ export function Tooltip({ label, keys, side: preferredSide = "top", children }: 
   return (
     <>
       {child}
-      {open && LoadedBubble && (
+      {shown && LoadedBubble && (
         <LoadedBubble
           id={id}
           label={label}

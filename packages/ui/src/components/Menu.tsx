@@ -41,7 +41,7 @@ interface MenuProps {
    */
   triggerLabel?: string;
   disabled?: boolean;
-  /** A hint on the trigger, for one that shows only an icon. */
+  /** A hint on the trigger, for one that shows only an icon. It stays away while the menu is open. */
   tooltip?: string;
   /** Line the menu up with the trigger's start rather than its end. */
   align?: "start" | "end";
@@ -110,7 +110,15 @@ export function Menu({
 
   return (
     <>
-      {tooltip && !open ? <Tooltip label={tooltip}>{button}</Tooltip> : button}
+      {/* Always the same button, open or not: one put in its place as the menu
+          opens is not the one focus can go back to when it closes. */}
+      {tooltip ? (
+        <Tooltip label={tooltip} disabled={open}>
+          {button}
+        </Tooltip>
+      ) : (
+        button
+      )}
       {open && (
         <MenuPanel
           label={label}

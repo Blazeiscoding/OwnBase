@@ -200,6 +200,36 @@ describe("a tooltip", () => {
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
   });
 
+  it("stays away while disabled, puts away one that is up, and waits to be asked again", () => {
+    vi.useFakeTimers();
+    const hinted = (disabled: boolean) => (
+      <Tooltip label="More" disabled={disabled}>
+        <button aria-label="Conversation options">more</button>
+      </Tooltip>
+    );
+    const { rerender } = render(hinted(false));
+    const trigger = screen.getByRole("button", { name: "Conversation options" });
+    act(() => trigger.focus());
+    expect(screen.getByRole("tooltip")).toHaveTextContent("More");
+    expect(trigger).toHaveAccessibleDescription("More");
+
+    // As a menu opening from it does.
+    rerender(hinted(true));
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(trigger).not.toHaveAccessibleDescription();
+    fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(1000));
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+
+    // Turned back on, it is not up until the pointer or the keyboard asks.
+    rerender(hinted(false));
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    fireEvent.pointerLeave(trigger, { pointerType: "mouse" });
+    fireEvent.pointerEnter(trigger, { pointerType: "mouse" });
+    act(() => vi.advanceTimersByTime(400));
+    expect(screen.getByRole("tooltip")).toHaveTextContent("More");
+  });
+
   it("keeps only the most recently opened tooltip", () => {
     vi.useFakeTimers();
     render(
