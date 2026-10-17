@@ -1417,10 +1417,21 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await refusedSave.getByRole("button", { name: "Dismiss", exact: true }).click();
   await expect(refusedSave).toHaveCount(0);
   await page.unroute("**/api/messages/*/save");
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).not.toBeVisible();
+  const drawerNav = page.getByRole("navigation", { name: "Workspace navigation" });
+  await expect(drawerNav).not.toBeVisible();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+  await expect(drawerNav).toBeVisible();
+  // Opening the drawer puts focus on Jump to…, and the drawer lands under the
+  // pointer that opened it, on the rail of workspaces, whose hint shows. The
+  // Escape is still the drawer's: it closes, and the hint goes with it.
+  const jumpTo = drawerNav.getByRole("button", { name: /^Jump to…/ });
+  await expect(jumpTo).toBeFocused();
+  await drawerNav.getByRole("group", { name: "Workspaces" }).getByRole("button").first().hover();
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await expect(jumpTo).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(drawerNav).not.toBeVisible();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Open navigation", exact: true })).toBeFocused();
   // The drawer is a step in history, not a place: a phone's Back closes it,
   // and the address stays as it was.
@@ -3419,8 +3430,12 @@ test("on a phone the bottom bar reaches Activity and a DM without the drawer, be
     await item("Home").tap();
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole("button", { name: /^#\s*general\b/ })).toBeVisible();
+    // Opening it puts focus on Jump to…; Escape from there closes it and
+    // gives focus back to Home.
+    await expect(drawer.getByRole("button", { name: /^Jump to…/ })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();
+    await expect(item("Home")).toBeFocused();
 
     // A swipe in from the left edge opens it too.
     await page.locator("main").evaluate(async (main) => {
