@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   channelPermissions,
   canRemoveChannelMember,
@@ -11,7 +11,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog } from "./Dialog.js";
-import { inputCls } from "./TextField.js";
+import { inputClass, TextField } from "./TextField.js";
 import { ListStatus } from "./ListStatus.js";
 import { buttonClass } from "./Button.js";
 import { Menu, type MenuItem } from "./Menu.js";
@@ -83,7 +83,11 @@ export function ChannelDetailsDialog(props: {
   const [name, setName] = useState(channel?.name ?? "");
   const [confirmArchive, setConfirmArchive] = useState(false);
   const [description, setDescription] = useState(channel?.description ?? "");
-  const [saved, setSaved] = useState(false);
+  /** What the last Save did, said quietly under it until something is changed. */
+  const [aboutNote, setAboutNote] = useState<"saved" | "unchanged" | null>(null);
+  /** What is wrong with the name, said under it once the form is sent. */
+  const [nameProblem, setNameProblem] = useState<string | null>(null);
+  const nameField = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [membersError, setMembersError] = useState(false);
@@ -121,21 +125,37 @@ export function ChannelDetailsDialog(props: {
   if (!channel) return null;
   const isRoom = channel.type === "public" || channel.type === "private";
   const permissions = channelPermissions(self ?? undefined, channel, !!membership);
-  // Nothing to save until something differs from what the channel says now.
   const changed =
     name.trim() !== channel.name || topic !== channel.topic || description !== channel.description;
 
+  // Save always answers: sent with no name, it says so under the name; sent
+  // unchanged, it says there is nothing to save rather than writing the same
+  // details to everyone in the channel again.
   async function saveAbout(e: React.FormEvent) {
     e.preventDefault();
     if (!permissions.manage || busy) return;
-    setBusy(true);
     setError(null);
-    setSaved(false);
+    setAboutNote(null);
+    if (!name.trim()) {
+      setNameProblem("Give the channel a name.");
+      nameField.current?.focus();
+      return;
+    }
+    setNameProblem(null);
+    if (!changed) {
+      setAboutNote("unchanged");
+      return;
+    }
+    setBusy(true);
     try {
       await client.api.updateChannel(props.channelId, { name: name.trim(), topic, description });
-      setSaved(true);
+      setAboutNote("saved");
     } catch (err) {
-      setError(channelError(err, "Could not save channel details."));
+      // A name in use belongs to the name; anything else to the whole form.
+      if (err instanceof ApiError && err.code === "name_taken") {
+        setNameProblem(channelError(err, ""));
+        nameField.current?.focus();
+      } else setError(channelError(err, "Could not save channel details."));
     } finally {
       setBusy(false);
     }
@@ -255,54 +275,38 @@ export function ChannelDetailsDialog(props: {
           <NotificationSettings channelId={props.channelId} />
         ) : tab === "about" ? (
           isRoom ? (
-            <form onSubmit={saveAbout} className="space-y-3">
-              <div>
-                <label
-                  htmlFor={`${fieldId}-name`}
-                  className="mb-1.5 block text-[13px] font-medium text-ink-dim"
-                >
-                  Channel name
-                </label>
-                <input
-                  id={`${fieldId}-name`}
-                  className={inputCls}
-                  value={name}
-                  required
-                  maxLength={80}
-                  readOnly={!permissions.manage || busy}
-                  onChange={(e) => {
-                    setName(e.target.value);
-                    setSaved(false);
-                  }}
-                />
-              </div>
+            <form onSubmit={saveAbout} noValidate className="space-y-3">
+              <TextField
+                ref={nameField}
+                label="Channel name"
+                error={nameProblem}
+                value={name}
+                required={permissions.manage}
+                maxLength={80}
+                readOnly={!permissions.manage || busy}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  setNameProblem(null);
+                  setAboutNote(null);
+                }}
+              />
               {!permissions.manage && (
                 <p className="text-sm text-ink-faint">
                   Channel details are managed by its creator, channel managers and workspace
                   administrators.
                 </p>
               )}
-              <div>
-                <label
-                  htmlFor={`${fieldId}-topic`}
-                  className="mb-1.5 block text-[13px] font-medium text-ink-dim"
-                >
-                  Topic
-                </label>
-                <input
-                  id={`${fieldId}-topic`}
-                  aria-label="Channel topic"
-                  maxLength={250}
-                  value={topic}
-                  readOnly={!permissions.manage || busy}
-                  onChange={(e) => {
-                    setTopic(e.target.value);
-                    setSaved(false);
-                  }}
-                  placeholder="What's this channel about right now?"
-                  className={inputCls}
-                />
-              </div>
+              <TextField
+                label="Topic"
+                maxLength={250}
+                value={topic}
+                readOnly={!permissions.manage || busy}
+                onChange={(e) => {
+                  setTopic(e.target.value);
+                  setAboutNote(null);
+                }}
+                placeholder="What's this channel about right now?"
+              />
               <div>
                 <label
                   htmlFor={`${fieldId}-description`}
@@ -312,27 +316,27 @@ export function ChannelDetailsDialog(props: {
                 </label>
                 <textarea
                   id={`${fieldId}-description`}
-                  aria-label="Channel description"
                   maxLength={500}
                   value={description}
                   readOnly={!permissions.manage || busy}
                   onChange={(e) => {
                     setDescription(e.target.value);
-                    setSaved(false);
+                    setAboutNote(null);
                   }}
                   rows={3}
                   placeholder="The longer story, shown to anyone who opens the channel."
-                  className={`${inputCls} resize-none`}
+                  className={inputClass("regular", "resize-none")}
                 />
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Never off until something changes: sent as it is, it says so. */}
                 {permissions.manage && (
                   <button
                     type="submit"
-                    disabled={busy || !changed}
+                    aria-disabled={busy || undefined}
                     className={buttonClass("primary")}
                   >
-                    {busy ? "Saving…" : saved ? "Saved" : "Save changes"}
+                    {busy ? "Saving…" : "Save changes"}
                   </button>
                 )}
                 {membership && channel.name !== "general" && !confirmLeave && (
@@ -350,6 +354,13 @@ export function ChannelDetailsDialog(props: {
                   </button>
                 )}
               </div>
+              <p role="status" className="text-[13px] text-ink-dim empty:hidden">
+                {aboutNote === "saved"
+                  ? "Saved."
+                  : aboutNote === "unchanged"
+                    ? "Nothing to save: the name, topic and description are as they were."
+                    : ""}
+              </p>
               {confirmLeave && channel.type === "private" && (
                 <div className="rounded-lg border border-edge p-3 text-sm">
                   <p className="mb-2">

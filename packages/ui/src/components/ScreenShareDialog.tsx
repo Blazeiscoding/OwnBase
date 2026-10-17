@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import {
   captureFailure,
   SCREEN_SHARE_QUALITY,
@@ -49,10 +49,27 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
   const [chosen, setChosen] = useState<Partial<Record<Tab, string>>>({});
   const [quality, setQuality] = useState(SCREEN_SHARE_QUALITY);
   const [starting, setStarting] = useState(false);
+  /** Share was pressed with nothing chosen, so the list says what it needs. */
+  const [asked, setAsked] = useState(false);
+  /** Why the app would not share what was chosen: it has gone since it was listed. */
+  const [refusal, setRefusal] = useState<string | null>(null);
+  /** What went wrong that the choice does not explain. */
   const [error, setError] = useState<string | null>(null);
   const descriptionId = useId();
+  const problemId = useId();
   const group = useId();
-  const tabs = useTabs({ label: "What to share", tabs: TABS, selected: tab, onSelect: setTab });
+  const listRef = useRef<HTMLDivElement>(null);
+  const retryRef = useRef<HTMLButtonElement>(null);
+  const tabs = useTabs({
+    label: "What to share",
+    tabs: TABS,
+    selected: tab,
+    onSelect: (next) => {
+      setTab(next);
+      setAsked(false);
+      setRefusal(null);
+    },
+  });
 
   useEffect(() => {
     let live = true;
@@ -108,9 +125,38 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     tab === "windows" ? source.kind === "window" : source.kind === "screen",
   );
   // The first screen is chosen to begin with, so Share works at once. A
-  // window is picked by hand: the one on top is usually this app.
+  // window is picked by hand: the one on top is usually this app, and one
+  // picked for you could be one you never meant anyone to see.
   const chosenId = chosen[tab] ?? (tab === "screens" ? shown[0]?.id : undefined);
   const selected = shown.find((source) => source.id === chosenId) ?? null;
+
+  // What Share needs, said beside the list once it was pressed with nothing
+  // chosen. It follows the list: one arriving, or a window closing, changes it.
+  const problem =
+    refusal ??
+    (!asked || selected || listFailed
+      ? null
+      : !sources
+        ? "Still finding windows and screens. Choose one once they appear."
+        : shown.length === 0
+          ? tab === "windows"
+            ? "Open the window you want to share first, or share a screen."
+            : "There is no screen to share."
+          : chosen[tab]
+            ? tab === "windows"
+              ? "That window has closed. Choose another."
+              : "That screen is no longer connected. Choose another."
+            : tab === "windows"
+              ? "Choose a window to share."
+              : "Choose a screen to share.");
+
+  /** Focus goes where the choice is made: the one chosen, else the first; Try again; or Screens. */
+  const toTheList = () => {
+    if (listFailed) return retryRef.current?.focus();
+    const radios = listRef.current?.querySelectorAll<HTMLInputElement>('input[type="radio"]');
+    if (radios?.length) return ([...radios].find((radio) => radio.checked) ?? radios[0]!).focus();
+    if (sources && tab === "windows") document.getElementById(tabs.tabProps("screens").id)?.focus();
+  };
 
   const changeQuality = (patch: Partial<ScreenShareQuality>) => {
     const next = { ...quality, ...patch };
@@ -118,15 +164,26 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     void platform.storage.set(QUALITY_KEY, next).catch(() => {});
   };
 
+  // Share is never off for want of a choice: pressed without one, it says
+  // what to choose beside the list and puts focus there.
   const share = async (source: ShareableSource | null) => {
-    if (!source || starting) return;
-    setStarting(true);
+    if (starting) return;
     setError(null);
+    setRefusal(null);
+    if (!source) {
+      setAsked(true);
+      toTheList();
+      return;
+    }
+    setAsked(false);
+    setStarting(true);
     try {
       await screenShare.choose(source.id);
     } catch (err) {
       setStarting(false);
-      setError(err instanceof Error && err.message ? err.message : "Choose another to share.");
+      // The choice has gone since it was listed: said beside the list.
+      setRefusal(err instanceof Error && err.message ? err.message : "Choose another to share.");
+      toTheList();
       return;
     }
     try {
@@ -147,7 +204,14 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
         <p className="text-ink-dim">
           The screens and windows on this computer could not be listed.
         </p>
-        <Button type="button" onClick={() => setListing((n) => n + 1)}>
+        <Button
+          ref={retryRef}
+          type="button"
+          onClick={() => {
+            setAsked(false);
+            setListing((n) => n + 1);
+          }}
+        >
           Try again
         </Button>
       </div>
@@ -178,8 +242,11 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
   } else {
     body = (
       <div
+        ref={listRef}
         role="radiogroup"
         aria-label={tab === "windows" ? "Windows" : "Screens"}
+        aria-invalid={!!problem || undefined}
+        aria-describedby={problem ? problemId : undefined}
         className="grid grid-cols-2 gap-3 sm:grid-cols-3"
         onKeyDown={(event) => {
           if (event.key === "Enter" && !event.nativeEvent.isComposing) {
@@ -196,6 +263,8 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
             checked={source.id === selected?.id}
             onChoose={() => {
               setChosen((was) => ({ ...was, [tab]: source.id }));
+              setAsked(false);
+              setRefusal(null);
               setError(null);
             }}
             onShare={() => void share(source)}
@@ -233,6 +302,16 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
         </p>
       </div>
       <div {...tabs.panelProps} className="flex min-h-0 flex-1 flex-col">
+        {problem && (
+          <p
+            id={problemId}
+            role="alert"
+            className="mx-6 mb-3 flex shrink-0 items-start gap-1.5 text-[13px] text-alert"
+          >
+            <Icon name="alert" size={14} className="mt-0.5 shrink-0" />
+            <span>{problem}</span>
+          </p>
+        )}
         <DialogScroll>
           {/* A steady height, so switching tabs or a list arriving does not jump the dialog. */}
           <div className="sm:min-h-[300px]">{body}</div>
@@ -267,7 +346,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
             <Button
               type="button"
               variant="primary"
-              disabled={!selected || starting}
+              aria-disabled={starting || undefined}
               onClick={() => void share(selected)}
             >
               <Icon name="screen" size={16} />
