@@ -2,6 +2,7 @@ import type { IncomingMessage, Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import {
   PROTOCOL_VERSION,
+  type AccessPolicy,
   type ClientToServer,
   type EphemeralEvent,
   type EventEnvelope,
@@ -50,7 +51,8 @@ export class Gateway {
 
   constructor(
     private store: Store,
-    private workspaceName: () => string,
+    /** The workspace's name and who may join it, as they are now. */
+    private workspace: { name: () => string; accessPolicy: () => AccessPolicy },
     /** Shared with the HTTP side, so one caller has one allowance overall. */
     private limiter: RateLimiter | null = null,
     private clientAddress: (request: IncomingMessage) => string = (request) =>
@@ -308,7 +310,9 @@ export class Gateway {
           scheduledEvents: true,
           activityThreads: true,
           stars: true,
-          workspaceName: this.workspaceName(),
+          workspaceSettings: true,
+          accessPolicy: this.workspace.accessPolicy(),
+          workspaceName: this.workspace.name(),
           workspaceId: this.store.getMeta("workspace_id") ?? undefined,
           friends: this.store.listFriends(user.id),
         };
