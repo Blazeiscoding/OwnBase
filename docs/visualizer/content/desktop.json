@@ -24,7 +24,8 @@
         "The server listens and holds its folder as soon as it is created, before the controller owns anything. Relay tracking and the invite-only write for a configured public address run inside a protected block.",
         "If that block throws, the server is removed from relay tracking and stopped before the error propagates, so nothing keeps answering or holding the folder (Q12). If the stop fails too, an AggregateError carries both failures.",
         "The returned object is the controller's view of the server: identity, name, connected count, public URL, proxy trust, ICE servers, access policy and stop.",
-        "The host's dependencies are passed in, so the real server can be exercised in tests without Electron."
+        "The host's dependencies are passed in, so the real server can be exercised in tests without Electron.",
+        "It passes the server's onWorkspaceChange on, and reads the name from the server. Closing joining for a configured public address is the one start that changes who may join, and only ever closes it; the record names the host."
       ],
       "concepts": ["embedded server", "resource ownership", "startup failure", "Q12"]
     },
@@ -37,9 +38,10 @@
         "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
         "Since Q13 a shutdown waits its cleanup deadline for work ahead of it in the queue, then gives up its place and rejects, so a stop never runs after its caller was told it failed.",
-        "setAccessPolicy changes who may join the running workspace. Opening and closing the public link save and restore the whole policy rather than the invite flag, and guests let in while the link is open leave with it."
+        "setAccessPolicy changes who may join the running workspace. Opening and closing the public link save and restore the whole policy rather than the invite flag, and guests let in while the link is open leave with it.",
+        "The running workspace's name and who may join are its own (UX-60). The controller follows onWorkspaceChange: an owner or admin renaming it in Workspace settings renames its entry in the list (never writing a list not yet read), and Manage hosting shows a rule they chose. A step that read the rule before waiting, such as closing the public link or an Open to all that failed, puts back what it read only if no owner or admin chose meanwhile. Nothing hands a saved rule or name to a start."
       ],
-      "concepts": ["state machine", "serialized operations", "backup", "ownership"]
+      "concepts": ["state machine", "serialized operations", "backup", "ownership", "UX-60"]
     },
     {
       "path": "apps/desktop/src/main/registry.ts",

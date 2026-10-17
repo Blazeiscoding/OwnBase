@@ -69,7 +69,8 @@
         "Environment settings prefer TANDEM_, then GATHERLINE_, then SLACKOSS_ names, retaining compatibility with earlier deployments.",
         "Port parsing requires a whole number from 0 to 65535; zero requests an available port. Count settings require safe nonnegative integers rather than silently rounded fractions.",
         "Public URLs must use HTTP(S) without credentials, query or fragment because these addresses are handed to apps and shared as links.",
-        "Common bind failures are translated into suggestions such as choosing another port or a valid local interface."
+        "Common bind failures are translated into suggestions such as choosing another port or a valid local interface.",
+        "keptSettingsNotes says, a line for each, which of --name, --access-policy and --invite-only an owned workspace did not take, and that owners and admins change them in Workspace settings."
       ],
       "concepts": ["configuration", "input validation", "compatibility"]
     },
@@ -110,7 +111,8 @@
         "Huddles and typing are ephemeral. Signaling relays only between authorized participants in the same huddle; the server carries signaling, not media.",
         "Socket callbacks contain thrown failures and close the affected connection with a retryable server error. Heartbeats, authentication timeout, payload limits and idempotent close bound abandoned connections.",
         "Writes huddle joins, refusals, departures with their reason, relayed offers and answers, signals it could not pass on and why, and clients' huddle.report summaries to an in-memory CallLog; the ready snapshot advertises huddleReports.",
-        "The ready snapshot also advertises stars, so a client offers Star only where it is kept (UX-20)."
+        "The ready snapshot also advertises stars, so a client offers Star only where it is kept (UX-20).",
+        "The ready snapshot advertises workspaceSettings and says accessPolicy, so a client offers Workspace settings' controls only where the server takes them (UX-60)."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -182,7 +184,8 @@
         "Dispatches backup, verify-backup, restore and local account recovery commands before ordinary server startup.",
         "Verification prints the consequences of starting a backup: app callbacks, queued messages, accepted sessions and host settings that must be configured again.",
         "Ordinary startup reports reachable addresses and first-owner claim information, advertises discovery when enabled and handles process shutdown.",
-        "This is an executable entry point; desktop embedding uses the library API instead."
+        "This is an executable entry point; desktop embedding uses the library API instead.",
+        "--name, --invite-only and --access-policy set up a new workspace only. On a workspace that already has an owner the stored name and rule win, and the start prints one line for each flag that disagrees (keptSettingsNotes)."
       ],
       "concepts": ["CLI", "self-hosting", "operator workflow"]
     },
@@ -309,9 +312,18 @@
         "The file is an orchestration boundary with many domains; narrower modules carry SQL, crypto, networking and parsing. Callback exclusion cannot promise exactly-once business effects after an uncertain external retry.",
         "Who may join is an access policy (invite_only, account_required, guest_allowed) kept with the legacy invite_only flag in one write. POST /api/auth/guest admits a display name alone while guests are allowed and an owner exists, rationed by address and capped at 200 live guests; POST /api/auth/guest/account converts the same identity to a member and replaces its sessions. requireUser refuses a guest any route outside GUEST_ROUTES, so new routes start closed to guests; guests cannot be put in private rooms, DMs or friendships, sign in with a password, or be promoted or reset by an admin. Turning guests off revokes their sessions and sockets.",
         "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped.",
-        "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error."
+        "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error.",
+        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through renameWorkspace and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice."
       ],
-      "concepts": ["HTTP API", "transactional publication", "N08", "N09", "background queues"]
+      "concepts": [
+        "HTTP API",
+        "transactional publication",
+        "N08",
+        "N09",
+        "background queues",
+        "UX-60",
+        "join policy"
+      ]
     },
     {
       "path": "packages/server/src/socketSchema.ts",
@@ -401,7 +413,8 @@
         "Optional capability/metadata fields allow older servers and clients to interoperate without assuming support.",
         "The shared 30-day send retry window aligns client automatic retries with server retention of minimal send keys after content is removed.",
         "Role includes guest, and ServerInfo.accessPolicy says who may join; an older server omits it, which clients read as accounts only.",
-        "ChannelPrefs.starred is one account's star on a conversation (UX-20). Servers before schema 40 leave it out, which reads as unstarred."
+        "ChannelPrefs.starred is one account's star on a conversation (UX-20). Servers before schema 40 leave it out, which reads as unstarred.",
+        "AuditAction includes workspace.renamed and workspace.access_policy_changed, with the target type workspace, recorded with the old and new value."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -415,7 +428,8 @@
         "EphemeralEvent carries presence, typing, read/unread changes, private saves/preferences/follows, correlated huddle admission and one-user app replies/forms; these are never replayed as durable history.",
         "ReadySnapshot describes current visible state and replayFrom, while synced marks completion. A null replay cursor replaces cached history; resync is the legacy fallback.",
         "The distinction lets a lost ephemeral notice recover through a new snapshot without preserving private/transient UI messages forever.",
-        "Flags on ReadySnapshot (huddleReports, inlineReplies, scheduledEvents, activityThreads, stars) say what this server does, so a client offers nothing an older server would refuse or quietly drop."
+        "Flags on ReadySnapshot (huddleReports, inlineReplies, scheduledEvents, activityThreads, stars) say what this server does, so a client offers nothing an older server would refuse or quietly drop.",
+        "workspace.accessPolicy tells everyone signed in who may join now, and ReadySnapshot.workspaceSettings says the server takes Workspace settings' changes (UX-60). Older clients ignore the event."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -476,7 +490,8 @@
         "Scheduling carries a stable nonce; editing a scheduled message carries expectedText so a conflicting edit can be refused.",
         "Integration URLs reject embedded credentials and non-HTTP(S) schemes. Modal submissions bound nested IDs and values before echoing them to an app.",
         "Types are inferred from the schemas, keeping compile-time client contracts aligned with the server's runtime parsing. Parsed shape alone does not imply authorization.",
-        "channelPrefsBody takes notifyLevel, muted and starred, each optional. An older server's schema drops starred without an error, which is why clients wait for ReadySnapshot.stars."
+        "channelPrefsBody takes notifyLevel, muted and starred, each optional. An older server's schema drops starred without an error, which is why clients wait for ReadySnapshot.stars.",
+        "workspaceNameSchema is the one rule for a workspace's name, for its host and its admins: 1 to 80 characters once trimmed, no control characters. workspaceNameBody and accessPolicyBody are Workspace settings' requests (UX-60)."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },
