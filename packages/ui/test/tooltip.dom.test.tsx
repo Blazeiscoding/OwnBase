@@ -134,6 +134,30 @@ describe("a tooltip", () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
+  it("lets Escape go on to the focused control when the pointer opened it on another", async () => {
+    const close = vi.fn();
+    const user = userEvent.setup();
+    render(
+      <Modal title="Preferences" onClose={close} className="p-4">
+        <input aria-label="Display name" autoFocus />
+        <Tooltip label="More settings">
+          <button aria-label="More settings">...</button>
+        </Tooltip>
+      </Modal>,
+    );
+    const field = screen.getByRole("textbox", { name: "Display name" });
+    expect(field).toHaveFocus();
+    fireEvent.pointerEnter(screen.getByRole("button", { name: "More settings" }), {
+      pointerType: "mouse",
+    });
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("More settings");
+
+    // The key is the dialog's, where the keyboard is; the hint goes with it.
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
   it("flips at a viewport edge, follows scroll, and updates an open label", async () => {
     let triggerBox = new DOMRect(40, 2, 20, 20);
     vi.spyOn(Element.prototype, "getBoundingClientRect").mockImplementation(function (

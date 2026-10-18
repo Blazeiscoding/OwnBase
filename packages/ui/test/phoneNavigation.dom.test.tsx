@@ -1,4 +1,13 @@
-import { act, cleanup, render, renderHook, screen, waitFor, within } from "@testing-library/react";
+import {
+  act,
+  cleanup,
+  fireEvent,
+  render,
+  renderHook,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@slackoss/client-core";
@@ -246,6 +255,56 @@ describe("the phone's bottom bar", () => {
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("menu", { name: "Your account" })).toBeNull();
     expect(item("You")).toHaveFocus();
+  });
+});
+
+describe("the drawer and Escape", () => {
+  it("closes from Jump to…, even with a hint the pointer opened on the rail", async () => {
+    const user = userEvent.setup();
+    const { ready, drawer } = workspace();
+    await ready();
+    const nav = () => screen.getByRole("navigation", { name: "Workspace navigation" });
+    const jumpTo = () => within(nav()).getByRole("button", { name: /^Jump to…/ });
+
+    // Opening the drawer puts focus on Jump to…, and Escape gives it back.
+    await user.click(drawer());
+    expect(drawer()).toHaveAttribute("aria-expanded", "true");
+    expect(jumpTo()).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(drawer()).toHaveAttribute("aria-expanded", "false"));
+    expect(drawer()).toHaveFocus();
+
+    // The drawer slides in under the pointer that opened it, onto the rail of
+    // workspaces, whose hint then shows. Focus is still on Jump to…, so the
+    // Escape is the drawer's: the hint goes, and the drawer closes with it.
+    await user.click(drawer());
+    expect(jumpTo()).toHaveFocus();
+    fireEvent.pointerEnter(within(nav()).getByRole("button", { name: "Phone Team" }), {
+      pointerType: "mouse",
+    });
+    expect(await screen.findByRole("tooltip")).toHaveTextContent("Phone Team");
+    expect(jumpTo()).toHaveFocus();
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(drawer()).toHaveAttribute("aria-expanded", "false"));
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(drawer()).toHaveFocus();
+  });
+
+  it("puts away the hint of the control holding focus first, as a dialog does", async () => {
+    const user = userEvent.setup();
+    const { ready, drawer } = workspace();
+    await ready();
+    await user.click(drawer());
+    const nav = screen.getByRole("navigation", { name: "Workspace navigation" });
+    act(() => within(nav).getByRole("button", { name: "Browse channels" }).focus());
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Browse channels");
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("tooltip")).toBeNull();
+    expect(drawer()).toHaveAttribute("aria-expanded", "true");
+    await user.keyboard("{Escape}");
+    await waitFor(() => expect(drawer()).toHaveAttribute("aria-expanded", "false"));
+    expect(drawer()).toHaveFocus();
   });
 });
 

@@ -5,6 +5,7 @@ import { ApiError, WorkspaceClient } from "@slackoss/client-core";
 import type { Channel, User } from "@slackoss/protocol";
 import { ClientContext } from "../src/context.js";
 import { ChannelDetailsDialog } from "../src/components/ChannelDetailsDialog.js";
+import { accessibilityProblems } from "./accessibility.js";
 
 /**
  * Channel details: each change that cannot be undone by a click asks first,
@@ -88,9 +89,13 @@ describe("channel details", () => {
     await user.clear(name);
     await user.type(name, "general");
     await user.click(dialog.getByRole("button", { name: "Save changes" }));
+    // A name in use is said under the name, with the cursor put back in it.
     expect(await dialog.findByRole("alert")).toHaveTextContent(
       "Another channel already has that name.",
     );
+    expect(name).toHaveFocus();
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription("Another channel already has that name.");
 
     api.update.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await user.click(dialog.getByRole("button", { name: "Save changes" }));
@@ -98,6 +103,43 @@ describe("channel details", () => {
       "Could not save channel details. Check your connection and try again.",
     );
     expect(dialog.getByRole("alert")).not.toHaveTextContent("Failed to fetch");
+    // That one is about no field, so the name is no longer marked.
+    expect(name).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("says there is nothing to save, or that the name is missing, rather than greying out Save", async () => {
+    const { api, dialog, user } = details();
+    const save = dialog.getByRole("button", { name: "Save changes" });
+    const name = dialog.getByRole("textbox", { name: "Channel name" });
+    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-disabled");
+
+    // Unchanged, nothing is written to everyone in the channel again.
+    await user.click(save);
+    expect(api.update).not.toHaveBeenCalled();
+    expect(
+      dialog.getByText("Nothing to save: the name, topic and description are as they were."),
+    ).toHaveAttribute("role", "status");
+    expect(dialog.queryByRole("alert")).toBeNull();
+
+    await user.clear(name);
+    expect(dialog.queryByText(/Nothing to save/)).toBeNull();
+    await user.type(dialog.getByRole("textbox", { name: "Topic" }), "Launch week");
+    await user.click(save);
+    expect(api.update).not.toHaveBeenCalled();
+    expect(name).toHaveFocus();
+    expect(name).toHaveAttribute("aria-invalid", "true");
+    expect(name).toHaveAccessibleDescription("Give the channel a name.");
+    expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
+
+    await user.type(name, "design-studio{Enter}");
+    expect(api.update).toHaveBeenCalledWith(design.id, {
+      name: "design-studio",
+      topic: "Launch week",
+      description: "",
+    });
+    expect(await dialog.findByText("Saved.")).toHaveAttribute("role", "status");
+    expect(name).not.toHaveAttribute("aria-invalid");
   });
 
   it("asks before archiving, and Cancel leaves the channel open", async () => {

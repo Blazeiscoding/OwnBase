@@ -241,6 +241,20 @@ async function expectInsideViewport(page: Page, element: Locator) {
   expect(box!.y + box!.height).toBeLessThanOrEqual(viewport!.height);
 }
 
+/**
+ * What a side panel or the phone's drawer covers is out of reach, but the main
+ * landmark around it stays, so the page always has one (axe's
+ * `landmark-one-main`).
+ */
+async function expectMainCovered(page: Page, where?: string) {
+  await expect(page.locator("main > [inert]"), where).toHaveCount(1);
+  await expect(page.getByRole("main"), where).toHaveCount(1);
+  expect(
+    await page.locator("main").evaluate((main) => main.closest("[inert]") === null),
+    where,
+  ).toBe(true);
+}
+
 async function expectTooltipInsideViewport(page: Page, trigger: Locator, text: string) {
   await trigger.focus();
   const tooltip = page.getByRole("tooltip").filter({ hasText: text });
@@ -1417,10 +1431,22 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await refusedSave.getByRole("button", { name: "Dismiss", exact: true }).click();
   await expect(refusedSave).toHaveCount(0);
   await page.unroute("**/api/messages/*/save");
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).not.toBeVisible();
+  const drawerNav = page.getByRole("navigation", { name: "Workspace navigation" });
+  await expect(drawerNav).not.toBeVisible();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" })).toBeVisible();
+  await expect(drawerNav).toBeVisible();
+  await expectMainCovered(page);
+  // Opening the drawer puts focus on Jump to…, and the drawer lands under the
+  // pointer that opened it, on the rail of workspaces, whose hint shows. The
+  // Escape is still the drawer's: it closes, and the hint goes with it.
+  const jumpTo = drawerNav.getByRole("button", { name: /^Jump to…/ });
+  await expect(jumpTo).toBeFocused();
+  await drawerNav.getByRole("group", { name: "Workspaces" }).getByRole("button").first().hover();
+  await expect(page.getByRole("tooltip")).toBeVisible();
+  await expect(jumpTo).toBeFocused();
   await page.keyboard.press("Escape");
+  await expect(drawerNav).not.toBeVisible();
+  await expect(page.getByRole("tooltip")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Open navigation", exact: true })).toBeFocused();
   // The drawer is a step in history, not a place: a phone's Back closes it,
   // and the address stays as it was.
@@ -1454,9 +1480,9 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   // toggle, and what it covers is out of reach until it closes.
   await membersToggle.click();
   await expect(page.getByRole("heading", { name: "Members", exact: true })).toBeFocused();
-  await expect(page.locator("main")).toHaveAttribute("inert", "");
+  await expectMainCovered(page);
   await page.getByRole("button", { name: "Close Members", exact: true }).click();
-  await expect(page.locator("main")).not.toHaveAttribute("inert");
+  await expect(page.locator("main [inert]")).toHaveCount(0);
   await expect(membersToggle).toBeFocused();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await page.getByRole("button", { name: "Saved", exact: true }).click();
@@ -3419,8 +3445,13 @@ test("on a phone the bottom bar reaches Activity and a DM without the drawer, be
     await item("Home").tap();
     await expect(drawer).toBeVisible();
     await expect(drawer.getByRole("button", { name: /^#\s*general\b/ })).toBeVisible();
+    await expectMainCovered(page);
+    // Opening it puts focus on Jump to…; Escape from there closes it and
+    // gives focus back to Home.
+    await expect(drawer.getByRole("button", { name: /^Jump to…/ })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(drawer).toBeHidden();
+    await expect(item("Home")).toBeFocused();
 
     // A swipe in from the left edge opens it too.
     await page.locator("main").evaluate(async (main) => {
@@ -3715,6 +3746,7 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
     for (const size of [
       { name: "phone", width: 390, height: 844 },
       { name: "tablet", width: 768, height: 1024 },
+      { name: "small laptop", width: 900, height: 700 },
       { name: "laptop", width: 1024, height: 768 },
       { name: "short", width: 1280, height: 600 },
     ]) {
@@ -3780,14 +3812,14 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
       const threadBox = await box(thread);
       if (size.width <= 760) {
         expect(threadBox.width, where).toBe(size.width);
-        await expect(page.locator("main"), where).toHaveAttribute("inert", "");
+        await expectMainCovered(page, where);
       } else if (size.width < 1024) {
         // Between a phone and a laptop it is a sheet over the conversation,
         // which would otherwise be squeezed to a sliver beside it, set in from
         // the window's edge like the conversation's own card.
         expect(threadBox.x + threadBox.width, where).toBeCloseTo(size.width - 8, 0);
         expect(threadBox.width, where).toBe(420);
-        await expect(page.locator("main"), where).toHaveAttribute("inert", "");
+        await expectMainCovered(page, where);
       } else {
         expect(threadBox.x + threadBox.width, where).toBeLessThanOrEqual(size.width + 1);
         const narrowed = await box(page.locator('[aria-label="Message history"]'));

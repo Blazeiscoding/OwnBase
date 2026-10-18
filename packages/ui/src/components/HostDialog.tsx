@@ -15,7 +15,7 @@ import { formatDay, formatTime } from "../lib/format.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
-import { inputCls } from "./TextField.js";
+import { inputClass, inputCls } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
@@ -565,7 +565,9 @@ function portValue(text: string): number | null {
 
 /**
  * Changes the port a stopped workspace starts on, where it is listed.
- * Escape calls it off rather than closing the dialog.
+ * Escape calls it off rather than closing the dialog. Save always answers:
+ * a port that is not one says so, and the port it has already just closes
+ * the form, as there is nothing to save.
  */
 function PortForm(props: {
   folder: string;
@@ -578,43 +580,56 @@ function PortForm(props: {
 }) {
   const [draft, setDraft] = useState(String(props.port));
   const [error, setError] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
   const errorId = `port-error-${props.folder}`;
-  const port = portValue(draft);
   return (
     <form
       aria-label={`Port for ${props.name}`}
+      noValidate
       className="min-w-0 flex-1"
       onSubmit={(event) => {
         event.preventDefault();
-        if (port === null) setError("Choose a port from 1 to 65535.");
-        else if (port !== props.port) void props.onSave(port).then(setError);
+        if (props.saving) return;
+        const port = portValue(draft);
+        if (port === null) {
+          setError("Choose a port from 1 to 65535.");
+          field.current?.focus();
+        } else if (port === props.port) props.onCancel();
+        else
+          void props.onSave(port).then((refusal) => {
+            setError(refusal);
+            if (refusal) field.current?.focus();
+          });
       }}
     >
       <div className="flex gap-2">
-        <input
-          autoFocus
-          inputMode="numeric"
-          aria-label={`New port for ${props.name}`}
-          maxLength={5}
-          value={draft}
-          readOnly={props.saving}
-          aria-invalid={!!error}
-          aria-errormessage={error ? errorId : undefined}
-          aria-describedby={error ? errorId : undefined}
-          onChange={(event) => {
-            setDraft(event.target.value);
-            setError(null);
-          }}
-          onKeyDown={(event) => {
-            if (event.key !== "Escape" || isImeKey(event.nativeEvent)) return;
-            event.preventDefault();
-            props.onCancel();
-          }}
-          className="w-24 min-w-0 rounded-lg border border-edge bg-ground px-2 py-1.5 font-mono text-sm text-ink outline-none focus:border-copper"
-        />
+        <div className="w-24 shrink-0">
+          <input
+            ref={field}
+            autoFocus
+            inputMode="numeric"
+            aria-label={`New port for ${props.name}`}
+            maxLength={5}
+            value={draft}
+            readOnly={props.saving}
+            aria-invalid={!!error}
+            aria-errormessage={error ? errorId : undefined}
+            aria-describedby={error ? errorId : undefined}
+            onChange={(event) => {
+              setDraft(event.target.value);
+              setError(null);
+            }}
+            onKeyDown={(event) => {
+              if (event.key !== "Escape" || isImeKey(event.nativeEvent)) return;
+              event.preventDefault();
+              props.onCancel();
+            }}
+            className={inputClass("regular", "font-mono")}
+          />
+        </div>
         <button
           type="submit"
-          disabled={props.saving || port === props.port}
+          aria-disabled={props.saving || undefined}
           className={buttonClass("secondary", "shrink-0")}
         >
           {props.saving ? "Saving…" : "Save"}
@@ -644,7 +659,9 @@ const linkBtnCls =
 /**
  * Renames one hosted workspace where it is shown. Only the name changes: its
  * folder and everything in it stay where they are. Escape calls off the
- * rename rather than closing the dialog.
+ * rename rather than closing the dialog. Save always answers: with no name it
+ * asks for one, and with the name it has already it just closes the form, as
+ * there is nothing to save.
  */
 function RenameForm(props: {
   folder: string;
@@ -658,19 +675,31 @@ function RenameForm(props: {
 }) {
   const [draft, setDraft] = useState(props.name);
   const [error, setError] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
   const errorId = `rename-error-${props.folder}`;
-  const ready = !!draft.trim() && draft.trim() !== props.name && !props.blocked;
+  const waiting = props.saving || props.blocked;
   return (
     <form
       aria-label={`Rename ${props.name}`}
+      noValidate
       className="min-w-0 flex-1"
       onSubmit={(event) => {
         event.preventDefault();
-        if (ready) void props.onSave(draft).then(setError);
+        if (waiting) return;
+        if (!draft.trim()) {
+          setError("Give the workspace a name.");
+          field.current?.focus();
+        } else if (draft.trim() === props.name) props.onCancel();
+        else
+          void props.onSave(draft).then((refusal) => {
+            setError(refusal);
+            if (refusal) field.current?.focus();
+          });
       }}
     >
       <div className="flex gap-2">
         <input
+          ref={field}
           autoFocus
           aria-label={`New name for ${props.name}`}
           maxLength={80}
@@ -689,9 +718,13 @@ function RenameForm(props: {
             event.preventDefault();
             props.onCancel();
           }}
-          className="min-w-0 flex-1 rounded-lg border border-edge bg-ground px-2 py-1.5 text-sm text-ink outline-none focus:border-copper"
+          className={inputClass("regular", "min-w-0 flex-1")}
         />
-        <button type="submit" disabled={!ready} className={buttonClass("secondary", "shrink-0")}>
+        <button
+          type="submit"
+          aria-disabled={waiting || undefined}
+          className={buttonClass("secondary", "shrink-0")}
+        >
           {props.saving ? "Saving…" : "Save"}
         </button>
         <button
@@ -821,6 +854,9 @@ export function HostDialog(props: {
   /** Null while the saved address is shown; a string while it is being edited. */
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
   const [addressError, setAddressError] = useState<string | null>(null);
+  /** Save was pressed with the address already saved, which is said rather than saved again. */
+  const [addressUnchanged, setAddressUnchanged] = useState(false);
+  const addressField = useRef<HTMLInputElement>(null);
   // A public address is not authorization. Require an invite by default when
   // a previously LAN-only workspace is first put on the internet.
   const [requireInvite, setRequireInvite] = useState(true);
@@ -1187,13 +1223,23 @@ export function HostDialog(props: {
   }
 
   async function saveAddress() {
-    if (operationPending.current || !props.hosting.setPublicAddress || addressDraft === null)
+    if (operationPending.current || !props.hosting.setPublicAddress) return;
+    setAddressError(null);
+    if (!addressValue.trim() && !savedAddress) {
+      setAddressError("Enter the address, such as https://box.tail1234.ts.net.");
+      addressField.current?.focus();
       return;
+    }
+    // Saving an address also turns invites back on, so the one already
+    // saved is not saved again; Save says so instead.
+    if (!addressDirty) {
+      setAddressUnchanged(true);
+      return;
+    }
     operationPending.current = true;
     setBusy("address");
-    setAddressError(null);
     try {
-      await props.hosting.setPublicAddress(addressDraft.trim());
+      await props.hosting.setPublicAddress(addressValue.trim());
       setAddressDraft(null);
     } catch (err) {
       // The main process says exactly what is wrong with the address; a
@@ -1203,6 +1249,7 @@ export function HostDialog(props: {
           ? err.message
           : "The address could not be saved. Try again.",
       );
+      addressField.current?.focus();
     } finally {
       await refresh();
       operationPending.current = false;
@@ -1610,15 +1657,26 @@ export function HostDialog(props: {
                                     : "create a temporary address"}
                                   .
                                 </p>
-                                <div className="mt-2 flex gap-2">
+                                <form
+                                  noValidate
+                                  className="mt-2 flex gap-2"
+                                  onSubmit={(event) => {
+                                    event.preventDefault();
+                                    void saveAddress();
+                                  }}
+                                >
                                   <input
+                                    ref={addressField}
                                     id="public-address"
                                     type="url"
                                     inputMode="url"
                                     spellCheck={false}
                                     placeholder="https://box.tail1234.ts.net"
                                     value={addressValue}
-                                    disabled={!!busy || status.publicAddressLocked}
+                                    // Off only when the environment fixes it; read-only
+                                    // while saving, so focus stays here.
+                                    disabled={status.publicAddressLocked}
+                                    readOnly={busy === "address"}
                                     aria-describedby={`public-address-help${addressError ? " public-address-error" : ""}`}
                                     aria-invalid={!!addressError}
                                     aria-errormessage={
@@ -1627,18 +1685,23 @@ export function HostDialog(props: {
                                     onChange={(event) => {
                                       setAddressDraft(event.target.value);
                                       setAddressError(null);
+                                      setAddressUnchanged(false);
                                     }}
-                                    className="min-w-0 flex-1 rounded-lg border border-edge bg-raised px-2 py-1.5 font-mono text-xs text-ink disabled:opacity-40"
+                                    className={inputClass(
+                                      "small",
+                                      "flex-1 font-mono disabled:opacity-40",
+                                    )}
                                   />
+                                  {/* Never off for want of a change: sent unchanged, it says so. */}
                                   <button
-                                    type="button"
-                                    disabled={!!busy || !addressDirty || status.publicAddressLocked}
-                                    onClick={() => void saveAddress()}
-                                    className="shrink-0 rounded-lg border border-edge px-3 py-1.5 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
+                                    type="submit"
+                                    disabled={status.publicAddressLocked}
+                                    aria-disabled={!!busy || undefined}
+                                    className="h-8 shrink-0 rounded-lg border border-edge px-3 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
                                   >
                                     {busy === "address" ? "Saving…" : "Save"}
                                   </button>
-                                </div>
+                                </form>
                                 {status.publicAddressLocked && (
                                   <p className="mt-2 text-xs text-ink-dim">
                                     This address comes from an environment variable, so it cannot be
@@ -1654,6 +1717,11 @@ export function HostDialog(props: {
                                     {addressError}
                                   </p>
                                 )}
+                                <p role="status" className="mt-2 text-xs text-ink-dim empty:hidden">
+                                  {addressUnchanged
+                                    ? "Nothing to save: that is the address already saved."
+                                    : ""}
+                                </p>
                               </div>
                             )}
                             {status.tunnelAvailable === false ? (

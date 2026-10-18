@@ -227,17 +227,21 @@ pull request template repeats it in short.
   Previous and Next.
 - No submit button is disabled until the form is filled in. The form checks on
   submit, says what is missing next to the field, and moves focus to the first
-  field with a problem. A button may wait while its request runs, and Send stays
-  off while a message is empty, as Save does when editing one.
+  field with a problem; a refusal about one field is said under that field. Sent
+  with nothing changed, a form says there is nothing to save, a small edit in
+  place just closes, and a setting whose saving does something, such as the call
+  relay, saves again. A button may wait while its request runs, marked with
+  `aria-disabled` rather than `disabled` so focus stays on it, and Send stays off
+  while a message is empty, as Save does when editing one.
 - No Refresh button sits on data the socket already delivers. Such a list
   updates itself while it is open, and `PagedList` reads it again in place.
   Retry is only for a load that failed.
 - A view opened now and then loads on first use, inside `LazyPanel` or
   `LazyDialog`, so the entry stays within the budget above.
 
-Some forms still disable their button until something is typed or changed:
-Save in channel details and in call relay settings, Rename in Manage hosting,
-and Share in the screen picker. Fix one when you touch it.
+Three buttons still wait for something to be typed or chosen: Connect on the
+join screen, for an address; Schedule in Send later, for a time; and Transfer
+ownership, for the owner's username. Fix one when you touch it.
 
 To look at a change, start a throwaway workspace that serves the web build, on
 this computer only, and fill it with the demo:
