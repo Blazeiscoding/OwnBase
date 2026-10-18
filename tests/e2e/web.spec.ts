@@ -2951,9 +2951,16 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     await expect(page).toHaveURL(`${origin}/#/c/${general.id}`);
 
     // The owner gets a short list of first steps. #design and omar already
-    // exist, so two are done; put away, it stays away after a reload.
+    // exist, so two are done and the next is notifications; the rest are one
+    // press away. Put away, it stays away after a reload.
     const gettingStarted = page.getByRole("region", { name: "Getting started" });
     await expect(gettingStarted).toContainText("2 of 4 left");
+    await expect(gettingStarted.getByRole("listitem")).toHaveCount(1);
+    await expect(
+      gettingStarted.getByRole("button", { name: "Settings: Turn on notifications", exact: true }),
+    ).toBeVisible();
+    await gettingStarted.getByRole("button", { name: "Show all steps", exact: true }).click();
+    await expect(gettingStarted.getByRole("listitem")).toHaveCount(4);
     await expect(gettingStarted.getByText("Create a channel", { exact: false })).toContainText(
       "done",
     );
@@ -4641,6 +4648,89 @@ test("a starred channel sits under Starred, stays there after a reload, and goes
   await expect(page.locator("textarea")).toBeVisible();
   await expect(designRow(under("channels"))).toBeVisible();
   await expect(starred).toHaveCount(0);
+});
+
+test("Getting started shows the next step, so six channels fit beside it at 1280 by 720 (UX-20)", async ({
+  page,
+}) => {
+  const login = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ handle: "alice", password: "password123" }),
+  });
+  const alice = {
+    authorization: `Bearer ${((await login.json()) as { token: string }).token}`,
+    "content-type": "application/json",
+  };
+  // More channels than the sidebar can show, so what fits is what is measured.
+  for (let n = 1; n <= 10; n++) {
+    const created = await fetch(`${base}/api/channels`, {
+      method: "POST",
+      headers: alice,
+      body: JSON.stringify({ name: `team-${String(n).padStart(2, "0")}`, type: "public" }),
+    });
+    expect(created.status).toBe(201);
+  }
+  const { channels } = (await (await fetch(`${base}/api/channels`, { headers: alice })).json()) as {
+    channels: { id: string; type: string }[];
+  };
+  const rooms = channels.filter((c) => c.type === "public").map((c) => c.id);
+  expect(rooms).toHaveLength(11);
+
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await signIn(page, "alice");
+  const nav = page.getByRole("navigation", { name: "Workspace navigation" });
+  const card = nav.getByRole("region", { name: "Getting started" });
+  // Channels exist and bobby is here, so the next step is notifications.
+  await expect(card).toContainText("2 of 4 left");
+  await expect(card.getByRole("listitem")).toHaveCount(1);
+  await expect(
+    card.getByRole("button", { name: "Settings: Turn on notifications", exact: true }),
+  ).toBeVisible();
+  await expect(card.getByRole("button", { name: "Hide", exact: true })).toBeVisible();
+
+  /** Channel rows wholly inside the sidebar's scrolling list, as it stands. */
+  const channelsInSight = async () => {
+    await atRest(page);
+    return nav.locator(".sidebar-scroll").evaluate((list, ids) => {
+      const box = list.getBoundingClientRect();
+      return [...list.querySelectorAll<HTMLElement>("li[data-conversation]")].filter((row) => {
+        const r = row.getBoundingClientRect();
+        return (
+          ids.includes(row.dataset.conversation!) && r.top >= box.top && r.bottom <= box.bottom
+        );
+      }).length;
+    }, rooms);
+  };
+  expect(await channelsInSight()).toBeGreaterThanOrEqual(6);
+
+  // Two starred add the Starred header above the channels; six still fit.
+  for (const id of rooms.slice(0, 2)) {
+    const starred = await fetch(`${base}/api/channels/${id}/prefs`, {
+      method: "PATCH",
+      headers: alice,
+      body: JSON.stringify({ starred: true }),
+    });
+    expect(starred.status).toBe(200);
+  }
+  await expect(nav.getByRole("button", { name: "Starred", exact: true })).toBeVisible();
+  expect(await channelsInSight()).toBeGreaterThanOrEqual(6);
+
+  // Every step is one press away, and the list folds back to the next one.
+  const allSteps = card.getByRole("button", { name: "Show all steps", exact: true });
+  await expect(allSteps).toHaveAttribute("aria-expanded", "false");
+  await allSteps.click();
+  await expect(allSteps).toHaveAttribute("aria-expanded", "true");
+  await expect(card.getByRole("listitem")).toHaveCount(4);
+  await expect(card.getByText("Invite someone", { exact: false })).toContainText("done");
+  await expect(card.getByRole("button", { name: /^Start: Try a huddle/ })).toBeVisible();
+  // Open stays open after a reload, kept with the rest of the card's state.
+  await page.reload();
+  await expect(page.locator("textarea")).toBeVisible();
+  await expect(card.getByRole("listitem")).toHaveCount(4);
+  await allSteps.click();
+  await expect(allSteps).toHaveAttribute("aria-expanded", "false");
+  await expect(card.getByRole("listitem")).toHaveCount(1);
 });
 
 test("Activity, Threads and Scheduled keep themselves current while open (UX-08)", async ({

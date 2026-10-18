@@ -84,12 +84,23 @@ const stepNames = (list: HTMLElement) =>
   within(list)
     .getAllByRole("listitem")
     .map((item) => item.textContent);
+const allSteps = (card: HTMLElement) =>
+  within(card).getByRole("button", { name: "Show all steps" });
 
 describe("getting started, for whoever set the workspace up", () => {
-  it("lists four first steps, each with a way to do it", async () => {
-    const { calls, user } = checklist();
+  it("shows the next step, and every step one press away, each with a way to do it", async () => {
+    const { calls, values, user } = checklist();
     const card = await section();
     expect(card).toHaveTextContent("4 of 4 left");
+    // Folded, it is short: the next step alone, so the channels below stay in sight.
+    expect(stepNames(card)).toEqual(["Create a channel"]);
+    expect(allSteps(card)).toHaveAttribute("aria-expanded", "false");
+    expect(await accessibilityProblems(card)).toEqual([]);
+
+    await user.click(allSteps(card));
+    expect(allSteps(card)).toHaveAttribute("aria-expanded", "true");
+    // The list it opens is the one it names.
+    expect(allSteps(card)).toHaveAttribute("aria-controls", within(card).getByRole("list").id);
     // Each step is one row, named for what pressing it does.
     expect(stepNames(card)).toEqual([
       "Create a channel",
@@ -106,6 +117,31 @@ describe("getting started, for whoever set the workspace up", () => {
       await user.click(within(card).getByRole("button", { name }));
     expect(calls).toEqual(["new channel", "invite", "notifications", "huddle"]);
     expect(await accessibilityProblems(card)).toEqual([]);
+    await waitFor(() => expect(values.get(SLOT)).toEqual({ expanded: true }));
+
+    await user.click(allSteps(card));
+    expect(stepNames(card)).toEqual(["Create a channel"]);
+    await waitFor(() => expect(values.get(SLOT)).toEqual({ expanded: false }));
+  });
+
+  it("does the next step from its row, and folds and opens from the keyboard", async () => {
+    const { calls, user } = checklist();
+    const card = await section();
+    await user.click(within(card).getByRole("button", { name: "New channel: Create a channel" }));
+    expect(calls).toEqual(["new channel"]);
+
+    allSteps(card).focus();
+    await user.keyboard("{Enter}");
+    expect(stepNames(card)).toHaveLength(4);
+    await user.keyboard(" ");
+    expect(stepNames(card)).toEqual(["Create a channel"]);
+  });
+
+  it("keeps every step listed once opened", async () => {
+    checklist({ saved: { expanded: true } });
+    const card = await section();
+    expect(allSteps(card)).toHaveAttribute("aria-expanded", "true");
+    expect(stepNames(card)).toHaveLength(4);
   });
 
   it("is not shown to anyone else", async () => {
@@ -115,7 +151,7 @@ describe("getting started, for whoever set the workspace up", () => {
   });
 
   it("ticks steps off from what has happened, remembers a huddle, and goes when all are done", async () => {
-    const { client, values, container } = checklist();
+    const { client, values, container, user } = checklist();
     const card = await section();
     act(() =>
       client.store.setState((s) => ({
@@ -124,6 +160,9 @@ describe("getting started, for whoever set the workspace up", () => {
       })),
     );
     expect(card).toHaveTextContent("2 of 4 left");
+    // The next step moves on to the first one still to do.
+    expect(stepNames(card)).toEqual(["Turn on notifications"]);
+    await user.click(allSteps(card));
     expect(within(card).getByText("Create a channel")).toHaveTextContent("Create a channel, done");
     expect(within(card).queryByRole("button", { name: /Create a channel/ })).toBeNull();
 
@@ -142,7 +181,7 @@ describe("getting started, for whoever set the workspace up", () => {
         },
       }),
     );
-    await waitFor(() => expect(values.get(SLOT)).toEqual({ huddleTried: true }));
+    await waitFor(() => expect(values.get(SLOT)).toEqual({ expanded: true, huddleTried: true }));
     // Leaving the huddle does not take the tick back.
     act(() => client.store.setState({ huddle: null }));
     expect(card).toHaveTextContent("1 of 4 left");
@@ -156,6 +195,7 @@ describe("getting started, for whoever set the workspace up", () => {
     checklist({ kind: "desktop" });
     const card = await section();
     expect(card).toHaveTextContent("3 of 4 left");
+    expect(stepNames(card)).toEqual(["Create a channel"]);
   });
 
   it("stays hidden once put away", async () => {
