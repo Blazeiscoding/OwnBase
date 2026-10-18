@@ -7,6 +7,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform, type Platform, type ShareableSource } from "../src/platform.js";
 import { HuddleControls } from "../src/components/HuddleControls.js";
 import { QUALITY_KEY, REFRESH_MS } from "../src/components/ScreenShareDialog.js";
+import { accessibilityProblems } from "./accessibility.js";
 
 /**
  * The desktop app's own screen picker, in the manner of Discord's (CALL-01):
@@ -127,7 +128,64 @@ describe("choosing what to share in the desktop app", () => {
     expect(windows.querySelector(`img[src="${shot("editor")}"]`)).not.toBeNull();
     // No window is chosen for you: the one on top is usually this app.
     expect(within(windows).getByRole("radio", { name: "Editor" })).not.toBeChecked();
-    expect(within(dialog).getByRole("button", { name: "Share window" })).toBeDisabled();
+    expect(within(dialog).getByRole("button", { name: "Share window" })).toBeEnabled();
+  });
+
+  it("says to choose a window when Share is pressed without one, and goes to the list", async () => {
+    const user = userEvent.setup();
+    const { choose, share } = picker();
+    const dialog = await open(user);
+    const windows = await within(dialog).findByRole("radiogroup", { name: "Windows" });
+    const button = within(dialog).getByRole("button", { name: "Share window" });
+    expect(button).not.toHaveAttribute("aria-disabled");
+
+    await user.click(button);
+    expect(choose).not.toHaveBeenCalled();
+    expect(share).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Choose a window to share.");
+    expect(windows).toHaveAttribute("aria-invalid", "true");
+    expect(windows).toHaveAccessibleDescription("Choose a window to share.");
+    // Focus is on the first window, which is not chosen by being focused.
+    const editor = within(windows).getByRole("radio", { name: "Editor" });
+    expect(editor).toHaveFocus();
+    expect(editor).not.toBeChecked();
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+
+    // Enter in the list asks the same; choosing one takes the complaint away.
+    await user.keyboard("{Enter}");
+    expect(choose).not.toHaveBeenCalled();
+    await user.keyboard("{ArrowRight}");
+    expect(within(windows).getByRole("radio", { name: "Notes" })).toBeChecked();
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    expect(windows).not.toHaveAttribute("aria-invalid");
+    await user.click(button);
+    expect(choose).toHaveBeenCalledWith("window:2:0");
+  });
+
+  it("says why Share has nothing yet while the list is found, or when there is no window", async () => {
+    const user = userEvent.setup();
+    let fresh!: (sources: ShareableSource[]) => void;
+    const { choose } = picker({ sources: () => new Promise((resolve) => (fresh = resolve)) });
+    const dialog = await open(user);
+    const button = within(dialog).getByRole("button", { name: "Share window" });
+    await user.click(button);
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Still finding windows and screens. Choose one once they appear.",
+    );
+    expect(button).toHaveFocus();
+
+    // The list arrives with a screen but no window: Screens is where to go.
+    await act(async () => fresh([screen1]));
+    await user.click(within(dialog).getByRole("tab", { name: "Windows" }));
+    await user.click(within(dialog).getByRole("button", { name: "Share window" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "Open the window you want to share first, or share a screen.",
+    );
+    expect(within(dialog).getByRole("tab", { name: "Screens" })).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(within(dialog).queryByRole("alert")).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
+    expect(choose).toHaveBeenCalledWith("screen:0:0");
   });
 
   it("shares the window chosen, at the quality chosen, and closes", async () => {
@@ -224,6 +282,10 @@ describe("when sharing does not go as chosen", () => {
       "That window has closed. Choose another.",
     );
     expect(share).not.toHaveBeenCalled();
+    // Said beside the list, with focus back on the choice it is about.
+    const windows = within(dialog).getByRole("radiogroup", { name: "Windows" });
+    expect(windows).toHaveAccessibleDescription("That window has closed. Choose another.");
+    expect(within(windows).getByRole("radio", { name: "Editor" })).toHaveFocus();
     // Choosing again clears it.
     await user.click(within(dialog).getByRole("radio", { name: "Notes" }));
     expect(within(dialog).queryByRole("alert")).toBeNull();
@@ -312,12 +374,16 @@ describe("keeping the pictures fresh", () => {
     await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
     expect(await within(dialog).findByRole("radio", { name: "Notes" })).toBeInTheDocument();
 
-    // The chosen window closes: Share has nothing to share.
+    // The chosen window closes: Share says so, and to choose another.
     await user.click(within(dialog).getByRole("radio", { name: "Notes" }));
     listed = [screen1, editor];
     await act(() => vi.advanceTimersByTimeAsync(REFRESH_MS));
     await waitFor(() => expect(within(dialog).queryByRole("radio", { name: "Notes" })).toBeNull());
-    expect(within(dialog).getByRole("button", { name: "Share window" })).toBeDisabled();
+    await user.click(within(dialog).getByRole("button", { name: "Share window" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(
+      "That window has closed. Choose another.",
+    );
+    expect(within(dialog).getByRole("radio", { name: "Editor" })).toHaveFocus();
 
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     const calls = sources.mock.calls.length;

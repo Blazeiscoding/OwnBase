@@ -830,15 +830,29 @@ describe("renaming a hosted workspace and opening its folder", () => {
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
 
     await user.click(within(list).getByRole("button", { name: "Rename Team A" }));
-    const field = within(list).getByRole("textbox", { name: "New name for Team A" });
+    let field = within(list).getByRole("textbox", { name: "New name for Team A" });
     expect(field).toHaveFocus();
     expect(field).toHaveValue("Team A");
-    const save = within(list).getByRole("button", { name: "Save" });
-    // Nothing has changed yet, and a name that is only spaces is none at all.
-    expect(save).toBeDisabled();
+    // Never off: saved with the name it has, there is nothing to save, so the form closes.
+    let save = within(list).getByRole("button", { name: "Save" });
+    expect(save).toBeEnabled();
+    expect(save).not.toHaveAttribute("aria-disabled");
+    await user.click(save);
+    expect(hosting.rename).not.toHaveBeenCalled();
+    expect(within(list).queryByRole("textbox", { name: /New name for/ })).toBeNull();
+    expect(within(list).getByRole("button", { name: "Rename Team A" })).toHaveFocus();
+
+    // A name that is only spaces is none at all: it says so beside the field.
+    await user.click(within(list).getByRole("button", { name: "Rename Team A" }));
+    field = within(list).getByRole("textbox", { name: "New name for Team A" });
+    save = within(list).getByRole("button", { name: "Save" });
     await user.clear(field);
     await user.type(field, "   ");
-    expect(save).toBeDisabled();
+    await user.click(save);
+    expect(hosting.rename).not.toHaveBeenCalled();
+    expect(field).toHaveFocus();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription("Give the workspace a name.");
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
 
     hosting.list!.mockResolvedValue({
@@ -869,7 +883,8 @@ describe("renaming a hosted workspace and opening its folder", () => {
     await user.click(await screen.findByRole("button", { name: "Rename Team A" }));
     const field = screen.getByRole("textbox", { name: "New name for Team A" });
     await user.clear(field);
-    await user.type(field, "Blue Team{Enter}");
+    await user.type(field, "Blue Team");
+    await user.click(screen.getByRole("button", { name: "Save" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(
@@ -1375,15 +1390,25 @@ describe("who is connected, and which port", () => {
     render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
     await user.click(within(list).getByRole("button", { name: "Change port for Team A" }));
-    const field = within(list).getByRole("textbox", { name: "New port for Team A" });
+    let field = within(list).getByRole("textbox", { name: "New port for Team A" });
     expect(field).toHaveFocus();
     expect(field).toHaveValue("8543");
-    expect(within(list).getByRole("button", { name: "Save" })).toBeDisabled();
+    // Never off: saved with the port it has, there is nothing to save, so the form closes.
+    const save = within(list).getByRole("button", { name: "Save" });
+    expect(save).toBeEnabled();
+    await user.click(save);
+    expect(hosting.setPort).not.toHaveBeenCalled();
+    expect(within(list).queryByRole("textbox", { name: "New port for Team A" })).toBeNull();
+    expect(within(list).getByRole("button", { name: "Change port for Team A" })).toHaveFocus();
 
+    await user.click(within(list).getByRole("button", { name: "Change port for Team A" }));
+    field = within(list).getByRole("textbox", { name: "New port for Team A" });
     await user.clear(field);
-    await user.type(field, "port{Enter}");
+    await user.type(field, "port");
+    await user.click(within(list).getByRole("button", { name: "Save" }));
     expect(within(list).getByRole("alert")).toHaveTextContent("Choose a port from 1 to 65535.");
     expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveFocus();
     expect(hosting.setPort).not.toHaveBeenCalled();
 
     hosting.list!.mockResolvedValue({ workspaces: [{ ...teamA, port: 9100 }], unreadable: [] });
@@ -1723,10 +1748,17 @@ describe("an address the host already has", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    const address = within(dialog).getByLabelText("Your own address");
+    const save = within(dialog).getByRole("button", { name: "Save" });
+    // Never off: sent empty with none saved, it asks for one beside the field.
+    expect(save).toBeEnabled();
+    await user.click(save);
+    expect(hosting.setPublicAddress).not.toHaveBeenCalled();
+    expect(address).toHaveFocus();
+    expect(address).toHaveAttribute("aria-invalid", "true");
+    expect(address).toHaveAccessibleDescription(/Enter the address, such as/);
 
-    await user.type(within(dialog).getByLabelText("Your own address"), `  ${funnel}  `);
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.type(address, `  ${funnel}  {Enter}`);
 
     expect(hosting.setPublicAddress).toHaveBeenCalledWith(funnel);
     expect(await within(dialog).findByText(funnel)).toBeVisible();
@@ -1772,6 +1804,34 @@ describe("an address the host already has", () => {
     expect(within(dialog).getByText(/may already make this workspace reachable/)).toBeVisible();
     expect(within(dialog).getByText(/stop the carrier separately/)).toBeVisible();
     expect(within(dialog).getByRole("checkbox", { name: /Require an invite/ })).toBeChecked();
+  });
+
+  it("says there is nothing to save rather than saving the same address again", async () => {
+    const user = userEvent.setup();
+    const { hosting } = fakeHosting({
+      ...running,
+      tunnelAvailable: true,
+      publicAddress: funnel,
+      publicAddressSetting: funnel,
+    });
+    render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
+
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    const address = within(dialog).getByLabelText("Your own address");
+    // Saving it would also turn invites back on, so the same address is not sent again.
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(hosting.setPublicAddress).not.toHaveBeenCalled();
+    expect(
+      within(dialog).getByText("Nothing to save: that is the address already saved."),
+    ).toHaveAttribute("role", "status");
+    expect(address).not.toHaveAttribute("aria-invalid", "true");
+
+    // Emptied, it is a change: the saved address goes.
+    await user.clear(address);
+    expect(within(dialog).queryByText(/Nothing to save/)).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    expect(hosting.setPublicAddress).toHaveBeenCalledWith("");
   });
 
   it("shows an address the environment fixed without offering to change it", async () => {
