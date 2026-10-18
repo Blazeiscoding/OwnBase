@@ -408,8 +408,12 @@ export function Modal({
       data-tandem-modal=""
       className={"fixed inset-0 z-[60] " + backdropClassName}
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget && activeLayer() === layer.current)
+        if (event.target === event.currentTarget && activeLayer() === layer.current) {
+          // Closing gives focus back to the opener; the press's own focus
+          // change would then take it to the page.
+          event.preventDefault();
           close.current();
+        }
       }}
     >
       <div

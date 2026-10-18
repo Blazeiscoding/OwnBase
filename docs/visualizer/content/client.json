@@ -1803,7 +1803,8 @@
         "Focus restoration follows connected usable openers and fallback owners even if an underlying dialog was removed. Layout registration accounts for child autoFocus occurring before portal ownership is fully installed.",
         "Central ownership avoids competing independent focus traps for dialogs, menus and lightboxes.",
         "A dialog's scrolling region (.dialog-scroll, or .settings-scroll on the Account settings page) is a part of it, so keys pressed elsewhere in it would scroll nothing. Page Up and Page Down from outside the region, and the arrow, Home and End keys from the dialog element itself, scroll the region. Text areas, selects and modified keys are left alone.",
-        "A dialog, menu or popover leaves as it came. When it closes, a copy of it, inert, hidden from screen readers and stripped of ids, names and roles, is put where it was and plays the reverse of its opening animation, then removes itself. One closed while still opening, as a loading placeholder is, leaves nothing, and neither does anything when less motion is asked for."
+        "A dialog, menu or popover leaves as it came. When it closes, a copy of it, inert, hidden from screen readers and stripped of ids, names and roles, is put where it was and plays the reverse of its opening animation, then removes itself. One closed while still opening, as a loading placeholder is, leaves nothing, and neither does anything when less motion is asked for.",
+        "A press on the backdrop that closes the layer cancels the mousedown's default. Focus goes back to the opener as the layer closes, and the press's own focus change would otherwise move it straight on to the page."
       ],
       "concepts": [
         "modal stack",
@@ -1842,7 +1843,8 @@
         "Built on the modal layer, with arrow navigation, Enter selection, Escape/outside dismissal and focus return to the trigger.",
         "Repositions with scrolling instead of abandoning an action when a live timeline shifts. Destructive and disabled items keep consistent presentation.",
         "It grows from the corner nearest its trigger, which depends on whether it opened below or above it, and a phone's sheet rises from the bottom edge.",
-        "Ticked items are menuitemradio, one of a set, unless the menu is multiple: then each is a menuitemcheckbox, as search's From and Has filters are (UX-51)."
+        "Ticked items are menuitemradio, one of a set, unless the menu is multiple: then each is a menuitemcheckbox, as search's From and Has filters are (UX-51).",
+        "Its button stays the same element for the menu's whole life, so focus has somewhere to go back to. A button with a hint used to be swapped for a bare one while the menu was open, to keep the hint away: the modal layer then found the button it remembered detached, and focus fell to the page on Escape, Tab or a choice. The hint now stays on the button, turned off with Tooltip's disabled while the menu is open."
       ],
       "concepts": ["action menu", "keyboard navigation", "floating position"]
     },
@@ -1854,7 +1856,8 @@
         "Hover opens after a short delay; keyboard focus opens immediately; Escape dismisses the hint. On the control that has focus, the first Escape dismisses only the hint, as in a dialog; a hint the pointer opened on another control goes, and the key carries on to wherever focus is. The floating portal follows its trigger and flips when needed.",
         "Composes event handlers, accessible descriptions and refs, including React ref-cleanup behavior, so decorating a control does not replace its own lifetime contract.",
         "The first hint waits 400 ms. Once one is showing, or has just gone, the next waits only 80 ms and slides over from where the last one was instead of growing in again. Hiding is immediate.",
-        "The floating text itself is TooltipBubble, out of the first download: loadTooltipBubble fetches it as the workspace opens or a hint is first wanted, and a hint opened before it arrives is drawn once it has."
+        "The floating text itself is TooltipBubble, out of the first download: loadTooltipBubble fetches it as the workspace opens or a hint is first wanted, and a hint opened before it arrives is drawn once it has.",
+        "disabled keeps the hint away and puts away one that is up, timers and all; Menu sets it on its button while the menu is open. Focus given back by a closing menu or dialog brings no hint, since React delivers no focus events while it commits; the pointer still resting on the button brings one after the usual wait."
       ],
       "concepts": ["accessible hint", "portal position", "ref composition", "lazy chunk"]
     },

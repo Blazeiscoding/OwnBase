@@ -4606,7 +4606,15 @@ test("a starred channel sits under Starred, stays there after a reload, and goes
 
   // From the row's own More menu, which shows while the row is pointed at.
   await designRow(nav).hover();
-  await nav.getByRole("button", { name: "More options for design" }).click();
+  const designMore = nav.getByRole("button", { name: "More options for design" });
+  // Escape gives focus back to the very button that opened the menu, hint and all.
+  await designMore.evaluate((element) => element.setAttribute("data-opened-menu", "row"));
+  await designMore.click();
+  await expect(page.getByRole("menu", { name: "Options for design" })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.locator('[data-opened-menu="row"]')).toBeFocused();
+  await designMore.click();
   await page.getByRole("menuitem", { name: "Star channel" }).click();
   await expect(starred).toHaveAttribute("aria-expanded", "true");
   await expect(designRow(under("starred"))).toBeVisible();
@@ -4632,7 +4640,18 @@ test("a starred channel sits under Starred, stays there after a reload, and goes
   // Unstarred from the conversation's own menu, it goes back among the channels.
   await designRow(under("starred")).click();
   await expect(page.getByRole("textbox", { name: "Message #design" })).toBeVisible();
-  await page.getByRole("button", { name: "Conversation options" }).click();
+  const conversationOptions = page.getByRole("button", { name: "Conversation options" });
+  // So does a press outside it, which goes to nothing underneath.
+  await conversationOptions.evaluate((element) =>
+    element.setAttribute("data-opened-menu", "header"),
+  );
+  await conversationOptions.click();
+  await expect(page.getByRole("menu", { name: "Conversation options" })).toBeVisible();
+  const viewport = page.viewportSize()!;
+  await page.mouse.click(viewport.width / 2, viewport.height - 12);
+  await expect(page.getByRole("menu")).toHaveCount(0);
+  await expect(page.locator('[data-opened-menu="header"]')).toBeFocused();
+  await conversationOptions.click();
   await page.getByRole("menuitem", { name: "Unstar channel" }).click();
   await expect(starred).toHaveCount(0);
   await expect(designRow(under("channels"))).toBeVisible();
