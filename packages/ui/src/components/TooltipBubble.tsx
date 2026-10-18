@@ -24,8 +24,9 @@ function portalHost(trigger: HTMLElement): HTMLElement {
 /**
  * An open tooltip's floating text: placed beside its trigger, kept there as
  * the page scrolls or resizes, and closed by Escape or the window losing
- * focus. It is out of the first download; `Tooltip` keeps the timers and the
- * trigger's handlers, and draws this once it has arrived.
+ * focus. Escape is its own only while its trigger has focus. It is out of
+ * the first download; `Tooltip` keeps the timers and the trigger's handlers,
+ * and draws this once it has arrived.
  */
 export function TooltipBubble(props: {
   id: string;
@@ -166,9 +167,17 @@ export function TooltipBubble(props: {
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape" || event.defaultPrevented || isImeKey(event)) return;
+      hide();
+      // Escape goes where the keyboard is. On the control this hint is for,
+      // the first one only puts the hint away, as a dialog's or a panel's
+      // would. A hint the pointer opened on something else goes too, but the
+      // key carries on: the phone drawer's rail sits under the pointer that
+      // opened it, and its hint kept the drawer open while focus was on
+      // "Jump to…".
+      const focused = document.activeElement;
+      if (!focused || !trigger.current?.contains(focused)) return;
       event.preventDefault();
       event.stopPropagation();
-      hide();
     };
     const onWindowBlur = () => hide();
     document.addEventListener("keydown", onKeyDown, true);
@@ -177,7 +186,7 @@ export function TooltipBubble(props: {
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("blur", onWindowBlur);
     };
-  }, [hide]);
+  }, [hide, trigger]);
 
   if (!host) return null;
   return createPortal(
