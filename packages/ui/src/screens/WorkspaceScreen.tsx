@@ -440,7 +440,8 @@ function WorkspaceInner({
   const drawerStep = useRef(false);
   // Below a laptop's width a side panel covers the conversation, as theme.css
   // lays it out, so what it covers leaves the Tab order and the screen
-  // reader's reading as the page does behind a dialog.
+  // reader's reading as the page does behind a dialog. The main landmark
+  // around it stays, so the page still has one.
   const narrow = useMediaQuery("(max-width: 1023px)");
   const panelCovers = narrow && panel.kind !== "none";
   const closeDrawer = useCallback(() => {
@@ -1146,7 +1147,7 @@ function WorkspaceInner({
   const screen = (
     <div className={`workspace-shell relative flex h-full ${sidebarOpen ? "sidebar-open" : ""}`}>
       <DraftPersistence platform={platform} />
-      {/* Outside main, which goes inert while the phone drawer is open. */}
+      {/* Outside main, whose content goes inert while the phone drawer is open. */}
       {announcer.region}
       {sidebarOpen && (
         <button
@@ -1229,165 +1230,174 @@ function WorkspaceInner({
         hosting={hosting}
       />
 
-      <main
-        inert={sidebarOpen || panelCovers}
-        className="workspace-main flex min-w-0 flex-1 flex-col"
-      >
-        <header className="channel-header titlebar-drag flex h-12 shrink-0 items-center gap-1 pl-2 pr-2 shadow-[0_1px_0_var(--color-edge)]">
-          <NavigationToggle
-            activeChannelId={activeChannelId}
-            open={sidebarOpen}
-            onOpen={() => setSidebarOpen(true)}
-          />
-          <button
-            onClick={() => activeChannelId && setDialog({ kind: "channel-details" })}
-            className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.04]"
-          >
-            <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
-              {isRoom ? (
+      <main className="workspace-main flex min-w-0 flex-1 flex-col">
+        {/* What the drawer or a side panel covers goes inert, but the landmark
+            itself stays, so the page always has its one main. */}
+        <div inert={sidebarOpen || panelCovers} className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <header className="channel-header titlebar-drag flex h-12 shrink-0 items-center gap-1 pl-2 pr-2 shadow-[0_1px_0_var(--color-edge)]">
+            <NavigationToggle
+              activeChannelId={activeChannelId}
+              open={sidebarOpen}
+              onOpen={() => setSidebarOpen(true)}
+            />
+            <button
+              onClick={() => activeChannelId && setDialog({ kind: "channel-details" })}
+              className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.04]"
+            >
+              <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
+                {isRoom ? (
+                  <>
+                    <span className="mr-1 font-normal text-ink-faint">#</span>
+                    {title}
+                  </>
+                ) : (
+                  title || "…"
+                )}
+              </h2>
+              {activeChannel?.topic && (
                 <>
-                  <span className="mr-1 font-normal text-ink-faint">#</span>
-                  {title}
+                  <span aria-hidden="true" className="channel-topic h-5 w-px shrink-0 bg-edge" />
+                  <p className="channel-topic min-w-0 truncate text-[13px] text-ink-faint">
+                    {activeChannel.topic}
+                  </p>
                 </>
-              ) : (
-                title || "…"
               )}
-            </h2>
-            {activeChannel?.topic && (
-              <>
-                <span aria-hidden="true" className="channel-topic h-5 w-px shrink-0 bg-edge" />
-                <p className="channel-topic min-w-0 truncate text-[13px] text-ink-faint">
-                  {activeChannel.topic}
-                </p>
-              </>
-            )}
-          </button>
-          {activeChannelId && (
-            <div className="flex shrink-0 items-center gap-1">
-              {activeChannel?.type !== "dm" && (
-                <MemberStack
+            </button>
+            {activeChannelId && (
+              <div className="flex shrink-0 items-center gap-1">
+                {activeChannel?.type !== "dm" && (
+                  <MemberStack
+                    channelId={activeChannelId}
+                    pressed={panel.kind === "members"}
+                    onToggle={() => togglePanel("members")}
+                  />
+                )}
+                <HuddleButton channelId={activeChannelId} />
+                <ConversationMenu
                   channelId={activeChannelId}
-                  pressed={panel.kind === "members"}
-                  onToggle={() => togglePanel("members")}
-                />
-              )}
-              <HuddleButton channelId={activeChannelId} />
-              <ConversationMenu
-                channelId={activeChannelId}
-                title={isRoom ? `#${title}` : title}
-                isRoom={isRoom}
-                onPins={() => setPanel({ kind: "pins" })}
-                onSearch={() => setDialog({ kind: "search", inConversation: true })}
-                onNotifications={
-                  isMember
-                    ? () => setDialog({ kind: "channel-details", tab: "notifications" })
-                    : undefined
-                }
-                onDetails={() => setDialog({ kind: "channel-details" })}
-              />
-            </div>
-          )}
-        </header>
-        {activeChannelId && (
-          <PinnedBar
-            channelId={activeChannelId}
-            open={panel.kind === "pins"}
-            onToggle={() => togglePanel("pins")}
-          />
-        )}
-        {/* One banner at a time, the most pressing (UX-25): a message that could
-            not be opened, then what the app could not save, then the ask to
-            turn on notifications, then a message on its way. */}
-        {navigationError ? (
-          <Banner
-            tone="alert"
-            actions={<BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>}
-          >
-            {navigationError}
-          </Banner>
-        ) : banner ? (
-          banner
-        ) : (
-          <>
-            {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
-              // The ask is a courtesy: if it cannot load, the workspace carries on without it.
-              <ErrorBoundary fallback={<span hidden />}>
-                <Suspense fallback={null}>
-                  <NotificationBanner storage={platform.storage} onShowing={setAsking} />
-                </Suspense>
-              </ErrorBoundary>
-            )}
-            {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
-          </>
-        )}
-
-        {activeChannelId ? (
-          <>
-            {/* The stage sits above the chat, and when expanded, over it. */}
-            <div className="relative flex min-h-0 flex-1 flex-col">
-              {/* Mounted while there is video at all, even put away: the stage brings
-                  itself back when someone starts sharing. */}
-              {huddleVideo && (
-                <ErrorBoundary
-                  fallback={
-                    <p role="alert" className="border-b border-edge px-5 py-3 text-sm text-ink-dim">
-                      The huddle's video could not load. The call carries on; reload the app to see
-                      video.
-                    </p>
+                  title={isRoom ? `#${title}` : title}
+                  isRoom={isRoom}
+                  onPins={() => setPanel({ kind: "pins" })}
+                  onSearch={() => setDialog({ kind: "search", inConversation: true })}
+                  onNotifications={
+                    isMember
+                      ? () => setDialog({ kind: "channel-details", tab: "notifications" })
+                      : undefined
                   }
-                >
+                  onDetails={() => setDialog({ kind: "channel-details" })}
+                />
+              </div>
+            )}
+          </header>
+          {activeChannelId && (
+            <PinnedBar
+              channelId={activeChannelId}
+              open={panel.kind === "pins"}
+              onToggle={() => togglePanel("pins")}
+            />
+          )}
+          {/* One banner at a time, the most pressing (UX-25): a message that could
+              not be opened, then what the app could not save, then the ask to
+              turn on notifications, then a message on its way. */}
+          {navigationError ? (
+            <Banner
+              tone="alert"
+              actions={
+                <BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>
+              }
+            >
+              {navigationError}
+            </Banner>
+          ) : banner ? (
+            banner
+          ) : (
+            <>
+              {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
+                // The ask is a courtesy: if it cannot load, the workspace carries on without it.
+                <ErrorBoundary fallback={<span hidden />}>
                   <Suspense fallback={null}>
-                    <HuddleStage view={huddleView} onViewChange={setHuddleView} />
+                    <NotificationBanner storage={platform.storage} onShowing={setAsking} />
                   </Suspense>
                 </ErrorBoundary>
               )}
-              <div inert={chatCovered} className="flex min-h-0 flex-1 flex-col">
-                <MessageTimeline
-                  readActive={
-                    dialog.kind === "none" && panel.kind === "none" && !sidebarOpen && !chatCovered
-                  }
+              {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
+            </>
+          )}
+
+          {activeChannelId ? (
+            <>
+              {/* The stage sits above the chat, and when expanded, over it. */}
+              <div className="relative flex min-h-0 flex-1 flex-col">
+                {/* Mounted while there is video at all, even put away: the stage
+                    brings itself back when someone starts sharing. */}
+                {huddleVideo && (
+                  <ErrorBoundary
+                    fallback={
+                      <p
+                        role="alert"
+                        className="border-b border-edge px-5 py-3 text-sm text-ink-dim"
+                      >
+                        The huddle's video could not load. The call carries on; reload the app to
+                        see video.
+                      </p>
+                    }
+                  >
+                    <Suspense fallback={null}>
+                      <HuddleStage view={huddleView} onViewChange={setHuddleView} />
+                    </Suspense>
+                  </ErrorBoundary>
+                )}
+                <div inert={chatCovered} className="flex min-h-0 flex-1 flex-col">
+                  <MessageTimeline
+                    readActive={
+                      dialog.kind === "none" &&
+                      panel.kind === "none" &&
+                      !sidebarOpen &&
+                      !chatCovered
+                    }
+                    channelId={activeChannelId}
+                    highlightMessageId={highlightMessageId}
+                    onOpenThread={openThread}
+                    onChannelClick={openChannel}
+                    onOpenProfile={openProfile}
+                    onInvite={self?.role === "guest" ? undefined : inviteFromIntro}
+                    onDetails={detailsFromIntro}
+                  />
+                </div>
+              </div>
+              {calls.checkingDevices && (
+                <Suspense fallback={null}>
+                  <DeviceCheckDialog />
+                </Suspense>
+              )}
+              {inHuddle && (
+                <Suspense fallback={null}>
+                  <HuddleBar
+                    view={huddleView}
+                    onViewChange={setHuddleView}
+                    onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
+                    onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
+                  />
+                </Suspense>
+              )}
+              <div hidden={chatCovered} className="contents">
+                <JumpToLatestBar
                   channelId={activeChannelId}
-                  highlightMessageId={highlightMessageId}
-                  onOpenThread={openThread}
-                  onChannelClick={openChannel}
-                  onOpenProfile={openProfile}
-                  onInvite={self?.role === "guest" ? undefined : inviteFromIntro}
-                  onDetails={detailsFromIntro}
+                  onJump={() => setHighlightMessageId(null)}
+                />
+                <Composer
+                  channelId={activeChannelId}
+                  placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
+                  autoFocus
                 />
               </div>
+            </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-ink-faint">
+              Pick a channel to start.
             </div>
-            {calls.checkingDevices && (
-              <Suspense fallback={null}>
-                <DeviceCheckDialog />
-              </Suspense>
-            )}
-            {inHuddle && (
-              <Suspense fallback={null}>
-                <HuddleBar
-                  view={huddleView}
-                  onViewChange={setHuddleView}
-                  onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
-                  onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
-                />
-              </Suspense>
-            )}
-            <div hidden={chatCovered} className="contents">
-              <JumpToLatestBar
-                channelId={activeChannelId}
-                onJump={() => setHighlightMessageId(null)}
-              />
-              <Composer
-                channelId={activeChannelId}
-                placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
-                autoFocus
-              />
-            </div>
-          </>
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-ink-faint">
-            Pick a channel to start.
-          </div>
-        )}
+          )}
+        </div>
       </main>
 
       {panel.kind === "thread" && activeChannelId && (

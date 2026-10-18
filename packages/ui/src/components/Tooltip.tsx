@@ -103,7 +103,9 @@ export function loadTooltipBubble(): Promise<Bubble> {
 /**
  * A short hint for compact controls. It never moves focus or makes the page
  * inert: hover waits a beat, keyboard focus opens immediately, and Escape
- * dismisses only the hint. The floating text follows its trigger on scroll.
+ * dismisses it. On the focused control Escape dismisses only the hint; a hint
+ * the pointer opened elsewhere lets the key go on to where focus is. The
+ * floating text follows its trigger on scroll.
  */
 export function Tooltip({ label, keys, side: preferredSide = "top", children }: Props) {
   const id = `tooltip-${useId().replace(/:/g, "")}`;
