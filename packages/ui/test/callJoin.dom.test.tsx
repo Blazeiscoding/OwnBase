@@ -82,6 +82,14 @@ function setup(read: () => Promise<unknown>) {
   return { client, platform, get, join, wrap };
 }
 
+/** Getting started shows only its next step; the huddle is in the whole list. */
+async function huddleStep() {
+  await userEvent
+    .setup()
+    .click(await screen.findByRole("button", { name: "Show all steps" }, { timeout: 3_000 }));
+  return screen.findByRole("button", { name: "Start: Try a huddle in #general" });
+}
+
 describe("preference-aware huddle admission (N04)", () => {
   it("waits for a held valid microphone-off choice before the header joins", async () => {
     const saved = deferred<unknown>();
@@ -118,15 +126,7 @@ describe("preference-aware huddle admission (N04)", () => {
         />,
       ),
     );
-    await userEvent
-      .setup()
-      .click(
-        await screen.findByRole(
-          "button",
-          { name: "Start: Try a huddle in #general" },
-          { timeout: 3_000 },
-        ),
-      );
+    await userEvent.setup().click(await huddleStep());
     expect(join).not.toHaveBeenCalled();
     await act(async () => saved.resolve({ joinMuted: true }));
     await waitFor(() =>
@@ -198,13 +198,7 @@ describe("preference-aware huddle admission (N04)", () => {
       ),
     );
     const user = userEvent.setup();
-    await user.click(
-      await screen.findByRole(
-        "button",
-        { name: "Start: Try a huddle in #general" },
-        { timeout: 3_000 },
-      ),
-    );
+    await user.click(await huddleStep());
     await user.click(screen.getByRole("button", { name: "# design" }));
     await act(async () => saved.resolve({ joinMuted: true }));
     expect(join).not.toHaveBeenCalled();
@@ -233,15 +227,7 @@ describe("preference-aware huddle admission (N04)", () => {
         />,
       ),
     );
-    await userEvent
-      .setup()
-      .click(
-        await screen.findByRole(
-          "button",
-          { name: "Start: Try a huddle in #general" },
-          { timeout: 3_000 },
-        ),
-      );
+    await userEvent.setup().click(await huddleStep());
     mounted.rerender(
       wrap(
         <WorkspaceScreen

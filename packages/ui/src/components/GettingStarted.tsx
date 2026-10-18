@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useState } from "react";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import {
   readWorkspaceStorage,
@@ -11,6 +11,8 @@ interface Saved {
   dismissed?: boolean;
   /** A huddle leaves nothing behind to look at later, so taking part is noted. */
   huddleTried?: boolean;
+  /** Every step listed rather than only the next, as a sidebar category stays open. */
+  expanded?: boolean;
 }
 
 /** What the browser allows, or whether the desktop app shows its own. */
@@ -24,6 +26,11 @@ function notificationsOn(kind: "web" | "desktop"): boolean {
  * someone in, turn notifications on, try a huddle. Each step ticks itself
  * off from what has actually happened, the list goes once all four have, and
  * it can be put away sooner. Kept per workspace and account on this device.
+ *
+ * It sits above the channels, so it shows only the next step: a header with
+ * the count and Hide, the progress, and that one row, leaving six channels in
+ * sight at 1280 by 720 (UX-20). "All steps" lists the rest, and stays open
+ * once opened, as a sidebar category stays folded.
  */
 export function GettingStarted(props: {
   onNewChannel: () => void;
@@ -46,6 +53,9 @@ export function GettingStarted(props: {
   const [saved, setSaved] = useState<Saved | null>(null);
   // Notification permission changes outside the app, so look again on return.
   const [, recheck] = useState(0);
+  // How often the whole list has been opened: its rows come in afresh each time.
+  const [opened, setOpened] = useState(0);
+  const listId = useId();
 
   useEffect(() => {
     if (!key) return;
@@ -114,32 +124,57 @@ export function GettingStarted(props: {
   if (left === 0) return null;
 
   const done = steps.length - left;
+  const expanded = saved.expanded === true;
+  // Folded, the list is the next step alone: the first one still to do.
+  const shown = expanded ? steps : steps.filter((step) => !step.done).slice(0, 1);
   return (
-    <section aria-labelledby="getting-started-title" className="card-warm mb-4 rounded-xl p-3">
-      <div className="flex items-center justify-between gap-2">
-        <h2 id="getting-started-title" className="text-[13px] font-semibold">
+    <section
+      aria-labelledby="getting-started-title"
+      className="card-warm mb-4 rounded-xl px-2.5 py-2"
+    >
+      <div className="flex h-6 items-center gap-2">
+        <h2 id="getting-started-title" className="min-w-0 truncate text-[13px] font-semibold">
           Getting started
         </h2>
+        <p className="tabular shrink-0 text-[11px] text-ink-faint">
+          {left} of {steps.length} left
+        </p>
         <button
           onClick={() => save({ ...saved, dismissed: true })}
-          className="rounded-md px-1.5 py-0.5 text-[12px] text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
+          className="-mr-1.5 ml-auto h-6 shrink-0 rounded-md px-1.5 text-[12px] text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
         >
           Hide
         </button>
       </div>
-      <div className="mt-1 flex items-center gap-2">
+      <div className="flex h-6 items-center gap-2">
         <div aria-hidden="true" className="h-1 flex-1 overflow-hidden rounded-full bg-ink/[0.08]">
           <div
             className="progress-fill h-full rounded-full bg-copper transition-[width] duration-500"
             style={{ width: `${(done / steps.length) * 100}%` }}
           />
         </div>
-        <p className="tabular shrink-0 text-[11px] text-ink-faint">
-          {left} of {steps.length} left
-        </p>
+        {/* Named for what it shows; the chevron says which way it is. */}
+        <button
+          aria-label="Show all steps"
+          aria-expanded={expanded}
+          aria-controls={listId}
+          onClick={() => {
+            if (!expanded) setOpened((n) => n + 1);
+            save({ ...saved, expanded: !expanded });
+          }}
+          className="-mr-1.5 flex h-6 shrink-0 items-center gap-0.5 rounded-md px-1.5 text-[12px] text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
+        >
+          All steps
+          <Icon
+            name="chevronDown"
+            size={12}
+            className={`transition-transform duration-150 ${expanded ? "rotate-180" : ""}`}
+          />
+        </button>
       </div>
-      <ul className="-mx-1.5 mt-2">
-        {steps.map((step) => {
+      {/* Opened again, its rows drop into place as a sidebar category's do. */}
+      <ul key={opened} id={listId} className={`-mx-1.5 ${opened && expanded ? "rows-in" : ""}`}>
+        {shown.map((step) => {
           const mark = (
             <span
               aria-hidden="true"
