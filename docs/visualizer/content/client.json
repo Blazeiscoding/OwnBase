@@ -1491,13 +1491,14 @@
     },
     {
       "path": "packages/ui/src/components/GettingStarted.tsx",
-      "plain": "A setup checklist that ticks itself off as you create a channel, invite someone, turn on notifications and join a huddle.",
+      "plain": "A short setup card above the channels: how many steps are left, the next one to do (create a channel, invite someone, turn on notifications, try a huddle), and All steps to see the rest. Steps tick themselves off.",
       "summary": "Shows setup steps that complete from actual workspace/account behavior.",
       "details": [
         "Tracks creating a channel, inviting someone, enabling notifications and participating in a huddle, with account/workspace-local dismissal memory.",
-        "The checklist can disappear after completion or explicit dismissal. N04's screen wiring makes its huddle action use the preference-aware join operation."
+        "The checklist can disappear after completion or explicit dismissal. N04's screen wiring makes its huddle action use the preference-aware join operation.",
+        "Kept short so six channels stay in sight at 1280 by 720 with it open (UX-20): one header line with the title, the count and Hide; the progress bar beside an All steps disclosure (named Show all steps, with aria-expanded and aria-controls); and only the first step still to do, as the same one-press row. All steps lists every step, done ones struck through; it is remembered with the dismissal and huddle memory, and opening it brings the rows in as a reopened sidebar category does (rows-in)."
       ],
-      "concepts": ["onboarding", "observed completion", "N04"]
+      "concepts": ["onboarding", "observed completion", "N04", "UX-20", "disclosure"]
     },
     {
       "path": "packages/ui/src/components/KeepAccountOffer.tsx",
