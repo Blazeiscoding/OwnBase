@@ -81,6 +81,23 @@ describe("an entry, as an administrator would say it", () => {
     );
   });
 
+  it("says what the workspace was renamed to, and who may join it now", () => {
+    expect(
+      say(entry("workspace.renamed", { details: { from: "Rocket Team", to: "Blue Team" } })),
+    ).toBe("Alice renamed the workspace from Rocket Team to Blue Team");
+    expect(
+      say(
+        entry("workspace.access_policy_changed", {
+          actorId: null,
+          details: { from: "account_required", to: "guest_allowed" },
+        }),
+      ),
+    ).toBe("The host changed who can join to anyone, guests included");
+    expect(say(entry("workspace.access_policy_changed", { details: { to: "everyone" } }))).toBe(
+      "Alice changed who can join",
+    );
+  });
+
   it("has a sentence for every action the server records", () => {
     const actions: AuditAction[] = [
       "user.role_changed",
@@ -91,6 +108,8 @@ describe("an entry, as an administrator would say it", () => {
       "user.invite_permission_removed",
       "account.recovered",
       "workspace.ownership_transferred",
+      "workspace.renamed",
+      "workspace.access_policy_changed",
       "app.created",
       "app.deleted",
       "app.token_replaced",

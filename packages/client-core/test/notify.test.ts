@@ -58,6 +58,8 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     scheduledEvents: true,
     activityThreads: true,
     stars: true,
+    workspaceSettings: true,
+    accessPolicy: "account_required",
     scheduledChanges: 0,
     self: me,
     users: { [me.id]: me, [them.id]: them },

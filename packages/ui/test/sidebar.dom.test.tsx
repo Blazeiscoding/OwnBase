@@ -56,7 +56,13 @@ function sidebar(options: { admin: boolean; others?: OtherWorkspace[] }) {
         otherWorkspaces={options.others}
         onOpenWorkspace={(url) => calls.push(`open ${url}`)}
         onAccountSettings={call("account")}
-        {...(options.admin ? { onManagePeople: call("people"), onManageApps: call("apps") } : {})}
+        {...(options.admin
+          ? {
+              onManagePeople: call("people"),
+              onManageApps: call("apps"),
+              onWorkspaceSettings: call("workspace"),
+            }
+          : {})}
         connectionLabel={null}
       />
     </ClientContext.Provider>,
@@ -89,7 +95,7 @@ async function accountMenu(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("the workspace menu", () => {
-  it("offers administrators People and Apps beside what everyone gets", async () => {
+  it("offers administrators People, Apps and Workspace settings beside what everyone gets", async () => {
     const { user } = sidebar({ admin: true });
     const footer = document.querySelector("nav footer")!;
     // Words, not the symbols that used to stand in for them.
@@ -99,6 +105,7 @@ describe("the workspace menu", () => {
       "Invite people",
       "People",
       "Apps and integrations",
+      "Workspace settings",
       "Add or join a workspace…",
     ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
@@ -112,14 +119,14 @@ describe("the workspace menu", () => {
 
   it("does what each item names", async () => {
     const { user, calls } = sidebar({ admin: true });
-    for (const item of ["Invite people", "People", "Apps and integrations"]) {
+    for (const item of ["Invite people", "People", "Apps and integrations", "Workspace settings"]) {
       await workspaceMenu(user);
       await user.click(screen.getByRole("menuitem", { name: item }));
       expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     }
     await accountMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "Account settings" }));
-    expect(calls).toEqual(["invite", "people", "apps", "account"]);
+    expect(calls).toEqual(["invite", "people", "apps", "workspace", "account"]);
   });
 });
 

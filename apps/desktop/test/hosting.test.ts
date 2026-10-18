@@ -16,6 +16,7 @@ import { DatabaseSync } from "node:sqlite";
 import {
   createHostingController,
   parseLastHosted,
+  type HostedWorkspaceChange,
   type HostingSnapshot,
 } from "../src/main/hosting.js";
 import {
@@ -133,6 +134,8 @@ function harness(
     /** Who is connected to the running server, and whoever listens for changes. */
     connected: 0,
     connectionListeners: new Set<() => void>(),
+    /** Whoever follows the running workspace's name and who may join it. */
+    workspaceListeners: new Set<(change: HostedWorkspaceChange) => void>(),
     /** Each name written into a stopped workspace's database; set `writeFails` to refuse. */
     written: [] as { dataDir: string; name: string }[],
     writeFails: false,
@@ -286,6 +289,10 @@ function harness(
         onConnectedChange: (listener: () => void) => {
           h.connectionListeners.add(listener);
           return () => void h.connectionListeners.delete(listener);
+        },
+        onWorkspaceChange: (listener: (change: HostedWorkspaceChange) => void) => {
+          h.workspaceListeners.add(listener);
+          return () => void h.workspaceListeners.delete(listener);
         },
         stop: vi.fn(async () => {}),
         ...(options.publicAccess
@@ -3388,5 +3395,99 @@ describe("scheduled backups", () => {
         ],
       }).map((e) => e.autoBackup),
     ).toEqual([{ destination, everyDays: 7, keep: 3 }, undefined]);
+  });
+});
+
+describe("following changes made inside a hosted workspace", () => {
+  /** What the server does when an owner or admin changes it in Workspace settings. */
+  function changedInside(
+    h: ReturnType<typeof harness>,
+    change: { workspaceName?: string; accessPolicy?: AccessPolicy },
+  ) {
+    if (change.workspaceName !== undefined)
+      for (const db of h.databases.values()) db.name = change.workspaceName;
+    if (change.accessPolicy !== undefined) h.accessPolicy = change.accessPolicy;
+    for (const listener of [...h.workspaceListeners]) listener({ ...change, by: "U-ADMIN" });
+  }
+
+  it("takes a name an admin gave it, in the window, the list and what earlier versions read", async () => {
+    const root = profile();
+    workspaceDb(join(root, "hosted", "rocket-team"), "01ROCKET", "Rocket Team");
+    const h = harness({ root });
+    await h.controller.start({ folder: "rocket-team" });
+    // Earlier versions find rocket-team by this name, so they are told it.
+    expect(h.saved.at(-1)).toEqual({ workspaceName: "Rocket Team", port: 8543 });
+    const [entry] = registryOf(h);
+
+    changedInside(h, { workspaceName: "Blue Team" });
+    expect(h.controller.status()).toMatchObject({ running: true, workspaceName: "Blue Team" });
+    expect(h.changes.at(-1)).toMatchObject({ workspaceName: "Blue Team" });
+    expect((await h.controller.list()).workspaces).toEqual([
+      expect.objectContaining({ folder: "rocket-team", name: "Blue Team" }),
+    ]);
+    await vi.waitFor(() => expect(registryOf(h)).toEqual([{ ...entry, name: "Blue Team" }]));
+    // They would reopen rocket-team as Rocket Team and put the old name back.
+    await vi.waitFor(() => expect(h.saved.at(-1)).toBeNull());
+    // The server already holds the name; nothing hands it back or writes it again.
+    expect(h.renamedRunning).toEqual([]);
+    expect(h.written).toEqual([]);
+
+    await h.controller.stop();
+    expect(h.workspaceListeners.size).toBe(0);
+  });
+
+  it("shows who may join after an admin changes it, and closing the public link keeps their choice", async () => {
+    const h = harness({ publicAccess: true, policies: true });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" });
+
+    changedInside(h, { accessPolicy: "invite_only" });
+    expect(h.changes.at(-1)).toMatchObject({ accessPolicy: "invite_only" });
+    changedInside(h, { accessPolicy: "guest_allowed" });
+    expect(h.controller.status().accessPolicy).toBe("guest_allowed");
+
+    // Guests the host let in for the link would leave with it; these an admin chose.
+    expect((await h.controller.endOpenToAll()).accessPolicy).toBe("guest_allowed");
+    expect(h.accessPolicy).toBe("guest_allowed");
+  });
+
+  it("still lets guests the host let in for the link leave with it", async () => {
+    const h = harness({ publicAccess: true, policies: true });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" });
+    // A rename inside says nothing about who may join.
+    changedInside(h, { workspaceName: "Blue Team" });
+    expect((await h.controller.endOpenToAll()).accessPolicy).toBe("account_required");
+  });
+
+  it("does not put back the rule it read when the link fails to open, over one chosen meanwhile", async () => {
+    const h = harness({ publicAccess: true, policies: true });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    h.beforeTunnel = () => {
+      changedInside(h, { accessPolicy: "invite_only" });
+      throw new Error("cloudflared is not installed");
+    };
+    await expect(
+      h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" }),
+    ).rejects.toThrow(/cloudflared/);
+    expect(h.accessPolicy).toBe("invite_only");
+    expect(h.controller.status().accessPolicy).toBe("invite_only");
+  });
+
+  it("closes joining whatever was chosen meanwhile, when another program may carry the address", async () => {
+    const h = harness({
+      publicAccess: true,
+      policies: true,
+      publicAddress: () => ({ setting: "chat.example.org", url: "https://chat.example.org" }),
+    });
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    h.beforeTunnel = () => {
+      changedInside(h, { accessPolicy: "guest_allowed" });
+      throw new Error("the carrier did not answer");
+    };
+    await expect(h.controller.openToAll({ accessPolicy: "account_required" })).rejects.toThrow(
+      /carrier/,
+    );
+    expect(h.accessPolicy).toBe("invite_only");
   });
 });

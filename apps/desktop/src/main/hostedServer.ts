@@ -46,7 +46,9 @@ export async function startHostedServer(
     if (!isolated) host.relayServers.add(server);
     // An external carrier may already be forwarding this port, and an app-owned
     // connector may have survived an ungraceful exit. Never leave registration
-    // open while any stable public address is configured.
+    // open while any stable public address is configured. This is the one
+    // start that changes who may join over what the workspace holds: it only
+    // ever closes joining, and the record names the host as having done it.
     if (host.publicAddressConfigured()) server.setInviteOnly(true);
   } catch (error) {
     host.relayServers.delete(server);
@@ -64,8 +66,11 @@ export async function startHostedServer(
     port: server.port,
     instanceId: server.instanceId,
     workspaceId: () => server.store.getMeta("workspace_id") ?? null,
-    workspaceName: () => server.store.getMeta("workspace_name") ?? workspaceName ?? "",
+    workspaceName: () => server.workspaceName(),
     setWorkspaceName: (name) => server.setWorkspaceName(name),
+    // An owner or admin renaming it, or changing who may join, in Workspace
+    // settings: the hosting window and the list follow.
+    onWorkspaceChange: (listener) => server.onWorkspaceChange(listener),
     reannounce: () => server.reannounce(),
     connectedPeople: () => server.connectedPeople(),
     onConnectedChange: (listener) => server.onConnectedChange(listener),

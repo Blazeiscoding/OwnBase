@@ -1,4 +1,5 @@
 import type {
+  AccessPolicy,
   Channel,
   ChannelPrefs,
   Friendship,
@@ -65,6 +66,12 @@ export type EphemeralEvent =
    * older than this event ignore it.
    */
   | { type: "workspace.renamed"; workspaceName: string }
+  /**
+   * Who may join changed, replacing what the ready snapshot gave. Told to
+   * everyone signed in, since the Join screen tells anyone who asks. Clients
+   * older than this event ignore it.
+   */
+  | { type: "workspace.accessPolicy"; accessPolicy: AccessPolicy }
   /** Private to one user's own sockets, so their devices stay in step. */
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
@@ -167,6 +174,14 @@ export interface ReadySnapshot {
    * older one drops a star sent to it without saying so, so it is not offered.
    */
   stars?: true;
+  /**
+   * This server lets its owner and admins rename the workspace and change who
+   * may join (`PUT /api/admin/workspace/name` and `/access-policy`). An older
+   * one refuses both, so Workspace settings offers neither there.
+   */
+  workspaceSettings?: true;
+  /** Who may join now. Absent from servers before `workspaceSettings`. */
+  accessPolicy?: AccessPolicy;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;

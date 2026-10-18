@@ -22,7 +22,8 @@
         "File uploads expose progress and cancellation. File bytes use authenticated fetch; a separately scoped download ticket supports native downloads without placing the session token into a download URL.",
         "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust.",
         "listPins takes a page size and passes on the server's total, which older servers leave out.",
-        "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed."
+        "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed.",
+        "renameWorkspace and setAccessPolicy call PUT /api/admin/workspace/name and /access-policy, for Workspace settings."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -39,7 +40,8 @@
         "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choice sequencing covers pins, saves, snooze and channel preferences. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation. changedContent records, per conversation, the seq of the latest edit, deletion, pin, history removal or own departure, so views holding copied messages can ask again without loaded history (Q07, Q08).",
         "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving.",
         "memberChanges holds, per conversation, the seq of the latest member.joined or member.left, so views that ask for a channel's members (the header's faces, the Members panel) ask again (UX-23).",
-        "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred."
+        "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred.",
+        "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered."
       ],
       "concepts": [
         "workspace replica",
@@ -50,7 +52,8 @@
         "N05",
         "N10",
         "Q09",
-        "Q10"
+        "Q10",
+        "UX-60"
       ]
     },
     {
@@ -222,7 +225,8 @@
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
         "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through inviteAsk, a number that changes with each ask, so a new session does not take an old ask for a new one.",
         "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back.",
-        "Sign-ins this device could not save (the key-store bar, with Retry saving) show across the top of the window outside a workspace; in one they take their turn in its banner place (UX-25). App also works out this computer's hosting line (hosting, starting, stopping or what is wrong, with Manage) and hands it to the workspace's sidebar, in place of the bar that ran along the bottom of the window."
+        "Sign-ins this device could not save (the key-store bar, with Retry saving) show across the top of the window outside a workspace; in one they take their turn in its banner place (UX-25). App also works out this computer's hosting line (hosting, starting, stopping or what is wrong, with Manage) and hands it to the workspace's sidebar, in place of the bar that ran along the bottom of the window.",
+        "It tells the workspace screen when this computer hosts the workspace on screen (hostedHere), so Workspace settings can say Manage hosting shows the same rule for who may join."
       ],
       "concepts": [
         "application lifecycle",
@@ -267,6 +271,7 @@
         "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu.",
         "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting.",
         "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address.",
+        "Workspace settings (UX-60) opens from the workspace menu and the Ctrl+K palette for the owner and admins, has the address /d/workspace, loads on first use with People and Apps, and closes for anyone else once the account is known.",
         "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert)."
       ],
       "concepts": [
@@ -280,7 +285,8 @@
         "UX-23",
         "banners",
         "UX-25",
-        "UX-70"
+        "UX-70",
+        "UX-60"
       ]
     },
     {
@@ -543,7 +549,8 @@
         "History state is bound to the workspace server, so an entry from one connected workspace cannot choose a channel in another. Fresh browser hashes are accepted only for the workspace serving the page.",
         "writeRoute adds a Back/Forward step for normal movement and replaces automatic or initial corrections. Phone drawer state stays in history rather than becoming a shareable link.",
         "ReadingPosition stores a message ID and viewport offset in the current history entry. Late position updates check the server/channel so an old scroller cannot rewrite a newer destination.",
-        "The side panels with an address of their own are Pinned, Saved, Threads, Scheduled, Activity and the phone's Direct messages (/p/dms)."
+        "The side panels with an address of their own are Pinned, Saved, Threads, Scheduled, Activity and the phone's Direct messages (/p/dms).",
+        "The dialogs with an address are Account settings (with its section), Workspace settings, People, Apps, Invite people, Keyboard shortcuts and the conversation's details."
       ],
       "concepts": ["routing", "history ownership", "deep linking", "reading position"]
     },
@@ -1278,7 +1285,8 @@
         "HostingStatus is this computer's hosting, under the workspace's name and its connection line (UX-25): a dot for live, starting or stopping, or trouble, what it is doing or what is wrong, and Manage (named Manage hosting for a screen reader). A warning is an alert. It replaced a bar along the bottom of the window, and leaves out the workspace's name when the hosted workspace is the one on screen. The storage gate's waiting screen shows it too.",
         "AccountMenu is exported for the phone's bottom bar, which opens the same menu from its own You button by passing trigger (its label, class and content); the menu then rises as a sheet on a touch phone. The sidebar's own trigger is unchanged.",
         "Starred (UX-20) sits above Channels once something is starred, and goes when nothing is. A starred channel or direct message moves out of its usual section, as in Slack, and keeps its unread, mention, draft and muted marks. Starred lists by name, channels and people together, so a row stays where it was put rather than moving each time a message arrives. It folds away like Channels and Direct messages and is remembered on this device with them. An archived channel leaves it with its star kept, and comes back to it if the channel is brought back.",
-        "Every conversation's row ends with More (⋯), after invite and settings on a channel's: Star or Unstar, offered only where the server keeps stars, and Mute or Unmute, each named by what it does now. A right-click on the row, or the keyboard's menu key, opens the same menu. The row's buttons stay shown while the menu is open (data-menu-open), so the menu has a place to sit and focus a place to come back to. A row starred or unstarred from its own menu changes section, and focus follows it to its More button there, or to the header of a folded section it went into."
+        "Every conversation's row ends with More (⋯), after invite and settings on a channel's: Star or Unstar, offered only where the server keeps stars, and Mute or Unmute, each named by what it does now. A right-click on the row, or the keyboard's menu key, opens the same menu. The row's buttons stay shown while the menu is open (data-menu-open), so the menu has a place to sit and focus a place to come back to. A row starred or unstarred from its own menu changes section, and focus follows it to its More button there, or to the header of a folded section it went into.",
+        "The workspace menu offers Workspace settings to the owner and admins, after People and Apps; members and guests do not see it (UX-60)."
       ],
       "concepts": [
         "workspace navigation",
@@ -1414,6 +1422,20 @@
       "concepts": ["account settings", "session management", "device preferences", "N04"]
     },
     {
+      "path": "packages/ui/src/components/WorkspaceSettings.tsx",
+      "plain": "The Workspace settings page, where the workspace's owner and admins rename it and choose who may join, with a quiet \"Saved\" when a choice is kept.",
+      "summary": "A full-window page for the workspace's own name and join policy, for its owner and admins (UX-60).",
+      "details": [
+        "Built like Account settings: a page over the whole window on Modal, its sections (General, Who can join) on the left as tabs and the open one on the right. It loads on first use, so it adds nothing to the entry chunk.",
+        "General has the workspace's name in a TextField with Save. Save is never disabled: sent empty or with a tab or line break, the field says what is wrong and takes the cursor; a server refusal lands under the field too. While nothing is typed, a rename made elsewhere replaces what the field shows.",
+        "Who can join is a radio group of the three policies, each with a plain explanation, saved the moment one is chosen through WorkspaceClient.setAccessPolicy. The title row says \"Saved\" for two seconds through savedNote. A failed change shows what the server has and says why.",
+        "While guests are allowed a line says that choosing either other rule signs every guest out. When guests have joined, leaving guest_allowed asks first with useConfirm, since signed-out guests have to join again.",
+        "When this desktop app hosts the workspace on screen (hostedHere), the page says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",
+        "On a server without ReadySnapshot.workspaceSettings it shows the name, offers neither control, and says the workspace is changed where it is hosted."
+      ],
+      "concepts": ["workspace settings", "join policy", "check on send", "UX-60"]
+    },
+    {
       "path": "packages/ui/src/components/PeopleDialog.tsx",
       "plain": "Lets admins see everyone's account and change roles, deactivate people, reset passwords or hand over ownership.",
       "summary": "Lets administrators inspect accounts and manage access under server role rules.",
@@ -1450,7 +1472,8 @@
       "summary": "Shows paged administrator changes as readable audit sentences.",
       "details": [
         "Looks up current names from stored IDs and defensively interprets details, so newer or partial records remain understandable.",
-        "Loads only when requested, pages through the server audit log and preserves keyboard focus when the final page removes a pagination control."
+        "Loads only when requested, pages through the server audit log and preserves keyboard focus when the final page removes a pagination control.",
+        "Renaming the workspace and changing who can join read as sentences too, with the old and new name, or the new rule in plain words; an entry made by the desktop app's host names the host."
       ],
       "concepts": ["audit log", "defensive rendering", "focus preservation"]
     },
