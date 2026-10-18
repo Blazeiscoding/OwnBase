@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { AccessPolicy } from "./entities.js";
 
 export const handleSchema = z
   .string()
@@ -253,6 +254,31 @@ export const editMessageBody = z.object({
 
 export const markReadBody = z.object({
   seq: z.number().int().nonnegative(),
+});
+
+/** The longest a workspace's name may be, once trimmed. */
+export const WORKSPACE_NAME_MAX = 80;
+
+/**
+ * A workspace's name: 1 to 80 characters once trimmed, and no control
+ * characters anywhere in it. Its host and its admins are held to this one rule.
+ */
+export const workspaceNameSchema = z
+  .string()
+  .refine((value) => !/\p{Cc}/u.test(value), "no control characters")
+  .transform((value) => value.trim())
+  .pipe(z.string().min(1).max(WORKSPACE_NAME_MAX));
+
+/** An owner or admin renaming the workspace. */
+export const workspaceNameBody = z.object({ name: workspaceNameSchema });
+
+/** An owner or admin changing who may join. */
+export const accessPolicyBody = z.object({
+  accessPolicy: z.enum([
+    "invite_only",
+    "account_required",
+    "guest_allowed",
+  ] as const satisfies readonly AccessPolicy[]),
 });
 
 /** A page of the administrative record. */

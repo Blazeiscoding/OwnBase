@@ -2,6 +2,7 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import {
   PROTOCOL_VERSION,
   SEND_RETRY_WINDOW_MS,
+  type AccessPolicy,
   type Channel,
   type ChannelPrefs,
   type EphemeralEvent,
@@ -492,6 +493,13 @@ export interface WorkspaceState {
    */
   stars: boolean;
   /**
+   * The server lets its owner and admins rename the workspace and change who
+   * may join. An older one refuses both, so Workspace settings offers neither.
+   */
+  workspaceSettings: boolean;
+  /** Who may join now, as the server last said; null from a server that does not say. */
+  accessPolicy: AccessPolicy | null;
+  /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
    * A list of scheduled messages reads the queue again when it moves.
@@ -578,6 +586,8 @@ const initialState: WorkspaceState = {
   scheduledEvents: false,
   activityThreads: false,
   stars: false,
+  workspaceSettings: false,
+  accessPolicy: null,
   scheduledChanges: 0,
   self: null,
   users: {},
@@ -977,6 +987,8 @@ export class WorkspaceClient {
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
       stars: snap.stars === true,
+      workspaceSettings: snap.workspaceSettings === true,
+      accessPolicy: snap.accessPolicy ?? null,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -1529,6 +1541,10 @@ export class WorkspaceClient {
     }
     if (event.type === "workspace.renamed") {
       this.store.setState({ workspaceName: event.workspaceName });
+      return;
+    }
+    if (event.type === "workspace.accessPolicy") {
+      this.store.setState({ accessPolicy: event.accessPolicy });
       return;
     }
     const s = this.store.getState();
@@ -2783,6 +2799,26 @@ export class WorkspaceClient {
       failed: Partial<ChannelPrefs> | null;
     }
   >();
+
+  /**
+   * Renames the workspace, for its owner and admins, and shows the name the
+   * server kept as soon as it answers, rather than when its event arrives.
+   */
+  async renameWorkspace(name: string): Promise<string> {
+    const { workspaceName } = await this.api.renameWorkspace(name);
+    if (!this.stopped) this.store.setState({ workspaceName });
+    return workspaceName;
+  }
+
+  /**
+   * Changes who may join, for its owner and admins, and shows what the server
+   * kept as soon as it answers. Leaving guests allowed signs every guest out.
+   */
+  async setAccessPolicy(policy: AccessPolicy): Promise<AccessPolicy> {
+    const { accessPolicy } = await this.api.setAccessPolicy(policy);
+    if (!this.stopped) this.store.setState({ accessPolicy });
+    return accessPolicy;
+  }
 
   /**
    * Shows a notification choice for one channel at once, then saves it. If

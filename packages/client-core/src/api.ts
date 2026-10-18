@@ -1,4 +1,5 @@
 import type {
+  AccessPolicy,
   CallLogEntry,
   App,
   Channel,
@@ -209,6 +210,28 @@ export class Api {
       `/api/admin/users/${encodeURIComponent(userId)}/password`,
       undefined,
       { timeoutMs: 20_000 },
+    );
+  }
+
+  /**
+   * Renames the workspace, for its owner and admins. Everyone signed in hears
+   * `workspace.renamed`. A server without `ReadySnapshot.workspaceSettings`
+   * has no such route.
+   */
+  renameWorkspace(name: string): Promise<{ workspaceName: string }> {
+    return this.request("PUT", "/api/admin/workspace/name", { name }, { timeoutMs: 10_000 });
+  }
+
+  /**
+   * Changes who may join, for the owner and admins. Leaving guests allowed signs
+   * every guest out. Everyone signed in hears `workspace.accessPolicy`.
+   */
+  setAccessPolicy(accessPolicy: AccessPolicy): Promise<{ accessPolicy: AccessPolicy }> {
+    return this.request(
+      "PUT",
+      "/api/admin/workspace/access-policy",
+      { accessPolicy },
+      { timeoutMs: 10_000 },
     );
   }
 

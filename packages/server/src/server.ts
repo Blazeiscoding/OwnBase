@@ -42,6 +42,9 @@ import {
   loginBody,
   guestAccountBody,
   guestJoinBody,
+  accessPolicyBody,
+  workspaceNameBody,
+  workspaceNameSchema,
   ACCESS_POLICIES,
   type AccessPolicy,
   markReadBody,
@@ -226,11 +229,22 @@ export interface ServerOptions {
   dataDir: string;
   port?: number;
   host?: string;
-  /** Workspace display name; persisted on first run. */
+  /**
+   * The name of a workspace nobody owns yet. Once it has an owner the name is
+   * the workspace's own, changed by its owner and admins, and this is ignored.
+   */
   workspaceName?: string;
-  /** When true, registration always requires an invite code (after the first user). */
+  /**
+   * Whether an account after the first needs an invite code, for a workspace
+   * nobody owns yet; ignored, like `accessPolicy`, once it has an owner.
+   */
   inviteOnly?: boolean;
-  /** Who may join, saved for later starts; takes precedence over `inviteOnly`. */
+  /**
+   * Who may join a workspace nobody owns yet; takes precedence over
+   * `inviteOnly`. Once it has an owner, who may join is the workspace's own
+   * choice, made by its owner and admins in Workspace settings, and a start
+   * never puts back an older one over it.
+   */
   accessPolicy?: AccessPolicy;
   /** Advertise on the LAN via mDNS. Default true. */
   mdns?: boolean;
@@ -383,16 +397,26 @@ export interface WorkspaceServer {
   /** Who may join: invited accounts, any account, or guests too. */
   accessPolicy: () => AccessPolicy;
   /**
-   * Changes who may join. Turning guests off signs every guest out at once,
-   * their sockets included.
+   * Changes who may join, as the host, by the same rule as an owner or admin
+   * in Workspace settings. Turning guests off signs every guest out at once,
+   * their sockets included, and everyone signed in is told.
    */
   setAccessPolicy: (policy: AccessPolicy) => void;
+  /** The workspace's name now. */
+  workspaceName: () => string;
   /**
-   * Renames the workspace while it runs: 1 to 80 characters without control
-   * characters, trimmed. Everyone signed in is told at once, the network
-   * announcement changes, and the name is stored for the next start.
+   * Renames the workspace while it runs, as the host, by the same rule as an
+   * owner or admin: 1 to 80 characters without control characters, trimmed.
+   * Everyone signed in is told at once, the network announcement changes,
+   * and the name is stored for the next start.
    */
   setWorkspaceName: (name: string) => void;
+  /**
+   * Calls `listener` whenever the workspace is renamed or who may join
+   * changes, by its host or by an owner or admin, so whatever shows either
+   * outside the workspace can follow. Returns how to stop.
+   */
+  onWorkspaceChange: (listener: (change: WorkspaceChange) => void) => () => void;
   /**
    * Announces the workspace on the local network afresh. The announcement is
    * made on the interfaces there were when it started, so after the computer
@@ -405,6 +429,16 @@ export interface WorkspaceServer {
   /** Calls `listener` whenever that count may have changed. Returns how to stop. */
   onConnectedChange: (listener: () => void) => () => void;
   stop: () => Promise<void>;
+}
+
+/** A change to the workspace itself, as `WorkspaceServer.onWorkspaceChange` reports it. */
+export interface WorkspaceChange {
+  /** The new name, when it was renamed. */
+  workspaceName?: string;
+  /** Who may join now, when that changed. */
+  accessPolicy?: AccessPolicy;
+  /** The owner or admin who made the change, or null for the host. */
+  by: ID | null;
 }
 
 export interface RetentionStatus {
@@ -467,6 +501,9 @@ async function startWorkspaceServer(
   // Checked here as well as by the CLI, so the desktop app's embedded server
   // and anyone calling this directly get the same refusal.
   if (opts.port !== undefined) parsePort(opts.port, "port");
+  // Before the database opens, so a refused start leaves nothing open in the folder.
+  if (opts.accessPolicy !== undefined && !isAccessPolicy(opts.accessPolicy))
+    throw new TypeError(`accessPolicy must be one of ${ACCESS_POLICIES}`);
   let publicUrl =
     opts.publicUrl === undefined ? undefined : parsePublicUrl(opts.publicUrl, "publicUrl");
   let iceServers = opts.iceServers ?? [];
@@ -490,12 +527,18 @@ async function startWorkspaceServer(
   });
   const store = new Store(db);
 
-  if (opts.workspaceName) store.setMeta("workspace_name", opts.workspaceName);
+  // Before anyone owns the workspace, nobody in it could change its name or
+  // who may join, so what it is started with decides both. Once it has an
+  // owner they are its own, changed by its owner and admins, and a start
+  // never puts back an older choice over theirs.
+  const unowned = store.userCount() === 0;
+  if (opts.workspaceName && (unowned || !store.getMeta("workspace_name")))
+    store.setMeta("workspace_name", opts.workspaceName);
   if (!store.getMeta("workspace_name")) store.setMeta("workspace_name", "My Workspace");
   // Slack payloads carry a team id; ours is generated once and never changes.
   if (!store.getMeta("workspace_id")) store.setMeta("workspace_id", ulid());
   // Before guest access, invite_only alone said who could join: on, invited
-  // accounts; off, any account. A workspace keeps that until its host chooses.
+  // accounts; off, any account. A workspace keeps that until someone chooses.
   if (!isAccessPolicy(store.getMeta("access_policy")))
     store.setMeta(
       "access_policy",
@@ -508,24 +551,25 @@ async function startWorkspaceServer(
   const workspaceName = () => store.getMeta("workspace_name")!;
   const inviteOnly = () => accessPolicy() === "invite_only";
   /**
-   * Keeps the policy and the older invite_only flag in step, in one write, and
-   * ends every guest session when guests are no longer allowed. Returns the
-   * ended sessions, whose sockets are the caller's to close.
+   * Keeps the policy and the older invite_only flag in step, in one write with
+   * whatever `record` adds, and ends every guest session when guests are no
+   * longer allowed. Returns the ended sessions, whose sockets are the caller's
+   * to close.
    */
-  const writeAccessPolicy = (policy: AccessPolicy): string[] =>
+  const writeAccessPolicy = (policy: AccessPolicy, record?: () => void): string[] =>
     store.transaction(() => {
       store.setMeta("access_policy", policy);
       store.setMeta("invite_only", policy === "invite_only" ? "1" : "0");
+      record?.();
       return policy === "guest_allowed" ? [] : store.revokeGuestSessions();
     });
   /** Off unless guests are allowed; off again keeps the other choice. */
   const withInvites = (on: boolean): AccessPolicy =>
     on ? "invite_only" : accessPolicy() === "invite_only" ? "account_required" : accessPolicy();
-  if (opts.accessPolicy !== undefined) {
-    if (!isAccessPolicy(opts.accessPolicy))
-      throw new TypeError(`accessPolicy must be one of ${ACCESS_POLICIES}`);
-    writeAccessPolicy(opts.accessPolicy);
-  } else if (opts.inviteOnly !== undefined) writeAccessPolicy(withInvites(opts.inviteOnly));
+  if (unowned) {
+    if (opts.accessPolicy !== undefined) writeAccessPolicy(opts.accessPolicy);
+    else if (opts.inviteOnly !== undefined) writeAccessPolicy(withInvites(opts.inviteOnly));
+  }
 
   /**
    * A workspace with no owner is up for grabs. Until one exists, the account
@@ -662,7 +706,7 @@ async function startWorkspaceServer(
 
   const gateway = new Gateway(
     store,
-    workspaceName,
+    { name: workspaceName, accessPolicy },
     limiter,
     (req) =>
       resolveClientAddress(
@@ -3665,6 +3709,30 @@ async function startWorkspaceServer(
     });
   });
 
+  // ---------- workspace settings (UX-60) ----------
+
+  /**
+   * The workspace's name, for its owner and admins. The host renames it by
+   * the same rule, so the two cannot drift apart.
+   */
+  app.put("/api/admin/workspace/name", async (req) => {
+    const me = requireAdmin(req);
+    const { name } = workspaceNameBody.parse(req.body);
+    return { workspaceName: renameWorkspace(name, me.id) };
+  });
+
+  /**
+   * Who may join, for its owner and admins: the stored choice every start
+   * keeps, and the same one the desktop host changes. Leaving guests allowed
+   * signs every guest out at once.
+   */
+  app.put("/api/admin/workspace/access-policy", async (req) => {
+    const me = requireAdmin(req);
+    const body = accessPolicyBody.parse(req.body);
+    changeAccessPolicy(body.accessPolicy, me.id);
+    return { accessPolicy: accessPolicy() };
+  });
+
   // ---------- interactive buttons and modals ----------
 
   /**
@@ -4553,6 +4621,72 @@ async function startWorkspaceServer(
     }
   };
 
+  /** Whatever shows the workspace from outside it, such as a desktop host's window. */
+  const workspaceListeners = new Set<(change: WorkspaceChange) => void>();
+  const workspaceChanged = (change: WorkspaceChange) => {
+    for (const listener of [...workspaceListeners]) {
+      try {
+        listener(change);
+      } catch (err) {
+        // The change is made and told to everyone; one listener failing to
+        // hear it must not undo that or keep it from the others.
+        app.log.error({ err }, "a workspace change listener failed");
+      }
+    }
+  };
+
+  /**
+   * Renames the workspace, for its host (`by` null) or for an owner or admin,
+   * by the one rule both are held to. Everyone signed in is told at once, the
+   * network announcement changes, and the record says who did it.
+   */
+  const renameWorkspace = (value: unknown, by: ID | null): string => {
+    const parsed = workspaceNameSchema.safeParse(value);
+    if (!parsed.success)
+      throw new TypeError("A workspace name has 1 to 80 characters and no control characters.");
+    if (closing) throw new Error("The workspace is stopping.");
+    const name = parsed.data;
+    const previous = workspaceName();
+    if (name === previous) return name;
+    store.transaction(() => {
+      store.setMeta("workspace_name", name);
+      store.recordAudit({
+        actorId: by,
+        action: "workspace.renamed",
+        targetType: "workspace",
+        targetId: null,
+        details: { from: previous, to: name },
+      });
+    });
+    gateway.broadcastEphemeral({ type: "workspace.renamed", workspaceName: name }, null);
+    announce();
+    workspaceChanged({ workspaceName: name, by });
+    return name;
+  };
+
+  /**
+   * Changes who may join, for the host (`by` null) or for an owner or admin.
+   * Turning guests off signs every guest out at once, their sockets
+   * included, and everyone signed in is told what the workspace now allows.
+   */
+  const changeAccessPolicy = (policy: AccessPolicy, by: ID | null): void => {
+    const previous = accessPolicy();
+    const ended = writeAccessPolicy(policy, () => {
+      if (policy === previous) return;
+      store.recordAudit({
+        actorId: by,
+        action: "workspace.access_policy_changed",
+        targetType: "workspace",
+        targetId: null,
+        details: { from: previous, to: policy },
+      });
+    });
+    for (const tokenHash of ended) gateway.disconnectSession(tokenHash);
+    if (policy === previous) return;
+    gateway.broadcastEphemeral({ type: "workspace.accessPolicy", accessPolicy: policy }, null);
+    workspaceChanged({ accessPolicy: policy, by });
+  };
+
   /**
    * Posts anything that has come due. Runs on a timer and once at startup, so
    * messages scheduled while the server was down still go out.
@@ -4759,22 +4893,20 @@ async function startWorkspaceServer(
     inviteOnly,
     setInviteOnly: (value) => {
       if (typeof value !== "boolean") throw new TypeError("inviteOnly must be a boolean");
-      for (const tokenHash of writeAccessPolicy(withInvites(value)))
-        gateway.disconnectSession(tokenHash);
+      changeAccessPolicy(withInvites(value), null);
     },
     accessPolicy,
     setAccessPolicy: (policy) => {
       if (!isAccessPolicy(policy)) throw new TypeError(`policy must be one of ${ACCESS_POLICIES}`);
-      for (const tokenHash of writeAccessPolicy(policy)) gateway.disconnectSession(tokenHash);
+      changeAccessPolicy(policy, null);
     },
+    workspaceName,
     setWorkspaceName: (value) => {
-      const name = typeof value === "string" ? value.trim() : "";
-      if (!name || name.length > 80 || /\p{Cc}/u.test(value))
-        throw new TypeError("A workspace name has 1 to 80 characters and no control characters.");
-      if (closing) throw new Error("The workspace is stopping.");
-      store.setMeta("workspace_name", name);
-      gateway.broadcastEphemeral({ type: "workspace.renamed", workspaceName: name }, null);
-      announce();
+      renameWorkspace(value, null);
+    },
+    onWorkspaceChange: (listener) => {
+      workspaceListeners.add(listener);
+      return () => workspaceListeners.delete(listener);
     },
     reannounce: () => announce(),
     connectedPeople: () => gateway.onlineUserIds().length,

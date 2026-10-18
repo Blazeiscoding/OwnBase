@@ -80,6 +80,57 @@ describe("starting a hosted workspace's server", () => {
     await hosted.stop();
   });
 
+  it("keeps who may join and the name an admin chose, start after start, and says when they change", async () => {
+    const hosted = await startHostedServer({ dataDir, port: 0 }, host);
+    const base = `http://127.0.0.1:${hosted.port}`;
+    const send = (method: string, path: string, body: unknown, token?: string) =>
+      fetch(base + path, {
+        method,
+        headers: {
+          "content-type": "application/json",
+          ...(token ? { authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+      });
+    const { token, user } = (await (
+      await send("POST", "/api/auth/register", {
+        handle: "owner",
+        displayName: "Owner",
+        password: "password123",
+      })
+    ).json()) as { token: string; user: { id: string } };
+    const heard: unknown[] = [];
+    hosted.onWorkspaceChange!((change) => heard.push(change));
+
+    expect(
+      (await send("PUT", "/api/admin/workspace/name", { name: "Blue Team" }, token)).status,
+    ).toBe(200);
+    expect(
+      (
+        await send(
+          "PUT",
+          "/api/admin/workspace/access-policy",
+          { accessPolicy: "guest_allowed" },
+          token,
+        )
+      ).status,
+    ).toBe(200);
+    expect(heard).toEqual([
+      { workspaceName: "Blue Team", by: user.id },
+      { accessPolicy: "guest_allowed", by: user.id },
+    ]);
+    expect(hosted.workspaceName!()).toBe("Blue Team");
+    expect(hosted.accessPolicy!()).toBe("guest_allowed");
+    await hosted.stop();
+
+    // Nothing the app keeps is handed back to the next start, and a name
+    // given to it, as for a new workspace, does not replace the one it has.
+    const again = await startHostedServer({ dataDir, port: 0, workspaceName: "Rocket Team" }, host);
+    expect(again.workspaceName!()).toBe("Blue Team");
+    expect(again.accessPolicy!()).toBe("guest_allowed");
+    await again.stop();
+  });
+
   it("stops the server it made when joining cannot be closed, and gives the folder back (Q12)", async () => {
     host.publicAddressConfigured = () => true;
     refusePolicyWrites(true);
