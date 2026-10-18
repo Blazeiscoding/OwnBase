@@ -179,8 +179,21 @@ export interface HostedServer {
   setInviteOnly?(inviteOnly: boolean): void;
   accessPolicy?(): AccessPolicy;
   setAccessPolicy?(policy: AccessPolicy): void;
+  /**
+   * Hears the workspace renamed or who may join changed, by this host (`by`
+   * null) or by an owner or admin in Workspace settings. Returns how to stop.
+   */
+  onWorkspaceChange?(listener: (change: HostedWorkspaceChange) => void): () => void;
   /** How many accounts exist, so opening to all can wait for the owner's. */
   accountCount?(): number;
+}
+
+/** A change to the running workspace, as `HostedServer.onWorkspaceChange` reports it. */
+export interface HostedWorkspaceChange {
+  workspaceName?: string;
+  accessPolicy?: AccessPolicy;
+  /** The owner or admin who made it, or null when this host did. */
+  by: string | null;
 }
 
 interface HostingOptions {
@@ -434,8 +447,16 @@ export function createHostingController(options: HostingOptions) {
   /**
    * Who could join before the public link opened. Guests let in while it is
    * open leave with it; any other rule chosen then stays, as it always has.
+   * An owner or admin choosing in Workspace settings meanwhile forgets it:
+   * what they chose is the workspace's, and closing the link keeps it.
    */
   let policyBeforeOpen: AccessPolicy | undefined;
+  /**
+   * Counts who-may-join changes made inside the workspace by an owner or
+   * admin. A step that read the rule before waiting puts back what it read
+   * only if this has not moved meanwhile, so it never undoes their choice.
+   */
+  let workspacePolicyChanges = 0;
   /** Set while a tunnel is opening, so stopping or quitting need not wait for it. */
   let opening: AbortController | null = null;
   let openError: string | undefined;
@@ -453,6 +474,8 @@ export function createHostingController(options: HostingOptions) {
     { message: string; part: "hosting" | "public-address"; folder: string | null } | undefined;
   /** Stops listening for who connects to the running server. */
   let stopWatchingConnections: (() => void) | null = null;
+  /** Stops following the running workspace's name and who may join. */
+  let stopFollowingWorkspace: (() => void) | null = null;
 
   function changed(): void {
     // A renderer/tray notification must never lose ownership of a live server.
@@ -561,6 +584,7 @@ export function createHostingController(options: HostingOptions) {
         ? policyBeforeOpen
         : openPolicy;
     policyBeforeOpen = undefined;
+    const policyChanges = workspacePolicyChanges;
     // A close may reject or time out while its connector is still exiting.
     // Keep every public-access mutation gated until that same handle closes.
     cleanupTunnel = current;
@@ -581,7 +605,9 @@ export function createHostingController(options: HostingOptions) {
     if (cleanupTunnel === current) {
       cleanupTunnel = null;
     }
-    if (previousPolicy !== undefined && server) applyPolicy(server, previousPolicy);
+    // Chosen inside the workspace while the link closed, the rule stays theirs.
+    if (previousPolicy !== undefined && server && policyChanges === workspacePolicyChanges)
+      applyPolicy(server, previousPolicy);
   }
 
   async function finishCleanup(work: Promise<void>, message: string): Promise<void> {
@@ -898,6 +924,9 @@ export function createHostingController(options: HostingOptions) {
       // that was not reopened is still not open, and stays said until it is.
       if (launchError?.part === "hosting") launchError = undefined;
       stopWatchingConnections = server.onConnectedChange?.(changed) ?? null;
+      const following = entry.folder;
+      stopFollowingWorkspace =
+        server.onWorkspaceChange?.((change) => followWorkspace(following, change)) ?? null;
       // A carrier forwards to one port and keeps forwarding there. Say so
       // while it can still be corrected, rather than letting Open to all
       // fail later with only "did not answer as this workspace".
@@ -1758,17 +1787,48 @@ export function createHostingController(options: HostingOptions) {
         }
       }
       updateEntry(entry.folder, { name: next });
-      // The database holds the name. The list's copy is written with the next
-      // change if not now, and a start reads the name back from the server.
-      await saveRegistry().catch(() => {});
-      // Earlier versions reopen what they last hosted by its name, and would
-      // hand the old one to its server.
-      const latest = mostRecent(registry ?? []);
-      if (latest?.folder === entry.folder)
-        await options.settings.set("lastHosted", legacyPointer(latest)).catch(() => {});
+      await saveName(entry.folder);
       changed();
       return { folder: entry.folder, name: next };
     });
+  }
+
+  /**
+   * Saves the list after a workspace's entry took a new name. The database
+   * holds the name; the list's copy is written with the next change if not
+   * now, and a start reads the name back from the server.
+   */
+  async function saveName(folder: string): Promise<void> {
+    await saveRegistry().catch(() => {});
+    // Earlier versions reopen what they last hosted by its name, and would
+    // hand the old one to its server.
+    const latest = mostRecent(registry ?? []);
+    if (latest?.folder === folder)
+      await options.settings.set("lastHosted", legacyPointer(latest)).catch(() => {});
+  }
+
+  /**
+   * Follows a change made to the running workspace from inside it, by an
+   * owner or admin in Workspace settings: the list and this window take its
+   * new name, and Manage hosting shows who may join now. A rule chosen there
+   * is the workspace's, so nothing here puts back an older one over it.
+   */
+  function followWorkspace(folder: string, change: HostedWorkspaceChange): void {
+    if (!workspace || workspace.folder !== folder) return;
+    if (change.by !== null && change.accessPolicy !== undefined) {
+      workspacePolicyChanges += 1;
+      policyBeforeOpen = undefined;
+    }
+    // The host's own rename keeps the list itself, in its turn.
+    if (change.by !== null && change.workspaceName !== undefined) {
+      workspace.workspaceName = change.workspaceName;
+      // A list not read yet is never written back as an empty one.
+      if (registry) {
+        updateEntry(folder, { name: change.workspaceName });
+        void serialized(() => saveName(folder));
+      }
+    }
+    changed();
   }
 
   /**
@@ -1823,6 +1883,8 @@ export function createHostingController(options: HostingOptions) {
     }
     stopWatchingConnections?.();
     stopWatchingConnections = null;
+    stopFollowingWorkspace?.();
+    stopFollowingWorkspace = null;
     server = null;
     workspace = null;
     phase = "stopped";
@@ -1895,6 +1957,16 @@ export function createHostingController(options: HostingOptions) {
       const previousPolicy = policyOf(target);
       const closedPolicy: AccessPolicy = carriedElsewhere ? "invite_only" : previousPolicy;
       if (!tunnel) policyBeforeOpen = previousPolicy;
+      const policyChanges = workspacePolicyChanges;
+      /**
+       * Back to the rule from before, when the link did not open. One an owner
+       * or admin chose meanwhile stays, unless something else may be carrying
+       * the address, when joining closes whatever was chosen.
+       */
+      const putBackPolicy = () => {
+        if (carriedElsewhere || policyChanges === workspacePolicyChanges)
+          applyPolicy(target, closedPolicy);
+      };
       openError = undefined;
       if (accessPolicy !== undefined) applyPolicy(target, accessPolicy);
       else target.setInviteOnly(inviteOnly ?? true);
@@ -1922,7 +1994,7 @@ export function createHostingController(options: HostingOptions) {
           throw error;
         }
         try {
-          applyPolicy(target, closedPolicy);
+          putBackPolicy();
         } catch {
           // The original opening error remains the useful one to report.
         }
@@ -1945,7 +2017,7 @@ export function createHostingController(options: HostingOptions) {
           changed();
           throw error;
         }
-        applyPolicy(target, closedPolicy);
+        putBackPolicy();
         changed();
         throw new Error("Opening to all was cancelled.");
       }
@@ -1966,7 +2038,7 @@ export function createHostingController(options: HostingOptions) {
           changed();
           throw cleanupError;
         }
-        applyPolicy(target, closedPolicy);
+        putBackPolicy();
         openError = "The workspace could not take its public address. Try opening it to all again.";
         changed();
         throw error;

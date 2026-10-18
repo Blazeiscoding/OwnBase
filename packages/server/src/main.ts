@@ -13,6 +13,7 @@ import {
   ConfigError,
   describeStartupError,
   envSetting,
+  keptSettingsNotes,
   parsePort,
   parsePublicUrl,
   parseWholeNumber,
@@ -77,11 +78,17 @@ Usage: slackoss-server [options]
   --data <dir>      Data directory (default ./data)
   --port <port>     Port to listen on (default ${DEFAULT_PORT})
   --host <host>     Host to bind (default 0.0.0.0, or 127.0.0.1 with --isolated)
-  --name <name>     Workspace name (persisted on first run)
-  --invite-only     Require an invite code to register
+  --name <name>     Workspace name, until the workspace has an owner. After
+                    that it keeps its own; owners and admins rename it in
+                    Workspace settings
+  --invite-only     Require an invite code to register (as --access-policy
+                    invite_only)
   --access-policy <invite_only|account_required|guest_allowed>
                     Who may join: invited accounts, any account, or guests
-                    with a display name too (saved; overrides --invite-only)
+                    with a display name too (overrides --invite-only). Sets
+                    a new workspace's rule, until it has an owner. After that
+                    the workspace keeps its own, which owners and admins
+                    change in Workspace settings
   --no-mdns         Do not advertise on the local network
   --storage-limit-mb <n>
                     Attachment storage cap in MiB; 0 is unlimited (default).
@@ -423,6 +430,14 @@ console.log(`  Local:   http://localhost:${server.port}`);
 if (values.isolated) {
   console.log("  Isolated: scheduled messages wait, apps are sent nothing, and it is");
   console.log("  not announced. Start it without --isolated to let them go.");
+}
+for (const line of keptSettingsNotes({
+  name: values.name,
+  accessPolicy: accessPolicy as AccessPolicy | undefined,
+  inviteOnly: values["invite-only"],
+  kept: { name: server.workspaceName(), accessPolicy: server.accessPolicy() },
+})) {
+  console.log(`  ${line}`);
 }
 if (retentionDays > 0) {
   // Said out loud on every start. A setting that quietly discards history is

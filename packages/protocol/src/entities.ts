@@ -219,6 +219,8 @@ export type AuditAction =
   | "user.invite_permission_removed"
   | "account.recovered"
   | "workspace.ownership_transferred"
+  | "workspace.renamed"
+  | "workspace.access_policy_changed"
   | "app.created"
   | "app.deleted"
   | "app.token_replaced"
@@ -235,7 +237,8 @@ export type AuditAction =
   | "invite.created"
   | "invite.revoked";
 
-export type AuditTargetType = "user" | "app" | "webhook" | "command" | "subscription" | "invite";
+export type AuditTargetType =
+  "user" | "app" | "webhook" | "command" | "subscription" | "invite" | "workspace";
 
 /**
  * One entry in the administrative record. Never holds a credential, a URL an

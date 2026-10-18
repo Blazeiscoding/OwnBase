@@ -8,7 +8,8 @@ import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 
 /**
  * The host renaming a workspace while it runs: the desktop app's host dialog
- * does this through `setWorkspaceName`. Nothing on the network can.
+ * does this through `setWorkspaceName`. On the network only its owner and
+ * admins can, through Workspace settings (workspaceSettings.test.ts).
  */
 describe("renaming a workspace while it runs", () => {
   let server: WorkspaceServer | undefined;
@@ -106,7 +107,7 @@ describe("renaming a workspace while it runs", () => {
     expect(server!.store.getMeta("workspace_name")).toBe("Blue Team");
   });
 
-  it("cannot be renamed by anyone on the network, whatever their role", async () => {
+  it("is not renamed by a socket message, nor by any route but the admins' own", async () => {
     await start("Rocket Team");
     const owner = socket(await register("owner"));
     await owner.heard((m) => m.type === "ready");

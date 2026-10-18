@@ -81,9 +81,10 @@ Then open `http://localhost:8543`, sign in as `maya`, and try:
   still open.
 - **No app.** The server serves a full browser client at `http://host:8543/`.
 
-The first account created on a fresh server becomes its owner. A host can also
-let people in as [guests](docs/DEPLOYMENT.md#guests), with a display name and no
-account.
+The first account created on a fresh server becomes its owner. The owner and
+admins can rename the workspace and choose [who may join](docs/DEPLOYMENT.md#who-may-join)
+in **Workspace settings**, including letting people in as
+[guests](docs/DEPLOYMENT.md#guests), with a display name and no account.
 
 ## Hosting a server
 
@@ -134,7 +135,9 @@ built-in SQLite.
 The flags you are most likely to want are `--port`, `--host`, `--no-mdns`,
 `--web <dir>`, `--invite-only`, `--access-policy`, `--public-url` and
 `--allow-private-hooks`. `--access-policy guest_allowed` lets people join with a
-display name alone. `--help` lists the rest, along with the `backup`, `restore`,
+display name alone. `--name`, `--invite-only` and `--access-policy` set up a new
+workspace; once it has an owner, it keeps its own name and rule, which the owner
+and admins change in Workspace settings. `--help` lists the rest, along with the `backup`, `restore`,
 `verify-backup` and `recover` commands.
 
 ### Docker

@@ -62,7 +62,8 @@ computer** in the host dialog, where each can be started again with its messages
 renamed, given a different port or backed up. The join screen offers the most
 recently hosted one back with one click. Use the list to reopen a workspace:
 creating a new one under the same name starts a separate, empty workspace, and
-the dialog says so.
+the dialog says so. The workspace's owner and administrators can also rename it
+from **Workspace settings** while it runs, and the list takes the new name.
 
 While a workspace is running, **When this computer starts** offers two choices:
 **Start hosting it when Tandem opens**, and, where the system supports it,
@@ -473,6 +474,9 @@ and restore it before using its named-tunnel configuration again.
 
 Run `docker compose -f docker/docker-compose.yml up -d --build` from the repo.
 Data lives in a named volume at `/data`; the server runs as a non-root user.
+The compose file's `--name` and `--invite-only` set up a new workspace; once it
+has an owner, its name and who may join are changed in **Workspace settings**,
+and a restart keeps them (see [Who may join](#who-may-join)).
 `GET /api/health` checks the process and database. Docker's health status reports
 failures; the restart policy restarts exited processes, not merely unhealthy ones.
 
@@ -1046,7 +1050,9 @@ administrators under **People → Show recent changes**:
 - adding, replacing and removing webhooks, slash commands and event subscriptions,
   and retrying failed deliveries;
 - creating and revoking invite codes, and granting or removing a member's
-  permission to create them.
+  permission to create them;
+- renaming the workspace and changing who may join it, from **Workspace
+  settings**, or by the desktop app that hosts it, recorded as done by the host.
 
 Each entry says who made the change, to what, and when, and is written in the same
 transaction as the change, so neither exists without the other. A change that
@@ -1064,8 +1070,9 @@ evidence against someone with access to the server itself.
 
 ## Invites
 
-With `--invite-only`, everyone after the owner needs an invite code to create an
-account. Owners and administrators can make codes from **Invite people**. A
+When the workspace takes people with an invite only (`--invite-only` on a new
+workspace, or **People with an invite** in Workspace settings), everyone after
+the owner needs an invite code to create an account. Owners and administrators can make codes from **Invite people**. A
 member needs an administrator to select **People → Allow inviting** first;
 **Stop inviting** removes that permission. Apps cannot create invite codes.
 The dialog's codes last seven days. The same dialog lists codes: every code for an administrator, and
@@ -1089,18 +1096,44 @@ an administrator allows them to invite. Owner/admin codes continue to work.
 Demoting an administrator removes the permission their role supplied; any
 explicit member grant they held before promotion remains until removed.
 
-Without `--invite-only`, anyone who can reach the server can create an account,
-and a code is not asked for.
+Otherwise anyone who can reach the server can create an account, and a code is
+not asked for.
+
+## Who may join
+
+A workspace has one rule for who may join it: `invite_only` (people with an
+invite), `account_required` (anyone who creates an account) or `guest_allowed`
+(anyone, guests included). Its owner and administrators choose it in **Workspace
+settings → Who can join**, opened from the workspace menu, where it is saved the
+moment it is chosen and everyone signed in sees the change. The same page
+renames the workspace. Members and guests do not see it.
+
+`--access-policy` (or `--invite-only`, which is `--access-policy invite_only`) and
+`--name` set up a workspace nobody owns yet. Once someone has claimed it, the
+workspace keeps its own name and rule, and a later start does not change either:
+a flag that disagrees is left alone, and the server prints a line saying the
+workspace keeps its own and where to change it.
+
+**Changed in this version:** `--access-policy` and `--invite-only` used to be
+applied on every start, so a service or compose file that passed them put the
+rule back at each restart. They now apply to a new workspace only. To change the
+rule of a running workspace, use Workspace settings; a restart keeps it.
+
+In the desktop app that hosts a workspace, **Open to all** in **Manage hosting**
+sets the rule chosen beside it for the public link. While the link is open,
+Manage hosting shows the workspace's rule and can change it, and a change made
+in Workspace settings shows there at once. One start still changes the rule:
+while a stable public address is configured, every start closes joining to
+invited accounts.
 
 ## Guests
 
-`--access-policy` says who may join, and is saved for later starts:
-`invite_only` (as `--invite-only`), `account_required` (any account), or
-`guest_allowed`. With guests allowed, someone who reaches the server can join
-with a display name alone, and creating an account stays open and optional. In
-the desktop app, clear **Require an account to join** where the public link is
-opened. Guests let in for a public link leave with it: closing the link goes
-back to the rule from before.
+With guests allowed, someone who reaches the server can join with a display name
+alone, and creating an account stays open and optional. In the desktop app,
+clear **Require an account to join** where the public link is opened. Guests let
+in for a public link leave with it: closing the link goes back to the rule from
+before, unless an owner or administrator chose one in Workspace settings while
+it was open, which stays.
 
 A guest reads and posts in public channels, with replies, reactions, files
 already shared, saved items, search and huddles. A guest cannot be in a private

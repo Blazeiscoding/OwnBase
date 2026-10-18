@@ -8,6 +8,8 @@
  * to send its replies, and nothing fails until an app tries.
  */
 
+import type { AccessPolicy } from "@slackoss/protocol";
+
 /** A setting that cannot be used, with a message meant for the person who set it. */
 export class ConfigError extends Error {}
 
@@ -97,4 +99,33 @@ export function describeStartupError(
     default:
       return err instanceof Error ? err.message : String(err);
   }
+}
+
+/**
+ * What a start was asked for and did not do, a line for each. A workspace
+ * with an owner keeps its own name and its own rule for who may join, which
+ * its owner and admins change in Workspace settings, so a flag that disagrees
+ * is not applied. Said every start, so a flag left in a service file does not
+ * look as if it still decides. Nothing when the flags agree or were not given.
+ */
+export function keptSettingsNotes(start: {
+  name?: string;
+  accessPolicy?: AccessPolicy;
+  inviteOnly?: boolean;
+  /** What the workspace holds now that it has started. */
+  kept: { name: string; accessPolicy: AccessPolicy };
+}): string[] {
+  const notes: string[] = [];
+  if (start.name && start.name !== start.kept.name)
+    notes.push(
+      `This workspace keeps its own name, "${start.kept.name}", not --name "${start.name}". Owners and admins rename it in Workspace settings.`,
+    );
+  const asked = start.accessPolicy ?? (start.inviteOnly ? "invite_only" : undefined);
+  if (asked && asked !== start.kept.accessPolicy)
+    notes.push(
+      `This workspace keeps its own rule for who may join, ${start.kept.accessPolicy}, not ${
+        start.accessPolicy ? `--access-policy ${start.accessPolicy}` : "--invite-only"
+      }. Owners and admins change it in Workspace settings.`,
+    );
+  return notes;
 }
