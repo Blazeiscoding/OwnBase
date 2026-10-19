@@ -477,6 +477,16 @@ Data lives in a named volume at `/data`; the server runs as a non-root user.
 The compose file's `--name` and `--invite-only` set up a new workspace; once it
 has an owner, its name and who may join are changed in **Workspace settings**,
 and a restart keeps them (see [Who may join](#who-may-join)).
+The workspace's icon is set there too, by the same people, and kept in the
+database's `meta` table (`workspace_icon_type`, `_version` and `_data`), so a
+backup and a restore carry it. It is a PNG, JPEG or WebP of at most 256 KB and
+1024 pixels a side; the app cuts the picture someone chooses to 256 pixels
+square before sending it, and the server checks its first bytes and never
+decodes or resizes it. `PUT` and `DELETE /api/admin/workspace/icon` change it,
+each recorded in the administrative record without the image, and
+`GET /api/workspace/icon` serves it to anyone, signed in or not, since the join
+screen shows it; asked for with `?v=<version>`, as clients do, it may be cached
+for a year, as a new picture has a new version.
 `GET /api/health` checks the process and database. Docker's health status reports
 failures; the restart policy restarts exited processes, not merely unhealthy ones.
 
@@ -956,7 +966,9 @@ Incoming webhooks have no account behind them, so each webhook has an allowance
 of its own (a burst of 30, then one a second) rather than spending a person's or
 starving the same app's other webhooks. Requests to `/hooks/…` are also counted
 per address before the token is looked up, loosely, so guessing tokens costs the
-same as using one. Slash commands, buttons and form submissions that call out to
+same as using one. The workspace's icon can be read without an account, so it is
+counted per address, loosely (a burst of 120, then four a second), since each
+client fetches it once and keeps it. Slash commands, buttons and form submissions that call out to
 an app spend an allowance of the account that caused them (a burst of 20, then one
 a second), and at most four such calls per account and sixteen per app may be
 waiting for an answer at once. A call past either cap is refused with `429`

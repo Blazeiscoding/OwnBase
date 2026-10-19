@@ -23,7 +23,8 @@
         "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust.",
         "listPins takes a page size and passes on the server's total, which older servers leave out.",
         "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed.",
-        "renameWorkspace and setAccessPolicy call PUT /api/admin/workspace/name and /access-policy, for Workspace settings."
+        "renameWorkspace and setAccessPolicy call PUT /api/admin/workspace/name and /access-policy, for Workspace settings.",
+        "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60)."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -41,7 +42,8 @@
         "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving.",
         "memberChanges holds, per conversation, the seq of the latest member.joined or member.left, so views that ask for a channel's members (the header's faces, the Members panel) ask again (UX-23).",
         "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred.",
-        "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered."
+        "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered.",
+        "The store holds workspaceIcon, from the ready snapshot's flag, and iconVersion, which the workspace.icon event replaces; a server without the flag gives no version. setWorkspaceIcon and removeWorkspaceIcon show the server's answer at once (UX-60)."
       ],
       "concepts": [
         "workspace replica",
@@ -211,7 +213,8 @@
         "Platform describes acknowledged storage reads/writes and optional atomic initialization, outbox/draft/record merges and watchers. Optional discovery, hosting, backup and deep-link capabilities let one UI run in both shells.",
         "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly.",
         "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Downloads use a scoped URL through a hidden no-referrer iframe.",
-        "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation."
+        "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation.",
+        "HostingStatus.iconVersion and each hosted workspace's iconVersion say its icon's version, and hosting.icon reads one's icon as a data URL without starting it (UX-60)."
       ],
       "concepts": ["platform adapter", "strict reads", "notifications", "downloads", "close phases"]
     },
@@ -226,7 +229,8 @@
         "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through inviteAsk, a number that changes with each ask, so a new session does not take an old ask for a new one.",
         "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back.",
         "Sign-ins this device could not save (the key-store bar, with Retry saving) show across the top of the window outside a workspace; in one they take their turn in its banner place (UX-25). App also works out this computer's hosting line (hosting, starting, stopping or what is wrong, with Manage) and hands it to the workspace's sidebar, in place of the bar that ran along the bottom of the window.",
-        "It tells the workspace screen when this computer hosts the workspace on screen (hostedHere), so Workspace settings can say Manage hosting shows the same rule for who may join."
+        "It tells the workspace screen when this computer hosts the workspace on screen (hostedHere), so Workspace settings can say Manage hosting shows the same rule for who may join.",
+        "Reads the kept icons of the saved sign-ins with useCachedWorkspaceIcons and hands them to the join screen and the rail, and forgets a kept icon with its sign-in (UX-60)."
       ],
       "concepts": [
         "application lifecycle",
@@ -248,7 +252,8 @@
         "Since Q06 the saved-token path and the forced password replacement carry the same attempt ownership as ordinary probes, so a late answer after Cancel, another choice or unmount does nothing.",
         "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry.",
         "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code.",
-        "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field."
+        "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field.",
+        "Workspace icons (UX-60): the join card fetches the icon ServerInfo.iconVersion names, so anyone sees it before signing in; the workspace serving the page does too; saved workspaces show the copy this device kept (savedIcons), since their servers may be off; the stopped workspace offered under Hosted on this computer shows the icon read from its own database. Each falls back to the gradient square."
       ],
       "concepts": [
         "LAN discovery",
@@ -272,7 +277,8 @@
         "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting.",
         "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address.",
         "Workspace settings (UX-60) opens from the workspace menu and the Ctrl+K palette for the owner and admins, has the address /d/workspace, loads on first use with People and Apps, and closes for anyone else once the account is known.",
-        "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert)."
+        "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert).",
+        "Runs useRememberWorkspaceIcon, so the saved workspaces show this one's icon while its server is off (UX-60)."
       ],
       "concepts": [
         "screen orchestration",
@@ -594,6 +600,28 @@
         "Unreadable data throws instead of becoming an empty list that a later save could overwrite. App reads through this guard inside each saved sign-in turn (Q05), so a list that cannot be read is never written over."
       ],
       "concepts": ["credential restore", "strict validation"]
+    },
+    {
+      "path": "packages/ui/src/lib/workspaceIcon.ts",
+      "plain": "Fetches workspace icons for the screen, keeps a small copy of each saved workspace's icon on this device so it shows while its server is off, and reads hosted workspaces' icons through the desktop app.",
+      "summary": "Loads, caches and keeps workspace icons for every place that shows one (UX-60).",
+      "details": [
+        "The page's content security policy allows images only from its own server, blob: and data:, and the desktop app and a browser signed in elsewhere show other servers' icons. So useWorkspaceIconUrl fetches GET /api/workspace/icon?v= through Api.workspaceIcon and shows an object URL, as attachments are, sharing one fetch per server and version and letting go of the oldest past 24.",
+        "useRememberWorkspaceIcon, run by WorkspaceScreen, draws the icon on screen to a 96-pixel WebP data URL and keeps it under workspace-icon:<address> in the platform's storage, and forgets it when the workspace has none; nothing changes for a server without icons. The copy is small because the desktop app writes its settings file whole.",
+        "useCachedWorkspaceIcons gives App the kept copies for the saved sign-ins, read again whenever one is kept or forgotten, and only pictures this device made (a data URL of PNG, WebP or JPEG). forgetCachedIcon clears one when its sign-in is forgotten.",
+        "useHostedIcon reads a hosted workspace's icon through Platform.hosting.icon, from the running server or a stopped one's own database, never starting it, and accepts only data URLs of the three icon types. squareCanvas cuts a picture's middle square, for this copy and for the upload."
+      ],
+      "concepts": ["workspace icon", "content security policy", "offline cache", "UX-60"]
+    },
+    {
+      "path": "packages/ui/src/lib/iconImage.ts",
+      "plain": "Turns a picture someone chose into a small square icon before it is sent to the server.",
+      "summary": "Crops and scales an uploaded picture to the workspace icon in the browser (UX-60).",
+      "details": [
+        "prepareIcon refuses anything but PNG, JPEG or WebP (an SVG is named as such) and pictures over 25 MB, decodes with createImageBitmap, cuts the middle square at WORKSPACE_ICON_PIXELS, and encodes WebP where the browser can, PNG where not. A result over WORKSPACE_ICON_MAX_BYTES is refused here as too detailed.",
+        "Throws IconProblem with words for the person who chose the file. Only Workspace settings imports it, so it stays in that lazily loaded chunk."
+      ],
+      "concepts": ["workspace icon", "canvas", "UX-60"]
     },
     {
       "path": "packages/ui/src/lib/resume.ts",
@@ -1286,7 +1314,8 @@
         "AccountMenu is exported for the phone's bottom bar, which opens the same menu from its own You button by passing trigger (its label, class and content); the menu then rises as a sheet on a touch phone. The sidebar's own trigger is unchanged.",
         "Starred (UX-20) sits above Channels once something is starred, and goes when nothing is. A starred channel or direct message moves out of its usual section, as in Slack, and keeps its unread, mention, draft and muted marks. Starred lists by name, channels and people together, so a row stays where it was put rather than moving each time a message arrives. It folds away like Channels and Direct messages and is remembered on this device with them. An archived channel leaves it with its star kept, and comes back to it if the channel is brought back.",
         "Every conversation's row ends with More (⋯), after invite and settings on a channel's: Star or Unstar, offered only where the server keeps stars, and Mute or Unmute, each named by what it does now. A right-click on the row, or the keyboard's menu key, opens the same menu. The row's buttons stay shown while the menu is open (data-menu-open), so the menu has a place to sit and focus a place to come back to. A row starred or unstarred from its own menu changes section, and focus follows it to its More button there, or to the header of a folded section it went into.",
-        "The workspace menu offers Workspace settings to the owner and admins, after People and Apps; members and guests do not see it (UX-60)."
+        "The workspace menu offers Workspace settings to the owner and admins, after People and Apps; members and guests do not see it (UX-60).",
+        "The rail draws each workspace through WorkspaceIcon: the one on screen with useCurrentWorkspaceIcon, the other saved sign-ins with the copy this device kept (OtherWorkspace.icon), each falling back to its square (UX-60)."
       ],
       "concepts": [
         "workspace navigation",
@@ -1431,9 +1460,21 @@
         "Who can join is a radio group of the three policies, each with a plain explanation, saved the moment one is chosen through WorkspaceClient.setAccessPolicy. The title row says \"Saved\" for two seconds through savedNote. A failed change shows what the server has and says why.",
         "While guests are allowed a line says that choosing either other rule signs every guest out. When guests have joined, leaving guest_allowed asks first with useConfirm, since signed-out guests have to join again.",
         "When this desktop app hosts the workspace on screen (hostedHere), the page says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",
-        "On a server without ReadySnapshot.workspaceSettings it shows the name, offers neither control, and says the workspace is changed where it is hosted."
+        "On a server without ReadySnapshot.workspaceSettings it shows the name, offers neither control, and says the workspace is changed where it is hosted.",
+        "General starts with the workspace icon (UX-60): the current icon or its square, Upload icon, which opens a hidden file input from the keyboard or a touch, and Remove, which asks nothing since uploading again puts it back. A chosen picture goes through prepareIcon and WorkspaceClient.setWorkspaceIcon at once, says Saved, and a refusal is said under the buttons, described by Upload icon, which takes focus. Neither button is ever disabled; aria-disabled marks one while its request runs. A server without ReadySnapshot.workspaceIcon gets no icon part."
       ],
       "concepts": ["workspace settings", "join policy", "check on send", "UX-60"]
+    },
+    {
+      "path": "packages/ui/src/components/WorkspaceIcon.tsx",
+      "plain": "Draws a workspace's picture: its icon when it has one, and otherwise its own coloured square with its first letter.",
+      "summary": "One part for the workspace icon or its gradient square, everywhere a workspace is shown (UX-60).",
+      "details": [
+        "Takes the workspace's name, an optional object or data URL, a size in pixels, and classes for its rounding and letter size. With an image it is an img with an empty alt; without one, the workspaceGradient square with one initial, or two in the rail.",
+        "Always aria-hidden, since the workspace's name is beside it or on the control holding it. A picture that fails to load falls back to the square.",
+        "Used by the rail in Sidebar, the saved, served and resumable rows and the join card in JoinScreen, both of Manage hosting's views in HostDialog, and Workspace settings' preview."
+      ],
+      "concepts": ["workspace icon", "fallback", "UX-60"]
     },
     {
       "path": "packages/ui/src/components/PeopleDialog.tsx",
@@ -1473,7 +1514,8 @@
       "details": [
         "Looks up current names from stored IDs and defensively interprets details, so newer or partial records remain understandable.",
         "Loads only when requested, pages through the server audit log and preserves keyboard focus when the final page removes a pagination control.",
-        "Renaming the workspace and changing who can join read as sentences too, with the old and new name, or the new rule in plain words; an entry made by the desktop app's host names the host."
+        "Renaming the workspace and changing who can join read as sentences too, with the old and new name, or the new rule in plain words; an entry made by the desktop app's host names the host.",
+        "Says workspace.icon_changed as changing or removing the workspace's icon (UX-60)."
       ],
       "concepts": ["audit log", "defensive rendering", "focus preservation"]
     },
@@ -1488,7 +1530,8 @@
         "N11/N12 fixes live in the desktop registry/controller: restored safety holds survive damaged metadata and cleanup ownership gates reopening. The dialog exposes those statuses; Q12 and Q13 closed the startup and queue gaps in the desktop main process, not in this dialog.",
         "Who may join is two choices, Require an account to join and, under it, Require an invite link; clearing the first lets visitors join as guests. Before opening the choice travels with openToAll; while open it is applied with setAccessPolicy and shown as the workspace acknowledges it.",
         "A running workspace is managed in tabs (UX-62): Overview (name with a Live pill, its network and public addresses with Copy and a QR code, who is connected, and Invite people, or Open it when another workspace is on screen), Share on the internet (plain words, then the public link card and the call relay), Backups (last backup, Back up now, the schedule) and Advanced (start-up, data folder, port). A tab shows only where this app can do what it holds. Stop hosting stays in the footer under every tab and stops without asking.",
-        "Rename and Change port, edited in place in the list, never grey out Save: an empty name or a port that is not one is said under the field with the cursor put back, a refusal from the app lands there too, and the name or port it has already just closes the form, since there is nothing to save. Your own address is a small form whose Save is off only when the environment fixes the address: sent empty with none saved it asks for one under the field, and sent unchanged it says there is nothing to save rather than saving again, because saving an address also turns invites back on. A button waiting on its request is aria-disabled, so focus stays on it."
+        "Rename and Change port, edited in place in the list, never grey out Save: an empty name or a port that is not one is said under the field with the cursor put back, a refusal from the app lands there too, and the name or port it has already just closes the form, since there is nothing to save. Your own address is a small form whose Save is off only when the environment fixes the address: sent empty with none saved it asks for one under the field, and sent unchanged it says there is nothing to save rather than saving again, because saving an address also turns invites back on. A button waiting on its request is aria-disabled, so focus stays on it.",
+        "Shows workspace icons (UX-60): the running workspace's beside its name in the overview, following HostingStatus.iconVersion, and each stopped one's in Hosted on this computer, read from its own database through hosting.icon without starting it. A missing folder shows the square."
       ],
       "concepts": [
         "desktop hosting",
