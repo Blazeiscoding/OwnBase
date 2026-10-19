@@ -51,7 +51,8 @@ function shown(value: ReactNode): boolean {
   return value !== undefined && value !== null && value !== false && value !== "";
 }
 
-export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElement>, "size"> {
+/** What a labelled field says around the control itself. */
+export interface FieldLines {
   /** Shown above the field, and its accessible name. */
   label: ReactNode;
   /** A line under the field on what to enter, read along with it. */
@@ -64,6 +65,70 @@ export interface TextFieldProps extends Omit<InputHTMLAttributes<HTMLInputElemen
   size?: FieldSize;
   /** Classes for the block holding the label, field and lines, for its place in a layout. */
   className?: string;
+}
+
+/** What `Field` gives the control it wraps, to spread onto it. */
+export interface FieldWiring {
+  id: string;
+  "aria-invalid": true | undefined;
+  "aria-describedby": string | undefined;
+}
+
+/**
+ * The label above a control and the error and hint under it, each tied to
+ * the control by id. `TextField` and `Select` are both drawn in one, so a
+ * form's fields read and look alike whatever they hold.
+ */
+export function Field({
+  label,
+  hint,
+  error,
+  size = "regular",
+  className,
+  id: givenId,
+  describedBy,
+  children,
+}: FieldLines & {
+  id?: string;
+  /** Ids of more text read with the control, after its error and hint. */
+  describedBy?: string;
+  children: (wiring: FieldWiring) => ReactNode;
+}) {
+  const ownId = useId();
+  const id = givenId ?? ownId;
+  const hasError = shown(error);
+  const hasHint = shown(hint);
+  const errorId = `${id}-error`;
+  const hintId = `${id}-hint`;
+  const described =
+    [hasError && errorId, hasHint && hintId, describedBy].filter(Boolean).join(" ") || undefined;
+  return (
+    <div className={className}>
+      <label htmlFor={id} className={LABEL[size]}>
+        {label}
+      </label>
+      {children({
+        id,
+        "aria-invalid": hasError || undefined,
+        "aria-describedby": described,
+      })}
+      {hasError && (
+        <p id={errorId} role="alert" className={`${NOTE[size]} flex items-start gap-1 text-alert`}>
+          <Icon name="alert" size={size === "small" ? 12 : 13} className="mt-px" />
+          <span>{error}</span>
+        </p>
+      )}
+      {hasHint && (
+        <p id={hintId} className={`${NOTE[size]} text-ink-faint`}>
+          {hint}
+        </p>
+      )}
+    </div>
+  );
+}
+
+export interface TextFieldProps
+  extends Omit<InputHTMLAttributes<HTMLInputElement>, "size">, FieldLines {
   /** Classes added to the field itself, such as `font-mono`; widths go on `className`. */
   inputClassName?: string;
   ref?: Ref<HTMLInputElement>;
@@ -81,43 +146,24 @@ export function TextField({
   size = "regular",
   className,
   inputClassName,
-  id: givenId,
+  id,
   ref,
   "aria-describedby": describedBy,
   ...input
 }: TextFieldProps) {
-  const ownId = useId();
-  const id = givenId ?? ownId;
-  const hasError = shown(error);
-  const hasHint = shown(hint);
-  const errorId = `${id}-error`;
-  const hintId = `${id}-hint`;
-  const described =
-    [hasError && errorId, hasHint && hintId, describedBy].filter(Boolean).join(" ") || undefined;
   return (
-    <div className={className}>
-      <label htmlFor={id} className={LABEL[size]}>
-        {label}
-      </label>
-      <input
-        {...input}
-        ref={ref}
-        id={id}
-        aria-invalid={hasError || undefined}
-        aria-describedby={described}
-        className={inputClass(size, inputClassName)}
-      />
-      {hasError && (
-        <p id={errorId} role="alert" className={`${NOTE[size]} flex items-start gap-1 text-alert`}>
-          <Icon name="alert" size={size === "small" ? 12 : 13} className="mt-px" />
-          <span>{error}</span>
-        </p>
+    <Field
+      label={label}
+      hint={hint}
+      error={error}
+      size={size}
+      className={className}
+      id={id}
+      describedBy={describedBy}
+    >
+      {(wiring) => (
+        <input {...input} {...wiring} ref={ref} className={inputClass(size, inputClassName)} />
       )}
-      {hasHint && (
-        <p id={hintId} className={`${NOTE[size]} text-ink-faint`}>
-          {hint}
-        </p>
-      )}
-    </div>
+    </Field>
   );
 }

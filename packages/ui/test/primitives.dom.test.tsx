@@ -1,15 +1,19 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { createRef } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { IconButton } from "../src/components/IconButton.js";
 import { Kbd } from "../src/components/Kbd.js";
+import { Select } from "../src/components/Select.js";
 import { TextField, inputClass, inputCls } from "../src/components/TextField.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 afterEach(() => {
+  // Unmounted before the stubs go, since vitest runs these hooks in reverse.
+  cleanup();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -168,5 +172,96 @@ describe("a key", () => {
     const key = screen.getByText("Esc");
     expect(key.tagName).toBe("KBD");
     expect(key).toHaveClass("border-b-2", "font-mono");
+  });
+});
+
+describe("a select", () => {
+  function choices() {
+    return (
+      <>
+        <option value="">A new app</option>
+        <option value="deploy">Deploy Bot</option>
+      </>
+    );
+  }
+
+  it("is named by the label above it alone, not by its options, and reads its hint", async () => {
+    render(
+      <main>
+        <Select label="Post as" hint="The app the message comes from." defaultValue="">
+          {choices()}
+        </Select>
+      </main>,
+    );
+    const select = screen.getByRole("combobox", { name: "Post as" });
+    expect(select.tagName).toBe("SELECT");
+    expect(screen.getByText("Post as", { selector: "label" })).not.toContainElement(select);
+    expect(select).toHaveAccessibleDescription("The app the message comes from.");
+    expect(select).not.toHaveAttribute("aria-invalid");
+    expect(select).toHaveDisplayValue("A new app");
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("says what is wrong under it, reads it first, and marks it invalid", async () => {
+    render(
+      <main>
+        <p id="context">Members see this.</p>
+        <Select
+          label="Channel"
+          hint="Where the webhook posts."
+          error="Choose a channel to post to."
+          aria-describedby="context"
+          defaultValue=""
+        >
+          <option value="">Choose one…</option>
+          <option value="general">#general</option>
+        </Select>
+      </main>,
+    );
+    const select = screen.getByRole("combobox", { name: "Channel" });
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAccessibleDescription(
+      "Choose a channel to post to. Where the webhook posts. Members see this.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Choose a channel to post to.");
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("gives a form its select through its ref, and says what was chosen", async () => {
+    const user = userEvent.setup();
+    const ref = createRef<HTMLSelectElement>();
+    const onChange = vi.fn();
+    render(
+      <Select label="Post as" ref={ref} id="post-as" defaultValue="" onChange={onChange}>
+        {choices()}
+      </Select>,
+    );
+    const select = screen.getByRole("combobox", { name: "Post as" });
+    expect(ref.current).toBe(select);
+    expect(select).toHaveAttribute("id", "post-as");
+    act(() => ref.current?.focus());
+    expect(select).toHaveFocus();
+    await user.selectOptions(select, "Deploy Bot");
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(select).toHaveValue("deploy");
+  });
+
+  it("is drawn from a text field's classes for its size", () => {
+    render(
+      <>
+        <Select label="Small" size="small" selectClassName="font-mono">
+          {choices()}
+        </Select>
+        <Select label="Regular">{choices()}</Select>
+      </>,
+    );
+    expect(screen.getByRole("combobox", { name: "Small" })).toHaveAttribute(
+      "class",
+      inputClass("small", "font-mono"),
+    );
+    expect(screen.getByRole("combobox", { name: "Regular" })).toHaveAttribute(
+      "class",
+      inputClass("regular"),
+    );
   });
 });
