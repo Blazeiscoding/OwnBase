@@ -41,7 +41,7 @@
         "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
         "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
-        "Since Q13 a shutdown waits its cleanup deadline for work ahead of it in the queue, then gives up its place and rejects, so a stop never runs after its caller was told it failed.",
+        "Since Q13 a shutdown waits its cleanup deadline for work ahead of it in the queue, then gives up its place and rejects, so a stop never runs after its caller was told it failed. Stop hosting shares that wait (stopInTurn), and when it gives up, the status's warning says other work, such as a backup, is still running, until that work ends.",
         "setAccessPolicy changes who may join the running workspace. Opening and closing the public link save and restore the whole policy rather than the invite flag, and guests let in while the link is open leave with it.",
         "The running workspace's name and who may join are its own (UX-60). The controller follows onWorkspaceChange: an owner or admin renaming it in Workspace settings renames its entry in the list (never writing a list not yet read), and Manage hosting shows a rule they chose. A step that read the rule before waiting, such as closing the public link or an Open to all that failed, puts back what it read only if no owner or admin chose meanwhile. Nothing hands a saved rule or name to a start.",
         "The list gives each workspace's iconVersion, from the running server or read from a stopped one's database, and null for a missing folder; the status gives the running one's. icon(folder) answers a listed workspace's icon as a data URL, the same way, and a change made in Workspace settings is published with the status (UX-60)."
@@ -1100,14 +1100,14 @@
         },
         {
           "title": "Back up and shut down",
-          "description": "A separate helper does the heavy database work for backups, and the app checks each result and saves the backup schedule and any failures. Shutting down waits for work already accepted, then closes everything the app opened. It waits a set time for a backup that is still running. After that it says it could not finish, and the person can keep the app open or quit anyway.",
+          "description": "A separate helper does the heavy database work for backups, and the app checks each result and saves the backup schedule and any failures. Shutting down waits for work already accepted, then closes everything the app opened. It waits a set time for a backup that is still running. After that it says it could not finish, and the person can keep the app open or quit anyway. Stop hosting waits the same time, then says the workspace was not stopped because other work is still running.",
           "files": [
             "apps/desktop/src/main/backupWorker.ts",
             "apps/desktop/src/main/hosting.ts",
             "packages/server/src/backup.ts",
             "apps/desktop/src/main/trayBackups.ts"
           ],
-          "detail": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; its wait behind a held backup is bounded by the cleanup deadline (Q13)."
+          "detail": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; its wait behind a held backup is bounded by the cleanup deadline (Q13), and so is Stop hosting's."
         }
       ],
       "detail": "One controller owns the server/connector lifecycle; restored-copy holds and pending cleanup gate reopening."

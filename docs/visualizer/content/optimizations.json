@@ -1988,7 +1988,7 @@
       "limits": [
         "The test held a backup open on purpose. It did not show a real backup stuck on a network drive.",
         "The backup is not called off. Quitting anyway ends it, and the next backup clears away what it left.",
-        "The Stop hosting button still waits behind a running backup with no limit."
+        "The Stop hosting button got the same limit later. When it gives up, Manage hosting says other work is still running until that work ends."
       ],
       "technical": {
         "title": "Bound shutdown waiting before it reaches cleanup",
@@ -1998,7 +1998,7 @@
         "limits": [
           "A held adapter proves the queue behavior, not a real blocked network-share backup.",
           "Preceding work is not cancelled; ownership of the worker and the server is unchanged.",
-          "stop() outside a quit is still unbounded behind queued work."
+          "stop() outside a quit got the same bound later, through the shared stopInTurn."
         ]
       }
     }
