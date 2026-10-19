@@ -1,5 +1,6 @@
-import { useState, type RefObject } from "react";
+import { useId, useRef, useState, type RefObject } from "react";
 import { formatScheduleShort, localDateTime, schedulePresets } from "../lib/schedule.js";
+import { Icon } from "./Icon.js";
 import { Popover } from "./Popover.js";
 
 /**
@@ -12,6 +13,10 @@ export function SendLaterPopover(props: {
   onPick: (at: Date) => void;
 }) {
   const [customTime, setCustomTime] = useState("");
+  /** What is wrong with the chosen time, said under it once Schedule is pressed. */
+  const [error, setError] = useState<string | null>(null);
+  const field = useRef<HTMLInputElement>(null);
+  const errorId = useId();
   return (
     <Popover label="Send later" anchor={props.anchor} onClose={props.onClose} width={260}>
       <div className="px-3 pb-1 pt-2.5 text-[12px] font-medium text-ink-faint">Send later</div>
@@ -31,30 +36,51 @@ export function SendLaterPopover(props: {
         ))}
       </ul>
       <div className="mt-1 border-t border-edge p-3">
+        {/* Schedule always answers: with no time, or one already past, it says so under the field. */}
         <form
+          noValidate
           className="space-y-2"
           onSubmit={(e) => {
             e.preventDefault();
-            props.onPick(new Date(customTime));
+            const at = new Date(customTime);
+            const problem = !customTime
+              ? "Choose a date and time."
+              : !Number.isFinite(at.getTime()) || at.getTime() <= Date.now()
+                ? "Choose a date and time in the future."
+                : null;
+            setError(problem);
+            if (problem) field.current?.focus();
+            else props.onPick(at);
           }}
         >
           <label className="block text-[12px] font-medium text-ink-faint">
             Choose a date and time
             <input
+              ref={field}
               type="datetime-local"
               required
               value={customTime}
               min={localDateTime(new Date())}
-              onChange={(e) => setCustomTime(e.target.value)}
-              className="mt-1.5 w-full min-w-0 rounded-lg border border-edge bg-ground px-2.5 py-1.5 text-sm text-ink outline-none focus:border-copper"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? errorId : undefined}
+              onChange={(e) => {
+                setCustomTime(e.target.value);
+                setError(null);
+              }}
+              className="mt-1.5 w-full min-w-0 rounded-lg border border-edge bg-ground px-2.5 py-1.5 text-sm text-ink outline-none focus:border-copper aria-invalid:border-alert"
             />
           </label>
+          {error && (
+            <p id={errorId} role="alert" className="flex items-start gap-1 text-[11px] text-alert">
+              <Icon name="alert" size={12} className="mt-px" />
+              <span>{error}</span>
+            </p>
+          )}
           <p className="text-[11px] text-ink-faint">Uses your device's time zone.</p>
           {/* Named for the time chosen, so the choice is confirmed where it is made. */}
           <button
             type="submit"
-            disabled={!customTime}
-            className="btn-shape h-8 w-full truncate bg-copper px-2 text-[13px] font-semibold text-ground transition-colors hover:bg-copper-deep disabled:opacity-40"
+            className="btn-shape h-8 w-full truncate bg-copper px-2 text-[13px] font-semibold text-ground transition-colors hover:bg-copper-deep"
           >
             {customTime && !Number.isNaN(new Date(customTime).getTime())
               ? `Schedule for ${formatScheduleShort(new Date(customTime).getTime())}`

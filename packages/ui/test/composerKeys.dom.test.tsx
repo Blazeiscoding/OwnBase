@@ -285,3 +285,30 @@ describe("a scheduled send past the queue's limit", () => {
     expect(screen.queryByRole("button", { name: "Retry confirmation" })).toBeNull();
   });
 });
+
+describe("Send later's own date and time", () => {
+  it("says under the field what Schedule needs, rather than waiting greyed out", async () => {
+    const user = userEvent.setup();
+    const { client, box } = await renderComposer();
+    const schedule = vi.spyOn(client.api, "scheduleMessage");
+    await user.type(box, "See you Monday");
+    await user.click(screen.getByRole("button", { name: "Send later" }));
+    const field = await screen.findByLabelText("Choose a date and time");
+    const button = screen.getByRole("button", { name: "Schedule message" });
+
+    // Pressed with nothing chosen, it asks for a time and puts focus there.
+    expect(button).toBeEnabled();
+    await user.click(button);
+    expect(field).toHaveFocus();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription("Choose a date and time.");
+
+    // A time already past is said there too, and nothing is scheduled.
+    fireEvent.change(field, { target: { value: "2001-01-05T09:00" } });
+    expect(field).not.toHaveAttribute("aria-invalid");
+    await user.click(screen.getByRole("button", { name: /^Schedule for .*2001 at / }));
+    expect(field).toHaveAccessibleDescription("Choose a date and time in the future.");
+    expect(schedule).not.toHaveBeenCalled();
+    expect(box).toHaveValue("See you Monday");
+  });
+});
