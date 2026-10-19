@@ -1,7 +1,7 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createRef } from "react";
-import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { createRef, useState } from "react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Badge } from "../src/components/Badge.js";
@@ -9,7 +9,9 @@ import { EmptyState } from "../src/components/EmptyState.js";
 import { IconButton } from "../src/components/IconButton.js";
 import { Kbd } from "../src/components/Kbd.js";
 import { ListStatus } from "../src/components/ListStatus.js";
+import { Menu } from "../src/components/Menu.js";
 import { Select } from "../src/components/Select.js";
+import { SHEET_QUERY, Sheet, sheetCard } from "../src/components/Sheet.js";
 import { TextField, inputClass, inputCls } from "../src/components/TextField.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -383,5 +385,113 @@ describe("an empty state", () => {
     expect(status.querySelector(".empty-tile")).not.toBeNull();
     // The action is outside what is read out as it changes.
     expect(status).not.toContainElement(screen.getByRole("button", { name: "Pin a message" }));
+  });
+});
+
+describe("a sheet", () => {
+  function Opener() {
+    const [open, setOpen] = useState(false);
+    const [chosen, setChosen] = useState("");
+    return (
+      <main>
+        <button type="button" onClick={() => setOpen(true)}>
+          Share
+        </button>
+        <p>{chosen}</p>
+        {open && (
+          <Sheet label="Share to" onClose={() => setOpen(false)}>
+            <div className={`${sheetCard} p-2`}>
+              <button type="button" onClick={() => setChosen("Copied.")}>
+                Copy link
+              </button>
+            </div>
+          </Sheet>
+        )}
+      </main>
+    );
+  }
+
+  it("rises along the bottom as a named dialog, and Escape closes it and gives focus back", async () => {
+    const user = userEvent.setup();
+    render(<Opener />);
+    const share = screen.getByRole("button", { name: "Share" });
+    await user.click(share);
+    const sheet = screen.getByRole("dialog", { name: "Share to" });
+    expect(sheet).toHaveAttribute("aria-modal", "true");
+    const frame = sheet.querySelector(".bottom-sheet")!;
+    expect(frame).toHaveClass("fixed", "animate-sheet-in");
+    expect(sheet.closest("[data-tandem-modal]")).toHaveClass("bg-black/40", "animate-fade-in");
+    expect(within(sheet).getByRole("button", { name: "Copy link" }).parentElement).toHaveClass(
+      "surface-float",
+      "rounded-2xl",
+    );
+    // The page behind it is out of reach while it is open.
+    expect(share.closest("[inert]")).not.toBeNull();
+    expect(await accessibilityProblems(sheet)).toEqual([]);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(share).toHaveFocus();
+  });
+
+  it("closes on a press on the dimmed page, not on one inside it, and gives focus back", async () => {
+    const user = userEvent.setup();
+    render(<Opener />);
+    const share = screen.getByRole("button", { name: "Share" });
+    await user.click(share);
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(screen.getByText("Copied.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Share to" })).toBeInTheDocument();
+
+    // A real press, whose mousedown would move focus on its own if let.
+    await user.click(screen.getByRole("dialog").closest<HTMLElement>("[data-tandem-modal]")!);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(share).toHaveFocus();
+  });
+
+  it("is how a menu opens on a touch phone, keeping its one trigger to give focus back to", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === SHEET_QUERY,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <main>
+        <Menu
+          sheet
+          label="Actions for general"
+          tooltip="More"
+          header={() => <p>Quick reactions</p>}
+          items={[{ id: "mute", label: "Mute", onSelect }]}
+        />
+        <Menu label="Actions for random" items={[{ id: "mute", label: "Mute", onSelect }]} />
+      </main>,
+    );
+    const trigger = screen.getByRole("button", { name: "Actions for general" });
+    await user.click(trigger);
+    const menu = screen.getByRole("menu", { name: "Actions for general" });
+    expect(menu.closest(".bottom-sheet")).not.toBeNull();
+    expect(menu).toHaveClass("surface-float", "rounded-2xl");
+    expect(screen.getByText("Quick reactions").parentElement).toHaveClass("surface-float");
+    expect(screen.getByRole("menuitem", { name: "Mute" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Actions for general" })).toBe(trigger);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("menu").closest<HTMLElement>("[data-tandem-modal]")!);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+    expect(onSelect).not.toHaveBeenCalled();
+
+    // A menu that does not ask for a sheet stays a dropdown on the same phone.
+    await user.click(screen.getByRole("button", { name: "Actions for random" }));
+    expect(
+      screen.getByRole("menu", { name: "Actions for random" }).closest(".bottom-sheet"),
+    ).toBeNull();
   });
 });
