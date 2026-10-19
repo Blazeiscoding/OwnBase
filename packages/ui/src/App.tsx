@@ -28,6 +28,7 @@ import { ConfirmProvider } from "./components/Confirm.js";
 import { ToastProvider } from "./components/Toast.js";
 import { parseSavedServers } from "./lib/savedServers.js";
 import { hostedButStopped } from "./lib/resume.js";
+import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.js";
 
 type Session =
   | { view: "loading" }
@@ -82,6 +83,10 @@ export function App({ platform }: { platform: Platform }) {
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
   const [inviteAsk, setInviteAsk] = useState(0);
   const hosting = useHostingStatus(platform.hosting);
+  const savedIcons = useCachedWorkspaceIcons(
+    platform,
+    savedServers.map((s) => s.url),
+  );
   const lastHosted = useLastHosted(platform.hosting, hosting.status);
   const clientRef = useRef<WorkspaceClient | null>(null);
   const connectionId = useRef(0);
@@ -314,8 +319,9 @@ export function App({ platform }: { platform: Platform }) {
   const forgetServer = useCallback(
     (url: string) => {
       void changeServers((stored) => stored.filter((s) => s.url !== url));
+      void forgetCachedIcon(platform, url);
     },
-    [changeServers],
+    [changeServers, platform],
   );
 
   const endSession = useCallback(
@@ -338,7 +344,9 @@ export function App({ platform }: { platform: Platform }) {
     try {
       // Deliberate reset of credentials only; drafts and other settings remain.
       // In its turn, so no change still on its way writes a sign-in back after it.
+      const forgotten = savedServersRef.current.map((s) => s.url);
       await serversTurn(() => platform.storage.set("servers", []));
+      for (const url of forgotten) void forgetCachedIcon(platform, url);
       if (ticket !== navigation.current) return;
       savedServersRef.current = [];
       restoredServers.current = true;
@@ -490,6 +498,7 @@ export function App({ platform }: { platform: Platform }) {
                   <JoinScreen
                     platform={platform}
                     savedServers={savedServers}
+                    savedIcons={savedIcons}
                     autoProbe={session.autoProbe}
                     inviteCode={session.inviteCode}
                     onConnected={(server, how) => {
@@ -535,6 +544,7 @@ export function App({ platform }: { platform: Platform }) {
                     url: saved.url,
                     name: saved.workspaceName,
                     handle: saved.handle,
+                    icon: savedIcons[saved.url],
                   }))}
                 onOpenWorkspace={(url) => {
                   const saved = savedServersRef.current.find((s) => s.url === url);

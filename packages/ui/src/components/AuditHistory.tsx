@@ -54,6 +54,10 @@ export function describeAuditEntry(
       return typeof d.to === "string" && d.to in WHO_CAN_JOIN
         ? `${actor} changed who can join to ${WHO_CAN_JOIN[d.to]}`
         : `${actor} changed who can join`;
+    case "workspace.icon_changed":
+      return d.change === "removed"
+        ? `${actor} removed the workspace's icon`
+        : `${actor} changed the workspace's icon`;
     case "app.created":
       return `${actor} created the app ${app}`;
     case "app.deleted":

@@ -76,13 +76,17 @@ export class Api {
     body?: unknown,
     opts?: { timeoutMs?: number; signal?: AbortSignal },
   ): Promise<T> {
+    // A file is sent as itself, with its own type; anything else as JSON.
+    const file = typeof Blob !== "undefined" && body instanceof Blob ? body : null;
     const res = await fetch(`${this.baseUrl}${path}`, {
       method,
       headers: {
-        ...(body !== undefined ? { "content-type": "application/json" } : {}),
+        ...(body !== undefined
+          ? { "content-type": file ? file.type || "application/octet-stream" : "application/json" }
+          : {}),
         ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
       },
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: file ?? (body !== undefined ? JSON.stringify(body) : undefined),
       signal: opts?.timeoutMs
         ? opts.signal
           ? AbortSignal.any([opts.signal, AbortSignal.timeout(opts.timeoutMs)])
@@ -233,6 +237,36 @@ export class Api {
       { accessPolicy },
       { timeoutMs: 10_000 },
     );
+  }
+
+  /**
+   * Sets the workspace's icon, for the owner and admins: a PNG, JPEG or WebP
+   * image of at most `WORKSPACE_ICON_MAX_BYTES`, sent as itself. Everyone
+   * signed in hears `workspace.icon`. A server without
+   * `ReadySnapshot.workspaceIcon` has no such route.
+   */
+  setWorkspaceIcon(image: Blob): Promise<{ iconVersion: string }> {
+    return this.request("PUT", "/api/admin/workspace/icon", image, { timeoutMs: 30_000 });
+  }
+
+  /** Removes the workspace's icon, for the owner and admins. */
+  removeWorkspaceIcon(): Promise<{ iconVersion: null }> {
+    return this.request("DELETE", "/api/admin/workspace/icon", undefined, { timeoutMs: 10_000 });
+  }
+
+  /**
+   * The workspace's icon, which anyone may read, signed in or not. Asked for
+   * by its version, so the browser keeps it until the version changes.
+   * Rejects with `no_icon` when the workspace has none.
+   */
+  async workspaceIcon(version: string, signal?: AbortSignal): Promise<Blob> {
+    const res = await fetch(`${this.baseUrl}/api/workspace/icon?v=${encodeURIComponent(version)}`, {
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(20_000)])
+        : AbortSignal.timeout(20_000),
+    });
+    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? "no_icon" : "icon_failed");
+    return res.blob();
   }
 
   transferOwnership(userId: ID): Promise<{ owner: User; previousOwner: User }> {

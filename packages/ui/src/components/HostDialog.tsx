@@ -10,6 +10,7 @@ import type {
 } from "../platform.js";
 import type { AccessPolicy } from "@slackoss/protocol";
 import { useHostingStatus } from "../lib/hosting.js";
+import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { useCopy } from "../lib/useCopy.js";
 import { formatDay, formatTime } from "../lib/format.js";
 import { isImeKey } from "../lib/textInput.js";
@@ -20,6 +21,7 @@ import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
+import { WorkspaceIcon } from "./WorkspaceIcon.js";
 
 type Hosting = NonNullable<Platform["hosting"]>;
 
@@ -789,6 +791,22 @@ function useHostedWorkspaces(hosting: Hosting, phase: string, revision: number) 
   return { hosted, failed };
 }
 
+/**
+ * A hosted workspace's icon in the list, read from its own database: one
+ * that is stopped shows its icon without being started.
+ */
+function HostedIcon(props: {
+  hosting: Hosting;
+  folder: string;
+  name: string;
+  version: string | null | undefined;
+}) {
+  const icon = useHostedIcon(props.hosting, props.folder, props.version);
+  return (
+    <WorkspaceIcon name={props.name} src={icon} size={32} className="rounded-lg text-[13px]" />
+  );
+}
+
 /** An address to give people, with a button that copies it. */
 function AddressRow(props: {
   url: string;
@@ -894,6 +912,12 @@ export function HostDialog(props: {
 
   const [listRevision, setListRevision] = useState(0);
   const { hosted, failed: listFailed } = useHostedWorkspaces(props.hosting, phase, listRevision);
+  /** The running workspace's icon, which follows a change made in Workspace settings. */
+  const liveIcon = useHostedIcon(
+    props.hosting,
+    phase === "running" ? status?.folder : null,
+    status?.iconVersion,
+  );
   /** What the last backup or removal from the list did, until another starts. */
   const [backupNote, setBackupNote] = useState<{ ok: boolean; text: string } | null>(null);
   const backupFn = props.hosting.backup;
@@ -1326,6 +1350,14 @@ export function HostDialog(props: {
                     ) : (
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+                          {phase === "running" && status.workspaceName && (
+                            <WorkspaceIcon
+                              name={status.workspaceName}
+                              src={liveIcon}
+                              size={28}
+                              className="rounded-lg text-xs"
+                            />
+                          )}
                           <p
                             role="status"
                             className="min-w-0 break-words text-[15px] font-semibold text-ink"
@@ -2007,6 +2039,13 @@ export function HostDialog(props: {
                           />
                         ) : (
                           <>
+                            <HostedIcon
+                              hosting={props.hosting}
+                              folder={w.folder}
+                              name={w.name}
+                              // A missing folder has no database to read it from.
+                              version={w.missing ? null : w.iconVersion}
+                            />
                             <div className="min-w-0 flex-1">
                               <p className="truncate text-sm text-ink">{w.name}</p>
                               <p className="text-xs text-ink-dim">

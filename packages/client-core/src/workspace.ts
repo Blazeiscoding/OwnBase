@@ -500,6 +500,14 @@ export interface WorkspaceState {
   /** Who may join now, as the server last said; null from a server that does not say. */
   accessPolicy: AccessPolicy | null;
   /**
+   * The server keeps an icon for the workspace, which its owner and admins
+   * set. An older one has none to give and takes none, so no upload is
+   * offered and the workspace shows its coloured square.
+   */
+  workspaceIcon: boolean;
+  /** The icon's version, as the server last said, or null when there is none. */
+  iconVersion: string | null;
+  /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
    * A list of scheduled messages reads the queue again when it moves.
@@ -588,6 +596,8 @@ const initialState: WorkspaceState = {
   stars: false,
   workspaceSettings: false,
   accessPolicy: null,
+  workspaceIcon: false,
+  iconVersion: null,
   scheduledChanges: 0,
   self: null,
   users: {},
@@ -989,6 +999,8 @@ export class WorkspaceClient {
       stars: snap.stars === true,
       workspaceSettings: snap.workspaceSettings === true,
       accessPolicy: snap.accessPolicy ?? null,
+      workspaceIcon: snap.workspaceIcon === true,
+      iconVersion: snap.workspaceIcon === true ? (snap.iconVersion ?? null) : null,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -1545,6 +1557,10 @@ export class WorkspaceClient {
     }
     if (event.type === "workspace.accessPolicy") {
       this.store.setState({ accessPolicy: event.accessPolicy });
+      return;
+    }
+    if (event.type === "workspace.icon") {
+      this.store.setState({ iconVersion: event.iconVersion ?? null });
       return;
     }
     const s = this.store.getState();
@@ -2818,6 +2834,22 @@ export class WorkspaceClient {
     const { accessPolicy } = await this.api.setAccessPolicy(policy);
     if (!this.stopped) this.store.setState({ accessPolicy });
     return accessPolicy;
+  }
+
+  /**
+   * Sets the workspace's icon, for its owner and admins, and shows the new
+   * one as soon as the server keeps it, rather than when its event arrives.
+   */
+  async setWorkspaceIcon(image: Blob): Promise<string> {
+    const { iconVersion } = await this.api.setWorkspaceIcon(image);
+    if (!this.stopped) this.store.setState({ iconVersion });
+    return iconVersion;
+  }
+
+  /** Removes the workspace's icon, for its owner and admins, at once here too. */
+  async removeWorkspaceIcon(): Promise<void> {
+    await this.api.removeWorkspaceIcon();
+    if (!this.stopped) this.store.setState({ iconVersion: null });
   }
 
   /**

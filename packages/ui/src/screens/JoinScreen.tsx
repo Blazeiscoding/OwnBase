@@ -11,7 +11,8 @@ import type {
 import { BrandMark, Icon } from "../components/Icon.js";
 import { Tooltip } from "../components/Tooltip.js";
 import { connectionFailure, host, incompatibleWorkspace } from "../lib/connection.js";
-import { workspaceGradient } from "../lib/format.js";
+import { useHostedIcon, useWorkspaceIconUrl } from "../lib/workspaceIcon.js";
+import { WorkspaceIcon } from "../components/WorkspaceIcon.js";
 import { resumeTarget } from "../lib/resume.js";
 import { buttonClass } from "../components/Button.js";
 import { inputClass } from "../components/TextField.js";
@@ -27,6 +28,8 @@ export interface Connected {
 interface Props {
   platform: Platform;
   savedServers: SavedServer[];
+  /** The icons this device keeps for saved workspaces, by address. */
+  savedIcons?: Record<string, string>;
   /** Probe this address immediately on mount (used after "Open to LAN" starts). */
   autoProbe?: string;
   /** Prefilled from an invite link. */
@@ -62,6 +65,7 @@ const pageProtocol = () => (typeof window === "undefined" ? undefined : window.l
 export function JoinScreen({
   platform,
   savedServers,
+  savedIcons,
   autoProbe,
   inviteCode,
   onConnected,
@@ -266,6 +270,7 @@ export function JoinScreen({
           ) : (
             <BrowseCard
               savedServers={savedServers}
+              savedIcons={savedIcons ?? {}}
               lanServers={lanServers}
               lanSupported={!!platform.discoverLan}
               probing={stage.view === "probing" ? stage.url : null}
@@ -310,6 +315,8 @@ function ResumeHosted(props: {
 }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  // Read from its own database, since it is stopped: showing it starts nothing.
+  const icon = useHostedIcon(props.platform.hosting, props.lastHosted?.folder, undefined);
   const target = resumeTarget(props.savedServers, props.hostingStatus, props.lastHosted);
   if (!target || !props.platform.hosting || !props.lastHosted) return null;
   // Plain locals: narrowing does not reach into the async handler below.
@@ -340,10 +347,13 @@ function ResumeHosted(props: {
     <section aria-label="Hosted on this computer">
       <SectionLabel>Hosted on this computer</SectionLabel>
       <div className="card-warm rounded-2xl p-4 text-sm">
-        <p className="text-ink">
-          <span className="font-semibold">{workspaceName}</span> isn’t running. Its messages, files
-          and accounts are still on this computer.
-        </p>
+        <div className="flex items-start gap-3">
+          <WorkspaceIcon name={workspaceName} src={icon} size={36} className="rounded-xl text-sm" />
+          <p className="min-w-0 flex-1 text-ink">
+            <span className="font-semibold">{workspaceName}</span> isn’t running. Its messages,
+            files and accounts are still on this computer.
+          </p>
+        </div>
         {failed && (
           <p role="alert" className="mt-2 text-alert">
             Could not start {workspaceName} on port {port}. Something else may be using that port,
@@ -366,6 +376,7 @@ function ResumeHosted(props: {
 
 function BrowseCard(props: {
   savedServers: SavedServer[];
+  savedIcons: Record<string, string>;
   lanServers: DiscoveredServer[];
   lanSupported: boolean;
   probing: string | null;
@@ -384,6 +395,8 @@ function BrowseCard(props: {
   onHostClick?: () => void;
 }) {
   const [address, setAddress] = useState("");
+  // The workspace serving this page is there to ask, so its icon is fetched.
+  const selfIcon = useWorkspaceIconUrl(props.selfServed?.url, props.selfServed?.info.iconVersion);
   const lanNotSaved = useMemo(
     () =>
       props.lanServers.filter(
@@ -423,6 +436,7 @@ function BrowseCard(props: {
           <ul className="card-warm overflow-hidden rounded-2xl">
             <ServerRow
               title={props.selfServed.info.workspaceName}
+              icon={selfIcon}
               subtitle={host(props.selfServed.url)}
               meta="serving this page"
               busy={props.probing === props.selfServed.url}
@@ -440,6 +454,8 @@ function BrowseCard(props: {
               <ServerRow
                 key={s.url}
                 title={s.workspaceName}
+                // Kept on this device, since its server may be off.
+                icon={props.savedIcons[s.url]}
                 subtitle={s.url.replace(/^https?:\/\//, "")}
                 meta={`@${s.handle}`}
                 busy={props.probing === s.url}
@@ -615,6 +631,8 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 
 function ServerRow(props: {
   title: string;
+  /** The workspace's icon, when there is one to show. */
+  icon?: string | null;
   subtitle: string;
   meta: string;
   busy: boolean;
@@ -629,13 +647,12 @@ function ServerRow(props: {
           disabled={props.busy}
           className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 text-left"
         >
-          <span
-            aria-hidden="true"
-            className="flex size-9 shrink-0 items-center justify-center rounded-xl text-sm font-semibold text-white"
-            style={{ background: workspaceGradient(props.title) }}
-          >
-            {props.title[0]?.toUpperCase() ?? "?"}
-          </span>
+          <WorkspaceIcon
+            name={props.title}
+            src={props.icon}
+            size={36}
+            className="rounded-xl text-sm"
+          />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{props.title}</span>
             <span className="block truncate text-xs text-ink-faint">{props.subtitle}</span>
@@ -669,6 +686,8 @@ function AuthCard(props: {
 }) {
   const hasUsers = props.info.userCount > 0;
   const isFirstUser = !hasUsers;
+  // Anyone may see it before signing in, as they see the workspace's name.
+  const icon = useWorkspaceIconUrl(props.url, props.info.iconVersion);
   // Older servers say nothing about guests, and offer accounts only.
   const guestAllowed = hasUsers && props.info.accessPolicy === "guest_allowed";
   const modes = guestAllowed ? GUEST_MODES : MODES;
@@ -855,13 +874,12 @@ function AuthCard(props: {
   return (
     <div className="card-warm glass-card overflow-hidden rounded-3xl p-6 sm:p-7">
       <div className="mb-6 flex flex-col items-center text-center">
-        <span
-          aria-hidden="true"
-          className="flex size-14 items-center justify-center rounded-2xl text-xl font-semibold text-white shadow-[0_10px_30px_-10px_rgb(0_0_0/0.6)]"
-          style={{ background: workspaceGradient(props.info.workspaceName) }}
-        >
-          {props.info.workspaceName[0]?.toUpperCase() ?? "?"}
-        </span>
+        <WorkspaceIcon
+          name={props.info.workspaceName}
+          src={icon}
+          size={56}
+          className="rounded-2xl text-xl shadow-[0_10px_30px_-10px_rgb(0_0_0/0.6)]"
+        />
         <h1 className="mt-4 font-brand text-2xl font-semibold tracking-tight">
           {props.info.workspaceName}
         </h1>

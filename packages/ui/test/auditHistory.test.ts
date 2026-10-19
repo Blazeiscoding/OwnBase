@@ -98,6 +98,19 @@ describe("an entry, as an administrator would say it", () => {
     );
   });
 
+  it("says whether the workspace's icon was changed or removed", () => {
+    expect(
+      say(
+        entry("workspace.icon_changed", {
+          details: { change: "set", type: "image/webp", bytes: 9000 },
+        }),
+      ),
+    ).toBe("Alice changed the workspace's icon");
+    expect(
+      say(entry("workspace.icon_changed", { actorId: null, details: { change: "removed" } })),
+    ).toBe("The host removed the workspace's icon");
+  });
+
   it("has a sentence for every action the server records", () => {
     const actions: AuditAction[] = [
       "user.role_changed",
@@ -110,6 +123,7 @@ describe("an entry, as an administrator would say it", () => {
       "workspace.ownership_transferred",
       "workspace.renamed",
       "workspace.access_policy_changed",
+      "workspace.icon_changed",
       "app.created",
       "app.deleted",
       "app.token_replaced",

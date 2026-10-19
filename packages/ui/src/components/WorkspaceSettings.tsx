@@ -3,12 +3,15 @@ import { WORKSPACE_NAME_MAX, type AccessPolicy } from "@slackoss/protocol";
 import { ApiError } from "@slackoss/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { SavedContext, useSaved } from "../lib/savedNote.js";
+import { IconProblem, prepareIcon } from "../lib/iconImage.js";
+import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
 import { Icon } from "./Icon.js";
 import { Modal } from "./Modal.js";
 import { stepIn } from "./Motion.js";
 import { TextField } from "./TextField.js";
+import { WorkspaceIcon } from "./WorkspaceIcon.js";
 
 /** The sections of Workspace settings, in the order its tabs show them. */
 const SECTIONS = [
@@ -63,10 +66,10 @@ function useAlive() {
 }
 
 /**
- * The workspace's own settings, for its owner and admins (UX-60): its name
- * and who may join. A page over the workspace, as Account settings is, with
- * its sections on one side and the open one on the other. Choices save as
- * they are made and say so quietly; the name, being typed, has a Save.
+ * The workspace's own settings, for its owner and admins (UX-60): its icon,
+ * its name and who may join. A page over the workspace, as Account settings
+ * is, with its sections on one side and the open one on the other. Choices
+ * save as they are made and say so quietly; the name, being typed, has a Save.
  */
 export function WorkspaceSettings({
   onClose,
@@ -81,6 +84,8 @@ export function WorkspaceSettings({
   const name = useWorkspace((s) => s.workspaceName);
   // A server from before workspace settings refuses both, so neither is offered.
   const editable = useWorkspace((s) => s.workspaceSettings);
+  // A server from before workspace icons keeps none, so none is offered.
+  const icons = useWorkspace((s) => s.workspaceIcon);
   const [section, setSection] = useState<Section>("general");
   const panel = useRef<HTMLDivElement>(null);
   const [saved, setSaved] = useState(false);
@@ -198,7 +203,12 @@ export function WorkspaceSettings({
                   join are changed where it is hosted, not here.
                 </p>
               )}
-              {section === "general" && <NameSection editable={editable} />}
+              {section === "general" && (
+                <>
+                  {icons && <IconSection />}
+                  <NameSection editable={editable} />
+                </>
+              )}
               {section === "joining" && (
                 <JoiningSection editable={editable} hostedHere={hostedHere} />
               )}
@@ -213,6 +223,137 @@ export function WorkspaceSettings({
         </div>
       </Modal>
     </SavedContext.Provider>
+  );
+}
+
+/** What went wrong with the icon, said under its buttons. */
+function iconProblem(err: unknown): string {
+  if (err instanceof IconProblem) return err.message;
+  if (err instanceof ApiError) {
+    if (err.code === "admin_only")
+      return "Only the workspace's owner and admins can change its icon.";
+    if (err.code === "unsupported_icon_type" || err.code === "invalid_icon")
+      return "The server could not use that picture. Choose another PNG, JPEG or WebP.";
+    if (err.code === "icon_too_large")
+      return "That picture is too large for an icon. Choose a simpler one.";
+  }
+  return "The icon was not changed. Check your connection and try again.";
+}
+
+/**
+ * The workspace's icon: the one it has, Upload icon to choose a picture,
+ * and Remove. A picture is cut to its middle square and sent as soon as it
+ * is chosen. Remove asks nothing, since uploading again puts it back.
+ */
+function IconSection() {
+  const client = useClient();
+  const saved = useSaved();
+  const alive = useAlive();
+  const id = useId();
+  const name = useWorkspace((s) => s.workspaceName);
+  const version = useWorkspace((s) => s.iconVersion);
+  const shown = useCurrentWorkspaceIcon();
+  const picker = useRef<HTMLInputElement>(null);
+  const upload = useRef<HTMLButtonElement>(null);
+  const [busy, setBusy] = useState<"uploading" | "removing" | null>(null);
+  const [problem, setProblem] = useState<string | null>(null);
+
+  async function choose(file: File) {
+    setBusy("uploading");
+    setProblem(null);
+    try {
+      await client.setWorkspaceIcon(await prepareIcon(file));
+      if (alive.current) saved();
+    } catch (err) {
+      if (!alive.current) return;
+      setProblem(iconProblem(err));
+      upload.current?.focus();
+    } finally {
+      if (alive.current) setBusy(null);
+    }
+  }
+
+  async function remove() {
+    if (busy) return;
+    setBusy("removing");
+    setProblem(null);
+    try {
+      await client.removeWorkspaceIcon();
+      if (!alive.current) return;
+      saved();
+      // Remove goes with the icon, so focus stays on the section.
+      upload.current?.focus();
+    } catch (err) {
+      if (alive.current) setProblem(iconProblem(err));
+    } finally {
+      if (alive.current) setBusy(null);
+    }
+  }
+
+  return (
+    <section aria-labelledby={`${id}-title`} className="mb-8">
+      <h4 id={`${id}-title`} className="mb-2 text-[13px] font-medium text-ink-dim">
+        Workspace icon
+      </h4>
+      <div className="flex items-start gap-4">
+        <WorkspaceIcon
+          name={name}
+          src={shown}
+          size={64}
+          letters={2}
+          className="rounded-2xl text-xl shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)]"
+        />
+        <div className="min-w-0 flex-1">
+          <p id={`${id}-hint`} className="text-[13px] text-ink-dim">
+            Shown beside the workspace&rsquo;s name in the sidebar, and to anyone who finds it to
+            join. A PNG, JPEG or WebP picture, cut to a square.
+          </p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              ref={upload}
+              type="button"
+              aria-disabled={busy ? true : undefined}
+              aria-describedby={problem ? `${id}-hint ${id}-problem` : `${id}-hint`}
+              onClick={() => {
+                if (!busy) picker.current?.click();
+              }}
+              className={buttonClass("secondary")}
+            >
+              {busy === "uploading" ? "Uploading…" : "Upload icon"}
+            </button>
+            {version && (
+              <button
+                type="button"
+                aria-disabled={busy ? true : undefined}
+                onClick={() => void remove()}
+                className={buttonClass("quiet")}
+              >
+                {busy === "removing" ? "Removing…" : "Remove"}
+              </button>
+            )}
+          </div>
+          {/* Opened by Upload icon, which the keyboard and a touch reach as any button. */}
+          <input
+            ref={picker}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            aria-label="Choose a picture for the workspace icon"
+            hidden
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              // Cleared, so choosing the same file again is a choice too.
+              event.target.value = "";
+              if (file) void choose(file);
+            }}
+          />
+          {problem && (
+            <p id={`${id}-problem`} role="alert" className="mt-2 text-sm text-alert">
+              {problem}
+            </p>
+          )}
+        </div>
+      </div>
+    </section>
   );
 }
 

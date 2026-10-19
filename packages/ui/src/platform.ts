@@ -117,6 +117,11 @@ export interface HostedWorkspaces {
     autoBackupError?: string | null;
     /** Restored from a backup and not yet put back in use. */
     restored?: boolean;
+    /**
+     * Its icon's version, read from its own database whether it runs or not,
+     * or null when it has none. Absent from apps older than workspace icons.
+     */
+    iconVersion?: string | null;
   }[];
   /** Folders holding a workspace that could not be read. */
   unreadable: string[];
@@ -177,6 +182,8 @@ export interface HostingStatus {
   isolated?: boolean;
   /** The running workspace reopens its stable public address when it starts with Tandem. */
   reopensPublicOnLaunch?: boolean;
+  /** The running workspace's icon version, or null when it has none. */
+  iconVersion?: string | null;
 }
 
 /**
@@ -330,6 +337,11 @@ export interface Platform {
     rename?: (folder: string, name: string) => Promise<{ folder: string; name: string }>;
     /** Shows a hosted workspace's folder in the system's file manager. */
     openFolder?: (folder: string) => Promise<void>;
+    /**
+     * A hosted workspace's icon as a data URL, read from its own database
+     * whether it runs or not, without starting it. Null when it has none.
+     */
+    icon?: (folder: string) => Promise<string | null>;
     /**
      * Chooses the workspace, by its folder, to start whenever Tandem
      * opens, or none. Rejects, saying why, a workspace not in the list.

@@ -57,6 +57,7 @@ import { hasOpenModal } from "../components/Modal.js";
 import { loadTooltipBubble } from "../components/Tooltip.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useLastConversation } from "../lib/lastConversation.js";
+import { useRememberWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
 import {
   ROUTE_VIEWS,
@@ -406,6 +407,8 @@ function WorkspaceInner({
   hostedHere?: boolean;
 }) {
   const status = useWorkspace((s) => s.status);
+  // So the saved workspaces show this one's icon while its server is off.
+  useRememberWorkspaceIcon(platform);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
   const self = useWorkspace((s) => s.self);
