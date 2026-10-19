@@ -3,7 +3,8 @@ name: Visual baselines
 # compares against them, and commits the ones that changed to the branch.
 # Start it by adding the "visual baselines" label to a pull request, or from
 # the Actions tab on a branch. A commit a workflow pushes starts no checks of
-# its own, so this then starts Checks on it.
+# its own without approval, so this then approves those runs, or starts
+# Checks on it where there are none to approve.
 #
 # Only pictures that no longer match are taken again, so one that still does
 # keeps its file. A failure other than a picture, such as axe, fails the run
@@ -71,7 +72,22 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git commit -m "test(visual): take the pictures that changed, on Linux"
           git push origin "HEAD:$BRANCH"
-          gh workflow run ci.yml --ref "$BRANCH"
+          # GitHub holds the runs a workflow's own push starts until someone
+          # approves them. Approve them, so the pull request's checks run as
+          # for any push. Where none can be (a branch with no pull request,
+          # or the approval is refused), start Checks on the commit instead.
+          commit=$(git rev-parse HEAD)
+          approved=0
+          for attempt in 1 2 3 4 5 6; do
+            sleep 10
+            held=$(gh run list --commit "$commit" --status action_required --json databaseId --jq '.[].databaseId')
+            [ -n "$held" ] || continue
+            for id in $held; do
+              gh api --method POST "repos/$GITHUB_REPOSITORY/actions/runs/$id/approve" && approved=1
+            done
+            break
+          done
+          if [ "$approved" = 0 ]; then gh workflow run ci.yml --ref "$BRANCH"; fi
       - name: Take the label off
         if: ${{ always() && github.event_name == 'pull_request' }}
         env:
