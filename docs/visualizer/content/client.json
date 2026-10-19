@@ -92,6 +92,16 @@
       "concepts": ["atomic record merge", "validation", "shared storage"]
     },
     {
+      "path": "packages/client-core/src/trustedAddresses.ts",
+      "plain": "Adds an approved address to the list of addresses allowed to reach one account's saved work, in one step, so two windows approving at once keep both.",
+      "summary": "Reads and extends a trusted-address list as plain data any store can apply in one step.",
+      "details": [
+        "normalizeWorkspaceAddress keeps protocol, port and path and refuses credentials, query strings and fragments; readTrustedAddresses accepts only a version-1, non-empty list of addresses written that way, once each.",
+        "addTrustedAddress is the merge the web device store (the trust op) and the desktop main process (storage:trustAddress) both run inside their single step. It starts the list when nothing is stored, and never throws: a list it cannot read, or an address not written as one, is left as it is and answered with null, which the caller reports as an error."
+      ],
+      "concepts": ["address trust", "atomic merge", "shared storage", "Q02"]
+    },
+    {
       "path": "packages/client-core/src/fileCache.ts",
       "plain": "Downloads attached files once, keeps a limited saved copy for reuse, and drops it when the message it came with is removed.",
       "summary": "Fetches authenticated attachments once and owns their object-URL lifetime.",
@@ -340,6 +350,7 @@
       "plain": "Saves the web version's data on the device safely, even with several tabs open, and finishes interrupted saves after a restart.",
       "summary": "Owns browser durability, atomic multi-tab merges and unfinished-write recovery.",
       "details": [
+        "Its operations are set, initialize, the outbox, drafts and record merges, and trust (addTrustedAddress). An operation never throws inside the transaction: one that did would stay in the journal and stop every later start's replay.",
         "Each IndexedDB read/merge/write occurs inside one readwrite transaction across the values and made object stores. Transaction completion is the write acknowledgement; other tabs cannot interleave a lost update between the read and write.",
         "Before an asynchronous write, a synchronous localStorage journal records the operation with tab and sequence identity. Restart replays unfinished operations in order; per-key made metadata prevents a replay from repeating an already committed older change.",
         "N02 persists backend ownership before migration and prefers IndexedDB even without BroadcastChannel. A failed, blocked or timed-out open reports unreadability and permits a later retry instead of opening an apparently empty alternate store.",
@@ -382,7 +393,7 @@
       "details": [
         "Address normalization preserves protocol, port and path and rejects credentials, query strings and fragments. These distinctions can identify different servers and therefore cannot be discarded for trust.",
         "The first known address is registered; later aliases require explicit trustWorkspaceAddress approval. Strict parsing of the stored address list refuses damage, while a read-only helper returns only known aliases.",
-        "Since Q02 the first registration goes through the storage owner's conditional initialize, and admission is decided from the record it returns, so two windows that both observe absence cannot both admit their own address. Approving a later address is still a queued read and set."
+        "Since Q02 the first registration goes through the storage owner's conditional initialize, and admission is decided from the record it returns, so two windows that both observe absence cannot both admit their own address. Approving a later address goes through the storage owner's trustAddress where it has one (the web device store and the desktop app both do), so two windows approving different addresses at once keep both; a platform without it still reads and then sets."
       ],
       "concepts": ["address trust", "identity boundary", "strict validation", "Q02"]
     },
