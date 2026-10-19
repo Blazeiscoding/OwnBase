@@ -7,6 +7,7 @@ import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
+import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { Menu, type MenuItem } from "./Menu.js";
@@ -409,9 +410,9 @@ export function Sidebar(props: Props) {
                   open={props.openPanel === "activity"}
                 >
                   {totalMentions > 0 ? (
-                    <Count label="Unread mentions" strong count={totalMentions} />
+                    <Badge label="Unread mentions" count={totalMentions} />
                   ) : (
-                    <Count label="Unread conversations" count={unreadConversations} />
+                    <Badge tone="quiet" label="Unread conversations" count={unreadConversations} />
                   )}
                 </NavRow>
               </li>
@@ -422,7 +423,7 @@ export function Sidebar(props: Props) {
                   onClick={props.onThreads}
                   open={props.openPanel === "threads"}
                 >
-                  <Count label="Threads with unread replies" count={unreadThreads} />
+                  <Badge tone="quiet" label="Threads with unread replies" count={unreadThreads} />
                 </NavRow>
               </li>
               <li>
@@ -566,19 +567,6 @@ function useCollapsedSections(): [Set<string>, (section: string) => void] {
       return next;
     });
   return [collapsed, toggle];
-}
-
-/** A count beside a row: quiet for unread, the accent for what names you. */
-function Count(props: { label: string; strong?: boolean; count: number }) {
-  return (
-    <CountBadge
-      count={props.count}
-      aria-label={props.label}
-      className={`tabular min-w-5 rounded-full px-1.5 text-center text-[11px] font-semibold leading-[18px] ${
-        props.strong ? "badge-mention" : "bg-ink/[0.08] text-ink-dim"
-      }`}
-    />
-  );
 }
 
 /** One of the sidebar's own places, above the channels. */
@@ -1012,11 +1000,10 @@ function SectionHeader(props: {
               className="relative flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
             >
               <Icon name={a.icon} size={15} />
-              <CountBadge
+              <Badge
                 count={a.badge ?? 0}
                 dot
-                aria-hidden="true"
-                className="badge-mention absolute -right-0.5 -top-0.5 size-2 rounded-full ring-2 ring-deep"
+                className="absolute -right-0.5 -top-0.5 ring-2 ring-deep"
               />
             </button>
           </Tooltip>
@@ -1142,12 +1129,11 @@ function ChannelRow(props: {
             <Icon name="bellOff" size={13} />
           </span>
         )}
-        <CountBadge
+        <Badge
           count={props.mentions}
-          aria-label={`${props.mentions} unread ${
+          label={`${props.mentions} unread ${
             props.mentions === 1 ? "mention" : "mentions"
           } in ${props.label}`}
-          className="badge-mention tabular min-w-5 shrink-0 rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px]"
         />
       </button>
       {count > 0 && (

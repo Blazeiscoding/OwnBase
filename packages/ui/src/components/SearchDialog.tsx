@@ -30,6 +30,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { isImeKey } from "../lib/textInput.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
+import { EmptyState } from "./EmptyState.js";
 import { LoadMore } from "./LoadMore.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Popover } from "./Popover.js";
@@ -847,10 +848,10 @@ function RecentSearches(props: {
   const heading = useId();
   if (recent.items.length === 0 && !recent.error)
     return (
-      <p className="py-6 text-center text-sm text-ink-faint">
+      <EmptyState>
         Search messages and file names. Add a filter above, or type one such as{" "}
         <code className="rounded bg-ink/[0.06] px-1 font-mono text-ink-dim">from:@name</code>.
-      </p>
+      </EmptyState>
     );
   return (
     <section aria-labelledby={heading}>

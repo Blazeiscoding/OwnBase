@@ -1,15 +1,24 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { createRef } from "react";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { createRef, useState } from "react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Badge } from "../src/components/Badge.js";
+import { EmptyState } from "../src/components/EmptyState.js";
 import { IconButton } from "../src/components/IconButton.js";
 import { Kbd } from "../src/components/Kbd.js";
+import { ListStatus } from "../src/components/ListStatus.js";
+import { Menu } from "../src/components/Menu.js";
+import { Select } from "../src/components/Select.js";
+import { SHEET_QUERY, Sheet, sheetCard } from "../src/components/Sheet.js";
 import { TextField, inputClass, inputCls } from "../src/components/TextField.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 afterEach(() => {
+  // Unmounted before the stubs go, since vitest runs these hooks in reverse.
+  cleanup();
+  vi.unstubAllGlobals();
   vi.useRealTimers();
   vi.restoreAllMocks();
 });
@@ -168,5 +177,321 @@ describe("a key", () => {
     const key = screen.getByText("Esc");
     expect(key.tagName).toBe("KBD");
     expect(key).toHaveClass("border-b-2", "font-mono");
+  });
+});
+
+describe("a select", () => {
+  function choices() {
+    return (
+      <>
+        <option value="">A new app</option>
+        <option value="deploy">Deploy Bot</option>
+      </>
+    );
+  }
+
+  it("is named by the label above it alone, not by its options, and reads its hint", async () => {
+    render(
+      <main>
+        <Select label="Post as" hint="The app the message comes from." defaultValue="">
+          {choices()}
+        </Select>
+      </main>,
+    );
+    const select = screen.getByRole("combobox", { name: "Post as" });
+    expect(select.tagName).toBe("SELECT");
+    expect(screen.getByText("Post as", { selector: "label" })).not.toContainElement(select);
+    expect(select).toHaveAccessibleDescription("The app the message comes from.");
+    expect(select).not.toHaveAttribute("aria-invalid");
+    expect(select).toHaveDisplayValue("A new app");
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("says what is wrong under it, reads it first, and marks it invalid", async () => {
+    render(
+      <main>
+        <p id="context">Members see this.</p>
+        <Select
+          label="Channel"
+          hint="Where the webhook posts."
+          error="Choose a channel to post to."
+          aria-describedby="context"
+          defaultValue=""
+        >
+          <option value="">Choose one…</option>
+          <option value="general">#general</option>
+        </Select>
+      </main>,
+    );
+    const select = screen.getByRole("combobox", { name: "Channel" });
+    expect(select).toHaveAttribute("aria-invalid", "true");
+    expect(select).toHaveAccessibleDescription(
+      "Choose a channel to post to. Where the webhook posts. Members see this.",
+    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Choose a channel to post to.");
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("gives a form its select through its ref, and says what was chosen", async () => {
+    const user = userEvent.setup();
+    const ref = createRef<HTMLSelectElement>();
+    const onChange = vi.fn();
+    render(
+      <Select label="Post as" ref={ref} id="post-as" defaultValue="" onChange={onChange}>
+        {choices()}
+      </Select>,
+    );
+    const select = screen.getByRole("combobox", { name: "Post as" });
+    expect(ref.current).toBe(select);
+    expect(select).toHaveAttribute("id", "post-as");
+    act(() => ref.current?.focus());
+    expect(select).toHaveFocus();
+    await user.selectOptions(select, "Deploy Bot");
+    expect(onChange).toHaveBeenCalledOnce();
+    expect(select).toHaveValue("deploy");
+  });
+
+  it("is drawn from a text field's classes for its size", () => {
+    render(
+      <>
+        <Select label="Small" size="small" selectClassName="font-mono">
+          {choices()}
+        </Select>
+        <Select label="Regular">{choices()}</Select>
+      </>,
+    );
+    expect(screen.getByRole("combobox", { name: "Small" })).toHaveAttribute(
+      "class",
+      inputClass("small", "font-mono"),
+    );
+    expect(screen.getByRole("combobox", { name: "Regular" })).toHaveAttribute(
+      "class",
+      inputClass("regular"),
+    );
+  });
+});
+
+describe("a badge", () => {
+  it("says what waits in words where it has a label, and stays out of the way where its control says it", () => {
+    render(
+      <>
+        <button type="button">
+          general
+          <Badge count={2} label="2 unread mentions in general" />
+        </button>
+        <button type="button" aria-label="Friends, 1 new">
+          <Badge count={1} dot />
+        </button>
+      </>,
+    );
+    const mentions = screen.getByRole("img", { name: "2 unread mentions in general" });
+    expect(mentions).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: /2 unread mentions in general$/ })).toContainElement(
+      mentions,
+    );
+    const friends = screen.getByRole("button", { name: "Friends, 1 new" });
+    const dot = friends.querySelector("span")!;
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+    expect(dot).toBeEmptyDOMElement();
+  });
+
+  it("is nothing at zero, pops in when something comes, and is still when it was already there", () => {
+    const view = render(<Badge count={0} label="Unread" />);
+    expect(screen.queryByRole("img")).toBeNull();
+    view.rerender(<Badge count={3} label="Unread" />);
+    expect(screen.getByRole("img", { name: "Unread" })).toHaveClass("animate-badge-in");
+    view.unmount();
+
+    render(<Badge count={3} label="Already waiting" />);
+    expect(screen.getByRole("img", { name: "Already waiting" })).not.toHaveClass(
+      "animate-badge-in",
+    );
+  });
+
+  it("caps its number where it has a most, and a dot can be told by true or false", () => {
+    const view = render(<Badge size="small" max={99} count={120} label="120 mentions" />);
+    expect(screen.getByRole("img", { name: "120 mentions" })).toHaveTextContent(/^99\+$/);
+    view.rerender(<Badge size="small" max={99} count={99} label="99 mentions" />);
+    expect(screen.getByRole("img", { name: "99 mentions" })).toHaveTextContent(/^99$/);
+    view.rerender(<Badge dot tone="quiet" count={false} label="Unread" />);
+    expect(screen.queryByRole("img")).toBeNull();
+    view.rerender(<Badge dot tone="quiet" count label="Unread" />);
+    expect(screen.getByRole("img", { name: "Unread" })).toBeEmptyDOMElement();
+  });
+
+  it("draws a quiet count, a mention count, a small one for an icon's corner, and a dot", () => {
+    render(
+      <>
+        <Badge tone="quiet" count={4} label="quiet" />
+        <Badge count={2} label="mention" />
+        <Badge size="small" count={7} label="small" className="absolute right-0 top-0" />
+        <Badge dot tone="quiet" count={1} label="quiet dot" />
+        <Badge dot count={1} label="mention dot" />
+      </>,
+    );
+    const badge = (name: string) => screen.getByRole("img", { name });
+    expect(badge("quiet")).toHaveClass("bg-ink/[0.08]", "text-ink-dim", "rounded-full");
+    expect(badge("quiet")).not.toHaveClass("badge-mention");
+    expect(badge("mention")).toHaveClass("badge-mention", "font-bold", "leading-[18px]");
+    // Placed by the caller, sized by the badge: jsdom lays nothing out.
+    expect(badge("small")).toHaveClass("badge-mention", "leading-4", "absolute", "right-0");
+    expect(badge("quiet dot")).toHaveClass("size-2", "bg-ink");
+    expect(badge("mention dot")).toHaveClass("size-2", "badge-mention");
+  });
+});
+
+describe("an empty state", () => {
+  it("says what a place is for, under a mark when it has one", async () => {
+    render(
+      <main>
+        <EmptyState icon="bookmark">Nothing saved yet.</EmptyState>
+        <EmptyState>No channels match.</EmptyState>
+      </main>,
+    );
+    const marked = screen.getByText("Nothing saved yet.");
+    const tile = marked.parentElement!.querySelector(".empty-tile")!;
+    expect(tile).toHaveAttribute("aria-hidden", "true");
+    expect(tile.querySelector("svg")).not.toBeNull();
+    expect(screen.getByText("No channels match.")).toHaveClass("text-ink-faint", "text-center");
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("offers one thing to do about it", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn();
+    render(
+      <main>
+        <EmptyState icon="search" action={{ label: "Clear the filter", run }}>
+          Nothing matched.
+        </EmptyState>
+      </main>,
+    );
+    await user.click(screen.getByRole("button", { name: "Clear the filter" }));
+    expect(run).toHaveBeenCalledOnce();
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("is what a list says when a load found nothing, read as the list's status", () => {
+    render(
+      <ListStatus
+        loadingLabel="Loading pins…"
+        empty="Nothing pinned here yet."
+        emptyIcon="pin"
+        emptyAction={{ label: "Pin a message", run: () => {} }}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(/^Nothing pinned here yet\.$/);
+    expect(status.querySelector(".empty-tile")).not.toBeNull();
+    // The action is outside what is read out as it changes.
+    expect(status).not.toContainElement(screen.getByRole("button", { name: "Pin a message" }));
+  });
+});
+
+describe("a sheet", () => {
+  function Opener() {
+    const [open, setOpen] = useState(false);
+    const [chosen, setChosen] = useState("");
+    return (
+      <main>
+        <button type="button" onClick={() => setOpen(true)}>
+          Share
+        </button>
+        <p>{chosen}</p>
+        {open && (
+          <Sheet label="Share to" onClose={() => setOpen(false)}>
+            <div className={`${sheetCard} p-2`}>
+              <button type="button" onClick={() => setChosen("Copied.")}>
+                Copy link
+              </button>
+            </div>
+          </Sheet>
+        )}
+      </main>
+    );
+  }
+
+  it("rises along the bottom as a named dialog, and Escape closes it and gives focus back", async () => {
+    const user = userEvent.setup();
+    render(<Opener />);
+    const share = screen.getByRole("button", { name: "Share" });
+    await user.click(share);
+    const sheet = screen.getByRole("dialog", { name: "Share to" });
+    expect(sheet).toHaveAttribute("aria-modal", "true");
+    const frame = sheet.querySelector(".bottom-sheet")!;
+    expect(frame).toHaveClass("fixed", "animate-sheet-in");
+    expect(sheet.closest("[data-tandem-modal]")).toHaveClass("bg-black/40", "animate-fade-in");
+    expect(within(sheet).getByRole("button", { name: "Copy link" }).parentElement).toHaveClass(
+      "surface-float",
+      "rounded-2xl",
+    );
+    // The page behind it is out of reach while it is open.
+    expect(share.closest("[inert]")).not.toBeNull();
+    expect(await accessibilityProblems(sheet)).toEqual([]);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(share).toHaveFocus();
+  });
+
+  it("closes on a press on the dimmed page, not on one inside it, and gives focus back", async () => {
+    const user = userEvent.setup();
+    render(<Opener />);
+    const share = screen.getByRole("button", { name: "Share" });
+    await user.click(share);
+    await user.click(screen.getByRole("button", { name: "Copy link" }));
+    expect(screen.getByText("Copied.")).toBeInTheDocument();
+    expect(screen.getByRole("dialog", { name: "Share to" })).toBeInTheDocument();
+
+    // A real press, whose mousedown would move focus on its own if let.
+    await user.click(screen.getByRole("dialog").closest<HTMLElement>("[data-tandem-modal]")!);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(share).toHaveFocus();
+  });
+
+  it("is how a menu opens on a touch phone, keeping its one trigger to give focus back to", async () => {
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query === SHEET_QUERY,
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+    const user = userEvent.setup();
+    const onSelect = vi.fn();
+    render(
+      <main>
+        <Menu
+          sheet
+          label="Actions for general"
+          tooltip="More"
+          header={() => <p>Quick reactions</p>}
+          items={[{ id: "mute", label: "Mute", onSelect }]}
+        />
+        <Menu label="Actions for random" items={[{ id: "mute", label: "Mute", onSelect }]} />
+      </main>,
+    );
+    const trigger = screen.getByRole("button", { name: "Actions for general" });
+    await user.click(trigger);
+    const menu = screen.getByRole("menu", { name: "Actions for general" });
+    expect(menu.closest(".bottom-sheet")).not.toBeNull();
+    expect(menu).toHaveClass("surface-float", "rounded-2xl");
+    expect(screen.getByText("Quick reactions").parentElement).toHaveClass("surface-float");
+    expect(screen.getByRole("menuitem", { name: "Mute" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Actions for general" })).toBe(trigger);
+
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+
+    await user.keyboard("{Enter}");
+    await user.click(screen.getByRole("menu").closest<HTMLElement>("[data-tandem-modal]")!);
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(trigger).toHaveFocus();
+    expect(onSelect).not.toHaveBeenCalled();
+
+    // A menu that does not ask for a sheet stays a dropdown on the same phone.
+    await user.click(screen.getByRole("button", { name: "Actions for random" }));
+    expect(
+      screen.getByRole("menu", { name: "Actions for random" }).closest(".bottom-sheet"),
+    ).toBeNull();
   });
 });

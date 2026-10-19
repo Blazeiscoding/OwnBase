@@ -278,7 +278,8 @@
         "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address.",
         "Workspace settings (UX-60) opens from the workspace menu and the Ctrl+K palette for the owner and admins, has the address /d/workspace, loads on first use with People and Apps, and closes for anyone else once the account is known.",
         "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert).",
-        "Runs useRememberWorkspaceIcon, so the saved workspaces show this one's icon while its server is off (UX-60)."
+        "Runs useRememberWorkspaceIcon, so the saved workspaces show this one's icon while its server is off (UX-60).",
+        "The phone drawer's button carries a small Badge: a red count of mentions elsewhere, capped at 99+, or a quiet dot for unread conversations, said in words as the button's description."
       ],
       "concepts": [
         "screen orchestration",
@@ -308,7 +309,8 @@
         "Emoji come from Apple Color Emoji on an Apple device and the bundled Noto Color Emoji elsewhere, named last in every font stack so no letter, digit or sign is taken from them; font-emoji puts them first for what holds only emoji. It also styles the emoji picker's grid, whose scrollbar shows before it is pointed at where the app's others hide, and makes an emoji-only message large.",
         "Icons move the way Its Hover's do, with its timings, inside a control marked icon-live: the smile blinks, the reply arrow nudges back, the speech bubble draws itself, the bookmark squeezes for as long as it is pointed at, the pencil writes its way up and the three dots land one after another. Distances are in the drawing's own units. The motion plays for a pointer that hovers or for keyboard focus, and not at all for someone who asked for less motion.",
         "On a phone held upright the workspace keeps the bottom bar's height free (--bottom-bar, 56 px and the home indicator's inset) through :has(> .bottom-bar), so the bar never covers the composer or the last message, and a side panel stops above it. The drawer opens over it. Under data-keyboard (onScreenKeyboard.ts) the bar is hidden and its room given back, and the composer drops its home-indicator padding.",
-        "Safe areas (UX-71): the page is drawn under a notch and home indicator (viewport-fit=cover), so in the phone layout the conversation keeps clear of the sides, its header of the top, the drawer of the top, left and bottom, a covering side panel of the top, and on a phone on its side the panel sheet of the top, right and bottom. Under data-visual-viewport #root takes --visual-height and moves by --visual-top, for a browser that does not shrink the page for the keyboard. On a touchscreen text fields write at 16 px, so iOS does not zoom in on them. On a short window the drawer's body grows to what it holds, so its footer comes after the list rather than over it."
+        "Safe areas (UX-71): the page is drawn under a notch and home indicator (viewport-fit=cover), so in the phone layout the conversation keeps clear of the sides, its header of the top, the drawer of the top, left and bottom, a covering side panel of the top, and on a phone on its side the panel sheet of the top, right and bottom. Under data-visual-viewport #root takes --visual-height and moves by --visual-top, for a browser that does not shrink the page for the keyboard. On a touchscreen text fields write at 16 px, so iOS does not zoom in on them. On a short window the drawer's body grows to what it holds, so its footer comes after the list rather than over it.",
+        ".bottom-sheet places Sheet along the bottom of a phone, clear of the home indicator, and makes the floating cards in it solid, since frosted over the dimmed page White's turned grey enough to fail contrast for red text."
       ],
       "concepts": [
         "design tokens",
@@ -1172,7 +1174,7 @@
       "summary": "Searches server-side message text and attachment names, results first, with filters as removable chips (UX-51).",
       "details": [
         "Under the field sit the filters in force as chips, each one click to remove, then From, In and Has menus and a Date popover (Today, Last 7 days, Last 30 days, or a day either side) to add more; a ? button shows the modifier syntax. Typed modifiers become chips through lib/searchFilters.ts. The field and chips stay above the results, which scroll, so results start within about 90 px of the field at 1280x820.",
-        "Results follow what is typed and the filters chosen a quarter-second after typing pauses, and the previous answer stays on show while the next question is out, its status line and marked words still those of the question it answers. Enter searches at once; a search is kept among the recent ones only when someone settles on it (Enter, a recent search repeated, a result opened). Words brought from the palette are searched at once and kept. Recent searches show before anything is asked, and repeating one turns its modifiers back into chips.",
+        "Results follow what is typed and the filters chosen a quarter-second after typing pauses, and the previous answer stays on show while the next question is out, its status line and marked words still those of the question it answers. Enter searches at once; a search is kept among the recent ones only when someone settles on it (Enter, a recent search repeated, a result opened). Words brought from the palette are searched at once and kept. Recent searches show before anything is asked, and repeating one turns its modifiers back into chips. With none kept yet, an EmptyState says what can be searched and how to add a filter.",
         "Messages and Files tabs: Files asks the same question with has:file (unless a filter already asks for files) and shows one row per file, marked with the words searched for. Results are read through usePagedList, 30 at a time, with LoadMore at the end instead of Previous and Next pages.",
         "Since Q07 the results are read again in place, from the top as far as they had been read, when changedContent advances for a channel among them, leaving a read in flight to finish first and asking once more if it began before the change. Results are still a copy: after a resync beyond the event log they are stale until asked again.",
         "inConversation opens it on the conversation it was asked from, as an In chip, from the header's menu (UX-23), without adding a recent search."
@@ -1197,7 +1199,7 @@
       "details": [
         "Opened by DMs in the phone's bottom bar, and at #/c/<channel>/p/dms. Like every side panel it loads on first use in LazyPanel, takes focus on its heading through usePanelFocus, and below 1024 px covers the conversation.",
         "The list is the sidebar's own: conversations of type dm or group_dm this account is in and that are not archived, newest first by channelLastSeq. It comes from the workspace's live state, so it keeps itself current with nothing to load once the workspace has arrived; before then it shows ListStatus's stand-in rows.",
-        "Each row is a button at least 48 px tall with the first other person's avatar and presence, the conversation's name, and Draft, Muted, a red mention count or an Unread dot; the one open is marked. Choosing one opens it, which closes the panel. The header has Friends (with a dot for requests waiting) and New message, which a guest does not get.",
+        "Each row is a button at least 48 px tall with the first other person's avatar and presence, the conversation's name, and Draft, Muted, a red mention count or an Unread dot; the one open is marked. Choosing one opens it, which closes the panel. The header has Friends (with a dot for requests waiting) and New message, which a guest does not get. The count, the dot and Friends' dot are Badges, always drawn so one that comes while the panel is open pops in.",
         "Empty, it says how to start one and offers New message; a guest is told direct messages are for members. While the connection is down a line says the list may be out of date, and what this device knows stays listed."
       ],
       "concepts": ["direct messages", "side panel", "live state", "UX-70"]
@@ -1315,7 +1317,8 @@
         "Starred (UX-20) sits above Channels once something is starred, and goes when nothing is. A starred channel or direct message moves out of its usual section, as in Slack, and keeps its unread, mention, draft and muted marks. Starred lists by name, channels and people together, so a row stays where it was put rather than moving each time a message arrives. It folds away like Channels and Direct messages and is remembered on this device with them. An archived channel leaves it with its star kept, and comes back to it if the channel is brought back.",
         "Every conversation's row ends with More (⋯), after invite and settings on a channel's: Star or Unstar, offered only where the server keeps stars, and Mute or Unmute, each named by what it does now. A right-click on the row, or the keyboard's menu key, opens the same menu. The row's buttons stay shown while the menu is open (data-menu-open), so the menu has a place to sit and focus a place to come back to. A row starred or unstarred from its own menu changes section, and focus follows it to its More button there, or to the header of a folded section it went into.",
         "The workspace menu offers Workspace settings to the owner and admins, after People and Apps; members and guests do not see it (UX-60).",
-        "The rail draws each workspace through WorkspaceIcon: the one on screen with useCurrentWorkspaceIcon, the other saved sign-ins with the copy this device kept (OtherWorkspace.icon), each falling back to its square (UX-60)."
+        "The rail draws each workspace through WorkspaceIcon: the one on screen with useCurrentWorkspaceIcon, the other saved sign-ins with the copy this device kept (OtherWorkspace.icon), each falling back to its square (UX-60).",
+        "Its counts are Badges: Activity a red count of mentions or a quiet one of unread conversations, Threads a quiet count of threads with unread replies, a row's red mention count named with its channel, and a dot on a section's header button (Friends) for what is new. The rail's own badge is still CountBadge."
       ],
       "concepts": [
         "workspace navigation",
@@ -1335,7 +1338,7 @@
       "details": [
         "The bar shows at the width half of theme.css's drawer query (760 px and narrower), so on a phone held upright; on its side a phone keeps the drawer alone, since height is what it lacks there. The web client only: the desktop app's window is never a phone. It is a nav named Main navigation, each place a button 56 px tall with an icon and its label, the one you are in marked with aria-current.",
         "Home goes back to the conversation from a panel, and from the conversation opens the drawer with every channel, as a tab bar's current tab goes to its top. DMs opens the Direct messages panel and Activity the Activity panel; both cover the conversation and stop above the bar, so moving between them is one tap. You opens the sidebar's AccountMenu from its own button, as a sheet on a touch phone. A guest has no DMs, so the bar has three places.",
-        "Badges count what waits elsewhere, as the drawer's button does: the conversation on screen and muted ones do not count. Home has a dot for unread channels, DMs a red count of unread conversations, Activity a red count of mentions or a dot for unread replies in followed threads. Each is also said in words, as the button's description.",
+        "Badges count what waits elsewhere, as the drawer's button does: the conversation on screen and muted ones do not count. Home has a dot for unread channels, DMs a red count of unread conversations, Activity a red count of mentions or a dot for unread replies in followed threads. Each is also said in words, as the button's description. They are small Badges, 16 px and capped at 99+, hidden from a screen reader since the description says them.",
         "The bar is inert under the open drawer, which covers it. useEdgeSwipe opens the drawer while theme.css's drawer query matches and no dialog is open; useOnScreenKeyboard runs on every size, so the layout follows the keyboard on a phone on its side too.",
         "With the drawer closed, the sidebar's heading, the workspace's name, is hidden with it, so a visually hidden copy stays the page's h1, in a top-level header (the page's banner)."
       ],
@@ -1388,7 +1391,8 @@
       "details": [
         "NewChannelDialog creates public/private channels; BrowseChannelsDialog lists and joins available channels; NewDmDialog chooses participants and opens a direct/group conversation.",
         "These occasional forms are lazy-loaded by the workspace screen rather than required for every returning conversation view. Invite people moved to InviteDialog.tsx, so its QR encoder loads with it alone.",
-        "GuestAccountDialog keeps a guest's identity as an account; the new session token reopens the workspace as the same person. Its Username and Password are TextFields checked on submit with the server's rules (2 to 32 lowercase letters, digits, . _ or -, and at least 8 characters): the button is never off until filled in, each problem is said under its field, the first gets focus, and a taken username comes back under the username."
+        "GuestAccountDialog keeps a guest's identity as an account; the new session token reopens the workspace as the same person. Its Username and Password are TextFields checked on submit with the server's rules (2 to 32 lowercase letters, digits, . _ or -, and at least 8 characters): the button is never off until filled in, each problem is said under its field, the first gets focus, and a taken username comes back under the username.",
+        "Browse channels and New message say an empty or filtered-out list with EmptyState; New message's sits after its list of people rather than inside it."
       ],
       "concepts": ["channel creation", "direct messages", "lazy forms"]
     },
@@ -1398,7 +1402,7 @@
       "summary": "Invite people: a link ready on opening, inline length and use limits, QR code, and the list of codes (UX-43).",
       "details": [
         "On opening it shows the newest invite this person made that still works like a new one, or makes one for seven days and any number of people, so there is no generate step and opening it again does not mint another code.",
-        "Change makes a new link from Expires after and Number of uses choices. Copy link confirms with a toast as well as on the button; the QR code is left out when the only address reaches this computer alone.",
+        "Change makes a new link from Expires after and Number of uses, two small Selects. Copy link confirms with a toast as well as on the button; the QR code is left out when the only address reaches this computer alone.",
         "It lists invites with their status and lets the creator or an administrator revoke one after a confirmation. Clipboard outcome and readable server refusal state are preserved.",
         "With welcome it is the step that ends founding a workspace (UX-42): titled Invite your people, it leaves out the list, ends with Done, and says when the link only works on its own network, pointing a desktop host to Manage, under the workspace's name, to share the workspace on the internet."
       ],
@@ -1431,7 +1435,8 @@
       "summary": "Lists contacts and friend-request actions within the workspace.",
       "details": [
         "FriendActions requests, accepts or removes a relationship through Api and displays current request state.",
-        "The list resolves workspace people and supports opening their profiles or conversations; relationship state belongs to the server-backed replica."
+        "The list resolves workspace people and supports opening their profiles or conversations; relationship state belongs to the server-backed replica.",
+        "An empty tab says so with EmptyState: no friends yet, no pending requests or no people found."
       ],
       "concepts": ["friend requests", "server state", "people navigation"]
     },
@@ -1442,9 +1447,9 @@
       "details": [
         "Section keyboard navigation and route callbacks connect profile, notifications, appearance, composing, calls, security, devices and storage to Back/Forward history.",
         "A page over the whole window rather than a box in it (UX-60), still built on Modal for focus, Escape and the inert page behind. In the desktop app it starts under the 40 px title bar so the window controls stay usable. On the left, on the sidebar's colour, are its name, whose account it is, a search field and the sections; on the right the open section is the only part that scrolls, as a page does, and opens at its start. On a phone the sections are a strip that brings the chosen one to its middle.",
-        "The search lists matching settings from settingsSearch in place of the sections. Enter or a click opens the setting's section, scrolls the setting to the middle, focuses its control (or its heading) and marks it briefly for anyone who sees no focus ring. Escape in a filled search clears it; the next one closes the page.",
+        "The search lists matching settings from settingsSearch in place of the sections. Enter or a click opens the setting's section, scrolls the setting to the middle, focuses its control (or its heading) and marks it briefly for anyone who sees no focus ring. Escape in a filled search clears it; the next one closes the page. A setting whose label sits above its field, as Select and TextField draw it, is marked together with its field.",
         "Choices that save themselves report through savedNote, and the section's title row says \"Saved\" for two seconds in a polite live region that is always present, so it is read out without competing with the section's own status messages.",
-        "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences.",
+        "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences. When I press Enter is a Select.",
         "Security and Devices change passwords, list/revoke sessions and sign out through the server; Storage displays server usage. Confirmation identifies destructive session changes.",
         "The Q03 and Q04 repairs live in the underlying helpers; this dialog only shows their state, including Try again for a composer preference that could not be read."
       ],
@@ -1494,7 +1499,7 @@
         "Creates and removes integrations and exposes explicit credential replacement actions. Bot tokens shown once stay only in this UI session; rereadable secrets have reveal/copy controls.",
         "Configures slash commands, event subscriptions and verified interactivity URLs; refreshes composer command hints when those change.",
         "Delivery status distinguishes waiting, given-up and never-queued events and offers retry where supported.",
-        "It opens on templates (UX-63): Incoming webhook, Slash command and Post CI results, as tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another. A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails.",
+        "It opens on templates (UX-63): Incoming webhook, Slash command and Post CI results, as tabs sharing one choice of app (a new one or an existing one) and channel, so a webhook made in one is ready in another. A webhook template makes the app and webhook in one click, fills its URL into the example and posts the example's message to the URL itself (postToWebhook). The command template adds the command, fills the app's signing secret into the example service (dotted out on screen, copied whole) and runs /command test in a chosen channel, showing the server's reason when the app fails. Each template's row is small Selects (Channel, Post as) and small TextFields (New app name, Command, Request URL), from the same classes as the app's own forms below.",
         "OAuth, Socket Mode, ts and the link to the published integration contract are folded into How this differs from Slack.",
         "Each app's Slash commands, Event subscriptions and Interactivity forms are fieldsets named by their legend, with small TextFields (Command, Request URL, Description). Their buttons are never off until filled in: sent empty, a form says what is missing under each field and focuses the first, and a request in flight is only aria-disabled. A refused event or interactivity address is said under the field. Saving the interactivity address works unchanged too, rechecking it, and says Saved and verified, or that buttons are off when it is empty."
       ],
@@ -1818,7 +1823,8 @@
       "details": [
         "TextField draws a visible label tied by htmlFor, then the input, then an error (role=alert, with an icon) and a hint. aria-describedby lists the error first, then the hint, then any the caller passes; aria-invalid is set only while there is an error. Its ref reaches the input, so a form checked on submit can put the cursor in the first field with a problem.",
         "inputClass(size, extra) returns the classes for small (a row of fields in a card), regular (dialogs and settings) and large (the sign-in card, with field-spot). Each size is a whole set, because two utilities for one property are settled by Tailwind's order rather than the class list's. aria-invalid:border-alert turns any of them red.",
-        "inputCls is the regular size, for an input, textarea or select still drawn by hand; it used to live in Dialog.tsx, with a second copy in JoinScreen."
+        "inputCls is the regular size, for an input, textarea or select still drawn by hand; it used to live in Dialog.tsx, with a second copy in JoinScreen.",
+        "Field draws the label, the error and the hint around whatever control it is given, and hands that control its id, aria-invalid and aria-describedby to spread. TextField and Select are both a Field around their control, so the two read and look alike in one form."
       ],
       "concepts": [
         "labelled field",
@@ -1827,6 +1833,18 @@
         "shared styles",
         "focus on submit"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/Select.tsx",
+      "plain": "A drop-down choice with its name above it and, under it, a line on what to choose or what is wrong, drawn like a text box of the same size.",
+      "summary": "Labelled select with hint and error wiring, drawn from TextField's classes (UX-14).",
+      "details": [
+        "A Field around a native select, so its label, hint and error are TextField's: a visible label tied by htmlFor, an error (role=alert) read first, then the hint, then any aria-describedby the caller passes; aria-invalid only while there is an error. Its ref reaches the select, so a form can move focus to it. The options are its children.",
+        "The label sits above the select rather than around it. A label wrapped round a select holds every option's text too, so the field was named \"When I press Enter Send the message\" in Account settings, and Post as in Apps' templates read its options with its name.",
+        "Its classes are inputClass(size, selectClassName), small, regular or large, the same as a text field's, so a select beside a text field in a row lines up with it. It moved Apps' local SelectField (Post as, Channel), Invite's Expires after and Number of uses, and Account settings' When I press Enter.",
+        "Selects still drawn by hand, each for a reason: Invite's address in links has no visible label and sits in a row of its own; Profile's Clear after has its label beside it; ViewModal's app-defined fields share one label, hint and error layout with its inputs and text areas; Voice and video's device selects are named by the heading above them; HostDialog's two are not moved yet."
+      ],
+      "concepts": ["labelled field", "native select", "error message", "shared styles"]
     },
     {
       "path": "packages/ui/src/components/Kbd.tsx",
@@ -1886,11 +1904,23 @@
       "details": [
         "Built on the modal layer, with arrow navigation, Enter selection, Escape/outside dismissal and focus return to the trigger.",
         "Repositions with scrolling instead of abandoning an action when a live timeline shifts. Destructive and disabled items keep consistent presentation.",
-        "It grows from the corner nearest its trigger, which depends on whether it opened below or above it, and a phone's sheet rises from the bottom edge.",
+        "It grows from the corner nearest its trigger, which depends on whether it opened below or above it. With sheet set, on a touch phone (wantsSheet, read once as it opens) it is a Sheet instead: its header and its items are two cards along the bottom of the screen, and the items grow to 48 px for a finger.",
         "Ticked items are menuitemradio, one of a set, unless the menu is multiple: then each is a menuitemcheckbox, as search's From and Has filters are (UX-51).",
         "Its button stays the same element for the menu's whole life, so focus has somewhere to go back to. A button with a hint used to be swapped for a bare one while the menu was open, to keep the hint away: the modal layer then found the button it remembered detached, and focus fell to the page on Escape, Tab or a choice. The hint now stays on the button, turned off with Tooltip's disabled while the menu is open."
       ],
       "concepts": ["action menu", "keyboard navigation", "floating position"]
+    },
+    {
+      "path": "packages/ui/src/components/Sheet.tsx",
+      "plain": "The panel that rises from the bottom of a phone's screen, within reach of a thumb, with the page dimmed behind it. A tap on the dimmed page or Escape puts it away.",
+      "summary": "The touch bottom sheet's frame: backdrop, slide-up, safe area and the modal layer (UX-14).",
+      "details": [
+        "Built on Modal, so it is a named modal dialog: Escape and a press on the dimmed page close it, the page behind is inert, and focus goes back to what opened it. The backdrop is black at 40% and fades in; the column of cards rises from below the screen's edge (animate-sheet-in) and leaves as it came.",
+        "Where it sits is theme.css's .bottom-sheet: 8 px from the sides and the bottom, plus the home indicator's inset. Its cards take sheetCard (surface-float, rounded-2xl), drawn solid inside a sheet: frosted over the dimmed page, White's turned grey enough that a red Delete in the message sheet read at 4.2:1.",
+        "SHEET_QUERY, (hover: none) and (max-width: 760px), is where a sheet is wanted, and wantsSheet() reads it. A phone held sideways, 844 px wide, is wider than that, so a menu there stays a dropdown.",
+        "Menu draws its touch sheet in one, for the message actions, a conversation's row, the conversation's ⋯ and the account menu from the phone's You. Focus handling stays Menu's and Modal's: the menu's one trigger button is where focus goes back to."
+      ],
+      "concepts": ["bottom sheet", "touch", "modal layer", "safe area", "focus restoration"]
     },
     {
       "path": "packages/ui/src/components/Tooltip.tsx",
@@ -1943,10 +1973,33 @@
       "summary": "Shared change-driven motion: badges, in-place swaps and stepped panels.",
       "details": [
         "useChanges counts how often a value has changed since the component was first drawn, so what was already on screen when it opened stays still and only later changes move.",
-        "CountBadge is drawn as nothing at zero and pops in when it appears; its number rolls up when it changes. Swap regrows an icon, or raises words, out of a blur when what it shows changes. stepIn brings a new page in from the side it is on.",
+        "CountBadge is drawn as nothing at zero and pops in when it appears; its number rolls up when it changes, and above max it says 99+ for 99. Badge draws every count that says something waits on top of it; a reaction's count and the workspace rail's still use it directly. Swap regrows an icon, or raises words, out of a blur when what it shows changes. stepIn brings a new page in from the side it is on.",
         "All of it follows the motion tokens in theme.css, and none of it plays for anyone who asked for less motion."
       ],
       "concepts": ["motion tokens", "change-driven animation", "reduced motion"]
+    },
+    {
+      "path": "packages/ui/src/components/Badge.tsx",
+      "plain": "The small red number or dot that says something is waiting for you, such as unread mentions, drawn the same way everywhere.",
+      "summary": "Count and dot badges for unread and mentions, in one place (UX-14).",
+      "details": [
+        "Two tones: quiet (a pale pill, semibold, for what is merely unread) and mention (Discord's red, bold, with its glow, badge-mention in theme.css). Two sizes: regular, 18 px, beside a row's name, and small, 16 px, on the corner of an icon. dot says only that there is something; max caps the number, as 99+.",
+        "Nothing is drawn at 0 or false. Built on CountBadge, it pops in when it comes and its number rolls; one there when the screen was drawn is still. Callers place it, and give it the ring that sets it apart from an icon, through className.",
+        "label is what it says in words, read in its place as an img: \"2 unread mentions in general\". Without one it is aria-hidden, for a badge whose control says it already, in its name (Friends, 1 new) or its description (the phone bar's).",
+        "It draws the sidebar's Activity and Threads counts, a channel's mention count and the header buttons' dots, the Direct messages panel's counts, dots and Friends dot, the phone bar's counts and dots, and the drawer button's. The rail's workspace badge is not moved yet; Activity's unread mark and the sidebar's unread nub are row markers, and the Threads panel's \"3 new replies\" is words, so neither is a badge."
+      ],
+      "concepts": ["badge", "unread count", "text alternative", "change-driven animation"]
+    },
+    {
+      "path": "packages/ui/src/components/EmptyState.tsx",
+      "plain": "What a list or panel with nothing in it says: what it is for and how to fill it, sometimes with a picture above and one thing to do.",
+      "summary": "The empty state, with a mark or without, and its one action (UX-14).",
+      "details": [
+        "With an icon, a glowing tile (empty-tile in theme.css) above words in ink-dim, for a side panel or a dialog's list. Without, the words alone in ink-faint, centred, for a list inside a larger view. action adds one button under them, such as Clear the filter.",
+        "ListStatus draws its empty case with it, inside its status region, and puts EmptyAction outside that region, so what is read out as the list changes is the words alone and focus has somewhere to go when the action is replaced.",
+        "Lists already on screen and filtered to nothing draw one themselves: Browse channels, the people in New message (now after the list rather than inside it, which holds only its people), Friends and Recent searches. Screen share's picker keeps its own taller empty line, which holds the dialog's height steady, and Keyboard shortcuts keeps its live line."
+      ],
+      "concepts": ["empty state", "stable live region"]
     },
     {
       "path": "packages/ui/src/components/ListStatus.tsx",
@@ -1954,7 +2007,8 @@
       "summary": "Keeps loading, refresh, empty and retry state consistent across lists.",
       "details": [
         "Before first content it renders varied stand-in rows; later refreshes keep the current list and show a status line.",
-        "A stable live region and layout cleanup preserve focus when a Retry/empty-state action is replaced by results. This is a shared usability primitive rather than each panel inventing its own state layout."
+        "A stable live region and layout cleanup preserve focus when a Retry/empty-state action is replaced by results. This is a shared usability primitive rather than each panel inventing its own state layout.",
+        "Its empty case is an EmptyState, with the list's emptyIcon when it has one, and the empty list's action an EmptyAction kept outside the status region."
       ],
       "concepts": ["loading states", "stable live region", "focus continuity"]
     },
@@ -1995,7 +2049,7 @@
       "details": [
         "apps/web/src/main.tsx imports it, through the package's ./gallery export, only when import.meta.env.DEV is true and the address is #/gallery, #/gallery/onyx or #/gallery/white. A build replaces that condition with false and drops the import, so neither the web build nor the desktop renderer contains it.",
         "A theme belongs to the whole document, menus and tooltips included, so #/gallery shows each theme in an iframe of its own (#/gallery/onyx and #/gallery/white), and each sets data-theme on its own document. A framed sheet tells the page its height by postMessage, checked against the page's origin, so the page scrolls rather than the frames.",
-        "Sections show Button's variants and disabled and waiting states, IconButton's sizes and pressed, disabled and round forms, TextField with hint, error and disabled at each size, a form checked on submit (also inside a Dialog), Kbd, Tooltip, Menu, Popover, Toast and ListStatus's loading, refreshing, failed and empty states. Hover and focus are seen by pointing and tabbing."
+        "Sections show Button's variants and disabled and waiting states, IconButton's sizes and pressed, disabled and round forms, TextField with hint, error and disabled at each size, Select with hint, error, nothing chosen, disabled and small in a row, a form checked on submit (also inside a Dialog), Kbd, Badge's tones, sizes, cap, dots and one that comes on a press, Tooltip, Menu, Sheet (opened by its owner, and a Menu with sheet), Popover, Toast, EmptyState with and without a mark and an action, and ListStatus's loading, refreshing, failed and empty states. Hover and focus are seen by pointing and tabbing."
       ],
       "concepts": ["development only", "component gallery", "themes", "review reference"]
     }

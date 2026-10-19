@@ -7,6 +7,7 @@ import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
+import { EmptyState } from "./EmptyState.js";
 import { useTabs } from "../lib/useTabs.js";
 
 export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: Channel) => void }) {
@@ -438,13 +439,13 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
                 })}
               </ul>
             ) : (
-              <p className="py-6 text-center text-sm text-ink-faint">
+              <EmptyState>
                 {needle
                   ? "No channels match."
                   : tab === "archived"
                     ? "No channels have been archived."
                     : "There are no channels yet."}
-              </p>
+              </EmptyState>
             )}
           </div>
         </DialogScroll>
@@ -631,14 +632,15 @@ export function NewDmDialog(props: {
                 </li>
               );
             })}
-            {candidates.length === 0 && (
-              <p className="py-6 text-center text-sm text-ink-faint">
-                {Object.keys(users).length <= 1
-                  ? "You're the only one here so far. Invite people to start a conversation."
-                  : `No one matches “${q.trim()}”.`}
-              </p>
-            )}
           </ul>
+          {/* After the list rather than in it, which holds only its people. */}
+          {candidates.length === 0 && (
+            <EmptyState>
+              {Object.keys(users).length <= 1
+                ? "You're the only one here so far. Invite people to start a conversation."
+                : `No one matches “${q.trim()}”.`}
+            </EmptyState>
+          )}
         </DialogScroll>
         <div className="dialog-foot">
           {error && (

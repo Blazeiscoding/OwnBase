@@ -17,6 +17,7 @@ import { SECTION_LABELS, findSettings, type Setting } from "../lib/settingsSearc
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
 import { inputCls } from "./TextField.js";
+import { Select } from "./Select.js";
 import { Icon } from "./Icon.js";
 import { Modal } from "./Modal.js";
 import { ListStatus } from "./ListStatus.js";
@@ -47,7 +48,10 @@ function settingOnPage(panel: HTMLElement, label: string) {
   if (!named) return null;
   const group =
     named instanceof HTMLLabelElement
-      ? named
+      ? // A label above its field, as `Select` and `TextField` draw one, is marked with the field.
+        named.control && !named.contains(named.control)
+        ? named.parentElement!
+        : named
       : named.tagName === "LEGEND"
         ? named.parentElement!
         : named.id && named.closest("section")?.getAttribute("aria-labelledby") === named.id
@@ -459,22 +463,20 @@ export function AccountDialog({
                   <h3 id="account-composer-title" className="font-semibold">
                     Writing messages
                   </h3>
-                  <label className="mt-3 block text-sm">
-                    When I press Enter
-                    <select
-                      className={`${inputCls} mt-1`}
-                      value={composer.enterSends ? "send" : "newline"}
-                      disabled={!composer.loaded || composer.saving}
-                      onChange={(event) =>
-                        void composer
-                          .setEnterSends(event.target.value === "send")
-                          .then((kept) => kept && markSaved())
-                      }
-                    >
-                      <option value="send">Send the message</option>
-                      <option value="newline">Start a new line</option>
-                    </select>
-                  </label>
+                  <Select
+                    label="When I press Enter"
+                    className="mt-3"
+                    value={composer.enterSends ? "send" : "newline"}
+                    disabled={!composer.loaded || composer.saving}
+                    onChange={(event) =>
+                      void composer
+                        .setEnterSends(event.target.value === "send")
+                        .then((kept) => kept && markSaved())
+                    }
+                  >
+                    <option value="send">Send the message</option>
+                    <option value="newline">Start a new line</option>
+                  </Select>
                   <p className="mt-2 text-sm text-ink-dim">
                     Applies to channels and threads across workspaces on this device. Ctrl+Enter or
                     Cmd+Enter always sends; Shift+Enter adds a new line.

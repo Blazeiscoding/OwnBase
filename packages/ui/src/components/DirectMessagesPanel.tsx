@@ -4,9 +4,9 @@ import { useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { AvatarWithPresence } from "./Avatar.js";
+import { Badge } from "./Badge.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
-import { CountBadge } from "./Motion.js";
 import { Tooltip } from "./Tooltip.js";
 
 /**
@@ -74,11 +74,10 @@ export function DirectMessagesPanel(props: {
                 className="relative flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
               >
                 <Icon name="friends" size={17} />
-                <CountBadge
+                <Badge
                   count={friendRequests}
                   dot
-                  aria-hidden="true"
-                  className="badge-mention absolute right-1 top-1 size-2 rounded-full ring-2 ring-ground"
+                  className="absolute right-1 top-1 ring-2 ring-ground"
                 />
               </button>
             </Tooltip>
@@ -168,22 +167,17 @@ export function DirectMessagesPanel(props: {
                       <Icon name="bellOff" size={13} />
                     </span>
                   )}
-                  {mentions > 0 ? (
-                    <CountBadge
-                      count={mentions}
-                      aria-label={`${mentions} unread ${mentions === 1 ? "mention" : "mentions"}`}
-                      className="badge-mention tabular min-w-5 shrink-0 rounded-full px-1.5 text-center text-[11px] font-bold leading-[18px]"
-                    />
-                  ) : (
-                    unread &&
-                    !muted && (
-                      <span
-                        role="img"
-                        aria-label="Unread"
-                        className="size-2 shrink-0 rounded-full bg-ink"
-                      />
-                    )
-                  )}
+                  {/* Always drawn, so one that comes while the list is open pops in. */}
+                  <Badge
+                    count={mentions}
+                    label={`${mentions} unread ${mentions === 1 ? "mention" : "mentions"}`}
+                  />
+                  <Badge
+                    dot
+                    tone="quiet"
+                    count={mentions === 0 && unread && !muted}
+                    label="Unread"
+                  />
                 </button>
               </li>
             );

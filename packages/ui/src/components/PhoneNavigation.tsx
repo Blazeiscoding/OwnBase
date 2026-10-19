@@ -6,8 +6,8 @@ import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { useOnScreenKeyboard } from "../lib/onScreenKeyboard.js";
 import { useEdgeSwipe } from "../lib/edgeSwipe.js";
 import { AvatarWithPresence } from "./Avatar.js";
+import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
-import { CountBadge } from "./Motion.js";
 import { hasOpenModal } from "./Modal.js";
 import { AccountMenu } from "./Sidebar.js";
 
@@ -241,17 +241,18 @@ function BarItem(props: {
       >
         <Pill current={props.current}>
           <Icon name={props.icon} size={22} />
-          <CountBadge
+          <Badge
+            size="small"
+            max={99}
             count={props.count ?? 0}
-            aria-hidden="true"
-            className="badge-mention tabular absolute -top-1 right-1.5 min-w-[18px] rounded-full px-1 text-center text-[10px] font-bold leading-[18px] ring-2 ring-deep"
+            className="absolute -top-1 right-1.5 ring-2 ring-deep"
           />
-          {props.dot && !props.count && (
-            <span
-              aria-hidden="true"
-              className="absolute right-3 top-0.5 size-2 rounded-full bg-ink ring-2 ring-deep"
-            />
-          )}
+          <Badge
+            dot
+            tone="quiet"
+            count={!!props.dot && !props.count}
+            className="absolute right-3 top-0.5 ring-2 ring-deep"
+          />
         </Pill>
         {props.label}
         {props.waiting && (

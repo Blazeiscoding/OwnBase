@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useCopy } from "../lib/useCopy.js";
 import { useTabs } from "../lib/useTabs.js";
 import {
@@ -19,6 +19,7 @@ import { ApiError, type AppDetail } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";
+import { Select } from "./Select.js";
 import { Swap } from "./Motion.js";
 import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
@@ -423,36 +424,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
   );
 }
 
-const fieldLabel = "min-w-0 flex-1 basis-40 text-[12px] font-medium text-ink-dim";
-const field =
-  "mt-1 h-8 w-full min-w-0 rounded-lg border border-edge bg-raised px-2 text-[13px] font-normal text-ink outline-none placeholder:text-ink-faint focus:border-copper/60";
-
-/**
- * A choice with its label beside it rather than around it: a label wrapped
- * round a select holds every option's text too, so the field would be named
- * "Post as A new app Webhook" wherever a label is read as its text.
- */
-function SelectField(props: {
-  label: string;
-  value: string;
-  onChange: (value: string) => void;
-  children: React.ReactNode;
-}) {
-  const id = useId();
-  return (
-    <div className={fieldLabel}>
-      <label htmlFor={id}>{props.label}</label>
-      <select
-        id={id}
-        value={props.value}
-        onChange={(e) => props.onChange(e.target.value)}
-        className={field}
-      >
-        {props.children}
-      </select>
-    </div>
-  );
-}
+/** A field's share of a template's row: it grows, and wraps to a line of its own when narrow. */
+const rowField = "min-w-0 flex-1 basis-40";
 
 /** What each template's choices come to, shared so that one made in a template is ready in the next. */
 interface TemplateChoice {
@@ -517,34 +490,45 @@ function AppTemplates(props: {
     },
     postAs: (
       <>
-        <SelectField label="Post as" value={app?.id ?? ""} onChange={setAppId}>
+        <Select
+          size="small"
+          label="Post as"
+          value={app?.id ?? ""}
+          onChange={(e) => setAppId(e.target.value)}
+          className={rowField}
+        >
           <option value="">A new app</option>
           {props.apps.map((a) => (
             <option key={a.id} value={a.id}>
               {a.name}
             </option>
           ))}
-        </SelectField>
+        </Select>
         {!app && (
-          <label className={fieldLabel}>
-            New app name
-            <input
-              value={newName}
-              onChange={(e) => setTypedName(e.target.value)}
-              className={field}
-            />
-          </label>
+          <TextField
+            size="small"
+            label="New app name"
+            value={newName}
+            onChange={(e) => setTypedName(e.target.value)}
+            className={rowField}
+          />
         )}
       </>
     ),
     channelField: (label) => (
-      <SelectField label={label} value={channel?.id ?? ""} onChange={setChannelId}>
+      <Select
+        size="small"
+        label={label}
+        value={channel?.id ?? ""}
+        onChange={(e) => setChannelId(e.target.value)}
+        className={rowField}
+      >
         {rooms.map((c) => (
           <option key={c.id} value={c.id}>
             #{c.name}
           </option>
         ))}
-      </SelectField>
+      </Select>
     ),
   };
 
@@ -839,19 +823,21 @@ function CommandTemplate({
         workspace can reach it, then add the command with its address.
       </p>
       <form onSubmit={add} noValidate className="flex flex-wrap items-end gap-2">
-        <label className="w-28 shrink-0 text-[12px] font-medium text-ink-dim">
-          Command
-          <input value={command} onChange={(e) => onCommand(e.target.value)} className={field} />
-        </label>
-        <label className={fieldLabel}>
-          Request URL
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://bot.example.com"
-            className={field}
-          />
-        </label>
+        <TextField
+          size="small"
+          label="Command"
+          value={command}
+          onChange={(e) => onCommand(e.target.value)}
+          className="w-28 shrink-0"
+        />
+        <TextField
+          size="small"
+          label="Request URL"
+          value={url}
+          onChange={(e) => setUrl(e.target.value)}
+          placeholder="https://bot.example.com"
+          className={rowField}
+        />
         {choice.postAs}
         <button
           type="submit"

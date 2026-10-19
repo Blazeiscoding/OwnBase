@@ -19,6 +19,7 @@ import { useConfirm } from "./Confirm.js";
 import { useShareableServer } from "./ShareableServer.js";
 import { buttonClass } from "./Button.js";
 import { QrCode } from "./QrCode.js";
+import { Select } from "./Select.js";
 import { useOptionalToast } from "./Toast.js";
 
 /** What an invite's status means to the person looking at the list. */
@@ -33,8 +34,6 @@ const INVITE_STATUS: Record<InviteStatus, string> = {
 
 const quietButton =
   "h-8 shrink-0 rounded-lg px-2.5 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink";
-const selectCls =
-  "mt-1 h-8 w-full rounded-lg border border-edge bg-raised px-2 text-[13px] font-normal text-ink";
 
 /**
  * Invite people. It opens with a link ready to copy (UX-43): one this person
@@ -221,38 +220,34 @@ export function InviteDialog(props: { onClose: () => void; welcome?: boolean }) 
                   if (!busy) void make(hours, maxUses);
                 }}
               >
-                <label className="text-[12px] font-medium text-ink-dim">
-                  Expires after
-                  <select
-                    value={String(hours)}
-                    onChange={(event) =>
-                      setHours(event.target.value === "null" ? null : Number(event.target.value))
-                    }
-                    className={selectCls}
-                  >
-                    {INVITE_EXPIRY_CHOICES.map((choice) => (
-                      <option key={choice.label} value={String(choice.hours)}>
-                        {choice.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="text-[12px] font-medium text-ink-dim">
-                  Number of uses
-                  <select
-                    value={String(maxUses)}
-                    onChange={(event) =>
-                      setMaxUses(event.target.value === "null" ? null : Number(event.target.value))
-                    }
-                    className={selectCls}
-                  >
-                    {INVITE_USE_CHOICES.map((uses) => (
-                      <option key={String(uses)} value={String(uses)}>
-                        {uses === null ? "No limit" : uses === 1 ? "1 use" : `${uses} uses`}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+                <Select
+                  size="small"
+                  label="Expires after"
+                  value={String(hours)}
+                  onChange={(event) =>
+                    setHours(event.target.value === "null" ? null : Number(event.target.value))
+                  }
+                >
+                  {INVITE_EXPIRY_CHOICES.map((choice) => (
+                    <option key={choice.label} value={String(choice.hours)}>
+                      {choice.label}
+                    </option>
+                  ))}
+                </Select>
+                <Select
+                  size="small"
+                  label="Number of uses"
+                  value={String(maxUses)}
+                  onChange={(event) =>
+                    setMaxUses(event.target.value === "null" ? null : Number(event.target.value))
+                  }
+                >
+                  {INVITE_USE_CHOICES.map((uses) => (
+                    <option key={String(uses)} value={String(uses)}>
+                      {uses === null ? "No limit" : uses === 1 ? "1 use" : `${uses} uses`}
+                    </option>
+                  ))}
+                </Select>
                 <button
                   type="submit"
                   aria-disabled={busy || undefined}
