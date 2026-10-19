@@ -281,6 +281,22 @@ export const accessPolicyBody = z.object({
   ] as const satisfies readonly AccessPolicy[]),
 });
 
+/**
+ * The image types a workspace icon may be. No SVG: it can carry script, and
+ * an icon is shown to everyone, signed in or not.
+ */
+export const WORKSPACE_ICON_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
+export type WorkspaceIconType = (typeof WORKSPACE_ICON_TYPES)[number];
+
+/**
+ * The most bytes a workspace icon may have. Clients crop and scale a picture
+ * to `WORKSPACE_ICON_PIXELS` square first, which leaves room to spare.
+ */
+export const WORKSPACE_ICON_MAX_BYTES = 256 * 1024;
+
+/** How many pixels square a client makes an icon before sending it. */
+export const WORKSPACE_ICON_PIXELS = 256;
+
 /** A page of the administrative record. */
 export const auditQuery = z.object({
   before: z.string().max(40).optional(),

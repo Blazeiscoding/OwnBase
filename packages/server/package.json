@@ -6,7 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./backup": "./src/backup.ts",
-    "./ownership": "./src/ownership.ts"
+    "./ownership": "./src/ownership.ts",
+    "./workspaceIcon": "./src/workspaceIcon.ts"
   },
   "scripts": {
     "dev": "tsx watch src/main.ts --data ./data",

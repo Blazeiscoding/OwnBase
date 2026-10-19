@@ -72,6 +72,13 @@ export type EphemeralEvent =
    * older than this event ignore it.
    */
   | { type: "workspace.accessPolicy"; accessPolicy: AccessPolicy }
+  /**
+   * The workspace's icon changed, replacing the version the ready snapshot
+   * gave: a new one, or null when it was removed. Told to everyone signed in,
+   * since the Join screen shows it to anyone who asks. Clients older than this
+   * event ignore it.
+   */
+  | { type: "workspace.icon"; iconVersion: string | null }
   /** Private to one user's own sockets, so their devices stay in step. */
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
@@ -182,6 +189,15 @@ export interface ReadySnapshot {
   workspaceSettings?: true;
   /** Who may join now. Absent from servers before `workspaceSettings`. */
   accessPolicy?: AccessPolicy;
+  /**
+   * This server keeps an icon for the workspace, which its owner and admins
+   * set and remove (`PUT` and `DELETE /api/admin/workspace/icon`) and anyone
+   * reads (`GET /api/workspace/icon`). An older one has neither, so no upload
+   * is offered there and the workspace shows its coloured square.
+   */
+  workspaceIcon?: true;
+  /** The icon's version, which changes with its image, or null when there is none. */
+  iconVersion?: string | null;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;

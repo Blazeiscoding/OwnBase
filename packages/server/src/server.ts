@@ -107,6 +107,13 @@ import { eventActorId, signatureHeaders, toSlackEvent } from "./integrations.js"
 import { BUILTIN_COMMANDS } from "./commands.js";
 import { secretToken, ulid } from "./ids.js";
 import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
+import {
+  checkIcon,
+  ICON_META_KEYS,
+  readStoredIcon,
+  storedIconRows,
+  type WorkspaceIcon,
+} from "./workspaceIcon.js";
 
 export { SERVER_VERSION };
 
@@ -411,10 +418,21 @@ export interface WorkspaceServer {
    * and the name is stored for the next start.
    */
   setWorkspaceName: (name: string) => void;
+  /** The workspace's icon now, or null when it has none. */
+  workspaceIcon: () => WorkspaceIcon | null;
   /**
-   * Calls `listener` whenever the workspace is renamed or who may join
-   * changes, by its host or by an owner or admin, so whatever shows either
-   * outside the workspace can follow. Returns how to stop.
+   * Sets the workspace's icon, as the host, by the same rule as an owner or
+   * admin: a PNG, JPEG or WebP image of `type`, which its bytes must agree
+   * with, of at most 256 KB and 1024 pixels a side. Everyone signed in is
+   * told at once. Returns its version; throws, saying why, one it refuses.
+   */
+  setWorkspaceIcon: (bytes: Uint8Array, type: string) => string;
+  /** Removes the workspace's icon, as the host. Everyone signed in is told at once. */
+  removeWorkspaceIcon: () => void;
+  /**
+   * Calls `listener` whenever the workspace is renamed, who may join changes
+   * or its icon does, by its host or by an owner or admin, so whatever shows
+   * any of them outside the workspace can follow. Returns how to stop.
    */
   onWorkspaceChange: (listener: (change: WorkspaceChange) => void) => () => void;
   /**
@@ -437,6 +455,8 @@ export interface WorkspaceChange {
   workspaceName?: string;
   /** Who may join now, when that changed. */
   accessPolicy?: AccessPolicy;
+  /** The icon's new version when it changed, or null when it was removed. */
+  iconVersion?: string | null;
   /** The owner or admin who made the change, or null for the host. */
   by: ID | null;
 }
@@ -550,6 +570,12 @@ async function startWorkspaceServer(
   };
   const workspaceName = () => store.getMeta("workspace_name")!;
   const inviteOnly = () => accessPolicy() === "invite_only";
+  /**
+   * The workspace's icon, held here once read, since everyone who opens the
+   * workspace or finds it to join asks for it. Rows that do not make a whole
+   * icon are read as none.
+   */
+  let icon: WorkspaceIcon | null = readStoredIcon((key) => store.getMeta(key));
   /**
    * Keeps the policy and the older invite_only flag in step, in one write with
    * whatever `record` adds, and ends every guest session when guests are no
@@ -706,7 +732,7 @@ async function startWorkspaceServer(
 
   const gateway = new Gateway(
     store,
-    { name: workspaceName, accessPolicy },
+    { name: workspaceName, accessPolicy, iconVersion: () => icon?.version ?? null },
     limiter,
     (req) =>
       resolveClientAddress(
@@ -1710,7 +1736,35 @@ async function startWorkspaceServer(
       schedulingIdempotency: true,
       downloadTickets: true,
       ...(publicUrl ? { publicUrl } : {}),
+      iconVersion: icon?.version ?? null,
     };
+  });
+
+  /**
+   * The workspace's icon, for anyone: the Join screen shows it beside the
+   * workspace's name before anyone signs in. Its type is the one its bytes
+   * were checked to be. Asked for by its current version, the answer never
+   * changes, since another picture has another version, so it is kept for a
+   * year; asked for otherwise, it is checked again each time.
+   */
+  app.get<{ Querystring: { v?: unknown } }>("/api/workspace/icon", async (req, reply) => {
+    ration("publicByAddress", callerAddress(req));
+    const current = icon;
+    if (!current) {
+      reply.header("cache-control", "no-store");
+      throw new HttpError(404, "no_icon", "This workspace has no icon.");
+    }
+    const etag = `"${current.version}"`;
+    reply
+      .header("content-type", current.type)
+      .header("x-content-type-options", "nosniff")
+      .header("etag", etag)
+      .header(
+        "cache-control",
+        req.query.v === current.version ? "public, max-age=31536000, immutable" : "no-cache",
+      );
+    if (req.headers["if-none-match"] === etag) return reply.status(304).send();
+    return reply.header("content-length", String(current.bytes.length)).send(current.bytes);
   });
 
   /** Puts someone new in every open public channel, as a new channel takes in everyone. */
@@ -3733,6 +3787,35 @@ async function startWorkspaceServer(
     return { accessPolicy: accessPolicy() };
   });
 
+  /**
+   * The workspace's icon, for its owner and admins. It arrives as the image
+   * itself, typed by its Content-Type, rather than inside JSON or a form: one
+   * small file, read whole. Only this route reads every body as bytes, so
+   * whatever type it says it is, the icon's own check answers.
+   */
+  await app.register(async (scope) => {
+    scope.removeAllContentTypeParsers();
+    scope.addContentTypeParser("*", { parseAs: "buffer" }, (_req, body, done) => done(null, body));
+    scope.put("/api/admin/workspace/icon", async (req) => {
+      const me = requireAdmin(req);
+      const checked = checkIcon(
+        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
+        Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined,
+      );
+      if ("refused" in checked)
+        throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
+      changeIcon(checked.icon, me.id);
+      return { iconVersion: checked.icon.version };
+    });
+  });
+
+  /** Removes the icon, for the owner and admins; the workspace shows its coloured square again. */
+  app.delete("/api/admin/workspace/icon", async (req) => {
+    const me = requireAdmin(req);
+    changeIcon(null, me.id);
+    return { iconVersion: null };
+  });
+
   // ---------- interactive buttons and modals ----------
 
   /**
@@ -4688,6 +4771,34 @@ async function startWorkspaceServer(
   };
 
   /**
+   * Sets or removes the workspace's icon, for the host (`by` null) or for an
+   * owner or admin, by the one rule both are held to. The rows change in one
+   * write with the record of who did it, which names the image's type and
+   * size but never holds it. Everyone signed in is told the new version.
+   */
+  const changeIcon = (next: WorkspaceIcon | null, by: ID | null): void => {
+    if (closing) throw new Error("The workspace is stopping.");
+    if ((icon?.version ?? null) === (next?.version ?? null)) return;
+    store.transaction(() => {
+      if (next) for (const [key, value] of storedIconRows(next)) store.setMeta(key, value);
+      else for (const key of Object.values(ICON_META_KEYS)) store.deleteMeta(key);
+      store.recordAudit({
+        actorId: by,
+        action: "workspace.icon_changed",
+        targetType: "workspace",
+        targetId: null,
+        details: next
+          ? { change: "set", type: next.type, bytes: next.bytes.length }
+          : { change: "removed" },
+      });
+    });
+    icon = next;
+    const iconVersion = next?.version ?? null;
+    gateway.broadcastEphemeral({ type: "workspace.icon", iconVersion }, null);
+    workspaceChanged({ iconVersion, by });
+  };
+
+  /**
    * Posts anything that has come due. Runs on a timer and once at startup, so
    * messages scheduled while the server was down still go out.
    *
@@ -4904,6 +5015,15 @@ async function startWorkspaceServer(
     setWorkspaceName: (value) => {
       renameWorkspace(value, null);
     },
+    workspaceIcon: () => icon,
+    setWorkspaceIcon: (bytes, type) => {
+      if (!(bytes instanceof Uint8Array)) throw new TypeError("An icon is the bytes of an image.");
+      const checked = checkIcon(Buffer.from(bytes), typeof type === "string" ? type : undefined);
+      if ("refused" in checked) throw new TypeError(checked.refused.message);
+      changeIcon(checked.icon, null);
+      return checked.icon.version;
+    },
+    removeWorkspaceIcon: () => changeIcon(null, null),
     onWorkspaceChange: (listener) => {
       workspaceListeners.add(listener);
       return () => workspaceListeners.delete(listener);
