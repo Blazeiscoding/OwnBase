@@ -102,6 +102,10 @@ jobs:
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium
       - run: pnpm test:e2e
+      # The main screens, in both themes on a desktop window and a phone,
+      # against pictures taken on Linux, and axe on each (UX-15). A change to
+      # how they look takes new pictures: see visual-baselines.yml.
+      - run: pnpm test:visual
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

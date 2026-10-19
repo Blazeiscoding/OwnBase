@@ -10,6 +10,14 @@ The task-cache archive contains only `.turbo/cache`. Its key includes runner OS 
 
 Ordinary runtime PRs package Windows with `--win --dir`. This produces `win-unpacked/Tandem.exe`, which is what desktop E2E launches, while avoiding an unused NSIS installer. PRs changing installer configuration, resources, package manifests, lockfile, install configuration or the selection policy still build the installer. If the base diff cannot be read, selection defaults to full installer coverage. Manual Desktop runs also default to the installer, with an input to choose an unpacked build. Electron and electron-builder downloads use an OS/architecture cache; their self-versioned cache directories allow reuse across lockfile changes within permitted GitHub cache scopes.
 
+## Visual check
+
+After the browser suite, Checks runs `pnpm test:visual` (`tests/visual/visual.spec.ts`, UX-15). It seeds the demo workspace on a server whose clock stands still and whose random bytes come from a fixed seed (`tests/visual/frozen-server.mjs`), so ids, avatar colours and times are the same every run, and fixes the browser's clock and time zone. Then it walks eight screens on a 1280 by 820 window and four on a 390 by 844 phone, in Onyx and in White, and compares each with its picture in `tests/visual/__screenshots__/linux/` (up to 0.2% of pixels may differ). axe, colour contrast included, must find nothing on each screen.
+
+Fonts are drawn a little differently on each system, so only Linux compares. On Windows and macOS the same screens are walked and checked with axe. `TANDEM_VISUAL_SNAPSHOTS=1` compares against pictures in a folder for that system, which git ignores, to see whether a change moves anything before CI does.
+
+A change to how the screens look fails the check until the pictures are taken again. Add the `visual baselines` label to the pull request, or run "Visual baselines" from the Actions tab on the branch. It takes, on Linux, only the pictures that no longer match, commits them to the branch, and starts Checks on that commit. Look at the pictures in the pull request's diff before merging. A failed comparison uploads the expected, actual and difference pictures with the browser results, kept for a day and deleted by the next Checks run.
+
 The measurements below separate observed work from expected savings. Timing improvements on Actions need a new optimized run before they can be claimed.
 
 | Observation                                    | Measurement                                                | Expected effect                                                                                                                                 |

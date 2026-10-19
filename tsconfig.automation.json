@@ -8,7 +8,9 @@
   "include": [
     "playwright.config.ts",
     "playwright.desktop.config.ts",
+    "playwright.visual.config.ts",
     "tests/e2e/**/*.ts",
+    "tests/visual/**/*.ts",
     "scripts/**/*.mts"
   ]
 }

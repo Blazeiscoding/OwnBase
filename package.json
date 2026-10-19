@@ -15,6 +15,7 @@
     "test": "turbo test",
     "test:e2e": "playwright test",
     "test:desktop": "playwright test --config playwright.desktop.config.ts",
+    "test:visual": "playwright test --config playwright.visual.config.ts",
     "format": "prettier --write .",
     "typecheck:automation": "tsc -p tsconfig.automation.json",
     "visualizer:build": "node scripts/generate-project-visualizer.mjs",
