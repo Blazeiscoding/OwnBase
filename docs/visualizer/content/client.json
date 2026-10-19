@@ -221,7 +221,7 @@
       "summary": "Defines the browser/desktop capability boundary and implements the browser adapter.",
       "details": [
         "Platform describes acknowledged storage reads/writes and optional atomic initialization, outbox/draft/record merges and watchers. Optional discovery, hosting, backup and deep-link capabilities let one UI run in both shells.",
-        "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly.",
+        "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly. trustAddress and changeSignIns map onto the trust and signIns ops, so an approved address or a sign-in change is one step for every tab.",
         "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Downloads use a scoped URL through a hidden no-referrer iframe.",
         "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation.",
         "HostingStatus.iconVersion and each hosted workspace's iconVersion say its icon's version, and hosting.icon reads one's icon as a data URL without starting it (UX-60)."
@@ -237,7 +237,7 @@
         "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in.",
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
         "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through inviteAsk, a number that changes with each ask, so a new session does not take an old ask for a new one.",
-        "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back.",
+        "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back. Each change is data (SignInChange: use, forget or signOut), and where the platform has changeSignIns, as the web one does, the store makes it in one step. That is what keeps tabs from losing each other's changes over plain http, where browsers give no Web Lock.",
         "Sign-ins this device could not save (the key-store bar, with Retry saving) show across the top of the window outside a workspace; in one they take their turn in its banner place (UX-25). App also works out this computer's hosting line (hosting, starting, stopping or what is wrong, with Manage) and hands it to the workspace's sidebar, in place of the bar that ran along the bottom of the window.",
         "It tells the workspace screen when this computer hosts the workspace on screen (hostedHere), so Workspace settings can say Manage hosting shows the same rule for who may join.",
         "Reads the kept icons of the saved sign-ins with useCachedWorkspaceIcons and hands them to the join screen and the rail, and forgets a kept icon with its sign-in (UX-60)."
@@ -350,7 +350,7 @@
       "plain": "Saves the web version's data on the device safely, even with several tabs open, and finishes interrupted saves after a restart.",
       "summary": "Owns browser durability, atomic multi-tab merges and unfinished-write recovery.",
       "details": [
-        "Its operations are set, initialize, the outbox, drafts and record merges, and trust (addTrustedAddress). An operation never throws inside the transaction: one that did would stay in the journal and stop every later start's replay.",
+        "Its operations are set, initialize, the outbox, drafts and record merges, trust (addTrustedAddress), and signIns (changeSavedServers). An operation never throws inside the transaction: one that did would stay in the journal and stop every later start's replay. Other merges replace text they cannot parse; saved sign-ins keep it as it is and the answer is null (keepsText), so a strict read still refuses it.",
         "Each IndexedDB read/merge/write occurs inside one readwrite transaction across the values and made object stores. Transaction completion is the write acknowledgement; other tabs cannot interleave a lost update between the read and write.",
         "Before an asynchronous write, a synchronous localStorage journal records the operation with tab and sequence identity. Restart replays unfinished operations in order; per-key made metadata prevents a replay from repeating an already committed older change.",
         "N02 persists backend ownership before migration and prefers IndexedDB even without BroadcastChannel. A failed, blocked or timed-out open reports unreadability and permits a later retry instead of opening an apparently empty alternate store.",
@@ -611,7 +611,8 @@
       "summary": "Strictly validates remembered workspace credentials before restoring them.",
       "details": [
         "Checks list shape, nonempty tokens, presentation fields, nonnegative last-use time and HTTP(S) URL shape.",
-        "Unreadable data throws instead of becoming an empty list that a later save could overwrite. App reads through this guard inside each saved sign-in turn (Q05), so a list that cannot be read is never written over."
+        "Unreadable data throws instead of becoming an empty list that a later save could overwrite. App reads through this guard inside each saved sign-in turn (Q05), so a list that cannot be read is never written over.",
+        "SignInChange is one change as data (use, forget or signOut), so a store can write it down and make it in one step. changeSavedServers makes one, isSignInChange checks one read back from the journal, and readSavedServers answers null where parseSavedServers throws."
       ],
       "concepts": ["credential restore", "strict validation"]
     },

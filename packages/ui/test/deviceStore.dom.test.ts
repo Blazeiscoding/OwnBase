@@ -262,6 +262,60 @@ describe("the web platform over device storage (F01)", () => {
     expect(Object.keys(localStorage).filter((k) => k.startsWith(JOURNAL_PREFIX))).toEqual([]);
   });
 
+  describe("saved sign-ins over plain http, with no navigator.locks", () => {
+    const signIn = (port: number, workspaceName: string) => ({
+      url: `http://192.168.1.20:${port}`,
+      token: `${port}-not-a-credential`,
+      workspaceName,
+      handle: "sam",
+      lastUsedAt: port,
+    });
+    const rocket = signIn(8543, "Rocket Team");
+    const design = signIn(8544, "Design Guild");
+    const third = signIn(8545, "Third Place");
+
+    it("keeps every sign-in two tabs make at once", async () => {
+      const first = webPlatform();
+      const second = webPlatform();
+      await first.storage.set("servers", [rocket]);
+      const [fromFirst, fromSecond] = await Promise.all([
+        first.storage.changeSignIns!("servers", { kind: "use", server: design, held: false }),
+        second.storage.changeSignIns!("servers", { kind: "use", server: third, held: false }),
+      ]);
+      const stored = (await first.storage.get<(typeof rocket)[]>("servers"))!;
+      expect(stored.map((s) => s.url).sort()).toEqual([rocket.url, design.url, third.url]);
+      // Each is told what was stored once its own change was made.
+      expect(fromFirst!.map((s) => s.url)).toContain(design.url);
+      expect(fromSecond!.map((s) => s.url)).toContain(third.url);
+    });
+
+    it("keeps a sign-in one tab makes while another forgets a different one", async () => {
+      const first = webPlatform();
+      const second = webPlatform();
+      await first.storage.set("servers", [rocket, design]);
+      await Promise.all([
+        first.storage.changeSignIns!("servers", { kind: "forget", url: design.url }),
+        second.storage.changeSignIns!("servers", { kind: "use", server: third, held: false }),
+      ]);
+      const stored = (await first.storage.get<(typeof rocket)[]>("servers"))!;
+      expect(stored.map((s) => s.url).sort()).toEqual([rocket.url, third.url]);
+    });
+
+    it("leaves sign-ins it cannot read as they were, and finishes the change", async () => {
+      localStorage.setItem(`${LEGACY_PREFIX}servers`, "{malformed");
+      const platform = webPlatform();
+      const use = { kind: "use", server: design, held: false } as const;
+      expect(await platform.storage.changeSignIns!("servers", use)).toBeNull();
+      // Still the same text, so a strict read still refuses it.
+      await expect(platform.storage.get("servers", { strict: true })).rejects.toThrow();
+      expect(Object.keys(localStorage).filter((k) => k.startsWith(JOURNAL_PREFIX))).toEqual([]);
+
+      await platform.storage.set("servers", { not: "a list" });
+      expect(await platform.storage.changeSignIns!("servers", use)).toBeNull();
+      expect(await platform.storage.get("servers")).toEqual({ not: "a list" });
+    });
+  });
+
   it("stores only where nothing is stored, across tabs", async () => {
     const first = webPlatform();
     const second = webPlatform();

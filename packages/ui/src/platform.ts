@@ -6,6 +6,7 @@ import type {
 } from "@slackoss/client-core";
 import type { AccessPolicy } from "@slackoss/protocol";
 import { deviceStore } from "./lib/deviceStore.js";
+import type { SignInChange } from "./lib/savedServers.js";
 import { parseDeepLink } from "./lib/deeplink.js";
 
 /** A workspace server found on the local network via mDNS. */
@@ -255,6 +256,14 @@ export interface Platform {
      * a separate write, and two windows approving at once can lose one.
      */
     trustAddress?: (key: string, address: string) => Promise<string[] | null>;
+    /**
+     * Makes one change to the saved sign-ins under `key` (`changeSavedServers`)
+     * in one step no other tab's write can come between, and gives back the
+     * sign-ins now stored: null when what is stored cannot be read, which is
+     * left as it is. Without it, a change is a read and a separate write, kept
+     * apart from other windows' only where the browser has `navigator.locks`.
+     */
+    changeSignIns?: (key: string, change: SignInChange) => Promise<SavedServer[] | null>;
   };
   /**
    * `tag` names what the notification is about. Windows of one browser that
@@ -450,6 +459,8 @@ export function webPlatform(): Platform {
       watchRecord: (key, cb) => device.watch(key, cb),
       trustAddress: (key, address) =>
         device.apply(key, { kind: "trust", address }) as Promise<string[] | null>,
+      changeSignIns: (key, change) =>
+        device.apply(key, { kind: "signIns", change }) as Promise<SavedServer[] | null>,
     },
     notify: (title, body, onClick, options) => {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
