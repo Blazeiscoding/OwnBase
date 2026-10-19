@@ -1,9 +1,9 @@
+import {
+  normalizeWorkspaceAddress,
+  readTrustedAddresses,
+  type StoredTrustedAddresses,
+} from "@slackoss/client-core";
 import type { Platform } from "../platform.js";
-
-interface TrustedAddresses {
-  version: 1;
-  addresses: string[];
-}
 
 export interface WorkspaceAddressAccess {
   address: string;
@@ -11,41 +11,14 @@ export interface WorkspaceAddressAccess {
   allowed: boolean;
 }
 
-/** Preserve protocol, port and path: each can identify a different server. */
-export function normalizeWorkspaceAddress(address: string): string {
-  const url = new URL(address);
-  if (
-    !["http:", "https:"].includes(url.protocol) ||
-    url.username ||
-    url.password ||
-    url.search ||
-    url.hash
-  ) {
-    throw new Error("Invalid workspace address.");
-  }
-  return url.href.replace(/\/+$/, "");
-}
-
 export function workspaceAddressTrustKey(workspaceId: string, userId: string): string {
   return `local:v1:${encodeURIComponent(workspaceId)}:${encodeURIComponent(userId)}:trusted-addresses`;
 }
 
 function parseAddresses(stored: unknown): string[] {
-  if (
-    !stored ||
-    typeof stored !== "object" ||
-    !("version" in stored) ||
-    stored.version !== 1 ||
-    !("addresses" in stored) ||
-    !Array.isArray(stored.addresses) ||
-    stored.addresses.length === 0 ||
-    !stored.addresses.every(
-      (address) => typeof address === "string" && normalizeWorkspaceAddress(address) === address,
-    )
-  ) {
-    throw new Error("Could not read trusted workspace addresses.");
-  }
-  return [...new Set(stored.addresses as string[])];
+  const addresses = readTrustedAddresses(stored);
+  if (!addresses) throw new Error("Could not read trusted workspace addresses.");
+  return addresses;
 }
 
 const queues = new WeakMap<Platform, Map<string, Promise<void>>>();
@@ -85,7 +58,7 @@ export function checkWorkspaceAddress(
     const address = normalizeWorkspaceAddress(baseUrl);
     let addresses = await readAddresses(platform, key);
     if (addresses === null) {
-      const first = { version: 1, addresses: [address] } satisfies TrustedAddresses;
+      const first = { version: 1, addresses: [address] } satisfies StoredTrustedAddresses;
       // Stored only if nothing is, in one step across windows, and what is
       // stored then is what counts. Two windows that each read nothing, each
       // at a different address, would otherwise each trust its own: the one
@@ -113,9 +86,17 @@ export function trustWorkspaceAddress(
   const key = workspaceAddressTrustKey(workspaceId, userId);
   return serialized(platform, key, async () => {
     const address = normalizeWorkspaceAddress(baseUrl);
+    // In one step across windows where the platform can: two windows each
+    // approving another address would otherwise each write back the list it
+    // read, and the later one would drop the earlier one's approval.
+    if (platform.storage.trustAddress) {
+      const addresses = await platform.storage.trustAddress(key, address);
+      if (!addresses) throw new Error("Could not read trusted workspace addresses.");
+      return { address, addresses, allowed: true };
+    }
     const previous = (await readAddresses(platform, key)) ?? [];
     const addresses = previous.includes(address) ? previous : [...previous, address];
-    await platform.storage.set(key, { version: 1, addresses } satisfies TrustedAddresses);
+    await platform.storage.set(key, { version: 1, addresses } satisfies StoredTrustedAddresses);
     return { address, addresses, allowed: true };
   });
 }

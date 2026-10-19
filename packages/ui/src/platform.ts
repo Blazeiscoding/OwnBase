@@ -245,6 +245,14 @@ export interface Platform {
     mergeRecord?: (key: string, changes: RecordChanges) => Promise<Record<string, string>>;
     /** As `watchOutbox`, for a record key. */
     watchRecord?: (key: string, cb: (stored: unknown) => void) => () => void;
+    /**
+     * Adds `address` to the trusted addresses under `key` (`addTrustedAddress`)
+     * in one step no other window's write can come between, and gives back
+     * the addresses now stored: null when what is stored is not such a list,
+     * which is left as it is. Without it, approving an address is a read and
+     * a separate write, and two windows approving at once can lose one.
+     */
+    trustAddress?: (key: string, address: string) => Promise<string[] | null>;
   };
   /**
    * `tag` names what the notification is about. Windows of one browser that
@@ -438,6 +446,8 @@ export function webPlatform(): Platform {
       mergeRecord: (key, changes) =>
         device.apply(key, { kind: "record", changes }) as Promise<Record<string, string>>,
       watchRecord: (key, cb) => device.watch(key, cb),
+      trustAddress: (key, address) =>
+        device.apply(key, { kind: "trust", address }) as Promise<string[] | null>,
     },
     notify: (title, body, onClick, options) => {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;

@@ -7,7 +7,8 @@
     ".": "./src/index.ts",
     "./outbox": "./src/outbox.ts",
     "./drafts": "./src/drafts.ts",
-    "./records": "./src/records.ts"
+    "./records": "./src/records.ts",
+    "./trustedAddresses": "./src/trustedAddresses.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

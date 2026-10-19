@@ -37,6 +37,7 @@ interface SlackossBridge {
   onDraftsChanged: (cb: (key: string, stored: unknown) => void) => () => void;
   storageMergeRecord: (key: string, changes: RecordChanges) => Promise<Record<string, string>>;
   storageInitialize: (key: string, value: unknown) => Promise<unknown>;
+  storageTrustAddress: (key: string, address: string) => Promise<string[] | null>;
   onRecordChanged: (cb: (key: string, stored: unknown) => void) => () => void;
   lanSnapshot: () => Promise<DiscoveredServer[]>;
   onLanServers: (cb: (servers: DiscoveredServer[]) => void) => () => void;
@@ -142,6 +143,7 @@ export function electronPlatform(): Platform {
         (await bridge.storageGet(key, options)) as T | null,
       set: (key, value) => bridge.storageSet(key, value),
       initialize: (key, value) => bridge.storageInitialize(key, value),
+      trustAddress: (key, address) => bridge.storageTrustAddress(key, address),
       // Merged in the main process, where every window's writes wait their turn.
       mergeOutbox: (key, changes, enveloped) => bridge.storageMergeOutbox(key, changes, enveloped),
       watchOutbox: (key, cb) =>

@@ -1,11 +1,12 @@
-import { applyDraftChanges, applyOutboxChanges } from "@slackoss/client-core";
+import { addTrustedAddress, applyDraftChanges, applyOutboxChanges } from "@slackoss/client-core";
 import type { Platform } from "../src/platform.js";
 
 /**
  * One device's storage as the desktop app keeps it: every read, write and
  * outbox or drafts merge from every window takes its turn in one queue, and a
  * merge is a single turn (`applyOutboxChanges`, as `mergeOutboxSetting` runs
- * it; `applyDraftChanges`, as `mergeDraftsSetting` does). After a drafts
+ * it; `applyDraftChanges`, as `mergeDraftsSetting` does; `addTrustedAddress`,
+ * as the `storage:trustAddress` handler does). After a drafts
  * merge, every other window hears what is stored, as the main process tells
  * them.
  * `pausedWindow` gives a window whose first read of `key` stops, once it has
@@ -79,6 +80,12 @@ export function sharedDevice(initial: Record<string, unknown> = {}) {
           draftListeners.add(listener);
           return () => void draftListeners.delete(listener);
         },
+        trustAddress: (name, address) =>
+          turn(() => {
+            const { value, addresses } = addTrustedAddress(values.get(name) ?? null, address);
+            values.set(name, value);
+            return addresses;
+          }),
       },
     };
     return platform;

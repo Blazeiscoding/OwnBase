@@ -15,7 +15,10 @@ import {
   workspaceStorageKey,
   writeWorkspaceStorage,
 } from "../src/lib/workspaceStorage.js";
-import { trustWorkspaceAddress } from "../src/lib/workspaceAddressTrust.js";
+import {
+  trustWorkspaceAddress,
+  workspaceAddressTrustKey,
+} from "../src/lib/workspaceAddressTrust.js";
 import { sharedDevice } from "./sharedDevice.js";
 
 /**
@@ -117,6 +120,27 @@ describe("reading work kept under an earlier key", () => {
     await trustWorkspaceAddress(platform, "W1", "U1", tunnel);
     expect(await readWorkspaceStorage(platform, fromTunnel)).toBe("from the LAN address");
     expect(values.has(`notes:${home}:U1`)).toBe(false);
+  });
+
+  it("keeps both approvals when two windows approve another address at once", async () => {
+    const trustKey = workspaceAddressTrustKey("W1", "U1");
+    const { values, window } = sharedDevice({ [trustKey]: { version: 1, addresses: [home] } });
+    const phone = "http://192.168.1.21:8543";
+    await Promise.all([
+      trustWorkspaceAddress(window(), "W1", "U1", tunnel),
+      trustWorkspaceAddress(window(), "W1", "U1", phone),
+    ]);
+    expect(values.get(trustKey)).toEqual({ version: 1, addresses: [home, tunnel, phone] });
+  });
+
+  it("approves nothing over a list it cannot read, and leaves it as it was", async () => {
+    const trustKey = workspaceAddressTrustKey("W1", "U1");
+    const damaged = { version: 1, addresses: "not a list" };
+    const { values, window } = sharedDevice({ [trustKey]: damaged });
+    await expect(trustWorkspaceAddress(window(), "W1", "U1", tunnel)).rejects.toThrow(
+      "Could not read trusted workspace addresses.",
+    );
+    expect(values.get(trustKey)).toBe(damaged);
   });
 
   it("refuses a stored value in a shape it does not know", async () => {
