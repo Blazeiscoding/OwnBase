@@ -3119,20 +3119,32 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     // A theme chosen in Account settings recolours the page at once, and a
     // reload keeps it.
     const background = () => page.evaluate(() => getComputedStyle(document.body).backgroundColor);
+    // Each theme's window colour, as the theme picker's swatches show it.
+    const deep = (theme: "onyx" | "white") =>
+      page.evaluate((name) => {
+        const probe = document.createElement("i");
+        probe.style.color = `var(--${name}-deep)`;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).color;
+        probe.remove();
+        return colour;
+      }, theme);
+    const [onyx, white] = [await deep("onyx"), await deep("white")];
+    expect(onyx).not.toBe(white);
     // Nothing chosen yet follows the device, which is light here: White's
     // page colour, then Onyx's graphite.
-    expect(await background()).toBe("rgb(233, 234, 238)");
+    expect(await background()).toBe(white);
     await page.goto(`${origin}/#/c/${design.id}/d/account/appearance`);
     const appearance = page.getByRole("tabpanel", { name: "Appearance" });
     await appearance.getByRole("radio", { name: /^Onyx/ }).check();
-    await expect.poll(background).toBe("rgb(18, 18, 20)");
+    await expect.poll(background).toBe(onyx);
     await page.reload();
     await expect(page.locator("textarea")).toBeVisible();
-    await expect.poll(background).toBe("rgb(18, 18, 20)");
+    await expect.poll(background).toBe(onyx);
     await appearance.getByRole("radio", { name: /^White/ }).check();
-    await expect.poll(background).toBe("rgb(233, 234, 238)");
+    await expect.poll(background).toBe(white);
     await appearance.getByRole("radio", { name: /^Match this device/ }).check();
-    await expect.poll(background).toBe("rgb(233, 234, 238)");
+    await expect.poll(background).toBe(white);
     await page.keyboard.press("Escape");
     await expect(page).toHaveURL(`${origin}/#/c/${design.id}`);
 

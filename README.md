@@ -342,8 +342,13 @@ foot of the sidebar, and people have profile cards. Menus are split by what they
 concern, the workspace's name or your own.
 
 There are two graphite themes, Onyx and White, and the app starts on whichever
-the device prefers. Chaicode orange is kept for the one primary action in a
-view, and red badges mark what names you. The type is Onest and Geist Mono, both
+the device prefers. Chaicode orange is Tandem's own accent, kept on purpose, for
+the one primary action in a view, and red badges mark what names you. Both
+themes are generated in OKLCH from a few inputs in
+`scripts/generate-palette.mjs`: one graphite hue for surfaces and text, the
+orange, a hue for each other meaning, and where each colour sits between black
+and white. Every text colour reads at 4.5:1 or better on every surface, and a
+test checks it. The type is Onest and Geist Mono, both
 bundled, so a LAN workspace renders the same offline. The icons are drawn line
 icons. Motion is quick and respects reduced-motion settings. Controls work from
 the keyboard, and a narrow window gets its own navigation.

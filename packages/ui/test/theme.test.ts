@@ -220,6 +220,41 @@ describe("colours written outside the stylesheet", () => {
   });
 });
 
+describe("the palette", () => {
+  const repo = new URL("../../../", import.meta.url);
+
+  it("is what scripts/generate-palette.mjs writes, so no colour was edited by hand", async () => {
+    const { OUTPUTS } = (await import(new URL("scripts/generate-palette.mjs", repo).href)) as {
+      OUTPUTS: Record<string, (text: string) => string>;
+    };
+    const stale = Object.entries(OUTPUTS)
+      .filter(([path, write]) => {
+        const text = readFileSync(new URL(path, repo), "utf8");
+        return write(text) !== text;
+      })
+      .map(([path]) => path);
+    expect(stale).toEqual([]);
+  });
+
+  it("keeps text on both ends of each gradient readable, and white on the mention red", () => {
+    const declared = (opening: string, name: string) =>
+      block(opening).match(new RegExp(`--${name}:([^;]*);`))![1]!;
+    const stops = (opening: string, name: string) =>
+      [...declared(opening, name).matchAll(/#[0-9a-f]{6}\b/gi)].map(([hex]) => hex);
+    const dark = ":root {\n  color-scheme: dark;";
+    const light = ':root[data-theme="light"] {\n  --shadow-float';
+    const below = (ground: string, opening: string) =>
+      ["accent-grad", "alert-grad"].flatMap((name) =>
+        stops(opening, name)
+          .filter((stop) => contrast(ground, stop) < 4.5)
+          .map((stop) => `${name} ${stop}: ${contrast(ground, stop).toFixed(2)}`),
+      );
+    expect(below(colourTokens("dark").ground!, dark)).toEqual([]);
+    expect(below(colourTokens("light").ground!, light)).toEqual([]);
+    expect(contrast("#ffffff", declared(dark, "mention-red").trim())).toBeGreaterThanOrEqual(4.5);
+  });
+});
+
 describe("avatar colours", () => {
   it("keep white initials readable on every one of them", () => {
     // The colour comes from a hash of the id, so enough ids reach every hue.

@@ -216,7 +216,10 @@ pull request template repeats it in short.
   `has-[:focus-visible]`.
 - It reads well in Onyx and in White, and axe in a real browser finds nothing in
   either. The DOM tests' `accessibilityProblems` leaves out colour contrast,
-  because jsdom cannot judge it.
+  because jsdom cannot judge it. A colour changes in the inputs of
+  `scripts/generate-palette.mjs`, which you then run, not as a hex value in
+  `theme.css`: `theme.test.ts` fails on a hand edit, and on any text colour
+  under 4.5:1 on a surface.
 - It works 390 px wide and in 844 by 390 landscape, with nothing to tap smaller
   than 24 px, which axe's `target-size` rule checks. Whatever appears on hover
   also appears on focus. A touch screen has no hover, so there it is always

@@ -57,24 +57,29 @@
  * the accent and alert fills takes the ground colour. packages/ui/test/
  * theme.test.ts holds both, and keeps the colours the window, the pages and
  * the icons repeat equal to Onyx's.
+ *
+ * The colours are generated in OKLCH by scripts/generate-palette.mjs from a
+ * few inputs: one graphite hue for surfaces and inks, Tandem's orange, a hue
+ * for each other meaning, and where each colour sits on the lightness scale.
+ * Change those and run it; the test fails on a colour here edited by hand.
  */
 @theme {
-  --color-deep: #121214; /* the app: the rail, the sidebar, the title bar */
-  --color-ground: #1a1a1e; /* the conversation pane */
-  --color-raised: #202024; /* side panels, cards, dialogs, your panel */
-  --color-lifted: #2a2a30; /* hover, the chosen row, menus, the composer */
-  --color-edge: #2c2c33; /* hairline borders */
-  --color-ink: #f2f3f5; /* primary text */
-  --color-ink-dim: #b5bac1; /* secondary text */
-  --color-ink-faint: #9a9fa8; /* tertiary text, timestamps */
+  --color-deep: #111115; /* the app: the rail, the sidebar, the title bar */
+  --color-ground: #1a1a1f; /* the conversation pane */
+  --color-raised: #1f2025; /* side panels, cards, dialogs, your panel */
+  --color-lifted: #292930; /* hover, the chosen row, menus, the composer */
+  --color-edge: #2d2d34; /* hairline borders */
+  --color-ink: #f3f3f5; /* primary text */
+  --color-ink-dim: #b9bac0; /* secondary text */
+  --color-ink-faint: #9d9ea6; /* tertiary text, timestamps */
   /* Keep the token name compatible with existing integration components. */
   /* chaicode.com's orange: what needs you, and the one primary action. */
   --color-copper: #f97316; /* accent */
-  --color-copper-deep: #ea670c; /* accent, pressed and hovered */
-  --color-online: #4ade80; /* present, live huddles */
-  --color-alert: #f8716c; /* mentions, errors, leaving, destructive */
+  --color-copper-deep: #e96800; /* accent, pressed and hovered */
+  --color-online: #50dd7f; /* present, live huddles */
+  --color-alert: #fa706a; /* mentions, errors, leaving, destructive */
   /* The highlight phrase: one per paragraph, pale cream. */
-  --color-cream: #f3d49b;
+  --color-cream: #f9d29e;
   --color-mention: rgba(249, 115, 22, 0.08); /* a message that names you */
 
   /*
@@ -472,65 +477,75 @@
    * washes of colour the backgrounds are lit with. Text on the gradients
    * takes the ground colour and clears 4.5:1 at both ends.
    */
-  --accent-grad: linear-gradient(135deg, #ffa25a 0%, #f97316 48%, #ef5a1a 100%);
+  --accent-grad: linear-gradient(135deg, #ffa35c 0%, #f97316 48%, #ee591a 100%);
   --accent-glow: rgba(249, 115, 22, 0.45);
-  --alert-grad: linear-gradient(135deg, #ff9089 0%, #f8716c 50%, #f05a55 100%);
+  --alert-grad: linear-gradient(135deg, #ff9088 0%, #fa706a 50%, #f15a53 100%);
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
   --aura-1: rgba(249, 115, 22, 0.14);
-  --aura-2: rgba(139, 92, 246, 0.12);
-  --aura-3: rgba(236, 72, 153, 0.08);
-  --text-grad: linear-gradient(100deg, #ffb26b 0%, #f97316 45%, #f472b6 100%);
+  --aura-2: rgba(148, 81, 255, 0.12);
+  --aura-3: rgba(248, 49, 150, 0.08);
+  --text-grad: linear-gradient(100deg, #ffb36f 0%, #f97316 45%, #f871aa 100%);
+  /* The sign-in page's aurora, and the red badges for what names you. */
+  --aurora-violet: #a375ff;
+  --mention-red: #da373a;
+  /* The theme picker shows each theme as it is, whichever is on. */
+  --onyx-deep: #111115;
+  --onyx-ground: #1a1a1f;
+  --onyx-edge: #2d2d34;
+  --white-deep: #e9e9ec;
+  --white-ground: #ffffff;
+  --white-edge: #e1e1e4;
 }
 
 /* White, chosen, or the system's choice on a device that prefers light. */
 :root[data-theme="light"] {
   color-scheme: light;
-  --color-deep: #e9eaee;
+  --color-deep: #e9e9ec;
   --color-ground: #ffffff;
-  --color-raised: #f6f7f9;
-  --color-lifted: #ebecf0;
-  --color-edge: #dfe1e6;
-  --color-ink: #0f1012;
-  --color-ink-dim: #4e5058;
-  --color-ink-faint: #5c5f68;
+  --color-raised: #f6f7f8;
+  --color-lifted: #ececef;
+  --color-edge: #e1e1e4;
+  --color-ink: #0f0f13;
+  --color-ink-dim: #4e4f57;
+  --color-ink-faint: #5f6068;
   /* The orange, deepened until it reads at 4.5:1 on white. */
-  --color-copper: #a3470c;
-  --color-copper-deep: #8f3e0a;
-  --color-online: #116b34;
-  --color-alert: #c42b30;
+  --color-copper: #a34600;
+  --color-copper-deep: #903d00;
+  --color-online: #0d6b34;
+  --color-alert: #c52b30;
   /* The highlight phrase, steeped darker so it reads on white. */
-  --color-cream: #7a4810;
-  --color-mention: rgba(163, 71, 12, 0.06);
-  --card-edge: rgba(15, 16, 18, 0.09);
-  --card-edge-hover: rgba(15, 16, 18, 0.18);
+  --color-cream: #744c01;
+  --color-mention: rgba(163, 70, 0, 0.06);
+  --card-edge: rgba(15, 15, 19, 0.09);
+  --card-edge-hover: rgba(15, 15, 19, 0.18);
   --card-fill: rgba(255, 255, 255, 0.6);
   --glow: rgba(249, 115, 22, 0.12);
-  --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,16,18,0.06)'/%3E%3C/svg%3E");
+  --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,15,19,0.06)'/%3E%3C/svg%3E");
 }
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
     color-scheme: light;
-    --color-deep: #e9eaee;
+    --color-deep: #e9e9ec;
     --color-ground: #ffffff;
-    --color-raised: #f6f7f9;
-    --color-lifted: #ebecf0;
-    --color-edge: #dfe1e6;
-    --color-ink: #0f1012;
-    --color-ink-dim: #4e5058;
-    --color-ink-faint: #5c5f68;
+    --color-raised: #f6f7f8;
+    --color-lifted: #ececef;
+    --color-edge: #e1e1e4;
+    --color-ink: #0f0f13;
+    --color-ink-dim: #4e4f57;
+    --color-ink-faint: #5f6068;
     /* The orange, deepened until it reads at 4.5:1 on white. */
-    --color-copper: #a3470c;
-    --color-copper-deep: #8f3e0a;
-    --color-online: #116b34;
-    --color-alert: #c42b30;
+    --color-copper: #a34600;
+    --color-copper-deep: #903d00;
+    --color-online: #0d6b34;
+    --color-alert: #c52b30;
     /* The highlight phrase, steeped darker so it reads on white. */
-    --color-cream: #7a4810;
-    --color-mention: rgba(163, 71, 12, 0.06);
-    --card-edge: rgba(15, 16, 18, 0.09);
-    --card-edge-hover: rgba(15, 16, 18, 0.18);
+    --color-cream: #744c01;
+    --color-mention: rgba(163, 70, 0, 0.06);
+    --card-edge: rgba(15, 15, 19, 0.09);
+    --card-edge-hover: rgba(15, 15, 19, 0.18);
     --card-fill: rgba(255, 255, 255, 0.6);
     --glow: rgba(249, 115, 22, 0.12);
-    --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,16,18,0.06)'/%3E%3C/svg%3E");
+    --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,15,19,0.06)'/%3E%3C/svg%3E");
   }
 }
 
@@ -541,32 +556,32 @@
  */
 :root[data-theme="light"] {
   --shadow-float:
-    0 0 0 1px rgb(17 17 20 / 0.06), 0 2px 4px -1px rgb(17 17 20 / 0.06),
-    0 12px 32px -8px rgb(17 17 20 / 0.16);
-  --shadow-dialog: 0 0 0 1px rgb(17 17 20 / 0.06), 0 32px 80px -16px rgb(17 17 20 / 0.28);
-  --accent-grad: linear-gradient(135deg, #b9530f 0%, #a3470c 55%, #8f3e0a 100%);
-  --accent-glow: rgba(163, 71, 12, 0.32);
-  --alert-grad: linear-gradient(135deg, #d0353a 0%, #c42b30 55%, #b0262b 100%);
+    0 0 0 1px rgb(15 15 19 / 0.06), 0 2px 4px -1px rgb(15 15 19 / 0.06),
+    0 12px 32px -8px rgb(15 15 19 / 0.16);
+  --shadow-dialog: 0 0 0 1px rgb(15 15 19 / 0.06), 0 32px 80px -16px rgb(15 15 19 / 0.28);
+  --accent-grad: linear-gradient(135deg, #b85200 0%, #a34600 55%, #903d00 100%);
+  --accent-glow: rgba(163, 70, 0, 0.32);
+  --alert-grad: linear-gradient(135deg, #d03739 0%, #c52b30 55%, #b71824 100%);
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.75);
   --aura-1: rgba(249, 115, 22, 0.1);
-  --aura-2: rgba(139, 92, 246, 0.08);
-  --aura-3: rgba(236, 72, 153, 0.06);
-  --text-grad: linear-gradient(100deg, #a3470c 0%, #b4400f 45%, #be185d 100%);
+  --aura-2: rgba(148, 81, 255, 0.08);
+  --aura-3: rgba(248, 49, 150, 0.06);
+  --text-grad: linear-gradient(100deg, #a34600 0%, #b44107 45%, #ba1b6e 100%);
 }
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
     --shadow-float:
-      0 0 0 1px rgb(17 17 20 / 0.06), 0 2px 4px -1px rgb(17 17 20 / 0.06),
-      0 12px 32px -8px rgb(17 17 20 / 0.16);
-    --shadow-dialog: 0 0 0 1px rgb(17 17 20 / 0.06), 0 32px 80px -16px rgb(17 17 20 / 0.28);
-    --accent-grad: linear-gradient(135deg, #b9530f 0%, #a3470c 55%, #8f3e0a 100%);
-    --accent-glow: rgba(163, 71, 12, 0.32);
-    --alert-grad: linear-gradient(135deg, #d0353a 0%, #c42b30 55%, #b0262b 100%);
+      0 0 0 1px rgb(15 15 19 / 0.06), 0 2px 4px -1px rgb(15 15 19 / 0.06),
+      0 12px 32px -8px rgb(15 15 19 / 0.16);
+    --shadow-dialog: 0 0 0 1px rgb(15 15 19 / 0.06), 0 32px 80px -16px rgb(15 15 19 / 0.28);
+    --accent-grad: linear-gradient(135deg, #b85200 0%, #a34600 55%, #903d00 100%);
+    --accent-glow: rgba(163, 70, 0, 0.32);
+    --alert-grad: linear-gradient(135deg, #d03739 0%, #c52b30 55%, #b71824 100%);
     --sheen: inset 0 1px 0 rgb(255 255 255 / 0.75);
     --aura-1: rgba(249, 115, 22, 0.1);
-    --aura-2: rgba(139, 92, 246, 0.08);
-    --aura-3: rgba(236, 72, 153, 0.06);
-    --text-grad: linear-gradient(100deg, #a3470c 0%, #b4400f 45%, #be185d 100%);
+    --aura-2: rgba(148, 81, 255, 0.08);
+    --aura-3: rgba(248, 49, 150, 0.06);
+    --text-grad: linear-gradient(100deg, #a34600 0%, #b44107 45%, #ba1b6e 100%);
   }
 }
 
@@ -783,7 +798,7 @@ textarea::placeholder {
 
 /* Discord's red for what names you: white on it reads at 4.6:1 in both themes. */
 .badge-mention {
-  background: #da373c;
+  background: var(--mention-red);
   color: #ffffff;
 }
 
@@ -907,7 +922,7 @@ textarea::placeholder {
     ),
     radial-gradient(
       35% 30% at 72% 62%,
-      color-mix(in oklab, #b26bff 14%, transparent),
+      color-mix(in oklab, var(--aurora-violet) 14%, transparent),
       transparent 70%
     ),
     radial-gradient(
@@ -1587,28 +1602,28 @@ textarea::placeholder {
   border-radius: 6px;
 }
 .theme-swatch[data-swatch="dark"] {
-  background: #121214;
+  background: var(--onyx-deep);
 }
 .theme-swatch[data-swatch="dark"]::after {
   grid-column: 2;
-  background: #1a1a1e;
-  box-shadow: inset 0 0 0 1px #2c2c33;
+  background: var(--onyx-ground);
+  box-shadow: inset 0 0 0 1px var(--onyx-edge);
 }
 .theme-swatch[data-swatch="light"] {
-  background: #e9eaee;
+  background: var(--white-deep);
 }
 .theme-swatch[data-swatch="light"]::after {
   grid-column: 2;
-  background: #ffffff;
-  box-shadow: inset 0 0 0 1px #dfe1e6;
+  background: var(--white-ground);
+  box-shadow: inset 0 0 0 1px var(--white-edge);
 }
 .theme-swatch[data-swatch="system"] {
-  background: linear-gradient(120deg, #121214 0 50%, #e9eaee 50%);
+  background: linear-gradient(120deg, var(--onyx-deep) 0 50%, var(--white-deep) 50%);
 }
 .theme-swatch[data-swatch="system"]::after {
   grid-column: 2;
-  background: linear-gradient(120deg, #1a1a1e 0 38%, #ffffff 38%);
-  box-shadow: inset 0 0 0 1px #2c2c33;
+  background: linear-gradient(120deg, var(--onyx-ground) 0 38%, var(--white-ground) 38%);
+  box-shadow: inset 0 0 0 1px var(--onyx-edge);
 }
 
 /* Window drag region for the frameless titlebar */

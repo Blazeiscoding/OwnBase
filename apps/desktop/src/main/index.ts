@@ -1004,11 +1004,11 @@ function createWindow(): void {
     // The deep and ink-dim colours of packages/ui/src/theme.css: the window
     // shows this before the page paints, and the overlay sits on the window's
     // own surface, above the sidebar and the conversation card.
-    backgroundColor: "#121214",
+    backgroundColor: "#111115",
     titleBarStyle: "hidden",
     titleBarOverlay: {
-      color: "#121214",
-      symbolColor: "#b5bac1",
+      color: "#111115",
+      symbolColor: "#b9bac0",
       height: 40,
     },
     webPreferences: {
