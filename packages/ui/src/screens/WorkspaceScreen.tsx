@@ -49,6 +49,7 @@ import { ConversationMenu, MemberStack, PinnedBar } from "../components/Conversa
 import { ErrorBoundary } from "../components/ErrorBoundary.js";
 import { LazyDialog, LazyPanel } from "../components/LazyView.js";
 import { Icon } from "../components/Icon.js";
+import { Badge } from "../components/Badge.js";
 import { DraftPersistence } from "../components/DraftPersistence.js";
 import { useMessageAnnouncer } from "../components/MessageAnnouncer.js";
 import { WorkspaceStorageGate } from "../components/WorkspaceStorageGate.js";
@@ -1708,21 +1709,18 @@ function NavigationToggle(props: {
       onClick={props.onOpen}
     >
       <Icon name="menu" />
-      {mentions > 0 ? (
-        <span
-          aria-hidden="true"
-          className="badge-mention tabular absolute right-0 top-0 min-w-4 rounded-full px-1 text-center text-[10px] font-bold leading-4 ring-2 ring-ground"
-        >
-          {mentions > 99 ? "99+" : mentions}
-        </span>
-      ) : (
-        unread && (
-          <span
-            aria-hidden="true"
-            className="absolute right-1 top-1 size-2 rounded-full bg-ink ring-2 ring-ground"
-          />
-        )
-      )}
+      <Badge
+        size="small"
+        max={99}
+        count={mentions}
+        className="absolute right-0 top-0 ring-2 ring-ground"
+      />
+      <Badge
+        dot
+        tone="quiet"
+        count={mentions === 0 && unread}
+        className="absolute right-1 top-1 ring-2 ring-ground"
+      />
       {described && (
         <span id="open-navigation-waiting" className="sr-only">
           {mentions > 0

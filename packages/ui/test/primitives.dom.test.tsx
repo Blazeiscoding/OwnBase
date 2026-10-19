@@ -4,6 +4,7 @@ import { createRef } from "react";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Badge } from "../src/components/Badge.js";
 import { IconButton } from "../src/components/IconButton.js";
 import { Kbd } from "../src/components/Kbd.js";
 import { Select } from "../src/components/Select.js";
@@ -263,5 +264,74 @@ describe("a select", () => {
       "class",
       inputClass("regular"),
     );
+  });
+});
+
+describe("a badge", () => {
+  it("says what waits in words where it has a label, and stays out of the way where its control says it", () => {
+    render(
+      <>
+        <button type="button">
+          general
+          <Badge count={2} label="2 unread mentions in general" />
+        </button>
+        <button type="button" aria-label="Friends, 1 new">
+          <Badge count={1} dot />
+        </button>
+      </>,
+    );
+    const mentions = screen.getByRole("img", { name: "2 unread mentions in general" });
+    expect(mentions).toHaveTextContent("2");
+    expect(screen.getByRole("button", { name: /2 unread mentions in general$/ })).toContainElement(
+      mentions,
+    );
+    const friends = screen.getByRole("button", { name: "Friends, 1 new" });
+    const dot = friends.querySelector("span")!;
+    expect(dot).toHaveAttribute("aria-hidden", "true");
+    expect(dot).toBeEmptyDOMElement();
+  });
+
+  it("is nothing at zero, pops in when something comes, and is still when it was already there", () => {
+    const view = render(<Badge count={0} label="Unread" />);
+    expect(screen.queryByRole("img")).toBeNull();
+    view.rerender(<Badge count={3} label="Unread" />);
+    expect(screen.getByRole("img", { name: "Unread" })).toHaveClass("animate-badge-in");
+    view.unmount();
+
+    render(<Badge count={3} label="Already waiting" />);
+    expect(screen.getByRole("img", { name: "Already waiting" })).not.toHaveClass(
+      "animate-badge-in",
+    );
+  });
+
+  it("caps its number where it has a most, and a dot can be told by true or false", () => {
+    const view = render(<Badge size="small" max={99} count={120} label="120 mentions" />);
+    expect(screen.getByRole("img", { name: "120 mentions" })).toHaveTextContent(/^99\+$/);
+    view.rerender(<Badge size="small" max={99} count={99} label="99 mentions" />);
+    expect(screen.getByRole("img", { name: "99 mentions" })).toHaveTextContent(/^99$/);
+    view.rerender(<Badge dot tone="quiet" count={false} label="Unread" />);
+    expect(screen.queryByRole("img")).toBeNull();
+    view.rerender(<Badge dot tone="quiet" count label="Unread" />);
+    expect(screen.getByRole("img", { name: "Unread" })).toBeEmptyDOMElement();
+  });
+
+  it("draws a quiet count, a mention count, a small one for an icon's corner, and a dot", () => {
+    render(
+      <>
+        <Badge tone="quiet" count={4} label="quiet" />
+        <Badge count={2} label="mention" />
+        <Badge size="small" count={7} label="small" className="absolute right-0 top-0" />
+        <Badge dot tone="quiet" count={1} label="quiet dot" />
+        <Badge dot count={1} label="mention dot" />
+      </>,
+    );
+    const badge = (name: string) => screen.getByRole("img", { name });
+    expect(badge("quiet")).toHaveClass("bg-ink/[0.08]", "text-ink-dim", "rounded-full");
+    expect(badge("quiet")).not.toHaveClass("badge-mention");
+    expect(badge("mention")).toHaveClass("badge-mention", "font-bold", "leading-[18px]");
+    // Placed by the caller, sized by the badge: jsdom lays nothing out.
+    expect(badge("small")).toHaveClass("badge-mention", "leading-4", "absolute", "right-0");
+    expect(badge("quiet dot")).toHaveClass("size-2", "bg-ink");
+    expect(badge("mention dot")).toHaveClass("size-2", "badge-mention");
   });
 });
