@@ -28,6 +28,7 @@ import {
 import type { OutboxChanges } from "@slackoss/client-core/outbox";
 import type { DraftChanges } from "@slackoss/client-core/drafts";
 import { applyRecordChanges, isRecordChanges } from "@slackoss/client-core/records";
+import { addTrustedAddress } from "@slackoss/client-core/trustedAddresses";
 import {
   cloudflareIceServers,
   createWorkspaceServer,
@@ -308,6 +309,19 @@ handle("storage:initialize", (_e, key: unknown, value: unknown) =>
     current === null || current === undefined ? value : current,
   ),
 );
+
+// An approved address joins the trusted ones in the same queue, so two
+// windows approving another address at once both keep theirs (Q02).
+handle("storage:trustAddress", async (_e, key: unknown, address: unknown) => {
+  if (typeof address !== "string") throw new Error("Invalid workspace address.");
+  let addresses: string[] | null = null;
+  await settings.update(settingKey(key), (current) => {
+    const change = addTrustedAddress(current, address);
+    addresses = change.addresses;
+    return change.value;
+  });
+  return addresses;
+});
 
 const writeSetting = (key: string, value: unknown) => settings.set(key, value);
 

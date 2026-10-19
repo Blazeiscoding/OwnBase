@@ -45,6 +45,12 @@ export {
 export type { DraftChanges } from "./drafts.js";
 export { applyRecordChanges, isRecordChanges, readStoredRecord } from "./records.js";
 export type { RecordChanges } from "./records.js";
+export {
+  addTrustedAddress,
+  normalizeWorkspaceAddress,
+  readTrustedAddresses,
+} from "./trustedAddresses.js";
+export type { StoredTrustedAddresses } from "./trustedAddresses.js";
 export type {
   CallLogLine,
   HuddlePeer,

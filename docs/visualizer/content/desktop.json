@@ -7,6 +7,7 @@
       "plain": "Starts the desktop app with its window and tray icon, and wires up hosting, downloads, links and settings.",
       "summary": "Owns Electron startup and connects native capabilities to the shared application.",
       "details": [
+        "storage:initialize, storage:mergeOutbox, storage:mergeDrafts, storage:mergeRecord and storage:trustAddress each make their change in one turn of the settings queue every window shares, so a window's change cannot erase another's; storage:trustAddress runs addTrustedAddress from client-core.",
         "Keeps the existing user-data location while applying Tandem branding and reads legacy environment names, so renaming does not abandon settings or hosted databases.",
         "Enforces one primary instance, routes cold/warm deep links, creates a sandboxed window and tray, and registers IPC through the trusted-window guard.",
         "Discovery lists each announcement on up, txt-update and srv-update (a workspace announcing again under the same name, as when its icon changes) and drops it on down; it passes on an icon version only when isIconVersion accepts it.",

@@ -234,6 +234,34 @@ describe("the web platform over device storage (F01)", () => {
     ).toEqual({ "U1 a": "none" });
   });
 
+  it("keeps every address two tabs approve at once (Q02)", async () => {
+    const first = webPlatform();
+    const second = webPlatform();
+    const home = "http://192.168.1.20:8543";
+    await first.storage.initialize!("trust", { version: 1, addresses: [home] });
+    const [fromFirst, fromSecond] = await Promise.all([
+      first.storage.trustAddress!("trust", "https://rocket-team.trycloudflare.com"),
+      second.storage.trustAddress!("trust", "http://192.168.1.21:8543"),
+    ]);
+    const all = [home, "https://rocket-team.trycloudflare.com", "http://192.168.1.21:8543"];
+    expect(await first.storage.get("trust")).toEqual({
+      version: 1,
+      addresses: expect.arrayContaining(all),
+    });
+    // Each is told what was stored once its own was added.
+    expect(fromFirst).toEqual(expect.arrayContaining([home, all[1]]));
+    expect(fromSecond).toEqual(expect.arrayContaining([home, all[2]]));
+  });
+
+  it("leaves a trusted list it cannot read as it was, and finishes the change", async () => {
+    const platform = webPlatform();
+    await platform.storage.set("trust", { version: 1, addresses: "not a list" });
+    expect(await platform.storage.trustAddress!("trust", "http://192.168.1.21:8543")).toBeNull();
+    expect(await platform.storage.get("trust")).toEqual({ version: 1, addresses: "not a list" });
+    // Nothing is left written down to be tried again at every start.
+    expect(Object.keys(localStorage).filter((k) => k.startsWith(JOURNAL_PREFIX))).toEqual([]);
+  });
+
   it("stores only where nothing is stored, across tabs", async () => {
     const first = webPlatform();
     const second = webPlatform();

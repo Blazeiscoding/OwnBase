@@ -1,10 +1,12 @@
 import {
+  addTrustedAddress,
   applyDraftChanges,
   applyOutboxChanges,
   applyRecordChanges,
   isDraftChanges,
   isRecordChanges,
   readStoredOutbox,
+  readTrustedAddresses,
   unwrapStoredDrafts,
   unwrapStoredOutbox,
   type DraftChanges,
@@ -46,7 +48,8 @@ export type StoreOp =
   | { kind: "initialize"; value: unknown }
   | { kind: "outbox"; changes: OutboxChanges; enveloped: boolean }
   | { kind: "drafts"; changes: DraftChanges; enveloped: boolean }
-  | { kind: "record"; changes: RecordChanges };
+  | { kind: "record"; changes: RecordChanges }
+  | { kind: "trust"; address: string };
 
 /** What an op gives back when it was made already: what is stored now, read as it would read it. */
 function resultNow(stored: unknown, op: StoreOp): unknown {
@@ -61,6 +64,8 @@ function resultNow(stored: unknown, op: StoreOp): unknown {
       return applyDraftChanges(stored, { put: {}, remove: [] }, op.enveloped).drafts;
     case "record":
       return applyRecordChanges(stored, {});
+    case "trust":
+      return readTrustedAddresses(stored);
   }
 }
 
@@ -84,6 +89,12 @@ export function applyOp(stored: unknown, op: StoreOp): { value: unknown; result:
     case "record": {
       const value = applyRecordChanges(stored, op.changes);
       return { value, result: value };
+    }
+    case "trust": {
+      // Never throws: a change that did would stay written down and stop
+      // every later start from making the ones after it.
+      const { value, addresses } = addTrustedAddress(stored, op.address);
+      return { value, result: addresses };
     }
   }
 }
@@ -448,6 +459,8 @@ function validOp(op: unknown): op is StoreOp {
     }
     case "record":
       return "changes" in op && isRecordChanges(op.changes);
+    case "trust":
+      return "address" in op && typeof op.address === "string";
     default:
       return false;
   }
