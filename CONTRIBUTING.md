@@ -251,6 +251,11 @@ node apps/server-cli/dist/slackoss-server.js --data <empty folder> --port 18600 
 node scripts/seed-demo.mjs http://127.0.0.1:18600
 ```
 
+`pnpm test:visual` walks the main screens in both themes, on a desktop window
+and a phone, and checks each with axe; on Linux it also compares each with its
+picture. When a change is meant to move them, add the `visual baselines` label
+to the pull request to take new pictures; docs/CI.md says how it works.
+
 The server reads `apps/web/dist` from disk, so after
 `pnpm --filter @slackoss/web build` a reload shows the change. Drive it with
 Playwright for screenshots and axe. A context needs `isMobile: true` and

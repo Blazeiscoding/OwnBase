@@ -11,6 +11,9 @@ release/
 coverage/
 test-results/
 playwright-report/
+# Only the visual check's Linux pictures are kept (playwright.visual.config.ts).
+/tests/visual/__screenshots__/*
+!/tests/visual/__screenshots__/linux/
 data/
 *.db
 *.db-wal

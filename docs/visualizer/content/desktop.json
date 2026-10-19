@@ -830,9 +830,20 @@
       "plain": "The main set of automatic checks GitHub runs on every proposed change, from tests to full browser walkthroughs.",
       "summary": "Runs the main PR correctness pipeline.",
       "details": [
-        "Installs pinned dependencies, checks formatting/tooling/cache inputs, executes bounded typecheck/unit/build tasks and runs uncached browser journeys against fresh artifacts."
+        "Installs pinned dependencies, checks formatting/tooling/cache inputs, executes bounded typecheck/unit/build tasks and runs uncached browser journeys against fresh artifacts.",
+        "After the journeys, pnpm test:visual compares the main screens in both themes, on a desktop window and a phone, with pictures taken on Linux, and runs axe on each (UX-15). A failed comparison's pictures go up with the browser results, for a day."
       ],
       "concepts": ["configuration", "CI"]
+    },
+    {
+      "path": ".github/workflows/visual-baselines.yml",
+      "plain": "Takes new pictures of the main screens on GitHub's Linux computers when a change is meant to alter how they look, and adds them to the change.",
+      "summary": "Regenerates the visual check's Linux pictures and commits them to the branch (UX-15).",
+      "details": [
+        "Starts from the visual baselines label on a pull request from this repository, or by hand on a branch. It builds, runs pnpm test:visual --update-snapshots, which takes again only pictures that no longer match, commits those, approves the runs GitHub holds for its own push (or starts Checks by hand where there are none), and takes the label off.",
+        "Anything else that fails, such as axe, fails the run and commits nothing; its results are kept for a day."
+      ],
+      "concepts": ["configuration", "CI", "visual regression"]
     },
     {
       "path": ".github/workflows/desktop.yml",
@@ -959,6 +970,15 @@
         "Keeps test artifacts, browser selection, timeouts and bounded worker policy explicit; scenarios use independent disposable prerequisites."
       ],
       "concepts": ["configuration", "build/deployment"]
+    },
+    {
+      "path": "playwright.visual.config.ts",
+      "plain": "Settings for the check that compares pictures of the main screens with how they looked before.",
+      "summary": "Configures the visual check in tests/visual (UX-15).",
+      "details": [
+        "Pictures live in tests/visual/__screenshots__/<system>/ and only Linux compares by default, since fonts are drawn differently elsewhere; TANDEM_VISUAL_SNAPSHOTS=1 compares on another system against a folder git ignores. Up to 0.2% of a picture's pixels may differ. One worker, as the spec's frozen server listens on one fixed port."
+      ],
+      "concepts": ["configuration", "build/deployment", "visual regression"]
     },
     {
       "path": "playwright.desktop.config.ts",
