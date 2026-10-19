@@ -90,3 +90,35 @@ describe("workspaces found on the network", () => {
     expect(serverInfo.mock.contexts[0]).toMatchObject({ baseUrl: "http://[2001:db8::7]:8543" });
   });
 });
+
+describe("Direct connect", () => {
+  it("says under the field what Connect needs, rather than waiting greyed out", async () => {
+    const serverInfo = vi.spyOn(Api.prototype, "serverInfo").mockResolvedValue(info);
+    const user = joinWith([]);
+    const field = screen.getByRole("textbox", { name: "Server address" });
+    const connect = screen.getByRole("button", { name: "Connect" });
+
+    // Pressed with nothing typed, it asks for an address and puts focus there.
+    expect(connect).toBeEnabled();
+    await user.click(connect);
+    expect(field).toHaveFocus();
+    expect(field).toHaveAttribute("aria-invalid", "true");
+    expect(field).toHaveAccessibleDescription(
+      "Type the workspace's address, such as 192.168.1.42:8543.",
+    );
+
+    // One that cannot be an address is said there too, and nothing is asked.
+    await user.type(field, "http://");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    await user.keyboard("{Enter}");
+    expect(field).toHaveAccessibleDescription("That doesn't look like a workspace address.");
+    expect(serverInfo).not.toHaveBeenCalled();
+
+    // A real one is looked up.
+    await user.clear(field);
+    await user.type(field, "192.168.1.42{Enter}");
+    expect(field).not.toHaveAttribute("aria-invalid");
+    expect(serverInfo).toHaveBeenCalled();
+    expect(serverInfo.mock.contexts[0]).toMatchObject({ baseUrl: "http://192.168.1.42:8543" });
+  });
+});

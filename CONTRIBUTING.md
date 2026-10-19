@@ -239,10 +239,6 @@ pull request template repeats it in short.
 - A view opened now and then loads on first use, inside `LazyPanel` or
   `LazyDialog`, so the entry stays within the budget above.
 
-Three buttons still wait for something to be typed or chosen: Connect on the
-join screen, for an address; Schedule in Send later, for a time; and Transfer
-ownership, for the owner's username. Fix one when you touch it.
-
 To look at a change, start a throwaway workspace that serves the web build, on
 this computer only, and fill it with the demo:
 

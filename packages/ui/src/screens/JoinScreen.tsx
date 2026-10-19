@@ -395,6 +395,10 @@ function BrowseCard(props: {
   onHostClick?: () => void;
 }) {
   const [address, setAddress] = useState("");
+  /** What is wrong with the typed address, said under it once Connect is pressed. */
+  const [addressError, setAddressError] = useState<string | null>(null);
+  const addressField = useRef<HTMLInputElement>(null);
+  const addressErrorId = useId();
   // The workspace serving this page is there to ask, so its icon is fetched.
   const selfIcon = useWorkspaceIconUrl(props.selfServed?.url, props.selfServed?.info.iconVersion);
   const lanNotSaved = useMemo(
@@ -511,28 +515,55 @@ function BrowseCard(props: {
 
       <section>
         <SectionLabel>Direct connect</SectionLabel>
+        {/* Connect always answers: with no address, or one that is not one, it says so under the field. */}
         <form
-          className="flex gap-2"
+          noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            if (address.trim()) props.onSelect(address);
+            if (props.probing !== null) return;
+            const problem = !address.trim()
+              ? "Type the workspace's address, such as 192.168.1.42:8543."
+              : !normalizeSafe(address)
+                ? "That doesn't look like a workspace address."
+                : null;
+            setAddressError(problem);
+            if (problem) addressField.current?.focus();
+            else props.onSelect(address);
           }}
         >
-          <input
-            value={address}
-            aria-label="Server address"
-            onChange={(e) => setAddress(e.target.value)}
-            placeholder="192.168.1.42:8543 or chat.yourteam.dev"
-            spellCheck={false}
-            className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--card-edge)] bg-[var(--card-fill)] px-3.5 text-sm outline-none backdrop-blur transition-colors placeholder:text-ink-faint hover:border-ink-faint/40 focus:border-copper"
-          />
-          <button
-            type="submit"
-            disabled={!address.trim() || props.probing !== null}
-            className={buttonClass("primary", "h-10 rounded-xl")}
-          >
-            Connect
-          </button>
+          <div className="flex gap-2">
+            <input
+              ref={addressField}
+              value={address}
+              aria-label="Server address"
+              aria-invalid={addressError ? true : undefined}
+              aria-describedby={addressError ? addressErrorId : undefined}
+              onChange={(e) => {
+                setAddress(e.target.value);
+                setAddressError(null);
+              }}
+              placeholder="192.168.1.42:8543 or chat.yourteam.dev"
+              spellCheck={false}
+              className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--card-edge)] bg-[var(--card-fill)] px-3.5 text-sm outline-none backdrop-blur transition-colors placeholder:text-ink-faint hover:border-ink-faint/40 focus:border-copper aria-invalid:border-alert"
+            />
+            <button
+              type="submit"
+              aria-disabled={props.probing !== null || undefined}
+              className={buttonClass("primary", "h-10 rounded-xl")}
+            >
+              Connect
+            </button>
+          </div>
+          {addressError && (
+            <p
+              id={addressErrorId}
+              role="alert"
+              className="mt-1.5 flex items-start gap-1 px-1 text-[12px] text-alert"
+            >
+              <Icon name="alert" size={13} className="mt-px" />
+              <span>{addressError}</span>
+            </p>
+          )}
         </form>
         {props.probing && (
           <p className="mt-2 flex items-center gap-2 text-sm text-ink-dim">

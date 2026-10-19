@@ -148,7 +148,7 @@ describe("people's load, confirmations and refusals", () => {
     expect(dialog.queryByLabelText("Temporary password")).toBeNull();
   });
 
-  it("transfers ownership only once the new owner's handle is typed", async () => {
+  it("transfers ownership only once the new owner's handle is typed, saying what is missing", async () => {
     const transfer = vi.fn().mockResolvedValue({
       owner: { ...member, role: "owner" },
       previousOwner: { ...owner, role: "admin" },
@@ -161,10 +161,19 @@ describe("people's load, confirmations and refusals", () => {
     await user.click(screen.getByRole("menuitem", { name: "Transfer ownership" }));
     const confirm = dialog.getByRole("button", { name: "Transfer ownership" });
     const typed = dialog.getByLabelText("Type alex to confirm");
+    // Never off for want of the handle: pressed without it, it says so under the field.
+    expect(confirm).toBeEnabled();
+    await user.click(confirm);
+    expect(transfer).not.toHaveBeenCalled();
+    expect(typed).toHaveFocus();
+    expect(typed).toHaveAttribute("aria-invalid", "true");
+    expect(typed).toHaveAccessibleDescription("Type alex to confirm.");
+
     await user.type(typed, "Alex");
-    expect(confirm).toBeDisabled();
+    expect(typed).not.toHaveAttribute("aria-invalid");
     await user.keyboard("{Enter}");
     expect(transfer).not.toHaveBeenCalled();
+    expect(typed).toHaveAccessibleDescription("That isn't alex. Type it exactly to confirm.");
 
     await user.clear(typed);
     await user.type(typed, "alex");

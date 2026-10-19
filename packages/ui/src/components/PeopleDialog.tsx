@@ -3,7 +3,7 @@ import type { ID, User } from "@slackoss/protocol";
 import { ApiError } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
-import { inputCls } from "./TextField.js";
+import { inputCls, TextField } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Avatar } from "./Avatar.js";
@@ -32,6 +32,9 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const [notice, setNotice] = useState<string | null>(null);
   const [action, setAction] = useState<{ kind: "reset" | "transfer"; person: Person } | null>(null);
   const [confirmation, setConfirmation] = useState("");
+  /** Why Transfer did not go ahead, said under the username once it is pressed. */
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const confirmField = useRef<HTMLInputElement>(null);
   const [issued, setIssued] = useState<{ person: Person; password: string } | null>(null);
   const [reveal, setReveal] = useState(false);
   const alive = useRef(true);
@@ -79,7 +82,15 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   async function confirmAction(event: React.FormEvent) {
     event.preventDefault();
     if (!action || busy) return;
-    if (action.kind === "transfer" && confirmation !== action.person.handle) return;
+    if (action.kind === "transfer" && confirmation !== action.person.handle) {
+      setConfirmError(
+        confirmation.trim()
+          ? `That isn't ${action.person.handle}. Type it exactly to confirm.`
+          : `Type ${action.person.handle} to confirm.`,
+      );
+      confirmField.current?.focus();
+      return;
+    }
     setBusy(action.person.id);
     setError(null);
     setNotice(null);
@@ -117,6 +128,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   function beginAction(kind: "reset" | "transfer", person: Person) {
     setAction({ kind, person });
     setConfirmation("");
+    setConfirmError(null);
     setError(null);
     setNotice(null);
   }
@@ -213,20 +225,24 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
               ? `This replaces @${action.person.handle}'s password and signs out all their devices. A temporary password will appear here for you to share privately.`
               : `@${action.person.handle} will become the workspace owner. You will remain an administrator. Only the new owner will be able to transfer ownership again.`}
           </p>
-          <form onSubmit={(event) => void confirmAction(event)}>
+          {/* Transfer always answers: without the username typed, it says so under the field. */}
+          <form noValidate onSubmit={(event) => void confirmAction(event)}>
             {action.kind === "transfer" && (
-              <label className="mt-4 block text-sm">
-                Type {action.person.handle} to confirm
-                <input
-                  className={`${inputCls} mt-1`}
-                  value={confirmation}
-                  onChange={(event) => setConfirmation(event.target.value)}
-                  autoComplete="off"
-                  spellCheck={false}
-                  disabled={!!busy}
-                  required
-                />
-              </label>
+              <TextField
+                ref={confirmField}
+                className="mt-4"
+                label={`Type ${action.person.handle} to confirm`}
+                error={confirmError}
+                value={confirmation}
+                onChange={(event) => {
+                  setConfirmation(event.target.value);
+                  setConfirmError(null);
+                }}
+                autoComplete="off"
+                spellCheck={false}
+                readOnly={!!busy}
+                required
+              />
             )}
             {busy && (
               <p role="status" className="mt-3 text-sm text-ink-dim">
@@ -248,9 +264,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
               <button
                 className={buttonClass("primary")}
                 type="submit"
-                disabled={
-                  !!busy || (action.kind === "transfer" && confirmation !== action.person.handle)
-                }
+                aria-disabled={!!busy || undefined}
               >
                 {busy
                   ? "Saving…"
