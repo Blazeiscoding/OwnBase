@@ -313,6 +313,7 @@
       "summary": "Defines the shared visual system, responsive layout and accessibility styling.",
       "details": [
         "Semantic surface, ink, accent, border and alert tokens support Onyx, White and system appearance. Density attributes adjust message and sidebar spacing without changing component behavior.",
+        "Every colour value is written by scripts/generate-palette.mjs from OKLCH inputs (UX-11), including --mention-red, --aurora-violet and the --onyx-* and --white-* swatch colours, so a colour changes in the inputs, never here.",
         "The stylesheet centralizes font, spacing, radius and focus conventions, plus compact-window/drawer behavior and motion-related presentation. UI theme controls and native shell colors are intended to stay consistent with these tokens. In a short window, such as a phone on its side, the drawer scrolls as one column, and the rail and the list keep their whole height, so the account panel and a guest's offer come after the last channel rather than over it.",
         "It also holds the dialog layout: a capped column whose scrolling region keeps a constant content width through container units, contains overscroll, and fades at an edge with more beyond it through a scroll timeline.",
         "Theme tests check the project's chosen type/radius scale and color contrast; these checks support consistency without replacing manual usability inspection.",
