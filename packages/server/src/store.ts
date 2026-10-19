@@ -258,6 +258,10 @@ export class Store {
       .run(key, value);
   }
 
+  deleteMeta(key: string): void {
+    this.db.prepare("DELETE FROM meta WHERE key = ?").run(key);
+  }
+
   // ---------- users ----------
 
   userCount(): number {

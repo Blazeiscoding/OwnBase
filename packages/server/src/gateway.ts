@@ -51,8 +51,12 @@ export class Gateway {
 
   constructor(
     private store: Store,
-    /** The workspace's name and who may join it, as they are now. */
-    private workspace: { name: () => string; accessPolicy: () => AccessPolicy },
+    /** The workspace's name, who may join it and its icon's version, as they are now. */
+    private workspace: {
+      name: () => string;
+      accessPolicy: () => AccessPolicy;
+      iconVersion: () => string | null;
+    },
     /** Shared with the HTTP side, so one caller has one allowance overall. */
     private limiter: RateLimiter | null = null,
     private clientAddress: (request: IncomingMessage) => string = (request) =>
@@ -312,6 +316,8 @@ export class Gateway {
           stars: true,
           workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),
+          workspaceIcon: true,
+          iconVersion: this.workspace.iconVersion(),
           workspaceName: this.workspace.name(),
           workspaceId: this.store.getMeta("workspace_id") ?? undefined,
           friends: this.store.listFriends(user.id),

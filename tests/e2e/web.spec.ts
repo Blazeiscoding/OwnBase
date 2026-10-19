@@ -4960,3 +4960,72 @@ test("an admin renames the workspace and chooses who can join in Workspace setti
     await other.close().catch(() => {});
   }
 });
+
+test("an admin uploads the workspace's icon, everyone signed in sees it, and so does the join screen (UX-60)", async ({
+  page,
+  browser,
+}) => {
+  // A picture wider than it is tall, as a logo often is: the browser cuts it square.
+  const folder = mkdtempSync(join(tmpdir(), "tandem-icon-"));
+  const picture = join(folder, "logo.png");
+  writeFileSync(picture, solidPng(120, 80));
+  const info = async () =>
+    (await (await fetch(`${base}/api/server-info`)).json()) as { iconVersion?: string | null };
+  expect((await info()).iconVersion).toBeNull();
+  const other = await browser.newContext();
+  try {
+    const bobby = await other.newPage();
+    await signIn(bobby, "bobby");
+    const bobbysRail = bobby
+      .getByRole("group", { name: "Workspaces", exact: true })
+      .getByRole("button", { name: "Product Test", exact: true });
+    await expect(bobbysRail).toHaveText("PT");
+    await expect(bobbysRail.locator("img")).toHaveCount(0);
+
+    await signIn(page, "alice");
+    await page.getByRole("button", { name: "Product Test, workspace menu", exact: true }).click();
+    await page.getByRole("menuitem", { name: "Workspace settings", exact: true }).click();
+    const settings = page.getByRole("dialog", { name: "Workspace settings", exact: true });
+    await expect(settings.getByRole("button", { name: "Remove", exact: true })).toHaveCount(0);
+    // Upload icon opens the system's picker, as any file button does.
+    const chooser = page.waitForEvent("filechooser");
+    await settings.getByRole("button", { name: "Upload icon", exact: true }).click();
+    await (await chooser).setFiles(picture);
+    await expect(settings.getByText("Saved", { exact: true })).toBeVisible();
+    await expect(settings.getByRole("button", { name: "Remove", exact: true })).toBeVisible();
+    await expect.poll(async () => (await info()).iconVersion).toMatch(/^[0-9a-f]{16}$/);
+    const version = (await info()).iconVersion!;
+    const served = await fetch(`${base}/api/workspace/icon?v=${version}`);
+    expect(served.headers.get("content-type")).toBe("image/webp");
+    expect(served.headers.get("cache-control")).toBe("public, max-age=31536000, immutable");
+    expect((await served.arrayBuffer()).byteLength).toBeLessThan(256 * 1024);
+
+    // Bobby sees it in his sidebar at once, without reloading: the square the browser made.
+    const shown = bobbysRail.locator("img");
+    await expect(shown).toBeVisible();
+    await expect
+      .poll(() =>
+        shown.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]),
+      )
+      .toEqual([256, 256]);
+
+    // Signed out, Alice finds it again beside the workspace's name on the join screen.
+    await page.keyboard.press("Escape");
+    await expect(settings).toHaveCount(0);
+    await page.getByRole("button", { name: /, your account$/ }).click();
+    await page.getByRole("menuitem", { name: "Account settings", exact: true }).click();
+    const account = page.getByRole("dialog", { name: "Account settings", exact: true });
+    await account.getByRole("tab", { name: "Security", exact: true }).click();
+    await account.getByRole("button", { name: "Sign out of this workspace", exact: true }).click();
+    await account.getByRole("button", { name: "Confirm sign out", exact: true }).click();
+    const card = page.locator(".glass-card");
+    await expect(card.getByRole("heading", { name: "Product Test", exact: true })).toBeVisible();
+    await expect(card.locator("img")).toBeVisible();
+    await expect
+      .poll(() => card.locator("img").evaluate((image: HTMLImageElement) => image.naturalWidth))
+      .toBe(256);
+  } finally {
+    await other.close().catch(() => {});
+    rmSync(folder, { recursive: true, force: true });
+  }
+});

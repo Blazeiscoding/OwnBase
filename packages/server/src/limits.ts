@@ -56,6 +56,12 @@ export interface Limits {
    * form submissions. Each is a request this server makes on their behalf.
    */
   appCall: LimitRule;
+  /**
+   * Reads anyone may make without an account, such as the workspace's icon,
+   * from one address. Loose, for the NAT reason: each client fetches the
+   * icon once and keeps it, so a whole office opening at nine fits.
+   */
+  publicByAddress: LimitRule;
 }
 
 export const DEFAULT_LIMITS: Limits = {
@@ -68,6 +74,7 @@ export const DEFAULT_LIMITS: Limits = {
   hook: { burst: 30, perMinute: 60 },
   hookByAddress: { burst: 120, perMinute: 240 },
   appCall: { burst: 20, perMinute: 60 },
+  publicByAddress: { burst: 120, perMinute: 240 },
 };
 
 /**

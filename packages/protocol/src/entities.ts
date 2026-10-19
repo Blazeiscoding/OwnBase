@@ -221,6 +221,7 @@ export type AuditAction =
   | "workspace.ownership_transferred"
   | "workspace.renamed"
   | "workspace.access_policy_changed"
+  | "workspace.icon_changed"
   | "app.created"
   | "app.deleted"
   | "app.token_replaced"
@@ -351,6 +352,11 @@ export interface ServerInfo {
    * share are built on it, rather than on whatever address the sharer is using.
    */
   publicUrl?: string;
+  /**
+   * The workspace icon's version, for `GET /api/workspace/icon?v=`, or null
+   * when it has none. Absent from servers before workspace icons.
+   */
+  iconVersion?: string | null;
 }
 
 export interface StorageUsage {

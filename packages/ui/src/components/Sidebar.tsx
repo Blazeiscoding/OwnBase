@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { channelPermissions, type Channel, type ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { unreadThreadCount } from "@slackoss/client-core";
-import { channelTitle, initials, workspaceGradient } from "../lib/format.js";
+import { channelTitle } from "../lib/format.js";
+import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
@@ -12,6 +13,7 @@ import { Tooltip } from "./Tooltip.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { KeepAccountOffer } from "./KeepAccountOffer.js";
+import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { useOptionalToast } from "./Toast.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
@@ -114,6 +116,8 @@ export interface OtherWorkspace {
   url: string;
   name: string;
   handle: string;
+  /** Its icon as this device keeps it, when it has one. */
+  icon?: string | null;
 }
 
 export function Sidebar(props: Props) {
@@ -603,18 +607,20 @@ function WorkspaceRail(props: {
   onOpen?: (url: string) => void;
   onAdd: () => void;
 }) {
+  const icon = useCurrentWorkspaceIcon();
   return (
     <div
       role="group"
       aria-label="Workspaces"
       className="workspace-rail titlebar-drag flex w-[72px] shrink-0 flex-col items-center gap-2 overflow-y-auto pb-3 pt-3"
     >
-      <RailItem label={props.name} current badge={props.unread} />
+      <RailItem label={props.name} current badge={props.unread} icon={icon} />
       {props.others.map((w) => (
         <RailItem
           key={w.url}
           label={`${w.name} · @${w.handle}`}
           title={w.name}
+          icon={w.icon}
           onClick={() => props.onOpen?.(w.url)}
         />
       ))}
@@ -639,6 +645,8 @@ function RailItem(props: {
   label: string;
   /** What its initials and tooltip are made from; the label when absent. */
   title?: string;
+  /** The workspace's icon, when it has one to show; its coloured square when not. */
+  icon?: string | null;
   current?: boolean;
   badge?: number;
   onClick?: () => void;
@@ -658,9 +666,14 @@ function RailItem(props: {
           aria-label={props.label}
           aria-current={props.current ? "page" : undefined}
           className="squircle relative flex size-12 shrink-0 select-none items-center justify-center text-[15px] font-semibold text-white"
-          style={{ background: workspaceGradient(title) }}
         >
-          {initials(title)}
+          <WorkspaceIcon
+            name={title}
+            src={props.icon}
+            size={48}
+            letters={2}
+            className="rounded-[inherit]"
+          />
           <CountBadge
             count={props.badge ?? 0}
             aria-hidden="true"

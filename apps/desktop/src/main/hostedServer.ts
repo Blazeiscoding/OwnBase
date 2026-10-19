@@ -68,8 +68,9 @@ export async function startHostedServer(
     workspaceId: () => server.store.getMeta("workspace_id") ?? null,
     workspaceName: () => server.workspaceName(),
     setWorkspaceName: (name) => server.setWorkspaceName(name),
-    // An owner or admin renaming it, or changing who may join, in Workspace
-    // settings: the hosting window and the list follow.
+    workspaceIcon: () => server.workspaceIcon(),
+    // An owner or admin renaming it, changing who may join or its icon, in
+    // Workspace settings: the hosting window and the list follow.
     onWorkspaceChange: (listener) => server.onWorkspaceChange(listener),
     reannounce: () => server.reannounce(),
     connectedPeople: () => server.connectedPeople(),

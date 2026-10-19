@@ -12,6 +12,8 @@ import {
   parseAutoBackup,
   parseRegistry,
   readWorkspace,
+  readWorkspaceIcon,
+  readWorkspaceIconVersion,
   serializeRegistry,
   writeWorkspaceName,
   type AutoBackup,
@@ -78,6 +80,8 @@ export interface HostingSnapshot {
   isolated?: boolean;
   /** The running workspace reopens its stable public address when it starts with Tandem. */
   reopensPublicOnLaunch?: boolean;
+  /** The running workspace's icon version, or null when it has none. */
+  iconVersion?: string | null;
 }
 
 /** The settings key naming, by its folder, the workspace to start when the app opens. */
@@ -126,6 +130,11 @@ export interface HostedWorkspaceSummary {
   autoBackupError: string | null;
   /** Restored from a backup and not yet put back in use. */
   restored: boolean;
+  /**
+   * Its icon's version, from the running server or read from a stopped
+   * one's own database, or null when it has none or its folder is missing.
+   */
+  iconVersion: string | null;
 }
 
 /** A scheduled backup whose last try did not finish, for the tray to say so (OPS-02). */
@@ -163,6 +172,8 @@ export interface HostedServer {
   workspaceName?(): string;
   /** Renames the workspace while it runs, telling everyone connected. */
   setWorkspaceName?(name: string): void;
+  /** The workspace's icon now, or null when it has none. */
+  workspaceIcon?(): { type: string; bytes: Uint8Array; version: string } | null;
   /** Announces the workspace on the local network again, after a network change. */
   reannounce?(): void;
   /** How many people are connected now, and a way to hear when that changes. */
@@ -180,8 +191,9 @@ export interface HostedServer {
   accessPolicy?(): AccessPolicy;
   setAccessPolicy?(policy: AccessPolicy): void;
   /**
-   * Hears the workspace renamed or who may join changed, by this host (`by`
-   * null) or by an owner or admin in Workspace settings. Returns how to stop.
+   * Hears the workspace renamed, who may join changed or its icon changed, by
+   * this host (`by` null) or by an owner or admin in Workspace settings.
+   * Returns how to stop.
    */
   onWorkspaceChange?(listener: (change: HostedWorkspaceChange) => void): () => void;
   /** How many accounts exist, so opening to all can wait for the owner's. */
@@ -192,6 +204,8 @@ export interface HostedServer {
 export interface HostedWorkspaceChange {
   workspaceName?: string;
   accessPolicy?: AccessPolicy;
+  /** The icon's new version, or null when it was removed. */
+  iconVersion?: string | null;
   /** The owner or admin who made it, or null when this host did. */
   by: string | null;
 }
@@ -215,6 +229,9 @@ interface HostingOptions {
   };
   /** Reads a workspace's identity from its folder without starting it. */
   readWorkspace?: typeof readWorkspace;
+  /** Reads a stopped workspace's icon, and its version alone, from its folder without starting it. */
+  readWorkspaceIcon?: typeof readWorkspaceIcon;
+  readWorkspaceIconVersion?: typeof readWorkspaceIconVersion;
   /** Writes a stopped workspace's new name into its database. */
   writeWorkspaceName?: typeof writeWorkspaceName;
   /**
@@ -422,6 +439,8 @@ export function createHostingController(options: HostingOptions) {
   let phase: HostingSnapshot["phase"] = "stopped";
   const now = options.now ?? Date.now;
   const read = options.readWorkspace ?? readWorkspace;
+  const readIcon = options.readWorkspaceIcon ?? readWorkspaceIcon;
+  const readIconVersion = options.readWorkspaceIconVersion ?? readWorkspaceIconVersion;
   const writeName = options.writeWorkspaceName ?? writeWorkspaceName;
   /** Every workspace hosted here, once read. Null until then, or while it cannot be. */
   let registry: HostedWorkspace[] | null = null;
@@ -534,6 +553,7 @@ export function createHostingController(options: HostingOptions) {
           }
         : {}),
       ...(server && isolatedRun ? { isolated: true } : {}),
+      ...(server?.workspaceIcon ? { iconVersion: server.workspaceIcon()?.version ?? null } : {}),
       ...(server &&
       workspace &&
       reopenPublic &&
@@ -979,25 +999,52 @@ export function createHostingController(options: HostingOptions) {
     return {
       workspaces: [...entries]
         .sort((a, b) => b.lastHostedAt - a.lastHostedAt)
-        .map((entry) => ({
-          folder: entry.folder,
-          name: entry.name,
-          port: entry.port,
-          lastHostedAt: entry.lastHostedAt,
-          lastBackupAt: entry.lastBackupAt ?? null,
-          running: server !== null && workspace?.folder === entry.folder,
-          missing: !existsSync(join(options.dataRoot, entry.folder)),
-          startsOnLaunch: entry.folder === starting,
-          autoBackup: entry.autoBackup ?? null,
-          autoBackupError:
-            entry.autoBackup?.warning ??
-            backupFailureNote(entry.name, entry.autoBackup?.failure) ??
-            entry.autoBackup?.retry?.error ??
-            null,
-          restored: entry.restoredHold !== undefined,
-        })),
+        .map((entry) => {
+          const running = server !== null && workspace?.folder === entry.folder;
+          const missing = !existsSync(join(options.dataRoot, entry.folder));
+          return {
+            folder: entry.folder,
+            name: entry.name,
+            port: entry.port,
+            lastHostedAt: entry.lastHostedAt,
+            lastBackupAt: entry.lastBackupAt ?? null,
+            running,
+            missing,
+            startsOnLaunch: entry.folder === starting,
+            autoBackup: entry.autoBackup ?? null,
+            autoBackupError:
+              entry.autoBackup?.warning ??
+              backupFailureNote(entry.name, entry.autoBackup?.failure) ??
+              entry.autoBackup?.retry?.error ??
+              null,
+            restored: entry.restoredHold !== undefined,
+            // A stopped one's own database says, read without starting it.
+            iconVersion: running
+              ? (server?.workspaceIcon?.()?.version ?? null)
+              : missing
+                ? null
+                : readIconVersion(join(options.dataRoot, entry.folder)),
+          };
+        }),
       unreadable: unreadableFolders,
     };
+  }
+
+  /**
+   * A hosted workspace's icon as a data URL, from the running server or read
+   * from a stopped one's own database without starting it. Null when it has
+   * none. The window names a listed workspace; the path comes from the list.
+   */
+  async function icon(value: unknown): Promise<string | null> {
+    if (typeof value !== "string") throw new Error("Choose a workspace whose icon to show.");
+    const entry = (await loadRegistry()).find((e) => e.folder === value);
+    if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+    if (server && workspace?.folder === entry.folder) {
+      const live = server.workspaceIcon?.() ?? null;
+      return live ? `data:${live.type};base64,${Buffer.from(live.bytes).toString("base64")}` : null;
+    }
+    const dataDir = join(options.dataRoot, entry.folder);
+    return existsSync(dataDir) ? (readIcon(dataDir)?.url ?? null) : null;
   }
 
   /**
@@ -2181,6 +2228,7 @@ export function createHostingController(options: HostingOptions) {
     forget,
     rename,
     openFolder,
+    icon,
     setStartOnLaunch,
     setReopenPublicOnLaunch,
     dismissLaunchError,

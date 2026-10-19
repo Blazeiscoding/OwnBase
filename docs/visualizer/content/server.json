@@ -112,7 +112,8 @@
         "Socket callbacks contain thrown failures and close the affected connection with a retryable server error. Heartbeats, authentication timeout, payload limits and idempotent close bound abandoned connections.",
         "Writes huddle joins, refusals, departures with their reason, relayed offers and answers, signals it could not pass on and why, and clients' huddle.report summaries to an in-memory CallLog; the ready snapshot advertises huddleReports.",
         "The ready snapshot also advertises stars, so a client offers Star only where it is kept (UX-20).",
-        "The ready snapshot advertises workspaceSettings and says accessPolicy, so a client offers Workspace settings' controls only where the server takes them (UX-60)."
+        "The ready snapshot advertises workspaceSettings and says accessPolicy, so a client offers Workspace settings' controls only where the server takes them (UX-60).",
+        "The ready snapshot advertises workspaceIcon and says iconVersion (or null), so a client offers the icon upload only where the server keeps one, and shows the icon at once (UX-60)."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -138,6 +139,18 @@
         "It extracts dimensions, not a proof that the whole file is a valid or trustworthy image."
       ],
       "concepts": ["attachment metadata", "layout stability"]
+    },
+    {
+      "path": "packages/server/src/workspaceIcon.ts",
+      "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
+      "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
+      "details": [
+        "iconTypeOf reads the first bytes for the PNG, JPEG and WebP signatures. checkIcon refuses a declared type that is not one of those three (415, so SVG and its script never get in), a body over WORKSPACE_ICON_MAX_BYTES (413), bytes that are none of them or disagree with the declared type (400), and a header claiming more than 1024 pixels a side, which every client would have to decode.",
+        "The server never decodes or resizes, keeping it free of native image libraries; the client cuts the picture to 256 pixels square first. imageSize reads only the dimensions the header claims.",
+        "An icon's version is the first 16 hex digits of the SHA-256 of its bytes, so the same picture always has the same version and a changed one a new version, which is what lets clients keep it under ?v= for a year.",
+        "It is kept as three meta rows (workspace_icon_type, workspace_icon_version, workspace_icon_data in base64) rather than a table, so no migration is needed and backups and restores carry it. readStoredIcon reads them back only when they make a whole icon whose bytes match their version; the desktop app reads a stopped workspace's icon through it."
+      ],
+      "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
     },
     {
       "path": "packages/server/src/index.ts",
@@ -171,7 +184,8 @@
         "Correct password attempts clear the handle guessing budget; loose address budgets accommodate many people behind office NAT.",
         "Refused operations report time until retry without spending another token. Periodic sweeping removes refilled buckets so memory follows active callers.",
         "Per-account/per-app in-flight callback caps limit slow endpoints; separate ceilings limit response URLs, triggers and open forms.",
-        "Buckets are intentionally in memory: restart permits one fresh burst in exchange for avoiding a database write on every admission."
+        "Buckets are intentionally in memory: restart permits one fresh burst in exchange for avoiding a database write on every admission.",
+        "publicByAddress (a burst of 120, then four a second) rations reads anyone may make without an account, such as the workspace icon, keyed on the address and loose for the NAT reason."
       ],
       "concepts": ["rate limits", "backpressure", "bounded memory"]
     },
@@ -313,7 +327,8 @@
         "Who may join is an access policy (invite_only, account_required, guest_allowed) kept with the legacy invite_only flag in one write. POST /api/auth/guest admits a display name alone while guests are allowed and an owner exists, rationed by address and capped at 200 live guests; POST /api/auth/guest/account converts the same identity to a member and replaces its sessions. requireUser refuses a guest any route outside GUEST_ROUTES, so new routes start closed to guests; guests cannot be put in private rooms, DMs or friendships, sign in with a password, or be promoted or reset by an admin. Turning guests off revokes their sessions and sockets.",
         "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped.",
         "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error.",
-        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through renameWorkspace and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice."
+        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through renameWorkspace and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
+        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon, which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in."
       ],
       "concepts": [
         "HTTP API",
@@ -365,7 +380,8 @@
         "Inline replies keep the message they answer (reply_to_id) and whether its author was notified (reply_ping). Hydration reads each quoted message as it now is, cut to replyExcerpt, or says it was deleted; a notified author is indexed as mentioned. Editing, deleting or purging a quoted message rewrites the quotes in its replies' logged copies too, so the log never keeps words that were taken back.",
         "Guest sessions keep their 24-hour expiry instead of sliding; canAccess and listChannelsVisibleTo give a guest public channels only, whatever membership it might hold. convertGuest turns a guest into a member in place, and revokeGuestSessions reports the ended tokens so their sockets close.",
         "listPins also counts every pin it would list (deleted messages and replies in deleted threads left out), so the header's pinned line can say how many from one row (UX-23).",
-        "A member's own choices for a conversation (notify level, muted, starred) live on their membership row, read in one shape by toPrefs for the ready snapshot, channel.access and the prefs route. Another member's row, and so their choices, is never touched."
+        "A member's own choices for a conversation (notify level, muted, starred) live on their membership row, read in one shape by toPrefs for the ready snapshot, channel.access and the prefs route. Another member's row, and so their choices, is never touched.",
+        "deleteMeta removes a meta row, as removing the workspace icon does."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -414,7 +430,8 @@
         "The shared 30-day send retry window aligns client automatic retries with server retention of minimal send keys after content is removed.",
         "Role includes guest, and ServerInfo.accessPolicy says who may join; an older server omits it, which clients read as accounts only.",
         "ChannelPrefs.starred is one account's star on a conversation (UX-20). Servers before schema 40 leave it out, which reads as unstarred.",
-        "AuditAction includes workspace.renamed and workspace.access_policy_changed, with the target type workspace, recorded with the old and new value."
+        "AuditAction includes workspace.renamed and workspace.access_policy_changed, with the target type workspace, recorded with the old and new value.",
+        "ServerInfo.iconVersion gives the icon's version, or null, before sign-in; it is absent from older servers. The audit action workspace.icon_changed records a set or a removal (UX-60)."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -429,7 +446,8 @@
         "ReadySnapshot describes current visible state and replayFrom, while synced marks completion. A null replay cursor replaces cached history; resync is the legacy fallback.",
         "The distinction lets a lost ephemeral notice recover through a new snapshot without preserving private/transient UI messages forever.",
         "Flags on ReadySnapshot (huddleReports, inlineReplies, scheduledEvents, activityThreads, stars) say what this server does, so a client offers nothing an older server would refuse or quietly drop.",
-        "workspace.accessPolicy tells everyone signed in who may join now, and ReadySnapshot.workspaceSettings says the server takes Workspace settings' changes (UX-60). Older clients ignore the event."
+        "workspace.accessPolicy tells everyone signed in who may join now, and ReadySnapshot.workspaceSettings says the server takes Workspace settings' changes (UX-60). Older clients ignore the event.",
+        "ReadySnapshot.workspaceIcon advertises the workspace icon and iconVersion gives its version or null; the workspace.icon ephemeral event tells everyone signed in of a new version or a removal. Older clients ignore both (UX-60)."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -491,7 +509,8 @@
         "Integration URLs reject embedded credentials and non-HTTP(S) schemes. Modal submissions bound nested IDs and values before echoing them to an app.",
         "Types are inferred from the schemas, keeping compile-time client contracts aligned with the server's runtime parsing. Parsed shape alone does not imply authorization.",
         "channelPrefsBody takes notifyLevel, muted and starred, each optional. An older server's schema drops starred without an error, which is why clients wait for ReadySnapshot.stars.",
-        "workspaceNameSchema is the one rule for a workspace's name, for its host and its admins: 1 to 80 characters once trimmed, no control characters. workspaceNameBody and accessPolicyBody are Workspace settings' requests (UX-60)."
+        "workspaceNameSchema is the one rule for a workspace's name, for its host and its admins: 1 to 80 characters once trimmed, no control characters. workspaceNameBody and accessPolicyBody are Workspace settings' requests (UX-60).",
+        "WORKSPACE_ICON_TYPES (PNG, JPEG, WebP; no SVG), WORKSPACE_ICON_MAX_BYTES (256 KB) and WORKSPACE_ICON_PIXELS (256) are the one rule the server and the client share for the workspace icon (UX-60)."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },

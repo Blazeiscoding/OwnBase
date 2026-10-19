@@ -11,7 +11,8 @@
         "Enforces one primary instance, routes cold/warm deep links, creates a sandboxed window and tray, and registers IPC through the trusted-window guard.",
         "Owns discovery, the embedded server adapter, native dialogs/downloads/media, settings, worker jobs, network/wake refresh, renderer recovery and coordinated quit.",
         "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12).",
-        "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker."
+        "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker.",
+        "hosting:icon answers a listed hosted workspace's icon as a data URL, or null (UX-60)."
       ],
       "concepts": ["Electron main", "process ownership", "IPC", "lifecycle"]
     },
@@ -25,7 +26,8 @@
         "If that block throws, the server is removed from relay tracking and stopped before the error propagates, so nothing keeps answering or holding the folder (Q12). If the stop fails too, an AggregateError carries both failures.",
         "The returned object is the controller's view of the server: identity, name, connected count, public URL, proxy trust, ICE servers, access policy and stop.",
         "The host's dependencies are passed in, so the real server can be exercised in tests without Electron.",
-        "It passes the server's onWorkspaceChange on, and reads the name from the server. Closing joining for a configured public address is the one start that changes who may join, and only ever closes it; the record names the host."
+        "It passes the server's onWorkspaceChange on, and reads the name from the server. Closing joining for a configured public address is the one start that changes who may join, and only ever closes it; the record names the host.",
+        "Hands over the server's workspaceIcon, and its onWorkspaceChange reports icon changes too (UX-60)."
       ],
       "concepts": ["embedded server", "resource ownership", "startup failure", "Q12"]
     },
@@ -39,7 +41,8 @@
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
         "Since Q13 a shutdown waits its cleanup deadline for work ahead of it in the queue, then gives up its place and rejects, so a stop never runs after its caller was told it failed.",
         "setAccessPolicy changes who may join the running workspace. Opening and closing the public link save and restore the whole policy rather than the invite flag, and guests let in while the link is open leave with it.",
-        "The running workspace's name and who may join are its own (UX-60). The controller follows onWorkspaceChange: an owner or admin renaming it in Workspace settings renames its entry in the list (never writing a list not yet read), and Manage hosting shows a rule they chose. A step that read the rule before waiting, such as closing the public link or an Open to all that failed, puts back what it read only if no owner or admin chose meanwhile. Nothing hands a saved rule or name to a start."
+        "The running workspace's name and who may join are its own (UX-60). The controller follows onWorkspaceChange: an owner or admin renaming it in Workspace settings renames its entry in the list (never writing a list not yet read), and Manage hosting shows a rule they chose. A step that read the rule before waiting, such as closing the public link or an Open to all that failed, puts back what it read only if no owner or admin chose meanwhile. Nothing hands a saved rule or name to a start.",
+        "The list gives each workspace's iconVersion, from the running server or read from a stopped one's database, and null for a missing folder; the status gives the running one's. icon(folder) answers a listed workspace's icon as a data URL, the same way, and a change made in Workspace settings is published with the status (UX-60)."
       ],
       "concepts": ["state machine", "serialized operations", "backup", "ownership", "UX-60"]
     },
@@ -50,7 +53,8 @@
       "details": [
         "Uses a fixed folder identifier independent of the display name, validates database identity, and parses persisted registry/automatic-backup metadata.",
         "Adopts ordinary unlisted workspace folders while checking ownership before reading; restores or renamed folders are not selected by name alone.",
-        "N11 preserves safety holds when nonidentity fields are damaged and refuses uncertain held identities, preventing an isolated restore from becoming ordinary hosting."
+        "N11 preserves safety holds when nonidentity fields are damaged and refuses uncertain held identities, preventing an isolated restore from becoming ordinary hosting.",
+        "readWorkspaceIconVersion and readWorkspaceIcon read a workspace's icon from its database read-only through the server's readStoredIcon, so the list shows a stopped workspace's icon without starting it (UX-60)."
       ],
       "concepts": ["registry", "identity", "migration", "safety hold"]
     },
@@ -221,7 +225,8 @@
       "details": [
         "contextBridge exposes named storage, discovery, hosting, download, deep-link, route and close-handshake methods rather than giving the renderer Node APIs.",
         "Commands use ipcRenderer.invoke and event subscriptions return disposal functions that remove their listeners.",
-        "The main-side boundary still validates callers and payloads; a typed bridge alone is not authorization."
+        "The main-side boundary still validates callers and payloads; a typed bridge alone is not authorization.",
+        "hostingIcon asks the main process for a hosted workspace's icon (UX-60)."
       ],
       "concepts": ["preload", "context isolation", "IPC contract", "teardown"]
     },
@@ -232,7 +237,8 @@
       "details": [
         "Maps native storage, atomic draft/outbox/record merges, hosting and discovery into the interface also used by the browser.",
         "Converts Electron's channel-prefixed rejection into the actionable message written by main.",
-        "Owns close-preparation delivery and route checkpoint subscriptions; followPlace restores the remembered history before shared App mounts."
+        "Owns close-preparation delivery and route checkpoint subscriptions; followPlace restores the remembered history before shared App mounts.",
+        "hosting.icon passes a hosted workspace's icon through from hostingIcon (UX-60)."
       ],
       "concepts": ["platform adapter", "shared UI", "IPC", "route restore"]
     },
