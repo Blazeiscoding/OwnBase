@@ -253,7 +253,8 @@
         "Where the server advertises guest_allowed, Join as guest comes first and asks only for a display name, beside Sign in and Create account. An answer to an abandoned or superseded attempt is ignored, and a refusal leaves the form ready to retry.",
         "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code.",
         "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field.",
-        "Workspace icons (UX-60): the join card fetches the icon ServerInfo.iconVersion names, so anyone sees it before signing in; the workspace serving the page does too; saved workspaces show the copy this device kept (savedIcons), since their servers may be off; the stopped workspace offered under Hosted on this computer shows the icon read from its own database. Each falls back to the gradient square."
+        "Workspace icons (UX-60): the join card fetches the icon ServerInfo.iconVersion names, so anyone sees it before signing in; the workspace serving the page does too; saved workspaces show the copy this device kept (savedIcons), since their servers may be off; the stopped workspace offered under Hosted on this computer shows the icon read from its own database. Each falls back to the gradient square.",
+        "Direct connect checks when Connect is pressed rather than greying it out: no address, or one normalizeServerUrl cannot read, is said under the field, which takes focus. While a workspace is being contacted Connect is aria-disabled, so focus stays on it."
       ],
       "concepts": [
         "LAN discovery",
@@ -1243,7 +1244,8 @@
       "summary": "Offers scheduling presets and a custom local time, loaded when the composer's clock is first pressed.",
       "details": [
         "The whole popover mounts at once, so Popover measures and places it with its real height; the custom time lives here and is cleared when it closes.",
-        "The button names the time chosen before it is scheduled. Composer still owns the request, its recovery record and what it says once the server confirms."
+        "The button names the time chosen before it is scheduled. Composer still owns the request, its recovery record and what it says once the server confirms.",
+        "Schedule is never greyed out: pressed with no date and time, or one already past, it says so under the field and puts focus there, and nothing reaches the composer."
       ],
       "concepts": ["scheduling", "lazy loading", "local time"]
     },
@@ -1487,7 +1489,8 @@
       "summary": "Lets administrators inspect accounts and manage access under server role rules.",
       "details": [
         "Loads all users, offers role/deactivation/invite-permission actions, password reset and ownership transfer where permitted.",
-        "PersonMenu consolidates row actions into one accessible menu. Confirmations and mapped refusal messages communicate lost access, protected ownership and equal-admin restrictions; hidden buttons are not treated as authorization."
+        "PersonMenu consolidates row actions into one accessible menu. Confirmations and mapped refusal messages communicate lost access, protected ownership and equal-admin restrictions; hidden buttons are not treated as authorization.",
+        "Transfer ownership asks for the new owner's username in a TextField and checks it when pressed: missing or typed differently, it says so under the field and puts focus there. While the change is saved the field is read-only and the button aria-disabled."
       ],
       "concepts": ["user administration", "roles", "account recovery", "server enforcement"]
     },
