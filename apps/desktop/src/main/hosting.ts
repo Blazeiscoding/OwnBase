@@ -1942,9 +1942,50 @@ export function createHostingController(options: HostingOptions) {
     changed();
   }
 
+  const STILL_BUSY =
+    "Tandem is still finishing other work, such as a backup, so the workspace was not stopped. Stop it again once that work ends.";
+
+  /**
+   * Stops the workspace when the queue reaches it. Whatever is already
+   * running, a backup to a slow disk say, gets as long to finish as a stop
+   * does. After that the stop gives up its place: left waiting, it would stop
+   * the workspace whenever that work ended, long after whoever asked had moved
+   * on or, quitting, had chosen to keep the app open. Nothing is abandoned;
+   * the work goes on, the server stays owned to stop on a later try, and the
+   * status says why until that work ends.
+   */
+  function stopInTurn(): Promise<void> {
+    let turn: "waiting" | "taken" | "given up" = "waiting";
+    let before: string | undefined;
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (turn !== "waiting") return;
+        turn = "given up";
+        before = warning;
+        warning = STILL_BUSY;
+        changed();
+        reject(new Error(STILL_BUSY));
+      }, options.cleanupTimeoutMs ?? 30_000);
+      timer.unref?.();
+      void serialized(async () => {
+        if (turn === "given up") {
+          // The work it waited behind has ended, and with it the reason.
+          if (warning === STILL_BUSY) {
+            warning = before;
+            changed();
+          }
+          return;
+        }
+        turn = "taken";
+        clearTimeout(timer);
+        await stopCurrent();
+      }).then(resolve, reject);
+    });
+  }
+
   function stop(): Promise<void> {
     cancelPublicOpen();
-    return serialized(stopCurrent);
+    return stopInTurn();
   }
 
   /**
@@ -2187,29 +2228,7 @@ export function createHostingController(options: HostingOptions) {
     // Set before joining the queue: later IPC starts cannot outrun a pending quit.
     closing = true;
     cancelPublicOpen();
-    // Whatever is already running, a backup to a slow disk say, gets as long
-    // to finish as a stop does. After that the stop gives up its place: left
-    // waiting, it would stop the workspace whenever that work ended, after
-    // whoever was asked had chosen to keep the app open. Nothing is abandoned;
-    // the work goes on, and the server stays owned to stop on a later try.
-    let turn: "waiting" | "taken" | "given up" = "waiting";
-    const reached = new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(() => {
-        if (turn !== "waiting") return;
-        turn = "given up";
-        reject(
-          new Error("Tandem is still finishing other work, so the workspace was not stopped."),
-        );
-      }, options.cleanupTimeoutMs ?? 30_000);
-      timer.unref?.();
-      void serialized(async () => {
-        if (turn === "given up") return;
-        turn = "taken";
-        clearTimeout(timer);
-        await stopCurrent();
-      }).then(resolve, reject);
-    });
-    shutdownPromise = reached.catch((error: unknown) => {
+    shutdownPromise = stopInTurn().catch((error: unknown) => {
       // The caller can cancel quitting and retry with the same owned server.
       closing = false;
       shutdownPromise = null;

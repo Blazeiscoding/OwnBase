@@ -1312,6 +1312,80 @@ describe("hosting a workspace from the desktop app", () => {
       expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
     });
   });
+
+  describe("Stop hosting behind other work", () => {
+    it("gives up its place behind a backup that outlasts the wait, says why until it ends, and stops nothing later", async () => {
+      const h = harness({ cleanupTimeoutMs: 20 });
+      await h.controller.start({ workspaceName: "Rocket Team" });
+      const [entry] = registryOf(h);
+      const gate = deferred();
+      h.backupGate = gate.promise;
+      const backing = h.controller.backup({ folder: entry!.folder, destination: profile() });
+      await vi.waitFor(() => expect(h.backups).toHaveLength(1));
+
+      await expect(h.controller.stop()).rejects.toThrow(/still finishing other work/);
+      expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      expect(h.controller.status()).toMatchObject({
+        running: true,
+        phase: "running",
+        warning: expect.stringMatching(/such as a backup, so the workspace was not stopped/),
+      });
+
+      // The backup goes on to finish, the reason goes with it, and the stop
+      // that gave up does not follow it.
+      gate.resolve();
+      await expect(backing).resolves.toMatchObject({ path: h.backups[0]!.out });
+      await h.controller.list();
+      expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      expect(h.controller.status()).toMatchObject({ running: true, phase: "running" });
+      expect(h.controller.status().warning).toBeUndefined();
+
+      await h.controller.stop();
+      expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
+      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    });
+
+    it("waits its turn behind work that finishes within the wait", async () => {
+      const h = harness({ cleanupTimeoutMs: 2_000 });
+      await h.controller.start({ workspaceName: "Rocket Team" });
+      const [entry] = registryOf(h);
+      const gate = deferred();
+      h.backupGate = gate.promise;
+      const backing = h.controller.backup({ folder: entry!.folder, destination: profile() });
+      await vi.waitFor(() => expect(h.backups).toHaveLength(1));
+
+      const stopping = h.controller.stop();
+      expect(h.servers[0]!.stop).not.toHaveBeenCalled();
+      gate.resolve();
+      await backing;
+      await stopping;
+      expect(h.servers[0]!.stop).toHaveBeenCalledOnce();
+      expect(h.controller.status()).toEqual({ running: false, phase: "stopped" });
+    });
+
+    it("keeps a warning that was there before it gave up", async () => {
+      const h = harness({ cleanupTimeoutMs: 20 });
+      await h.controller.start({ workspaceName: "Rocket Team" });
+      // A stop that fails leaves the workspace running, with a warning that says what to do.
+      h.servers[0]!.stop.mockRejectedValueOnce(new Error("drain failed"));
+      await expect(h.controller.stop()).rejects.toThrow("drain failed");
+      const earlier = h.controller.status().warning;
+      expect(earlier).toMatch(/could not finish stopping/);
+
+      const [entry] = registryOf(h);
+      const gate = deferred();
+      h.backupGate = gate.promise;
+      const backing = h.controller.backup({ folder: entry!.folder, destination: profile() });
+      await vi.waitFor(() => expect(h.backups).toHaveLength(1));
+      await expect(h.controller.stop()).rejects.toThrow(/still finishing other work/);
+      expect(h.controller.status().warning).toMatch(/such as a backup/);
+
+      gate.resolve();
+      await backing;
+      await h.controller.list();
+      expect(h.controller.status().warning).toBe(earlier);
+    });
+  });
 });
 
 describe("the list of workspaces hosted on this computer", () => {
