@@ -448,6 +448,47 @@ describe("where the icon shows before signing in", () => {
     expect(Api.prototype.workspaceIcon).not.toHaveBeenCalled();
   });
 
+  it("is on a workspace found on the network, asked of its own address", async () => {
+    render(
+      <JoinScreen
+        platform={{
+          ...platformWith(),
+          kind: "desktop",
+          discoverLan: (listener) => {
+            listener([
+              {
+                name: "Rocket Team",
+                host: "192.168.1.20",
+                port: 8543,
+                serverVersion: "1.0.0",
+                iconVersion: "0123456789abcdef",
+              },
+              // One that names no icon, or is too old to, keeps its square.
+              { name: "Design Guild", host: "192.168.1.30", port: 8543, serverVersion: "1.0.0" },
+            ]);
+            return () => {};
+          },
+        }}
+        savedServers={[]}
+        onConnected={() => {}}
+        onForget={() => {}}
+      />,
+    );
+    const row = (name: string) => screen.getByText(name).closest("li")!;
+    await waitFor(() =>
+      expect(row("Rocket Team").querySelector("img")).toHaveAttribute(
+        "src",
+        expect.stringMatching(/^blob:icon-/),
+      ),
+    );
+    const asked = vi.mocked(Api.prototype.workspaceIcon);
+    expect(asked).toHaveBeenCalledTimes(1);
+    expect(asked).toHaveBeenCalledWith("0123456789abcdef");
+    expect(asked.mock.contexts[0]).toMatchObject({ baseUrl: "http://192.168.1.20:8543" });
+    expect(row("Design Guild").querySelector("img")).toBeNull();
+    expect(row("Design Guild")).toHaveTextContent("D");
+  });
+
   it("is read from this device for each saved workspace, and only as a picture it made", async () => {
     const store = storage({
       [cachedIconKey("http://a")]: {

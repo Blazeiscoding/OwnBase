@@ -21,6 +21,7 @@ import {
   DEEP_LINK_PROTOCOLS,
   DEFAULT_PORT,
   MDNS_SERVICE_TYPE,
+  isIconVersion,
   isLinkableAddress,
   type DiscoveryTxt,
 } from "@slackoss/protocol";
@@ -389,6 +390,9 @@ function discoveredServers() {
         port: s.port,
         serverVersion: txt.ver ?? "?",
         ...(txt.inst ? { instanceId: txt.inst } : {}),
+        // Anyone on the network can announce anything, and this goes into a
+        // request to the address it came from.
+        ...(isIconVersion(txt.icon) ? { iconVersion: txt.icon } : {}),
       },
     ];
   });
@@ -414,10 +418,15 @@ function pickAddress(addresses: string[]): string | null {
 
 function startDiscovery(): void {
   const browser = bonjour.find({ type: MDNS_SERVICE_TYPE });
-  browser.on("up", (service) => {
+  const seen = (service: Service) => {
     discovered.set(service.fqdn, service);
     publishDiscovered();
-  });
+  };
+  browser.on("up", seen);
+  // A workspace announcing again under the same name, as when its icon
+  // changes, is the same service with a new record, not a new one.
+  browser.on("txt-update", seen);
+  browser.on("srv-update", seen);
   browser.on("down", (service) => {
     discovered.delete(service.fqdn);
     publishDiscovered();
