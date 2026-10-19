@@ -14,17 +14,19 @@ export function useChanges(value: unknown): number {
 }
 
 /**
- * A count in a badge, drawn as nothing at zero. It pops in when it appears
- * and its number rolls up when it changes; one there when the screen was
- * drawn is still. It is always drawn, so it can tell those apart. A `dot`
- * says only that there is something, without the number.
+ * A count, drawn as nothing at zero. It pops in when it appears and its
+ * number rolls up when it changes; one there when the screen was drawn is
+ * still. It is always drawn, so it can tell those apart. A `dot` says only
+ * that there is something, without the number, and above `max` it says
+ * "99+" for 99. `Badge` draws the counts that say something is waiting.
  */
 export function CountBadge({
   count,
   dot,
+  max,
   className,
   ...span
-}: { count: number; dot?: boolean } & ComponentProps<"span">) {
+}: { count: number; dot?: boolean; max?: number } & ComponentProps<"span">) {
   const appeared = useChanges(count > 0);
   const changed = useChanges(count);
   if (count <= 0) return null;
@@ -32,7 +34,7 @@ export function CountBadge({
     <span {...span} className={`${className ?? ""} ${appeared ? "animate-badge-in" : ""}`}>
       {!dot && (
         <span key={changed} className={changed ? "inline-block animate-count-in" : undefined}>
-          {count}
+          {max !== undefined && count > max ? `${max}+` : count}
         </span>
       )}
     </span>

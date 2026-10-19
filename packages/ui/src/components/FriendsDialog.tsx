@@ -6,6 +6,7 @@ import { Avatar, PresenceDot } from "./Avatar.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { buttonClass } from "./Button.js";
+import { EmptyState } from "./EmptyState.js";
 
 const FRIENDS_TABS = ["friends", "requests", "people"] as const;
 type FriendsTab = (typeof FRIENDS_TABS)[number];
@@ -137,13 +138,13 @@ export function FriendsDialog({
         <DialogScroll>
           <div className="space-y-3">
             {rows.length === 0 && (
-              <p className="py-8 text-center text-sm text-ink-faint">
+              <EmptyState>
                 {tab === "friends"
                   ? "No friends yet. Find someone in Add friends to send a request."
                   : tab === "requests"
                     ? "No pending requests."
                     : "No people found."}
-              </p>
+              </EmptyState>
             )}
             {rows.map((user) => (
               <div key={user.id} className="card-warm rounded-xl p-3">

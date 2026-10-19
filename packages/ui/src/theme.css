@@ -1621,11 +1621,18 @@ textarea::placeholder {
   -webkit-app-region: no-drag;
 }
 
-/* A menu on a phone rises from the bottom, within a thumb's reach. */
-.menu-sheet {
+/* A sheet (Sheet.tsx) rises from the bottom of a phone, within a thumb's reach. */
+.bottom-sheet {
   left: 8px;
   right: 8px;
   bottom: calc(8px + env(safe-area-inset-bottom));
+}
+/*
+ * Its cards are solid. Frosted over the dimmed page, White's turned grey
+ * enough that a red Delete in them read at 4.2:1, under the 4.5 text needs.
+ */
+.bottom-sheet .surface-float {
+  background: var(--color-lifted);
 }
 
 /* On a touchscreen, holding a message opens its actions (Copy text among

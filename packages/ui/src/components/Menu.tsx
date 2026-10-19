@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Modal } from "./Modal.js";
+import { Sheet, sheetCard, wantsSheet } from "./Sheet.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 
@@ -136,9 +137,6 @@ export function Menu({
   );
 }
 
-/** Phones without a pointer get the sheet; everything else, a dropdown. */
-const SHEET_QUERY = "(hover: none) and (max-width: 760px)";
-
 function MenuPanel({
   label,
   items,
@@ -168,10 +166,8 @@ function MenuPanel({
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
   close.current = onClose;
-  const [asSheet] = useState(
-    () =>
-      sheet && typeof window.matchMedia === "function" && window.matchMedia(SHEET_QUERY).matches,
-  );
+  // Phones without a pointer get the sheet; everything else, a dropdown.
+  const [asSheet] = useState(() => sheet && wantsSheet());
 
   // Sit under the trigger, aligned to its end; above it when the bottom
   // would run off the screen. Fixed, because the portal lives on the body.
@@ -255,7 +251,7 @@ function MenuPanel({
       aria-label={label}
       className={
         asSheet
-          ? "surface-float max-h-[60vh] overflow-y-auto rounded-2xl p-1.5 outline-none"
+          ? `${sheetCard} max-h-[60vh] overflow-y-auto p-1.5 outline-none`
           : "surface-float fixed max-h-[60vh] animate-menu-in overflow-y-auto rounded-xl p-1 outline-none"
       }
       onKeyDown={(event) => {
@@ -378,22 +374,20 @@ function MenuPanel({
     </div>
   );
 
-  return (
+  return asSheet ? (
+    // Anything quick, such as a row of reactions, in a card above the items.
+    <Sheet label={label} onClose={onClose}>
+      {header && <div className={`${sheetCard} p-2`}>{header(onClose)}</div>}
+      {menu}
+    </Sheet>
+  ) : (
     <Modal
       title={label}
       onClose={onClose}
-      backdropClassName={asSheet ? "animate-fade-in bg-black/40" : "bg-transparent"}
+      backdropClassName="bg-transparent"
       className="fixed outline-none"
     >
-      {asSheet ? (
-        // Along the bottom, in reach of a thumb, with anything quick above it.
-        <div className="menu-sheet fixed flex animate-sheet-in flex-col gap-2">
-          {header && <div className="surface-float rounded-2xl p-2">{header(onClose)}</div>}
-          {menu}
-        </div>
-      ) : (
-        menu
-      )}
+      {menu}
     </Modal>
   );
 }

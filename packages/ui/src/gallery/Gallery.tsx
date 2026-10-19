@@ -7,13 +7,18 @@ import {
   type FormEvent,
   type ReactNode,
 } from "react";
+import { Badge } from "../components/Badge.js";
 import { Button, buttonClass, type ButtonVariant } from "../components/Button.js";
 import { Dialog } from "../components/Dialog.js";
+import { EmptyState } from "../components/EmptyState.js";
+import { Icon } from "../components/Icon.js";
 import { IconButton } from "../components/IconButton.js";
 import { Kbd } from "../components/Kbd.js";
 import { ListStatus } from "../components/ListStatus.js";
 import { Menu } from "../components/Menu.js";
 import { Popover } from "../components/Popover.js";
+import { Select } from "../components/Select.js";
+import { Sheet, sheetCard } from "../components/Sheet.js";
 import { TextField } from "../components/TextField.js";
 import { ToastProvider, useToast } from "../components/Toast.js";
 import { Tooltip } from "../components/Tooltip.js";
@@ -49,7 +54,7 @@ export function Gallery() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
   if (view === null) return null;
-  return view === "both" ? <BothThemes /> : <Sheet key={view} theme={view} />;
+  return view === "both" ? <BothThemes /> : <ThemeSheet key={view} theme={view} />;
 }
 
 const THEME_NAMES: Record<Theme, string> = { onyx: "Onyx", white: "White" };
@@ -116,7 +121,7 @@ function ThemeFrame({ theme }: { theme: Theme }) {
 }
 
 /** Every specimen, in one theme, which it sets on the document while it is shown. */
-function Sheet({ theme }: { theme: Theme }) {
+function ThemeSheet({ theme }: { theme: Theme }) {
   const content = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const root = document.documentElement;
@@ -161,12 +166,16 @@ function Sheet({ theme }: { theme: Theme }) {
             <Buttons />
             <IconButtons />
             <TextFields />
+            <Selects />
             <CheckedForm />
             <Keys />
+            <Badges />
             <Tooltips />
             <Menus />
+            <Sheets />
             <Popovers />
             <Toasts />
+            <EmptyStates />
             <ListStatuses />
           </main>
         </div>
@@ -317,6 +326,51 @@ function TextFields() {
   );
 }
 
+function Selects() {
+  return (
+    <Section
+      title="Select"
+      about="A choice from a list, drawn like a text field of its size. Its label sits above it, never around it, so the options are not read as part of its name."
+    >
+      <div className="grid w-full gap-4 sm:grid-cols-2">
+        <Select label="When I press Enter" defaultValue="send">
+          <option value="send">Send the message</option>
+          <option value="newline">Start a new line</option>
+        </Select>
+        <Select label="Expires after" hint="A link stops working after this." defaultValue="168">
+          <option value="24">1 day</option>
+          <option value="168">7 days</option>
+          <option value="null">Never</option>
+        </Select>
+        <Select label="Channel" error="Choose a channel to post to." defaultValue="">
+          <option value="">Nothing chosen yet</option>
+          <option value="general">#general</option>
+        </Select>
+        <Select label="Microphone" defaultValue="" disabled>
+          <option value="">System default</option>
+        </Select>
+      </div>
+      <Specimen name="small, in a row with a text field and its button" wide>
+        <div className="flex w-full flex-wrap items-end gap-2">
+          <Select size="small" label="Post as" defaultValue="" className="min-w-0 flex-1 basis-40">
+            <option value="">A new app</option>
+            <option value="deploy">Deploy Bot</option>
+          </Select>
+          <TextField
+            size="small"
+            label="New app name"
+            defaultValue="Webhook"
+            className="min-w-0 flex-1 basis-40"
+          />
+          <Button variant="primary" type="button" className="h-8 shrink-0 px-3 text-[13px]">
+            Create webhook
+          </Button>
+        </div>
+      </Specimen>
+    </Section>
+  );
+}
+
 /**
  * The rule every form follows: the button is never off until the form is
  * filled in. Sent, the form says what is missing under each field and puts
@@ -420,6 +474,80 @@ function Keys() {
   );
 }
 
+/** A row of the sidebar, as far as a badge beside it needs one. */
+function Row({ name, children }: { name: string; children: ReactNode }) {
+  return (
+    <span className="flex h-[34px] w-56 items-center gap-2 rounded-lg px-2 text-[15px] font-semibold text-ink">
+      <Icon name="hash" size={16} className="shrink-0 text-ink-dim" />
+      <span className="min-w-0 flex-1 truncate">{name}</span>
+      {children}
+    </span>
+  );
+}
+
+/** An icon with a badge on its corner, as the phone's bar draws one. */
+function Corner({ children }: { children: ReactNode }) {
+  return (
+    <span className="relative flex size-10 items-center justify-center rounded-xl bg-deep text-ink-faint">
+      <Icon name="bell" size={22} />
+      {children}
+    </span>
+  );
+}
+
+function Badges() {
+  const [count, setCount] = useState(0);
+  return (
+    <Section
+      title="Badge"
+      about="What waits: quiet for unread, the mention red for what names you. Nothing at 0; it pops in when it comes and its number rolls. Its label says it in words unless the control it sits on does."
+    >
+      <Specimen name="quiet and mention, beside a row">
+        <div className="flex flex-col gap-1">
+          <Row name="design">
+            <Badge tone="quiet" count={4} label="4 unread conversations" />
+          </Row>
+          <Row name="general">
+            <Badge count={2} label="2 unread mentions in general" />
+          </Row>
+        </div>
+      </Specimen>
+      <Specimen name="small, on an icon's corner, capped at 99+">
+        <Corner>
+          <Badge size="small" count={3} className="absolute -top-1 right-0 ring-2 ring-deep" />
+        </Corner>
+        <Corner>
+          <Badge
+            size="small"
+            max={99}
+            count={140}
+            className="absolute -top-1 -right-1 ring-2 ring-deep"
+          />
+        </Corner>
+      </Specimen>
+      <Specimen name="dots, quiet and mention">
+        <Corner>
+          <Badge dot tone="quiet" count className="absolute right-2 top-2 ring-2 ring-deep" />
+        </Corner>
+        <Corner>
+          <Badge dot count className="absolute right-2 top-2 ring-2 ring-deep" />
+        </Corner>
+      </Specimen>
+      <Specimen name="at 0 it is not drawn; press to see it come">
+        <Row name="launch">
+          <Badge count={count} label={`${count} unread mentions in launch`} />
+        </Row>
+        <Button type="button" onClick={() => setCount((n) => n + 1)}>
+          Add a mention
+        </Button>
+        <Button type="button" variant="quiet" onClick={() => setCount(0)}>
+          Read
+        </Button>
+      </Specimen>
+    </Section>
+  );
+}
+
 function Tooltips() {
   return (
     <Section
@@ -488,6 +616,83 @@ function Menus() {
   );
 }
 
+function Sheets() {
+  const [open, setOpen] = useState(false);
+  const [picked, setPicked] = useState("");
+  return (
+    <Section
+      title="Sheet"
+      about="A column of cards along the bottom of a phone, in reach of a thumb. Escape or a press on the dimmed page closes it and focus goes back. A Menu with sheet opens as one on a touch phone and as a dropdown anywhere else."
+    >
+      <Specimen name="opened by its owner, anywhere">
+        <Button type="button" onClick={() => setOpen(true)}>
+          Open a sheet
+        </Button>
+        <p role="status" className="text-[13px] text-ink-dim">
+          {picked}
+        </p>
+      </Specimen>
+      <Specimen name="a Menu with sheet: a dropdown here, a sheet on a touch phone">
+        <Menu
+          sheet
+          label="Actions for #design"
+          tooltip="More"
+          header={(close) => (
+            <div className="flex justify-around text-2xl">
+              {["👍", "🎉", "👀"].map((emoji) => (
+                <button
+                  key={emoji}
+                  type="button"
+                  aria-label={`React with ${emoji}`}
+                  onClick={close}
+                  className="flex size-11 items-center justify-center rounded-full hover:bg-ink/[0.07]"
+                >
+                  {emoji}
+                </button>
+              ))}
+            </div>
+          )}
+          items={[
+            { id: "star", label: "Star", icon: "star", onSelect: () => {} },
+            { id: "mute", label: "Mute", icon: "bellOff", onSelect: () => {} },
+            {
+              id: "leave",
+              label: "Leave channel",
+              icon: "leave",
+              section: true,
+              destructive: true,
+              onSelect: () => {},
+            },
+          ]}
+        />
+      </Specimen>
+      {open && (
+        <Sheet label="Share the invite" onClose={() => setOpen(false)}>
+          <div className={`${sheetCard} p-3`}>
+            <p className="text-[15px] font-semibold">Share the invite</p>
+            <p className="mt-0.5 text-[13px] text-ink-dim">Anyone with the link can join.</p>
+          </div>
+          <div className={`${sheetCard} flex flex-col p-1.5`}>
+            {["Copy link", "Show QR code"].map((action) => (
+              <button
+                key={action}
+                type="button"
+                onClick={() => {
+                  setPicked(`${action} chosen.`);
+                  setOpen(false);
+                }}
+                className="flex min-h-12 items-center rounded-lg px-3 text-left text-[15px] text-ink outline-none focus-visible:bg-ink/[0.07] active:bg-ink/[0.07]"
+              >
+                {action}
+              </button>
+            ))}
+          </div>
+        </Sheet>
+      )}
+    </Section>
+  );
+}
+
 function Popovers() {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -549,6 +754,38 @@ function Toasts() {
         >
           Show a failure
         </Button>
+      </Specimen>
+    </Section>
+  );
+}
+
+function EmptyStates() {
+  return (
+    <Section
+      title="EmptyState"
+      about="What a place with nothing in it says: what it is for and how to fill it. A mark for a panel or a dialog's list; the words alone, quieter, for a list inside a larger view."
+    >
+      <Specimen name="with a mark" wide>
+        <EmptyState icon="bookmark" className="w-full">
+          Nothing saved yet. Save a message to find it here again.
+        </EmptyState>
+      </Specimen>
+      <Specimen name="with a mark and one thing to do" wide>
+        <EmptyState
+          icon="search"
+          action={{ label: "Clear the filter", run: () => {} }}
+          className="w-full"
+        >
+          Nothing matched. Try different words.
+        </EmptyState>
+      </Specimen>
+      <Specimen name="words alone" wide>
+        <EmptyState className="w-full">No channels match.</EmptyState>
+      </Specimen>
+      <Specimen name="words alone, with one thing to do" wide>
+        <EmptyState action={{ label: "Show all", run: () => {} }} className="w-full">
+          No pending requests.
+        </EmptyState>
       </Specimen>
     </Section>
   );
