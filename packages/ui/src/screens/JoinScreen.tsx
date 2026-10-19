@@ -483,10 +483,10 @@ function BrowseCard(props: {
             {lanNotSaved.map((l) => {
               const address = hostWithPort(l.host, l.port);
               return (
-                <ServerRow
+                <FoundServerRow
                   key={address}
-                  title={l.name}
-                  subtitle={address}
+                  server={l}
+                  address={address}
                   // Our own advertisement comes back over mDNS like any other.
                   // Recognised by the running server's instance id: another
                   // computer on the usual port shares the port, not the id.
@@ -704,6 +704,31 @@ function ServerRow(props: {
         )}
       </div>
     </li>
+  );
+}
+
+/**
+ * A workspace found on the network. Its announcement names its icon's
+ * version, and the icon is asked of the server at that address, as the join
+ * card asks for it.
+ */
+function FoundServerRow(props: {
+  server: DiscoveredServer;
+  address: string;
+  meta: string;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  const icon = useWorkspaceIconUrl(normalizeSafe(props.address) || null, props.server.iconVersion);
+  return (
+    <ServerRow
+      title={props.server.name}
+      icon={icon}
+      subtitle={props.address}
+      meta={props.meta}
+      busy={props.busy}
+      onClick={props.onClick}
+    />
   );
 }
 

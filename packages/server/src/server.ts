@@ -4688,17 +4688,23 @@ async function startWorkspaceServer(
   // An isolated copy shares the original's name, and would be offered to
   // people looking for the real one.
   const announcing = opts.mdns !== false && !opts.isolated;
+  const announcement = () => ({
+    name: workspaceName(),
+    port: actualPort,
+    instanceId,
+    iconVersion: icon?.version ?? null,
+  });
   if (announcing) {
-    mdnsHandle = advertise({ name: workspaceName(), port: actualPort, instanceId });
+    mdnsHandle = advertise(announcement());
   }
-  /** Replaces the announcement with one made now, under the current name. */
+  /** Replaces the announcement with one made now, under the current name and icon. */
   const announce = () => {
     if (!announcing || closing) return;
     mdnsHandle?.stop();
     // Losing the announcement is not worth failing what asked for it: the
     // workspace still answers at its address, and the next call tries again.
     try {
-      mdnsHandle = advertise({ name: workspaceName(), port: actualPort, instanceId });
+      mdnsHandle = advertise(announcement());
     } catch {
       mdnsHandle = null;
     }
@@ -4795,6 +4801,7 @@ async function startWorkspaceServer(
     icon = next;
     const iconVersion = next?.version ?? null;
     gateway.broadcastEphemeral({ type: "workspace.icon", iconVersion }, null);
+    announce();
     workspaceChanged({ iconVersion, by });
   };
 

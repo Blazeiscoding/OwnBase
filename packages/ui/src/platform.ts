@@ -17,6 +17,8 @@ export interface DiscoveredServer {
   serverVersion: string;
   /** The announcing server's instance id; absent from servers that do not send it. */
   instanceId?: string;
+  /** The version of its icon; absent when it has none, or does not say. */
+  iconVersion?: string;
 }
 
 export interface SavedServer {
