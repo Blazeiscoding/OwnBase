@@ -26,7 +26,7 @@ const HostDialog = lazy(() =>
 import { ErrorBoundary } from "./components/ErrorBoundary.js";
 import { ConfirmProvider } from "./components/Confirm.js";
 import { ToastProvider } from "./components/Toast.js";
-import { parseSavedServers } from "./lib/savedServers.js";
+import { changeSavedServers, parseSavedServers, type SignInChange } from "./lib/savedServers.js";
 import { hostedButStopped } from "./lib/resume.js";
 import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.js";
 
@@ -96,7 +96,7 @@ export function App({ platform }: { platform: Platform }) {
   const saveVersion = useRef(0);
   const serverTurns = useRef<Promise<void>>(Promise.resolve());
   /** The change that could not be saved, for Retry. */
-  const unsaved = useRef<((stored: SavedServer[]) => SavedServer[]) | null>(null);
+  const unsaved = useRef<SignInChange | null>(null);
   const [saveError, setSaveError] = useState(false);
   const [forgetConfirm, setForgetConfirm] = useState(false);
   const [forgetBusy, setForgetBusy] = useState(false);
@@ -112,7 +112,9 @@ export function App({ platform }: { platform: Platform }) {
 
   /**
    * One turn at the stored sign-ins: this window's turns one after another,
-   * and other windows of this browser kept waiting where the browser can.
+   * and other windows of this browser kept waiting where the browser can. It
+   * cannot over plain http, where there is no `navigator.locks`; there the
+   * store makes each change in one step instead (`changeSignIns`).
    */
   const serversTurn = useCallback(<T,>(turn: () => Promise<T>): Promise<T> => {
     const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
@@ -131,21 +133,27 @@ export function App({ platform }: { platform: Platform }) {
    * A window used to write the whole list as it last knew it, so one left open
    * brought back a sign-in another window had forgotten since, or wiped one
    * another window had added (Q05). The list is read, changed and written in
-   * one turn; what is stored then is what this window goes on to show.
+   * one turn, or by the store in one step; what is stored then is what this
+   * window goes on to show.
    */
   const changeServers = useCallback(
-    async (change: (stored: SavedServer[]) => SavedServer[]) => {
+    async (change: SignInChange) => {
       const version = ++saveVersion.current;
       // Shown at once. What was stored takes its place when the turn is done.
-      savedServersRef.current = change(savedServersRef.current);
+      savedServersRef.current = changeSavedServers(savedServersRef.current, change);
       setSavedServers(savedServersRef.current);
       try {
         const next = await serversTurn(async () => {
+          if (platform.storage.changeSignIns) {
+            const stored = await platform.storage.changeSignIns("servers", change);
+            if (!stored) throw new Error("Could not read saved sign-ins.");
+            return stored;
+          }
           // Strict: a list that cannot be read is never written over.
           const stored = parseSavedServers(
             await platform.storage.get<unknown>("servers", { strict: true }),
           );
-          const changed = change(stored);
+          const changed = changeSavedServers(stored, change);
           await platform.storage.set("servers", changed);
           return changed;
         });
@@ -175,15 +183,9 @@ export function App({ platform }: { platform: Platform }) {
       const client = new WorkspaceClient(server.url, server.token);
       clientRef.current = client;
       client.connect();
-      const same = (s: SavedServer) => s.url === server.url && s.token === server.token;
       // A sign-in this window already held, as against one just made.
-      const held = list.some(same);
-      const used = { ...server, lastUsedAt: Date.now() };
-      void changeServers((stored) =>
-        // Held here but gone from what is stored: another window forgot it, or
-        // signed in again, since. Opening it here does not put it back.
-        held && !stored.some(same) ? stored : [used, ...stored.filter((s) => s.url !== server.url)],
-      );
+      const held = list.some((s) => s.url === server.url && s.token === server.token);
+      void changeServers({ kind: "use", server: { ...server, lastUsedAt: Date.now() }, held });
       openServerUrl.current = server.url;
       setSession({
         view: "workspace",
@@ -318,7 +320,7 @@ export function App({ platform }: { platform: Platform }) {
 
   const forgetServer = useCallback(
     (url: string) => {
-      void changeServers((stored) => stored.filter((s) => s.url !== url));
+      void changeServers({ kind: "forget", url });
       void forgetCachedIcon(platform, url);
     },
     [changeServers, platform],
@@ -327,9 +329,7 @@ export function App({ platform }: { platform: Platform }) {
   const endSession = useCallback(
     (server: SavedServer, client: WorkspaceClient) => {
       // A late logout response must not remove a newer sign-in to the same workspace.
-      void changeServers((stored) =>
-        stored.filter((saved) => saved.url !== server.url || saved.token !== server.token),
-      );
+      void changeServers({ kind: "signOut", url: server.url, token: server.token });
       if (clientRef.current === client) leaveWorkspace();
     },
     [changeServers, leaveWorkspace],
@@ -373,7 +373,10 @@ export function App({ platform }: { platform: Platform }) {
       ? " Unlock your system key store and retry; new sign-ins are never saved as plain text."
       : " Check browser storage and retry before closing."
   }`;
-  const retrySaving = () => void changeServers(unsaved.current ?? ((stored) => stored));
+  // Shown only while a change is unsaved, which it makes again.
+  const retrySaving = () => {
+    if (unsaved.current) void changeServers(unsaved.current);
+  };
   // In a workspace it waits its turn in the one banner place there (UX-25).
   const saveErrorAbove = saveError && session.view !== "workspace";
   const hostingStatus = hosting.status;
