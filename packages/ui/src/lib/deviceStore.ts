@@ -13,6 +13,12 @@ import {
   type OutboxChanges,
   type RecordChanges,
 } from "@slackoss/client-core";
+import {
+  changeSavedServers,
+  isSignInChange,
+  readSavedServers,
+  type SignInChange,
+} from "./savedServers.js";
 
 /**
  * Where the web client keeps unsent work and choices on this device (F01).
@@ -49,7 +55,8 @@ export type StoreOp =
   | { kind: "outbox"; changes: OutboxChanges; enveloped: boolean }
   | { kind: "drafts"; changes: DraftChanges; enveloped: boolean }
   | { kind: "record"; changes: RecordChanges }
-  | { kind: "trust"; address: string };
+  | { kind: "trust"; address: string }
+  | { kind: "signIns"; change: SignInChange };
 
 /** What an op gives back when it was made already: what is stored now, read as it would read it. */
 function resultNow(stored: unknown, op: StoreOp): unknown {
@@ -66,6 +73,8 @@ function resultNow(stored: unknown, op: StoreOp): unknown {
       return applyRecordChanges(stored, {});
     case "trust":
       return readTrustedAddresses(stored);
+    case "signIns":
+      return readSavedServers(stored);
   }
 }
 
@@ -96,7 +105,37 @@ export function applyOp(stored: unknown, op: StoreOp): { value: unknown; result:
       const { value, addresses } = addTrustedAddress(stored, op.address);
       return { value, result: addresses };
     }
+    case "signIns": {
+      // Never throws either. Sign-ins it cannot read stay as they are, and
+      // the answer is null: a change to one must not wipe out the others.
+      const servers = readSavedServers(stored);
+      if (!servers) return { value: stored, result: null };
+      const next = changeSavedServers(servers, op.change);
+      return { value: next, result: next };
+    }
   }
+}
+
+/**
+ * Saved sign-ins whose text cannot be read stay as they are, and a change to
+ * them is answered null, rather than read as none and written over. Every
+ * other op's merge replaces text it cannot read.
+ */
+function keepsText(raw: string | null, op: StoreOp): boolean {
+  if (op.kind !== "signIns" || raw === null) return false;
+  try {
+    JSON.parse(raw);
+    return false;
+  } catch {
+    return true;
+  }
+}
+
+/** What an op makes of the text stored now: the text to store then, and its answer. */
+function applyToText(raw: string | null, op: StoreOp): { next: string; result: unknown } {
+  if (raw !== null && keepsText(raw, op)) return { next: raw, result: null };
+  const { value, result } = applyOp(parsed(raw), op);
+  return { next: JSON.stringify(value), result };
 }
 
 /** Where each value lived before IndexedDB, and still does without it. */
@@ -173,8 +212,7 @@ function localBackend(): Backend {
       checkOwner();
       const name = LEGACY_PREFIX + key;
       const raw = localStorage.getItem(name);
-      const { value, result } = applyOp(parsed(raw), op);
-      const next = JSON.stringify(value);
+      const { next, result } = applyToText(raw, op);
       if (next !== raw) localStorage.setItem(name, next);
       return { raw: next, result, made: true };
     },
@@ -385,10 +423,13 @@ function indexedBackend(db: IDBDatabase): Backend {
             const last = record[origin.tab];
             if (Array.isArray(last) && last[0] >= origin.seq) {
               // Made already: by this tab, or by one that took it up from the journal.
-              return done({ raw: raw ?? "null", result: resultNow(parsed(raw), op), made: false });
+              return done({
+                raw: raw ?? "null",
+                result: keepsText(raw, op) ? null : resultNow(parsed(raw), op),
+                made: false,
+              });
             }
-            const { value, result } = applyOp(parsed(raw), op);
-            const next = JSON.stringify(value);
+            const { next, result } = applyToText(raw, op);
             if (op.kind === "set") {
               // Explicit replacement/forgetting also retires a conflicting copy.
               try {
@@ -461,6 +502,8 @@ function validOp(op: unknown): op is StoreOp {
       return "changes" in op && isRecordChanges(op.changes);
     case "trust":
       return "address" in op && typeof op.address === "string";
+    case "signIns":
+      return "change" in op && isSignInChange(op.change);
     default:
       return false;
   }

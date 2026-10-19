@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
 import { App } from "../src/App.js";
 import type { Platform, SavedServer } from "../src/platform.js";
+import { changeSavedServers, type SignInChange } from "../src/lib/savedServers.js";
 
 /**
  * The saved sign-ins are one list on the device, and every window has its own
@@ -32,8 +33,12 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-/** This window, opened on Rocket Team with what the device had saved then. */
-async function openWindow(saved: SavedServer[]) {
+/**
+ * This window, opened on Rocket Team with what the device had saved then.
+ * `oneStep` gives it a store that makes each change itself, as the web
+ * platform's does, rather than a read and a separate write.
+ */
+async function openWindow(saved: SavedServer[], { oneStep = false } = {}) {
   // jsdom has no media queries; the workspace screen asks whether the window is wide.
   vi.stubGlobal("matchMedia", () => ({
     matches: true,
@@ -41,7 +46,7 @@ async function openWindow(saved: SavedServer[]) {
     removeEventListener: () => {},
   }));
   const connect = vi.spyOn(WorkspaceClient.prototype, "connect").mockImplementation(() => {});
-  const device = { servers: saved, unreadable: false, writes: 0 };
+  const device = { servers: saved, unreadable: false, writes: 0, changes: [] as SignInChange[] };
   const platform: Platform = {
     kind: "web",
     storage: {
@@ -58,6 +63,17 @@ async function openWindow(saved: SavedServer[]) {
         device.servers = value as SavedServer[];
         device.writes += 1;
       },
+      ...(oneStep
+        ? {
+            changeSignIns: async (key: string, change: SignInChange) => {
+              if (key !== "servers" || device.unreadable) return null;
+              device.changes.push(change);
+              device.servers = changeSavedServers(device.servers, change);
+              device.writes += 1;
+              return device.servers;
+            },
+          }
+        : {}),
     },
     notify: () => {},
   };
@@ -145,6 +161,38 @@ describe("a window left open while the saved sign-ins change elsewhere", () => {
 
     await waitFor(() => expect(device.writes).toBe(2));
     expect(device.servers.find((server) => server.url === design.url)).toEqual(renewed);
+  });
+});
+
+describe("a store that makes each change in one step", () => {
+  it("is given each change to make, and never written the whole list", async () => {
+    const { device, switchTo } = await openWindow([rocket, design], { oneStep: true });
+    // Another tab signs in to Fourth Wall.
+    device.servers = [fourth, ...device.servers];
+
+    await switchTo("Design Guild");
+
+    await waitFor(() => expect(device.writes).toBe(2));
+    expect(urls(device.servers)).toEqual([design.url, fourth.url, rocket.url]);
+    expect(device.changes.map((change) => change.kind)).toEqual(["use", "use"]);
+  });
+
+  it("waits for Retry when what is stored cannot be read, and leaves it", async () => {
+    const { device, user, switchTo } = await openWindow([rocket, design], { oneStep: true });
+    const before = device.servers;
+    device.unreadable = true;
+
+    await switchTo("Design Guild");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Could not save changes to sign-ins on this device.",
+    );
+    expect(device.servers).toBe(before);
+
+    device.unreadable = false;
+    await user.click(screen.getByRole("button", { name: "Retry saving" }));
+    await waitFor(() => expect(urls(device.servers)).toEqual([design.url, rocket.url]));
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
   });
 });
 
