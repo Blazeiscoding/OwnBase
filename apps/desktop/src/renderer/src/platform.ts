@@ -48,6 +48,7 @@ interface SlackossBridge {
   hostingForget: (folder: string) => Promise<void>;
   hostingRename: (folder: string, name: string) => Promise<{ folder: string; name: string }>;
   hostingOpenFolder: (folder: string) => Promise<void>;
+  hostingIcon: (folder: string) => Promise<string | null>;
   hostingSetStartOnLaunch: (folder: string | null) => Promise<string | null>;
   hostingSetReopenPublicOnLaunch: (reopen: boolean) => Promise<boolean>;
   hostingDismissLaunchError: () => Promise<unknown>;
@@ -198,6 +199,7 @@ export function electronPlatform(): Platform {
       forget: (folder) => plainly(bridge.hostingForget(folder)),
       rename: (folder, name) => plainly(bridge.hostingRename(folder, name)),
       openFolder: (folder) => plainly(bridge.hostingOpenFolder(folder)),
+      icon: (folder) => bridge.hostingIcon(folder),
       setReopenPublicOnLaunch: (reopen) => plainly(bridge.hostingSetReopenPublicOnLaunch(reopen)),
       dismissLaunchError: async () => {
         await plainly(bridge.hostingDismissLaunchError());

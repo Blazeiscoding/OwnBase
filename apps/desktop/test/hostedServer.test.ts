@@ -3,14 +3,42 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { crc32, deflateSync } from "node:zlib";
 import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
 import { holdWorkspace } from "@slackoss/server/ownership";
 import { startHostedServer, type HostedServerHost } from "../src/main/hostedServer.js";
+import { readWorkspaceIcon, readWorkspaceIconVersion } from "../src/main/registry.js";
 
 let root: string;
 let dataDir: string;
 let created: WorkspaceServer[];
 let host: HostedServerHost;
+
+/** A real one-colour PNG, made here so no test holds an image's bytes. */
+function png(size = 4): Uint8Array<ArrayBuffer> {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(size * 3, 0x60)]);
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk("IHDR", header),
+      chunk("IDAT", deflateSync(Buffer.concat(Array(size).fill(row)))),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
 
 const answers = (port: number) =>
   fetch(`http://127.0.0.1:${port}/api/health`, { signal: AbortSignal.timeout(2_000) }).then(
@@ -129,6 +157,40 @@ describe("starting a hosted workspace's server", () => {
     expect(again.workspaceName!()).toBe("Blue Team");
     expect(again.accessPolicy!()).toBe("guest_allowed");
     await again.stop();
+  });
+
+  it("shows the icon an admin sets, and leaves it to be read from the folder once stopped", async () => {
+    const hosted = await startHostedServer({ dataDir, port: 0 }, host);
+    const base = `http://127.0.0.1:${hosted.port}`;
+    const { token, user } = (await (
+      await fetch(base + "/api/auth/register", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
+      })
+    ).json()) as { token: string; user: { id: string } };
+    const heard: unknown[] = [];
+    hosted.onWorkspaceChange!((change) => heard.push(change));
+    const bytes = png(6);
+    const response = await fetch(base + "/api/admin/workspace/icon", {
+      method: "PUT",
+      headers: { "content-type": "image/png", authorization: `Bearer ${token}` },
+      body: bytes,
+    });
+    const { iconVersion } = (await response.json()) as { iconVersion: string };
+    expect(heard).toEqual([{ iconVersion, by: user.id }]);
+    expect(hosted.workspaceIcon!()).toMatchObject({ type: "image/png", version: iconVersion });
+    // Read from the folder while the server holds it too: reading changes nothing.
+    expect(readWorkspaceIconVersion(dataDir)).toBe(iconVersion);
+    await hosted.stop();
+
+    expect(readWorkspaceIconVersion(dataDir)).toBe(iconVersion);
+    expect(readWorkspaceIcon(dataDir)).toEqual({
+      version: iconVersion,
+      url: `data:image/png;base64,${Buffer.from(bytes).toString("base64")}`,
+    });
+    expect(readWorkspaceIcon(join(root, "nothing-here"))).toBeNull();
+    expect(readWorkspaceIconVersion(join(root, "nothing-here"))).toBeNull();
   });
 
   it("stops the server it made when joining cannot be closed, and gives the folder back (Q12)", async () => {

@@ -4,6 +4,7 @@ import { readdir, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { holdWorkspace } from "@slackoss/server/ownership";
+import { ICON_META_KEYS, readStoredIcon } from "@slackoss/server/workspaceIcon";
 
 /**
  * A workspace this computer hosts, as the settings file remembers it. The
@@ -286,6 +287,53 @@ export function readWorkspace(dataDir: string): { id: string | null; name: strin
   } finally {
     db?.close();
   }
+}
+
+/**
+ * Reads `keys` from a workspace's `meta` without the server running, read
+ * only, so a stopped workspace is never started or changed to show them.
+ * Null when there is no database there or it cannot be read.
+ */
+function readMeta<K extends string>(
+  dataDir: string,
+  keys: readonly K[],
+): Record<K, string | null> | null {
+  const file = join(dataDir, "workspace.db");
+  if (!existsSync(file)) return null;
+  let db: DatabaseSync | undefined;
+  try {
+    db = new DatabaseSync(file, { readOnly: true });
+    const query = db.prepare("SELECT value FROM meta WHERE key = ?");
+    const values = {} as Record<K, string | null>;
+    for (const key of keys)
+      values[key] = (query.get(key) as { value: string } | undefined)?.value ?? null;
+    return values;
+  } catch {
+    return null;
+  } finally {
+    db?.close();
+  }
+}
+
+/**
+ * The version of the icon a workspace's database holds, read without the
+ * server running, or null when it has none or it cannot be read.
+ */
+export function readWorkspaceIconVersion(dataDir: string): string | null {
+  return readMeta(dataDir, [ICON_META_KEYS.version])?.[ICON_META_KEYS.version] ?? null;
+}
+
+/**
+ * The icon a workspace's database holds, as a data URL with its version,
+ * read without the server running. Null when it has none, it cannot be read,
+ * or what it holds is not a whole icon of a type an icon may be.
+ */
+export function readWorkspaceIcon(dataDir: string): { version: string; url: string } | null {
+  const rows = readMeta(dataDir, Object.values(ICON_META_KEYS));
+  const icon = rows && readStoredIcon((key) => rows[key as keyof typeof rows] ?? null);
+  return icon
+    ? { version: icon.version, url: `data:${icon.type};base64,${icon.bytes.toString("base64")}` }
+    : null;
 }
 
 /**

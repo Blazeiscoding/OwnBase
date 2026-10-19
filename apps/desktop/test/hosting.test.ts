@@ -13,6 +13,7 @@ import { tmpdir } from "node:os";
 import * as fsPromises from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { crc32, deflateSync } from "node:zlib";
 import {
   createHostingController,
   parseLastHosted,
@@ -78,6 +79,32 @@ function workspaceDb(dataDir: string, id: string | null, name: string): void {
 
 const NEW_FOLDER = /^w-[0-9a-f]{32}$/;
 
+/** A real one-colour PNG, made here so no test holds an image's bytes. */
+function png(size = 4): Uint8Array<ArrayBuffer> {
+  const chunk = (type: string, data: Buffer) => {
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(data.length);
+    const body = Buffer.concat([Buffer.from(type, "ascii"), data]);
+    const sum = Buffer.alloc(4);
+    sum.writeUInt32BE(crc32(body));
+    return Buffer.concat([length, body, sum]);
+  };
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(size, 0);
+  header.writeUInt32BE(size, 4);
+  header[8] = 8;
+  header[9] = 2;
+  const row = Buffer.concat([Buffer.from([0]), Buffer.alloc(size * 3, 0x60)]);
+  return new Uint8Array(
+    Buffer.concat([
+      Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+      chunk("IHDR", header),
+      chunk("IDAT", deflateSync(Buffer.concat(Array(size).fill(row)))),
+      chunk("IEND", Buffer.alloc(0)),
+    ]),
+  );
+}
+
 /** What the harness's stand-in backups write as their manifest, so its check can pass them. */
 const FAKE_MANIFEST = '{"fake":true}';
 
@@ -136,6 +163,8 @@ function harness(
     connectionListeners: new Set<() => void>(),
     /** Whoever follows the running workspace's name and who may join it. */
     workspaceListeners: new Set<(change: HostedWorkspaceChange) => void>(),
+    /** The icon a running fake server holds. */
+    icon: null as { type: string; bytes: Uint8Array; version: string } | null,
     /** Each name written into a stopped workspace's database; set `writeFails` to refuse. */
     written: [] as { dataDir: string; name: string }[],
     writeFails: false,
@@ -294,6 +323,7 @@ function harness(
           h.workspaceListeners.add(listener);
           return () => void h.workspaceListeners.delete(listener);
         },
+        workspaceIcon: () => h.icon,
         stop: vi.fn(async () => {}),
         ...(options.publicAccess
           ? {
@@ -408,6 +438,8 @@ describe("hosting a workspace from the desktop app", () => {
       instanceId: "workspace-run-1",
       lanUrls: ["192.168.1.20:8543"],
       connected: 0,
+      // It has no icon yet.
+      iconVersion: null,
     });
     // An earlier version would look for rocket-team, which is not this one.
     expect(h.saved).toEqual([null]);
@@ -3489,5 +3521,65 @@ describe("following changes made inside a hosted workspace", () => {
       /carrier/,
     );
     expect(h.accessPolicy).toBe("invite_only");
+  });
+});
+
+describe("a hosted workspace's icon", () => {
+  it("comes from the running server, and from a stopped one's own database without starting it", async () => {
+    const root = profile();
+    // A stopped workspace with an icon, as the real server leaves its database.
+    const real = await createWorkspaceServer({
+      dataDir: join(root, "hosted", "rocket-team"),
+      workspaceName: "Rocket Team",
+      port: 0,
+      host: "127.0.0.1",
+      mdns: false,
+      logger: false,
+    });
+    const kept = real.setWorkspaceIcon(png(), "image/png");
+    await real.stop();
+    const h = harness({ root });
+    const stoppedEntry = async () =>
+      (await h.controller.list()).workspaces.find((w) => w.folder === "rocket-team");
+    expect(await stoppedEntry()).toMatchObject({ running: false, iconVersion: kept });
+    expect(await h.controller.icon("rocket-team")).toBe(
+      `data:image/png;base64,${Buffer.from(png()).toString("base64")}`,
+    );
+    expect(h.starts).toEqual([]);
+
+    // Another, running, whose server says what it holds.
+    h.icon = { type: "image/webp", bytes: new Uint8Array([1, 2, 3]), version: "live-version" };
+    expect(await h.controller.start({ workspaceName: "Blue Team" })).toMatchObject({
+      running: true,
+      iconVersion: "live-version",
+    });
+    const running = (await h.controller.list()).workspaces.find((w) => w.running)!;
+    expect(running.iconVersion).toBe("live-version");
+    expect(await h.controller.icon(running.folder)).toBe("data:image/webp;base64,AQID");
+    expect((await stoppedEntry())?.iconVersion).toBe(kept);
+
+    // Removed in Workspace settings: the window hears it with the status.
+    h.icon = null;
+    for (const listener of [...h.workspaceListeners])
+      listener({ iconVersion: null, by: "U-ADMIN" });
+    expect(h.changes.at(-1)).toMatchObject({ running: true, iconVersion: null });
+    expect(await h.controller.icon(running.folder)).toBeNull();
+    await h.controller.stop();
+  });
+
+  it("is none for a workspace whose folder is gone, and only for workspaces in the list", async () => {
+    const h = harness();
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const [entry] = (await h.controller.list()).workspaces;
+    await h.controller.stop();
+    rmSync(join(h.dataRoot, entry!.folder), { recursive: true, force: true });
+    expect((await h.controller.list()).workspaces).toEqual([
+      expect.objectContaining({ folder: entry!.folder, missing: true, iconVersion: null }),
+    ]);
+    expect(await h.controller.icon(entry!.folder)).toBeNull();
+    await expect(h.controller.icon("w-not-listed")).rejects.toThrow(
+      "That workspace is not in the list hosted on this computer.",
+    );
+    await expect(h.controller.icon(5)).rejects.toThrow("Choose a workspace whose icon to show.");
   });
 });

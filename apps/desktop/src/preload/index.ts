@@ -20,6 +20,7 @@ export interface SlackossBridge {
   hostingForget: (folder: string) => Promise<void>;
   hostingRename: (folder: string, name: string) => Promise<unknown>;
   hostingOpenFolder: (folder: string) => Promise<void>;
+  hostingIcon: (folder: string) => Promise<unknown>;
   hostingSetStartOnLaunch: (folder: string | null) => Promise<unknown>;
   hostingSetReopenPublicOnLaunch: (reopen: boolean) => Promise<unknown>;
   hostingDismissLaunchError: () => Promise<unknown>;
@@ -108,6 +109,7 @@ const bridge: SlackossBridge = {
   hostingForget: (folder) => ipcRenderer.invoke("hosting:forget", folder),
   hostingRename: (folder, name) => ipcRenderer.invoke("hosting:rename", { folder, name }),
   hostingOpenFolder: (folder) => ipcRenderer.invoke("hosting:openFolder", folder),
+  hostingIcon: (folder) => ipcRenderer.invoke("hosting:icon", folder),
   hostingSetStartOnLaunch: (folder) => ipcRenderer.invoke("hosting:setStartOnLaunch", folder),
   hostingSetReopenPublicOnLaunch: (reopen) =>
     ipcRenderer.invoke("hosting:setReopenPublicOnLaunch", reopen),

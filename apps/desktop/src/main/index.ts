@@ -604,6 +604,8 @@ handle("hosting:forget", (_e, folder: unknown) => hosting.forget(folder));
 handle("hosting:rename", (_e, request: unknown) => hosting.rename(request));
 // The window names a listed workspace; the controller finds its folder.
 handle("hosting:openFolder", (_e, folder: unknown) => hosting.openFolder(folder));
+// The same: the window names a listed workspace, and gets its icon or null.
+handle("hosting:icon", (_e, folder: unknown) => hosting.icon(folder));
 handle("hosting:setPort", (_e, request: unknown) => hosting.setPort(request));
 /**
  * Turns a workspace's scheduled backups on, changes them, or turns them off.
