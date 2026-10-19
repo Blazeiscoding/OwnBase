@@ -490,7 +490,7 @@ export const MessageTimeline = memo(function MessageTimeline({
                   className="relative my-2 flex items-center gap-1 pl-4 pr-3.5"
                 >
                   {/* Discord's red rule, with its tag at the end of the line. */}
-                  <span className="h-px flex-1 bg-[#da373c]" />
+                  <span className="h-px flex-1 bg-[var(--mention-red)]" />
                   <span className="badge-mention rounded-md px-1.5 text-[10px] font-bold uppercase leading-4 tracking-wide">
                     New
                   </span>
