@@ -1,5 +1,6 @@
 import { useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
-import { Icon, type IconName } from "./Icon.js";
+import type { IconName } from "./Icon.js";
+import { EmptyAction, EmptyState, type EmptyStateAction } from "./EmptyState.js";
 
 interface Props {
   /** A load is running. */
@@ -19,7 +20,7 @@ interface Props {
   /** Set when a finished load found nothing: what the list is for, and how to fill it. */
   empty?: ReactNode;
   /** One thing to do about an empty list, such as clearing a filter. */
-  emptyAction?: { label: string; run: () => void };
+  emptyAction?: EmptyStateAction;
   /** A mark for what the list holds, shown above an empty list's words. */
   emptyIcon?: IconName;
   className?: string;
@@ -27,7 +28,7 @@ interface Props {
 
 /**
  * What a list says about itself above whatever it holds: loading, failed, or
- * empty. One element for the list's whole life, so a screen reader hears each
+ * empty, the last as an `EmptyState`. One element for the list's whole life, so a screen reader hears each
  * change in a region it is already watching, and so focus has somewhere to go
  * when Retry, or an empty list's action, is replaced by what it started.
  */
@@ -73,32 +74,13 @@ export function ListStatus(props: Props) {
             </p>
           )
         ) : showEmpty ? (
-          props.emptyIcon ? (
-            <div className="flex flex-col items-center px-6 pb-6 pt-12 text-center">
-              <span
-                aria-hidden="true"
-                className="empty-tile mb-4 flex size-12 items-center justify-center rounded-2xl text-copper"
-              >
-                <Icon name={props.emptyIcon} size={20} />
-              </span>
-              <p className="max-w-[17rem] text-sm leading-relaxed text-ink-dim">{props.empty}</p>
-            </div>
-          ) : (
-            <p className="px-2 py-6 text-center text-sm text-ink-faint">{props.empty}</p>
-          )
+          <EmptyState icon={props.emptyIcon}>{props.empty}</EmptyState>
         ) : null}
       </div>
+      {/* Apart from the status, so what is read out as it changes is the words alone. */}
       {showEmpty && props.emptyAction && (
         <KeepsFocus home={root}>
-          <p className={`pb-6 text-center ${props.emptyIcon ? "" : "-mt-4"}`}>
-            <button
-              type="button"
-              onClick={props.emptyAction.run}
-              className="h-8 rounded-full border border-edge px-3.5 text-[13px] font-medium text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
-            >
-              {props.emptyAction.label}
-            </button>
-          </p>
+          <EmptyAction action={props.emptyAction} icon={props.emptyIcon} />
         </KeepsFocus>
       )}
     </div>

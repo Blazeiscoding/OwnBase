@@ -5,8 +5,10 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { Badge } from "../src/components/Badge.js";
+import { EmptyState } from "../src/components/EmptyState.js";
 import { IconButton } from "../src/components/IconButton.js";
 import { Kbd } from "../src/components/Kbd.js";
+import { ListStatus } from "../src/components/ListStatus.js";
 import { Select } from "../src/components/Select.js";
 import { TextField, inputClass, inputCls } from "../src/components/TextField.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -333,5 +335,53 @@ describe("a badge", () => {
     expect(badge("small")).toHaveClass("badge-mention", "leading-4", "absolute", "right-0");
     expect(badge("quiet dot")).toHaveClass("size-2", "bg-ink");
     expect(badge("mention dot")).toHaveClass("size-2", "badge-mention");
+  });
+});
+
+describe("an empty state", () => {
+  it("says what a place is for, under a mark when it has one", async () => {
+    render(
+      <main>
+        <EmptyState icon="bookmark">Nothing saved yet.</EmptyState>
+        <EmptyState>No channels match.</EmptyState>
+      </main>,
+    );
+    const marked = screen.getByText("Nothing saved yet.");
+    const tile = marked.parentElement!.querySelector(".empty-tile")!;
+    expect(tile).toHaveAttribute("aria-hidden", "true");
+    expect(tile.querySelector("svg")).not.toBeNull();
+    expect(screen.getByText("No channels match.")).toHaveClass("text-ink-faint", "text-center");
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("offers one thing to do about it", async () => {
+    const user = userEvent.setup();
+    const run = vi.fn();
+    render(
+      <main>
+        <EmptyState icon="search" action={{ label: "Clear the filter", run }}>
+          Nothing matched.
+        </EmptyState>
+      </main>,
+    );
+    await user.click(screen.getByRole("button", { name: "Clear the filter" }));
+    expect(run).toHaveBeenCalledOnce();
+    expect(await accessibilityProblems()).toEqual([]);
+  });
+
+  it("is what a list says when a load found nothing, read as the list's status", () => {
+    render(
+      <ListStatus
+        loadingLabel="Loading pins…"
+        empty="Nothing pinned here yet."
+        emptyIcon="pin"
+        emptyAction={{ label: "Pin a message", run: () => {} }}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status).toHaveTextContent(/^Nothing pinned here yet\.$/);
+    expect(status.querySelector(".empty-tile")).not.toBeNull();
+    // The action is outside what is read out as it changes.
+    expect(status).not.toContainElement(screen.getByRole("button", { name: "Pin a message" }));
   });
 });
