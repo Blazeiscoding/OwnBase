@@ -1704,7 +1704,7 @@
       "metrics": [],
       "limits": [
         "A window left open still lists a sign-in another window forgot until it next changes something. Picking it opens the workspace for that visit, but does not save it again.",
-        "Browsers only let windows wait for each other on https pages and on this computer's own address. A workspace opened over plain http on a local network does without, so there two changes in the same instant can still lose one. The desktop app has one window and saves one change at a time.",
+        "Browsers only let windows wait for each other on https pages and on this computer's own address. Over plain http on a local network there is no such wait. Since a later fix the browser's storage makes each change in one step there, so two changes in the same instant both stay. The desktop app has one window and saves one change at a time.",
         "Forgetting a sign-in removes it from this device. It does not sign that device out on the server."
       ],
       "technical": {
@@ -1713,7 +1713,7 @@
         "before": "persistServers(list) wrote the window's in-memory list as a whole, so a stale window's next workspace switch revived a forgotten sign-in or erased one stored by another window.",
         "after": "changeServers(change) applies the change to memory at once, then in one turn does a strict get, applies the same change to the stored list and sets it, and replaces memory with what was stored. Turns queue per window and run under navigator.locks.request where available. Opening a workspace moves it to the front only if the sign-in was fresh or its url and token are still stored. Forget removes by url, sign-out by url and token, and the reset of all sign-ins runs in the same queue. A failed turn keeps its change for Retry.",
         "limits": [
-          "navigator.locks exists only in secure contexts (https, localhost, the desktop renderer); over plain http on a LAN the turn is not atomic across windows.",
+          "navigator.locks exists only in secure contexts (https, localhost, the desktop renderer). Over plain http the web platform's changeSignIns makes each change as one deviceStore op (signIns) instead, so the change is atomic across tabs there too.",
           "No watch: a stale window's displayed list is reconciled by its next turn.",
           "Storage format and the desktop credential envelope are unchanged."
         ]
