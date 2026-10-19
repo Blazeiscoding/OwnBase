@@ -208,7 +208,8 @@
       "plain": "Announces the workspace on the local network so the app can find it without anyone typing an address.",
       "summary": "Publishes a workspace discovery announcement on the local network.",
       "details": [
-        "Bonjour advertises the shared service type, port, workspace name, server/protocol versions and per-start instance ID.",
+        "Bonjour advertises the shared service type, port, workspace name, server/protocol versions and per-start instance ID, plus the icon's version (icon) when the workspace has one (discoveryTxt).",
+        "The server announces again whenever the name or the icon changes, so a list of found workspaces shows the current ones.",
         "The instance ID can be compared with /api/health to distinguish the intended local server from another listener on the same port.",
         "The returned stop handle removes the service and destroys Bonjour resources during server shutdown.",
         "Discovery helps locate a server; it does not authenticate a person or grant channel access."
@@ -413,6 +414,7 @@
       "summary": "Shares LAN discovery and invitation-link addressing conventions.",
       "details": [
         "Defines the mDNS service type, default port and TXT fields including the per-start instance ID used by health verification.",
+        "The icon TXT field names the workspace icon's version; isIconVersion takes it only in the form a server makes (16 hex digits), since anyone on the network can announce anything.",
         "hostWithPort brackets IPv6 literals correctly; isLinkableAddress excludes zone-specific and link-local addresses that ordinary browser URLs cannot use.",
         "Tandem is the primary deep-link scheme; Gatherline and SlackOSS schemes remain accepted so old invitations keep opening."
       ],

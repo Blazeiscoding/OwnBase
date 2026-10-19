@@ -2,11 +2,12 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
 import {
   PROTOCOL_VERSION,
   WORKSPACE_ICON_MAX_BYTES,
+  isIconVersion,
   type AuditEntry,
   type ReadySnapshot,
   type ServerToClient,
@@ -18,6 +19,20 @@ import {
   type WorkspaceServer,
 } from "../src/server.js";
 import { checkIcon, iconTypeOf, readStoredIcon } from "../src/workspaceIcon.js";
+import { discoveryTxt } from "../src/mdns.js";
+
+// The announcement on the local network, caught here rather than sent.
+const announced = vi.hoisted(() => [] as Array<{ name: string; iconVersion: string | null }>);
+vi.mock("../src/mdns.js", async (original) => {
+  const actual = await original<typeof import("../src/mdns.js")>();
+  return {
+    ...actual,
+    advertise: (opts: Parameters<typeof actual.advertise>[0]) => {
+      announced.push(opts);
+      return { stop: () => {} };
+    },
+  };
+});
 
 /**
  * The workspace's icon (UX-60): its owner and admins set and remove it, it is
@@ -428,6 +443,36 @@ describe("telling everyone", () => {
         details: { change: "set", type: "image/webp", bytes: webp().length },
       }),
     ]);
+  });
+});
+
+describe("telling the network", () => {
+  it("names the icon's version in the announcement, and announces again when it changes", async () => {
+    announced.length = 0;
+    await start({ mdns: true });
+    const version = server!.setWorkspaceIcon(png(), "image/png");
+    // In the form a desktop listing found workspaces takes it.
+    expect(isIconVersion(version)).toBe(true);
+    server!.removeWorkspaceIcon();
+    expect(announced.map((a) => a.iconVersion)).toEqual([null, version, null]);
+    expect(announced.every((a) => a.name === announced[0]!.name)).toBe(true);
+
+    // A restart announces the icon it keeps.
+    server!.setWorkspaceIcon(png(), "image/png");
+    await server!.stop();
+    announced.length = 0;
+    await start({ mdns: true });
+    expect(announced.map((a) => a.iconVersion)).toEqual([version]);
+  });
+
+  it("says nothing of an icon the workspace does not have", () => {
+    const told = { name: "Rocket Team", instanceId: "instance" };
+    expect(discoveryTxt({ ...told, iconVersion: null })).not.toHaveProperty("icon");
+    expect(discoveryTxt({ ...told, iconVersion: "0123456789abcdef" })).toMatchObject({
+      name: "Rocket Team",
+      inst: "instance",
+      icon: "0123456789abcdef",
+    });
   });
 });
 

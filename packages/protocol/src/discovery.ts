@@ -14,6 +14,21 @@ export interface DiscoveryTxt {
    * another one on the same port. Absent from servers before it was added.
    */
   inst?: string;
+  /**
+   * The version of the workspace's icon (`ServerInfo.iconVersion`), so a list
+   * of found workspaces can ask for it by the public route. Absent when there
+   * is none, and from servers before it was added.
+   */
+  icon?: string;
+}
+
+/**
+ * Whether `value` is an icon version as a server makes one: the first 16 hex
+ * digits of the picture's SHA-256. What else an announcement calls one is
+ * not used.
+ */
+export function isIconVersion(value: unknown): value is string {
+  return typeof value === "string" && /^[0-9a-f]{16}$/.test(value);
 }
 
 /**
