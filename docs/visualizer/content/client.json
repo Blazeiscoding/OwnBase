@@ -33,6 +33,7 @@
       "plain": "The heart of the app engine, which keeps you connected to one workspace, holds the app's copy of it and sends your messages.",
       "summary": "Coordinates one live workspace connection and the local state the UI renders.",
       "details": [
+        "A huddle goes on through a dropped socket: holdHuddle keeps the session (its media does not pass through the socket) and only a refusal that will not stop ends it. On the next ready snapshot resumeHuddle asks to go on with huddle.join: if the snapshot still lists this device in the room, every peer connection stays; if not, it closes its peers and dials again once let in. A refused rejoin, or huddle.moved from the server, ends the call and sets huddleEnded with the reason, which useHuddleEndedNotice shows once.",
         "WorkspaceClient combines Api, FileCache and a Zustand store. The store holds authenticated identity, users, channels, memberships, read cursors, loaded history, drafts, pending sends, app replies, forms and huddle state.",
         "The WebSocket hello includes the session token, protocol version and last observed event sequence. Ready snapshots and replay events rebuild the replica; reconnect delay grows up to 30 seconds. Authentication, forced-password and protocol refusals stop ordinary reconnect loops.",
         "History requests carry identity and snapshot watermarks so late HTTP pages can be reconciled with socket events. Identical loads share work; superseded, revoked or evicted history requests are aborted. A timeline holds at most 300 messages and inactive history is bounded by a 20-entry cache limit.",
@@ -141,6 +142,7 @@
         "Remote speaking levels come from synchronization-source audio metadata; only the local microphone needs a Web Audio analyser. Samples run every 120 ms with a 500 ms hold, and publish to the UI only when speaking state changes.",
         "A screen is shared at the ScreenShareQuality asked for, 720p or 1080p (the cap, since a mesh encodes once per viewer) at 15, 30 or 60 frames a second, 1080p at 15 by default. It is hinted as detail, keeping text sharp and dropping frames when bandwidth runs short, except at 60, which is asked for motion.",
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
+        "closePeers closes every peer connection and keeps the microphone and camera, for coming back after the server let this device's place go: the others closed their end, so each connection is made afresh.",
         "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call."
       ],
       "concepts": [
@@ -418,6 +420,15 @@
         "Since Q03 a watch delivery that arrives while this window's own read or save is unanswered marks the two as crossed; the reply is then replaced by a fresh strict read, repeated until one completes uncrossed. Until the first read settles, previewFor answers none."
       ],
       "concepts": ["notification privacy", "per-account choice", "watch ordering", "Q03"]
+    },
+    {
+      "path": "packages/ui/src/lib/huddleEnded.ts",
+      "plain": "Says once why a call ended when you did not leave it, such as joining it on another device.",
+      "summary": "Shows WorkspaceState.huddleEnded as a notice.",
+      "details": [
+        "useHuddleEndedNotice, used by WorkspaceScreen, shows the reason a call ended by itself as a toast: a polite one when it moved to another device, an error when it could not go on after the connection dropped. The call bar is gone by then, so the notice says it instead."
+      ],
+      "concepts": ["huddles", "notices"]
     },
     {
       "path": "packages/ui/src/lib/callPreferences.ts",
@@ -1687,6 +1698,7 @@
       "summary": "Provides shared microphone, camera, screen-share and leave actions.",
       "details": [
         "Used by both the compact bar and fullscreen stage so the call actions stay available in either layout.",
+        "While the connection to the workspace is down (status reconnecting or connecting), a polite status line says the call goes on while it comes back.",
         "Stable accessible names plus aria-pressed describe toggles; captureFailure distinguishes a cancelled picker from a permission/device problem. A lost microphone exposes retry.",
         "Beside Mute and Camera, a small arrow opens a menu of microphones and speakers, or cameras, with the chosen one ticked (menuitemradio) and a link to Voice & video settings. The menus are left out of the full-screen overlay, because menus open on the page beneath a fullscreen element.",
         "In the desktop app, Share screen opens ScreenShareDialog rather than asking the browser; a browser shows its own picker, and stopping needs none. Whether the picker is open is one small store for the window: the bar's controls draw it, and the controls in full screen leave full screen first, since a dialog does not show over it and those controls go with it."

@@ -99,6 +99,20 @@ describe("the huddle bar", () => {
     return { client, calls, user: userEvent.setup() };
   }
 
+  it("says the call goes on while the connection to the workspace is down", () => {
+    const { client } = huddleBar();
+    const line = /connection to the workspace dropped/;
+    expect(screen.queryByText(line)).toBeNull();
+    act(() => client.store.setState({ status: "reconnecting" }));
+    expect(
+      screen.getByText(
+        "The connection to the workspace dropped. You stay in the call while it comes back.",
+      ),
+    ).toHaveAttribute("role", "status");
+    act(() => client.store.setState({ status: "online" }));
+    expect(screen.queryByText(line)).toBeNull();
+  });
+
   it("says who it cannot connect to, once it has tried long enough, and offers why", async () => {
     const { client, user } = huddleBar();
     const onShowCallLog = vi.fn();

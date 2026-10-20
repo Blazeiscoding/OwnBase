@@ -28,6 +28,23 @@ interface Client {
 }
 
 /**
+ * How long a place in a huddle waits for its device to come back after that
+ * device's connection drops, before it is given up and the others are told.
+ * A blip, or the server restarting its socket, then costs the call nothing.
+ */
+export const HUDDLE_GRACE_MS = 30_000;
+
+/**
+ * Someone's place in a huddle: the socket of the device in the call, or none
+ * while that device's connection is down, until it comes back or `released`
+ * gives the place up.
+ */
+interface Seat {
+  client: Client | null;
+  released: NodeJS.Timeout | null;
+}
+
+/**
  * Holds every live socket, answers "who may see this event", and fans out
  * durable + ephemeral events. Event visibility: global events go to everyone;
  * events on a public channel go to everyone; events on private/dm channels go
@@ -37,11 +54,11 @@ export class Gateway {
   private clients = new Set<Client>();
   private byUser = new Map<ID, Set<Client>>();
   /**
-   * channelId -> user ids currently in that channel's huddle. Purely live
-   * state: a huddle exists only while people are in it, so it is never
+   * channelId -> who is in that channel's huddle, and on which device. Purely
+   * live state: a huddle exists only while people are in it, so it is never
    * written to the event log and does not survive a restart.
    */
-  private huddles = new Map<ID, Set<ID>>();
+  private huddles = new Map<ID, Map<ID, Seat>>();
   /** What happened in huddles lately, for the host (see `CallLog`). */
   readonly calls = new CallLog();
   private heartbeat: NodeJS.Timeout;
@@ -66,6 +83,7 @@ export class Gateway {
      * never sees: an exception there would otherwise end the process (F03).
      */
     private reportFailure: (err: unknown, where: string) => void = () => {},
+    private options: { huddleGraceMs?: number } = {},
   ) {
     this.heartbeat = setInterval(() => {
       this.contained("heartbeat", () => {
@@ -166,6 +184,8 @@ export class Gateway {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     clearInterval(this.heartbeat);
+    for (const room of this.huddles.values())
+      for (const seat of room.values()) if (seat.released) clearTimeout(seat.released);
     this.closePromise = Promise.all(
       [...this.sockets].map(
         (ws) =>
@@ -357,19 +377,24 @@ export class Gateway {
       } else if (msg.type === "huddle.join") {
         this.joinHuddle(msg.channelId, client, msg.requestId);
       } else if (msg.type === "huddle.leave") {
-        this.leaveHuddle(msg.channelId, client.userId, "left");
+        this.leaveFrom(msg.channelId, client);
       } else if (msg.type === "huddle.signal") {
         if (!this.affordEphemeral(client.userId)) return;
-        // Only relay between two people actually in the same huddle.
+        // Only relay between the two devices in the same huddle: not to the
+        // person's other devices, and not while theirs is reconnecting.
         const room = this.huddles.get(msg.channelId);
-        const refused = !room?.has(client.userId)
-          ? "the sender is not in the huddle"
-          : !room.has(msg.to)
-            ? "the other person is not in the huddle"
-            : !this.store.canAccess(msg.channelId, client.userId) ||
-                !this.store.canAccess(msg.channelId, msg.to)
-              ? "no access to the conversation"
-              : null;
+        const target = room?.get(msg.to);
+        const refused =
+          room?.get(client.userId)?.client !== client
+            ? "the sender is not in the huddle on this device"
+            : !target
+              ? "the other person is not in the huddle"
+              : !target.client
+                ? "the other person's connection is down"
+                : !this.store.canAccess(msg.channelId, client.userId) ||
+                    !this.store.canAccess(msg.channelId, msg.to)
+                  ? "no access to the conversation"
+                  : null;
         const setup = msg.signal.kind === "offer" || msg.signal.kind === "answer";
         // Routes and media notices come by the dozen; the setup is what tells.
         if (setup || refused)
@@ -381,12 +406,15 @@ export class Gateway {
               ? { kind: "dropped", reason: `${msg.signal.kind}: ${refused}` }
               : { kind: msg.signal.kind as "offer" | "answer" }),
           });
-        if (!refused) {
-          this.sendToUser(msg.to, {
-            type: "huddle.signal",
-            channelId: msg.channelId,
-            from: client.userId,
-            signal: msg.signal,
+        if (!refused && target?.client && this.authorized(target.client)) {
+          this.send(target.client.ws, {
+            type: "ephemeral",
+            event: {
+              type: "huddle.signal",
+              channelId: msg.channelId,
+              from: client.userId,
+              signal: msg.signal,
+            },
           });
         }
       } else if (msg.type === "huddle.report") {
@@ -432,24 +460,33 @@ export class Gateway {
    * Forgets a socket. Every in-memory change comes first and cannot fail, so a
    * read that throws while telling others still leaves this person out of
    * fan-out, presence and every huddle (F03); each notice then fails alone.
+   *
+   * A huddle place this socket held waits for its device to come back
+   * (`holdSeat`), whatever other devices the person has online: the place
+   * belongs to the device in the call. A socket `revoked` for a reason gives
+   * its places up at once, since it is not coming back.
    */
-  private unregister(client: Client, later = false): void {
+  private unregister(client: Client, later = false, revoked: string | null = null): void {
     if (!this.clients.delete(client)) return;
+    const left: ID[] = [];
+    for (const [channelId, room] of this.huddles) {
+      const seat = room.get(client.userId);
+      if (!seat || seat.client !== client) continue;
+      if (revoked === null) this.holdSeat(channelId, client.userId, seat);
+      else if (this.dropFromHuddle(channelId, client.userId, revoked)) left.push(channelId);
+    }
     const set = this.byUser.get(client.userId);
     if (!set) return;
     set.delete(client);
-    if (set.size > 0) return;
-    this.byUser.delete(client.userId);
-    // Dropping offline must also drop them from any huddle, or the room
-    // keeps a ghost participant nobody can call.
-    const left = [...this.huddles.keys()].filter((channelId) =>
-      this.dropFromHuddle(channelId, client.userId, "disconnected"),
-    );
+    const offline = set.size === 0;
+    if (offline) this.byUser.delete(client.userId);
     if (later) {
       for (const channelId of left) this.departures.huddles.add(channelId);
-      this.departures.users.add(client.userId);
-      this.presenceChanged();
-      if (!this.departures.scheduled) {
+      if (offline) {
+        this.departures.users.add(client.userId);
+        this.presenceChanged();
+      }
+      if ((offline || left.length > 0) && !this.departures.scheduled) {
         this.departures.scheduled = true;
         setImmediate(() => this.contained("departures", () => this.announceDepartures()));
       }
@@ -458,6 +495,7 @@ export class Gateway {
     for (const channelId of left) {
       this.contained("huddle departure", () => this.publishHuddle(channelId));
     }
+    if (!offline) return;
     this.contained("presence", () =>
       this.broadcastEphemeral(
         { type: "presence", userId: client.userId, presence: "offline" },
@@ -472,7 +510,7 @@ export class Gateway {
   private huddlesVisibleTo(userId: ID): Record<ID, ID[]> {
     const out: Record<ID, ID[]> = {};
     for (const [channelId, members] of this.huddles) {
-      if (this.store.canAccess(channelId, userId)) out[channelId] = [...members];
+      if (this.store.canAccess(channelId, userId)) out[channelId] = [...members.keys()];
     }
     return out;
   }
@@ -503,7 +541,26 @@ export class Gateway {
     }
     let room = this.huddles.get(channelId);
     // Repeated joins are already represented by the room and spend no admission.
-    if (room?.has(userId)) {
+    // Nor does coming back to a place kept for this person, from the device that
+    // lost its connection or from another of theirs; the others see no change.
+    const seat = room?.get(userId);
+    if (seat) {
+      const before = seat.client;
+      if (seat.released) clearTimeout(seat.released);
+      seat.released = null;
+      seat.client = client;
+      if (before !== client) {
+        this.calls.add({
+          channelId,
+          userId,
+          kind: "joined",
+          reason: before ? "moved from another device" : "came back after a lost connection",
+        });
+        // The device that had the place ends the call there, rather than
+        // talk over this one.
+        if (before)
+          this.send(before.ws, { type: "ephemeral", event: { type: "huddle.moved", channelId } });
+      }
       if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
       return;
     }
@@ -518,21 +575,54 @@ export class Gateway {
       );
       return;
     }
-    if (!room) this.huddles.set(channelId, (room = new Set()));
-    room.add(userId);
+    if (!room) this.huddles.set(channelId, (room = new Map()));
+    room.set(userId, { client, released: null });
     this.calls.add({ channelId, userId, kind: "joined" });
     this.publishHuddle(channelId);
     if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+  }
+
+  /**
+   * Leaving, as a device asks to. Only the device in the call can, or any of
+   * the person's while the place waits for its device: a device whose place
+   * moved to another may still say it left, and the call goes on there.
+   */
+  private leaveFrom(channelId: ID, client: Client): void {
+    const seat = this.huddles.get(channelId)?.get(client.userId);
+    if (!seat || (seat.client && seat.client !== client)) return;
+    this.leaveHuddle(channelId, client.userId, "left");
   }
 
   private leaveHuddle(channelId: ID, userId: ID, reason: string): void {
     if (this.dropFromHuddle(channelId, userId, reason)) this.publishHuddle(channelId);
   }
 
+  /**
+   * Keeps the place of a device whose connection dropped, for it to come
+   * back to. If it has not by the end of the grace, the place is given up and
+   * the others are told, as a departure always was.
+   */
+  private holdSeat(channelId: ID, userId: ID, seat: Seat): void {
+    seat.client = null;
+    if (seat.released) clearTimeout(seat.released);
+    seat.released = setTimeout(() => {
+      seat.released = null;
+      this.contained("huddle place", () => {
+        // Still this place, and still waiting: nobody came back for it.
+        if (this.huddles.get(channelId)?.get(userId) !== seat || seat.client) return;
+        this.leaveHuddle(channelId, userId, "disconnected");
+      });
+    }, this.options.huddleGraceMs ?? HUDDLE_GRACE_MS);
+    seat.released.unref?.();
+  }
+
   /** Takes someone out of a room in memory only; whether they were in it. */
   private dropFromHuddle(channelId: ID, userId: ID, reason: string): boolean {
     const room = this.huddles.get(channelId);
-    if (!room?.delete(userId)) return false;
+    const seat = room?.get(userId);
+    if (!room || !seat) return false;
+    if (seat.released) clearTimeout(seat.released);
+    room.delete(userId);
     this.calls.add({ channelId, userId, kind: "left", reason });
     // An empty huddle is no huddle at all.
     if (room.size === 0) this.huddles.delete(channelId);
@@ -565,7 +655,11 @@ export class Gateway {
   /** Tells the channel who is in its huddle now. */
   private publishHuddle(channelId: ID, authorized?: (client: Client) => boolean): void {
     this.broadcastEphemeral(
-      { type: "huddle.participants", channelId, userIds: [...(this.huddles.get(channelId) ?? [])] },
+      {
+        type: "huddle.participants",
+        channelId,
+        userIds: [...(this.huddles.get(channelId)?.keys() ?? [])],
+      },
       this.audienceForChannel(channelId),
       authorized,
     );
@@ -603,7 +697,7 @@ export class Gateway {
 
   /** Participants of one channel's huddle, for tests and diagnostics. */
   huddleParticipants(channelId: ID): ID[] {
-    return [...(this.huddles.get(channelId) ?? [])];
+    return [...(this.huddles.get(channelId)?.keys() ?? [])];
   }
 
   /** null audience = all connected users. */
@@ -729,7 +823,7 @@ export class Gateway {
   private revoke(client: Client, reason: string): void {
     this.send(client.ws, { type: "error", code: "auth_failed", message: reason });
     // Stop fanout and accepting frames immediately, without waiting for the close handshake.
-    this.unregister(client);
+    this.unregister(client, false, reason);
     client.ws.close(4003, reason);
   }
 

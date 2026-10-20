@@ -81,6 +81,9 @@ beforeEach(async () => {
     mdns: false,
     rateLimits: false,
     logger: false,
+    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
+    // covers the grace it gets for coming back.
+    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
   const register = async (handle: string) =>

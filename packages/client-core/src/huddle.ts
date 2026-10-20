@@ -1068,6 +1068,20 @@ export class HuddleSession {
     this.spokeAt.delete(userId);
   }
 
+  /**
+   * Closes every peer connection, keeping the microphone and camera, for
+   * coming back after the server gave this device's place up: the others
+   * closed their end, so each connection is made afresh once let back in.
+   */
+  closePeers(): void {
+    if (this.destroyed) return;
+    for (const userId of [...this.peers.keys()]) {
+      this.note("Connecting again, since the server let this device's place go.", userId);
+      this.closePeer(userId);
+    }
+    this.onChange?.();
+  }
+
   /** Tears down every connection and releases the camera and microphone. */
   destroy(): void {
     if (!this.destroyed) this.note("Left the huddle.");

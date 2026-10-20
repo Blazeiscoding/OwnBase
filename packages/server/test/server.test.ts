@@ -30,6 +30,9 @@ beforeAll(async () => {
     // Rationing has its own file, where it is the subject rather than a
     // background condition every other case has to work around.
     rateLimits: false,
+    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
+    // covers the grace it gets for coming back.
+    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
 });
