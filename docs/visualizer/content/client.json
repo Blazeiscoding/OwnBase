@@ -24,7 +24,8 @@
         "listPins takes a page size and passes on the server's total, which older servers leave out.",
         "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed.",
         "renameWorkspace and setAccessPolicy call PUT /api/admin/workspace/name and /access-policy, for Workspace settings.",
-        "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60)."
+        "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60).",
+        "setLinkPreviews calls PUT /api/admin/workspace/link-previews, removeLinkPreview DELETE /api/link-previews/:id, and fetchPreviewImage reads a preview's picture with the session token, through the same private fetchBytes as fetchFile (E2)."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -45,7 +46,8 @@
         "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred.",
         "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered.",
         "The store holds workspaceIcon, from the ready snapshot's flag, and iconVersion, which the workspace.icon event replaces; a server without the flag gives no version. setWorkspaceIcon and removeWorkspaceIcon show the server's answer at once (UX-60).",
-        "forwards says the server forwards a message (ReadySnapshot.forwards, E1). send takes a forward card and leaves it out for an older server, which would post the comment alone, so a forward with no words of its own sends nothing there. An edit or deletion refreshes forward cards in every loaded timeline, thread and thread root, since an original can live in another conversation. The two refusals of a forward, message_not_found and forward_unavailable, have their own failure text."
+        "forwards says the server forwards a message (ReadySnapshot.forwards, E1). send takes a forward card and leaves it out for an older server, which would post the comment alone, so a forward with no words of its own sends nothing there. An edit or deletion refreshes forward cards in every loaded timeline, thread and thread root, since an original can live in another conversation. The two refusals of a forward, message_not_found and forward_unavailable, have their own failure text.",
+        "linkPreviews holds whether new messages get previews, from the snapshot and workspace.linkPreviews, or null from a server without them; setLinkPreviews shows the server's answer at once. A message.updated with previewsOnly replaces the message but neither marks its conversation's content changed nor requotes anything. removeLinkPreview takes the preview off at once and puts it back if the server refuses. fileOwner finds preview pictures among loaded messages too (E2)."
       ],
       "concepts": [
         "workspace replica",
@@ -112,7 +114,8 @@
         "Concurrent requests for one file share an in-flight promise. At most four transfers run at once, including the complete body transfer, and releasing the last active view cancels unfinished work.",
         "Active views retain their files; idle files follow an LRU-style budget of 32 MiB. Object URLs are revoked when trimmed, invalidated or disposed.",
         "Every cached or fetching file remembers its channel, message and thread root when known. N10 adds whole-root invalidation so retention removes reply images even after their original history page was evicted.",
-        "Unknown ownership is invalidated conservatively on relevant removals. A held transfer checks that it is still current before creating a URL, and onInvalidate tells an open preview to show unavailability. This removes previously cached content; server access checks still authorize new fetches."
+        "Unknown ownership is invalidated conservatively on relevant removals. A held transfer checks that it is still current before creating a URL, and onInvalidate tells an open preview to show unavailability. This removes previously cached content; server access checks still authorize new fetches.",
+        "A link preview's picture is held under previewImageKey(id), preview:<id>, and fetched from its own route; the workspace names the message it belongs to, so it goes with that message as an attachment does (E2)."
       ],
       "concepts": [
         "authenticated files",
@@ -1158,7 +1161,8 @@
         "Reply answers a message in place (Shift leaves its author unnotified) and Reply in thread opens its thread, as in Discord; inside a thread, Reply answers one of its replies. A reply shows its quote above it through ReplyQuote, and a reply that notified you is marked as a mention is.",
         "The hover toolbar draws its icons at 18 px with a stroke of 2, beside the reaction emoji, and marks each button icon-live so its icon moves when pointed at. A saved message's bookmark takes the accent colour alone; with two text colours on the button, the stylesheet's order had left it looking unsaved.",
         "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one.",
-        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files."
+        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files.",
+        "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2)."
       ],
       "concepts": [
         "memoized row",
@@ -1369,6 +1373,17 @@
       "concepts": ["forwarding", "conversation picker", "outbox"]
     },
     {
+      "path": "packages/ui/src/components/LinkPreviews.tsx",
+      "plain": "The boxes under a message that preview the web pages it links to: the site, the page's title, a short description and its picture.",
+      "summary": "Renders a message's link previews, with their server-fetched pictures and Remove for the sender (E2).",
+      "details": [
+        "Each card names the site, links the title to the page (only an http or https address becomes a link, opened in a new tab without a referrer), and shows up to three lines of description.",
+        "The picture comes from the server through FileCache under previewImageKey, never from the site. One at least 400 pixels wide and wider than 1.3 to 1 sits under the words in a box of its own proportions, so nothing jumps while it loads; a smaller one is a 72 pixel square beside them. A picture that cannot be loaded leaves nothing.",
+        "The sender sees Remove on each card, which calls WorkspaceClient.removeLinkPreview and says so in a toast if the server refuses."
+      ],
+      "concepts": ["link previews", "server-fetched images", "stable layout"]
+    },
+    {
       "path": "packages/ui/src/components/Sidebar.tsx",
       "plain": "The sidebar with your workspaces, starred conversations, channels, direct messages, unread marks and account menu.",
       "summary": "Combines workspace switching, conversation navigation, unread context and account actions.",
@@ -1532,7 +1547,8 @@
         "While guests are allowed a line says that choosing either other rule signs every guest out. When guests have joined, leaving guest_allowed asks first with useConfirm, since signed-out guests have to join again.",
         "When this desktop app hosts the workspace on screen (hostedHere), the page says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",
         "On a server without ReadySnapshot.workspaceSettings it shows the name, offers neither control, and says the workspace is changed where it is hosted.",
-        "General starts with the workspace icon (UX-60): the current icon or its square, Upload icon, which opens a hidden file input from the keyboard or a touch, and Remove, which asks nothing since uploading again puts it back. A chosen picture goes through prepareIcon and WorkspaceClient.setWorkspaceIcon at once, says Saved, and a refusal is said under the buttons, described by Upload icon, which takes focus. Neither button is ever disabled; aria-disabled marks one while its request runs. A server without ReadySnapshot.workspaceIcon gets no icon part."
+        "General starts with the workspace icon (UX-60): the current icon or its square, Upload icon, which opens a hidden file input from the keyboard or a touch, and Remove, which asks nothing since uploading again puts it back. A chosen picture goes through prepareIcon and WorkspaceClient.setWorkspaceIcon at once, says Saved, and a refusal is said under the buttons, described by Upload icon, which takes focus. Neither button is ever disabled; aria-disabled marks one while its request runs. A server without ReadySnapshot.workspaceIcon gets no icon part.",
+        "General ends with Link previews (E2): one checkbox, saved the moment it changes through WorkspaceClient.setLinkPreviews, with a plain note that the server reads pages so no device contacts the site, that private addresses are never read, and that turning it off keeps previews already shown. A server without previews leaves it out."
       ],
       "concepts": ["workspace settings", "join policy", "check on send", "UX-60"]
     },
@@ -1588,7 +1604,8 @@
         "Looks up current names from stored IDs and defensively interprets details, so newer or partial records remain understandable.",
         "Loads only when requested, pages through the server audit log and preserves keyboard focus when the final page removes a pagination control.",
         "Renaming the workspace and changing who can join read as sentences too, with the old and new name, or the new rule in plain words; an entry made by the desktop app's host names the host.",
-        "Says workspace.icon_changed as changing or removing the workspace's icon (UX-60)."
+        "Says workspace.icon_changed as changing or removing the workspace's icon (UX-60).",
+        "Says workspace.link_previews_changed as turning link previews on or off (E2)."
       ],
       "concepts": ["audit log", "defensive rendering", "focus preservation"]
     },
