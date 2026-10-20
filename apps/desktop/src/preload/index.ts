@@ -35,6 +35,8 @@ export interface SlackossBridge {
   hostingOpenAtLogin: () => Promise<unknown>;
   hostingSetOpenAtLogin: (open: boolean) => Promise<unknown>;
   hostingRestore: () => Promise<unknown>;
+  hostingBackups: (folder: string) => Promise<unknown>;
+  hostingRestoreOver: (folder: string, backup: string | null) => Promise<unknown>;
   hostingStart: (
     opts:
       | { workspaceName: string; port?: number }
@@ -123,6 +125,8 @@ const bridge: SlackossBridge = {
   hostingOpenAtLogin: () => ipcRenderer.invoke("hosting:openAtLogin"),
   hostingSetOpenAtLogin: (open) => ipcRenderer.invoke("hosting:setOpenAtLogin", open),
   hostingRestore: () => ipcRenderer.invoke("hosting:restore"),
+  hostingBackups: (folder) => ipcRenderer.invoke("hosting:backups", folder),
+  hostingRestoreOver: (folder, backup) => ipcRenderer.invoke("hosting:restoreOver", folder, backup),
   hostingStart: (opts) => ipcRenderer.invoke("hosting:start", opts),
   hostingStop: () => ipcRenderer.invoke("hosting:stop"),
   hostingOpenToAll: (opts) => ipcRenderer.invoke("hosting:openToAll", opts),
