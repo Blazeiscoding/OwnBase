@@ -181,6 +181,21 @@ async function look(page: Page, name: string) {
     [...document.images].every((image) => image.complete && image.naturalWidth > 0),
   );
   await expect(page).toHaveScreenshot(`${name}.png`, { animations: "disabled", caret: "hide" });
+  // Animations stop only while the picture is taken, and play again after it.
+  // axe would then judge text that is still fading in, so it waits for those
+  // that end by themselves: not endless ones, nor a scroll-driven edge fade.
+  await page.evaluate(() =>
+    Promise.all(
+      document
+        .getAnimations()
+        .filter(
+          (animation) =>
+            animation.timeline === document.timeline &&
+            animation.effect?.getComputedTiming().endTime !== Infinity,
+        )
+        .map((animation) => animation.finished.catch(() => undefined)),
+    ),
+  );
   if (!(await page.evaluate(() => "axe" in window))) await page.addScriptTag({ path: axeScript });
   const problems = await page.evaluate(async () => {
     const { violations } = await (
