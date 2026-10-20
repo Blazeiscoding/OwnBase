@@ -34,6 +34,8 @@ const paths = {
   },
   /** An arrow turning back: answering a message in place, beside it rather than in a thread. */
   reply: { arrow: "m9 14-4-4 4-4M5 10h11a4 4 0 1 1 0 8h-1" },
+  /** An arrow passing a message on, for Forward. */
+  forward: "m15 17 5-5-5-5M4 18v-2a4 4 0 0 1 4-4h12",
   /** Triangle with an exclamation mark, for failure states. */
   alert: "M12 3 2.5 20h19zM12 10v4M12 17.5h.01",
   /** Three dots, each a ring so small that a stroke of 2 fills it. */

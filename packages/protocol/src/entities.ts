@@ -147,6 +147,37 @@ export interface Message {
    * older than inline replies.
    */
   replyTo?: ReplyReference | null;
+  /**
+   * The message this one passes on, shown under its own words as a card.
+   * Absent when it forwards nothing, and from servers older than forwarding.
+   */
+  forwardedFrom?: ForwardReference | null;
+}
+
+/**
+ * What a forward carries of the message it passes on, read afresh with it,
+ * so it follows edits and deletion as a reply's quote does. Its words, files
+ * and author show only where everyone who can read the forward can read the
+ * original too: from a public channel, or from the same conversation. One
+ * from a private conversation forwarded elsewhere says only that (`hidden`),
+ * and its link opens it for those who can see it there.
+ */
+export interface ForwardReference {
+  id: ID;
+  /** Where it was said, for its link. */
+  channelId: ID;
+  /** Its author; empty when hidden or deleted. */
+  userId: ID;
+  /** All of its words; empty when hidden or deleted. */
+  text: string;
+  /** Its files, opened as the original's; none when hidden or deleted. */
+  files: FileMeta[];
+  /** When it was written; 0 when hidden or deleted. */
+  createdAt: number;
+  /** Deleted, or gone with older history. */
+  deleted: boolean;
+  /** From a private conversation, so not shown here. */
+  hidden: boolean;
 }
 
 /**

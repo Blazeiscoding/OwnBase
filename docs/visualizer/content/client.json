@@ -44,7 +44,8 @@
         "memberChanges holds, per conversation, the seq of the latest member.joined or member.left, so views that ask for a channel's members (the header's faces, the Members panel) ask again (UX-23).",
         "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred.",
         "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered.",
-        "The store holds workspaceIcon, from the ready snapshot's flag, and iconVersion, which the workspace.icon event replaces; a server without the flag gives no version. setWorkspaceIcon and removeWorkspaceIcon show the server's answer at once (UX-60)."
+        "The store holds workspaceIcon, from the ready snapshot's flag, and iconVersion, which the workspace.icon event replaces; a server without the flag gives no version. setWorkspaceIcon and removeWorkspaceIcon show the server's answer at once (UX-60).",
+        "forwards says the server forwards a message (ReadySnapshot.forwards, E1). send takes a forward card and leaves it out for an older server, which would post the comment alone, so a forward with no words of its own sends nothing there. An edit or deletion refreshes forward cards in every loaded timeline, thread and thread root, since an original can live in another conversation. The two refusals of a forward, message_not_found and forward_unavailable, have their own failure text."
       ],
       "concepts": [
         "workspace replica",
@@ -78,7 +79,8 @@
         "Each entry is indexed by the send nonce and carries a revision. A merge accepts a newer entry, preserving newer refusal or retry intent instead of letting a stale window overwrite it.",
         "Delivered or discarded sends leave tombstones that prevent another window from reintroducing its old copy. A compactedThrough floor continues refusing older absent entries after individual tombstones are trimmed.",
         "The merge keeps at least 500 tombstones, additionally retaining those inside the send retry window, with a 10,000 upper bound. This bounds the record while preserving removal intent.",
-        "Stored outboxes can be read from the current version-2 shape or an earlier plain entry array. Attachment metadata survives; preview URLs and raw File objects do not."
+        "Stored outboxes can be read from the current version-2 shape or an earlier plain entry array. Attachment metadata survives; preview URLs and raw File objects do not.",
+        "A waiting forward keeps its card across restarts; a stored entry with a malformed card is refused like any other malformed entry."
       ],
       "concepts": ["outbox", "request nonce", "revision", "tombstone", "bounded storage"]
     },
@@ -189,11 +191,12 @@
     },
     {
       "path": "packages/client-core/src/replies.ts",
-      "plain": "Keeps the line a reply shows of the message it answers up to date when that message is edited or deleted.",
-      "summary": "Builds inline-reply quotes and refreshes the ones already held after an edit, deletion or removal.",
+      "plain": "Keeps the line a reply shows of the message it answers, and the card a forward shows, up to date when that message is edited or deleted.",
+      "summary": "Builds inline-reply quotes and forward cards, and refreshes the ones already held after an edit, deletion or removal.",
       "details": [
         "quoteOf takes the same excerpt the server stores, so a reply still sending shows what it will show once sent.",
-        "quoteChanges reads which messages an event edits or removes, and requote applies that to every held reply quoting them, returning the same list when none does so rows that are not affected do not redraw."
+        "quoteChanges reads which messages an event edits or removes, and requote applies that to every held reply quoting them, returning the same list when none does so rows that are not affected do not redraw.",
+        "forwardSource picks what forwarding a message passes on, as the server does: the message, the original of a forward with no words or files of its own, or nothing when that original is hidden or deleted. forwardOf builds the card a waiting forward shows, hidden for a private original going to another conversation. requote refreshes forward cards too, and an edit leaves a hidden or deleted card as it is."
       ],
       "concepts": ["inline replies", "quote freshness", "stable lists"]
     },
@@ -793,7 +796,7 @@
       "plain": "Lets each message redraw only when the people or channels it shows change, so typing elsewhere does not redraw them all.",
       "summary": "Subscribes each message row only to the users and channels it actually displays.",
       "details": [
-        "Extracts author, mention, reaction and linked-channel IDs from message data, and for a reply the author and mentions of the message it quotes.",
+        "Extracts author, mention, reaction and linked-channel IDs from message data, for a reply the author and mentions of the message it quotes, and for a forward the original's author, its conversation and the people it names.",
         "usePick preserves object identity until a referenced entry changes and skips work while the source map is unchanged. Renaming an unrelated person or typing elsewhere therefore need not rerender every visible message."
       ],
       "concepts": ["selective rendering", "stable selectors", "message references"]
@@ -1132,7 +1135,8 @@
         "Loads initial, older and newer history through owned request tickets. A top visible message and offset anchor preserve position while prepending rows; explicit message jumps center and highlight a target.",
         "Readers at the latest message stay pinned as content or viewport size changes; readers looking back are not pulled to the bottom, except by a send of their own, which brings them down to it as Discord and Slack do. History entries remember where a conversation was being read.",
         "Separately renders optimistic pending sends with Retry/Discard and ephemeral app answers with dismissal/limit notices. Date dividers, an unread boundary and typing indicators make the timeline understandable.",
-        "Read acknowledgement follows a genuinely visible tail, and useRovingMessages makes the list a manageable keyboard region. The actual row count is bounded in client-core rather than claiming full DOM virtualization."
+        "Read acknowledgement follows a genuinely visible tail, and useRovingMessages makes the list a manageable keyboard region. The actual row count is bounded in client-core rather than claiming full DOM virtualization.",
+        "A waiting forward shows its card under its words, as it will once sent."
       ],
       "concepts": [
         "history paging",
@@ -1153,7 +1157,8 @@
         "The in-place editor is a lazy chunk with an inline loading status and a recoverable failure, keeping editing code out of the entry every visit downloads. The emoji picker for a reaction is a lazy chunk too, with a dialog that says so if it cannot load.",
         "Reply answers a message in place (Shift leaves its author unnotified) and Reply in thread opens its thread, as in Discord; inside a thread, Reply answers one of its replies. A reply shows its quote above it through ReplyQuote, and a reply that notified you is marked as a mention is.",
         "The hover toolbar draws its icons at 18 px with a stroke of 2, beside the reaction emoji, and marks each button icon-live so its icon moves when pointed at. A saved message's bookmark takes the accent colour alone; with two text colours on the button, the stylesheet's order had left it looking unsaved.",
-        "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one."
+        "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one.",
+        "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files."
       ],
       "concepts": [
         "memoized row",
@@ -1340,6 +1345,28 @@
         "Clicking it is handled by the message row: an original on screen is scrolled to and briefly lit, and one that is not is opened by the same jump search and links use. A deleted original says so and opens nothing."
       ],
       "concepts": ["inline replies", "message context", "navigation"]
+    },
+    {
+      "path": "packages/ui/src/components/ForwardCard.tsx",
+      "plain": "The box under a forwarded message that shows the message it passes on: who wrote it, when, what it said and its files.",
+      "summary": "Renders a forward's card and leads back to the original where the reader can open it.",
+      "details": [
+        "The header names where the original was said, #name for a channel and the people for a DM. A card from a private conversation forwarded elsewhere says only that, and a deleted original says so. Neither shows an author, words or files.",
+        "View original opens the message through OpenMessageContext. It is offered only when the reader's replica has the original's conversation and the original is not deleted, and not in ForwardDialog's preview, where it would open the message behind the dialog.",
+        "conversationName is shared with ForwardDialog, so the list and the card name a conversation the same way. MessageItem imports the card directly, so it is in the entry bundle; the dialog is a lazy chunk."
+      ],
+      "concepts": ["forwarding", "message context", "privacy"]
+    },
+    {
+      "path": "packages/ui/src/components/ForwardDialog.tsx",
+      "plain": "The window for forwarding a message: pick where it goes, add a few words if you like, and see what the others will see.",
+      "summary": "Chooses a conversation and an optional comment, previews the card and sends the forward.",
+      "details": [
+        "The list holds the conversations the person is in and every public channel, since posting joins one. Typing filters it by name, at most eight rows show, and useListbox drives it as in the switcher. Enter picks the active row.",
+        "MessageItem passes a ForwardSource: the message itself, or the original of a forward with no words or files of its own. The preview is forwardOf for the chosen conversation, so it hides a private original going elsewhere as the server will.",
+        "Forward goes through client.send, so the forward waits in the outbox like any message. Without a conversation it asks where and focuses the field; a full outbox keeps the dialog open and says why."
+      ],
+      "concepts": ["forwarding", "conversation picker", "outbox"]
     },
     {
       "path": "packages/ui/src/components/Sidebar.tsx",
@@ -1839,7 +1866,8 @@
         "Inline vectors avoid an icon font, extra network fetch and a large icon runtime dependency while keeping common controls visually consistent.",
         "Six icons (smile, reply, thread, bookmark, edit and the three dots) are redrawn after Its Hover's and kept as named parts. Such an icon carries data-icon and each path data-part, and every part has a path length of 1, so the stylesheet can move or draw one part without a motion library in the bundle.",
         "home (a house) and messages (two speech bubbles) are the phone's bottom bar's Home and DMs.",
-        "star (five points) is Star and Unstar in a conversation's menus."
+        "star (five points) is Star and Unstar in a conversation's menus.",
+        "forward (an arrow passing a message on) is Forward in a message's menu."
       ],
       "concepts": [
         "inline SVG",

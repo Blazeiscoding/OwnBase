@@ -1,4 +1,8 @@
-import { SEND_RETRY_WINDOW_MS, type ReplyReference } from "@slackoss/protocol";
+import {
+  SEND_RETRY_WINDOW_MS,
+  type ForwardReference,
+  type ReplyReference,
+} from "@slackoss/protocol";
 import type { StoredPending } from "./workspace.js";
 
 /**
@@ -76,6 +80,7 @@ export function isStoredPending(entry: unknown): entry is StoredPending {
     (e.threadRootId === null || typeof e.threadRootId === "string") &&
     (e.broadcast === undefined || typeof e.broadcast === "boolean") &&
     (e.replyTo === undefined || isReplyReference(e.replyTo)) &&
+    (e.forward === undefined || isForwardReference(e.forward)) &&
     typeof e.text === "string" &&
     typeof e.userId === "string" &&
     Number.isFinite(e.createdAt) &&
@@ -107,6 +112,26 @@ function isReplyReference(value: unknown): value is ReplyReference {
   );
 }
 
+function isForwardReference(value: unknown): value is ForwardReference {
+  const r = value as Record<string, unknown> | null;
+  return (
+    !!r &&
+    typeof r === "object" &&
+    typeof r.id === "string" &&
+    typeof r.channelId === "string" &&
+    typeof r.userId === "string" &&
+    typeof r.text === "string" &&
+    Array.isArray(r.files) &&
+    r.files.every(
+      (f: Record<string, unknown> | null) =>
+        !!f && typeof f === "object" && typeof f.id === "string" && typeof f.name === "string",
+    ) &&
+    Number.isFinite(r.createdAt) &&
+    typeof r.deleted === "boolean" &&
+    typeof r.hidden === "boolean"
+  );
+}
+
 const isRevision = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
@@ -127,6 +152,20 @@ export function storedPending(entry: StoredPending): StoredPending {
             fileCount: entry.replyTo.fileCount,
             deleted: entry.replyTo.deleted,
             ping: entry.replyTo.ping,
+          },
+        }),
+    ...(entry.forward === undefined
+      ? {}
+      : {
+          forward: {
+            id: entry.forward.id,
+            channelId: entry.forward.channelId,
+            userId: entry.forward.userId,
+            text: entry.forward.text,
+            files: entry.forward.files,
+            createdAt: entry.forward.createdAt,
+            deleted: entry.forward.deleted,
+            hidden: entry.forward.hidden,
           },
         }),
     text: entry.text,

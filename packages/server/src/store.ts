@@ -15,6 +15,7 @@ import type {
   Message,
   MessageAction,
   ReactionGroup,
+  ForwardReference,
   ReplyReference,
   NotifyLevel,
   ParsedSearch,
@@ -85,6 +86,7 @@ interface MessageRow {
   actions: string;
   reply_to_id: string | null;
   reply_ping: number;
+  forwarded_from_id: string | null;
 }
 
 /**
@@ -1026,6 +1028,8 @@ export class Store {
     replyToId?: ID | null;
     /** Notify that message's author, unless it is the sender or deleted. */
     replyPing?: boolean;
+    /** The message this one passes on; the caller has checked the sender may read it. */
+    forwardedFromId?: ID | null;
   }): Message {
     // Messages are read back in the order of their ids, so that order has to
     // be the order they were made in, within one millisecond too.
@@ -1036,8 +1040,8 @@ export class Store {
       .prepare(
         `INSERT INTO messages
            (id, channel_id, user_id, text, thread_root_id, broadcast, nonce, created_at, actions,
-            reply_to_id, reply_ping)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            reply_to_id, reply_ping, forwarded_from_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -1051,9 +1055,40 @@ export class Store {
         JSON.stringify(input.actions ?? []),
         input.replyToId ?? null,
         pinged ? 1 : 0,
+        input.forwardedFromId ?? null,
       );
     this.indexMentions(id, input.channelId, input.text, { pinged });
     return this.getMessage(id)!;
+  }
+
+  /**
+   * The message a forward would pass on, as a send checks it: where it is,
+   * whether it is deleted, and whether it is itself a forward with no words or
+   * files of its own (`bare`), whose original is then passed on instead.
+   */
+  forwardSource(
+    id: ID,
+  ): { id: ID; channelId: ID; deleted: boolean; forwardedFromId: ID | null; bare: boolean } | null {
+    const row = this.db
+      .prepare(
+        `SELECT m.id, m.channel_id, m.deleted_at, m.forwarded_from_id, m.text,
+           (SELECT COUNT(*) FROM files f WHERE f.message_id = m.id) AS file_count
+         FROM messages m WHERE m.id = ?`,
+      )
+      .get(id) as
+      | (Pick<MessageRow, "id" | "channel_id" | "deleted_at" | "forwarded_from_id" | "text"> & {
+          file_count: number;
+        })
+      | undefined;
+    return row
+      ? {
+          id: row.id,
+          channelId: row.channel_id,
+          deleted: row.deleted_at !== null,
+          forwardedFromId: row.forwarded_from_id,
+          bare: row.text.trim() === "" && row.file_count === 0,
+        }
+      : null;
   }
 
   /**
@@ -1166,6 +1201,7 @@ export class Store {
     this.redactMessageEvents(id);
     const message = this.getMessage(id)!;
     this.requoteEvents([id], { text: replyExcerpt(text), fileCount: message.files.length });
+    this.reforwardEvents([id], { text });
     return message;
   }
 
@@ -1180,6 +1216,7 @@ export class Store {
     this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(id);
     this.redactMessageEvents(id);
     this.requoteEvents([id], null);
+    this.reforwardEvents([id], null);
   }
 
   /**
@@ -1272,6 +1309,15 @@ export class Store {
           )
           .all() as { id: string }[]
       ).map((r) => r.id);
+      // So do later forwards of it.
+      const forwarded = (
+        this.db
+          .prepare(
+            `SELECT DISTINCT forwarded_from_id AS id FROM messages
+             WHERE forwarded_from_id IN ${doomed} AND id NOT IN ${doomed}`,
+          )
+          .all() as { id: string }[]
+      ).map((r) => r.id);
 
       // A send's key outlives its message, so an app still holding the send
       // is refused rather than posting it again. Who, which key and when only.
@@ -1307,6 +1353,7 @@ export class Store {
       this.redactEventRows(logged);
       this.redactQueuedDeliveries(queued);
       this.requoteEvents(quoted, null);
+      this.reforwardEvents(forwarded, null);
       return { messages, fileIds, roots: removed };
     } finally {
       this.db.exec("DELETE FROM temp.purge_messages");
@@ -1539,6 +1586,82 @@ export class Store {
       };
     };
 
+    // What each forward passes on, read as it is now. Its words, files and
+    // author show only where everyone reading the forward can read the
+    // original too (see ForwardReference).
+    const forwardedIds = [
+      ...new Set(rows.flatMap((r) => (r.forwarded_from_id ? [r.forwarded_from_id] : []))),
+    ];
+    const originals = new Map(
+      forwardedIds.length === 0
+        ? []
+        : (
+            this.db
+              .prepare(
+                `SELECT m.id, m.channel_id, m.user_id, m.text, m.created_at, m.deleted_at,
+                   c.type AS channel_type
+                 FROM messages m JOIN channels c ON c.id = m.channel_id
+                 WHERE m.id IN (${forwardedIds.map(() => "?").join(",")})`,
+              )
+              .all(...forwardedIds) as (Pick<
+              MessageRow,
+              "id" | "channel_id" | "user_id" | "text" | "created_at" | "deleted_at"
+            > & { channel_type: string })[]
+          ).map((o) => [o.id, o]),
+    );
+    const originalFiles = new Map<string, FileMeta[]>();
+    if (originals.size > 0) {
+      const ids = [...originals.keys()];
+      for (const f of this.db
+        .prepare(
+          `SELECT id, message_id, name, mime, size, width, height FROM files
+           WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY created_at`,
+        )
+        .all(...ids) as unknown as (FileMeta & { message_id: string })[]) {
+        const { message_id, ...meta } = f;
+        const list = originalFiles.get(message_id);
+        if (list) list.push(meta);
+        else originalFiles.set(message_id, [meta]);
+      }
+    }
+    const forwardedFrom = (r: MessageRow): { forwardedFrom?: ForwardReference } => {
+      if (!r.forwarded_from_id) return {};
+      const o = originals.get(r.forwarded_from_id);
+      const none = { userId: "", text: "", files: [], createdAt: 0 };
+      if (!o || o.deleted_at !== null)
+        return {
+          forwardedFrom: {
+            id: r.forwarded_from_id,
+            channelId: o?.channel_id ?? "",
+            ...none,
+            deleted: true,
+            hidden: false,
+          },
+        };
+      if (o.channel_type !== "public" && o.channel_id !== r.channel_id)
+        return {
+          forwardedFrom: {
+            id: o.id,
+            channelId: o.channel_id,
+            ...none,
+            deleted: false,
+            hidden: true,
+          },
+        };
+      return {
+        forwardedFrom: {
+          id: o.id,
+          channelId: o.channel_id,
+          userId: o.user_id,
+          text: o.text,
+          files: originalFiles.get(o.id) ?? [],
+          createdAt: o.created_at,
+          deleted: false,
+          hidden: false,
+        },
+      };
+    };
+
     return rows.map((r) => ({
       id: r.id,
       channelId: r.channel_id,
@@ -1556,6 +1679,7 @@ export class Store {
       pinned: pinned.has(r.id),
       actions: parseActions(r.actions),
       ...replyTo(r),
+      ...forwardedFrom(r),
     }));
   }
 
@@ -3546,6 +3670,37 @@ export class Store {
       event.message.replyTo = now
         ? { ...quote, ...now }
         : { ...quote, userId: "", text: "", fileCount: 0, deleted: true };
+      const after = JSON.stringify(event);
+      if (after !== row.payload) update.run(after, row.seq);
+    }
+  }
+
+  /**
+   * As `requoteEvents`, for forwards: the log's copies of messages forwarding
+   * these follow an edit's new words, or say the original is gone (null). A
+   * hidden one shows no words either way.
+   */
+  private reforwardEvents(ids: ID[], now: { text: string } | null): void {
+    if (ids.length === 0) return;
+    const forwarded = new Set(ids);
+    const ph = ids.map(() => "?").join(",");
+    const rows = this.db
+      .prepare(
+        `SELECT seq, payload FROM events WHERE type IN ('message.created', 'message.updated')
+         AND message_id IN (SELECT id FROM messages WHERE forwarded_from_id IN (${ph}))`,
+      )
+      .all(...ids) as { seq: number; payload: string }[];
+    const update = this.db.prepare("UPDATE events SET payload = ? WHERE seq = ?");
+    for (const row of rows) {
+      const event = JSON.parse(row.payload) as WorkspaceEvent;
+      if (event.type !== "message.created" && event.type !== "message.updated") continue;
+      const ref = event.message.forwardedFrom;
+      if (!ref || !forwarded.has(ref.id)) continue;
+      event.message.forwardedFrom = now
+        ? ref.hidden || ref.deleted
+          ? ref
+          : { ...ref, text: now.text }
+        : { ...ref, userId: "", text: "", files: [], createdAt: 0, deleted: true };
       const after = JSON.stringify(event);
       if (after !== row.payload) update.run(after, row.seq);
     }

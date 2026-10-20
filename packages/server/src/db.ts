@@ -575,6 +575,15 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE channel_members ADD COLUMN starred INTEGER NOT NULL DEFAULT 0;
   `,
+  // v41 — a forwarded message: the one it passes on, shown under it as a card
+  // (E1). No foreign key, as with replies: the original can go with older
+  // history while the forward stays and says so. Indexed for the forwards of
+  // one message, which its edit or deletion has to find.
+  `
+  ALTER TABLE messages ADD COLUMN forwarded_from_id TEXT;
+  CREATE INDEX idx_messages_forwarded_from ON messages(forwarded_from_id)
+    WHERE forwarded_from_id IS NOT NULL;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

@@ -331,6 +331,7 @@ export class Gateway {
           huddleJoinReplies: true,
           huddleReports: true,
           inlineReplies: true,
+          forwards: true,
           scheduledEvents: true,
           activityThreads: true,
           stars: true,

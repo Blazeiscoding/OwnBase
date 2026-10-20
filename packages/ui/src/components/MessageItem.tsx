@@ -12,6 +12,7 @@ import {
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@slackoss/protocol";
+import { forwardSource, type ForwardSource } from "@slackoss/client-core";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
 import { formatFull, formatTime } from "../lib/format.js";
@@ -27,6 +28,8 @@ import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
+import { ForwardCard } from "./ForwardCard.js";
+import { LazyDialog } from "./LazyView.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
 import { useToast } from "./Toast.js";
@@ -38,6 +41,10 @@ const MessageEditor = lazy(() =>
 // So is a reaction beyond the three the toolbar offers, and so does its picker.
 const ReactionPicker = lazy(() =>
   import("./ReactionPicker.js").then((module) => ({ default: module.ReactionPicker })),
+);
+// And forwarding a message somewhere else.
+const ForwardDialog = lazy(() =>
+  import("./ForwardDialog.js").then((module) => ({ default: module.ForwardDialog })),
 );
 
 /** The three reactions most messages get; the picker has the rest. */
@@ -78,6 +85,10 @@ export const MessageItem = memo(function MessageItem({
   const selfRole = useWorkspace((s) => s.self?.role);
   const [editing, setEditing] = useState(false);
   const [picking, setPicking] = useState(false);
+  // What the dialog passes on, as it was when Forward was chosen.
+  const [forwarding, setForwarding] = useState<ForwardSource | null>(null);
+  // Offered only where the server forwards; an older one would drop the card.
+  const canForward = useWorkspace((s) => s.forwards);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   // The toolbar shows on hover; while its menu is open it stays, so the menu
@@ -219,6 +230,18 @@ export const MessageItem = memo(function MessageItem({
         ),
       ),
   };
+  // A forward of something hidden here or deleted has nothing to pass on.
+  const forwarded = canForward ? forwardSource(message) : null;
+  const forwardItems: MenuItem[] = forwarded
+    ? [
+        {
+          id: "forward",
+          label: "Forward…",
+          icon: "forward",
+          onSelect: () => setForwarding(forwarded),
+        },
+      ]
+    : [];
   const unreadItem: MenuItem = {
     id: "unread",
     label: unreadLabel,
@@ -276,6 +299,7 @@ export const MessageItem = memo(function MessageItem({
     // Holding a message opens this menu rather than selecting its words.
     ...(message.text ? [{ ...copyTextItem, icon: "fileText" as const }] : []),
     copyItem,
+    ...forwardItems,
     { id: "save", label: saveLabel, icon: "bookmark", onSelect: toggleSaved },
     unreadItem,
     ...pinItems,
@@ -292,7 +316,13 @@ export const MessageItem = memo(function MessageItem({
     ...deleteItems.map((item) => ({ ...item, section: undefined })),
   ];
   /** What the toolbar keeps behind its last button: the less frequent half. */
-  const moreItems: MenuItem[] = [copyItem, unreadItem, ...pinItems, ...deleteItems];
+  const moreItems: MenuItem[] = [
+    copyItem,
+    ...forwardItems,
+    unreadItem,
+    ...pinItems,
+    ...deleteItems,
+  ];
 
   return (
     <div
@@ -452,6 +482,16 @@ export const MessageItem = memo(function MessageItem({
                 </div>
               )}
               <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
+              {message.forwardedFrom && (
+                <ForwardCard
+                  forward={message.forwardedFrom}
+                  users={users}
+                  channels={channels}
+                  selfId={selfId}
+                  onOpenImage={onOpenImage}
+                  onChannelClick={onChannelClick}
+                />
+              )}
               <MessageActions message={message} />
               {deleteError && (
                 <p role="alert" className="mt-2 text-xs text-alert">
@@ -628,6 +668,11 @@ export const MessageItem = memo(function MessageItem({
             <ReactionPicker anchor={row} onPick={react} onClose={() => setPicking(false)} />
           </Suspense>
         </ErrorBoundary>
+      )}
+      {forwarding && (
+        <LazyDialog loading="Loading Forward message" onClose={() => setForwarding(null)}>
+          <ForwardDialog source={forwarding} onClose={() => setForwarding(null)} />
+        </LazyDialog>
       )}
     </div>
   );
