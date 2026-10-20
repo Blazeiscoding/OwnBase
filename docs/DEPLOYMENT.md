@@ -910,6 +910,35 @@ webhooks:
 Each replacement is logged with the app or webhook and the administrator who made
 it, never the credential itself.
 
+## Link previews
+
+When a message links to web pages, the server reads the first three of them and
+adds a preview under the message: the site's name, the page's title and
+description, and its picture. The server fetches the page and the picture itself,
+so no reader's device contacts the site because someone else posted its link. The
+picture is kept in `workspace.db` with the message and served only to people who
+can read that message.
+
+Every fetch goes through the same guard as app requests, with one difference:
+`--allow-private-hooks` does not apply. Anyone can post a link, so the server never
+reads a private, loopback or link-local address for a preview, whether the link
+names it, a name resolves to it, or a redirect leads to it. A page is read for at
+most five seconds and 512 KB, a picture for five seconds and 1 MB, and at most
+three redirects are followed, each checked again. Only HTML pages get a preview,
+and only PNG, JPEG, WebP or GIF pictures whose own first bytes say so are kept;
+the server never decodes one. A busy server previews at most 200 messages at a
+time and skips the rest.
+
+The server therefore makes outbound HTTP and HTTPS requests to addresses its
+members choose. On a server whose firewall blocks outbound web traffic, previews
+simply never appear. Its owner and administrators can turn them off in
+**Workspace settings → General**. Turning them off adds no preview to new
+messages and records who did it in the administrative record; previews already
+shown stay until their sender removes them. A sender removes a preview from the
+message itself, and an edit that keeps the link does not bring it back. Apps are
+not told when a preview is added or removed, since the message's words did not
+change. An isolated copy of a workspace fetches no previews.
+
 ## Behind a reverse proxy
 
 Set `--public-url` to the address people actually use. It is what an app is told

@@ -256,8 +256,37 @@ describe("complete message content cleanup (N06/N07)", () => {
         creatorId: user.id,
         memberIds: [user.id],
       });
-      // Written as v36 wrote a message: the store's own insert now names
-      // columns added since, which a v36 workspace does not have.
+      // Written and read as v36 did: the store's own insert names columns
+      // added since, and its read joins tables added since (link previews),
+      // neither of which a v36 workspace has.
+      const asWritten = (id: string): Message => {
+        const row = db!.prepare("SELECT * FROM messages WHERE id = ?").get(id) as {
+          id: string;
+          channel_id: string;
+          user_id: string;
+          text: string;
+          created_at: number;
+          edited_at: number | null;
+          actions: string;
+        };
+        return {
+          id: row.id,
+          channelId: row.channel_id,
+          userId: row.user_id,
+          text: row.text,
+          threadRootId: null,
+          broadcast: false,
+          seq: 0,
+          createdAt: row.created_at,
+          editedAt: row.edited_at,
+          nonce: null,
+          replyCount: 0,
+          reactions: [],
+          files: [],
+          pinned: false,
+          actions: JSON.parse(row.actions),
+        };
+      };
       const make = (text: string) => {
         const id = ulid();
         db!
@@ -266,7 +295,7 @@ describe("complete message content cleanup (N06/N07)", () => {
              VALUES (?, ?, ?, ?, NULL, ?, ?)`,
           )
           .run(id, room.id, user.id, text, Date.now(), JSON.stringify(actions));
-        return store.getMessage(id)!;
+        return asWritten(id);
       };
       const deleted = make("Removed");
       const live = make("Original");
@@ -277,7 +306,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       db.prepare("DELETE FROM messages WHERE id = ?").run(purged.id);
       db.prepare("UPDATE messages SET text = 'Current', edited_at = 1 WHERE id = ?").run(live.id);
       const latest = store.appendEvent(
-        { type: "message.updated", message: store.getMessage(live.id)! },
+        { type: "message.updated", message: asWritten(live.id) },
         room.id,
       );
       // v36 already scrubbed old text/files, but retained their actions.

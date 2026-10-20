@@ -15,10 +15,14 @@ import type { CallReport, HuddleSignal } from "./huddle.js";
  * Durable workspace events. Every mutation appends one to the event log and
  * gets a monotonically increasing `seq`. Clients track `lastSeq` and replay
  * missed events on reconnect.
+ *
+ * A `message.updated` that says `previewsOnly` changes only the message's link
+ * previews, found or removed (E2). It is not an edit, so apps are not told and
+ * nothing quoting the message changes. An edit leaves it out.
  */
 export type WorkspaceEvent =
   | { type: "message.created"; message: Message }
-  | { type: "message.updated"; message: Message }
+  | { type: "message.updated"; message: Message; previewsOnly?: true }
   | { type: "message.deleted"; channelId: ID; messageId: ID; threadRootId: ID | null }
   | { type: "reaction.added"; channelId: ID; messageId: ID; emoji: string; userId: ID }
   | { type: "reaction.removed"; channelId: ID; messageId: ID; emoji: string; userId: ID }
@@ -79,6 +83,12 @@ export type EphemeralEvent =
    * event ignore it.
    */
   | { type: "workspace.icon"; iconVersion: string | null }
+  /**
+   * Link previews were turned on or off for the workspace, replacing what the
+   * ready snapshot gave. Told to everyone signed in. Clients older than this
+   * event ignore it.
+   */
+  | { type: "workspace.linkPreviews"; enabled: boolean }
   /** Private to one user's own sockets, so their devices stay in step. */
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
@@ -205,6 +215,12 @@ export interface ReadySnapshot {
   workspaceIcon?: true;
   /** The icon's version, which changes with its image, or null when there is none. */
   iconVersion?: string | null;
+  /**
+   * Whether this server adds link previews to new messages now, which its
+   * owner and admins change (`PUT /api/admin/workspace/link-previews`). Absent
+   * from servers before link previews, so the setting is not offered there.
+   */
+  linkPreviews?: boolean;
   workspaceName: string;
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;

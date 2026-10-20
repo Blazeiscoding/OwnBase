@@ -73,6 +73,8 @@ export class Gateway {
       name: () => string;
       accessPolicy: () => AccessPolicy;
       iconVersion: () => string | null;
+      /** Whether new messages get link previews now (E2). */
+      linkPreviews: () => boolean;
     },
     /** Shared with the HTTP side, so one caller has one allowance overall. */
     private limiter: RateLimiter | null = null,
@@ -339,6 +341,7 @@ export class Gateway {
           accessPolicy: this.workspace.accessPolicy(),
           workspaceIcon: true,
           iconVersion: this.workspace.iconVersion(),
+          linkPreviews: this.workspace.linkPreviews(),
           workspaceName: this.workspace.name(),
           workspaceId: this.store.getMeta("workspace_id") ?? undefined,
           friends: this.store.listFriends(user.id),

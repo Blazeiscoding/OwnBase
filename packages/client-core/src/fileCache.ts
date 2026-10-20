@@ -20,6 +20,12 @@ export interface FileOwner {
  * when the message is deleted or its conversation becomes unreadable, even
  * after the history that listed it has been let go.
  */
+/**
+ * The cache's key for a link preview's picture (E2), which it holds and lets
+ * go with its message as it does a file.
+ */
+export const previewImageKey = (previewId: ID): string => `preview:${previewId}`;
+
 export class FileCache {
   private owners = new Map<ID, FileOwner | null>();
   private listeners = new Set<(fileId: ID) => void>();
@@ -91,7 +97,11 @@ export class FileCache {
         this.activeFetches++;
         void (async () => {
           try {
-            resolve(await this.api.fetchFile(fileId, controller.signal));
+            resolve(
+              await (fileId.startsWith("preview:")
+                ? this.api.fetchPreviewImage(fileId.slice("preview:".length), controller.signal)
+                : this.api.fetchFile(fileId, controller.signal)),
+            );
           } catch (err) {
             reject(err);
           } finally {

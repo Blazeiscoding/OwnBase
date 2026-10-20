@@ -43,6 +43,7 @@ import {
   guestAccountBody,
   guestJoinBody,
   accessPolicyBody,
+  linkPreviewsBody,
   workspaceNameBody,
   workspaceNameSchema,
   ACCESS_POLICIES,
@@ -83,6 +84,7 @@ import { advertise, type MdnsHandle } from "./mdns.js";
 import { imageSize } from "./imageSize.js";
 import { blocksToActions, parseView, payloadToText } from "./blockKit.js";
 import { OutboundError, postToUrl } from "./outbound.js";
+import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
 import { parsePort, parsePublicUrl } from "./config.js";
 import { callRelaySchema, createRelaySource, withRelay, type CallRelay } from "./relay.js";
 import { iceServersSchema } from "./rtc.js";
@@ -345,6 +347,12 @@ export interface ServerOptions {
    * queued, and goes out if the same data is later started normally.
    */
   isolated?: boolean;
+  /**
+   * Fetches one link's preview in place of the real fetch, for tests, which
+   * cannot reach a page on the public internet. The real one goes through the
+   * outbound guard (linkPreview.ts).
+   */
+  fetchLinkPreview?: (url: string, signal: AbortSignal) => Promise<FetchedPreview | null>;
 }
 
 export interface WorkspaceServer {
@@ -574,6 +582,8 @@ async function startWorkspaceServer(
     return isAccessPolicy(policy) ? policy : "invite_only";
   };
   const workspaceName = () => store.getMeta("workspace_name")!;
+  /** Whether new messages get link previews (E2): on unless an owner or admin turned them off. */
+  const linkPreviewsOn = () => store.getMeta("link_previews") !== "off";
   const inviteOnly = () => accessPolicy() === "invite_only";
   /**
    * The workspace's icon, held here once read, since everyone who opens the
@@ -737,7 +747,12 @@ async function startWorkspaceServer(
 
   const gateway = new Gateway(
     store,
-    { name: workspaceName, accessPolicy, iconVersion: () => icon?.version ?? null },
+    {
+      name: workspaceName,
+      accessPolicy,
+      iconVersion: () => icon?.version ?? null,
+      linkPreviews: linkPreviewsOn,
+    },
     limiter,
     (req) =>
       resolveClientAddress(
@@ -944,8 +959,8 @@ async function startWorkspaceServer(
   };
 
   /** Edits from people and apps refresh both removed and newly added mentions after commit. */
-  const updateMessage = (existing: Message, text: string, clearActions = false): Message =>
-    mutate((emit, afterCommit) => {
+  const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
+    const updated = mutate((emit, afterCommit) => {
       const recipients = new Set([
         ...store.mentionedMemberIds(existing.channelId, existing.text, existing.userId),
         ...store.mentionedMemberIds(existing.channelId, text, existing.userId),
@@ -956,6 +971,10 @@ async function startWorkspaceServer(
       afterCommit(() => pushMentionCounts(recipients));
       return message;
     });
+    // New links in the new words get theirs; the edit already dropped the old ones'.
+    queuePreviews(updated);
+    return updated;
+  };
 
   /**
    * Adds every eligible subscriber beside the event, inside its transaction.
@@ -1028,6 +1047,96 @@ async function startWorkspaceServer(
    */
   let closing = false;
   const shutdown = new AbortController();
+
+  // ---------- link previews (E2) ----------
+
+  /** Fetches at once, and the most messages waiting for theirs; past it a message goes without. */
+  const PREVIEW_WORKERS = 2;
+  const PREVIEW_QUEUE = 200;
+  /**
+   * A link posted again soon after is not fetched again. Pictures are held
+   * here too, so this stays small: 25 links, each for half an hour.
+   */
+  const PREVIEW_CACHE = 25;
+  const PREVIEW_CACHE_MS = 30 * 60_000;
+  const previewQueue: ID[] = [];
+  const previewQueued = new Set<ID>();
+  let previewsRunning = 0;
+  const previewCache = new Map<string, { at: number; found: Promise<FetchedPreview | null> }>();
+  const fetchPreview =
+    opts.fetchLinkPreview ??
+    ((url: string, signal: AbortSignal) => fetchLinkPreview(url, { signal }));
+
+  const cachedPreview = (url: string): Promise<FetchedPreview | null> => {
+    const now = Date.now();
+    const held = previewCache.get(url);
+    if (held && now - held.at < PREVIEW_CACHE_MS) return held.found;
+    const found = fetchPreview(url, shutdown.signal).catch(() => null);
+    previewCache.delete(url);
+    previewCache.set(url, { at: now, found });
+    while (previewCache.size > PREVIEW_CACHE)
+      previewCache.delete(previewCache.keys().next().value!);
+    return found;
+  };
+
+  /**
+   * Looks for previews of a message's links after it is committed, a sent or
+   * an edited one. Nothing is fetched while the workspace is an isolated copy,
+   * which calls nothing outside, or with previews turned off.
+   */
+  const queuePreviews = (message: Message): void => {
+    if (closing || opts.isolated || !linkPreviewsOn()) return;
+    if (previewLinks(message.text).length === 0 || previewQueued.has(message.id)) return;
+    if (previewQueue.length >= PREVIEW_QUEUE) return;
+    previewQueued.add(message.id);
+    previewQueue.push(message.id);
+    pumpPreviews();
+  };
+
+  const pumpPreviews = (): void => {
+    while (!closing && previewsRunning < PREVIEW_WORKERS && previewQueue.length > 0) {
+      const id = previewQueue.shift()!;
+      previewQueued.delete(id);
+      previewsRunning++;
+      void findPreviews(id)
+        .catch((err) => app.log.warn({ err, messageId: id }, "could not add link previews"))
+        .finally(() => {
+          previewsRunning--;
+          pumpPreviews();
+        });
+    }
+  };
+
+  /**
+   * Fetches what a message's links lack, then adds it in one change told to
+   * its readers as a `message.updated` with `previewsOnly`. A message edited
+   * or deleted while its links were fetched gets nothing from this round: its
+   * edit queued another for its new words.
+   */
+  const findPreviews = async (messageId: ID): Promise<void> => {
+    const message = store.getMessage(messageId);
+    if (!message) return;
+    const known = new Set(store.previewRows(messageId).map((row) => row.url));
+    const found: { position: number; preview: FetchedPreview }[] = [];
+    for (const [position, url] of previewLinks(message.text).entries()) {
+      if (known.has(url)) continue;
+      const preview = await cachedPreview(url);
+      if (preview) found.push({ position, preview: { ...preview, url } });
+    }
+    if (found.length === 0 || closing) return;
+    mutate((emit) => {
+      const now = store.getMessage(messageId);
+      if (!now || now.text !== message.text || !linkPreviewsOn()) return;
+      let added = false;
+      for (const { position, preview } of found)
+        added = store.addPreview(messageId, position, preview) || added;
+      if (added)
+        emit(
+          { type: "message.updated", message: store.getMessage(messageId)!, previewsOnly: true },
+          now.channelId,
+        );
+    });
+  };
 
   /**
    * Every request to an app goes through here, so an isolated copy has one
@@ -1326,6 +1435,7 @@ async function startWorkspaceServer(
       return hydrated;
     });
     publishCommitted(events.map((envelope) => ({ envelope, channelId: input.channelId })));
+    queuePreviews(message);
     return message;
   };
 
@@ -2524,6 +2634,49 @@ async function startWorkspaceServer(
 
     removeMessage(existing);
     await flushFileDeletions();
+    return { ok: true };
+  });
+
+  // ---------- link previews ----------
+
+  /**
+   * A preview's picture, for whoever can read its message. The server fetched
+   * it and checked its first bytes; it is sent as the type those bytes say,
+   * never sniffed again by the browser, and kept by nothing on the way.
+   */
+  app.get<{ Params: { id: string } }>("/api/link-previews/:id/image", async (req, reply) => {
+    const me = requireUser(req);
+    const owner = store.previewOwner(req.params.id);
+    if (!owner || !store.canAccess(owner.channelId, me.id))
+      throw new HttpError(404, "preview_not_found");
+    const image = store.previewImage(req.params.id);
+    if (!image) throw new HttpError(404, "preview_not_found");
+    return reply
+      .header("content-type", image.type)
+      .header("cache-control", "private, no-store")
+      .header("x-content-type-options", "nosniff")
+      .header("content-security-policy", "default-src 'none'; sandbox")
+      .send(Buffer.from(image.bytes));
+  });
+
+  /** The sender takes a preview off their message; an edit keeping the link leaves it off. */
+  app.delete<{ Params: { id: string } }>("/api/link-previews/:id", async (req) => {
+    const me = requireUser(req);
+    const owner = store.previewOwner(req.params.id);
+    if (!owner || !store.canAccess(owner.channelId, me.id))
+      throw new HttpError(404, "preview_not_found");
+    if (owner.authorId !== me.id) throw new HttpError(403, "not_your_message");
+    mutate((emit) => {
+      store.removePreview(req.params.id);
+      emit(
+        {
+          type: "message.updated",
+          message: store.getMessage(owner.messageId)!,
+          previewsOnly: true,
+        },
+        owner.channelId,
+      );
+    });
     return { ok: true };
   });
 
@@ -3826,6 +3979,30 @@ async function startWorkspaceServer(
     const body = accessPolicyBody.parse(req.body);
     changeAccessPolicy(body.accessPolicy, me.id);
     return { accessPolicy: accessPolicy() };
+  });
+
+  /**
+   * Link previews for new messages, on or off, for the owner and admins (E2).
+   * Turning them off adds none from then on; the previews messages already
+   * have stay, and their senders can remove them.
+   */
+  app.put("/api/admin/workspace/link-previews", async (req) => {
+    const me = requireAdmin(req);
+    const { enabled } = linkPreviewsBody.parse(req.body);
+    if (enabled !== linkPreviewsOn()) {
+      store.transaction(() => {
+        store.setMeta("link_previews", enabled ? "on" : "off");
+        store.recordAudit({
+          actorId: me.id,
+          action: "workspace.link_previews_changed",
+          targetType: "workspace",
+          targetId: null,
+          details: { from: !enabled, to: enabled },
+        });
+      });
+      gateway.broadcastEphemeral({ type: "workspace.linkPreviews", enabled }, null);
+    }
+    return { enabled: linkPreviewsOn() };
   });
 
   /**

@@ -67,6 +67,8 @@ export function toSlackEvent(event: WorkspaceEvent): Record<string, unknown> | n
       };
     }
     case "message.updated":
+      // Previews found or removed change nothing an app was told (E2).
+      if (event.previewsOnly) return null;
       return {
         type: "message",
         subtype: "message_changed",

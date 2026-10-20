@@ -16,6 +16,7 @@ import type {
   MessageAction,
   ReactionGroup,
   ForwardReference,
+  LinkPreview,
   ReplyReference,
   NotifyLevel,
   ParsedSearch,
@@ -33,6 +34,7 @@ import type {
 } from "@slackoss/protocol";
 import { FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
+import { previewLinks, type FetchedPreview } from "./linkPreview.js";
 
 interface UserRow {
   id: string;
@@ -1193,6 +1195,8 @@ export class Store {
       .prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ? RETURNING channel_id")
       .get(text, Date.now(), id) as { channel_id: string } | undefined;
     if (row) this.indexMentions(id, row.channel_id, text);
+    // Previews of links the new words no longer have go with the old ones.
+    this.prunePreviews(id, previewLinks(text));
     // Every earlier version of the words, wherever the log still holds it. An
     // edit is often how someone takes back what they wrote, and leaving the
     // first draft on disk would make the correction cosmetic. The caller emits
@@ -1214,9 +1218,107 @@ export class Store {
     this.db.prepare("DELETE FROM pins WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM saved_items WHERE message_id = ?").run(id);
     this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(id);
+    this.db.prepare("DELETE FROM link_previews WHERE message_id = ?").run(id);
     this.redactMessageEvents(id);
     this.requoteEvents([id], null);
     this.reforwardEvents([id], null);
+  }
+
+  // ---------- link previews (E2) ----------
+
+  /** The links a message has previews for or had one removed, with which. */
+  previewRows(messageId: ID): { url: string; removed: boolean }[] {
+    return (
+      this.db
+        .prepare("SELECT url, removed FROM link_previews WHERE message_id = ? ORDER BY position")
+        .all(messageId) as { url: string; removed: number }[]
+    ).map((r) => ({ url: r.url, removed: r.removed === 1 }));
+  }
+
+  /**
+   * Keeps the previews of `links`, in that order, and drops the rest: a
+   * removed one stays removed while its link stays. True when anything went.
+   */
+  prunePreviews(messageId: ID, links: string[]): boolean {
+    let changed = false;
+    for (const row of this.previewRows(messageId)) {
+      const position = links.indexOf(row.url);
+      if (position === -1) {
+        this.db
+          .prepare("DELETE FROM link_previews WHERE message_id = ? AND url = ?")
+          .run(messageId, row.url);
+        changed = true;
+      } else {
+        this.db
+          .prepare("UPDATE link_previews SET position = ? WHERE message_id = ? AND url = ?")
+          .run(position, messageId, row.url);
+      }
+    }
+    return changed;
+  }
+
+  /** Adds a preview the server found for one of a message's links. False if it had one. */
+  addPreview(messageId: ID, position: number, preview: FetchedPreview): boolean {
+    const res = this.db
+      .prepare(
+        `INSERT OR IGNORE INTO link_previews
+           (id, message_id, position, url, title, description, site_name,
+            image, image_type, image_width, image_height, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+      .run(
+        ulid(),
+        messageId,
+        position,
+        preview.url,
+        preview.title,
+        preview.description,
+        preview.siteName,
+        preview.image?.bytes ?? null,
+        preview.image?.type ?? null,
+        preview.image?.width ?? null,
+        preview.image?.height ?? null,
+        Date.now(),
+      );
+    return Number(res.changes) > 0;
+  }
+
+  /** Where one preview is and who wrote its message, or null if it is not there. */
+  previewOwner(id: ID): { messageId: ID; channelId: ID; authorId: ID } | null {
+    const row = this.db
+      .prepare(
+        `SELECT p.message_id, m.channel_id, m.user_id FROM link_previews p
+         JOIN messages m ON m.id = p.message_id
+         WHERE p.id = ? AND p.removed = 0 AND m.deleted_at IS NULL`,
+      )
+      .get(id) as { message_id: string; channel_id: string; user_id: string } | undefined;
+    return row
+      ? { messageId: row.message_id, channelId: row.channel_id, authorId: row.user_id }
+      : null;
+  }
+
+  /**
+   * Takes a preview off its message for good: what it said and its picture go,
+   * and the row stays so an edit keeping the link does not fetch it again.
+   */
+  removePreview(id: ID): void {
+    this.db
+      .prepare(
+        `UPDATE link_previews SET removed = 1, title = '', description = '', site_name = '',
+           image = NULL, image_type = NULL, image_width = NULL, image_height = NULL
+         WHERE id = ?`,
+      )
+      .run(id);
+  }
+
+  /** A preview's picture, for a reader the caller has let see its message. */
+  previewImage(id: ID): { bytes: Uint8Array; type: string } | null {
+    const row = this.db
+      .prepare(
+        "SELECT image, image_type FROM link_previews WHERE id = ? AND removed = 0 AND image IS NOT NULL",
+      )
+      .get(id) as { image: Uint8Array; image_type: string } | undefined;
+    return row ? { bytes: row.image, type: row.image_type } : null;
   }
 
   /**
@@ -1662,6 +1764,46 @@ export class Store {
       };
     };
 
+    // Each message's previews, in the order of its links. A deleted one has none.
+    const previews = new Map<string, LinkPreview[]>();
+    const live = rows.filter((r) => r.deleted_at === null).map((r) => r.id);
+    if (live.length > 0) {
+      for (const p of this.db
+        .prepare(
+          `SELECT id, message_id, url, title, description, site_name, image_width, image_height,
+             image IS NOT NULL AS has_image
+           FROM link_previews
+           WHERE removed = 0 AND message_id IN (${live.map(() => "?").join(",")})
+           ORDER BY message_id, position`,
+        )
+        .all(...live) as {
+        id: string;
+        message_id: string;
+        url: string;
+        title: string;
+        description: string;
+        site_name: string;
+        image_width: number | null;
+        image_height: number | null;
+        has_image: number;
+      }[]) {
+        const preview: LinkPreview = {
+          id: p.id,
+          url: p.url,
+          title: p.title,
+          description: p.description,
+          siteName: p.site_name,
+          image:
+            p.has_image && p.image_width && p.image_height
+              ? { width: p.image_width, height: p.image_height }
+              : null,
+        };
+        const list = previews.get(p.message_id);
+        if (list) list.push(preview);
+        else previews.set(p.message_id, [preview]);
+      }
+    }
+
     return rows.map((r) => ({
       id: r.id,
       channelId: r.channel_id,
@@ -1680,6 +1822,7 @@ export class Store {
       actions: parseActions(r.actions),
       ...replyTo(r),
       ...forwardedFrom(r),
+      ...(previews.has(r.id) ? { previews: previews.get(r.id)! } : {}),
     }));
   }
 
@@ -3719,6 +3862,8 @@ export class Store {
       // Labels, values and URLs can be as revealing as the message's words.
       // Superseded/deleted copies must not transmit their buttons on replay.
       event.message.actions = [];
+      // A preview names the link and says what is there.
+      if (event.message.previews) event.message.previews = [];
       const after = JSON.stringify(event);
       if (after === before) continue;
       update.run(after, row.seq);

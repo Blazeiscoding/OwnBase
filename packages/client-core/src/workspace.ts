@@ -22,7 +22,7 @@ import {
   type WorkspaceEvent,
 } from "@slackoss/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
-import { FileCache } from "./fileCache.js";
+import { FileCache, previewImageKey } from "./fileCache.js";
 import { captureFailure } from "./capture.js";
 import { quoteChanges, requote } from "./replies.js";
 import type { CallLogLine, HuddleSession, HuddleState, ScreenShareQuality } from "./huddle.js";
@@ -512,6 +512,11 @@ export interface WorkspaceState {
   /** Who may join now, as the server last said; null from a server that does not say. */
   accessPolicy: AccessPolicy | null;
   /**
+   * Whether new messages get link previews now (E2), as the server last said;
+   * null from a server without them, where the setting is not offered.
+   */
+  linkPreviews: boolean | null;
+  /**
    * The server keeps an icon for the workspace, which its owner and admins
    * set. An older one has none to give and takes none, so no upload is
    * offered and the workspace shows its coloured square.
@@ -615,6 +620,7 @@ const initialState: WorkspaceState = {
   stars: false,
   workspaceSettings: false,
   accessPolicy: null,
+  linkPreviews: null,
   workspaceIcon: false,
   iconVersion: null,
   scheduledChanges: 0,
@@ -805,7 +811,9 @@ export class WorkspaceClient {
    */
   private fileOwner(fileId: ID): { channelId: ID; messageId: ID; threadRootId: ID | null } | null {
     const state = this.state;
-    const carries = (m: Message) => m.files.some((f) => f.id === fileId);
+    const carries = (m: Message) =>
+      m.files.some((f) => f.id === fileId) ||
+      !!m.previews?.some((p) => previewImageKey(p.id) === fileId);
     for (const tl of Object.values(state.timelines)) {
       const m = tl.items.find(carries);
       if (m) return { channelId: m.channelId, messageId: m.id, threadRootId: m.threadRootId };
@@ -1025,6 +1033,7 @@ export class WorkspaceClient {
       stars: snap.stars === true,
       workspaceSettings: snap.workspaceSettings === true,
       accessPolicy: snap.accessPolicy ?? null,
+      linkPreviews: snap.linkPreviews ?? null,
       workspaceIcon: snap.workspaceIcon === true,
       iconVersion: snap.workspaceIcon === true ? (snap.iconVersion ?? null) : null,
       // Whatever was said while this client was away was not heard.
@@ -1281,7 +1290,9 @@ export class WorkspaceClient {
         break;
       }
       case "message.updated": {
-        changed(event.message.channelId);
+        // Previews found or removed are not an edit: nothing quoting the
+        // message changes, and Activity has nothing new to show (E2).
+        if (!event.previewsOnly) changed(event.message.channelId);
         patch.timelines = this.patchMessage(
           s,
           event.message.channelId,
@@ -1292,7 +1303,7 @@ export class WorkspaceClient {
           seq,
         );
         patch.threads = this.patchThreadMessage(s, event.message.id, () => ({ ...event.message }));
-        this.requoteHeld(s, patch, event.message.channelId, event, seq);
+        if (!event.previewsOnly) this.requoteHeld(s, patch, event.message.channelId, event, seq);
         break;
       }
       case "history.removed": {
@@ -1570,6 +1581,18 @@ export class WorkspaceClient {
     if (nextPages) patch.threadPages = nextPages;
   }
 
+  /** One message changed wherever its timeline and the threads hold it. */
+  private mapMessage(
+    s: WorkspaceState,
+    message: Message,
+    fn: (m: Message) => Message,
+  ): Partial<WorkspaceState> {
+    return {
+      timelines: this.patchMessage(s, message.channelId, message.id, fn),
+      threads: this.patchThreadMessage(s, message.id, fn),
+    };
+  }
+
   private patchThreadMessage(
     s: WorkspaceState,
     messageId: ID,
@@ -1599,6 +1622,10 @@ export class WorkspaceClient {
     }
     if (event.type === "workspace.accessPolicy") {
       this.store.setState({ accessPolicy: event.accessPolicy });
+      return;
+    }
+    if (event.type === "workspace.linkPreviews") {
+      this.store.setState({ linkPreviews: event.enabled });
       return;
     }
     if (event.type === "workspace.icon") {
@@ -2891,6 +2918,36 @@ export class WorkspaceClient {
     const { accessPolicy } = await this.api.setAccessPolicy(policy);
     if (!this.stopped) this.store.setState({ accessPolicy });
     return accessPolicy;
+  }
+
+  /** Turns link previews on or off, for its owner and admins, and shows the answer at once. */
+  async setLinkPreviews(enabled: boolean): Promise<boolean> {
+    const answer = await this.api.setLinkPreviews(enabled);
+    if (!this.stopped) this.store.setState({ linkPreviews: answer.enabled });
+    return answer.enabled;
+  }
+
+  /**
+   * Takes a preview off one of this account's messages. It goes from view at
+   * once; the server's `message.updated` says the same, and a refusal puts it
+   * back.
+   */
+  async removeLinkPreview(message: Message, previewId: ID): Promise<void> {
+    const without = (m: Message): Message =>
+      m.id === message.id && m.previews
+        ? { ...m, previews: m.previews.filter((p) => p.id !== previewId) }
+        : m;
+    const restore = (m: Message): Message =>
+      m.id === message.id && !m.previews?.some((p) => p.id === previewId)
+        ? { ...m, previews: message.previews }
+        : m;
+    this.store.setState((s) => this.mapMessage(s, message, without));
+    try {
+      await this.api.removeLinkPreview(previewId);
+    } catch (err) {
+      if (!this.stopped) this.store.setState((s) => this.mapMessage(s, message, restore));
+      throw err;
+    }
   }
 
   /**

@@ -240,6 +240,24 @@ export class Api {
   }
 
   /**
+   * Turns link previews on or off for new messages, for the owner and admins
+   * (E2). Everyone signed in hears `workspace.linkPreviews`.
+   */
+  setLinkPreviews(enabled: boolean): Promise<{ enabled: boolean }> {
+    return this.request(
+      "PUT",
+      "/api/admin/workspace/link-previews",
+      { enabled },
+      { timeoutMs: 10_000 },
+    );
+  }
+
+  /** Takes a preview off the sender's own message, for good. */
+  removeLinkPreview(id: ID): Promise<{ ok: true }> {
+    return this.request("DELETE", `/api/link-previews/${id}`);
+  }
+
+  /**
    * Sets the workspace's icon, for the owner and admins: a PNG, JPEG or WebP
    * image of at most `WORKSPACE_ICON_MAX_BYTES`, sent as itself. Everyone
    * signed in hears `workspace.icon`. A server without
@@ -492,8 +510,17 @@ export class Api {
   }
 
   /** Raw bytes of an upload, fetched with the session token. */
-  async fetchFile(fileId: ID, signal?: AbortSignal): Promise<Blob> {
-    const res = await fetch(`${this.baseUrl}/api/files/${fileId}`, {
+  /** A link preview's picture, which the server fetched from the page (E2). */
+  fetchPreviewImage(previewId: ID, signal?: AbortSignal): Promise<Blob> {
+    return this.fetchBytes(`/api/link-previews/${previewId}/image`, signal);
+  }
+
+  fetchFile(fileId: ID, signal?: AbortSignal): Promise<Blob> {
+    return this.fetchBytes(`/api/files/${fileId}`, signal);
+  }
+
+  private async fetchBytes(path: string, signal?: AbortSignal): Promise<Blob> {
+    const res = await fetch(`${this.baseUrl}${path}`, {
       headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
       // Bypass bytes cached by older servers that marked this URL immutable.
       cache: "no-store",

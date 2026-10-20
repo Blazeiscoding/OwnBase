@@ -584,6 +584,29 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_messages_forwarded_from ON messages(forwarded_from_id)
     WHERE forwarded_from_id IS NOT NULL;
   `,
+  // v42 — link previews (E2): what the server found at the first few web
+  // addresses in a message, in their order, with the page's picture kept
+  // here so no reader's device fetches it from the site. One the sender
+  // removed stays as a row with nothing in it, so an edit that keeps the link
+  // does not bring it back. Goes with its message's row.
+  `
+  CREATE TABLE link_previews (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    position INTEGER NOT NULL,
+    url TEXT NOT NULL,
+    title TEXT NOT NULL,
+    description TEXT NOT NULL,
+    site_name TEXT NOT NULL,
+    image BLOB,
+    image_type TEXT,
+    image_width INTEGER,
+    image_height INTEGER,
+    removed INTEGER NOT NULL DEFAULT 0,
+    created_at INTEGER NOT NULL,
+    UNIQUE (message_id, url)
+  );
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

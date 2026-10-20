@@ -152,6 +152,33 @@ export interface Message {
    * Absent when it forwards nothing, and from servers older than forwarding.
    */
   forwardedFrom?: ForwardReference | null;
+  /**
+   * What the server found at the first few web addresses in its words, in the
+   * order they appear (E2). Added a moment after the message is sent, by a
+   * `message.updated` that says `previewsOnly`. Absent from servers before
+   * link previews, and empty while none has been found.
+   */
+  previews?: LinkPreview[];
+}
+
+/**
+ * A web page a message links to, as the server read it: the page's own title,
+ * description and site name, and a picture it names, fetched by the server so
+ * no reader's device asks the site for anything.
+ */
+export interface LinkPreview {
+  id: ID;
+  /** The address as the message has it. */
+  url: string;
+  title: string;
+  description: string;
+  siteName: string;
+  /**
+   * The picture, served to readers of the message at
+   * `GET /api/link-previews/:id/image`; null when the page names none the
+   * server would keep.
+   */
+  image: { width: number; height: number } | null;
 }
 
 /**
@@ -253,6 +280,7 @@ export type AuditAction =
   | "workspace.renamed"
   | "workspace.access_policy_changed"
   | "workspace.icon_changed"
+  | "workspace.link_previews_changed"
   | "app.created"
   | "app.deleted"
   | "app.token_replaced"
