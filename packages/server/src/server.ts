@@ -1193,6 +1193,8 @@ async function startWorkspaceServer(
     replyToId?: ID | null;
     /** Notify that message's author. */
     replyPing?: boolean;
+    /** A message to pass on under this one, from anywhere the sender can read. */
+    forwardFromId?: ID | null;
     /** Marks this queue row delivered in the same transaction as the message. */
     scheduledId?: ID;
   }) => {
@@ -1211,6 +1213,7 @@ async function startWorkspaceServer(
           [...input.fileIds].sort(),
           // Absent unless it answers something, so a request recorded before still matches.
           ...(input.replyToId ? [input.replyToId, input.replyPing ?? false] : []),
+          ...(input.forwardFromId ? [{ forward: input.forwardFromId }] : []),
         ]),
       );
       if (input.nonce !== null) {
@@ -1270,9 +1273,40 @@ async function startWorkspaceServer(
           "attachments_scheduled",
           "One of these files is part of a scheduled message. Cancel that message to use it here.",
         );
+      // A forward passes on something its sender can read now, wherever it is.
+      // A forward with nothing of its own passes on what it forwards instead,
+      // so a message forwarded twice still shows itself rather than an empty card.
+      let forwardedFromId: ID | null = null;
+      if (input.forwardFromId) {
+        const readable = (id: ID) => {
+          const found = store.forwardSource(id);
+          return found && !found.deleted && store.canAccess(found.channelId, input.userId)
+            ? found
+            : null;
+        };
+        const picked = readable(input.forwardFromId);
+        if (!picked)
+          throw new HttpError(
+            404,
+            "message_not_found",
+            "That message is no longer there to forward.",
+          );
+        // One whose original its sender cannot read, or that is gone, has
+        // nothing to pass on: its own card is all it shows.
+        const source =
+          picked.bare && picked.forwardedFromId ? readable(picked.forwardedFromId) : picked;
+        if (!source)
+          throw new HttpError(
+            409,
+            "forward_unavailable",
+            "What that message forwards is private or deleted, so it cannot be passed on.",
+          );
+        forwardedFromId = source.id;
+      }
       const created = store.createMessage({
         ...input,
         replyToId: target ? input.replyToId : null,
+        forwardedFromId,
       });
       if (
         !store.attachFiles(
@@ -2451,6 +2485,7 @@ async function startWorkspaceServer(
       replyToId: body.replyToId ?? null,
       // Discord notifies the author unless the reply says not to.
       replyPing: body.replyPing ?? true,
+      forwardFromId: body.forwardFrom ?? null,
     });
     return reply.status(201).send({ message });
   });

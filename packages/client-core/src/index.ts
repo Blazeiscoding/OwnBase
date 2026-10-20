@@ -1,7 +1,8 @@
 export { Api, ApiError, normalizeServerUrl } from "./api.js";
 export type { AppDetail, CommandHint } from "./api.js";
 export { FileCache } from "./fileCache.js";
-export { quoteOf } from "./replies.js";
+export { forwardOf, forwardSource, quoteOf } from "./replies.js";
+export type { ForwardSource } from "./replies.js";
 export { decideNotification, isMessageOnScreen, notificationBody } from "./notify.js";
 export type { NotifyDecision, OnScreen } from "./notify.js";
 export { HuddleSession, SCREEN_SHARE_QUALITY, testMicrophone } from "./huddle.js";

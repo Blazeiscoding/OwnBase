@@ -177,6 +177,8 @@ export interface ReadySnapshot {
   huddleReports?: true;
   /** This server keeps inline replies; older ones post one as an ordinary message. */
   inlineReplies?: true;
+  /** This server forwards a message (`forwardFrom`); an older one would drop the original. */
+  forwards?: true;
   /** This server sends `scheduled` when the queue changes; an older one has to be asked. */
   scheduledEvents?: true;
   /** This server answers Activity's `threads` mode; an older one refuses it. */

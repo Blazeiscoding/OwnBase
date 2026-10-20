@@ -13,6 +13,7 @@ import {
   type ModalView,
   type Presence,
   type ReadySnapshot,
+  type ForwardReference,
   type ReplyReference,
   type SendMessageBody,
   type ServerToClient,
@@ -58,6 +59,8 @@ export interface PendingMessage {
   broadcast?: boolean;
   /** The message this one answers in place, as it was when the reply was sent. */
   replyTo?: ReplyReference;
+  /** The message this one passes on, as it was when it was forwarded. */
+  forward?: ForwardReference;
   text: string;
   userId: ID;
   createdAt: number;
@@ -84,6 +87,7 @@ export interface StoredPending {
   threadRootId: ID | null;
   broadcast?: boolean;
   replyTo?: ReplyReference;
+  forward?: ForwardReference;
   text: string;
   userId: ID;
   createdAt: number;
@@ -167,6 +171,10 @@ function sendFailureReason(error: unknown): string {
       return "The attached files are no longer available.";
     case "attachments_scheduled":
       return "One of the attached files is part of a scheduled message.";
+    case "message_not_found":
+      return "The message this forwards is no longer there.";
+    case "forward_unavailable":
+      return "What this forwards is private or deleted, so it cannot be passed on.";
     case "storage_quota_exceeded":
       return "Workspace attachment storage is full. Ask the host to free space or raise the limit, then retry.";
     case "nonce_conflict":
@@ -485,6 +493,8 @@ export interface WorkspaceState {
   workspaceId: ID | null;
   /** The server keeps inline replies; an older one would post one as a plain message. */
   inlineReplies: boolean;
+  /** The server forwards a message; an older one would post the comment alone. */
+  forwards: boolean;
   /** The server says when this account's scheduled queue changes; an older one has to be asked. */
   scheduledEvents: boolean;
   /** The server lists unread replies in followed threads as Activity's own mode. */
@@ -599,6 +609,7 @@ const initialState: WorkspaceState = {
   workspaceName: "",
   workspaceId: null,
   inlineReplies: false,
+  forwards: false,
   scheduledEvents: false,
   activityThreads: false,
   stars: false,
@@ -1008,6 +1019,7 @@ export class WorkspaceClient {
       workspaceName: snap.workspaceName,
       workspaceId: snap.workspaceId ?? prev.workspaceId,
       inlineReplies: snap.inlineReplies === true,
+      forwards: snap.forwards === true,
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
       stars: snap.stars === true,
@@ -1522,11 +1534,18 @@ export class WorkspaceClient {
     const changes = quoteChanges(event);
     if (!changes) return;
     const timelines = patch.timelines ?? s.timelines;
-    const tl = timelines[channelId];
-    if (tl?.loaded) {
-      const items = requote(tl.items, changes, (id) => seq > (tl.messageSnapshots?.[id] ?? 0));
-      if (items !== tl.items) patch.timelines = { ...timelines, [channelId]: { ...tl, items } };
+    // Replies quote their own conversation; a forward can be anywhere loaded.
+    let nextTimelines: Record<ID, ChannelTimeline> | null = null;
+    for (const [id, tl] of Object.entries(timelines)) {
+      if (!tl.loaded) continue;
+      const items = requote(
+        tl.items,
+        changes,
+        id === channelId ? (mid) => seq > (tl.messageSnapshots?.[mid] ?? 0) : undefined,
+      );
+      if (items !== tl.items) (nextTimelines ??= { ...timelines })[id] = { ...tl, items };
     }
+    if (nextTimelines) patch.timelines = nextTimelines;
     const threads = patch.threads ?? s.threads;
     let nextThreads: Record<ID, Message[]> | null = null;
     for (const [rootId, replies] of Object.entries(threads)) {
@@ -1537,8 +1556,16 @@ export class WorkspaceClient {
     const pages = patch.threadPages ?? s.threadPages;
     let nextPages: Record<ID, ThreadPage> | null = null;
     for (const [rootId, page] of Object.entries(pages)) {
-      if (!page.root?.replyTo || !changes.has(page.root.replyTo.id)) continue;
-      (nextPages ??= { ...pages })[rootId] = { ...page, root: requote([page.root], changes)[0]! };
+      const root = page.root;
+      if (
+        !root ||
+        !(
+          (root.replyTo && changes.has(root.replyTo.id)) ||
+          (root.forwardedFrom && changes.has(root.forwardedFrom.id))
+        )
+      )
+        continue;
+      (nextPages ??= { ...pages })[rootId] = { ...page, root: requote([root], changes)[0]! };
     }
     if (nextPages) patch.threadPages = nextPages;
   }
@@ -2302,6 +2329,8 @@ export class WorkspaceClient {
       alsoSendToChannel?: boolean;
       /** The message this one answers in place; see `quoteOf`. */
       replyTo?: ReplyReference;
+      /** The message this one passes on, words of its own or none; see `forwardOf`. */
+      forward?: ForwardReference;
       /** Told the nonce of the message queued, for its author to follow (F01). */
       onQueued?: (nonce: string) => void;
     } = {},
@@ -2309,12 +2338,14 @@ export class WorkspaceClient {
     const self = this.state.self;
     if (!self) return false;
     const files = opts.files ?? [];
-    if (!text.trim() && files.length === 0) return false;
+    // An older server would post a forward's comment alone, so it is not asked.
+    const forward = opts.forward && this.state.forwards ? opts.forward : undefined;
+    if (!text.trim() && files.length === 0 && !forward) return false;
 
     // A leading "/word" is a command, not a message. The trailing space or end
     // of line matters: it keeps a pasted path like /Users/me/notes.txt a
     // perfectly ordinary message.
-    if (files.length === 0 && /^\/[a-zA-Z0-9_-]+(\s|$)/.test(text.trim())) {
+    if (!forward && files.length === 0 && /^\/[a-zA-Z0-9_-]+(\s|$)/.test(text.trim())) {
       void this.runCommand(channelId, text.trim(), opts.threadRootId);
       return true;
     }
@@ -2338,6 +2369,7 @@ export class WorkspaceClient {
       // Only a server that keeps the answer is asked to; an older one would
       // post it as a plain message, which is what it would then show.
       ...(opts.replyTo && this.state.inlineReplies ? { replyTo: opts.replyTo } : {}),
+      ...(forward ? { forward } : {}),
       text,
       userId: self.id,
       createdAt: Date.now(),
@@ -2363,11 +2395,11 @@ export class WorkspaceClient {
   private async deliver(
     send: Pick<
       PendingMessage,
-      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "text"
+      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "forward" | "text"
     >,
     files: File[],
   ): Promise<void> {
-    const { nonce, channelId, text, threadRootId, replyTo } = send;
+    const { nonce, channelId, text, threadRootId, replyTo, forward } = send;
     const setProgress = (fraction: number) =>
       this.store.setState((s) => ({
         pending: s.pending.map((p) => (p.nonce === nonce ? { ...p, uploadProgress: fraction } : p)),
@@ -2394,6 +2426,7 @@ export class WorkspaceClient {
         ...(threadRootId && send.broadcast ? { alsoSendToChannel: true } : {}),
         ...(fileIds.length > 0 ? { fileIds } : {}),
         ...(replyTo ? { replyToId: replyTo.id, replyPing: replyTo.ping } : {}),
+        ...(forward ? { forwardFrom: forward.id } : {}),
       };
       const { message } = await this.api.sendMessage(channelId, body);
       if (!this.stopped && this.state.status !== "auth_failed") {
@@ -2453,6 +2486,7 @@ export class WorkspaceClient {
       threadRootId: p.threadRootId,
       broadcast: p.broadcast,
       ...(p.replyTo ? { replyTo: p.replyTo } : {}),
+      ...(p.forward ? { forward: p.forward } : {}),
       text: p.text,
       userId: p.userId,
       createdAt: p.createdAt,

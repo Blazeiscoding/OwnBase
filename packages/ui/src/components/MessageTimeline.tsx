@@ -5,6 +5,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { formatDay, sameDay } from "../lib/format.js";
 import { MessageItem } from "./MessageItem.js";
 import { ReplyQuote } from "./ReplyQuote.js";
+import { ForwardCard } from "./ForwardCard.js";
 import { Avatar } from "./Avatar.js";
 import { ListStatus } from "./ListStatus.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
@@ -774,6 +775,7 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
   const client = useClient();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
+  const selfId = useWorkspace((s) => s.self?.id);
   return (
     <div className="animate-message-in py-0.5 pl-5 pr-12 opacity-60">
       {pending.replyTo && <ReplyQuote quote={pending.replyTo} users={users} channels={channels} />}
@@ -782,6 +784,14 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
         <div className="min-w-0 flex-1 text-[15px]">
           {pending.text && <Mrkdwn text={pending.text} users={users} channels={channels} />}
           <PendingAttachments attachments={pending.attachments} progress={pending.uploadProgress} />
+          {pending.forward && (
+            <ForwardCard
+              forward={pending.forward}
+              users={users}
+              channels={channels}
+              selfId={selfId}
+            />
+          )}
           {pending.failed ? (
             <span className="ml-2 text-[12px] text-alert">
               {pending.failureReason ?? "Not sent."}{" "}

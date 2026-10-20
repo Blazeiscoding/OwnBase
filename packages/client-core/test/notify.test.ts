@@ -55,6 +55,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     workspaceName: "W",
     workspaceId: null,
     inlineReplies: true,
+    forwards: true,
     scheduledEvents: true,
     activityThreads: true,
     stars: true,

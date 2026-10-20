@@ -124,11 +124,14 @@ export const sendMessageBody = z
     replyToId: z.string().max(64).optional(),
     /** Whether that message's author is notified, as Discord does by default. */
     replyPing: z.boolean().optional(),
+    /** A message to pass on under this one's words, from anywhere the sender can read. */
+    forwardFrom: z.string().max(64).optional(),
   })
-  // A message needs words, attachments, or both.
-  .refine((b) => b.text.trim().length > 0 || (b.fileIds?.length ?? 0) > 0, {
-    message: "message must have text or files",
-  });
+  // A message needs words, attachments or a message it forwards.
+  .refine(
+    (b) => b.text.trim().length > 0 || (b.fileIds?.length ?? 0) > 0 || b.forwardFrom !== undefined,
+    { message: "message must have text or files" },
+  );
 
 export const scheduleMessageBody = z
   .object({
