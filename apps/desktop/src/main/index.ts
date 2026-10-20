@@ -7,6 +7,7 @@ import {
   type IpcMainInvokeEvent,
   Menu,
   nativeImage,
+  nativeTheme,
   powerMonitor,
   safeStorage,
   shell,
@@ -64,6 +65,7 @@ import { createHostingController } from "./hosting.js";
 import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
+import { windowColours } from "./windowTheme.js";
 import {
   findCloudflared,
   openConfiguredAddress,
@@ -340,7 +342,34 @@ function savedCallRelay(): Promise<CallRelay | null> {
     });
   return callRelay;
 }
-handle("storage:set", (_e, key: unknown, value: unknown) => writeSetting(settingKey(key), value));
+/** The renderer's "appearance" setting, which the window's own colours follow. */
+const APPEARANCE_KEY = "appearance";
+/** Read at startup, before the window is made, and kept as the renderer saves it. */
+let savedAppearance: unknown = null;
+
+/**
+ * The window's background and title bar overlay in the page's theme: when the
+ * theme is chosen, and, for the system's choice, when the system changes.
+ */
+function paintWindow(): void {
+  const win = mainWindow;
+  if (!win || win.isDestroyed()) return;
+  const colours = windowColours(savedAppearance, nativeTheme.shouldUseDarkColors);
+  win.setBackgroundColor(colours.background);
+  // Only Windows and Linux draw the window buttons on an overlay.
+  if (process.platform !== "darwin")
+    win.setTitleBarOverlay({ color: colours.background, symbolColor: colours.symbols, height: 40 });
+}
+nativeTheme.on("updated", paintWindow);
+
+handle("storage:set", async (_e, key: unknown, value: unknown) => {
+  const name = settingKey(key);
+  await writeSetting(name, value);
+  if (name === APPEARANCE_KEY) {
+    savedAppearance = value;
+    paintWindow();
+  }
+});
 
 // Outbox changes from every window are merged here, one at a time; the other
 // windows hear what is stored now, so each can take on what it did not see.
@@ -1011,20 +1040,21 @@ function createTray(): void {
 function createWindow(): void {
   // A new window starts where the app starts, not where a closed one was.
   place = new PlaceCheckpoint(trustedRenderer);
+  // The deep and ink-dim colours of the page's theme (see windowTheme.ts): the
+  // window shows this before the page paints, and the overlay sits on the
+  // window's own surface, above the sidebar and the conversation card.
+  const colours = windowColours(savedAppearance, nativeTheme.shouldUseDarkColors);
   mainWindow = new BrowserWindow({
     show: !isTest,
     width: 1280,
     height: 820,
     minWidth: 760,
     minHeight: 480,
-    // The deep and ink-dim colours of packages/ui/src/theme.css: the window
-    // shows this before the page paints, and the overlay sits on the window's
-    // own surface, above the sidebar and the conversation card.
-    backgroundColor: "#111115",
+    backgroundColor: colours.background,
     titleBarStyle: "hidden",
     titleBarOverlay: {
-      color: "#111115",
-      symbolColor: "#b9bac0",
+      color: colours.background,
+      symbolColor: colours.symbols,
       height: 40,
     },
     webPreferences: {
@@ -1203,6 +1233,8 @@ void app.whenReady().then(async () => {
   // environment can still supply one, and Manage hosting can save a new one.
   const stored = await settings.get("publicAddress").catch(() => null);
   savedPublicAddress = typeof stored === "string" && stored.trim() ? stored.trim() : null;
+  // Unreadable, the window follows the system until the page saves a choice.
+  savedAppearance = await settings.get(APPEARANCE_KEY).catch(() => null);
   publicAddressLookup = null;
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;

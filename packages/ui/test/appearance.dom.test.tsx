@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
 import type { User } from "@slackoss/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { AccountDialog } from "../src/components/AccountDialog.js";
-import { useApplyAppearance } from "../src/lib/appearance.js";
+import { FIRST_PAINT_KEY, useApplyAppearance } from "../src/lib/appearance.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -26,6 +26,8 @@ afterEach(() => {
   vi.restoreAllMocks();
   delete document.documentElement.dataset.theme;
   delete document.documentElement.dataset.density;
+  localStorage.removeItem(FIRST_PAINT_KEY);
+  for (const bar of document.head.querySelectorAll('meta[name="theme-color"]')) bar.remove();
 });
 
 function Applied() {
@@ -33,15 +35,23 @@ function Applied() {
   return null;
 }
 
-/** Appearance settings on a device whose storage holds `saved`, and may refuse to save. */
-function appearance(saved: unknown, options: { failSave?: boolean } = {}) {
+/**
+ * Appearance settings on a device whose storage holds `saved`, and may refuse
+ * to save. With `held`, the storage answers only once `read` is called.
+ */
+function appearance(saved: unknown, options: { failSave?: boolean; held?: boolean } = {}) {
   const set = vi.fn(async (_name: string, _value: unknown) => {
     if (options.failSave) throw new Error("storage is full");
   });
+  let read = () => {};
+  const answered = options.held ? new Promise<void>((resolve) => (read = resolve)) : null;
   const platform: Platform = {
     kind: "web",
     storage: {
-      get: async <T,>(name: string) => (name === "appearance" ? saved : null) as T | null,
+      get: async <T,>(name: string) => {
+        await answered;
+        return (name === "appearance" ? saved : null) as T | null;
+      },
       set,
     },
     notify: () => {},
@@ -58,10 +68,11 @@ function appearance(saved: unknown, options: { failSave?: boolean } = {}) {
     </PlatformContext.Provider>,
   );
   const panel = screen.getByRole("tabpanel", { name: "Appearance" });
-  return { panel, set, user: userEvent.setup() };
+  return { panel, set, user: userEvent.setup(), read: () => act(read) };
 }
 
 const root = () => document.documentElement.dataset;
+const kept = () => JSON.parse(localStorage.getItem(FIRST_PAINT_KEY) ?? "null") as unknown;
 
 describe("how Tandem looks on this device", () => {
   it("applies what was saved, and offers every theme and density", async () => {
@@ -114,5 +125,49 @@ describe("how Tandem looks on this device", () => {
     );
     expect(root().theme).toBe("dark");
     expect(within(panel).getByRole("radio", { name: /^Onyx/ })).toBeChecked();
+  });
+});
+
+describe("the copy the next page is first painted with", () => {
+  it("is kept once the choice is read, and follows each change", async () => {
+    const { panel, user } = appearance({ theme: "light", density: "compact" });
+    await waitFor(() => expect(kept()).toEqual({ theme: "light", density: "compact" }));
+    await user.click(within(panel).getByRole("radio", { name: /^Onyx/ }));
+    expect(kept()).toEqual({ theme: "dark", density: "compact" });
+  });
+
+  it("is what the app starts from, so it does not change the page before the choice is read", async () => {
+    localStorage.setItem(FIRST_PAINT_KEY, JSON.stringify({ theme: "light", density: "compact" }));
+    const { read } = appearance({ theme: "dark", density: "comfortable" }, { held: true });
+    // Not "system" while the storage is still being read: the page stays as first painted.
+    expect(root().theme).toBe("light");
+    expect(root().density).toBe("compact");
+    expect(kept()).toEqual({ theme: "light", density: "compact" });
+    await read();
+    await waitFor(() => expect(root().theme).toBe("dark"));
+    expect(kept()).toEqual({ theme: "dark", density: "comfortable" });
+  });
+
+  it("goes back with a choice that could not be kept", async () => {
+    const { panel, user } = appearance(
+      { theme: "dark", density: "comfortable" },
+      { failSave: true },
+    );
+    await waitFor(() => expect(kept()).toEqual({ theme: "dark", density: "comfortable" }));
+    await user.click(within(panel).getByRole("radio", { name: /^White/ }));
+    await within(panel).findByRole("alert");
+    expect(kept()).toEqual({ theme: "dark", density: "comfortable" });
+  });
+
+  it("colours the browser's own bars in the chosen theme", async () => {
+    const bar = document.createElement("meta");
+    bar.name = "theme-color";
+    bar.content = "#111115";
+    document.head.append(bar);
+    const { panel, user } = appearance({ theme: "dark", density: "comfortable" });
+    await waitFor(() => expect(within(panel).getByRole("radio", { name: /^Onyx/ })).toBeChecked());
+    expect(bar.content).toBe("#111115");
+    await user.click(within(panel).getByRole("radio", { name: /^White/ }));
+    expect(bar.content).toBe("#e9e9ec");
   });
 });
