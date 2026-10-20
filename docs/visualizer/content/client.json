@@ -1518,10 +1518,11 @@
     },
     {
       "path": "packages/ui/src/components/PeopleDialog.tsx",
-      "plain": "Lets admins see everyone's account and change roles, deactivate people, reset passwords or hand over ownership.",
+      "plain": "Lets admins see everyone's account, find someone by name, and change roles, deactivate people, reset passwords or hand over ownership.",
       "summary": "Lets administrators inspect accounts and manage access under server role rules.",
       "details": [
-        "Loads all users, offers role/deactivation/invite-permission actions, password reset and ownership transfer where permitted.",
+        "Lists the workspace's users from the store, which an admin's snapshot holds in full and user.joined/user.updated keep current, so there is no Refresh. listAllUsers adds only last-seen times; if it fails the rows still show and ListStatus offers Try again. Someone whose presence leaves online while it is open shows as last seen then, and a change made here is applied from the server's answer before the socket's copy arrives.",
+        "A search field matches name or handle as the switcher does (a leading @ ignored); deactivated matches are counted under the list rather than hidden silently, and Escape empties the search before closing. Offers role/deactivation/invite-permission actions, password reset and ownership transfer where permitted.",
         "PersonMenu consolidates row actions into one accessible menu. Confirmations and mapped refusal messages communicate lost access, protected ownership and equal-admin restrictions; hidden buttons are not treated as authorization.",
         "Transfer ownership asks for the new owner's username in a TextField and checks it when pressed: missing or typed differently, it says so under the field and puts focus there. While the change is saved the field is read-only and the button aria-disabled."
       ],

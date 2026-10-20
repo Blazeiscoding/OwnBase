@@ -13,7 +13,7 @@ export function accountError(error: unknown): string {
       owner_only: "Only the current workspace owner can transfer ownership.",
       owner_is_protected: "An administrator cannot reset the owner's password.",
       admins_are_equals: "Only the owner can reset another administrator's password.",
-      user_not_found: "That account is no longer available. Refresh the member list.",
+      user_not_found: "That account is no longer available.",
       invalid_owner: "Choose an active person to own the workspace.",
       cannot_reset_self: "Use Account settings to change your own password.",
       bots_have_no_password: "App accounts do not use passwords.",
