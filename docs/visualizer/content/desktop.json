@@ -287,6 +287,17 @@
       "concepts": ["HTML entry", "trusted document"]
     },
     {
+      "path": "apps/desktop/src/renderer/public/first-paint.js",
+      "plain": "A few lines run before the desktop app's page is first drawn, so it opens in the theme you chose instead of flashing the other one.",
+      "summary": "Applies the stored theme and density to the document before first paint.",
+      "details": [
+        "Reads tandem:appearance from localStorage, the copy appearance.ts keeps, and sets data-theme and data-density on the root element; with nothing readable it leaves the theme on system, as theme.css does.",
+        "Sets the theme-color meta to the light or dark bar colour, following the device when the theme is system.",
+        "A classic script from the app's own origin, which the CSP allows, wrapped so it never throws whatever is stored. It is the same file as apps/web/public/first-paint.js, which firstPaint.dom.test.ts checks."
+      ],
+      "concepts": ["first paint", "appearance", "trusted document"]
+    },
+    {
       "path": "apps/desktop/src/renderer/public/tandem.svg",
       "plain": "Tandem's logo as shown inside the desktop app.",
       "summary": "Provides the desktop renderer's application brand artwork.",
