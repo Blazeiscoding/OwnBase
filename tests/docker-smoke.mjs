@@ -130,7 +130,8 @@ try {
   assert.match(page, /<div id="root">/);
   // The image keeps the client's compressed copies (REV-13): the entry script
   // arrives as Brotli, decodes to the same script, and is cached by its name.
-  const entry = new URL(page.match(/<script[^>]+src="([^"]+)"/)[1], base);
+  // The module is the app; the classic script before it only puts the theme on the page.
+  const entry = new URL(page.match(/<script type="module"[^>]+src="([^"]+)"/)[1], base);
   const compressed = await fetch(entry, { headers: { "accept-encoding": "br" } });
   const plain = await fetch(entry, { headers: { "accept-encoding": "identity" } });
   assert.equal(compressed.headers.get("content-encoding"), "br");
