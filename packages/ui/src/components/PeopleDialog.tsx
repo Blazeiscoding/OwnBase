@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ID, User } from "@slackoss/protocol";
 import { ApiError } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
@@ -12,6 +12,8 @@ import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
 import { AuditHistory } from "./AuditHistory.js";
 import { buttonClass } from "./Button.js";
+import { ListStatus } from "./ListStatus.js";
+import { isImeKey } from "../lib/textInput.js";
 
 type Person = User & { lastSeenAt: number | null };
 
@@ -23,9 +25,17 @@ type Person = User & { lastSeenAt: number | null };
 export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
   const self = useWorkspace((s) => s.self);
+  // Every account, kept current by the socket: an admin's snapshot holds them
+  // all, and joins and changes arrive as they happen, so there is no Refresh.
   const liveUsers = useWorkspace((s) => s.users);
   const presence = useWorkspace((s) => s.presence);
+  /** The admin list, for when each account was last signed in, which the socket does not carry. */
   const [people, setPeople] = useState<Person[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  /** When someone stopped being here while the list was open. */
+  const [leftAt, setLeftAt] = useState<Record<ID, number>>({});
+  const [query, setQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<ID | null>(null);
   const [showInactive, setShowInactive] = useState(false);
@@ -43,11 +53,16 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const isAdmin = self?.role === "owner" || self?.role === "admin";
 
   const load = useCallback(async () => {
+    setLoading(true);
     try {
       const result = await client.api.listAllUsers();
-      if (alive.current) setPeople(result.users);
+      if (!alive.current) return;
+      setPeople(result.users);
+      setLoadError(false);
     } catch {
-      if (alive.current) setError("Could not load the member list. Try refreshing.");
+      if (alive.current) setLoadError(true);
+    } finally {
+      if (alive.current) setLoading(false);
     }
   }, [client]);
   useEffect(() => {
@@ -57,6 +72,18 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
       alive.current = false;
     };
   }, [load]);
+  // Someone who goes while the list is open was last seen now, not when it opened.
+  const presenceBefore = useRef(presence);
+  useEffect(() => {
+    const before = presenceBefore.current;
+    presenceBefore.current = presence;
+    const gone = Object.keys(before).filter(
+      (id) => before[id] === "online" && presence[id] !== "online",
+    );
+    if (gone.length === 0) return;
+    const now = Date.now();
+    setLeftAt((previous) => ({ ...previous, ...Object.fromEntries(gone.map((id) => [id, now])) }));
+  }, [presence]);
   useEffect(() => {
     if (action || issued) actionPanel.current?.focus();
   }, [action, issued]);
@@ -70,8 +97,11 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     setNotice(null);
     setBusy(person.id);
     try {
-      await client.api.updateUserAdmin(person.id, patch);
-      await load();
+      const result = await client.api.updateUserAdmin(person.id, patch);
+      // Shown now, rather than when the socket's copy of the change arrives.
+      client.store.setState((state) => ({
+        users: { ...state.users, [result.user.id]: result.user },
+      }));
     } catch (err) {
       setError(err instanceof ApiError ? errorText(err.code, err.message) : "That did not work.");
     } finally {
@@ -117,7 +147,6 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
       }
       setAction(null);
       setConfirmation("");
-      await load();
     } catch (err) {
       if (alive.current) setError(accountError(err));
     } finally {
@@ -134,9 +163,27 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   }
 
   const isOwner = self?.role === "owner";
-  const currentPeople = (people ?? []).map((person) => ({ ...person, ...liveUsers[person.id] }));
-  const visible = currentPeople.filter((p) => showInactive || !p.deactivated);
-  const inactiveCount = currentPeople.filter((p) => p.deactivated).length;
+  const currentPeople = useMemo(() => {
+    const byId = new Map<ID, Person>((people ?? []).map((person) => [person.id, person]));
+    for (const user of Object.values(liveUsers))
+      byId.set(user.id, { ...user, lastSeenAt: byId.get(user.id)?.lastSeenAt ?? null });
+    return [...byId.values()]
+      .map((person) => {
+        const left = leftAt[person.id];
+        return left && left > (person.lastSeenAt ?? 0) ? { ...person, lastSeenAt: left } : person;
+      })
+      .sort((a, b) => (a.handle < b.handle ? -1 : a.handle > b.handle ? 1 : 0));
+  }, [people, liveUsers, leftAt]);
+  // As the switcher matches people: a name or handle, without the @ written before one.
+  const needle = query.trim().toLowerCase().replace(/^@/, "");
+  const matching = needle
+    ? currentPeople.filter(
+        (p) =>
+          p.handle.toLowerCase().includes(needle) || p.displayName.toLowerCase().includes(needle),
+      )
+    : currentPeople;
+  const visible = matching.filter((p) => showInactive || !p.deactivated);
+  const inactiveCount = matching.filter((p) => p.deactivated).length;
   const secondaryBtn =
     "rounded-lg border border-edge px-3 py-2 text-sm text-ink-dim hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40";
 
@@ -277,20 +324,41 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <p className="text-sm text-ink-dim">Manage workspace access and account recovery.</p>
-            <button
-              className={secondaryBtn}
-              disabled={!!busy}
-              onClick={() => {
-                setError(null);
-                void load();
+          <p className="mb-3 text-sm text-ink-dim">Manage workspace access and account recovery.</p>
+          <label className="mb-3 block text-sm">
+            <span className="sr-only">Find a person</span>
+            <input
+              type="search"
+              autoFocus
+              value={query}
+              maxLength={80}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                // Clears the search first; the next Escape closes the dialog.
+                if (event.key !== "Escape" || !query || isImeKey(event.nativeEvent)) return;
+                event.preventDefault();
+                setQuery("");
               }}
-            >
-              Refresh
-            </button>
-          </div>
+              placeholder="Search by name or handle"
+              className={inputCls}
+            />
+          </label>
 
+          <ListStatus
+            // The rows come from the socket, so only a retry after a failure is worth saying.
+            loading={loading && loadError}
+            loadingLabel="Loading when people were last here…"
+            error={loadError ? "Could not load when people were last here." : null}
+            retryLabel="Try again"
+            onRetry={() => void load()}
+            empty={
+              visible.length === 0 && needle
+                ? inactiveCount > 0
+                  ? `No active account matches “${query.trim()}”.`
+                  : `No one matches “${query.trim()}”.`
+                : null
+            }
+          />
           <ul className="space-y-1">
             {visible.map((person) => {
               // The rules the server enforces, said out loud so the buttons that
@@ -356,8 +424,6 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
               );
             })}
           </ul>
-
-          {people === null && <p className="text-sm text-ink-faint">Loading…</p>}
 
           {inactiveCount > 0 && (
             <button
@@ -465,7 +531,7 @@ function errorText(code: string, message?: string): string {
     case "cannot_change_self":
       return "You cannot change your own account.";
     case "user_not_found":
-      return "That account is gone. Reopen this list.";
+      return "That account is no longer available.";
     case "bots_have_no_role":
       return "An app has no role to change.";
     case "bots_cannot_invite":
