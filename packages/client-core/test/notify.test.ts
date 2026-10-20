@@ -91,6 +91,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     modal: null,
     commands: [],
     huddle: null,
+    huddleEnded: null,
     ...over,
   };
 }

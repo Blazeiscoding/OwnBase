@@ -29,6 +29,7 @@ import {
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
 import { huddleHasVideo, type HuddleView } from "../lib/huddleView.js";
+import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { CatchUpSummary, namesList } from "../lib/catchUp.js";
 import {
@@ -472,6 +473,7 @@ function WorkspaceInner({
   const [huddleView, setHuddleView] = useState<HuddleView>("docked");
   const huddleVideo = useWorkspace((s) => huddleHasVideo(s.huddle));
   const inHuddle = useWorkspace((s) => !!s.huddle);
+  useHuddleEndedNotice();
   // Once the video is gone, the next video starts in view again, above the chat.
   useEffect(() => {
     if (!huddleVideo) setHuddleView("docked");

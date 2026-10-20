@@ -28,6 +28,8 @@ import type { CallLogLine, HuddleSession, HuddleState, ScreenShareQuality } from
 import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
 
 class HuddleJoinRefusedError extends Error {}
+/** A rejoin given up because the socket dropped again; the next one asks afresh. */
+class HuddleRejoinCancelled extends Error {}
 
 export type ConnectionStatus =
   | "connecting"
@@ -583,6 +585,12 @@ export interface WorkspaceState {
   commands: CommandHint[];
   /** The huddle this client is in, if any. */
   huddle: HuddleState | null;
+  /**
+   * Why the last huddle ended without this person leaving it, such as joining
+   * it on another device, for the screen to say once. `at` tells one ending
+   * from the next.
+   */
+  huddleEnded: { channelId: ID; message: string; error: boolean; at: number } | null;
 }
 
 const initialState: WorkspaceState = {
@@ -623,6 +631,7 @@ const initialState: WorkspaceState = {
   drafts: {},
   huddles: {},
   huddle: null,
+  huddleEnded: null,
   ephemerals: {},
   ephemeralsDropped: {},
   modal: null,
@@ -880,7 +889,6 @@ export class WorkspaceClient {
     ws.onclose = (event) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      this.leaveHuddle();
       if (event.code === 4003) this.store.setState({ status: "auth_failed" });
       if (event.code === 4002) this.store.setState({ status: "protocol_mismatch" });
       if (event.code === 4004) this.store.setState({ status: "password_change_required" });
@@ -892,8 +900,14 @@ export class WorkspaceClient {
         this.state.status === "auth_failed" ||
         this.state.status === "protocol_mismatch" ||
         this.state.status === "password_change_required"
-      )
+      ) {
+        this.leaveHuddle();
         return;
+      }
+      // A call goes on through a dropped connection: its sound and video do
+      // not pass through this socket, and the server keeps this device's
+      // place a while. `resumeHuddle` takes it back once the socket returns.
+      this.holdHuddle();
       this.store.setState({ status: "reconnecting" });
       this.reconnectTimer = setTimeout(() => {
         this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30_000);
@@ -1042,6 +1056,7 @@ export class WorkspaceClient {
       this.reloadThreads.delete(rootId);
       if (channels[channelId]) void this.loadThread(rootId, channelId).catch(() => {});
     }
+    this.resumeHuddle(snap);
   }
 
   /** Stops every history transfer in flight; nothing will use their answers. */
@@ -1610,6 +1625,14 @@ export class WorkspaceClient {
         this.session.syncParticipants(event.userIds);
         this.publishHuddleState();
       }
+    } else if (event.type === "huddle.moved") {
+      // The server already gave the place to the other device; saying so
+      // again here would only be refused.
+      if (this.session?.channelId === event.channelId)
+        this.endHuddle(
+          { message: "You joined this huddle on another device, so it ended here.", error: false },
+          false,
+        );
     } else if (event.type === "huddle.join.result") {
       const pending = this.pendingHuddleJoin;
       if (pending?.channelId === event.channelId && pending.requestId === event.requestId) {
@@ -2960,6 +2983,9 @@ export class WorkspaceClient {
   private session: HuddleSession | null = null;
   private huddleAttempt = 0;
   private huddleAdmitted = false;
+  /** Whether the session was let into its huddle, so a returning socket asks to go on with it. */
+  private inHuddle = false;
+  private rejoins = 0;
   private huddleJoinReplies = false;
   /** Whether this server takes `huddle.report`; an older one closes the socket on it. */
   private huddleReports = false;
@@ -3003,6 +3029,7 @@ export class WorkspaceClient {
     const attempt = this.huddleAttempt;
     const selfId = this.state.self?.id;
     if (!selfId) return;
+    this.store.setState({ huddleEnded: null });
 
     let config: RTCConfiguration;
     try {
@@ -3098,6 +3125,7 @@ export class WorkspaceClient {
       return;
     }
     this.huddleAdmitted = true;
+    this.inHuddle = true;
     session.onChange = () => this.publishHuddleState();
     // Dial whoever is already there; later arrivals come via participants events.
     session.syncParticipants(this.state.huddles[channelId] ?? []);
@@ -3105,15 +3133,109 @@ export class WorkspaceClient {
   }
 
   leaveHuddle(): void {
+    this.endHuddle();
+  }
+
+  /**
+   * Ends this device's part in the huddle: tells the server unless it already
+   * knows, and says why on screen when the person did not choose it.
+   */
+  private endHuddle(
+    why: { message: string; error: boolean } | null = null,
+    tellServer = true,
+  ): void {
     this.huddleAttempt++;
     this.huddleAdmitted = false;
+    this.inHuddle = false;
     this.pendingHuddleJoin?.finish(new Error("Joining the huddle was cancelled."));
     const session = this.session;
     if (!session) return;
     this.session = null;
-    this.sendSocket({ type: "huddle.leave", channelId: session.channelId });
+    if (tellServer) this.sendSocket({ type: "huddle.leave", channelId: session.channelId });
+    if (why) session.note(why.message);
     session.destroy();
     this.publishHuddleState();
+    if (why)
+      this.store.setState({
+        huddleEnded: { channelId: session.channelId, ...why, at: Date.now() },
+      });
+  }
+
+  /**
+   * The socket dropped mid-call. The call goes on: its sound and video pass
+   * between the devices, and the server keeps this one's place a while. Only
+   * a join still waiting for its answer is given up, since none will come.
+   */
+  private holdHuddle(): void {
+    const session = this.session;
+    if (!session) return;
+    this.huddleAdmitted = false;
+    if (!this.inHuddle) {
+      this.pendingHuddleJoin?.finish(
+        new Error("The connection dropped while joining the huddle. Try again."),
+      );
+      return;
+    }
+    // A rejoin still waiting is asked again when the socket returns.
+    const pending = this.pendingHuddleJoin;
+    this.pendingHuddleJoin = null;
+    pending?.finish(new HuddleRejoinCancelled());
+    session.note("The connection to the server dropped. Staying in the call meanwhile.");
+  }
+
+  /**
+   * Back in the huddle once the socket returns. The snapshot says whether
+   * the server kept this device's place: if it did, the others never saw it
+   * go and every peer connection stays; if not (it waited too long, or the
+   * server restarted), they closed theirs, so this side closes its own and
+   * dials again once let back in. Refused, the call ends and says why.
+   */
+  private resumeHuddle(snap: ReadySnapshot): void {
+    const session = this.session;
+    const selfId = this.state.self?.id;
+    if (!session || !this.inHuddle || !selfId) return;
+    const channelId = session.channelId;
+    const kept = (snap.huddles[channelId] ?? []).includes(selfId);
+    if (!kept) session.closePeers();
+    const attempt = this.huddleAttempt;
+    const back = () => {
+      if (attempt !== this.huddleAttempt || this.session !== session) return;
+      this.huddleAdmitted = true;
+      session.note(
+        kept ? "Back in the huddle, in the place the server kept." : "Let into the huddle again.",
+      );
+      session.syncParticipants(this.state.huddles[channelId] ?? []);
+      this.publishHuddleState();
+    };
+    session.note("The connection to the server came back. Asking to go on with the huddle.");
+    if (!this.huddleJoinReplies) {
+      this.sendSocket({ type: "huddle.join", channelId });
+      back();
+      return;
+    }
+    const requestId = `rejoin-${attempt}-${++this.rejoins}`;
+    const timer = setTimeout(() => {
+      this.pendingHuddleJoin?.finish(new Error("The huddle did not answer."));
+    }, 10_000);
+    this.pendingHuddleJoin = {
+      channelId,
+      requestId,
+      finish: (error) => {
+        clearTimeout(timer);
+        if (this.pendingHuddleJoin?.requestId === requestId) this.pendingHuddleJoin = null;
+        if (!error) return back();
+        if (error instanceof HuddleRejoinCancelled) return;
+        if (attempt !== this.huddleAttempt || this.session !== session) return;
+        this.endHuddle(
+          {
+            message: `The huddle ended here after the connection dropped. ${error.message}`,
+            error: true,
+          },
+          !(error instanceof HuddleJoinRefusedError),
+        );
+      },
+    };
+    this.sendSocket({ type: "huddle.join", channelId, requestId });
   }
 
   toggleMic(): void {

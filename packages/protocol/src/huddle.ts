@@ -99,7 +99,7 @@ export interface CallLogEntry {
   /** The other end of a signal or a report. */
   peerId?: ID;
   kind: "joined" | "left" | "refused" | "offer" | "answer" | "dropped" | "report";
-  /** Why someone was refused, left, or a signal was dropped. */
+  /** Why someone was refused, left or came back, or a signal was dropped. */
   reason?: string;
   report?: CallReport;
 }

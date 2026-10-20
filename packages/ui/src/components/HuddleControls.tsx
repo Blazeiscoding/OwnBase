@@ -94,6 +94,9 @@ export function HuddleControls({
   const client = useClient();
   const platform = usePlatform();
   const huddle = useWorkspace((s) => s.huddle);
+  // A dropped connection to the workspace does not end the call (see
+  // WorkspaceClient.holdHuddle); this says what is going on meanwhile.
+  const away = useWorkspace((s) => s.status === "reconnecting" || s.status === "connecting");
   const calls = useCallPreferences();
   const devices = useMediaDevices();
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
@@ -265,6 +268,16 @@ export function HuddleControls({
           Leave
         </button>
       </div>
+      {away && (
+        <p
+          role="status"
+          className={`flex basis-full items-center justify-end gap-2 text-xs ${
+            overlay ? "mt-2 rounded-lg bg-black/60 px-3 py-2 text-white" : "text-ink-dim"
+          }`}
+        >
+          The connection to the workspace dropped. You stay in the call while it comes back.
+        </p>
+      )}
       {huddle.micLost && (
         <p
           role="alert"
