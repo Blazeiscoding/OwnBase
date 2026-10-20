@@ -5,6 +5,7 @@ export type {
   CallRelayDraft,
   CallRelaySetting,
   DiscoveredServer,
+  HostedBackup,
   HostedWorkspaces,
   HostingStart,
   HostingStatus,

@@ -5,6 +5,7 @@ import { HostDialog } from "../src/components/HostDialog.js";
 import { useHostingStatus } from "../src/lib/hosting.js";
 import type {
   AutoBackup,
+  HostedBackup,
   HostedWorkspaces,
   HostingStart,
   HostingStatus,
@@ -1869,5 +1870,143 @@ describe("a relay for calls from other networks", () => {
     expect(await within(card).findByRole("radio", { name: "No relay" })).toBeChecked();
     expect(relay.get).toHaveBeenCalledTimes(1);
     expect(await accessibilityProblems(dialog)).toEqual([]);
+  });
+});
+
+describe("earlier copies of a stopped workspace", () => {
+  const workspace = {
+    folder: "rocket-team",
+    name: "Rocket Team",
+    port: 8543,
+    lastHostedAt: 1,
+    lastBackupAt: null,
+    running: false,
+    missing: false,
+  };
+  const newer: HostedBackup = {
+    name: "rocket-team-2026-03-02T09-00-00",
+    at: Date.UTC(2026, 2, 2, 9),
+    bytes: 2 * 1024 * 1024,
+    damaged: false,
+  };
+  const damaged: HostedBackup = {
+    name: "rocket-team-2026-03-01T09-00-00",
+    at: Date.UTC(2026, 2, 1, 9),
+    bytes: null,
+    damaged: true,
+  };
+
+  function withCopies(
+    restoreOver: Hosting["restoreOver"],
+    running = false,
+  ): ReturnType<typeof fakeHosting> & { backups: ReturnType<typeof vi.fn> } {
+    const fake = fakeHosting(stopped, {
+      workspaces: [{ ...workspace, running }],
+      unreadable: [],
+    });
+    const backups = vi.fn(async () => [newer, damaged]);
+    Object.assign(fake.hosting, { backups, restoreOver });
+    return { ...fake, backups };
+  }
+
+  it("lists them, asks before restoring one, and says where the data it held went", async () => {
+    const user = userEvent.setup();
+    const restoreOver = vi.fn(async () => ({
+      folder: "rocket-team",
+      name: "Rocket Team",
+      setAside: "/home/sam/.config/Tandem/hosted/rocket-team.superseded-1",
+      inventory: null,
+    }));
+    const { hosting, backups } = withCopies(restoreOver);
+    render(<Harness hosting={hosting} />);
+    const list = await screen.findByRole("region", { name: "Hosted on this computer" });
+    await user.click(within(list).getByRole("button", { name: "Earlier copies of Rocket Team" }));
+    const panel = within(list).getByRole("region", { name: "Earlier copies of Rocket Team" });
+    const copies = await within(panel).findByRole("list", { name: "Backups of Rocket Team" });
+    expect(backups).toHaveBeenCalledWith("rocket-team");
+    const [first, second] = within(copies).getAllByRole("listitem");
+    expect(first).toHaveTextContent("2.0 MB");
+    // A copy that failed its check says so, and cannot be chosen.
+    expect(second).toHaveTextContent("failed its check, so it cannot be restored");
+    expect(within(second!).queryByRole("button")).toBeNull();
+    expect(await accessibilityProblems(panel)).toEqual([]);
+
+    await user.click(within(first!).getByRole("button", { name: /^Restore the copy from / }));
+    expect(panel).toHaveTextContent(
+      /over Rocket Team\? What Rocket Team holds now is moved to a folder beside it, not deleted\. The copy does not start until you put it back in use\./,
+    );
+    await user.click(within(panel).getByRole("button", { name: "Cancel" }));
+    expect(restoreOver).not.toHaveBeenCalled();
+
+    await user.click(within(panel).getByRole("button", { name: /^Restore the copy from / }));
+    await user.click(within(panel).getByRole("button", { name: "Restore over Rocket Team" }));
+    expect(restoreOver).toHaveBeenCalledWith("rocket-team", "rocket-team-2026-03-02T09-00-00");
+    expect(
+      await screen.findByText((text) =>
+        text.startsWith(
+          "Restored an earlier copy of Rocket Team. What it held before is kept in /home/sam/.config/Tandem/hosted/rocket-team.superseded-1.",
+        ),
+      ),
+    ).toHaveAttribute("role", "status");
+    expect(
+      within(list).queryByRole("region", { name: "Earlier copies of Rocket Team" }),
+    ).toBeNull();
+    // The list is read again, to show the copy as restored and held.
+    await waitFor(() => expect(hosting.list).toHaveBeenCalledTimes(2));
+  });
+
+  it("restores from a folder chosen in the system's dialog, and does nothing when none is", async () => {
+    const user = userEvent.setup();
+    const restoreOver = vi.fn(async () => null);
+    const { hosting } = withCopies(restoreOver);
+    render(<Harness hosting={hosting} />);
+    const list = await screen.findByRole("region", { name: "Hosted on this computer" });
+    await user.click(within(list).getByRole("button", { name: "Earlier copies of Rocket Team" }));
+    const panel = within(list).getByRole("region", { name: "Earlier copies of Rocket Team" });
+    await user.click(within(panel).getByRole("button", { name: "Choose a backup folder…" }));
+    expect(panel).toHaveTextContent(/^.*Restore a backup you choose over Rocket Team\?/);
+    await user.click(within(panel).getByRole("button", { name: "Restore over Rocket Team" }));
+    expect(restoreOver).toHaveBeenCalledWith("rocket-team", null);
+    // Back to the list, with nothing to say.
+    expect(
+      await within(panel).findByRole("button", { name: "Choose a backup folder…" }),
+    ).toBeVisible();
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("says why when it is refused", async () => {
+    const user = userEvent.setup();
+    const restoreOver = vi.fn(async () => {
+      throw new Error(
+        "That backup is of a different workspace, so it was not restored over Rocket Team.",
+      );
+    });
+    const { hosting } = withCopies(restoreOver);
+    render(<Harness hosting={hosting} />);
+    const list = await screen.findByRole("region", { name: "Hosted on this computer" });
+    await user.click(within(list).getByRole("button", { name: "Earlier copies of Rocket Team" }));
+    const panel = within(list).getByRole("region", { name: "Earlier copies of Rocket Team" });
+    await user.click(within(panel).getByRole("button", { name: "Choose a backup folder…" }));
+    await user.click(within(panel).getByRole("button", { name: "Restore over Rocket Team" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The earlier copy was not restored. That backup is of a different workspace, so it was not restored over Rocket Team.",
+    );
+  });
+
+  it("is not offered while the workspace runs, or by an app that cannot restore over one", async () => {
+    const { hosting } = withCopies(vi.fn(), true);
+    const { unmount } = render(<Harness hosting={hosting} />);
+    const list = await screen.findByRole("region", { name: "Hosted on this computer" });
+    expect(
+      within(list).queryByRole("button", { name: "Earlier copies of Rocket Team" }),
+    ).toBeNull();
+    unmount();
+
+    const { hosting: older } = fakeHosting(stopped, { workspaces: [workspace], unreadable: [] });
+    render(<Harness hosting={older} />);
+    const again = await screen.findByRole("region", { name: "Hosted on this computer" });
+    expect(
+      within(again).queryByRole("button", { name: "Earlier copies of Rocket Team" }),
+    ).toBeNull();
   });
 });

@@ -13,12 +13,14 @@ import { useHostingStatus } from "../lib/hosting.js";
 import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { useCopy } from "../lib/useCopy.js";
 import { formatDay, formatTime } from "../lib/format.js";
+import { inventorySummary } from "../lib/restoreInventory.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputClass, inputCls } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
+import { EarlierCopies } from "./EarlierCopies.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
@@ -336,23 +338,6 @@ function StartupWhileStopped(props: {
   );
 }
 
-/** What a restored backup would bring back into use, in a sentence. */
-function inventorySummary(inventory: RestoreInventory): string {
-  const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-  const parts = [
-    count(inventory.sessions, "sign-in it still accepts", "sign-ins it still accepts"),
-    count(inventory.scheduled.waiting, "scheduled message waiting", "scheduled messages waiting"),
-    count(
-      inventory.undeliveredEvents,
-      "app event not yet delivered",
-      "app events not yet delivered",
-    ),
-  ];
-  const origins = inventory.appAddresses.map((a) => a.origin);
-  if (origins.length > 0) parts.push(`apps it calls at ${origins.join(", ")}`);
-  return `Put back in use, it brings ${parts.join(", ")}.`;
-}
-
 const KEEP_CHOICES = [3, 7, 14, 30];
 
 /**
@@ -656,7 +641,7 @@ function PortForm(props: {
 
 /** A small action written as a link, beside what it acts on. */
 const linkBtnCls =
-  "text-xs font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40";
+  "whitespace-nowrap text-xs font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40";
 
 /**
  * Renames one hosted workspace where it is shown. Only the name changes: its
@@ -925,6 +910,9 @@ export function HostDialog(props: {
   const restoreFn = props.hosting.restore;
   /** The restored workspace whose "put back in use" question is showing. */
   const [activating, setActivating] = useState<string | null>(null);
+  /** The stopped workspace whose earlier copies are showing. */
+  const [earlierOf, setEarlierOf] = useState<string | null>(null);
+  const canRestoreOver = !!props.hosting.backups && !!props.hosting.restoreOver;
   const renameFn = props.hosting.rename;
   const openFolderFn = props.hosting.openFolder;
   /** The folder of the workspace being renamed, while its form is open. */
@@ -2046,7 +2034,8 @@ export function HostDialog(props: {
                               // A missing folder has no database to read it from.
                               version={w.missing ? null : w.iconVersion}
                             />
-                            <div className="min-w-0 flex-1">
+                            {/* Room for the name first: the buttons go to the next line before it narrows. */}
+                            <div className="min-w-[12rem] flex-1">
                               <p className="truncate text-sm text-ink">{w.name}</p>
                               <p className="text-xs text-ink-dim">
                                 {w.missing
@@ -2069,47 +2058,62 @@ export function HostDialog(props: {
                               {w.autoBackupError && !w.running && (
                                 <p className="text-xs text-alert">{w.autoBackupError}</p>
                               )}
-                              {!w.missing && (renameFn || openFolderFn || setPortFn) && (
-                                <div className="mt-1 flex gap-3">
-                                  {renameFn && (
-                                    <button
-                                      id={`rename-${w.folder}`}
-                                      type="button"
-                                      disabled={unavailable}
-                                      aria-label={`Rename ${w.name}`}
-                                      onClick={() => setRenaming(w.folder)}
-                                      className={linkBtnCls}
-                                    >
-                                      Rename
-                                    </button>
-                                  )}
-                                  {setPortFn && (
-                                    <button
-                                      id={`port-${w.folder}`}
-                                      type="button"
-                                      disabled={unavailable}
-                                      aria-label={`Change port for ${w.name}`}
-                                      onClick={() => {
-                                        setRenaming(null);
-                                        setChangingPort(w.folder);
-                                      }}
-                                      className={linkBtnCls}
-                                    >
-                                      Change port
-                                    </button>
-                                  )}
-                                  {openFolderFn && (
-                                    <button
-                                      type="button"
-                                      aria-label={`Open folder for ${w.name}`}
-                                      onClick={() => void openFolder(w.folder)}
-                                      className={linkBtnCls}
-                                    >
-                                      Open folder
-                                    </button>
-                                  )}
-                                </div>
-                              )}
+                              {!w.missing &&
+                                (renameFn || openFolderFn || setPortFn || canRestoreOver) && (
+                                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                    {renameFn && (
+                                      <button
+                                        id={`rename-${w.folder}`}
+                                        type="button"
+                                        disabled={unavailable}
+                                        aria-label={`Rename ${w.name}`}
+                                        onClick={() => setRenaming(w.folder)}
+                                        className={linkBtnCls}
+                                      >
+                                        Rename
+                                      </button>
+                                    )}
+                                    {setPortFn && (
+                                      <button
+                                        id={`port-${w.folder}`}
+                                        type="button"
+                                        disabled={unavailable}
+                                        aria-label={`Change port for ${w.name}`}
+                                        onClick={() => {
+                                          setRenaming(null);
+                                          setChangingPort(w.folder);
+                                        }}
+                                        className={linkBtnCls}
+                                      >
+                                        Change port
+                                      </button>
+                                    )}
+                                    {openFolderFn && (
+                                      <button
+                                        type="button"
+                                        aria-label={`Open folder for ${w.name}`}
+                                        onClick={() => void openFolder(w.folder)}
+                                        className={linkBtnCls}
+                                      >
+                                        Open folder
+                                      </button>
+                                    )}
+                                    {canRestoreOver && !w.running && (
+                                      <button
+                                        type="button"
+                                        disabled={unavailable}
+                                        aria-label={`Earlier copies of ${w.name}`}
+                                        aria-expanded={earlierOf === w.folder}
+                                        onClick={() =>
+                                          setEarlierOf(earlierOf === w.folder ? null : w.folder)
+                                        }
+                                        className={linkBtnCls}
+                                      >
+                                        Earlier copies
+                                      </button>
+                                    )}
+                                  </div>
+                                )}
                             </div>
                             {backupFn && !w.missing && (
                               <button
@@ -2159,6 +2163,20 @@ export function HostDialog(props: {
                               </>
                             )}
                           </>
+                        )}
+                        {earlierOf === w.folder && !w.missing && !w.running && (
+                          <EarlierCopies
+                            hosting={props.hosting}
+                            folder={w.folder}
+                            name={w.name}
+                            disabled={unavailable}
+                            onDone={(note) => {
+                              setEarlierOf(null);
+                              setBackupNote(note);
+                              setListRevision((n) => n + 1);
+                            }}
+                            onClose={() => setEarlierOf(null)}
+                          />
                         )}
                         {activating === w.folder && (
                           <div
