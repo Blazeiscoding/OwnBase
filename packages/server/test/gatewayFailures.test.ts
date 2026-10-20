@@ -69,6 +69,9 @@ async function start() {
     port: 0,
     mdns: false,
     rateLimits: false,
+    // A dropped device's place in a call goes at once here; huddleRejoin.test.ts
+    // covers the grace it gets for coming back.
+    huddleGraceMs: 0,
   });
   base = `http://127.0.0.1:${server.port}`;
   people = [];
@@ -211,7 +214,7 @@ describe("socket callbacks that fail (F03)", () => {
     vi.spyOn(server.store, "getChannel").mockImplementation(failing("disk"));
     device.ws.close();
     await expect.poll(() => server.gateway.isOnline(person.user.id)).toBe(false);
-    expect(server.gateway.huddleParticipants(general)).toEqual([]);
+    await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([]);
     expect(await healthy()).toBe(true);
   });
 });

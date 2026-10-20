@@ -104,6 +104,11 @@ export type EphemeralEvent =
       message: string;
       retryAfterMs?: number;
     }
+  /**
+   * Told only to the device that held this person's place in a huddle, when
+   * they joined it from another device: that one is in the call now.
+   */
+  | { type: "huddle.moved"; channelId: ID }
   /** A relayed WebRTC handshake payload from one peer. */
   | { type: "huddle.signal"; channelId: ID; from: ID; signal: HuddleSignal }
   /**

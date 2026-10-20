@@ -299,6 +299,11 @@ export interface ServerOptions {
    * actually written.
    */
   logger?: boolean | { stream: NodeJS.WritableStream };
+  /**
+   * How long a huddle place waits for a device whose connection dropped
+   * (`HUDDLE_GRACE_MS` by default). For tests.
+   */
+  huddleGraceMs?: number;
   /** Private deployments default to LAN-only media with no external ICE service. */
   iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
   /**
@@ -742,6 +747,7 @@ async function startWorkspaceServer(
       ),
     (err, where) =>
       app.log.error({ err, where }, "socket work failed; its socket closes to reconnect"),
+    { huddleGraceMs: opts.huddleGraceMs },
   );
 
   const recordEvent = (event: WorkspaceEvent, channelId: ID | null): EventEnvelope => {
