@@ -200,15 +200,25 @@ describe("colours written outside the stylesheet", () => {
 
   it("match it, so no part of the app keeps the previous palette", () => {
     const tokens = colourTokens();
-    // What the window and the browser show before the page paints, and the
-    // title bar drawn over it: the window's own surface.
-    expect(hexes(read("apps/desktop/src/main/index.ts"))).toEqual([
-      tokens.deep,
+    const white = colourTokens("light");
+    // What the window shows before the page paints, and the title bar drawn
+    // over it: the window's own surface, in each theme.
+    expect(hexes(read("apps/desktop/src/main/windowTheme.ts"))).toEqual([
       tokens.deep,
       tokens["ink-dim"],
+      white.deep,
+      white["ink-dim"],
     ]);
+    expect(hexes(read("apps/desktop/src/main/index.ts"))).toEqual([]);
     for (const page of ["apps/web/index.html", "apps/desktop/src/renderer/index.html"])
       expect(hexes(read(page)), page).toEqual([tokens.deep]);
+    // The browser's own bars, from the first paint and as the theme changes.
+    for (const script of [
+      "apps/web/public/first-paint.js",
+      "apps/desktop/src/renderer/public/first-paint.js",
+    ])
+      expect(hexes(read(script)), script).toEqual([white.deep, tokens.deep]);
+    expect(hexes(read("packages/ui/src/lib/appearance.ts"))).toEqual([tokens.deep, white.deep]);
     // What a phone shows while the installed client starts, and its bars.
     expect(hexes(read("apps/web/public/manifest.webmanifest"))).toEqual([tokens.deep, tokens.deep]);
     // The mark the favicon and the desktop icons are drawn from, as BrandMark draws it.

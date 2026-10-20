@@ -26,11 +26,50 @@ interface Appearance {
 const KEY = "appearance";
 const stores = new WeakMap<Platform, ReturnType<typeof createAppearance>>();
 
+/**
+ * A copy of the choice in localStorage, which a page can read before it is
+ * painted: `first-paint.js` in each app's public folder puts it on the
+ * document from `<head>`, so a page whose chosen theme is not the device's
+ * does not show the other one first. The choice itself stays in the
+ * platform's storage; the copy follows it.
+ */
+export const FIRST_PAINT_KEY = "tandem:appearance";
+
+function firstPaintCopy(): { theme: Theme; density: Density } | null {
+  try {
+    const saved = JSON.parse(localStorage.getItem(FIRST_PAINT_KEY) ?? "null") as {
+      theme?: unknown;
+      density?: unknown;
+    } | null;
+    if (!saved) return null;
+    return {
+      theme: (THEMES as readonly unknown[]).includes(saved.theme)
+        ? (saved.theme as Theme)
+        : "system",
+      density: (DENSITIES as readonly unknown[]).includes(saved.density)
+        ? (saved.density as Density)
+        : "comfortable",
+    };
+  } catch {
+    return null;
+  }
+}
+
+function keepFirstPaintCopy(theme: Theme, density: Density): void {
+  try {
+    localStorage.setItem(FIRST_PAINT_KEY, JSON.stringify({ theme, density }));
+  } catch {
+    // Without it the next page paints the device's theme first, as before.
+  }
+}
+
 function createAppearance(platform: Platform) {
+  const copy = firstPaintCopy();
   const store = createStore<Appearance>(() => ({
-    // A device starts where its owner already said they want to be.
-    theme: "system",
-    density: "comfortable",
+    // A device starts where its owner already said they want to be: the copy
+    // the page was first painted with, until the saved choice is read.
+    theme: copy?.theme ?? "system",
+    density: copy?.density ?? "comfortable",
     loaded: false,
     error: null,
     set: async (change) => {
@@ -86,15 +125,37 @@ export function useAppearance() {
   return useStore(store);
 }
 
+/** The deep colour of Onyx and of White: the browser's own bars, and the desktop window. */
+const BAR_COLOURS = { dark: "#111115", light: "#e9e9ec" } as const;
+
 /**
  * Puts the chosen theme and density on the document, where theme.css reads
- * them. Mounted once, at the top of the app, so every screen follows.
+ * them, and keeps the copy the next page is first painted with. Mounted once,
+ * at the top of the app, so every screen follows.
  */
 export function useApplyAppearance(): void {
-  const { theme, density } = useAppearance();
+  const { theme, density, loaded } = useAppearance();
   useEffect(() => {
     const root = document.documentElement;
     root.dataset.theme = theme;
     root.dataset.density = density;
-  }, [theme, density]);
+    // Only what was read or chosen: before that, the store holds the copy itself.
+    if (loaded) keepFirstPaintCopy(theme, density);
+  }, [theme, density, loaded]);
+  // The browser's bars around the page (a phone's, an installed app's) in the same theme.
+  useEffect(() => {
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (!meta) return;
+    const prefersLight =
+      theme === "system" && typeof window.matchMedia === "function"
+        ? window.matchMedia("(prefers-color-scheme: light)")
+        : null;
+    const paint = () => {
+      const light = theme === "light" || !!prefersLight?.matches;
+      meta.content = BAR_COLOURS[light ? "light" : "dark"];
+    };
+    paint();
+    prefersLight?.addEventListener("change", paint);
+    return () => prefersLight?.removeEventListener("change", paint);
+  }, [theme]);
 }
