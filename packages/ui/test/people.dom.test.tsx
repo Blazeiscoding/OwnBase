@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import type { ServerToClient, User } from "@slackoss/protocol";
 import { ClientContext } from "../src/context.js";
 import { PeopleDialog } from "../src/components/PeopleDialog.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -35,25 +35,50 @@ const member: User = {
   canInvite: true,
 };
 
+const former: User = {
+  ...member,
+  id: "U_BO",
+  handle: "bo",
+  displayName: "Bo Lindqvist",
+  deactivated: true,
+};
+
 /** The People dialog over a client whose admin API answers from stubs. */
-async function people(fill: (api: WorkspaceClient["api"]) => void = () => {}) {
+async function people(
+  fill: (api: WorkspaceClient["api"]) => void = () => {},
+  users: User[] = [owner, member],
+) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
-  client.store.setState({ self: owner, users: { U_SAM: owner, U_ALEX: member }, status: "online" });
-  vi.spyOn(client.api, "listAllUsers").mockResolvedValue({
-    users: [
-      { ...owner, lastSeenAt: null },
-      { ...member, lastSeenAt: null },
-    ],
+  client.store.setState({
+    self: owner,
+    users: Object.fromEntries(users.map((u) => [u.id, u])),
+    status: "online",
+  });
+  const list = vi.spyOn(client.api, "listAllUsers").mockResolvedValue({
+    users: users.map((u) => ({ ...u, lastSeenAt: null })),
   });
   fill(client.api);
+  const onClose = vi.fn();
   render(
     <ClientContext.Provider value={client}>
-      <PeopleDialog onClose={() => {}} />
+      <PeopleDialog onClose={onClose} />
     </ClientContext.Provider>,
   );
   const dialog = screen.getByRole("dialog", { name: "People" });
   await within(dialog).findByText("@alex");
-  return { dialog: within(dialog), root: dialog, user: userEvent.setup(), client };
+  await vi.waitFor(() => expect(list).toHaveBeenCalled());
+  return { dialog: within(dialog), root: dialog, user: userEvent.setup(), client, onClose, list };
+}
+
+/** A user event from the server, heard over the socket. */
+function receive(client: WorkspaceClient, seq: number, user: User) {
+  const connection = client as unknown as { handleServerMessage(message: ServerToClient): void };
+  act(() =>
+    connection.handleServerMessage({
+      type: "event",
+      envelope: { seq, event: { type: "user.joined", user } },
+    }),
+  );
 }
 
 describe("people actions", () => {
@@ -79,7 +104,7 @@ describe("people actions", () => {
     expect(await accessibilityProblems(root)).toEqual([]);
   });
 
-  it("deactivates through the menu", async () => {
+  it("deactivates through the menu, and shows it before the socket says so", async () => {
     const update = vi.fn().mockResolvedValue({ user: { ...member, deactivated: true } });
     const { dialog, user } = await people((api) => {
       vi.spyOn(api, "updateUserAdmin").mockImplementation(update);
@@ -88,20 +113,29 @@ describe("people actions", () => {
     await user.click(within(memberRow).getByRole("button", { name: "Actions for Alex Chen" }));
     await user.click(screen.getByRole("menuitem", { name: "Deactivate" }));
     expect(update).toHaveBeenCalledWith("U_ALEX", { deactivated: true });
+    // The answer itself moves Alex under deactivated.
+    await vi.waitFor(() => expect(dialog.queryByText("@alex")).toBeNull());
+    await user.click(dialog.getByRole("button", { name: "Show 1 deactivated account" }));
+    expect(within(dialog.getByText("@alex").closest("li")!).getByText("Deactivated")).toBeVisible();
   });
 });
 
 describe("people's load, confirmations and refusals", () => {
-  it("says the list could not load, and Refresh loads it", async () => {
+  it("lists everyone while last-seen times fail to load, and Try again loads them", async () => {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
-    client.store.setState({ self: owner, users: { U_SAM: owner }, status: "online" });
+    client.store.setState({
+      self: owner,
+      users: { U_SAM: owner, U_ALEX: member },
+      status: "online",
+    });
+    const seen = new Date(2026, 0, 5, 9, 30).getTime();
     const list = vi
       .spyOn(client.api, "listAllUsers")
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValue({
         users: [
           { ...owner, lastSeenAt: null },
-          { ...member, lastSeenAt: null },
+          { ...member, lastSeenAt: seen },
         ],
       });
     render(
@@ -110,11 +144,15 @@ describe("people's load, confirmations and refusals", () => {
       </ClientContext.Provider>,
     );
     const dialog = within(screen.getByRole("dialog", { name: "People" }));
+    // The rows are the workspace's, so they do not wait for the admin list.
+    expect(dialog.getByText("@alex")).toBeVisible();
     expect(await dialog.findByRole("alert")).toHaveTextContent(
-      "Could not load the member list. Try refreshing.",
+      "Could not load when people were last here. Try again",
     );
-    await userEvent.setup().click(dialog.getByRole("button", { name: "Refresh" }));
-    expect(await dialog.findByText("@alex")).toBeVisible();
+    expect(dialog.queryByRole("button", { name: "Refresh" })).toBeNull();
+    await userEvent.setup().click(dialog.getByRole("button", { name: "Try again" }));
+    const row = dialog.getByText("@alex").closest("li")!;
+    expect(await within(row).findByText(/last seen/)).toBeVisible();
     expect(dialog.queryByRole("alert")).toBeNull();
     expect(list).toHaveBeenCalledTimes(2);
   });
@@ -179,9 +217,9 @@ describe("people's load, confirmations and refusals", () => {
     await user.type(typed, "alex");
     await user.click(confirm);
     expect(transfer).toHaveBeenCalledWith("U_ALEX");
-    expect(await dialog.findByRole("status")).toHaveTextContent(
-      "Alex Chen now owns this workspace. You are an administrator.",
-    );
+    expect(
+      await dialog.findByText("Alex Chen now owns this workspace. You are an administrator."),
+    ).toHaveAttribute("role", "status");
     expect(client.state.self?.role).toBe("admin");
   });
 
@@ -195,5 +233,71 @@ describe("people's load, confirmations and refusals", () => {
     expect(await dialog.findByRole("alert")).toHaveTextContent(
       "Only the owner can change another admin.",
     );
+  });
+});
+
+describe("finding people and keeping the list current", () => {
+  it("finds a person by name or handle, and says when no one matches", async () => {
+    const { dialog, root, user, onClose } = await people(undefined, [owner, member, former]);
+    const search = dialog.getByRole("searchbox", { name: "Find a person" });
+    expect(search).toHaveFocus();
+
+    await user.type(search, "chen");
+    expect(dialog.getByText("@alex")).toBeVisible();
+    expect(dialog.queryByText("@sam")).toBeNull();
+
+    // Written as a handle is written, with its @.
+    await user.clear(search);
+    await user.type(search, "@SA");
+    expect(dialog.getByText("@sam")).toBeVisible();
+    expect(dialog.queryByText("@alex")).toBeNull();
+
+    await user.clear(search);
+    await user.type(search, "zz");
+    expect(dialog.getByRole("status")).toHaveTextContent("No one matches \u201czz\u201d.");
+    expect(await accessibilityProblems(root)).toEqual([]);
+
+    // A deactivated match is not hidden without saying so.
+    await user.clear(search);
+    await user.type(search, "lindqvist");
+    expect(dialog.getByRole("status")).toHaveTextContent(
+      "No active account matches \u201clindqvist\u201d.",
+    );
+    await user.click(dialog.getByRole("button", { name: "Show 1 deactivated account" }));
+    expect(dialog.getByText("@bo")).toBeVisible();
+
+    // Escape empties the search first, and only then closes.
+    search.focus();
+    await user.keyboard("{Escape}");
+    expect(search).toHaveValue("");
+    expect(onClose).not.toHaveBeenCalled();
+    expect(dialog.getByText("@alex")).toBeVisible();
+    await user.keyboard("{Escape}");
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("shows someone who joins, and a change made elsewhere, as they happen", async () => {
+    const { dialog, client, list } = await people();
+    expect(dialog.queryByRole("button", { name: "Refresh" })).toBeNull();
+    const calls = list.mock.calls.length;
+
+    const jo: User = { ...member, id: "U_JO", handle: "jo", displayName: "Jo Park" };
+    receive(client, 1, jo);
+    expect(await dialog.findByText("@jo")).toBeVisible();
+
+    receive(client, 2, { ...member, role: "admin" });
+    const row = dialog.getByText("@alex").closest("li")!;
+    expect(await within(row).findByText(/^Admin/)).toBeVisible();
+    // Nothing was fetched for either.
+    expect(list).toHaveBeenCalledTimes(calls);
+  });
+
+  it("says someone who leaves while the list is open was last seen then", async () => {
+    const { dialog, client } = await people();
+    act(() => client.store.setState({ presence: { U_ALEX: "online" } }));
+    const row = () => dialog.getByText("@alex").closest("li")!;
+    expect(within(row()).getByText(/active now/)).toBeVisible();
+    act(() => client.store.setState({ presence: { U_ALEX: "offline" } }));
+    expect(within(row()).getByText(/last seen/)).toBeVisible();
   });
 });
