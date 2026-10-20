@@ -66,6 +66,9 @@ describe.each([
   { enterSends: true, shortcut: "Enter", hint: "Enter to send" },
   { enterSends: false, shortcut: "Ctrl/Cmd+Enter", hint: "Ctrl/Cmd+Enter to send" },
 ])("composer tooltips with enterSends=$enterSends", ({ enterSends, shortcut, hint }) => {
+  // Ten seconds: it tabs through every folded formatting button, which jsdom
+  // cannot hide, and each stop renders a tooltip. Under a full parallel run
+  // that came close to the five-second default.
   it("shows keyboard hints without native titles and preserves the three actions", async () => {
     const user = userEvent.setup();
     const { filePicker, send } = renderComposer(enterSends);
@@ -90,7 +93,7 @@ describe.each([
     // jsdom applies no stylesheet, so the folded formatting buttons still take
     // a Tab here; a browser skips them, which the browser tests check.
     const emoji = screen.getByRole("button", { name: "Insert emoji" });
-    for (let i = 0; i < 8 && document.activeElement !== emoji; i++) await user.tab();
+    for (let i = 0; i < 12 && document.activeElement !== emoji; i++) await user.tab();
     expect(emoji).toHaveFocus();
     await user.tab();
     expect(later).toHaveFocus();
@@ -119,5 +122,5 @@ describe.each([
       onQueued: expect.any(Function),
     });
     expect(textbox).toHaveValue("");
-  });
+  }, 10_000);
 });
