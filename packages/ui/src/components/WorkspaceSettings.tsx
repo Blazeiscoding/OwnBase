@@ -207,6 +207,7 @@ export function WorkspaceSettings({
                 <>
                   {icons && <IconSection />}
                   <NameSection editable={editable} />
+                  <PreviewsSection />
                 </>
               )}
               {section === "joining" && (
@@ -445,6 +446,71 @@ function NameSection({ editable }: { editable: boolean }) {
           {busy ? "Saving…" : "Save"}
         </button>
       </form>
+    </section>
+  );
+}
+
+/**
+ * Link previews for new messages (E2), on or off, saved the moment it is
+ * changed. A server without previews says nothing about them, so nothing is
+ * shown there.
+ */
+function PreviewsSection() {
+  const client = useClient();
+  const saved = useSaved();
+  const alive = useAlive();
+  const current = useWorkspace((s) => s.linkPreviews);
+  const [choosing, setChoosing] = useState<boolean | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
+  const shown = choosing ?? current;
+  if (shown === null) return null;
+
+  async function change(enabled: boolean) {
+    const ticket = ++request.current;
+    setChoosing(enabled);
+    setError(null);
+    try {
+      await client.setLinkPreviews(enabled);
+      if (alive.current && ticket === request.current) saved();
+    } catch (err) {
+      if (!alive.current || ticket !== request.current) return;
+      setError(
+        err instanceof ApiError && err.code === "admin_only"
+          ? "Only the workspace's owner and admins can change link previews."
+          : "Link previews were not changed. Check your connection and try again.",
+      );
+    } finally {
+      if (alive.current && ticket === request.current) setChoosing(null);
+    }
+  }
+
+  return (
+    <section aria-labelledby="workspace-previews-title" className="mt-8">
+      <h4 id="workspace-previews-title" className="mb-1.5 text-[13px] font-medium text-ink-dim">
+        Link previews
+      </h4>
+      <label className="flex items-start gap-2 text-sm text-ink">
+        <input
+          type="checkbox"
+          className="mt-1"
+          checked={shown}
+          onChange={(event) => void change(event.target.checked)}
+        />
+        <span>
+          Show a preview of web pages linked in messages
+          <span className="block text-[13px] text-ink-dim">
+            The server reads the page and its picture, so nobody's device contacts the site. Private
+            and local addresses are never read. Turning this off adds no previews to new messages;
+            ones already shown stay until their sender removes them.
+          </span>
+        </span>
+      </label>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-alert">
+          {error}
+        </p>
+      )}
     </section>
   );
 }

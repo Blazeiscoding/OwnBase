@@ -276,6 +276,10 @@ export const workspaceNameSchema = z
 export const workspaceNameBody = z.object({ name: workspaceNameSchema });
 
 /** An owner or admin changing who may join. */
+/** Turns link previews on or off for the workspace (E2). */
+export const linkPreviewsBody = z.object({ enabled: z.boolean() });
+export type LinkPreviewsBody = z.infer<typeof linkPreviewsBody>;
+
 export const accessPolicyBody = z.object({
   accessPolicy: z.enum([
     "invite_only",

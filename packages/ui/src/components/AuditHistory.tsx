@@ -58,6 +58,10 @@ export function describeAuditEntry(
       return d.change === "removed"
         ? `${actor} removed the workspace's icon`
         : `${actor} changed the workspace's icon`;
+    case "workspace.link_previews_changed":
+      return d.to === false
+        ? `${actor} turned off link previews`
+        : `${actor} turned on link previews`;
     case "app.created":
       return `${actor} created the app ${app}`;
     case "app.deleted":

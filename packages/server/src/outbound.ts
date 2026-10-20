@@ -89,6 +89,12 @@ export interface OutboundOptions {
    * the whole of its timeout.
    */
   signal?: AbortSignal;
+  /**
+   * Which addresses are refused, in place of the private ranges. Tests use it
+   * to let a loopback test server through while every other private address
+   * is still refused.
+   */
+  blocked?: (address: string) => boolean;
 }
 
 export interface OutboundResponse {
@@ -97,48 +103,59 @@ export interface OutboundResponse {
   contentType: string;
 }
 
-/**
- * POSTs a body and returns the (small) response. Redirects are not followed:
- * a redirect is exactly how a vetted public host would hand us a private one.
- */
-export function postToUrl(
-  url: string,
-  body: string,
-  contentType: string,
-  opts: OutboundOptions = {},
-): Promise<OutboundResponse> {
-  const timeoutMs = opts.timeoutMs ?? 4000;
-  const maxBytes = opts.maxBytes ?? 64 * 1024;
+/** What one exchange gave back, before anyone decides what its bytes mean. */
+interface RawResponse {
+  status: number;
+  headers: Record<string, string | string[] | undefined>;
+  body: Buffer;
+  /** The body went past `maxBytes` and was cut there (`truncate`). */
+  truncated: boolean;
+}
 
-  let parsed: URL;
-  try {
-    parsed = new URL(url);
-  } catch {
-    return Promise.reject(new OutboundError("blocked_host", "not a valid URL"));
-  }
+function isBlocked(address: string, opts: OutboundOptions): boolean {
+  if (opts.blocked) return opts.blocked(address);
+  return !opts.allowPrivate && isPrivateAddress(address);
+}
+
+/** Why an address may not be asked, or null when it may. */
+function refusal(parsed: URL, opts: OutboundOptions): OutboundError | null {
   if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-    return Promise.reject(new OutboundError("blocked_host", "only http(s) URLs are allowed"));
+    return new OutboundError("blocked_host", "only http(s) URLs are allowed");
   }
-
   // A URL that already names an address never goes through DNS, so `lookup`
   // below would not see it. Check the literal here or "http://127.0.0.1" walks
   // straight past the guard.
   const literal = parsed.hostname.replace(/^\[|\]$/g, "");
-  if (!opts.allowPrivate && isIP(literal) !== 0 && isPrivateAddress(literal)) {
-    return Promise.reject(
-      new OutboundError(
-        "blocked_host",
-        `${literal} is a private address; start the server with --allow-private-hooks to allow this`,
-      ),
+  if (isIP(literal) !== 0 && isBlocked(literal, opts)) {
+    return new OutboundError(
+      "blocked_host",
+      `${literal} is a private address; start the server with --allow-private-hooks to allow this`,
     );
   }
+  return null;
+}
 
+/**
+ * One request to one address, guarded: the address is checked inside the
+ * socket's own DNS lookup, and the whole call, not just a quiet socket, has a
+ * deadline. A body past `maxBytes` is refused, or cut there with `truncate`.
+ */
+function exchange(
+  parsed: URL,
+  method: "GET" | "POST",
+  payload: Buffer | null,
+  headers: Record<string, string>,
+  opts: OutboundOptions & { truncate?: boolean },
+): Promise<RawResponse> {
+  const timeoutMs = opts.timeoutMs ?? 4000;
+  const maxBytes = opts.maxBytes ?? 64 * 1024;
+  const refused = refusal(parsed, opts);
+  if (refused) return Promise.reject(refused);
   if (opts.signal?.aborted) {
     return Promise.reject(new OutboundError("aborted", "the server is shutting down"));
   }
 
-  return new Promise<OutboundResponse>((resolve, reject) => {
-    const payload = Buffer.from(body, "utf8");
+  return new Promise<RawResponse>((resolve, reject) => {
     const request = parsed.protocol === "https:" ? httpsRequest : httpRequest;
     let settled = false;
     let deadline: ReturnType<typeof setTimeout> | undefined;
@@ -154,12 +171,11 @@ export function postToUrl(
     const req = request(
       parsed,
       {
-        method: "POST",
+        method,
         headers: {
-          "content-type": contentType,
-          "content-length": String(payload.byteLength),
+          ...(payload ? { "content-length": String(payload.byteLength) } : {}),
           "user-agent": "SlackOSS",
-          accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+          ...headers,
           ...opts.headers,
         },
         // Runs for the address the socket is about to use, so there is no gap
@@ -170,17 +186,15 @@ export function postToUrl(
           dnsLookup(hostname, options, (err, address, family) => {
             if (err) return cb(err);
             const addresses = Array.isArray(address) ? address : [{ address, family }];
-            if (!opts.allowPrivate) {
-              for (const a of addresses) {
-                if (isPrivateAddress(a.address)) {
-                  return cb(
-                    new OutboundError(
-                      "blocked_host",
-                      `${hostname} resolves to the private address ${a.address}; ` +
-                        "start the server with --allow-private-hooks to allow this",
-                    ),
-                  );
-                }
+            for (const a of addresses) {
+              if (isBlocked(a.address, opts)) {
+                return cb(
+                  new OutboundError(
+                    "blocked_host",
+                    `${hostname} resolves to the private address ${a.address}; ` +
+                      "start the server with --allow-private-hooks to allow this",
+                  ),
+                );
               }
             }
             return Array.isArray(address) ? cb(null, addresses) : cb(null, address, family);
@@ -190,26 +204,35 @@ export function postToUrl(
       (res) => {
         const chunks: Buffer[] = [];
         let size = 0;
+        const done = (truncated: boolean) =>
+          finish(() =>
+            resolve({
+              status: res.statusCode ?? 0,
+              headers: res.headers,
+              body: Buffer.concat(chunks),
+              truncated,
+            }),
+          );
         res.on("data", (chunk: Buffer) => {
-          size += chunk.byteLength;
-          if (size > maxBytes) {
+          if (settled) return;
+          if (size + chunk.byteLength > maxBytes) {
+            if (opts.truncate) {
+              chunks.push(chunk.subarray(0, maxBytes - size));
+              size = maxBytes;
+              done(true);
+              res.destroy();
+              return;
+            }
             finish(() => {
               res.destroy();
               reject(new OutboundError("too_large", "response body too large"));
             });
             return;
           }
+          size += chunk.byteLength;
           chunks.push(chunk);
         });
-        res.on("end", () =>
-          finish(() =>
-            resolve({
-              status: res.statusCode ?? 0,
-              body: Buffer.concat(chunks).toString("utf8"),
-              contentType: String(res.headers["content-type"] ?? ""),
-            }),
-          ),
-        );
+        res.on("end", () => done(false));
         res.on("error", (err) => finish(() => reject(err)));
       },
     );
@@ -252,6 +275,95 @@ export function postToUrl(
       onAbort();
       return;
     }
-    req.end(payload);
+    if (payload) req.end(payload);
+    else req.end();
   });
+}
+
+function parseUrl(url: string): URL | OutboundError {
+  try {
+    return new URL(url);
+  } catch {
+    return new OutboundError("blocked_host", "not a valid URL");
+  }
+}
+
+/**
+ * POSTs a body and returns the (small) response. Redirects are not followed:
+ * a redirect is exactly how a vetted public host would hand us a private one.
+ */
+export async function postToUrl(
+  url: string,
+  body: string,
+  contentType: string,
+  opts: OutboundOptions = {},
+): Promise<OutboundResponse> {
+  const parsed = parseUrl(url);
+  if (parsed instanceof OutboundError) throw parsed;
+  const res = await exchange(
+    parsed,
+    "POST",
+    Buffer.from(body, "utf8"),
+    {
+      "content-type": contentType,
+      accept: "application/json, text/plain;q=0.9, */*;q=0.8",
+    },
+    opts,
+  );
+  return {
+    status: res.status,
+    body: res.body.toString("utf8"),
+    contentType: String(res.headers["content-type"] ?? ""),
+  };
+}
+
+export interface FetchedPage {
+  status: number;
+  /** Where the answer came from, after any redirects. */
+  url: string;
+  contentType: string;
+  body: Buffer;
+  /** Cut at `maxBytes`, with `truncate`. */
+  truncated: boolean;
+}
+
+/**
+ * GETs an address someone else wrote, as a link preview does. Each redirect
+ * is a new address and goes through the same check as the first, so a public
+ * page cannot hand the server a private one; at most `maxRedirects` are
+ * followed. `timeoutMs` covers every hop together, and with `truncate` a long
+ * answer is cut at `maxBytes` rather than refused.
+ */
+export async function getFromUrl(
+  url: string,
+  opts: OutboundOptions & { accept: string; maxRedirects?: number; truncate?: boolean },
+): Promise<FetchedPage> {
+  const until = Date.now() + (opts.timeoutMs ?? 4000);
+  let current = parseUrl(url);
+  for (let hop = 0; ; hop++) {
+    if (current instanceof OutboundError) throw current;
+    const left = until - Date.now();
+    if (left <= 0) throw new OutboundError("timeout", "the endpoint did not answer in time");
+    const res = await exchange(
+      current,
+      "GET",
+      null,
+      { accept: opts.accept },
+      { ...opts, timeoutMs: left },
+    );
+    const location = res.headers.location;
+    if ([301, 302, 303, 307, 308].includes(res.status) && typeof location === "string") {
+      if (hop >= (opts.maxRedirects ?? 3))
+        throw new OutboundError("unreachable", "too many redirects");
+      current = parseUrl(new URL(location, current).toString());
+      continue;
+    }
+    return {
+      status: res.status,
+      url: current.toString(),
+      contentType: String(res.headers["content-type"] ?? ""),
+      body: res.body,
+      truncated: res.truncated,
+    };
+  }
 }

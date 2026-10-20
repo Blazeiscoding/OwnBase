@@ -29,6 +29,7 @@ import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
+import { LinkPreviews } from "./LinkPreviews.js";
 import { LazyDialog } from "./LazyView.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
@@ -482,6 +483,7 @@ export const MessageItem = memo(function MessageItem({
                 </div>
               )}
               <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
+              <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
               {message.forwardedFrom && (
                 <ForwardCard
                   forward={message.forwardedFrom}

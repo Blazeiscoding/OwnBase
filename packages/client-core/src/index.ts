@@ -1,6 +1,6 @@
 export { Api, ApiError, normalizeServerUrl } from "./api.js";
 export type { AppDetail, CommandHint } from "./api.js";
-export { FileCache } from "./fileCache.js";
+export { FileCache, previewImageKey } from "./fileCache.js";
 export { forwardOf, forwardSource, quoteOf } from "./replies.js";
 export type { ForwardSource } from "./replies.js";
 export { decideNotification, isMessageOnScreen, notificationBody } from "./notify.js";

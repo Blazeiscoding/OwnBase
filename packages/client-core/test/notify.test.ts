@@ -61,6 +61,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     stars: true,
     workspaceSettings: true,
     accessPolicy: "account_required",
+    linkPreviews: true,
     workspaceIcon: true,
     iconVersion: null,
     scheduledChanges: 0,
