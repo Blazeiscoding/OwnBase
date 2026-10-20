@@ -3657,3 +3657,172 @@ describe("a hosted workspace's icon", () => {
     await expect(h.controller.icon(5)).rejects.toThrow("Choose a workspace whose icon to show.");
   });
 });
+
+describe("restoring an earlier copy over a workspace still on this computer", () => {
+  /** A real workspace, listed as hosted here and stopped, backed up daily into a folder. */
+  async function scheduled() {
+    const settings = new Map<string, unknown>();
+    const h = harness({ settings });
+    h.realBackups = true;
+    const folder = "rocket-team";
+    const dataDir = join(h.dataRoot, folder);
+    const server = await createWorkspaceServer({
+      dataDir,
+      port: 0,
+      host: "127.0.0.1",
+      mdns: false,
+      workspaceName: "Rocket Team",
+      logger: false,
+    });
+    const id = server.store.getMeta("workspace_id")!;
+    await server.stop();
+    settings.set("hostedWorkspaces", {
+      version: 1,
+      workspaces: [{ id, folder, name: "Rocket Team", port: 9001, lastHostedAt: 5 }],
+    });
+    const destination = profile();
+    await h.controller.setAutoBackup({
+      folder,
+      schedule: { destination, everyDays: 1, keep: 5 },
+    });
+    return { h, folder, dataDir, id, destination };
+  }
+
+  /** A real backup of `dataDir`, named as this app names them, at `stamp`. */
+  async function archive(dataDir: string, destination: string, name: string) {
+    const dir = join(destination, name);
+    await backupWorkspace({ dataDir, out: dir });
+    return dir;
+  }
+
+  it("lists its backups newest first, marks a damaged one, and leaves out anything else there", async () => {
+    const { h, folder, dataDir, destination } = await scheduled();
+    await archive(dataDir, destination, "rocket-team-2026-03-01T09-00-00");
+    await archive(dataDir, destination, "rocket-team-2026-03-02T09-00-00");
+    const damaged = await archive(dataDir, destination, "rocket-team-2026-03-03T09-00-00");
+    writeFileSync(join(damaged, "manifest.json"), "{}");
+    // Another workspace's backup, and a folder that is no backup at all.
+    const other = profile();
+    const elsewhere = await createWorkspaceServer({
+      dataDir: other,
+      port: 0,
+      host: "127.0.0.1",
+      mdns: false,
+      workspaceName: "Design Guild",
+      logger: false,
+    });
+    await elsewhere.stop();
+    await archive(other, destination, "design-guild-2026-03-04T09-00-00");
+    mkdirSync(join(destination, "holiday photos"));
+
+    const listed = await h.controller.listBackups(folder);
+    expect(listed.map((b) => [b.name, b.at, b.damaged])).toEqual([
+      ["rocket-team-2026-03-03T09-00-00", Date.UTC(2026, 2, 3, 9), true],
+      ["rocket-team-2026-03-02T09-00-00", Date.UTC(2026, 2, 2, 9), false],
+      ["rocket-team-2026-03-01T09-00-00", Date.UTC(2026, 2, 1, 9), false],
+    ]);
+    expect(listed[0]!.bytes).toBeNull();
+    expect(listed[1]!.bytes).toBeGreaterThan(0);
+  });
+
+  it("has none to list without a backup folder", async () => {
+    const h = harness();
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    await h.controller.stop();
+    const [entry] = registryOf(h);
+    expect(await h.controller.listBackups(entry!.folder)).toEqual([]);
+    await expect(h.controller.listBackups(5)).rejects.toThrow(
+      "Choose a workspace whose backups to list.",
+    );
+  });
+
+  it("puts the copy in its place, keeps what it had beside it, and holds the copy", async () => {
+    const { h, folder, dataDir, id, destination } = await scheduled();
+    await archive(dataDir, destination, "rocket-team-2026-03-01T09-00-00");
+    // What the workspace became after that backup.
+    writeWorkspaceName(dataDir, "Rocket Team, later");
+
+    const restored = await h.controller.restoreOver({
+      folder,
+      backup: "rocket-team-2026-03-01T09-00-00",
+    });
+
+    expect(restored).toEqual({
+      folder,
+      name: "Rocket Team",
+      setAside: expect.stringMatching(/rocket-team\.superseded-\d+$/),
+      inventory: expect.objectContaining({ sessions: expect.any(Number) }),
+    });
+    expect(readWorkspace(dataDir)).toEqual({ id, name: "Rocket Team" });
+    expect(readWorkspace(restored.setAside!)).toEqual({ id, name: "Rocket Team, later" });
+    // Held, as any restored copy is, and started by nothing.
+    expect(registryOf(h)).toEqual([
+      expect.objectContaining({ folder, name: "Rocket Team", restoredHold: expect.any(Number) }),
+    ]);
+    expect((await h.controller.list()).workspaces[0]).toMatchObject({ folder, restored: true });
+    expect(h.starts).toEqual([]);
+  });
+
+  it("takes a backup chosen in the system's dialog, and no longer starts with Tandem", async () => {
+    const { h, folder, dataDir, id } = await scheduled();
+    const chosen = await archive(dataDir, profile(), "copy");
+    writeWorkspaceName(dataDir, "Rocket Team, later");
+    await h.controller.setStartOnLaunch(folder);
+
+    await h.controller.restoreOver({ folder, backupDir: chosen });
+
+    expect(readWorkspace(dataDir)).toEqual({ id, name: "Rocket Team" });
+    expect((await h.controller.list()).workspaces[0]).toMatchObject({ startsOnLaunch: false });
+  });
+
+  it("restores nothing over a running workspace, from another one, or from one gone", async () => {
+    const { h, folder, dataDir, destination } = await scheduled();
+    await archive(dataDir, destination, "rocket-team-2026-03-01T09-00-00");
+    writeWorkspaceName(dataDir, "Rocket Team, later");
+
+    await h.controller.start({ folder });
+    await expect(
+      h.controller.restoreOver({ folder, backup: "rocket-team-2026-03-01T09-00-00" }),
+    ).rejects.toThrow("Stop hosting Rocket Team, later before restoring an earlier copy over it.");
+    await h.controller.stop();
+
+    const other = profile();
+    const elsewhere = await createWorkspaceServer({
+      dataDir: other,
+      port: 0,
+      host: "127.0.0.1",
+      mdns: false,
+      workspaceName: "Design Guild",
+      logger: false,
+    });
+    await elsewhere.stop();
+    const foreign = await archive(other, profile(), "foreign");
+    await expect(h.controller.restoreOver({ folder, backupDir: foreign })).rejects.toThrow(
+      "That backup is of a different workspace, so it was not restored over Rocket Team, later.",
+    );
+    await expect(
+      h.controller.restoreOver({ folder, backup: "rocket-team-2026-03-09T09-00-00" }),
+    ).rejects.toThrow("That backup is no longer in the backup folder.");
+    await expect(
+      h.controller.restoreOver({ folder, backup: "../rocket-team-2026-03-01T09-00-00" }),
+    ).rejects.toThrow("Choose one backup to restore.");
+
+    // Nothing changed: the workspace, its folder's neighbours, and its place in the list.
+    expect(readWorkspace(dataDir)?.name).toBe("Rocket Team, later");
+    expect(readdirSync(h.dataRoot)).toEqual([folder]);
+    expect(registryOf(h)[0]!.restoredHold).toBeUndefined();
+  });
+
+  it("restores nothing, and holds nothing, when it cannot save that the copy is held", async () => {
+    const { h, folder, dataDir, destination } = await scheduled();
+    await archive(dataDir, destination, "rocket-team-2026-03-01T09-00-00");
+    writeWorkspaceName(dataDir, "Rocket Team, later");
+    h.saveFails = true;
+    await expect(
+      h.controller.restoreOver({ folder, backup: "rocket-team-2026-03-01T09-00-00" }),
+    ).rejects.toThrow("Tandem could not save its settings, so it did not restore the backup.");
+    expect(readWorkspace(dataDir)?.name).toBe("Rocket Team, later");
+    expect(readdirSync(h.dataRoot)).toEqual([folder]);
+    expect(registryOf(h)[0]!.restoredHold).toBeUndefined();
+  });
+});

@@ -749,6 +749,22 @@ handle("hosting:restore", async (event) => {
   if (choice.canceled || !choice.filePaths[0]) return null;
   return hosting.restore({ backupDir: choice.filePaths[0] });
 });
+handle("hosting:backups", (_e, folder: unknown) => hosting.listBackups(folder));
+handle("hosting:restoreOver", async (event, folder: unknown, backup: unknown) => {
+  if (quitting) throw new Error("Tandem is shutting down.");
+  if (backup !== null) return hosting.restoreOver({ folder, backup });
+  const owner = BrowserWindow.fromWebContents(event.sender);
+  const options = {
+    title: "Choose the folder of an earlier backup",
+    buttonLabel: "Restore",
+    properties: ["openDirectory"] as "openDirectory"[],
+  };
+  const choice = owner
+    ? await dialog.showOpenDialog(owner, options)
+    : await dialog.showOpenDialog(options);
+  if (choice.canceled || !choice.filePaths[0]) return null;
+  return hosting.restoreOver({ folder, backupDir: choice.filePaths[0] });
+});
 handle("hosting:backup", async (event, folder: unknown) => {
   if (quitting) throw new Error("Tandem is shutting down.");
   const owner = BrowserWindow.fromWebContents(event.sender);
