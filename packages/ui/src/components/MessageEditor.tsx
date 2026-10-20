@@ -4,8 +4,11 @@ import { ApiError } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
   FormattingToolbar,
+  formatList,
   formatText,
   formattingShortcut,
+  listShortcut,
+  type ListKind,
   MESSAGE_LIMIT,
 } from "./FormattingToolbar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -98,6 +101,13 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
     field.edit(next.text, next.selectionStart, next.selectionEnd);
   }
 
+  function list(kind: ListKind) {
+    if (!box.current || saving.current) return;
+    const { start, end } = field.selection();
+    const next = formatList(draft, start, end, kind);
+    field.edit(next.text, next.selectionStart, next.selectionEnd);
+  }
+
   function cancel() {
     if (saving.current) return;
     client.setDraft(draftKey, "");
@@ -173,6 +183,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
       >
         <FormattingToolbar
           onFormat={format}
+          onList={list}
           onInsert={(emoji) => {
             const next = field.replaceSelection(emoji);
             field.edit(next.stored, next.caret);
@@ -203,6 +214,12 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
               if (marker) {
                 e.preventDefault();
                 format(marker, "text");
+                return;
+              }
+              const listed = listShortcut(e);
+              if (listed) {
+                e.preventDefault();
+                list(listed);
                 return;
               }
               // Saves from anywhere, a code block included, as it sends in the composer.

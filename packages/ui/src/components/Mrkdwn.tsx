@@ -19,7 +19,8 @@ interface Props {
 /**
  * Renders Slack-mrkdwn-compatible message text:
  * ```blocks```, `code`, *bold*, _italic_, ~strike~, <@USER>, <#CHANNEL>, URLs,
- * <https://url|labelled links> and > quoted lines.
+ * <https://url|labelled links>, > quoted lines, and lists: lines starting
+ * "- ", "* " or "• ", or "1. " or "1) ", as Discord reads them.
  */
 export function Mrkdwn({
   text,
@@ -69,26 +70,50 @@ export function Mrkdwn({
           </code>
         ) : (
           <Fragment key={i}>
-            {quoteRuns(trimAtFences(block, i > 0, i < blocks.length - 1)).map((run, j) => {
-              const inline = renderInline(run.text, {
-                users,
-                channels,
-                selfId,
-                onChannelClick,
-                openMessage,
-                ours,
-                highlight,
-              });
-              return run.quote ? (
-                <blockquote
-                  key={j}
-                  className="my-0.5 block border-l-2 border-edge pl-2 text-ink-dim"
-                >
-                  {inline}
-                </blockquote>
-              ) : (
-                <Fragment key={j}>{inline}</Fragment>
-              );
+            {lineRuns(trimAtFences(block, i > 0, i < blocks.length - 1)).map((run, j) => {
+              const inline = (value: string) =>
+                renderInline(value, {
+                  users,
+                  channels,
+                  selfId,
+                  onChannelClick,
+                  openMessage,
+                  ours,
+                  highlight,
+                });
+              switch (run.kind) {
+                case "quote":
+                  return (
+                    <blockquote
+                      key={j}
+                      className="my-0.5 block border-l-2 border-edge pl-2 text-ink-dim"
+                    >
+                      {inline(run.text)}
+                    </blockquote>
+                  );
+                case "bullets":
+                  return (
+                    <ul key={j} className="my-0.5 block list-disc pl-5 marker:text-ink-dim">
+                      {run.items.map((item, k) => (
+                        <li key={k}>{inline(item)}</li>
+                      ))}
+                    </ul>
+                  );
+                case "numbers":
+                  return (
+                    <ol
+                      key={j}
+                      start={run.start === 1 ? undefined : run.start}
+                      className="my-0.5 block list-decimal pl-6 marker:text-ink-dim"
+                    >
+                      {run.items.map((item, k) => (
+                        <li key={k}>{inline(item)}</li>
+                      ))}
+                    </ol>
+                  );
+                default:
+                  return <Fragment key={j}>{inline(run.text)}</Fragment>;
+              }
             })}
           </Fragment>
         ),
@@ -108,20 +133,44 @@ function trimAtFences(text: string, afterFence: boolean, beforeFence: boolean): 
   return trimmed;
 }
 
+type LineRun =
+  | { kind: "text" | "quote"; text: string }
+  | { kind: "bullets"; items: string[] }
+  | { kind: "numbers"; start: number; items: string[] };
+
+/** A bulleted item: "- ", "* " or "• ", then something. "-5 degrees" and "*bold*" are not. */
+const BULLET = /^[-*\u2022][ \t]+(?=\S)/;
+/** A numbered item: up to three digits, then ". " or ") ". More would be a year: "2024. What a year". */
+const NUMBERED = /^(\d{1,3})[.)][ \t]+(?=\S)/;
+
 /**
- * Splits text into runs of quoted lines (`> said this`, as Slack writes them)
- * and the lines between. A quote is a block of its own, so the line breaks at
- * its edges are dropped with the `>` markers rather than drawn as blank lines.
+ * Splits text into runs of quoted lines (`> said this`, as Slack writes them),
+ * of list items, and of the lines between. Quotes and lists are blocks of
+ * their own, so the line breaks at their edges are dropped with the markers
+ * rather than drawn as blank lines. A numbered list counts on from its first
+ * number, whatever the later ones say, as Discord's does.
  */
-function quoteRuns(text: string): { quote: boolean; text: string }[] {
-  const runs: { quote: boolean; text: string }[] = [];
+function lineRuns(text: string): LineRun[] {
+  const runs: LineRun[] = [];
   for (const line of text.split("\n")) {
-    const quoted = /^>\s?/.exec(line);
-    const quote = quoted !== null;
-    const content = quoted ? line.slice(quoted[0].length) : line;
     const last = runs.at(-1);
-    if (last && last.quote === quote) last.text += `\n${content}`;
-    else runs.push({ quote, text: content });
+    const quoted = /^>\s?/.exec(line);
+    const bullet = quoted ? null : BULLET.exec(line);
+    const numbered = quoted || bullet ? null : NUMBERED.exec(line);
+    if (bullet) {
+      const item = line.slice(bullet[0].length);
+      if (last?.kind === "bullets") last.items.push(item);
+      else runs.push({ kind: "bullets", items: [item] });
+    } else if (numbered) {
+      const item = line.slice(numbered[0].length);
+      if (last?.kind === "numbers") last.items.push(item);
+      else runs.push({ kind: "numbers", start: Number(numbered[1]), items: [item] });
+    } else {
+      const kind = quoted ? "quote" : "text";
+      const content = quoted ? line.slice(quoted[0].length) : line;
+      if (last?.kind === kind) last.text += `\n${content}`;
+      else runs.push({ kind, text: content });
+    }
   }
   return runs;
 }

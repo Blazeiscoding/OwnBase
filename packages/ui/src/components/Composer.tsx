@@ -26,8 +26,11 @@ import {
 } from "../lib/workspaceStorage.js";
 import {
   FormattingToolbar,
+  formatList,
   formatText,
   formattingShortcut,
+  listShortcut,
+  type ListKind,
   MESSAGE_LIMIT,
 } from "./FormattingToolbar.js";
 
@@ -348,6 +351,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     if (!box.current) return;
     const { start, end } = field.selection();
     const next = formatText(text, start, end, marker, placeholderText, block);
+    rewrite(next.text, next.selectionStart, next.selectionEnd);
+  }
+
+  function list(kind: ListKind) {
+    if (!box.current) return;
+    const { start, end } = field.selection();
+    const next = formatList(text, start, end, kind);
     rewrite(next.text, next.selectionStart, next.selectionEnd);
   }
 
@@ -742,6 +752,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       if (marker) {
         e.preventDefault();
         format(marker, "text");
+        return;
+      }
+      const listed = listShortcut(e);
+      if (listed) {
+        e.preventDefault();
+        list(listed);
         return;
       }
       if (e.key === "Enter") {
@@ -1172,6 +1188,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             key={draftKey}
             placement="inline"
             onFormat={format}
+            onList={list}
             onInsert={insertEmoji}
             preview={preview}
             onTogglePreview={() => setPreview((v) => !v)}

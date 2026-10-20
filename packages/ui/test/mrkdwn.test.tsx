@@ -101,6 +101,52 @@ describe("Mrkdwn", () => {
     });
   });
 
+  describe("lists", () => {
+    it("draws lines starting -, * or • as one bulleted list, formatted, as a block", () => {
+      const html = render("Bring:\n- *snacks*\n* a `cable`\n• @nobody's mug\nThanks.");
+      expect(html).toContain(
+        '<ul class="my-0.5 block list-disc pl-5 marker:text-ink-dim"><li><strong>snacks</strong></li><li>a <code',
+      );
+      expect(html).toContain("<li>@nobody&#x27;s mug</li></ul>");
+      // A block, so the breaks at its edges are not drawn twice.
+      expect(html).toContain("Bring:<ul");
+      expect(html).toContain("</ul>Thanks.");
+    });
+
+    it("numbers lines starting 1. or 1), counting on from the first number", () => {
+      const html = render("1. plan\n1) build\n7. ship");
+      expect(html).toContain(
+        '<ol class="my-0.5 block list-decimal pl-6 marker:text-ink-dim"><li>plan</li><li>build</li><li>ship</li></ol>',
+      );
+      expect(render("3. third\n4. fourth")).toContain('<ol start="3"');
+    });
+
+    it("keeps lists, quotes and code blocks apart", () => {
+      const html = render("> said\n- one\n1. first\n```\n- not a list\n```\n- after");
+      expect(html).toMatch(
+        /^<span[^>]*><blockquote[^>]*>said<\/blockquote><ul[^>]*><li>one<\/li><\/ul><ol[^>]*><li>first<\/li><\/ol><code[^>]*>- not a list<\/code><ul[^>]*><li>after<\/li><\/ul><\/span>$/,
+      );
+      // A list item inside a quote stays in the quote, as it was written.
+      expect(render("> - quoted")).toContain(">- quoted</blockquote>");
+    });
+
+    it("leaves text that only looks like a list as it was", () => {
+      for (const text of [
+        "-5 degrees outside",
+        "*bold* to start",
+        "- ",
+        "a line - with a dash",
+        "2024. What a year",
+        "1.5 times faster",
+        "3.14",
+      ]) {
+        const html = render(text);
+        expect(html, text).not.toMatch(/<[uo]l/);
+      }
+      expect(render("*bold* to start")).toContain("<strong>bold</strong> to start");
+    });
+  });
+
   describe("links in angle brackets, as apps send them", () => {
     it("shows a label in place of the address, and names the address in its title", () => {
       const html = render("Build <https://ci.example.com/runs/7|run 7> failed");

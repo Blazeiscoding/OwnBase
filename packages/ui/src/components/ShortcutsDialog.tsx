@@ -42,6 +42,8 @@ const groups = (
       [`${MOD} B`, "Bold selected text"],
       [`${MOD} I`, "Italic selected text"],
       [`${MOD} E`, "Inline code"],
+      [`${MOD} Shift 8`, "Bulleted list"],
+      [`${MOD} Shift 7`, "Numbered list"],
       ["@", "Mention someone"],
       [":", "Add an emoji by name, as :rocket"],
       [`${MOD} V`, "Paste an image straight in"],

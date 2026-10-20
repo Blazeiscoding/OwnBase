@@ -152,6 +152,18 @@ describe("editing a message", () => {
     expect(box).toHaveValue("Ship it on Friday!");
   });
 
+  it("makes the line a bulleted list with Ctrl+Shift+8, the caret staying in its words", async () => {
+    const user = userEvent.setup();
+    const { box } = renderEditor();
+    const field = box as HTMLTextAreaElement;
+    field.focus();
+    field.setSelectionRange(5, 5);
+    await user.keyboard("{Control>}{Shift>}8{/Shift}{/Control}");
+    expect(field).toHaveValue("- Ship it on Friday");
+    expect(field.selectionStart).toBe(7);
+    expect(field.selectionEnd).toBe(7);
+  });
+
   it("starts a new line inside an unclosed code block, and saves with Ctrl+Enter", async () => {
     const user = userEvent.setup();
     const { edit, onClose, box } = renderEditor();

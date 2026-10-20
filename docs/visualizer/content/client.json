@@ -1286,12 +1286,13 @@
     },
     {
       "path": "packages/ui/src/components/Mrkdwn.tsx",
-      "plain": "Turns message formatting like bold, code, quotes, mentions and links into what you see, and reveals where a link really goes.",
+      "plain": "Turns message formatting like bold, code, quotes, lists, mentions and links into what you see, and reveals where a link really goes.",
       "summary": "Renders the supported Slack-style message syntax into React elements.",
       "details": [
         "Handles fenced and inline code, bold/italic/strike, quotes, user/channel references and ordinary or labelled HTTP links without interpreting message text as arbitrary HTML.",
         "Resolves mentions against supplied users/channels, with the same labels the composer shows (mentionDocument), and opens a message link in-place only when it belongs to a known address of this workspace.",
-        "A labelled link that looks like a different host exposes the actual destination. Code/quote edge trimming avoids artificial blank lines around block elements."
+        "A labelled link that looks like a different host exposes the actual destination. Code/quote edge trimming avoids artificial blank lines around block elements.",
+        "lineRuns splits text outside code blocks into text, quote, bulleted and numbered runs. Lines starting \"- \", \"* \" or \"• \" become a ul, and \"1. \" or \"1) \" (up to three digits, so a year is not one) an ol that counts on from its first number, as Discord's does. \"-5\", \"*bold*\" and a bare marker stay text, and a list marker inside a quote stays in the quote."
       ],
       "concepts": ["message markup", "safe rendering", "link destination", "in-place navigation"]
     },
@@ -1313,6 +1314,7 @@
       "summary": "Shares formatting transformations, shortcuts and message length limits.",
       "details": [
         "formatText wraps or inserts syntax and returns the corresponding selection so composer/editor behavior stays consistent.",
+        "formatList makes each line the selection touches a bulleted or numbered item (numbered from 1), changes items of the other kind, or takes the markers off when every line already has that kind's; a caret keeps its place in its line's words. listShortcut reads Ctrl/Cmd+Shift+8 and +7 from the key's code, as Shift changes the key, and the toolbar has a button for each.",
         "The toolbar supplies supported formatting and preview affordances; formattingShortcut and MESSAGE_LIMIT keep keyboard handling and validation aligned.",
         "Its emoji button opens the same EmojiPicker the reactions use, loaded on first use, with a loading line meanwhile and a message if it cannot load. Escape, its own button or a press anywhere outside it closes it, and a press outside leaves focus where it landed."
       ],
