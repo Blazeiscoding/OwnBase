@@ -102,6 +102,34 @@ describe("formatting in the composer", () => {
     expect(box).toHaveValue("see `text`");
     expect(selected(box)).toBe("text");
   });
+
+  it("makes the selected lines a list, of either kind, and plain lines again", async () => {
+    const user = userEvent.setup();
+    const { box } = await renderComposer();
+    await user.type(box, "milk{Shift>}{Enter}{/Shift}eggs{Shift>}{Enter}{/Shift}bread");
+    box.setSelectionRange(0, box.value.length);
+
+    await user.keyboard("{Control>}{Shift>}8{/Shift}{/Control}");
+    expect(box).toHaveValue("- milk\n- eggs\n- bread");
+    expect(selected(box)).toBe("- milk\n- eggs\n- bread");
+    expect(box).toHaveFocus();
+
+    await user.click(screen.getByRole("button", { name: "Numbered list" }));
+    expect(box).toHaveValue("1. milk\n2. eggs\n3. bread");
+
+    // The same list again takes it off.
+    await user.keyboard("{Control>}{Shift>}7{/Shift}{/Control}");
+    expect(box).toHaveValue("milk\neggs\nbread");
+  });
+
+  it("starts a list on an empty line, ready to type", async () => {
+    const user = userEvent.setup();
+    const { box } = await renderComposer();
+    await user.click(box);
+    await user.keyboard("{Control>}{Shift>}7{/Shift}{/Control}");
+    await user.type(box, "first");
+    expect(box).toHaveValue("1. first");
+  });
 });
 
 describe.each([

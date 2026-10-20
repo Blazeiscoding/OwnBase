@@ -9,6 +9,11 @@ const paths = {
   activity: "M3 12h4l3-8 4 16 3-8h4",
   search: "m21 21-5-5M19 10.5a8.5 8.5 0 1 1-17 0 8.5 8.5 0 0 1 17 0",
   menu: "M4 6h16M4 12h16M4 18h16",
+  /** A bulleted list, and a numbered one: the formatting toolbar's list buttons. */
+  bullets:
+    "M9.5 6H20M9.5 12H20M9.5 18H20M4 6a1 1 0 1 0 2 0 1 1 0 1 0-2 0M4 12a1 1 0 1 0 2 0 1 1 0 1 0-2 0M4 18a1 1 0 1 0 2 0 1 1 0 1 0-2 0",
+  numbers:
+    "M10 6h10M10 12h10M10 18h10M4 4.5 5.5 3.5v5M4 14.75a1.25 1.25 0 0 1 2.5 0c0 1.25-2.5 2-2.5 3.75h2.5",
   close: "m6 6 12 12M6 18 18 6",
   hash: "m10 3-4 18M18 3l-4 18M4 9h17M3 15h17",
   friends:

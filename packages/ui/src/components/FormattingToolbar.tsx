@@ -11,6 +11,58 @@ const EmojiPicker = lazy(() =>
 export const MESSAGE_LIMIT = 12_000;
 export const formattingShortcut = (key: string) => ({ b: "*", i: "_", e: "`" })[key.toLowerCase()];
 
+/** A bulleted list ("- ") or a numbered one ("1. "), as Mrkdwn draws them. */
+export type ListKind = "bullets" | "numbers";
+
+/**
+ * Ctrl/Cmd+Shift+8 for a bulleted list and +7 for a numbered one, as in Slack.
+ * Read from the key's place, since Shift changes what the key types.
+ */
+export function listShortcut(event: { code: string; shiftKey: boolean }): ListKind | undefined {
+  if (!event.shiftKey) return undefined;
+  return event.code === "Digit8" ? "bullets" : event.code === "Digit7" ? "numbers" : undefined;
+}
+
+/** The marker an item starts with, of each kind; the space after it is the composer's to type. */
+const LIST_MARKERS: Record<ListKind, RegExp> = {
+  bullets: /^[-*\u2022][ \t]+/,
+  numbers: /^\d{1,3}[.)][ \t]+/,
+};
+
+/**
+ * Makes each line the selection touches an item of a list, numbered from 1
+ * for a numbered one, or, when every one of them already is an item of that
+ * kind, plain lines again. An item of the other kind changes kind; a blank
+ * line among several stays blank. A caret keeps its place in its line's words.
+ */
+export function formatList(text: string, start: number, end: number, kind: ListKind) {
+  // A selection ending at the start of a line does not take that line in.
+  const last = end > start && text[end - 1] === "\n" ? end - 1 : end;
+  const from = text.lastIndexOf("\n", start - 1) + 1;
+  const next = text.indexOf("\n", last);
+  const to = next === -1 ? text.length : next;
+  const lines = text.slice(from, to).split("\n");
+  const marker = (line: string) =>
+    (LIST_MARKERS.bullets.exec(line) ?? LIST_MARKERS.numbers.exec(line))?.[0] ?? "";
+  const written = lines.filter((line) => line.trim());
+  const undo = written.length > 0 && written.every((line) => LIST_MARKERS[kind].test(line));
+  let count = 0;
+  const changed = lines.map((line) => {
+    const words = line.slice(marker(line).length);
+    if (undo) return words;
+    if (!line.trim() && lines.length > 1) return line;
+    return (kind === "bullets" ? "- " : `${++count}. `) + words;
+  });
+  const block = changed.join("\n");
+  const result = text.slice(0, from) + block + text.slice(to);
+  if (start !== end || lines.length !== 1)
+    return { text: result, selectionStart: from, selectionEnd: from + block.length };
+  const line = lines[0]!;
+  const intoWords = Math.max(0, start - from - marker(line).length);
+  const caret = from + marker(changed[0]!).length + intoWords;
+  return { text: result, selectionStart: caret, selectionEnd: caret };
+}
+
 /** Keep composer and editor selection behavior identical. */
 export function formatText(
   text: string,
@@ -47,6 +99,7 @@ export function formatText(
 
 interface Props {
   onFormat: (marker: string, placeholder: string, block?: boolean) => void;
+  onList: (kind: ListKind) => void;
   onInsert: (text: string) => void;
   preview: boolean;
   onTogglePreview: () => void;
@@ -63,6 +116,7 @@ const tool =
 
 export function FormattingToolbar({
   onFormat,
+  onList,
   onInsert,
   preview,
   onTogglePreview,
@@ -159,6 +213,24 @@ export function FormattingToolbar({
               {"{ }"}
             </button>
           </Tooltip>
+          {(
+            [
+              { kind: "bullets", label: "Bulleted list", keys: "Ctrl/Cmd+Shift+8" },
+              { kind: "numbers", label: "Numbered list", keys: "Ctrl/Cmd+Shift+7" },
+            ] as const
+          ).map((item) => (
+            <Tooltip key={item.kind} label={item.label} keys={item.keys}>
+              <button
+                type="button"
+                aria-label={item.label}
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={() => onList(item.kind)}
+                className={tool}
+              >
+                <Icon name={item.kind} size={16} />
+              </button>
+            </Tooltip>
+          ))}
           <button
             type="button"
             aria-pressed={preview}

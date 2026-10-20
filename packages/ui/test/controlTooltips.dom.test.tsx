@@ -75,9 +75,11 @@ describe("compact controls explain themselves with the shared tooltip", () => {
   it("names each formatting button and its shortcut, and still formats", async () => {
     const user = userEvent.setup();
     const onFormat = vi.fn();
+    const onList = vi.fn();
     const { container } = render(
       <FormattingToolbar
         onFormat={onFormat}
+        onList={onList}
         onInsert={() => {}}
         preview={false}
         onTogglePreview={() => {}}
@@ -104,6 +106,19 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     expect(onFormat).toHaveBeenLastCalledWith("`", "text");
     await user.click(screen.getByRole("button", { name: "Code block" }));
     expect(onFormat).toHaveBeenLastCalledWith("```", "code", true);
+
+    const bullets = screen.getByRole("button", { name: "Bulleted list" });
+    expect(await tabTo(user, bullets)).toHaveTextContent(
+      "Bulleted list. Shortcut: Ctrl/Cmd+Shift+8",
+    );
+    await user.keyboard("{Enter}");
+    expect(onList).toHaveBeenLastCalledWith("bullets");
+    const numbers = screen.getByRole("button", { name: "Numbered list" });
+    expect(await tabTo(user, numbers)).toHaveTextContent(
+      "Numbered list. Shortcut: Ctrl/Cmd+Shift+7",
+    );
+    await user.click(numbers);
+    expect(onList).toHaveBeenLastCalledWith("numbers");
   });
 
   it("folds the formatting buttons behind one, which says what it shows and hides", async () => {
@@ -112,6 +127,7 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     render(
       <FormattingToolbar
         onFormat={onFormat}
+        onList={() => {}}
         onInsert={() => {}}
         preview={false}
         onTogglePreview={() => {}}
@@ -140,6 +156,7 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     render(
       <FormattingToolbar
         onFormat={() => {}}
+        onList={() => {}}
         onInsert={() => {}}
         preview={false}
         onTogglePreview={() => {}}
