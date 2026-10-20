@@ -527,9 +527,11 @@
       "summary": "Loads and applies the device's theme and message density.",
       "details": [
         "A shared store validates system/dark/light and comfortable/compact values and supplies existing defaults for absent or obsolete settings.",
-        "A choice appears immediately and rolls back on save failure with a message. useApplyAppearance writes document data attributes consumed by theme.css so all screens follow the same choice."
+        "A choice appears immediately and rolls back on save failure with a message. useApplyAppearance writes document data attributes consumed by theme.css so all screens follow the same choice.",
+        "Once the choice is read, and on each change, useApplyAppearance keeps a copy in localStorage (FIRST_PAINT_KEY, tandem:appearance) that each app's first-paint.js puts on the document from <head>, so a page whose chosen theme is not the device's is not painted in the other one first. The store starts from that copy, so it does not switch the page to system while the platform's storage is read.",
+        "It also sets the theme-color meta to the theme's deep colour, following the device for system, so a phone's or an installed app's bars match. scripts/generate-palette.mjs writes those two colours."
       ],
-      "concepts": ["appearance preference", "optimistic UI", "design tokens"]
+      "concepts": ["appearance preference", "optimistic UI", "design tokens", "first paint"]
     },
     {
       "path": "packages/ui/src/lib/account.ts",
@@ -805,6 +807,15 @@
         "Each choice of Reply is counted, so choosing it again on the same message still brings the message box back into focus."
       ],
       "concepts": ["inline replies", "per-conversation state"]
+    },
+    {
+      "path": "packages/ui/src/lib/restoreInventory.ts",
+      "plain": "Says in one sentence what a restored backup would bring back into use.",
+      "summary": "inventorySummary for restore results.",
+      "details": [
+        "Counts the sign-ins a restored copy still accepts, its scheduled messages waiting, app events not yet delivered and the app addresses it calls, for the notes after Restore from a backup and Earlier copies."
+      ],
+      "concepts": ["restore", "copy"]
     },
     {
       "path": "packages/ui/src/lib/format.ts",
@@ -1559,6 +1570,7 @@
       "plain": "In the desktop app, starts and stops the workspace you host and handles its folder, backups, who may join and outside access.",
       "summary": "Controls desktop hosting, workspace folders, backup/restore and public reachability.",
       "details": [
+        "A stopped workspace in the list offers Earlier copies, which opens EarlierCopies under its row; the result goes in the list's note. A row's name keeps at least 12rem, so its buttons go to the next line before it narrows, and its links wrap between labels.",
         "The browser does not own a server; native Platform.hosting provides the operations this dialog presents. Existing workspace folders and new workspace names are separate start intents.",
         "Presents running/stopped/startup status, port and rename controls, LAN and public-address choices, connector failure and launch recovery actions.",
         "Lists hosted workspaces and backup schedules, supports backup/restore and explains a restored copy's pending apps, schedules, deliveries and sessions before activation.",
@@ -1765,6 +1777,16 @@
         "On the Account settings page it leaves out its own heading (titled={false}), since the page already names the section, and reports kept device and join-muted choices through savedNote."
       ],
       "concepts": ["device settings", "local media tests"]
+    },
+    {
+      "path": "packages/ui/src/components/EarlierCopies.tsx",
+      "plain": "Lists the backups of a stopped workspace and puts an earlier one back in its place, after asking.",
+      "summary": "Restores an earlier copy over a stopped hosted workspace (O01).",
+      "details": [
+        "Reads hosting.backups for the workspace: its backups in its backup folder, newest first, with when each was made and its size; a copy that failed its check says so and cannot be chosen. Choose a backup folder asks the system's dialog instead.",
+        "Restoring asks first, saying that what the workspace holds now is moved to a folder beside it, not deleted, and that the copy does not start until it is put back in use. hosting.restoreOver does it; the note names where the old data went and, through inventorySummary, what the copy brings back into use."
+      ],
+      "concepts": ["backup", "restore", "confirmation"]
     },
     {
       "path": "packages/ui/src/components/DeviceCheckDialog.tsx",

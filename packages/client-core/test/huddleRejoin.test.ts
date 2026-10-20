@@ -124,8 +124,11 @@ describe("a call through a dropped connection to the server", () => {
     await expect.poll(() => joins()).toHaveLength(2);
     expect(HuddleSession.prototype.closePeers).toHaveBeenCalledOnce();
     await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([self]);
+    // Written when the join's answer arrives, which can be after the server seats it.
+    await expect
+      .poll(() => client.callLog().map((line) => line.text))
+      .toContain("Let into the huddle again.");
     expect(client.state.huddle?.channelId).toBe(general);
-    expect(client.callLog().map((line) => line.text)).toContain("Let into the huddle again.");
   });
 
   it("ends, and says why, when the server will not let it back in", async () => {

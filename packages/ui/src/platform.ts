@@ -67,6 +67,18 @@ export interface ShareableSource {
 }
 
 /** What a restored backup brings with it once it is put back in use. */
+/** One backup of a hosted workspace in its backup folder. */
+export interface HostedBackup {
+  /** The backup's folder name, which `restoreOver` takes. */
+  name: string;
+  /** When it was made, in milliseconds. */
+  at: number;
+  /** How much it holds, or null when it did not pass the check. */
+  bytes: number | null;
+  /** It failed the check a restore makes, so it cannot be restored. */
+  damaged: boolean;
+}
+
 export interface RestoreInventory {
   /** Where its apps are sent events, commands and button clicks. */
   appAddresses: { origin: string; uses: string[] }[];
@@ -409,6 +421,26 @@ export interface Platform {
     restore?: () => Promise<{
       folder: string;
       name: string;
+      inventory?: RestoreInventory | null;
+    } | null>;
+    /**
+     * The backups of a hosted workspace in its backup folder, newest first,
+     * each checked as a restore would check it.
+     */
+    backups?: (folder: string) => Promise<HostedBackup[]>;
+    /**
+     * Restores an earlier copy over a stopped hosted workspace: `backup`
+     * names one from `backups`, or null asks for a backup's folder. What it
+     * holds now is moved aside (`setAside`), and the copy is held until it
+     * is put back in use. Null when no folder was chosen.
+     */
+    restoreOver?: (
+      folder: string,
+      backup: string | null,
+    ) => Promise<{
+      folder: string;
+      name: string;
+      setAside: string | null;
       inventory?: RestoreInventory | null;
     } | null>;
   };

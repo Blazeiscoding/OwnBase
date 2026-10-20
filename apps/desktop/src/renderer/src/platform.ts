@@ -10,6 +10,7 @@ import type {
   CallRelayDraft,
   CallRelaySetting,
   DiscoveredServer,
+  HostedBackup,
   HostedWorkspaces,
   HostingStart,
   HostingStatus,
@@ -65,6 +66,16 @@ interface SlackossBridge {
   hostingRestore: () => Promise<{
     folder: string;
     name: string;
+    inventory?: RestoreInventory | null;
+  } | null>;
+  hostingBackups: (folder: string) => Promise<HostedBackup[]>;
+  hostingRestoreOver: (
+    folder: string,
+    backup: string | null,
+  ) => Promise<{
+    folder: string;
+    name: string;
+    setAside: string | null;
     inventory?: RestoreInventory | null;
   } | null>;
   hostingStop: () => Promise<void>;
@@ -214,6 +225,8 @@ export function electronPlatform(): Platform {
         set: (open) => plainly(bridge.hostingSetOpenAtLogin(open)),
       },
       restore: () => plainly(bridge.hostingRestore()),
+      backups: (folder) => plainly(bridge.hostingBackups(folder)),
+      restoreOver: (folder, backup) => plainly(bridge.hostingRestoreOver(folder, backup)),
       stop: () => bridge.hostingStop(),
       openToAll: (opts) => plainly(bridge.hostingOpenToAll(opts)),
       endOpenToAll: () => bridge.hostingEndOpenToAll(),

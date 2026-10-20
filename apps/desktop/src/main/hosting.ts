@@ -296,6 +296,18 @@ type StartRequest = ({ workspaceName: string } | { folder: string }) & {
 };
 
 /** What a restored backup brings with it, as the server's inventory reports it. */
+/** One backup of a hosted workspace in its backup folder, as `listBackups` finds it. */
+export interface HostedBackup {
+  /** The backup's folder name, which `restoreOver` takes. */
+  name: string;
+  /** When it was made, in milliseconds. */
+  at: number;
+  /** How much it holds, or null when it did not pass the check. */
+  bytes: number | null;
+  /** It failed the check a restore makes, so it cannot be restored. */
+  damaged: boolean;
+}
+
 export interface RestoreInventory {
   appAddresses: { origin: string; uses: string[] }[];
   scheduled: { waiting: number; earliestAt: number | null };
@@ -1137,11 +1149,26 @@ export function createHostingController(options: HostingOptions) {
     return { path: out, at: done };
   }
 
+  /** Refuses a restore the disk has no room for: it is staged beside its folder and checked first. */
+  async function roomToRestore(manifest: {
+    database: { bytes: number };
+    files: { bytes: number }[];
+  }): Promise<void> {
+    if (!options.freeBytes) return;
+    const size = manifest.database.bytes + manifest.files.reduce((n, f) => n + f.bytes, 0);
+    const needed = Math.ceil(size * 1.1) + 16 * 1024 * 1024;
+    const free = await options.freeBytes(options.dataRoot);
+    if (free < needed)
+      throw new Error(
+        `There is not enough free space for it. Restoring needs about ${megabytes(needed)}, and ${megabytes(free)} is free.`,
+      );
+  }
+
   /**
    * Restores a backup as a workspace hosted here, without starting it. A
    * workspace this computer does not list gets a new folder. One it lists
    * whose folder is gone comes back into that folder. One still here is left
-   * alone: replacing it is a separate, confirmed step.
+   * alone: replacing it is a separate, confirmed step (`restoreOver`).
    */
   function restore(
     value: unknown,
@@ -1162,16 +1189,7 @@ export function createHostingController(options: HostingOptions) {
           `${listed.name} is already hosted on this computer, so this backup was not restored over it.`,
         );
       await mkdir(options.dataRoot, { recursive: true });
-      if (options.freeBytes) {
-        const size = manifest.database.bytes + manifest.files.reduce((n, f) => n + f.bytes, 0);
-        // Staged beside its folder and checked before it is swapped in.
-        const needed = Math.ceil(size * 1.1) + 16 * 1024 * 1024;
-        const free = await options.freeBytes(options.dataRoot);
-        if (free < needed)
-          throw new Error(
-            `There is not enough free space for it. Restoring needs about ${megabytes(needed)}, and ${megabytes(free)} is free.`,
-          );
-      }
+      await roomToRestore(manifest);
       const entry: HostedWorkspace = {
         ...(listed ?? {
           id,
@@ -1236,6 +1254,171 @@ export function createHostingController(options: HostingOptions) {
         : null;
       changed();
       return { folder: entry.folder, name, inventory };
+    });
+  }
+
+  /**
+   * This workspace's own backups in `destination`, newest first by the time
+   * in their names: folders named as `backup` names them, holding a manifest
+   * and this very workspace's id. Nothing is checked or touched here.
+   */
+  async function ownBackups(
+    entry: HostedWorkspace,
+    destination: string,
+  ): Promise<{ name: string; path: string; stamp: string }[]> {
+    if (!entry.id) return [];
+    const found: { name: string; path: string; stamp: string }[] = [];
+    for (const item of await readdir(destination, { withFileTypes: true })) {
+      if (!item.isDirectory() || !BACKUP_NAME.test(item.name)) continue;
+      const path = join(destination, item.name);
+      if (!existsSync(join(path, "manifest.json"))) continue;
+      if (read(path)?.id !== entry.id) continue;
+      found.push({ name: item.name, path, stamp: item.name.slice(-19) });
+    }
+    return found.sort((a, b) => (a.stamp < b.stamp ? 1 : a.stamp > b.stamp ? -1 : 0));
+  }
+
+  /**
+   * The backups of a workspace kept in its backup folder, the one its
+   * schedule uses, newest first. Each is checked as a restore would check it,
+   * so a damaged one is listed as such and cannot be chosen. Without a
+   * schedule, or with its folder out of reach, there are none to list.
+   */
+  async function listBackups(value: unknown): Promise<HostedBackup[]> {
+    if (typeof value !== "string") throw new Error("Choose a workspace whose backups to list.");
+    if (!options.verifyBackup) throw new Error("Restoring is not available in this app.");
+    const entry = (await loadRegistry()).find((e) => e.folder === value);
+    if (!entry) throw new Error("That workspace is not in the list hosted on this computer.");
+    const destination = entry.autoBackup?.destination;
+    if (!destination || !existsSync(destination)) return [];
+    const listed: HostedBackup[] = [];
+    for (const found of await ownBackups(entry, destination).catch(() => [])) {
+      // The name holds when it was made, in UTC, as `backup` wrote it.
+      const at = Date.parse(
+        `${found.stamp.slice(0, 10)}T${found.stamp.slice(11).replaceAll("-", ":")}Z`,
+      );
+      try {
+        const manifest = await options.verifyBackup(found.path);
+        const bytes = manifest.database.bytes + manifest.files.reduce((n, f) => n + f.bytes, 0);
+        listed.push({ name: found.name, at, bytes, damaged: false });
+      } catch {
+        listed.push({ name: found.name, at, bytes: null, damaged: true });
+      }
+    }
+    return listed;
+  }
+
+  /**
+   * Puts an earlier copy of a stopped workspace in its place: one of its
+   * backups from `listBackups`, by name, or a backup's folder chosen in the
+   * system's dialog. It must be a copy of this same workspace. What the
+   * workspace holds now is moved aside beside its folder, never deleted, and
+   * the copy is held, as any restored one is, until it is put back in use.
+   */
+  function restoreOver(value: unknown): Promise<{
+    folder: string;
+    name: string;
+    setAside: string | null;
+    inventory: RestoreInventory | null;
+  }> {
+    const { folder, backup, backupDir } = (value ?? {}) as Record<string, unknown>;
+    if (typeof folder !== "string")
+      return Promise.reject(new Error("Choose a workspace to restore."));
+    if (
+      (backup === undefined) === (backupDir === undefined) ||
+      (backup !== undefined && (typeof backup !== "string" || !BACKUP_NAME.test(backup))) ||
+      (backupDir !== undefined && (typeof backupDir !== "string" || !isAbsolute(backupDir)))
+    )
+      return Promise.reject(new Error("Choose one backup to restore."));
+    if (!options.verifyBackup || !options.restoreWorkspace)
+      return Promise.reject(new Error("Restoring is not available in this app."));
+    return serialized(async () => {
+      if (closing) throw new Error("The app is quitting.");
+      const list = await loadRegistry();
+      const listed = list.find((e) => e.folder === folder);
+      if (!listed) throw new Error("That workspace is not in the list hosted on this computer.");
+      if (server && workspace?.folder === listed.folder)
+        throw new Error(`Stop hosting ${listed.name} before restoring an earlier copy over it.`);
+      const dataDir = join(options.dataRoot, listed.folder);
+      if (!existsSync(dataDir))
+        throw new Error(
+          `The folder that held ${listed.name} is missing. Restore from a backup brings it back into it.`,
+        );
+      let source: string;
+      if (typeof backup === "string") {
+        const destination = listed.autoBackup?.destination;
+        // Only a backup listed for this workspace, found again now.
+        const there =
+          destination && existsSync(destination)
+            ? await ownBackups(listed, destination).catch(() => [])
+            : [];
+        const chosen = there.find((b) => b.name === backup);
+        if (!chosen) throw new Error("That backup is no longer in the backup folder.");
+        source = chosen.path;
+      } else {
+        source = backupDir as string;
+      }
+      const manifest = await options.verifyBackup!(source);
+      if (!listed.id || read(source)?.id !== listed.id)
+        throw new Error(
+          `That backup is of a different workspace, so it was not restored over ${listed.name}.`,
+        );
+      await roomToRestore(manifest);
+      const unsaved = () =>
+        new Error(
+          "Tandem could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
+        );
+      // Held before anything is restored, as `restore` holds a copy, so the
+      // copy never starts by itself as though nothing had happened.
+      const held: HostedWorkspace = { ...listed, restoredHold: now() };
+      registry = list.map((e) => (e === listed ? held : e));
+      try {
+        await saveRegistry();
+      } catch {
+        registry = list;
+        throw unsaved();
+      }
+      const wasLaunch = (await readLaunchFolder().catch(() => null)) === listed.folder;
+      if (wasLaunch) {
+        try {
+          await options.settings.set(START_ON_LAUNCH_KEY, null);
+        } catch {
+          registry = list;
+          await saveRegistry().catch(() => {});
+          throw unsaved();
+        }
+        launchFolder = null;
+      }
+      let restored: unknown;
+      try {
+        restored = await options.restoreWorkspace!({ backupDir: source, dataDir });
+      } catch (error) {
+        // The server's restore puts what was there back before it fails, so
+        // the workspace is as it was; so is its place in the list.
+        registry = list;
+        await saveRegistry().catch(() => {});
+        if (wasLaunch)
+          await options.settings.set(START_ON_LAUNCH_KEY, listed.folder).then(
+            () => (launchFolder = listed.folder),
+            () => {},
+          );
+        throw error;
+      }
+      const aside = (restored as { supersededDir?: unknown } | null)?.supersededDir;
+      const name = manifest.workspaceName.trim().slice(0, 80) || listed.name;
+      updateEntry(listed.folder, { name });
+      // The hold is saved already. Only the name shown for it can be lost.
+      await saveRegistry().catch(() => {});
+      const inventory = options.inventoryBackup
+        ? await options.inventoryBackup(source).catch(() => null)
+        : null;
+      changed();
+      return {
+        folder: listed.folder,
+        name,
+        setAside: typeof aside === "string" ? aside : null,
+        inventory,
+      };
     });
   }
 
@@ -1338,19 +1521,9 @@ export function createHostingController(options: HostingOptions) {
     schedule: AutoBackup,
     fresh: string,
   ): Promise<void> {
-    if (!entry.id) return;
-    const found: { path: string; at: string }[] = [];
-    for (const item of await readdir(schedule.destination, { withFileTypes: true })) {
-      if (!item.isDirectory() || !BACKUP_NAME.test(item.name)) continue;
-      const path = join(schedule.destination, item.name);
-      if (path === fresh) continue;
-      if (!existsSync(join(path, "manifest.json"))) continue;
-      if (read(path)?.id !== entry.id) continue;
-      found.push({ path, at: item.name.slice(-19) });
-    }
     // Newest first by the time in its name. A clock set wrong can make that
     // order lie, which is why only checked copies count and the fresh one stays.
-    found.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+    const found = (await ownBackups(entry, schedule.destination)).filter((b) => b.path !== fresh);
     let kept = 1;
     for (const candidate of found) {
       if (kept >= schedule.keep) {
@@ -2244,6 +2417,8 @@ export function createHostingController(options: HostingOptions) {
     lastHosted,
     backup,
     restore,
+    listBackups,
+    restoreOver,
     forget,
     rename,
     openFolder,

@@ -310,6 +310,12 @@ function setHexes(text, colours) {
   return text.replace(/#[0-9a-f]{6}\b/gi, () => colours[i++]);
 }
 
+/** White's bar colour, then Onyx's, as first-paint.js chooses between them. */
+function firstPaintBars(text) {
+  const { darkTokens: d, lightTokens: l } = palette();
+  return setHexes(text, [l["--color-deep"], d["--color-deep"]]);
+}
+
 export const OUTPUTS = {
   "packages/ui/src/theme.css": (text) => {
     const p = palette();
@@ -329,10 +335,23 @@ export const OUTPUTS = {
     out = setDeclarations(out, ':root[data-theme="system"] {\n    --shadow-float', p.lightVibrant);
     return out;
   },
-  // What the window and the browser show before the page paints, and the title bar.
-  "apps/desktop/src/main/index.ts": (text) => {
-    const t = palette().darkTokens;
-    return setHexes(text, [t["--color-deep"], t["--color-deep"], t["--color-ink-dim"]]);
+  // What the window shows before the page paints, and the title bar drawn over
+  // it, in each theme.
+  "apps/desktop/src/main/windowTheme.ts": (text) => {
+    const { darkTokens: d, lightTokens: l } = palette();
+    return setHexes(text, [
+      d["--color-deep"],
+      d["--color-ink-dim"],
+      l["--color-deep"],
+      l["--color-ink-dim"],
+    ]);
+  },
+  // The browser's own bars: from the first paint, and as the theme changes.
+  "apps/web/public/first-paint.js": firstPaintBars,
+  "apps/desktop/src/renderer/public/first-paint.js": firstPaintBars,
+  "packages/ui/src/lib/appearance.ts": (text) => {
+    const { darkTokens: d, lightTokens: l } = palette();
+    return setHexes(text, [d["--color-deep"], l["--color-deep"]]);
   },
   "apps/web/index.html": (text) => setHexes(text, [palette().darkTokens["--color-deep"]]),
   "apps/desktop/src/renderer/index.html": (text) =>

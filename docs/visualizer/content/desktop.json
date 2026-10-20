@@ -14,7 +14,8 @@
         "Owns discovery, the embedded server adapter, native dialogs/downloads/media, settings, worker jobs, network/wake refresh, renderer recovery and coordinated quit.",
         "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12).",
         "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker.",
-        "hosting:icon answers a listed hosted workspace's icon as a data URL, or null (UX-60)."
+        "hosting:icon answers a listed hosted workspace's icon as a data URL, or null (UX-60).",
+        "Reads the renderer's appearance setting at startup and makes the window with windowColours' background and title bar overlay. storage:set of that setting, and nativeTheme's updated event, paint the window again, so a window in White is not framed in Onyx and its buttons are drawn on White."
       ],
       "concepts": ["Electron main", "process ownership", "IPC", "lifecycle"]
     },
@@ -38,6 +39,7 @@
       "plain": "Starts and stops a workspace the desktop app hosts, runs its backups and restores, and opens or closes its public link.",
       "summary": "Serializes the lifecycle of the locally hosted workspace and its public connector.",
       "details": [
+        "listBackups finds a workspace's own backups in its schedule's folder (ownBackups, which pruneBackups shares), newest first, each checked by verifyBackup so a damaged one is listed as such. restoreOver puts one of them, or a backup folder chosen in the system's dialog, over a stopped workspace still on this computer (O01): only a copy of the same workspace id, with room for it, held (restoredHold) before anything is restored and taken off start-with-Tandem; the server's restore moves the present folder aside as <folder>.superseded-<time>, which the result names, and puts it back if the restore fails.",
         "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
         "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
@@ -170,6 +172,16 @@
       "concepts": ["crash recovery", "route checkpoint", "generation lifetime"]
     },
     {
+      "path": "apps/desktop/src/main/windowTheme.ts",
+      "plain": "Picks the desktop window's own colours, behind the page and under the window buttons, to match the theme you chose.",
+      "summary": "Resolves the saved appearance and the system's preference into the window's background and title bar colours.",
+      "details": [
+        "WINDOW_COLOURS holds the deep colour and dim ink of Onyx and White; scripts/generate-palette.mjs writes them from the palette.",
+        "windowColours reads the renderer's appearance setting as the renderer does: White and Onyx as chosen, the old high-contrast theme as Onyx, anything else, nothing saved included, as the system's choice. It imports nothing from Electron, so it is tested alone."
+      ],
+      "concepts": ["window chrome", "pure policy", "theme"]
+    },
+    {
       "path": "apps/desktop/src/main/loginItem.ts",
       "plain": "Lets the desktop app start when you sign in to your computer, quietly in the tray on Windows.",
       "summary": "Expresses platform-specific launch-at-login behavior without importing Electron.",
@@ -269,6 +281,7 @@
       "summary": "Provides the trusted desktop document shell and entry point.",
       "details": [
         "Creates the React mount point, page metadata and renderer script reference.",
+        "Runs first-paint.js from <head>, after the policy and the theme-color meta, so the chosen theme is on the page before it is painted; the file is the same as the web app's, which firstPaint.dom.test.ts checks.",
         "Its document and policy are part of tested/build-identity inputs; the IPC boundary expects this app page rather than an arbitrary file URL."
       ],
       "concepts": ["HTML entry", "trusted document"]
@@ -366,7 +379,8 @@
       "plain": "The first page the browser loads, which the server sends and the web version fills in.",
       "summary": "Provides the browser document shell.",
       "details": [
-        "Contains app metadata, the root mount node and browser entry module; it is served by the standalone or embedded server."
+        "Contains app metadata, the root mount node and browser entry module; it is served by the standalone or embedded server.",
+        "Runs first-paint.js from public/ as a classic script in <head>, which the CSP allows as it comes from the same origin. It puts the theme and density kept by appearance.ts (or the device's, with none kept) and the bar colour on the page before the app's bundle runs."
       ],
       "concepts": ["HTML", "browser entry"]
     },
@@ -544,7 +558,7 @@
       "summary": "Generates the Onyx and White palettes in OKLCH and writes them, as hex, wherever the app uses them (UX-11).",
       "details": [
         "INPUTS holds Tandem's orange (#f97316, kept as the accent on purpose), one graphite hue and chroma for surfaces and inks, a hue for online, alert, the highlight and the background washes, and where each colour sits on the lightness scale in each theme. A neutral's chroma falls off toward black and white (4L(1-L)); a colour outside sRGB keeps its lightness and hue and loses chroma until it fits.",
-        "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, glows, gradients, washes, the theme picker's swatches and the mention red), and by position the hex colours in the desktop window, both pages, the manifest and the mark. Running it twice changes nothing.",
+        "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, glows, gradients, washes, the theme picker's swatches and the mention red), and by position the hex colours in the desktop window's colours (windowTheme.ts), both pages and their first-paint.js, appearance.ts's bar colours, the manifest and the mark. Running it twice changes nothing.",
         "theme.test.ts fails when a file differs from what OUTPUTS writes, and checks contrast for every ink on every surface, the gradient ends and the mention red. scripts/generate-icons.mjs then draws the app icons from the mark."
       ],
       "concepts": ["tooling", "asset generation", "OKLCH", "UX-11"]
