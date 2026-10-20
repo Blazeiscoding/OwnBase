@@ -38,6 +38,7 @@
       "plain": "Starts and stops a workspace the desktop app hosts, runs its backups and restores, and opens or closes its public link.",
       "summary": "Serializes the lifecycle of the locally hosted workspace and its public connector.",
       "details": [
+        "listBackups finds a workspace's own backups in its schedule's folder (ownBackups, which pruneBackups shares), newest first, each checked by verifyBackup so a damaged one is listed as such. restoreOver puts one of them, or a backup folder chosen in the system's dialog, over a stopped workspace still on this computer (O01): only a copy of the same workspace id, with room for it, held (restoredHold) before anything is restored and taken off start-with-Tandem; the server's restore moves the present folder aside as <folder>.superseded-<time>, which the result names, and puts it back if the restore fails.",
         "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
         "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
