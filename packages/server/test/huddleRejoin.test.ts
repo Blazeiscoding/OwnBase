@@ -241,3 +241,20 @@ describe("a place in a huddle when the person joins from another device", () => 
     await expect.poll(() => server.gateway.huddleParticipants(general())).toEqual([alice.user.id]);
   });
 });
+
+describe("what one side of a huddle says it is sending", () => {
+  it("is passed on whole, the share's sound included", async () => {
+    await start();
+    const { bob, a, b } = await call();
+    a.send({
+      type: "huddle.signal",
+      channelId: general(),
+      to: bob.user.id,
+      signal: { kind: "media", camera: false, screen: true, muted: true, screenSound: true },
+    });
+    await expect.poll(() => b.events("huddle.signal")).toHaveLength(1);
+    expect(b.events("huddle.signal")[0]).toMatchObject({
+      signal: { kind: "media", camera: false, screen: true, muted: true, screenSound: true },
+    });
+  });
+});

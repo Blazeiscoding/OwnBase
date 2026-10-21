@@ -3439,9 +3439,12 @@ export class WorkspaceClient {
     void this.session?.recoverMicrophone();
   }
 
-  /** Starts sharing the screen, at `quality` where given, or stops sharing it. */
-  async toggleScreenShare(quality?: ScreenShareQuality): Promise<void> {
-    await this.session?.toggleScreenShare(quality);
+  /**
+   * Starts sharing the screen, at `quality` where given, with its sound unless
+   * `sound` is false, or stops sharing it.
+   */
+  async toggleScreenShare(quality?: ScreenShareQuality, sound?: boolean): Promise<void> {
+    await this.session?.toggleScreenShare(quality, sound);
   }
 
   async toggleCamera(): Promise<void> {

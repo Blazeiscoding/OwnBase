@@ -143,16 +143,18 @@
     },
     {
       "path": "packages/client-core/src/huddle.ts",
-      "plain": "Runs your side of a huddle, opening your microphone, camera and screen share and connecting you to each person in the call.",
+      "plain": "Runs your side of a huddle, opening your microphone, camera, screen share and its sound, and connecting you to each person in the call.",
       "summary": "Owns microphone capture, WebRTC peer connections and call media state.",
       "details": [
-        "HuddleSession creates a mesh connection per participant with fixed microphone, camera and screen transceivers. Deterministic offer ownership prevents both peers from offering at once; camera and screen changes use replaceTrack instead of another negotiation.",
+        "HuddleSession creates a mesh connection per participant with fixed microphone, camera, screen and screen sound transceivers. Deterministic offer ownership prevents both peers from offering at once; camera and screen changes use replaceTrack instead of another negotiation.",
         "Every microphone is opened through openMicrophone as a feed: what is sent, the device track whose ending means it went, and a stop that releases both. With Strong noise suppression chosen and a NoiseFilter given, the device opens with the browser's own suppression off and the filter's output is sent; a filter that will not start closes that device and opens it again with the browser's suppression, and the call log says which suppression is in use.",
         "Microphone recovery asks again for the chosen microphone, falling back to the system default after loss, replaces audio tracks for peers, and exposes micLost with device-change retry when no microphone is available.",
         "setMicrophone and setCamera change devices mid-call: the new device opens (asked for exactly) before the old one stops, so one that will not start rejects and leaves the call as it was. Once open it reaches every peer through replaceTrack on the fixed slot, with no renegotiation, keeping the mute choice. A counter per kind drops an older choice that finishes after a newer one. A camera that reports busy is retried with the current one closed, since a virtual camera built on the webcam (NVIDIA Broadcast over a USB camera, as tested) cannot start while the webcam is held; if it still will not start the previous camera is reopened, and failing that the camera is turned off and announced.",
         "N04 keeps the latest mute intent separate from a particular MediaStreamTrack. Adopting a delayed or replacement microphone applies the current choice, and captured streams arriving after destruction are stopped.",
         "Remote speaking levels come from synchronization-source audio metadata; only the local microphone needs a Web Audio analyser. Samples run every 120 ms with a 500 ms hold, and publish to the UI only when speaking state changes.",
         "A screen is shared at the ScreenShareQuality asked for, 720p or 1080p (the cap, since a mesh encodes once per viewer) at 15, 30 or 60 frames a second, 1080p at 15 by default. It is hinted as detail, keeping text sharp and dropping frames when bandwidth runs short, except at 60, which is asked for motion.",
+        "A share asks for its sound too where the browser can leave this call's own sound out of it (restrictOwnAudio, Chromium 141 and later: canShareScreenSound), with echo cancellation, noise suppression and gain off, which suit a voice and spoil music. The sound is kept only when its track says the call was left out, or it is another tab's; otherwise it is stopped and the share goes on without it, since sending everyone their own voices back is worse than no sound. It goes in a fourth slot of its own, so muting the microphone leaves it playing, it can end alone while the picture goes on, and it stops with the share.",
+        "A client from before the fourth slot takes any track on it for the person's microphone, so the offerer adds it receive-only. The media signal's screenSound, said true or false, tells the other side this one has the slot. The first time the offerer has sound for someone who said so, it turns the slot both ways and offers again (openScreenSoundSlot); one opened while a setup was under way is offered once its answer arrives. The answerer's slot sends from the start. withStereoScreenSound marks each description from the other side so the fourth section's Opus is stereo at 96 kbps, since a browser describes mono at a voice's rate.",
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
         "closePeers closes every peer connection and keeps the microphone and camera, for coming back after the server let this device's place go: the others closed their end, so each connection is made afresh.",
         "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call."
@@ -471,13 +473,14 @@
     },
     {
       "path": "packages/ui/src/lib/callVolumes.ts",
-      "plain": "Remembers how loud each person in a call is for you, or that you muted them, across all your calls.",
+      "plain": "Remembers how loud each person in a call, and the screen they share, is for you, or that you muted them, across all your calls.",
       "summary": "Keeps how loud each person in a call is to you, as Discord's user volume.",
       "details": [
         "A per-Platform shared Zustand store of { volume 0-200 percent, muted } by user id, under call-volumes on this device, for every call and workspace. Only people turned up, down or muted are kept; anyone set back to 100% and unmuted is dropped.",
         "Muting keeps the volume for when they are unmuted. Saved entries are validated one by one: a volume is clamped and rounded, anything unreadable is as sent, and one bad entry does not lose the rest.",
         "A slider drag is written once it rests (400 ms), and never before the saved volumes have been read, so a change made while reading cannot replace everyone else's; a change made while reading wins over what was read.",
-        "gainOf turns a choice into how many times as loud someone is played: 0 when muted, up to 2."
+        "gainOf turns a choice into how many times as loud someone is played: 0 when muted, up to 2.",
+        "screenSoundKey keeps how loud someone's shared screen is to you under screen:<user id>, beside their voice and apart from it, so a loud video can be turned down while they are still heard."
       ],
       "concepts": ["per-person volume", "local mute", "debounced write", "read before write"]
     },
@@ -1805,7 +1808,7 @@
       "summary": "Shows call presence, speaking rings and the header join/start control.",
       "details": [
         "HuddleFace resolves participants and speaking state, while the compact bar hosts controls and a way to restore hidden video.",
-        "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
+        "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row, and someone sharing a screen with its sound a second row for that sound. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
         "HuddleButton starts or joins through the shared call-preference store and provides meaningful error state. N04 makes this header path agree with Getting started about mute initialization.",
         "Once a peer's connection has a diagnosed trouble, the bar says Can't connect to them and offers Why? See the call log."
       ],
@@ -1826,26 +1829,28 @@
     },
     {
       "path": "packages/ui/src/components/ScreenShareDialog.tsx",
-      "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, and the resolution and frame rate to share at.",
+      "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, the resolution and frame rate to share at, and whether your computer's sound goes too.",
       "summary": "Picks a window or screen to share, and how sharp and smooth, in the app rather than a system dialog.",
       "details": [
         "Windows come first and none is chosen for you, since the window on top is usually Tandem itself and one chosen for you could be one nobody was meant to see; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
         "The last list shows at once where there has been one (platform.screenShare.sources with quick), then a fresh one, then again every 3 s while open, so pictures move and windows come and go; a chosen window that closes leaves Share asking for another. Only a first fresh list that fails with nothing shown says so, with Try again.",
         "Share is never off for want of a choice. Pressed with nothing chosen, an alert beside the list says what is needed and focus goes to the first tile, without choosing it: choose a window, that window has closed, the list is still being found, or (with no window listed) open one or share a screen, with focus on the Screens tab. When the list failed, focus goes to Try again. The words follow the list as it changes, and choosing a tile or another tab takes them away. A window that closed between choosing and sharing is said there too.",
-        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A refusal from the system is said in the footer, and the dialog stays open; chosen here, even a plain refusal says sharing could not start."
+        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A refusal from the system is said in the footer, and the dialog stays open; chosen here, even a plain refusal says sharing could not start.",
+        "Where this computer can share a screen's sound (platform.screenShare.sound, Windows on the desktop app), a Share sound switch sits beside the quality bars. It is on unless turned off, which is kept on the device as screen-share-sound, and while on the line under the tabs says everyone also hears the computer's sound. Share hands the choice to the main process with the source and to the huddle."
       ],
       "concepts": ["screen sharing", "in-app picker", "accessible choices"]
     },
     {
       "path": "packages/ui/src/components/HuddleAudio.tsx",
-      "plain": "Plays everyone's voice in a call through your chosen speaker at the volume you set, even with the video hidden.",
+      "plain": "Plays everyone's voice in a call, and the sound of a shared screen, through your chosen speaker at the volume you set, even with the video hidden.",
       "summary": "Keeps each remote microphone playing independently of video layout.",
       "details": [
         "Peer audio elements attach microphone streams even when the call has no camera or the video stage is hidden.",
         "Playback refusal produces a recovery action; one user gesture retries blocked peers while already audible streams are left intact. This avoids duplicate audio from video elements.",
         "Each peer's audio element plays through the speaker chosen in Voice & video settings.",
         "Each person plays as loud as you chose. Up to 100% the element's own volume does it, so the usual path is untouched. Past 100% their stream goes through a Web Audio gain into a stream the same element plays, so the chosen speaker still applies. A second, muted element holds their stream meanwhile, since Chromium gives an audio graph silence from a call's stream that no element plays (measured: 0 without it).",
-        "A boost's graph that will not start without a gesture is reported like a refused play, so Turn on sound starts it."
+        "A boost's graph that will not start without a gesture is reported like a refused play, so Turn on sound starts it.",
+        "A share's sound plays in an element of its own beside its sharer's voice, keyed by screenSoundKey, with its own volume and the same playback recovery, so muting either leaves the other."
       ],
       "concepts": ["remote audio", "autoplay recovery", "media attachment", "per-person volume"]
     },
@@ -1855,7 +1860,8 @@
       "summary": "One person's volume in a call: mute for you, and a slider from silent to 200%.",
       "details": [
         "A toggle button (aria-pressed) mutes the person for you alone, and a range input in steps of 5 sets their volume, with a tick at 100% from a datalist and the percent beside it, or Off.",
-        "Moving the slider unmutes them, since it means wanting to hear them. Used in the bar's list of who is there and inside a stage tile."
+        "Moving the slider unmutes them, since it means wanting to hear them. Used in the bar's list of who is there and inside a stage tile.",
+        "With screen, the same control sets the sound of the screen they share, kept under screenSoundKey and named as their screen."
       ],
       "concepts": ["per-person volume", "local mute", "range input"]
     },
@@ -1867,7 +1873,7 @@
         "stageItems prioritizes screen shares then participants; bestFit tries column counts to find the largest 16:9 tiles for the actual container dimensions.",
         "Video surfaces stay muted because HuddleAudio owns voices. Local self-video and remote camera/share streams display without opening a second media capture.",
         "Resize observation updates layout, and accessible tiles/actions expose focus, fullscreen and share controls. Lazy loading keeps the stage out of initial conversation downloads until needed.",
-        "Another person's tile, in the gallery or the main view, has a volume button beside Pin. Its PersonVolume opens inside the tile rather than as a popover, because popovers portal to the page beneath a fullscreen element. A tile says when its person is muted for you."
+        "Another person's tile, in the gallery or the main view, has a volume button beside Pin. Its PersonVolume opens inside the tile rather than as a popover, because popovers portal to the page beneath a fullscreen element. A tile says when its person is muted for you. A shared screen that sends its sound has a volume button too, for that sound alone, and its tile says it is with sound, with a speaker, or that its sound is muted for you. Your own share's panel says everyone can see and hear it."
       ],
       "concepts": ["adaptive video grid", "media presentation", "single audio owner", "lazy chunk"]
     },
@@ -2404,20 +2410,20 @@
         },
         {
           "title": "Join and connect to others",
-          "description": "The server confirms the join, and if joining fails, the app lets go of the microphone. For each pair of people, one side starts the connection. Fixed slots carry the microphone, camera and screen share.",
+          "description": "The server confirms the join, and if joining fails, the app lets go of the microphone. For each pair of people, one side starts the connection. Fixed slots carry the microphone, camera, screen share and its sound.",
           "files": ["packages/client-core/src/workspace.ts", "packages/client-core/src/huddle.ts"],
-          "detail": "Supported servers acknowledge huddle.join with a request ID; failure cleans local media. The roster chooses one offerer per peer and fixed microphone/camera/screen transceivers carry streams."
+          "detail": "Supported servers acknowledge huddle.join with a request ID; failure cleans local media. The roster chooses one offerer per peer and fixed microphone/camera/screen/screen sound transceivers carry streams. The screen sound slot opens for sending with one more offer, and only to a client that has it."
         },
         {
           "title": "Play each voice once",
-          "description": "Each person's voice plays once, at the volume you chose for them, while video tiles stay silent. The small huddle bar shows who is speaking. The larger call view loads only when you open it and fits cameras and screen shares to the space.",
+          "description": "Each person's voice, and the sound of a screen they share, plays once, at the volume you chose for each, while video tiles stay silent. The small huddle bar shows who is speaking. The larger call view loads only when you open it and fits cameras and screen shares to the space.",
           "files": [
             "packages/ui/src/components/HuddleAudio.tsx",
             "packages/ui/src/lib/callVolumes.ts",
             "packages/ui/src/components/HuddleBar.tsx",
             "packages/ui/src/components/HuddleStage.tsx"
           ],
-          "detail": "HuddleAudio owns remote voices, each as loud as you chose; video tiles stay muted. Speaking transitions update the compact bar, while the lazy stage fits cameras and shares to the available container."
+          "detail": "HuddleAudio owns remote voices and shared screens' sound, each as loud as you chose; video tiles stay muted. Speaking transitions update the compact bar, while the lazy stage fits cameras and shares to the available container."
         },
         {
           "title": "Switch microphones or leave",

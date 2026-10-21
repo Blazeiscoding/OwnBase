@@ -373,7 +373,7 @@
       "summary": "Checks socket payloads at the server boundary before Gateway trusts them.",
       "details": [
         "A discriminated union admits hello, ping, typing, huddle join/leave and signaling with bounded IDs, tokens and cursors.",
-        "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes.",
+        "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes. Media state takes an optional screenSound flag, which older clients leave out.",
         "Protocol TypeScript types alone cannot validate a remote caller; this Zod schema provides runtime enforcement without importing browser DOM types.",
         "Validates huddle.report: counts, states and enums only, so a report cannot carry an address or arbitrary text."
       ],
@@ -505,7 +505,8 @@
       "plain": "The shared rules for the messages that set up a huddle, including which side starts the call so both do not at once.",
       "summary": "Describes peer-call signaling and deterministic offer ownership.",
       "details": [
-        "Offer, answer, ICE and explicit camera/screen/muted messages are plain serializable objects usable by both server and browser.",
+        "Offer, answer, ICE and explicit camera/screen/muted/screenSound messages are plain serializable objects usable by both server and browser.",
+        "screenSound is said, true or false, only by a client with a fourth slot for a share's sound, and tells the other side it may send there. A client from before that slot never says it, and is sent nothing on it, since it would take any fourth track for the person's microphone.",
         "Explicit media flags distinguish an active camera from a silent negotiated slot; a receiver track's muted flag alone is not evidence that frames exist.",
         "shouldInitiateOffer uses user-ID ordering so two peers discovering each other do not both offer simultaneously.",
         "HuddleState lists live participants. The protocol carries handshake/control state rather than audio or video bytes.",
