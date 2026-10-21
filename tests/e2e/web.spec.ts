@@ -930,13 +930,44 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
     for (const page of [alice, bob]) {
       page.on("pageerror", (err) => errors.push(err.message));
       // Both join with the microphone off, so what is heard of the other is
-      // their screen's sound alone. Chromium's fake picker shares the screen
-      // with a fake sound that beeps.
+      // their screen's sound alone.
       await page.addInitScript(() => {
         localStorage.setItem(
           "slackoss:call-preferences",
           JSON.stringify({ joinMuted: true, noiseFilter: false, devicesChecked: true }),
         );
+        // Chromium's fake picker shares a sound with the screen on Windows,
+        // one that says the call is left out of it, and none on Linux. Where
+        // it gives none, the share is given a tone that says the same.
+        const devices = MediaDevices.prototype;
+        const supported = devices.getSupportedConstraints;
+        devices.getSupportedConstraints = function (this: MediaDevices) {
+          return {
+            ...supported.call(this),
+            restrictOwnAudio: true,
+          } as MediaTrackSupportedConstraints;
+        };
+        const share = devices.getDisplayMedia;
+        devices.getDisplayMedia = async function (
+          this: MediaDevices,
+          options?: DisplayMediaStreamOptions,
+        ) {
+          const display = await share.call(this, options);
+          if (!options?.audio || display.getAudioTracks().length > 0) return display;
+          const context = new AudioContext();
+          const tone = context.createOscillator();
+          const level = context.createGain();
+          level.gain.value = 0.3;
+          const out = context.createMediaStreamDestination();
+          tone.connect(level).connect(out);
+          tone.start();
+          const sound = out.stream.getAudioTracks()[0]!;
+          const settings = sound.getSettings.bind(sound);
+          sound.getSettings = () =>
+            ({ ...settings(), restrictOwnAudio: true }) as MediaTrackSettings;
+          display.addTrack(sound);
+          return display;
+        };
       });
     }
     await signIn(alice, "alice");
