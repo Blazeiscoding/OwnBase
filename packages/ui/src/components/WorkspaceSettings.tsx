@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { WORKSPACE_NAME_MAX, type AccessPolicy } from "@slackoss/protocol";
 import { ApiError } from "@slackoss/client-core";
-import { useClient, usePlatform, useWorkspace } from "../context.js";
+import { useClient, useWorkspace } from "../context.js";
 import { SavedContext, useSaved } from "../lib/savedNote.js";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
 import { Icon } from "./Icon.js";
-import { Modal } from "./Modal.js";
-import { stepIn } from "./Motion.js";
+import { SettingsWindow } from "./SettingsWindow.js";
 import { TextField } from "./TextField.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 
@@ -42,17 +41,6 @@ const POLICIES: { id: AccessPolicy; title: string; hint: string }[] = [
   },
 ];
 
-/** Where an arrow key, Home or End moves from one section, wrapping at either end. */
-function sectionAfter(key: string, current: Section): Section | null {
-  const at = SECTIONS.findIndex((s) => s.id === current);
-  const last = SECTIONS.length - 1;
-  if (key === "ArrowDown" || key === "ArrowRight") return SECTIONS[at === last ? 0 : at + 1]!.id;
-  if (key === "ArrowUp" || key === "ArrowLeft") return SECTIONS[at === 0 ? last : at - 1]!.id;
-  if (key === "Home") return SECTIONS[0]!.id;
-  if (key === "End") return SECTIONS[last]!.id;
-  return null;
-}
-
 /** Whether this view is still on screen, for work that finishes after it may have closed. */
 function useAlive() {
   const alive = useRef(true);
@@ -67,7 +55,7 @@ function useAlive() {
 
 /**
  * The workspace's own settings, for its owner and admins (UX-60): its icon,
- * its name and who may join. A page over the workspace, as Account settings
+ * its name and who may join. A window over the workspace, as Account settings
  * is, with its sections on one side and the open one on the other. Choices
  * save as they are made and say so quietly; the name, being typed, has a Save.
  */
@@ -79,7 +67,6 @@ export function WorkspaceSettings({
   /** This computer hosts the workspace, so Manage hosting can change who may join too. */
   hostedHere?: boolean;
 }) {
-  const platform = usePlatform();
   const tabsId = useId();
   const name = useWorkspace((s) => s.workspaceName);
   // A server from before workspace settings refuses both, so neither is offered.
@@ -100,129 +87,40 @@ export function WorkspaceSettings({
   function choose(next: Section) {
     if (next === section) return;
     setSection(next);
-    if (panel.current) panel.current.scrollTop = 0;
-    const at = (id: Section) => SECTIONS.findIndex((s) => s.id === id);
-    stepIn(panel.current?.firstElementChild, at(next) - at(section));
     setSaved(false);
   }
 
-  const label = SECTIONS.find((s) => s.id === section)!.label;
-  const closeButton = (className: string) => (
-    <button
-      type="button"
-      onClick={onClose}
-      aria-label="Close"
-      className={`flex size-9 items-center justify-center rounded-full border border-edge text-ink-dim transition-colors hover:border-ink-faint hover:text-ink ${className}`}
-    >
-      <Icon name="close" size={16} />
-    </button>
-  );
   return (
     <SavedContext.Provider value={markSaved}>
-      <Modal
+      <SettingsWindow
         title="Workspace settings"
+        about={name}
+        sections={SECTIONS}
+        section={section}
+        onChoose={choose}
+        tabsId={tabsId}
+        saved={saved}
+        scroller={panel}
         onClose={onClose}
-        backdropClassName={`settings-page animate-fade-in${platform.kind === "desktop" ? " settings-page-under-titlebar" : ""}`}
-        className="flex h-full w-full flex-col bg-ground outline-none sm:flex-row"
       >
-        <div className="settings-nav flex shrink-0 justify-end sm:flex-[1_0_15rem] sm:overflow-y-auto">
-          <div className="flex w-full min-w-0 flex-col gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] sm:w-60 sm:gap-4 sm:px-3 sm:pb-6 sm:pt-12">
-            <div className="flex items-start gap-2 sm:px-2">
-              <div className="min-w-0 flex-1">
-                <h2 className="text-[13px] font-semibold text-ink-dim">Workspace settings</h2>
-                <p className="mt-0.5 truncate text-xs text-ink-faint">{name}</p>
-              </div>
-              {closeButton("sm:hidden")}
-            </div>
-            <div
-              role="tablist"
-              aria-label="Workspace settings"
-              aria-orientation="vertical"
-              // Padded by the width of a focus ring, which its scrolling would clip.
-              className="tab-strip -mx-1 flex shrink-0 gap-0.5 overflow-auto p-1 sm:mx-0 sm:flex-col"
-              onKeyDown={(event) => {
-                const next = sectionAfter(event.key, section);
-                if (!next) return;
-                event.preventDefault();
-                choose(next);
-                document.getElementById(`${tabsId}-tab-${next}`)?.focus();
-              }}
-            >
-              {SECTIONS.map((s) => (
-                <button
-                  key={s.id}
-                  id={`${tabsId}-tab-${s.id}`}
-                  type="button"
-                  role="tab"
-                  aria-selected={section === s.id}
-                  aria-controls={`${tabsId}-panel`}
-                  tabIndex={section === s.id ? 0 : -1}
-                  onClick={() => choose(s.id)}
-                  className={`shrink-0 rounded-md px-3 py-1.5 text-left text-sm font-medium transition-colors ${
-                    section === s.id
-                      ? "channel-row-active text-ink"
-                      : "text-ink-faint hover:bg-ink/[0.04] hover:text-ink"
-                  }`}
-                >
-                  {s.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-        <div className="flex min-h-0 min-w-0 flex-1 sm:flex-[1_1_50rem]">
-          <div
-            ref={panel}
-            id={`${tabsId}-panel`}
-            role="tabpanel"
-            aria-labelledby={`${tabsId}-tab-${section}`}
-            className="settings-scroll min-w-0 flex-1 overflow-y-auto"
+        {!editable && (
+          <p
+            role="note"
+            className="mb-4 rounded-lg border border-edge bg-raised p-3 text-sm text-ink-dim"
           >
-            <div className="max-w-[46rem] px-4 pb-16 pt-2 sm:px-10 sm:pt-12">
-              <div className="mb-5 flex items-baseline gap-3">
-                <h3 className="text-[17px] font-semibold tracking-tight">{label}</h3>
-                {/* Always there, so "Saved" is read out when it appears. */}
-                <p
-                  aria-live="polite"
-                  className="ml-auto flex items-center gap-1 text-xs text-ink-faint"
-                >
-                  {saved && (
-                    <>
-                      <Icon name="check" size={13} />
-                      Saved
-                    </>
-                  )}
-                </p>
-              </div>
-              {!editable && (
-                <p
-                  role="note"
-                  className="mb-4 rounded-lg border border-edge bg-raised p-3 text-sm text-ink-dim"
-                >
-                  This workspace's server runs an older version of Tandem, so its name and who can
-                  join are changed where it is hosted, not here.
-                </p>
-              )}
-              {section === "general" && (
-                <>
-                  {icons && <IconSection />}
-                  <NameSection editable={editable} />
-                  <PreviewsSection />
-                </>
-              )}
-              {section === "joining" && (
-                <JoiningSection editable={editable} hostedHere={hostedHere} />
-              )}
-            </div>
-          </div>
-          <div className="hidden shrink-0 flex-col items-center gap-1 pr-5 pt-12 sm:flex">
-            {closeButton("")}
-            <span aria-hidden="true" className="text-[11px] font-semibold text-ink-faint">
-              Esc
-            </span>
-          </div>
-        </div>
-      </Modal>
+            This workspace's server runs an older version of Tandem, so its name and who can join
+            are changed where it is hosted, not here.
+          </p>
+        )}
+        {section === "general" && (
+          <>
+            {icons && <IconSection />}
+            <NameSection editable={editable} />
+            <PreviewsSection />
+          </>
+        )}
+        {section === "joining" && <JoiningSection editable={editable} hostedHere={hostedHere} />}
+      </SettingsWindow>
     </SavedContext.Provider>
   );
 }

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,7 +12,7 @@ import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
- * Account settings as a page (UX-60): its own list of sections beside the
+ * Account settings as a window (UX-60): its own list of sections beside the
  * section, a search that goes to a setting, and a quiet "Saved" once a choice
  * that saves itself is kept.
  */
@@ -72,37 +74,68 @@ function page(
   };
 }
 
-describe("Account settings as a page", () => {
-  it("fills the window with its own list of sections beside the section, not a box over the workspace", async () => {
+const css = readFileSync(join(process.cwd(), "src/theme.css"), "utf8");
+
+/** The body of the first block in `text` that opens with `opening`. */
+function block(text: string, opening: string): string {
+  const start = text.indexOf(opening);
+  if (start === -1) throw new Error(`no ${opening}`);
+  let depth = 0;
+  for (let i = text.indexOf("{", start); i < text.length; i++) {
+    if (text[i] === "{") depth++;
+    if (text[i] === "}" && --depth === 0) return text.slice(text.indexOf("{", start) + 1, i);
+  }
+  throw new Error(`${opening} never closes`);
+}
+
+describe("Account settings as a window", () => {
+  it("is a window over the workspace, as the other dialogs are, with its own list of sections beside the section", async () => {
     const { settings, onClose, user } = page();
-    expect(settings.closest(".settings-page")).not.toBeNull();
-    expect(settings.querySelector(".dialog-panel, .dialog-scroll")).toBeNull();
-    expect(settings).not.toHaveClass("dialog-panel");
-    // The section's name heads it, under the page's own.
+    // The dialogs' raised surface, arriving as they do, over their dimmed backdrop.
+    expect(settings).toHaveClass("settings-window", "dialog-surface", "animate-pop-in");
+    expect(settings.parentElement).toHaveClass("settings-backdrop", "dialog-backdrop");
+    // The section's name heads it, under the window's own, and stays above what scrolls.
     const panel = within(settings).getByRole("tabpanel", { name: "Profile" });
-    expect(within(panel).getByRole("heading", { name: "Profile" })).toBeVisible();
+    const heading = within(panel).getByRole("heading", { name: "Profile" });
+    expect(heading).toBeVisible();
+    expect(panel.querySelector(".dialog-scroll")).not.toContainElement(heading);
     expect(within(settings).getByRole("heading", { name: "Account settings" })).toBeVisible();
     expect(settings).toHaveTextContent("Sam Rivera · @sam");
     expect(await accessibilityProblems(settings)).toEqual([]);
 
-    // Close is in reach on a phone and beside the section elsewhere; Escape works too.
-    const close = within(settings).getAllByRole("button", { name: "Close" });
-    expect(close).toHaveLength(2);
-    expect(settings).toHaveTextContent("Esc");
-    await user.click(close[1]!);
+    // One close button, in the window's corner; Escape works too.
+    const close = within(settings).getByRole("button", { name: "Close" });
+    expect(close).toHaveClass("settings-close");
+    await user.click(close);
     expect(onClose).toHaveBeenCalledOnce();
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledTimes(2);
   });
 
+  it("is a window of its own size where there is room for one, and fills a narrower screen", () => {
+    // jsdom applies no stylesheet, so what it would draw is read from theme.css.
+    const wide = block(css, "@media (width >= 57rem) {");
+    expect(block(wide, ".settings-backdrop {")).toMatch(
+      /align-items: center;\s+justify-content: center;/,
+    );
+    expect(block(wide, ".settings-window {")).toMatch(
+      /width: min\(55rem, 100%\);\s+height: min\(42\.5rem, 100%\);/,
+    );
+    // Narrower than the window and its margins, settings are a page on the conversation's colour.
+    const narrow = block(css, "@media (width < 57rem) {");
+    expect(block(narrow, ".settings-window.dialog-surface,")).toContain(
+      "background: var(--color-ground);",
+    );
+  });
+
   it("starts under the desktop app's title bar", () => {
     const { settings } = page({ kind: "desktop" });
-    expect(settings.closest(".settings-page")).toHaveClass("settings-page-under-titlebar");
+    expect(settings.parentElement).toHaveClass("settings-under-titlebar");
   });
 
   it("starts at the top of a browser window", () => {
     const { settings } = page({ kind: "web" });
-    expect(settings.closest(".settings-page")).not.toHaveClass("settings-page-under-titlebar");
+    expect(settings.parentElement).not.toHaveClass("settings-under-titlebar");
   });
 });
 
@@ -127,7 +160,7 @@ describe("searching settings", () => {
     expect(group).toHaveClass("setting-found");
   });
 
-  it("goes to the first setting found on Enter, and Escape clears the search before it closes the page", async () => {
+  it("goes to the first setting found on Enter, and Escape clears the search before it closes the window", async () => {
     const { settings, search, onClose, user } = page();
     await user.type(search, "pass{Enter}");
     expect(within(settings).getByRole("tab", { name: "Security" })).toHaveAttribute(
