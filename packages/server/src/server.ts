@@ -22,6 +22,7 @@ import {
   pinnedMessagesQuery,
   followedThreadsQuery,
   threadFollowBody,
+  threadMuteBody,
   threadReadBody,
   adminUserBody,
   createAppBody,
@@ -223,6 +224,7 @@ export const GUEST_ROUTES = new Set([
   "DELETE /api/messages/:id/save",
   "PATCH /api/channels/:id/prefs",
   "PUT /api/messages/:id/follow",
+  "PUT /api/messages/:id/mute",
   "POST /api/messages/:id/thread/read",
   "POST /api/messages/:id/thread/unread",
   "GET /api/threads/followed",
@@ -4734,6 +4736,18 @@ async function startWorkspaceServer(
     const body = threadFollowBody.parse(req.body ?? {});
     const state = store.setThreadFollow(me.id, message.id, body.following);
     if (!state) throw new HttpError(404, "message_not_found");
+    gateway.sendToUser(me.id, { type: "thread.follow", state });
+    return { state };
+  });
+
+  app.put<{ Params: { id: string } }>("/api/messages/:id/mute", async (req) => {
+    const me = requireUser(req);
+    const message = requireVisibleMessage(req.params.id, me);
+    if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
+    const body = threadMuteBody.parse(req.body ?? {});
+    const state = store.setThreadMute(me.id, message.id, body.muted);
+    if (!state) throw new HttpError(404, "message_not_found");
+    // Personal, as following is: only this account's own devices hear of it.
     gateway.sendToUser(me.id, { type: "thread.follow", state });
     return { state };
   });

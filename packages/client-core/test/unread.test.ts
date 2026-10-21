@@ -429,6 +429,95 @@ describe("following a thread", () => {
   });
 });
 
+describe("muting a thread", () => {
+  it("round-trips, shown at once here and through the server on another device", async () => {
+    expect(client.state.threadMutes).toBe(true);
+    const root = await incoming("Noisy thread");
+    await client.loadThread(root.id, channelId, "latest");
+    await incoming("chatter", root.id);
+    client.setThreadFollow(root.id, true);
+    const other = new WorkspaceClient(client.baseUrl, member.token);
+    try {
+      other.connect();
+      await expect.poll(() => other.state.threadFollows[root.id]?.following).toBe(true);
+
+      client.setThreadMute(root.id, true);
+      expect(client.state.threadFollows[root.id]).toMatchObject({ following: false, muted: true });
+      await expect.poll(() => other.state.threadFollows[root.id]?.muted).toBe(true);
+      expect(server.store.threadFollow(member.id, root.id)?.muted).toBe(true);
+
+      client.setThreadMute(root.id, false);
+      expect(client.state.threadFollows[root.id]?.muted).toBeUndefined();
+      await expect.poll(() => other.state.threadFollows[root.id]?.muted).toBeUndefined();
+      expect(other.state.threadFollows[root.id]?.following).toBe(false);
+    } finally {
+      other.destroy();
+    }
+  });
+
+  it("stays muted while the thread is read, before the server answers", async () => {
+    const root = await incoming("Muted, then read");
+    await client.loadThread(root.id, channelId, "latest");
+    client.setThreadMute(root.id, true);
+    await expect.poll(() => server.store.threadFollow(member.id, root.id)?.muted).toBe(true);
+    await incoming("a reply", root.id);
+
+    let answer = () => {};
+    const read = client.api.markThreadRead.bind(client.api);
+    const sent = vi
+      .spyOn(client.api, "markThreadRead")
+      .mockImplementationOnce(async (rootId, seq) => {
+        await new Promise<void>((resolve) => (answer = resolve));
+        return read(rootId, seq);
+      });
+    client.markThreadRead(root.id);
+    expect(client.state.threadFollows[root.id]).toMatchObject({ following: false, muted: true });
+    answer();
+    await sent.mock.results[0]!.value;
+    expect(client.state.threadFollows[root.id]).toMatchObject({ following: false, muted: true });
+  });
+
+  it("sends a Follow only once the mute before it is answered, so the server ends following", async () => {
+    const root = await incoming("Mute, then follow");
+    await client.loadThread(root.id, channelId, "latest");
+    const send = client.api.setThreadMute.bind(client.api);
+    let release = () => {};
+    const slow = new Promise<void>((resolve) => (release = resolve));
+    const muted = vi
+      .spyOn(client.api, "setThreadMute")
+      .mockImplementationOnce(async (rootId, on) => {
+        await slow;
+        return send(rootId, on);
+      });
+    const followed = vi.spyOn(client.api, "setThreadFollow");
+
+    client.setThreadMute(root.id, true);
+    client.setThreadFollow(root.id, true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(followed).not.toHaveBeenCalled();
+
+    release();
+    await expect.poll(() => followed.mock.calls.length).toBe(1);
+    await muted.mock.results[0]!.value;
+    await followed.mock.results[0]!.value;
+    expect(server.store.threadFollow(member.id, root.id)).toMatchObject({ following: true });
+    expect(server.store.threadFollow(member.id, root.id)?.muted).toBeUndefined();
+  });
+
+  it("puts the thread back as it was when the server refuses", async () => {
+    const root = await incoming("Refused");
+    await client.loadThread(root.id, channelId, "latest");
+    client.setThreadFollow(root.id, true);
+    await expect.poll(() => server.store.threadFollow(member.id, root.id)?.following).toBe(true);
+    vi.spyOn(client.api, "setThreadMute").mockRejectedValue(new Error("offline"));
+
+    client.setThreadMute(root.id, true);
+    expect(client.state.threadFollows[root.id]?.muted).toBe(true);
+    await expect.poll(() => client.state.threadFollows[root.id]?.muted).toBeUndefined();
+    expect(client.state.threadFollows[root.id]?.following).toBe(true);
+  });
+});
+
 describe("the read rule every surface uses", () => {
   const reply = (seq: number, broadcast = false) => ({
     channelId: "C1",

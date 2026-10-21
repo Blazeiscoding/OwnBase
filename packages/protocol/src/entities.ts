@@ -460,6 +460,12 @@ export interface ThreadFollow {
    * and from servers older than it.
    */
   unreadHold?: number;
+  /**
+   * Muted: not followed, and kept that way when this account replies, and its
+   * replies notify only when they are addressed to it. Absent when not muted,
+   * and from servers older than it.
+   */
+  muted?: true;
 }
 
 export interface FollowedThread {

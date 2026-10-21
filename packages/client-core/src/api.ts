@@ -625,6 +625,10 @@ export class Api {
     return this.request("PUT", `/api/messages/${rootId}/follow`, { following });
   }
 
+  setThreadMute(rootId: ID, muted: boolean): Promise<{ state: ThreadFollow }> {
+    return this.request("PUT", `/api/messages/${rootId}/mute`, { muted });
+  }
+
   markThreadRead(rootId: ID, seq: number): Promise<{ state: ThreadFollow }> {
     return this.request("POST", `/api/messages/${rootId}/thread/read`, { seq });
   }

@@ -44,6 +44,8 @@ export function ThreadPanel({
   );
   const replies = useWorkspace((s) => s.threads[rootId]);
   const follows = useWorkspace((s) => s.threadFollows[rootId]?.following ?? false);
+  const muted = useWorkspace((s) => s.threadFollows[rootId]?.muted === true);
+  const canMute = useWorkspace((s) => s.threadMutes);
   const pending = useWorkspace((s) => s.pending).filter((p) => p.threadRootId === rootId);
   // Where the thread is: a phone shows it over the conversation it came from.
   const where = useWorkspace((s) => {
@@ -219,6 +221,29 @@ export function ThreadPanel({
             >
               <Icon name={follows ? "bell" : "plus"} size={12} />
               {follows ? "Following" : "Follow"}
+            </button>
+          </Tooltip>
+        )}
+        {root && canMute && (
+          <Tooltip
+            label={
+              muted
+                ? "Muted: replies notify you only when they mention you"
+                : "Mute: replies notify you only when they mention you, even after you reply"
+            }
+            side="bottom"
+          >
+            <button
+              onClick={() => client.setThreadMute(rootId, !muted)}
+              aria-label="Mute thread"
+              aria-pressed={muted}
+              className={`mr-1 flex size-7 items-center justify-center rounded-full transition-colors ${
+                muted
+                  ? "bg-ink/[0.07] text-ink"
+                  : "text-ink-faint hover:bg-ink/[0.05] hover:text-ink"
+              }`}
+            >
+              <Icon name="bellOff" size={14} />
             </button>
           </Tooltip>
         )}

@@ -336,6 +336,7 @@ export class Gateway {
           forwards: true,
           scheduledEvents: true,
           activityThreads: true,
+          threadMutes: true,
           stars: true,
           workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),

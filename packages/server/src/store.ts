@@ -2168,7 +2168,7 @@ export class Store {
   threadFollow(userId: ID, rootId: ID): ThreadFollow | null {
     const row = this.db
       .prepare(
-        `SELECT m.channel_id, f.following, f.last_read_seq, f.revision, f.unread_hold,
+        `SELECT m.channel_id, f.following, f.last_read_seq, f.revision, f.unread_hold, f.muted,
            cm.replies_read_seq
          FROM messages m
          LEFT JOIN thread_follows f ON f.root_id = m.id AND f.user_id = ?
@@ -2182,6 +2182,7 @@ export class Store {
           last_read_seq: number | null;
           revision: number | null;
           unread_hold: number | null;
+          muted: number | null;
           replies_read_seq: number | null;
         }
       | undefined;
@@ -2194,6 +2195,7 @@ export class Store {
       lastSeq: this.threadLastSeq(rootId),
       revision: row.revision ?? 0,
       ...(row.unread_hold === null ? {} : { unreadHold: row.unread_hold }),
+      ...(row.muted === 1 ? { muted: true as const } : {}),
     };
   }
 
@@ -2222,13 +2224,14 @@ export class Store {
     if (!current) return null;
     // Following a thread mid-conversation should not present its whole history
     // as unread, so a new row starts caught up. Unfollowing one leaves what was
-    // read as it was: following is not reading.
+    // read as it was: following is not reading. Following ends a mute.
     this.db
       .prepare(
         `INSERT INTO thread_follows (user_id, root_id, following, last_read_seq, revision)
          VALUES (?, ?, ?, ?, ?)
          ON CONFLICT(user_id, root_id) DO UPDATE SET
            following = excluded.following,
+           muted = CASE WHEN excluded.following = 1 THEN 0 ELSE thread_follows.muted END,
            revision = MAX(thread_follows.revision + 1, excluded.revision)`,
       )
       .run(
@@ -2238,6 +2241,27 @@ export class Store {
         following ? Math.max(this.threadLastSeq(rootId), current.lastReadSeq) : current.lastReadSeq,
         this.nextFollowRevision(),
       );
+    return this.threadFollow(userId, rootId);
+  }
+
+  /**
+   * Mutes a thread for one account, or lifts that. Muting unfollows it and
+   * keeps it unfollowed when this account replies; lifting it leaves it
+   * unfollowed. Neither reads it: the cursor stays where it was.
+   */
+  setThreadMute(userId: ID, rootId: ID, muted: boolean): ThreadFollow | null {
+    const current = this.threadFollow(userId, rootId);
+    if (!current) return null;
+    this.db
+      .prepare(
+        `INSERT INTO thread_follows (user_id, root_id, following, last_read_seq, revision, muted)
+         VALUES (?, ?, 0, ?, ?, ?)
+         ON CONFLICT(user_id, root_id) DO UPDATE SET
+           following = CASE WHEN excluded.muted = 1 THEN 0 ELSE thread_follows.following END,
+           muted = excluded.muted,
+           revision = MAX(thread_follows.revision + 1, excluded.revision)`,
+      )
+      .run(userId, rootId, current.lastReadSeq, this.nextFollowRevision(), muted ? 1 : 0);
     return this.threadFollow(userId, rootId);
   }
 
@@ -2269,7 +2293,8 @@ export class Store {
 
   /**
    * Leaves the root or a reply and everything after it unread. Marking a
-   * thread unread is a statement of intent to come back, so it follows it too.
+   * thread unread is a statement of intent to come back, so it follows it too,
+   * ending a mute.
    * It holds against the channel's cursor where that stands now: a reply also
    * sent to the channel stays unread until the thread is read, or the channel
    * is read past this point.
@@ -2293,6 +2318,7 @@ export class Store {
            WHERE root.id = ?))
          ON CONFLICT(user_id, root_id) DO UPDATE SET
            following = 1,
+           muted = 0,
            last_read_seq = excluded.last_read_seq,
            unread_hold = excluded.unread_hold,
            revision = MAX(thread_follows.revision + 1, excluded.revision)`,
@@ -2305,7 +2331,8 @@ export class Store {
    * Writing in a thread follows it. The author of a reply is caught up by
    * definition; the root's author starts from their own message so the reply
    * that just arrived counts as unread. An account that explicitly unfollowed
-   * keeps that choice unless it is the one replying.
+   * keeps that choice unless it is the one replying; one that muted the thread
+   * keeps it even then, caught up to its own reply.
    */
   autoFollowThread(rootId: ID, replierId: ID, replySeq: number): void {
     const root = this.db
@@ -2321,7 +2348,7 @@ export class Store {
         `INSERT INTO thread_follows (user_id, root_id, following, last_read_seq, revision)
          VALUES (?, ?, 1, ?, ?)
          ON CONFLICT(user_id, root_id) DO UPDATE SET
-           following = 1,
+           following = CASE WHEN thread_follows.muted = 1 THEN 0 ELSE 1 END,
            last_read_seq = MAX(thread_follows.last_read_seq, excluded.last_read_seq),
            revision = MAX(thread_follows.revision + 1, excluded.revision)`,
       )
@@ -2346,7 +2373,7 @@ export class Store {
     const rows = this.db
       .prepare(
         `SELECT f.root_id, m.channel_id, f.following, f.last_read_seq, f.revision, f.unread_hold,
-           MAX(m.seq, COALESCE((
+           f.muted, MAX(m.seq, COALESCE((
              SELECT MAX(r.seq) FROM messages r
              WHERE r.thread_root_id = m.id AND r.deleted_at IS NULL
            ), 0)) AS last_seq
@@ -2365,6 +2392,7 @@ export class Store {
       last_read_seq: number;
       revision: number;
       unread_hold: number | null;
+      muted: number;
       last_seq: number;
     }[];
     return rows.map((row) => ({
@@ -2375,6 +2403,7 @@ export class Store {
       lastSeq: row.last_seq,
       revision: row.revision,
       ...(row.unread_hold === null ? {} : { unreadHold: row.unread_hold }),
+      ...(row.muted === 1 ? { muted: true as const } : {}),
     }));
   }
 

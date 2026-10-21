@@ -71,6 +71,7 @@ export const followedThreadsQuery = savedMessagesQuery.extend({
   unreadOnly: z.enum(["true", "false"]).default("false"),
 });
 export const threadFollowBody = z.object({ following: z.boolean() });
+export const threadMuteBody = z.object({ muted: z.boolean() });
 export const threadReadBody = z.object({ seq: z.number().int().nonnegative() });
 /**
  * The message to leave unread. Everything from it onwards becomes unread, so

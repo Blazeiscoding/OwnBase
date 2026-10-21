@@ -607,6 +607,11 @@ const MIGRATIONS: string[] = [
     UNIQUE (message_id, url)
   );
   `,
+  // v43 — a thread muted by one account (E3): not followed, kept that way when
+  // that account replies, and its replies notify only when addressed to it.
+  `
+  ALTER TABLE thread_follows ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */
