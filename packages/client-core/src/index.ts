@@ -9,6 +9,7 @@ export {
   dueReminderCount,
   isMessageOnScreen,
   notificationBody,
+  readableText,
 } from "./notify.js";
 export type { NotifyDecision, OnScreen } from "./notify.js";
 export { HuddleSession, SCREEN_SHARE_QUALITY, testMicrophone } from "./huddle.js";

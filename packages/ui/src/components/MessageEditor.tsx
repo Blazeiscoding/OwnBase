@@ -14,41 +14,13 @@ import {
 import { Mrkdwn } from "./Mrkdwn.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
 import { useMentionField } from "../lib/useMentionField.js";
-
-/**
- * An unsaved edit, kept with the words it started from so that one picked up
- * after a restart can still tell the message has changed since. An edit kept
- * before that was stored as its text alone, and starts from the message.
- */
-interface EditDraft {
-  text: string;
-  base?: string;
-}
-
-function readEditDraft(value: string | undefined): EditDraft | undefined {
-  if (value === undefined) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "text" in parsed &&
-      "base" in parsed &&
-      typeof parsed.text === "string" &&
-      typeof parsed.base === "string"
-    )
-      return { text: parsed.text, base: parsed.base };
-  } catch {
-    // An edit kept as plain text.
-  }
-  return { text: value };
-}
+import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";
 
 export function MessageEditor({ message, onClose }: { message: Message; onClose: () => void }) {
   const client = useClient();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
-  const draftKey = `${message.channelId}:edit:${message.id}`;
+  const draftKey = editDraftKey(message.channelId, message.id);
   const savedDraft = useWorkspace((s) => s.drafts[draftKey]);
   const [kept] = useState(() => readEditDraft(client.state.drafts[draftKey]));
   const [draft, setDraft] = useState(kept?.text ?? message.text);

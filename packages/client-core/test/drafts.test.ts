@@ -1,5 +1,6 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
+  WorkspaceClient,
   applyDraftChanges,
   isDraftChanges,
   mergeDrafts,
@@ -96,5 +97,68 @@ describe("a draft two windows changed", () => {
   it("accepts a base only of texts or nothing", () => {
     expect(isDraftChanges({ put: {}, remove: [], base: { C1: null, C2: "x" } })).toBe(true);
     expect(isDraftChanges({ put: {}, remove: [], base: { C1: 3 } })).toBe(false);
+  });
+});
+
+/**
+ * When each draft last changed, for the Drafts list's order (E5): stamped as
+ * this window changes one, kept for one unchanged, taken from storage on
+ * restore, and as new as hearing of it for one another window changed.
+ */
+describe("draft times", () => {
+  afterEach(() => vi.useRealTimers());
+  const client = () => new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+
+  it("stamps a draft as it changes, keeps the stamp for the same words, and drops it when cleared", () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const c = client();
+    c.setDraft("C1", "half-written");
+    vi.setSystemTime(2_000);
+    c.setDraft("C2", "another");
+    expect(c.state.draftTimes).toEqual({ C1: 1_000, C2: 2_000 });
+
+    vi.setSystemTime(3_000);
+    const before = c.state;
+    c.setDraft("C1", "half-written");
+    // The same words again are no change at all, so nothing is written either.
+    expect(c.state).toBe(before);
+    c.setDraft("C1", "half-written, now more");
+    expect(c.state.draftTimes.C1).toBe(3_000);
+
+    c.setDraft("C2", "  ");
+    expect(c.state.draftTimes).toEqual({ C1: 3_000 });
+    // Put back as it was, with the time it had.
+    c.setDraft("C2", "another", 2_000);
+    expect(c.state.draftTimes.C2).toBe(2_000);
+    c.destroy();
+  });
+
+  it("takes stored times on restore, and keeps those of drafts changed before it", () => {
+    vi.useFakeTimers({ now: 9_000 });
+    const c = client();
+    c.setDraft("C_TYPED", "typed while storage was loading");
+    c.hydrateDrafts(
+      {
+        C_OLD: "kept by an earlier version",
+        C_KEPT: "kept",
+        C_TYPED: "typed while storage was loading",
+      },
+      { C_KEPT: 4_000, C_TYPED: 1_000, C_GONE: 5_000 },
+    );
+    expect(c.state.draftTimes).toEqual({ C_KEPT: 4_000, C_TYPED: 9_000 });
+    c.destroy();
+  });
+
+  it("dates a draft another window changed from hearing of it, and keeps the rest", () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const c = client();
+    c.setDraft("C1", "mine");
+    c.setDraft("C2", "also mine");
+    vi.setSystemTime(5_000);
+    c.hydrateDrafts({ C1: "mine", C2: "changed elsewhere", C3: "new elsewhere" });
+    expect(c.state.draftTimes).toEqual({ C1: 1_000, C2: 5_000, C3: 5_000 });
+    c.hydrateDrafts({ C1: "mine" });
+    expect(c.state.draftTimes).toEqual({ C1: 1_000 });
+    c.destroy();
   });
 });

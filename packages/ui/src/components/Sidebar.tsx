@@ -3,6 +3,7 @@ import { channelPermissions, type Channel, type ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
 import { channelTitle } from "../lib/format.js";
+import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
@@ -33,6 +34,8 @@ interface Props {
   openPanel?: string;
   /** Messages queued to send later; offered in the account menu. */
   onScheduled?: () => void;
+  /** Every draft on this device (E5), from its row under Saved. */
+  onDrafts?: () => void;
   onActivity: () => void;
   onThreads: () => void;
   onInvite: () => void;
@@ -169,6 +172,7 @@ export function Sidebar(props: Props) {
     return actions;
   }
   const drafts = useWorkspace((s) => s.drafts);
+  const draftCount = useMemo(() => listDrafts(drafts, {}, channels).length, [drafts, channels]);
   const prefs = useWorkspace((s) => s.prefs);
   // An older server keeps no stars, so none is offered there.
   const stars = useWorkspace((s) => s.stars);
@@ -444,6 +448,21 @@ export function Sidebar(props: Props) {
                   open={props.openPanel === "saved"}
                 />
               </li>
+              {/* Shown while there are drafts, or while its panel is open: an
+                empty row would cost a channel's place beside Getting started
+                (UX-20). The palette and the address reach the panel always. */}
+              {props.onDrafts && (draftCount > 0 || props.openPanel === "drafts") && (
+                <li>
+                  <NavRow
+                    icon="edit"
+                    label="Drafts"
+                    onClick={props.onDrafts}
+                    open={props.openPanel === "drafts"}
+                  >
+                    <Badge tone="quiet" label="Unsent drafts" count={draftCount} />
+                  </NavRow>
+                </li>
+              )}
             </ul>
 
             {starred.length > 0 && (

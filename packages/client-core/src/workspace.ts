@@ -596,6 +596,11 @@ export interface WorkspaceState {
   threadFollows: Record<ID, ThreadFollow>;
   /** channelId -> unsent composer text, restored when you come back. */
   drafts: Record<ID, string>;
+  /**
+   * Draft key -> when its text last changed, in epoch ms, as far as this
+   * device knows. A draft kept by an earlier version has none.
+   */
+  draftTimes: Record<string, number>;
   /** channelId -> who is in that channel's huddle right now. */
   huddles: Record<ID, ID[]>;
   /** Private replies per channel, newest last, within EPHEMERAL_LIMITS. */
@@ -656,6 +661,7 @@ const initialState: WorkspaceState = {
   threadFollows: {},
   mentionCounts: {},
   drafts: {},
+  draftTimes: {},
   huddles: {},
   huddle: null,
   huddleEnded: null,
@@ -3456,18 +3462,40 @@ export class WorkspaceClient {
     if (this.ws?.readyState === WebSocket.OPEN) this.ws.send(JSON.stringify(msg));
   }
 
-  setDraft(channelId: ID, text: string): void {
+  /** `changedAt` is when the words were written: now, or earlier for a draft put back. */
+  setDraft(channelId: ID, text: string, changedAt = Date.now()): void {
     this.store.setState((s) => {
       const drafts = { ...s.drafts };
-      if (text.trim()) drafts[channelId] = text;
-      else delete drafts[channelId];
-      return { drafts };
+      const draftTimes = { ...s.draftTimes };
+      if (text.trim()) {
+        // The same words again change nothing, and say nothing new about when.
+        if (drafts[channelId] === text) return s;
+        drafts[channelId] = text;
+        draftTimes[channelId] = changedAt;
+      } else {
+        delete drafts[channelId];
+        delete draftTimes[channelId];
+      }
+      return { drafts, draftTimes };
     });
   }
 
-  /** Seeds drafts restored from disk at startup. */
-  hydrateDrafts(drafts: Record<ID, string>): void {
-    this.store.setState({ drafts });
+  /**
+   * Replaces the drafts with what is stored: at startup, with the times
+   * stored beside them (`stored`), or as another window changed them. A draft
+   * whose text is unchanged keeps its time; one restored takes its stored
+   * time, if any; one another window changed is as new as hearing of it.
+   */
+  hydrateDrafts(drafts: Record<ID, string>, stored?: Record<string, number>): void {
+    this.store.setState((s) => {
+      const draftTimes: Record<string, number> = {};
+      const now = Date.now();
+      for (const [key, text] of Object.entries(drafts)) {
+        const time = s.drafts[key] === text ? s.draftTimes[key] : stored ? stored[key] : now;
+        if (time !== undefined) draftTimes[key] = time;
+      }
+      return { drafts, draftTimes };
+    });
   }
 
   /**
