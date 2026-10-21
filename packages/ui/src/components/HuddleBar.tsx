@@ -29,6 +29,8 @@ interface Person {
   connecting: boolean;
   /** Connecting has taken long enough to know something is wrong. */
   stuck: boolean;
+  /** Sharing a screen with its sound, whose volume is yours to set as well. */
+  screenSound?: boolean;
 }
 
 /** How many faces the bar shows before the rest are counted. */
@@ -143,6 +145,7 @@ function HuddlePeople({ people }: { people: Person[] }) {
                   {p.peerId && (
                     <div className="pl-7">
                       <PersonVolume userId={p.peerId} name={p.name} />
+                      {p.screenSound && <PersonVolume userId={p.peerId} name={p.name} screen />}
                     </div>
                   )}
                 </li>
@@ -210,6 +213,7 @@ export function HuddleBar({
       mutedForYou: volumes[p.userId]?.muted ?? false,
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
+      screenSound: !!p.screenSoundStream,
     })),
   ];
   const sharer = huddle.peers.find((p) => p.screenStream);

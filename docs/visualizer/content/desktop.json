@@ -13,7 +13,7 @@
         "Discovery lists each announcement on up, txt-update and srv-update (a workspace announcing again under the same name, as when its icon changes) and drops it on down; it passes on an icon version only when isIconVersion accepts it.",
         "Owns discovery, the embedded server adapter, native dialogs/downloads/media, settings, worker jobs, network/wake refresh, renderer recovery and coordinated quit.",
         "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12).",
-        "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker.",
+        "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker. screen:choose also carries the picker's Share sound, which the handler passes on only where screenSoundSupported and the page asked for audio.",
         "hosting:icon answers a listed hosted workspace's icon as a data URL, or null (UX-60).",
         "Reads the renderer's appearance setting at startup and makes the window with windowColours' background and title bar overlay. storage:set of that setting, and nativeTheme's updated event, paint the window again, so a window in White is not framed in Onyx and its buttons are drawn on White."
       ],
@@ -193,12 +193,13 @@
     },
     {
       "path": "apps/desktop/src/main/screenShare.ts",
-      "plain": "Lists the windows and screens a huddle can share, with a picture of each, and shares the one you pick in the app's own picker.",
+      "plain": "Lists the windows and screens a huddle can share, with a picture of each, and shares the one you pick in the app's own picker, with your computer's sound where Windows allows it.",
       "summary": "Lists shareable sources for the in-app picker and holds the choice for the getDisplayMedia request after it.",
       "details": [
         "SourceList.full takes a picture of every screen and window (desktopCapturer, 480x270, with app icons) and leaves out windows whose picture is empty or black to the last pixel: what Windows gives for a window it cannot capture, such as those tray apps keep open out of sight (Raycast's) or a game overlay (NVIDIA's). Minimized windows are not listed by the system at all. Concurrent asks share one capture.",
         "Each window the system cannot capture costs about a second, so a full list took 3.4 s on a machine with three of them against 0.4 s for names alone. SourceList.quick answers a picker opening again from the last full list, with its pictures, less what has closed since and with current titles; a window opened since waits for the next full list.",
-        "findSource checks the chosen id against a fresh list of names and says, in the picker's words, when that window has closed or that screen is gone. ScreenChoice holds the choice for one getDisplayMedia request within 15 s; the main process's display-media handler shares it, or nothing, and no system picker is shown."
+        "findSource checks the chosen id against a fresh list of names and says, in the picker's words, when that window has closed or that screen is gone. ScreenChoice holds the choice for one getDisplayMedia request within 15 s; the main process's display-media handler shares it, or nothing, and no system picker is shown.",
+        "screenSoundSupported says whether this system can share a screen's sound with the app's own left out: Windows 10 version 2004 (build 19041) and later. macOS loopback needs a permission the app does not ask for, and Linux has none. ScreenChoice keeps whether the picker allowed the sound, and take answers with audio: loopback only when the page asked for audio too; asked with restrictOwnAudio, as the huddle does, Electron records the speakers less this app's sound (Chromium's loopbackWithoutChrome)."
       ],
       "concepts": ["screen sharing", "in-app picker", "consent"]
     },
@@ -240,7 +241,8 @@
         "contextBridge exposes named storage, discovery, hosting, download, deep-link, route and close-handshake methods rather than giving the renderer Node APIs.",
         "Commands use ipcRenderer.invoke and event subscriptions return disposal functions that remove their listeners.",
         "The main-side boundary still validates callers and payloads; a typed bridge alone is not authorization.",
-        "hostingIcon asks the main process for a hosted workspace's icon (UX-60)."
+        "hostingIcon asks the main process for a hosted workspace's icon (UX-60).",
+        "screenSound tells the picker whether a share can send its sound here, from the same screenSoundSupported the main process uses (screenShare.ts has no imports, so it bundles into the preload), and chooseScreen passes the choice with the source."
       ],
       "concepts": ["preload", "context isolation", "IPC contract", "teardown"]
     },
@@ -252,7 +254,8 @@
         "Maps native storage, atomic draft/outbox/record merges, hosting and discovery into the interface also used by the browser.",
         "Converts Electron's channel-prefixed rejection into the actionable message written by main.",
         "Owns close-preparation delivery and route checkpoint subscriptions; followPlace restores the remembered history before shared App mounts.",
-        "hosting.icon passes a hosted workspace's icon through from hostingIcon (UX-60)."
+        "hosting.icon passes a hosted workspace's icon through from hostingIcon (UX-60).",
+        "screenShare.sound and choose's sound option carry the picker's Share sound to chooseScreen."
       ],
       "concepts": ["platform adapter", "shared UI", "IPC", "route restore"]
     },

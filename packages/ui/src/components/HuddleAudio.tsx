@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { HuddlePeer } from "@slackoss/client-core";
-import type { ID } from "@slackoss/protocol";
 import { useSpeaker } from "../lib/mediaDevices.js";
-import { gainOf, type PersonVolume } from "../lib/callVolumes.js";
+import { gainOf, screenSoundKey, type PersonVolume } from "../lib/callVolumes.js";
 
 type PlaybackFailure = "gesture" | "failed";
 
@@ -12,9 +11,10 @@ function playbackFailure(error: unknown): PlaybackFailure | null {
   return error instanceof DOMException && error.name === "NotAllowedError" ? "gesture" : "failed";
 }
 
+/** What is played: someone's voice by their id, their shared screen's sound by `screenSoundKey`. */
 type PlaybackCallbacks = {
-  register: (id: ID, retry: (() => void) | null) => void;
-  report: (id: ID, failure: PlaybackFailure | null) => void;
+  register: (id: string, retry: (() => void) | null) => void;
+  report: (id: string, failure: PlaybackFailure | null) => void;
 };
 
 /** Someone's voice made louder than it arrives, and the graph that does it. */
@@ -77,21 +77,28 @@ async function running(context: AudioContext): Promise<boolean> {
 }
 
 /**
- * Attach each microphone stream even when the call has no video, as loud as
- * you chose for that person: `gain` times as loud as they arrive.
+ * Attach each microphone stream even when the call has no video, and a
+ * shared screen's sound beside it, each as loud as you chose: `gain` times as
+ * loud as it arrives.
  */
 function PeerAudio({
-  peer,
+  id,
+  stream,
   speakerId,
   gain,
   register,
   report,
-}: { peer: HuddlePeer; speakerId: string; gain: number } & PlaybackCallbacks) {
+}: {
+  id: string;
+  stream: MediaStream | null;
+  speakerId: string;
+  gain: number;
+} & PlaybackCallbacks) {
   const ref = useRef<HTMLAudioElement>(null);
   const keeper = useRef<HTMLAudioElement>(null);
   useSpeaker(ref, speakerId);
-  const boost = useBoost(gain > 1 ? peer.audioStream : null, gain);
-  const playing = boost?.stream ?? peer.audioStream;
+  const boost = useBoost(gain > 1 ? stream : null, gain);
+  const playing = boost?.stream ?? stream;
   useEffect(() => {
     // Up to as loud as they arrive, the element's own volume does it.
     if (ref.current) ref.current.volume = boost ? 1 : Math.min(1, Math.max(0, gain));
@@ -116,7 +123,7 @@ function PeerAudio({
     const play = () => {
       const ticket = ++attempt;
       const settled = (failure: PlaybackFailure | null) => {
-        if (active && ticket === attempt) report(peer.userId, failure);
+        if (active && ticket === attempt) report(id, failure);
       };
       try {
         // The retry calls play directly from the button's user gesture, and
@@ -130,15 +137,15 @@ function PeerAudio({
         settled(playbackFailure(error));
       }
     };
-    register(peer.userId, play);
+    register(id, play);
     play();
     return () => {
       active = false;
-      register(peer.userId, null);
-      report(peer.userId, null);
+      register(id, null);
+      report(id, null);
       element.srcObject = null;
     };
-  }, [playing, boost, peer.userId, register, report]);
+  }, [playing, boost, id, register, report]);
   return (
     <>
       <audio ref={ref} autoPlay hidden />
@@ -156,11 +163,14 @@ export function HuddleAudio({
   peers: HuddlePeer[];
   /** The speaker chosen in Voice & video settings; "" for the system's default. */
   speakerId?: string;
-  /** How loud you chose each person to be; anyone missing is as they arrive. */
-  volumes?: Record<ID, PersonVolume>;
+  /**
+   * How loud you chose each person, and each one's shared screen, to be;
+   * anything missing is as it arrives.
+   */
+  volumes?: Record<string, PersonVolume>;
 }) {
-  const retries = useRef(new Map<ID, () => void>());
-  const [blocked, setBlocked] = useState<Map<ID, PlaybackFailure>>(() => new Map());
+  const retries = useRef(new Map<string, () => void>());
+  const [blocked, setBlocked] = useState<Map<string, PlaybackFailure>>(() => new Map());
   const register = useCallback<PlaybackCallbacks["register"]>((id, retry) => {
     if (retry) retries.current.set(id, retry);
     else retries.current.delete(id);
@@ -198,16 +208,33 @@ export function HuddleAudio({
   }, [blocked, heldBack]);
   return (
     <>
-      {peers.map((peer) => (
-        <PeerAudio
-          key={peer.userId}
-          peer={peer}
-          speakerId={speakerId}
-          gain={gainOf(volumes[peer.userId])}
-          register={register}
-          report={report}
-        />
-      ))}
+      {peers.flatMap((peer) => {
+        const screen = screenSoundKey(peer.userId);
+        return [
+          <PeerAudio
+            key={peer.userId}
+            id={peer.userId}
+            stream={peer.audioStream}
+            speakerId={speakerId}
+            gain={gainOf(volumes[peer.userId])}
+            register={register}
+            report={report}
+          />,
+          // Their share's sound, apart from their voice: its own volume, and
+          // muting either leaves the other.
+          peer.screenSoundStream && (
+            <PeerAudio
+              key={screen}
+              id={screen}
+              stream={peer.screenSoundStream}
+              speakerId={speakerId}
+              gain={gainOf(volumes[screen])}
+              register={register}
+              report={report}
+            />
+          ),
+        ];
+      })}
       {blocked.size > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span role={heldBack ? "alert" : "status"} className="text-xs text-ink-dim">
