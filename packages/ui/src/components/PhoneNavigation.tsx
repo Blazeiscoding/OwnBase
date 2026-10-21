@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
 import type { ID } from "@slackoss/protocol";
-import { unreadThreadCount } from "@slackoss/client-core";
+import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { useOnScreenKeyboard } from "../lib/onScreenKeyboard.js";
@@ -123,6 +123,13 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
     ),
   );
   const unreadReplies = useWorkspace((s) => unreadThreadCount(s.threadFollows) > 0);
+  const dueReminders = useWorkspace(dueReminderCount);
+  const waitingInActivity = [
+    mentions > 0 && `${mentions} ${mentions === 1 ? "mention" : "mentions"}`,
+    dueReminders > 0 && `${dueReminders} ${dueReminders === 1 ? "reminder" : "reminders"} due`,
+  ]
+    .filter(Boolean)
+    .join(", ");
   const here =
     props.openPanel === "activity" ? "activity" : props.openPanel === "dms" ? "dms" : "home";
 
@@ -162,14 +169,11 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
           label="Activity"
           current={here === "activity"}
           onClick={props.onActivity}
-          count={mentions}
-          dot={mentions === 0 && unreadReplies}
+          count={mentions + dueReminders}
+          dot={mentions + dueReminders === 0 && unreadReplies}
           waiting={
-            mentions > 0
-              ? `${mentions} ${mentions === 1 ? "mention" : "mentions"}`
-              : unreadReplies
-                ? "Unread replies in threads you follow"
-                : undefined
+            waitingInActivity ||
+            (unreadReplies ? "Unread replies in threads you follow" : undefined)
           }
         />
         <li className="flex min-w-0 flex-1">

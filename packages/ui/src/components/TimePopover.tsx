@@ -1,16 +1,22 @@
 import { useId, useRef, useState, type RefObject } from "react";
-import { formatScheduleShort, localDateTime, schedulePresets } from "../lib/schedule.js";
+import { localDateTime, type SchedulePreset } from "../lib/schedule.js";
 import { Icon } from "./Icon.js";
 import { Popover } from "./Popover.js";
 
 /**
- * Send later's choices: a few times from now, or any date and time. Chosen
- * now and then, so it loads when the composer's clock is first pressed.
+ * A time to do something at: a few from now, or any date and time. Send later
+ * and reminders choose with it. Chosen now and then, so it loads when first
+ * opened.
  */
-export function SendLaterPopover(props: {
+export function TimePopover(props: {
   anchor: RefObject<HTMLElement | null>;
   onClose: () => void;
   onPick: (at: Date) => void;
+  /** Names the popover and heads its list, such as "Send later". */
+  label: string;
+  presets: SchedulePreset[];
+  /** What the button under the field says, for the time chosen there or none yet. */
+  submitLabel: (at: Date | null) => string;
 }) {
   const [customTime, setCustomTime] = useState("");
   /** What is wrong with the chosen time, said under it once Schedule is pressed. */
@@ -18,10 +24,10 @@ export function SendLaterPopover(props: {
   const field = useRef<HTMLInputElement>(null);
   const errorId = useId();
   return (
-    <Popover label="Send later" anchor={props.anchor} onClose={props.onClose} width={260}>
-      <div className="px-3 pb-1 pt-2.5 text-[12px] font-medium text-ink-faint">Send later</div>
+    <Popover label={props.label} anchor={props.anchor} onClose={props.onClose} width={260}>
+      <div className="px-3 pb-1 pt-2.5 text-[12px] font-medium text-ink-faint">{props.label}</div>
       <ul className="px-1">
-        {schedulePresets().map((p) => (
+        {props.presets.map((p) => (
           <li key={p.label}>
             <button
               onClick={() => props.onPick(p.at)}
@@ -36,7 +42,7 @@ export function SendLaterPopover(props: {
         ))}
       </ul>
       <div className="mt-1 border-t border-edge p-3">
-        {/* Schedule always answers: with no time, or one already past, it says so under the field. */}
+        {/* The button always answers: with no time, or one already past, it says so under the field. */}
         <form
           noValidate
           className="space-y-2"
@@ -82,9 +88,11 @@ export function SendLaterPopover(props: {
             type="submit"
             className="btn-shape h-8 w-full truncate bg-copper px-2 text-[13px] font-semibold text-ground transition-colors hover:bg-copper-deep"
           >
-            {customTime && !Number.isNaN(new Date(customTime).getTime())
-              ? `Schedule for ${formatScheduleShort(new Date(customTime).getTime())}`
-              : "Schedule message"}
+            {props.submitLabel(
+              customTime && !Number.isNaN(new Date(customTime).getTime())
+                ? new Date(customTime)
+                : null,
+            )}
           </button>
         </form>
       </div>

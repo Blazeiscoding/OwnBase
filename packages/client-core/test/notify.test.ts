@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { Channel, Message, User } from "@slackoss/protocol";
-import { decideNotification, isMessageOnScreen, notificationBody } from "../src/notify.js";
+import {
+  decideNotification,
+  decideReminderNotification,
+  dueReminderCount,
+  isMessageOnScreen,
+  notificationBody,
+} from "../src/notify.js";
 import type { WorkspaceState } from "../src/index.js";
 
 const me: User = {
@@ -59,6 +65,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     scheduledEvents: true,
     activityThreads: true,
     threadMutes: true,
+    reminders: {},
     stars: true,
     workspaceSettings: true,
     accessPolicy: "account_required",
@@ -98,6 +105,38 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     ...over,
   };
 }
+
+describe("a reminder come due", () => {
+  it("notifies in a muted conversation, but not during Do Not Disturb", () => {
+    const now = 1_000_000;
+    const muted = state({ prefs: { C1: { notifyLevel: "nothing", muted: true } } });
+    expect(decideReminderNotification(muted, now)).toEqual({ notify: true, reason: "reminder" });
+    const snoozed = state({ self: { ...me, dndUntil: now + 60_000 } });
+    expect(decideReminderNotification(snoozed, now)).toEqual({ notify: false, reason: "dnd" });
+    const over = state({ self: { ...me, dndUntil: now - 1 } });
+    expect(decideReminderNotification(over, now).notify).toBe(true);
+  });
+
+  it("counts those come due in conversations still held", () => {
+    const reminder = (messageId: string, channelId: string, dueAt: number | null) => ({
+      id: `R_${messageId}`,
+      messageId,
+      channelId,
+      threadRootId: null,
+      remindAt: 1,
+      dueAt,
+    });
+    const s = state({
+      reminders: {
+        M1: reminder("M1", "C1", 5),
+        M2: reminder("M2", "C1", null),
+        M3: reminder("M3", "C_GONE", 5),
+      },
+    });
+    expect(dueReminderCount(s)).toBe(1);
+    expect(dueReminderCount(state({ reminders: null }))).toBe(0);
+  });
+});
 
 describe("decideNotification", () => {
   it("stays quiet for your own messages", () => {

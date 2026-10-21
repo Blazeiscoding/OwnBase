@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { channelPermissions, type Channel, type ID } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { unreadThreadCount } from "@slackoss/client-core";
+import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
 import { channelTitle } from "../lib/format.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
@@ -122,6 +122,7 @@ export interface OtherWorkspace {
 
 export function Sidebar(props: Props) {
   const unreadThreads = useWorkspace((s) => unreadThreadCount(s.threadFollows));
+  const dueReminders = useWorkspace(dueReminderCount);
   const friendRequests = useWorkspace(
     (s) => s.friends.filter((f) => f.status === "incoming").length,
   );
@@ -409,8 +410,17 @@ export function Sidebar(props: Props) {
                   onClick={props.onActivity}
                   open={props.openPanel === "activity"}
                 >
-                  {totalMentions > 0 ? (
-                    <Badge label="Unread mentions" count={totalMentions} />
+                  {totalMentions + dueReminders > 0 ? (
+                    <Badge
+                      label={
+                        dueReminders === 0
+                          ? "Unread mentions"
+                          : totalMentions === 0
+                            ? "Due reminders"
+                            : "Unread mentions and due reminders"
+                      }
+                      count={totalMentions + dueReminders}
+                    />
                   ) : (
                     <Badge tone="quiet" label="Unread conversations" count={unreadConversations} />
                   )}

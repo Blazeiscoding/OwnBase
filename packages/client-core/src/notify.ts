@@ -80,6 +80,27 @@ export function decideNotification(
 }
 
 /**
+ * Whether a reminder that came due should raise a notification. The person
+ * asked for it, so a muted or quiet conversation does not hold it back; Do Not
+ * Disturb does, and it waits in Activity.
+ */
+export function decideReminderNotification(
+  state: WorkspaceState,
+  now = Date.now(),
+): { notify: false; reason: "dnd" } | { notify: true; reason: "reminder" } {
+  const dndUntil = state.self?.dndUntil ?? null;
+  if (dndUntil !== null && dndUntil > now) return { notify: false, reason: "dnd" };
+  return { notify: true, reason: "reminder" };
+}
+
+/** Reminders come due, in conversations this client still has. */
+export function dueReminderCount(state: Pick<WorkspaceState, "reminders" | "channels">): number {
+  return Object.values(state.reminders ?? {}).filter(
+    (reminder) => reminder.dueAt !== null && reminder.channelId in state.channels,
+  ).length;
+}
+
+/**
  * What the person has on screen, as far as the app can tell. A conversation
  * can be selected without being seen: the window can be in the background or
  * minimised, a phone's drawer or side panel can cover the timeline, and a

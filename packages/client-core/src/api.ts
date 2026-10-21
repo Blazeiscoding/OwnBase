@@ -21,6 +21,8 @@ import type {
   SessionInfo,
   SlashCommand,
   ThreadFollow,
+  Reminder,
+  ReminderItem,
   FollowedThread,
   EventSubscription,
   EditScheduledBody,
@@ -627,6 +629,18 @@ export class Api {
 
   setThreadMute(rootId: ID, muted: boolean): Promise<{ state: ThreadFollow }> {
     return this.request("PUT", `/api/messages/${rootId}/mute`, { muted });
+  }
+
+  setReminder(messageId: ID, at: number): Promise<{ reminder: Reminder }> {
+    return this.request("PUT", `/api/messages/${messageId}/reminder`, { at });
+  }
+
+  cancelReminder(messageId: ID): Promise<{ ok: true }> {
+    return this.request("DELETE", `/api/messages/${messageId}/reminder`);
+  }
+
+  listReminders(signal?: AbortSignal): Promise<{ reminders: ReminderItem[] }> {
+    return this.request("GET", "/api/reminders", undefined, { signal });
   }
 
   markThreadRead(rootId: ID, seq: number): Promise<{ state: ThreadFollow }> {

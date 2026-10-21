@@ -24,6 +24,7 @@ import {
   threadFollowBody,
   threadMuteBody,
   threadReadBody,
+  reminderBody,
   adminUserBody,
   createAppBody,
   createCommandBody,
@@ -139,6 +140,17 @@ export const SCHEDULED_LIMITS = {
   heldRetryMs: 60_000,
 };
 
+/**
+ * Bounds on reminders (E4): how many an account may keep, how far ahead one
+ * may be set, and how many come due in one pass of the timer before it lets
+ * the loop go and takes the rest on its next turn.
+ */
+export const REMINDER_LIMITS = {
+  perAccount: 200,
+  maxAheadMs: 5 * 366 * 24 * 60 * 60_000,
+  batch: 100,
+};
+
 /** Delivered queue rows are kept this long as proof of completion. */
 const SCHEDULED_RETENTION_MS = 7 * 24 * 3600_000;
 
@@ -225,6 +237,9 @@ export const GUEST_ROUTES = new Set([
   "PATCH /api/channels/:id/prefs",
   "PUT /api/messages/:id/follow",
   "PUT /api/messages/:id/mute",
+  "PUT /api/messages/:id/reminder",
+  "DELETE /api/messages/:id/reminder",
+  "GET /api/reminders",
   "POST /api/messages/:id/thread/read",
   "POST /api/messages/:id/thread/unread",
   "GET /api/threads/followed",
@@ -324,6 +339,8 @@ export interface ServerOptions {
   rateLimits?: Partial<Limits> | false;
   /** Overrides for the scheduled queue's bounds; see `SCHEDULED_LIMITS`. */
   scheduledLimits?: Partial<typeof SCHEDULED_LIMITS>;
+  /** Overrides for reminders' bounds; see `REMINDER_LIMITS`. */
+  reminderLimits?: Partial<typeof REMINDER_LIMITS>;
   /**
    * Copy an existing workspace before upgrading its schema. On by default; see
    * `OpenDbOptions.backupBeforeUpgrade` for when turning it off is reasonable.
@@ -674,6 +691,7 @@ async function startWorkspaceServer(
       ? null
       : new RateLimiter({ ...DEFAULT_LIMITS, ...(opts.rateLimits ?? {}) });
   const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
+  const reminderLimits = { ...REMINDER_LIMITS, ...opts.reminderLimits };
   let trustLoopbackProxy = opts.trustedClientProxy === "loopback";
 
   /** The address a request came from, as the limiter keys on it. */
@@ -936,6 +954,14 @@ async function startWorkspaceServer(
       });
     }
     if (recount.size > 0) afterCommitted("send mention counts", () => pushMentionCounts(recount));
+    for (const { envelope } of events) {
+      const event = envelope.event;
+      if (event.type !== "message.deleted") continue;
+      afterCommitted("drop a deleted message's reminders", () => {
+        for (const userId of store.dropMessageReminders(event.messageId))
+          gateway.sendToUser(userId, { type: "reminder.removed", messageId: event.messageId });
+      });
+    }
   };
   /** Commit synchronous state and its event log before exposing any side effects. */
   const mutate = <T>(
@@ -4752,6 +4778,43 @@ async function startWorkspaceServer(
     return { state };
   });
 
+  app.put<{ Params: { id: string } }>("/api/messages/:id/reminder", async (req, reply) => {
+    const me = requireUser(req);
+    const message = requireVisibleMessage(req.params.id, me);
+    const { at } = reminderBody.parse(req.body ?? {});
+    const now = Date.now();
+    if (at <= now) throw new HttpError(400, "reminder_in_past", "Choose a time in the future.");
+    if (at > now + reminderLimits.maxAheadMs) {
+      throw new HttpError(400, "reminder_too_far", "Choose a time within five years.");
+    }
+    const existing = store.getReminder(me.id, message.id);
+    if (!existing && store.countReminders(me.id) >= reminderLimits.perAccount) {
+      throw new HttpError(
+        409,
+        "reminder_limit",
+        `You already have ${reminderLimits.perAccount} reminders. Finish or cancel some before setting more.`,
+      );
+    }
+    const reminder = store.setReminder(me.id, message.id, at);
+    gateway.sendToUser(me.id, { type: "reminder", reminder });
+    armReminders();
+    return reply.status(existing ? 200 : 201).send({ reminder });
+  });
+
+  app.delete<{ Params: { id: string } }>("/api/messages/:id/reminder", async (req) => {
+    const me = requireUser(req);
+    // Done or cancelled, whatever has become of the message since.
+    if (!store.deleteReminder(me.id, req.params.id)) throw new HttpError(404, "not_found");
+    gateway.sendToUser(me.id, { type: "reminder.removed", messageId: req.params.id });
+    armReminders();
+    return { ok: true };
+  });
+
+  app.get("/api/reminders", async (req) => {
+    const me = requireUser(req);
+    return { reminders: store.listReminders(me.id) };
+  });
+
   app.post<{ Params: { id: string } }>("/api/messages/:id/thread/read", async (req) => {
     const me = requireUser(req);
     const message = requireVisibleMessage(req.params.id, me);
@@ -5203,6 +5266,52 @@ async function startWorkspaceServer(
   // Statuses that ended while the server was stopped clear as it starts.
   armStatusExpiry();
 
+  /**
+   * Reminders (E4) come due on one timer set for the soonest, and on starting,
+   * so one due while the server was stopped comes due then. One whose message
+   * is gone, or whose account can no longer read it or is deactivated, is
+   * dropped rather than delivered. An isolated copy brings none due.
+   */
+  let reminderTimer: ReturnType<typeof setTimeout> | null = null;
+  function bringRemindersDue() {
+    reminderTimer = null;
+    if (closing) return;
+    maintain("reminders", () => {
+      const now = Date.now();
+      for (const due of store.dueReminders(now, reminderLimits.batch)) {
+        const message = store.getMessage(due.messageId);
+        const user = store.getUser(due.userId);
+        if (
+          !message ||
+          !user ||
+          user.deactivated ||
+          !store.canAccess(message.channelId, due.userId)
+        ) {
+          store.deleteReminder(due.userId, due.messageId);
+          gateway.sendToUser(due.userId, { type: "reminder.removed", messageId: due.messageId });
+          continue;
+        }
+        const reminder = store.markReminderDue(due.userId, due.messageId, now);
+        if (reminder) gateway.sendToUser(due.userId, { type: "reminder", reminder, message });
+      }
+    });
+    armReminders();
+  }
+  /** Sets the timer for the soonest waiting reminder; one already due runs at once. */
+  function armReminders() {
+    if (reminderTimer) clearTimeout(reminderTimer);
+    reminderTimer = null;
+    if (closing || opts.isolated) return;
+    const next = store.nextReminderAt();
+    if (next === null) return;
+    reminderTimer = setTimeout(
+      bringRemindersDue,
+      Math.min(Math.max(0, next - Date.now()), 2_147_483_647),
+    );
+    reminderTimer.unref();
+  }
+  armReminders();
+
   let stopping: Promise<void> | null = null;
   // The stages of stopping that have finished. A stop that fails part-way
   // can be asked again, and the next try picks up at the first stage not yet
@@ -5282,6 +5391,7 @@ async function startWorkspaceServer(
         clearInterval(pruneTimer);
         clearInterval(loopDelayTimer);
         if (statusExpiry) clearTimeout(statusExpiry);
+        if (reminderTimer) clearTimeout(reminderTimer);
         loopDelay.disable();
         mdnsHandle?.stop();
         // Before waiting on anything, so whatever is waiting on an app hears
