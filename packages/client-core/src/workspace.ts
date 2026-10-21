@@ -499,6 +499,8 @@ export interface WorkspaceState {
   scheduledEvents: boolean;
   /** The server lists unread replies in followed threads as Activity's own mode. */
   activityThreads: boolean;
+  /** The server mutes a thread for one account; an older one refuses it, so it is not offered. */
+  threadMutes: boolean;
   /**
    * The server keeps a star per conversation (`ChannelPrefs.starred`). An
    * older one would drop a star without saying so, so none is offered there.
@@ -617,6 +619,7 @@ const initialState: WorkspaceState = {
   forwards: false,
   scheduledEvents: false,
   activityThreads: false,
+  threadMutes: false,
   stars: false,
   workspaceSettings: false,
   accessPolicy: null,
@@ -1030,6 +1033,7 @@ export class WorkspaceClient {
       forwards: snap.forwards === true,
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
+      threadMutes: snap.threadMutes === true,
       stars: snap.stars === true,
       workspaceSettings: snap.workspaceSettings === true,
       accessPolicy: snap.accessPolicy ?? null,
@@ -2782,6 +2786,29 @@ export class WorkspaceClient {
   }
 
   /**
+   * Optimistic mute toggle for a thread. Muting unfollows it, and lifting a
+   * mute leaves it unfollowed; neither reads it.
+   */
+  setThreadMute(rootId: ID, muted: boolean): void {
+    const before = this.state.threadFollows[rootId];
+    if ((before?.muted === true) === muted) return;
+    const channelId = before?.channelId ?? this.threadRoot(rootId)?.channelId;
+    if (!channelId) return;
+    this.writeThreadFollow(
+      {
+        rootId,
+        channelId,
+        following: muted ? false : (before?.following ?? false),
+        lastReadSeq: before?.lastReadSeq ?? this.state.repliesRead?.[channelId] ?? 0,
+        lastSeq: Math.max(before?.lastSeq ?? 0, this.threadTailSeq(rootId)),
+        revision: (before?.revision ?? 0) + 1,
+        ...(muted ? { muted: true as const } : {}),
+      },
+      () => this.inFollowOrder(rootId, () => this.api.setThreadMute(rootId, muted)),
+    );
+  }
+
+  /**
    * Shows a thread's new state at once, then the server's. If the server
    * refuses, this puts back exactly what was there, including "no row at all",
    * but only while nothing has replaced this state since: a later read, follow
@@ -2857,6 +2884,8 @@ export class WorkspaceClient {
         lastReadSeq: seq,
         lastSeq: Math.max(before?.lastSeq ?? 0, seq),
         revision: (before?.revision ?? 0) + 1,
+        // Reading a muted thread leaves it muted.
+        ...(before?.muted ? { muted: true as const } : {}),
       },
       () => this.api.markThreadRead(rootId, seq),
     );

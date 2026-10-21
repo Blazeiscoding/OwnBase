@@ -90,6 +90,8 @@ export const MessageItem = memo(function MessageItem({
   const [forwarding, setForwarding] = useState<ForwardSource | null>(null);
   // Offered only where the server forwards; an older one would drop the card.
   const canForward = useWorkspace((s) => s.forwards);
+  const canMute = useWorkspace((s) => s.threadMutes);
+  const threadMuted = useWorkspace((s) => s.threadFollows[message.id]?.muted === true);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   // The toolbar shows on hover; while its menu is open it stays, so the menu
@@ -249,6 +251,19 @@ export const MessageItem = memo(function MessageItem({
     icon: "markUnread",
     onSelect: markUnread,
   };
+  // A thread is muted from its first message in the channel once it has
+  // replies, and unmuted there whatever it has; the thread's own header has both.
+  const muteItems: MenuItem[] =
+    canMute && !inThread && (message.replyCount > 0 || threadMuted)
+      ? [
+          {
+            id: "mute",
+            label: threadMuted ? "Unmute thread" : "Mute thread",
+            icon: "bellOff",
+            onSelect: () => client.setThreadMute(message.id, !threadMuted),
+          },
+        ]
+      : [];
   // Pinning changes the channel for everyone, which a guest may not.
   const pinItems: MenuItem[] =
     selfRole === "guest" ? [] : [{ id: "pin", label: pinLabel, icon: "pin", onSelect: togglePin }];
@@ -303,6 +318,7 @@ export const MessageItem = memo(function MessageItem({
     ...forwardItems,
     { id: "save", label: saveLabel, icon: "bookmark", onSelect: toggleSaved },
     unreadItem,
+    ...muteItems,
     ...pinItems,
     ...(mine
       ? [
@@ -321,6 +337,7 @@ export const MessageItem = memo(function MessageItem({
     copyItem,
     ...forwardItems,
     unreadItem,
+    ...muteItems,
     ...pinItems,
     ...deleteItems,
   ];
@@ -548,10 +565,16 @@ export const MessageItem = memo(function MessageItem({
           {!inThread && message.replyCount > 0 && (
             <button
               onClick={() => onOpenThread?.(message.id)}
+              aria-label={
+                threadMuted
+                  ? `${message.replyCount} ${message.replyCount === 1 ? "reply" : "replies"}, muted`
+                  : undefined
+              }
               className="-ml-1.5 mt-1 flex items-center gap-1.5 rounded-lg px-1.5 py-1 text-[13px] font-medium text-copper transition-colors hover:bg-ink/[0.04]"
             >
               <Icon name="thread" size={14} />
               {message.replyCount} {message.replyCount === 1 ? "reply" : "replies"}
+              {threadMuted && <Icon name="bellOff" size={12} className="text-ink-faint" />}
               <Icon name="arrow" size={12} className="text-ink-faint" />
             </button>
           )}

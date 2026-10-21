@@ -4,7 +4,8 @@ import type { WorkspaceState } from "./workspace.js";
 export type NotifyDecision =
   | {
       notify: false;
-      reason: "own-message" | "not-a-member" | "muted" | "level" | "dnd" | "not-here";
+      reason:
+        "own-message" | "not-a-member" | "muted" | "thread-muted" | "level" | "dnd" | "not-here";
     }
   | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" };
 
@@ -49,6 +50,16 @@ export function decideNotification(
   // A room-wide mention only reaches a room: in a DM it is just words.
   const isDm = channel.type === "dm" || channel.type === "group_dm";
   const addressed = named || (!isDm && broadcasts.size > 0);
+
+  // A muted thread speaks up only for what is addressed to this account, as
+  // its mention badge counts it; in a DM, too, where everything else would.
+  if (
+    message.threadRootId !== null &&
+    state.threadFollows[message.threadRootId]?.muted &&
+    !addressed
+  ) {
+    return { notify: false, reason: "thread-muted" };
+  }
 
   if (prefs.notifyLevel === "mentions" && !addressed && !isDm) {
     return { notify: false, reason: "level" };

@@ -58,6 +58,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     forwards: true,
     scheduledEvents: true,
     activityThreads: true,
+    threadMutes: true,
     stars: true,
     workspaceSettings: true,
     accessPolicy: "account_required",
@@ -141,6 +142,63 @@ describe("decideNotification", () => {
   it("mute beats every level", () => {
     const s = state({ prefs: { C1: { notifyLevel: "all", muted: true } } });
     expect(decideNotification(s, message())).toEqual({ notify: false, reason: "muted" });
+  });
+
+  describe("in a muted thread", () => {
+    const muted = (over: Partial<WorkspaceState> = {}) =>
+      state({
+        threadFollows: {
+          M0: {
+            rootId: "M0",
+            channelId: "C1",
+            following: false,
+            lastReadSeq: 0,
+            lastSeq: 1,
+            revision: 1,
+            muted: true,
+          },
+        },
+        ...over,
+      });
+    const reply = (over: Partial<Message> = {}) => message({ threadRootId: "M0", ...over });
+
+    it("stays quiet for a reply at level all, and in a DM", () => {
+      const all = { prefs: { C1: { notifyLevel: "all" as const, muted: false } } };
+      expect(decideNotification(muted(all), reply())).toEqual({
+        notify: false,
+        reason: "thread-muted",
+      });
+      expect(decideNotification(muted({ channels: { C1: channel("dm") } }), reply())).toEqual({
+        notify: false,
+        reason: "thread-muted",
+      });
+      // The same reply in a thread that is not muted, and a message in the
+      // channel itself, still notify.
+      expect(decideNotification(state(all), reply()).notify).toBe(true);
+      expect(decideNotification(muted(all), message()).notify).toBe(true);
+    });
+
+    it("still notifies for a mention, a reply that pings you, and the whole room", () => {
+      expect(decideNotification(muted(), reply({ text: `<@${me.id}> look` }))).toEqual({
+        notify: true,
+        reason: "mention",
+      });
+      const ping = reply({
+        replyTo: {
+          id: "M2",
+          userId: me.id,
+          text: "mine",
+          fileCount: 0,
+          deleted: false,
+          ping: true,
+        },
+      });
+      expect(decideNotification(muted(), ping)).toEqual({ notify: true, reason: "mention" });
+      expect(decideNotification(muted(), reply({ text: "<!channel> heads up" }))).toEqual({
+        notify: true,
+        reason: "broadcast",
+      });
+    });
   });
 
   it("notifies on DMs without needing a mention", () => {
