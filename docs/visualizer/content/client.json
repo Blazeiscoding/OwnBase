@@ -570,10 +570,10 @@
     },
     {
       "path": "packages/ui/src/lib/settingsSearch.ts",
-      "plain": "The list of settings that the search on the Account settings page can find, with the other words people use for each, like \"dark mode\" for Theme.",
+      "plain": "The list of settings that the search in Account settings can find, with the other words people use for each, like \"dark mode\" for Theme.",
       "summary": "Indexes Account settings by name and synonyms and ranks what a search finds.",
       "details": [
-        "SECTION_LABELS names each section once, for the page's list of sections and for its search results. SETTINGS gives every findable setting its section, the label its section shows it under, and other words for it.",
+        "SECTION_LABELS names each section once, for the list of sections and for the search results. SETTINGS gives every findable setting its section, the label its section shows it under, and other words for it.",
         "findSettings splits the search into words; a setting is found when each word begins a word of its label, its other words or its section's name. Labels that begin with the whole search come first, then those whose label has a word beginning with the first word typed, then the rest in page order.",
         "Each label must match the text of a heading, legend or label on the page, since that is how the page finds the setting to show. A DOM test searches for every entry and checks it lands on its setting."
       ],
@@ -581,10 +581,10 @@
     },
     {
       "path": "packages/ui/src/lib/savedNote.ts",
-      "plain": "Lets a setting that saves itself tell the page around it that it was kept, so the page can say \"Saved\" quietly.",
+      "plain": "Lets a setting that saves itself tell the settings around it that it was kept, so they can say \"Saved\" quietly.",
       "summary": "A React context through which self-saving settings report a kept choice.",
       "details": [
-        "The Account settings page provides the function and shows \"Saved\" for two seconds. Outside the page the default does nothing, so the same controls in a huddle's menu need no change.",
+        "Account settings and Workspace settings provide the function, and SettingsWindow shows \"Saved\" for two seconds. Outside them the default does nothing, so the same controls in a huddle's menu need no change.",
         "Callers report only after the save succeeds: the preference stores' setters resolve true once a choice is kept and false when it could not be, or when another save was still running."
       ],
       "concepts": ["save feedback", "react context"]
@@ -1552,12 +1552,12 @@
     },
     {
       "path": "packages/ui/src/components/AccountDialog.tsx",
-      "plain": "The Account settings page, with sections for your profile, notifications, appearance, calls, security, devices and storage, a search that goes straight to a setting, and a quiet \"Saved\" when a choice is kept.",
-      "summary": "A full-window page of account, device and presentation settings in routable sections.",
+      "plain": "Account settings, with sections for your profile, notifications, appearance, calls, security, devices and storage, a search that goes straight to a setting, and a quiet \"Saved\" when a choice is kept.",
+      "summary": "A settings window of account, device and presentation settings in routable sections.",
       "details": [
         "Section keyboard navigation and route callbacks connect profile, notifications, appearance, composing, calls, security, devices and storage to Back/Forward history.",
-        "A page over the whole window rather than a box in it (UX-60), still built on Modal for focus, Escape and the inert page behind. In the desktop app it starts under the 40 px title bar so the window controls stay usable. On the left, on the sidebar's colour, are its name, whose account it is, a search field and the sections; on the right the open section is the only part that scrolls, as a page does, and opens at its start. On a phone the sections are a strip that brings the chosen one to its middle.",
-        "The search lists matching settings from settingsSearch in place of the sections. Enter or a click opens the setting's section, scrolls the setting to the middle, focuses its control (or its heading) and marks it briefly for anyone who sees no focus ring. Escape in a filled search clears it; the next one closes the page. A setting whose label sits above its field, as Select and TextField draw it, is marked together with its field.",
+        "Drawn in SettingsWindow, a window over the workspace like the other dialogs, which it shares with Workspace settings. It gives the window its search field, what the search found, and the open section's content.",
+        "The search lists matching settings from settingsSearch in place of the sections. Enter or a click opens the setting's section, scrolls the setting to the middle, focuses its control (or its heading) and marks it briefly for anyone who sees no focus ring. Escape in a filled search clears it; the next one closes the window. A setting whose label sits above its field, as Select and TextField draw it, is marked together with its field.",
         "Choices that save themselves report through savedNote, and the section's title row says \"Saved\" for two seconds in a polite live region that is always present, so it is read out without competing with the section's own status messages.",
         "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences. When I press Enter is a Select.",
         "Security and Devices change passwords, list/revoke sessions and sign out through the server; Storage displays server usage. Confirmation identifies destructive session changes.",
@@ -1567,19 +1567,32 @@
     },
     {
       "path": "packages/ui/src/components/WorkspaceSettings.tsx",
-      "plain": "The Workspace settings page, where the workspace's owner and admins rename it and choose who may join, with a quiet \"Saved\" when a choice is kept.",
-      "summary": "A full-window page for the workspace's own name and join policy, for its owner and admins (UX-60).",
+      "plain": "Workspace settings, where the workspace's owner and admins rename it and choose who may join, with a quiet \"Saved\" when a choice is kept.",
+      "summary": "A settings window for the workspace's own name and join policy, for its owner and admins (UX-60).",
       "details": [
-        "Built like Account settings: a page over the whole window on Modal, its sections (General, Who can join) on the left as tabs and the open one on the right. It loads on first use, so it adds nothing to the entry chunk.",
+        "Drawn in the same SettingsWindow as Account settings, its sections (General, Who can join) on the left as tabs and the open one on the right. It loads on first use, so it adds nothing to the entry chunk.",
         "General has the workspace's name in a TextField with Save. Save is never disabled: sent empty or with a tab or line break, the field says what is wrong and takes the cursor; a server refusal lands under the field too. While nothing is typed, a rename made elsewhere replaces what the field shows.",
         "Who can join is a radio group of the three policies, each with a plain explanation, saved the moment one is chosen through WorkspaceClient.setAccessPolicy. The title row says \"Saved\" for two seconds through savedNote. A failed change shows what the server has and says why.",
         "While guests are allowed a line says that choosing either other rule signs every guest out. When guests have joined, leaving guest_allowed asks first with useConfirm, since signed-out guests have to join again.",
-        "When this desktop app hosts the workspace on screen (hostedHere), the page says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",
+        "When this desktop app hosts the workspace on screen (hostedHere), Who can join says that Open to all in Manage hosting chooses who can join for the public link, and that Manage hosting shows and changes the same setting while the link is open.",
         "On a server without ReadySnapshot.workspaceSettings it shows the name, offers neither control, and says the workspace is changed where it is hosted.",
         "General starts with the workspace icon (UX-60): the current icon or its square, Upload icon, which opens a hidden file input from the keyboard or a touch, and Remove, which asks nothing since uploading again puts it back. A chosen picture goes through prepareIcon and WorkspaceClient.setWorkspaceIcon at once, says Saved, and a refusal is said under the buttons, described by Upload icon, which takes focus. Neither button is ever disabled; aria-disabled marks one while its request runs. A server without ReadySnapshot.workspaceIcon gets no icon part.",
         "General ends with Link previews (E2): one checkbox, saved the moment it changes through WorkspaceClient.setLinkPreviews, with a plain note that the server reads pages so no device contacts the site, that private addresses are never read, and that turning it off keeps previews already shown. A server without previews leaves it out."
       ],
       "concepts": ["workspace settings", "join policy", "check on send", "UX-60"]
+    },
+    {
+      "path": "packages/ui/src/components/SettingsWindow.tsx",
+      "plain": "The window Account settings and Workspace settings open in, with the list of sections on the left and the open section on the right.",
+      "summary": "The shared frame of both settings: name, sections as tabs, the open section's title row and one scrolling region, on Modal.",
+      "details": [
+        "Where there is room it is a window over the dimmed workspace, 880 by 680 px at most, styled and animated like the other dialogs, with one close button in its corner. Every section opens in the same size of window, so choosing another moves nothing under the pointer.",
+        "On the left, on the sidebar's colour: the settings' name, whose they are, an optional search and the sections as a tablist that the arrow keys, Home and End move through. On the right the section's name and the \"Saved\" note stay in sight while the section scrolls in a DialogScroll under them.",
+        "Each section gets its own scroller, keyed by section, so it opens at its start, and the edge fade follows its own content. Chromium otherwise keeps the fade a scrolled section ended on when the next one has nothing to scroll.",
+        "A newly chosen section steps in from the side of the list it is on (stepIn). In the desktop app the backdrop starts under the 40 px title bar so the window controls stay usable.",
+        "Below 57rem wide, on a phone or in a narrow window, it fills the screen on the conversation's colour, and the sections become a strip that scrolls sideways and brings the chosen one to its middle. The rules are in theme.css."
+      ],
+      "concepts": ["settings window", "tabs", "single scroll region", "UX-60"]
     },
     {
       "path": "packages/ui/src/components/WorkspaceIcon.tsx",
@@ -1847,7 +1860,7 @@
       "details": [
         "Microphone, speaker (where setSinkId exists) and camera pickers with the system default first; a chosen device that is unplugged stays listed as such. Changes apply to a huddle in progress through chooseDevices and are kept for every workspace on this device.",
         "Noise suppression as Strong, Standard or Off (Discord's choice; Strong unless chosen otherwise, and Off for anyone who had turned suppression off), echo cancellation and automatic volume switches, a microphone test with playback, a two-tone speaker test, a mirrored camera preview, and join-muted. When the browser keeps device names back it offers to ask for the microphone once.",
-        "On the Account settings page it leaves out its own heading (titled={false}), since the page already names the section, and reports kept device and join-muted choices through savedNote."
+        "In Account settings it leaves out its own heading (titled={false}), since the window already names the section, and reports kept device and join-muted choices through savedNote."
       ],
       "concepts": ["device settings", "local media tests"]
     },
@@ -1991,7 +2004,7 @@
         "Tracks the active layer, makes the page and older portals inert, and permits only the top layer to handle Escape, outside dismissal and tab containment.",
         "Focus restoration follows connected usable openers and fallback owners even if an underlying dialog was removed. Layout registration accounts for child autoFocus occurring before portal ownership is fully installed.",
         "Central ownership avoids competing independent focus traps for dialogs, menus and lightboxes.",
-        "A dialog's scrolling region (.dialog-scroll, or .settings-scroll on the Account settings page) is a part of it, so keys pressed elsewhere in it would scroll nothing. Page Up and Page Down from outside the region, and the arrow, Home and End keys from the dialog element itself, scroll the region. Text areas, selects and modified keys are left alone.",
+        "A dialog's scrolling region (.dialog-scroll) is a part of it, so keys pressed elsewhere in it would scroll nothing. Page Up and Page Down from outside the region, and the arrow, Home and End keys from the dialog element itself, scroll the region. Text areas, selects and modified keys are left alone.",
         "A dialog, menu or popover leaves as it came. When it closes, a copy of it, inert, hidden from screen readers and stripped of ids, names and roles, is put where it was and plays the reverse of its opening animation, then removes itself. One closed while still opening, as a loading placeholder is, leaves nothing, and neither does anything when less motion is asked for.",
         "A press on the backdrop that closes the layer cancels the mousedown's default. Focus goes back to the opener as the layer closes, and the press's own focus change would otherwise move it straight on to the page."
       ],
