@@ -936,9 +936,10 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
           "slackoss:call-preferences",
           JSON.stringify({ joinMuted: true, noiseFilter: false, devicesChecked: true }),
         );
-        // Chromium's fake picker shares a sound with the screen on Windows,
-        // one that says the call is left out of it, and none on Linux. Where
-        // it gives none, the share is given a tone that says the same.
+        // Chromium's fake picker shares a sound with the screen that says
+        // the call is left out of it on Windows. On Linux its sound does not
+        // say so, and the share goes without it, so there the share is given
+        // a tone that says it instead.
         const devices = MediaDevices.prototype;
         const supported = devices.getSupportedConstraints;
         devices.getSupportedConstraints = function (this: MediaDevices) {
@@ -953,7 +954,13 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
           options?: DisplayMediaStreamOptions,
         ) {
           const display = await share.call(this, options);
-          if (!options?.audio || display.getAudioTracks().length > 0) return display;
+          const leavesCallOut = (track: MediaStreamTrack) =>
+            (track.getSettings() as { restrictOwnAudio?: boolean }).restrictOwnAudio === true;
+          if (!options?.audio || display.getAudioTracks().some(leavesCallOut)) return display;
+          for (const track of display.getAudioTracks()) {
+            track.stop();
+            display.removeTrack(track);
+          }
           const context = new AudioContext();
           const tone = context.createOscillator();
           const level = context.createGain();
