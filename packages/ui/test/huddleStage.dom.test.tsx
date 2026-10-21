@@ -6,7 +6,8 @@ import type { Channel, User } from "@slackoss/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform, type Platform } from "../src/platform.js";
 import { HuddleBar } from "../src/components/HuddleBar.js";
-import { bestFit, HuddleStage, type HuddleView } from "../src/components/HuddleStage.js";
+import { bestFit, HuddleStage } from "../src/components/HuddleStage.js";
+import { useHuddleView } from "../src/lib/huddleView.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /** Where call preferences are kept, as in the app. */
@@ -78,34 +79,69 @@ function huddleClient(huddle: Partial<HuddleState>) {
   return client;
 }
 
-function stage(huddle: Partial<HuddleState>, view: HuddleView = "docked", on = platform) {
+function stage(
+  huddle: Partial<HuddleState>,
+  { on = platform, chat }: { on?: Platform; chat?: { shown: boolean } } = {},
+) {
   const client = huddleClient(huddle);
-  const onViewChange = vi.fn();
-  const utils = render(
+  const onHide = vi.fn();
+  const onToggle = vi.fn();
+  render(
     <PlatformContext.Provider value={on}>
       <ClientContext.Provider value={client}>
-        <HuddleStage view={view} onViewChange={onViewChange} />
+        <HuddleStage onHide={onHide} chat={chat && { shown: chat.shown, onToggle }} />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
-  const rerender = (next: HuddleView) =>
-    utils.rerender(
-      <PlatformContext.Provider value={on}>
-        <ClientContext.Provider value={client}>
-          <HuddleStage view={next} onViewChange={onViewChange} />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
-    );
-  return { client, onViewChange, rerender, user: userEvent.setup() };
+  return { client, onHide, onToggle, user: userEvent.setup() };
 }
 
-const region = () => screen.getByRole("region", { name: "Huddle video" });
+const region = () => screen.getByRole("region", { name: "Huddle call" });
 const control = (name: string) => within(region()).getByRole("button", { name });
 
-describe("the huddle stage", () => {
-  it("shows nothing in a call without video, where the bar already says who is there", () => {
+/** Full screen as a browser gives it, which jsdom has none of. */
+function fakeFullscreen() {
+  let element: Element | null = null;
+  const change = () => document.dispatchEvent(new Event("fullscreenchange"));
+  const enter = vi.fn(function (this: Element) {
+    element = this;
+    change();
+    return Promise.resolve();
+  });
+  const exit = vi.fn(() => {
+    element = null;
+    change();
+    return Promise.resolve();
+  });
+  Object.defineProperty(document, "fullscreenEnabled", { configurable: true, get: () => true });
+  Object.defineProperty(document, "fullscreenElement", { configurable: true, get: () => element });
+  Object.defineProperty(HTMLElement.prototype, "requestFullscreen", {
+    configurable: true,
+    value: enter,
+  });
+  Object.defineProperty(document, "exitFullscreen", { configurable: true, value: exit });
+  const restore = () => {
+    for (const name of ["fullscreenEnabled", "fullscreenElement", "exitFullscreen"])
+      Reflect.deleteProperty(document, name);
+    Reflect.deleteProperty(HTMLElement.prototype, "requestFullscreen");
+  };
+  return { enter, exit, restore };
+}
+
+describe("the call", () => {
+  it("shows everyone as a tile in a call without video, as Discord shows a voice channel", async () => {
     stage({ peers: [peer("U_PRIYA", { micMuted: true })] });
-    expect(screen.queryByRole("region", { name: "Huddle video" })).not.toBeInTheDocument();
+    expect(region()).toHaveTextContent("#general");
+    const everyone = within(region()).getByRole("list", { name: "Everyone in the huddle" });
+    expect(
+      within(everyone)
+        .getAllByRole("group")
+        .map((tile) => tile.getAttribute("aria-label")),
+    ).toEqual(["You, camera off", "Priya Shah, camera off, muted"]);
+    // The controls are the call's own, along its bottom.
+    expect(within(region()).getByRole("group", { name: "Huddle controls" })).toBeVisible();
+    expect(control("Leave")).toBeVisible();
+    expect(await accessibilityProblems(region())).toEqual([]);
   });
 
   it("gives everyone a tile of the same size, and says whose camera or microphone is off", async () => {
@@ -130,7 +166,7 @@ describe("the huddle stage", () => {
       storage: { get: async () => null, set: async () => {} },
       notify: () => {},
     } as unknown as Platform;
-    const { user } = stage({ localCameraStream: stream(), cameraOn: true }, "docked", device);
+    const { user } = stage({ localCameraStream: stream(), cameraOn: true }, { on: device });
     const everyone = within(region()).getByRole("list", { name: "Everyone in the huddle" });
     // Yours is not yours to set.
     expect(within(everyone).getAllByRole("button", { name: /^Volume for / })).toHaveLength(1);
@@ -139,7 +175,7 @@ describe("the huddle stage", () => {
     await user.click(open);
     expect(open).toHaveAttribute("aria-expanded", "true");
     const tile = within(everyone).getByRole("group", { name: "Priya Shah, camera off" });
-    // Inside her tile, not portalled out of the stage.
+    // Inside her tile, not portalled out of the call.
     const volume = within(tile).getByRole("slider", { name: "Priya Shah's volume" });
     expect(volume).toHaveValue("100");
     await user.click(within(tile).getByRole("button", { name: "Mute Priya Shah for you" }));
@@ -174,6 +210,18 @@ describe("the huddle stage", () => {
     expect(region()).toHaveTextContent("Priya Shah is sharing their screen");
   });
 
+  it("puts everyone else in a row under a share, which can be put away", async () => {
+    const { user } = stage({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
+    const strip = () => within(region()).queryByRole("list", { name: "Everyone else" });
+    expect(strip()).toBeVisible();
+    expect(control("Everyone else")).toHaveAttribute("aria-pressed", "true");
+    await user.click(control("Everyone else"));
+    expect(strip()).toBeNull();
+    expect(control("Everyone else")).toHaveAttribute("aria-pressed", "false");
+    await user.click(control("Everyone else"));
+    expect(strip()).toBeVisible();
+  });
+
   it("shows you a way to stop your own share instead of the share itself, full size", async () => {
     const { client, user } = stage({ localScreenStream: stream(), sharingScreen: true });
     const stop = vi.spyOn(client, "toggleScreenShare").mockResolvedValue();
@@ -191,100 +239,182 @@ describe("the huddle stage", () => {
     expect(within(everyone).getByRole("group", { name: "Priya Shah's screen" })).toBeVisible();
   });
 
-  it("expands over the chat, puts the video away, and says so without renaming the control", async () => {
-    const { onViewChange, rerender, user } = stage({ localCameraStream: stream() });
-    await user.click(control("Expand video"));
-    expect(onViewChange).toHaveBeenLastCalledWith("expanded");
-    rerender("expanded");
-    expect(control("Expand video")).toHaveAttribute("aria-pressed", "true");
-    // Covering the chat, there is nothing left to drag against.
-    expect(screen.queryByRole("separator")).not.toBeInTheDocument();
-    await user.click(control("Expand video"));
-    expect(onViewChange).toHaveBeenLastCalledWith("docked");
-    await user.click(control("Hide video"));
-    expect(onViewChange).toHaveBeenLastCalledWith("hidden");
-    rerender("hidden");
-    expect(screen.queryByRole("region", { name: "Huddle video" })).not.toBeInTheDocument();
-  });
-
-  it("can be made taller or shorter from the keyboard, within limits", async () => {
-    const { user } = stage({ localCameraStream: stream() });
-    const handle = screen.getByRole("separator", { name: "Resize huddle video" });
-    expect(handle).toHaveAttribute("aria-valuenow", "50");
-    handle.focus();
-    await user.keyboard("{ArrowDown}");
-    expect(handle).toHaveAttribute("aria-valuenow", "55");
-    await user.keyboard("{ArrowUp}{ArrowUp}");
-    expect(handle).toHaveAttribute("aria-valuenow", "45");
-    // The chat always keeps some room, and so does the video.
-    await user.keyboard("{End}{ArrowDown}");
-    expect(handle).toHaveAttribute("aria-valuenow", "80");
-    await user.keyboard("{Home}{ArrowUp}");
-    expect(handle).toHaveAttribute("aria-valuenow", "20");
-  });
-
-  it("comes back by itself when someone starts sharing", () => {
-    const { client, onViewChange } = stage({ localCameraStream: stream() }, "hidden");
-    expect(onViewChange).not.toHaveBeenCalled();
-    act(() =>
-      client.store.setState((s) => ({
-        huddle: { ...s.huddle!, peers: [peer("U_PRIYA", { screenStream: stream() })] },
-      })),
+  it("goes back to the chat, and shows or hides the chat beside it where there is room", async () => {
+    const { onHide, onToggle, user } = stage(
+      { localCameraStream: stream() },
+      { chat: { shown: true } },
     );
-    expect(onViewChange).toHaveBeenCalledWith("docked");
+    expect(control("Chat")).toHaveAttribute("aria-pressed", "true");
+    await user.click(control("Chat"));
+    expect(onToggle).toHaveBeenCalledOnce();
+    await user.click(control("Hide call"));
+    expect(onHide).toHaveBeenCalledOnce();
+  });
+
+  it("has no chat button where the chat has no room beside it", () => {
+    stage({ localCameraStream: stream() });
+    expect(within(region()).queryByRole("button", { name: "Chat" })).toBeNull();
+    expect(control("Hide call")).toBeVisible();
+  });
+
+  it("fills the screen with a share, everyone else put away at first, until Escape", async () => {
+    const fullscreen = fakeFullscreen();
+    try {
+      const { user } = stage({
+        peers: [peer("U_PRIYA", { cameraStream: stream(), screenStream: stream() })],
+      });
+      const strip = () => within(region()).queryByRole("list", { name: "Everyone else" });
+      await user.click(control("Full screen"));
+      expect(fullscreen.enter).toHaveBeenCalledOnce();
+      expect(fullscreen.enter.mock.contexts[0]).toBe(region());
+      expect(control("Full screen")).toHaveAttribute("aria-pressed", "true");
+      // The share alone: nobody else, and nothing that only matters beside the chat.
+      expect(strip()).toBeNull();
+      expect(control("Everyone else")).toHaveAttribute("aria-pressed", "false");
+      expect(within(region()).queryByRole("button", { name: "Hide call" })).toBeNull();
+      // Menus would open outside the full-screen picture, out of sight.
+      expect(within(region()).queryByRole("button", { name: "Microphone and speaker" })).toBeNull();
+      await user.click(control("Everyone else"));
+      expect(strip()).toBeVisible();
+
+      // The desktop app does not leave full screen on Escape by itself.
+      await user.keyboard("{Escape}");
+      expect(fullscreen.exit).toHaveBeenCalledOnce();
+      expect(control("Full screen")).toHaveAttribute("aria-pressed", "false");
+      // Out of full screen, the row is as it was there.
+      expect(strip()).toBeVisible();
+    } finally {
+      fullscreen.restore();
+    }
+  });
+
+  it("goes in and out of full screen when the share is double-clicked", async () => {
+    const fullscreen = fakeFullscreen();
+    try {
+      const { user } = stage({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
+      const share = () => within(region()).getByRole("group", { name: "Priya Shah's screen" });
+      await user.dblClick(share());
+      expect(fullscreen.enter).toHaveBeenCalledOnce();
+      await user.dblClick(share());
+      expect(fullscreen.exit).toHaveBeenCalledOnce();
+    } finally {
+      fullscreen.restore();
+    }
   });
 });
 
-describe("the huddle bar, with the video put away", () => {
-  it("offers the video back while there is some to show", async () => {
-    const client = huddleClient({ localCameraStream: stream() });
+describe("the huddle bar", () => {
+  function bar(huddle: Partial<HuddleState>, view?: "call" | "chat") {
+    const client = huddleClient(huddle);
     const onViewChange = vi.fn();
-    const { rerender } = render(
+    const ui = (next?: "call" | "chat") => (
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <HuddleBar view="hidden" onViewChange={onViewChange} />
+          <HuddleBar view={next} onViewChange={onViewChange} />
         </ClientContext.Provider>
-      </PlatformContext.Provider>,
+      </PlatformContext.Provider>
     );
-    await userEvent.setup().click(screen.getByRole("button", { name: "Show video" }));
-    expect(onViewChange).toHaveBeenCalledWith("docked");
-    rerender(
-      <PlatformContext.Provider value={platform}>
-        <ClientContext.Provider value={client}>
-          <HuddleBar view="docked" onViewChange={onViewChange} />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
-    );
-    expect(screen.queryByRole("button", { name: "Show video" })).not.toBeInTheDocument();
+    const { rerender } = render(ui(view));
+    return { onViewChange, rerender: (next: "call" | "chat") => rerender(ui(next)) };
+  }
+
+  it("offers the call, with video or without", async () => {
+    const { onViewChange } = bar({});
+    await userEvent.setup().click(screen.getByRole("button", { name: "Show call" }));
+    expect(onViewChange).toHaveBeenCalledWith("call");
+  });
+
+  it("keeps only the call's sound while the call shows, and the same sound after", () => {
+    const { rerender } = bar({ peers: [peer("U_PRIYA", { audioStream: stream() })] }, "call");
+    // The call has the controls; two sets would open two screen pickers.
+    expect(screen.queryByRole("region", { name: "Active huddle" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Huddle controls" })).toBeNull();
+    const sound = document.querySelector("audio");
+    expect(sound).not.toBeNull();
+    rerender("chat");
+    expect(screen.getByRole("region", { name: "Active huddle" })).toBeVisible();
+    // Not started again, so nobody's voice skips on the way.
+    expect(document.querySelector("audio")).toBe(sound);
   });
 
   it("says who is sharing, in the status a screen reader announces", () => {
-    const client = huddleClient({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
-    render(
-      <PlatformContext.Provider value={platform}>
-        <ClientContext.Provider value={client}>
-          <HuddleBar />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
-    );
+    bar({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
     expect(screen.getByRole("status")).toHaveTextContent(
       "With Priya Shah · Priya Shah is sharing their screen",
     );
   });
 });
 
-describe("fitting tiles to the stage", () => {
+describe("which view a huddle opens in", () => {
+  function View() {
+    const [view, setView] = useHuddleView();
+    return (
+      <>
+        <output aria-label="View">{view}</output>
+        <button onClick={() => setView("call")}>Show call</button>
+        <button onClick={() => setView("chat")}>Hide call</button>
+      </>
+    );
+  }
+  function watch(huddle: Partial<HuddleState>) {
+    const client = huddleClient(huddle);
+    render(
+      <ClientContext.Provider value={client}>
+        <View />
+      </ClientContext.Provider>,
+    );
+    const set = (next: Partial<HuddleState>) =>
+      act(() => client.store.setState((s) => ({ huddle: { ...s.huddle!, ...next } })));
+    return { client, set, user: userEvent.setup() };
+  }
+  const view = () => screen.getByRole("status", { name: "View" }).textContent;
+
+  it("opens the call when video starts, and goes back to the chat when it stops", () => {
+    const { set } = watch({});
+    expect(view()).toBe("chat");
+    set({ localCameraStream: stream(), cameraOn: true });
+    expect(view()).toBe("call");
+    set({ localCameraStream: null, cameraOn: false });
+    expect(view()).toBe("chat");
+  });
+
+  it("stays on a call you opened yourself after the video stops", async () => {
+    const { set, user } = watch({});
+    await user.click(screen.getByRole("button", { name: "Show call" }));
+    set({ peers: [peer("U_PRIYA", { cameraStream: stream() })] });
+    set({ peers: [peer("U_PRIYA")] });
+    expect(view()).toBe("call");
+  });
+
+  it("opens again when someone starts sharing, after you went back to the chat", async () => {
+    const { set, user } = watch({ localCameraStream: stream() });
+    expect(view()).toBe("call");
+    await user.click(screen.getByRole("button", { name: "Hide call" }));
+    expect(view()).toBe("chat");
+    set({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
+    expect(view()).toBe("call");
+  });
+
+  it("is the chat once the huddle is over", async () => {
+    const { client, user } = watch({});
+    await user.click(screen.getByRole("button", { name: "Show call" }));
+    act(() => client.store.setState({ huddle: null }));
+    expect(view()).toBe("chat");
+  });
+});
+
+describe("fitting tiles to the call", () => {
   it("fills the space with one tile, as wide as the height allows", () => {
     expect(bestFit(1, 1000, 600)).toEqual({ columns: 1, width: 1000 });
     expect(bestFit(1, 1000, 360)).toEqual({ columns: 1, width: 640 });
   });
 
-  it("puts two people side by side in a wide stage and one above the other in a tall one", () => {
+  it("puts two people side by side in a wide call and one above the other in a tall one", () => {
     expect(bestFit(2, 1200, 300).columns).toBe(2);
     expect(bestFit(2, 400, 800).columns).toBe(1);
   });
 
-  it("never lets the tiles spill out of the stage", () => {
+  it("never lets the tiles spill out of the call", () => {
     for (const [count, width, height] of [
       [3, 1000, 600],
       [4, 1600, 400],

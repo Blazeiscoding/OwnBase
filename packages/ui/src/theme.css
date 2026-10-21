@@ -586,6 +586,37 @@
 }
 
 /*
+ * The call is dark in either theme, as Discord's voice channels and a cinema
+ * are: faces and a shared screen read best on black. Onyx's colours, fills and
+ * shadows; scripts/generate-palette.mjs writes the colours and fills here too.
+ */
+.call-stage {
+  color-scheme: dark;
+  --color-deep: #111115;
+  --color-ground: #1a1a1f;
+  --color-raised: #1f2025;
+  --color-lifted: #292930;
+  --color-edge: #2d2d34;
+  --color-ink: #f3f3f5;
+  --color-ink-dim: #b9bac0;
+  --color-ink-faint: #9d9ea6;
+  --color-copper: #f97316;
+  --color-copper-deep: #e96800;
+  --color-online: #50dd7f;
+  --color-alert: #fa706a;
+  --color-cream: #f9d29e;
+  --color-mention: rgba(249, 115, 22, 0.08);
+  --accent-grad: linear-gradient(135deg, #ffa35c 0%, #f97316 48%, #ee591a 100%);
+  --accent-glow: rgba(249, 115, 22, 0.45);
+  --alert-grad: linear-gradient(135deg, #ff9088 0%, #fa706a 50%, #f15a53 100%);
+  --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
+  --shadow-float:
+    0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 4px -1px rgb(0 0 0 / 0.18),
+    0 12px 32px -8px rgb(0 0 0 / 0.45);
+  --shadow-dialog: 0 0 0 1px rgb(0 0 0 / 0.05), 0 32px 80px -16px rgb(0 0 0 / 0.6);
+}
+
+/*
  * Compact: more of the conversation and the sidebar in the same height, for
  * people who read a lot of it. Messages are a size smaller and rows closer.
  */

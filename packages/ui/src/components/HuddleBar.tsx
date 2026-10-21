@@ -8,7 +8,7 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import { huddleHasVideo, type HuddleView } from "../lib/huddleView.js";
+import type { HuddleView } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
@@ -156,11 +156,13 @@ function HuddlePeople({ people }: { people: Person[] }) {
 }
 
 /**
- * The bar shown while you are in a huddle. With the video put away, it offers
- * to bring it back.
+ * The bar shown in a huddle while the chat is on show: who is there, the
+ * controls, and the way to the call. While the call shows instead, it has the
+ * controls, and only the call's sound plays from here, in the same place, so
+ * moving between the two never cuts it.
  */
 export function HuddleBar({
-  view = "docked",
+  view = "chat",
   onViewChange,
   onShowCallLog,
   onOpenSettings,
@@ -230,49 +232,54 @@ export function HuddleBar({
             connecting ? " · Connecting…" : ""
           }${sharing}`;
 
+  const calling = view === "call";
   return (
     <div
       role="region"
       aria-label="Active huddle"
+      hidden={calling}
       className="huddle-live mx-4 mb-2 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5"
     >
-      {/* The minimum width is what sends the controls to a line of their own on a phone. */}
-      <div className="flex min-w-40 flex-1 items-center gap-2.5">
-        <Icon name="headphones" className="text-online" />
-        <div className="min-w-0">
-          <div className="truncate text-sm font-semibold" title={`Huddle in ${where}`}>
-            Huddle in {where}
+      <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
+      {!calling && (
+        <>
+          {/* The minimum width is what sends the controls to a line of their own on a phone. */}
+          <div className="flex min-w-40 flex-1 items-center gap-2.5">
+            <Icon name="headphones" className="text-online" />
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold" title={`Huddle in ${where}`}>
+                Huddle in {where}
+              </div>
+              <div role="status" className="truncate text-xs text-ink-faint" title={summary}>
+                {summary}
+              </div>
+              {stuck.length > 0 && onShowCallLog && (
+                <button
+                  type="button"
+                  onClick={onShowCallLog}
+                  className="text-xs text-copper underline decoration-copper/40 hover:decoration-copper"
+                >
+                  Why? See the call log
+                </button>
+              )}
+            </div>
           </div>
-          <div role="status" className="truncate text-xs text-ink-faint" title={summary}>
-            {summary}
-          </div>
-          {stuck.length > 0 && onShowCallLog && (
+
+          <HuddlePeople people={people} />
+
+          {onViewChange && (
             <button
-              type="button"
-              onClick={onShowCallLog}
-              className="text-xs text-copper underline decoration-copper/40 hover:decoration-copper"
+              onClick={() => onViewChange("call")}
+              className="flex h-11 items-center gap-2 rounded-xl border border-edge px-3 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
             >
-              Why? See the call log
+              <Icon name="expand" size={16} />
+              Show call
             </button>
           )}
-        </div>
-      </div>
 
-      <HuddlePeople people={people} />
-
-      <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
-
-      {view === "hidden" && onViewChange && huddleHasVideo(huddle) && (
-        <button
-          onClick={() => onViewChange("docked")}
-          className="flex h-11 items-center gap-2 rounded-xl border border-edge px-3 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
-        >
-          <Icon name="chevronUp" size={16} />
-          Show video
-        </button>
+          <HuddleControls onOpenSettings={onOpenSettings} />
+        </>
       )}
-
-      <HuddleControls onOpenSettings={onOpenSettings} />
     </div>
   );
 }

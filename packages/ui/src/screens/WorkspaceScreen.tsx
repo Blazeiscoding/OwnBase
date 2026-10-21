@@ -29,7 +29,7 @@ import {
 } from "../components/Sidebar.js";
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
-import { huddleHasVideo, type HuddleView } from "../lib/huddleView.js";
+import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { CatchUpSummary, namesList } from "../lib/catchUp.js";
@@ -472,16 +472,26 @@ function WorkspaceInner({
     }
     setSidebarOpen(false);
   }, []);
-  const [huddleView, setHuddleView] = useState<HuddleView>("docked");
-  const huddleVideo = useWorkspace((s) => huddleHasVideo(s.huddle));
+  const [huddleView, setHuddleView] = useHuddleView();
   const inHuddle = useWorkspace((s) => !!s.huddle);
   useHuddleEndedNotice();
-  // Once the video is gone, the next video starts in view again, above the chat.
+  // Wide enough for the chat beside the call with room left for a share, as
+  // Discord shows a voice channel's. The choice to hide it lasts the session.
+  const roomForChat = useMediaQuery("(min-width: 1280px)");
+  const [callChat, setCallChat] = useState(true);
+  const callShown = inHuddle && huddleView === "call";
+  const chatBeside = callShown && roomForChat && callChat;
+  /** The call covers the chat, which stays mounted underneath so it keeps its place. */
+  const chatCovered = callShown && !chatBeside;
+  // Another conversation, opened while the call covers the chat, is there to be read.
+  const coveredRef = useRef(chatCovered);
+  coveredRef.current = chatCovered;
+  const lastChannel = useRef(activeChannelId);
   useEffect(() => {
-    if (!huddleVideo) setHuddleView("docked");
-  }, [huddleVideo]);
-  /** The video covers the chat, which stays mounted underneath so it keeps its place. */
-  const chatCovered = huddleView === "expanded" && huddleVideo;
+    if (lastChannel.current === activeChannelId) return;
+    lastChannel.current = activeChannelId;
+    if (coveredRef.current) setHuddleView("chat");
+  }, [activeChannelId, setHuddleView]);
   const navigation = useRef(0);
   const [navigationError, setNavigationError] = useState<string | null>(null);
   /** The notifications ask is on show, so a hint waits behind it. */
@@ -1378,73 +1388,89 @@ function WorkspaceInner({
           )}
 
           {activeChannelId ? (
-            <>
-              {/* The stage sits above the chat, and when expanded, over it. */}
-              <div className="relative flex min-h-0 flex-1 flex-col">
-                {/* Mounted while there is video at all, even put away: the stage
-                    brings itself back when someone starts sharing. */}
-                {huddleVideo && (
-                  <ErrorBoundary
-                    fallback={
-                      <p
-                        role="alert"
-                        className="border-b border-edge px-5 py-3 text-sm text-ink-dim"
+            // The call beside the chat on a wide window, over it otherwise.
+            <div className="relative flex min-h-0 flex-1">
+              {callShown && (
+                <ErrorBoundary
+                  fallback={
+                    <div
+                      role="alert"
+                      className="flex w-64 shrink-0 flex-col justify-center gap-3 border-r border-edge p-5 text-sm text-ink-dim"
+                    >
+                      <p>The call could not load. It carries on; reload the app to see it.</p>
+                      <button
+                        type="button"
+                        onClick={() => setHuddleView("chat")}
+                        className="self-start rounded-xl border border-edge px-3 py-2 text-ink hover:border-ink-faint"
                       >
-                        The huddle's video could not load. The call carries on; reload the app to
-                        see video.
-                      </p>
-                    }
-                  >
-                    <Suspense fallback={null}>
-                      <HuddleStage view={huddleView} onViewChange={setHuddleView} />
-                    </Suspense>
-                  </ErrorBoundary>
+                        Back to the chat
+                      </button>
+                    </div>
+                  }
+                >
+                  <Suspense fallback={null}>
+                    <HuddleStage
+                      chat={
+                        roomForChat
+                          ? { shown: callChat, onToggle: () => setCallChat((on) => !on) }
+                          : undefined
+                      }
+                      onHide={() => setHuddleView("chat")}
+                      onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
+                      onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
+                    />
+                  </Suspense>
+                </ErrorBoundary>
+              )}
+              {/* One column whatever the view, so the timeline keeps its place. */}
+              <div
+                inert={chatCovered}
+                className={`flex min-h-0 flex-col ${
+                  chatBeside
+                    ? "w-[clamp(20rem,28%,26rem)] shrink-0 border-l border-edge"
+                    : "min-w-0 flex-1"
+                }`}
+              >
+                <MessageTimeline
+                  readActive={
+                    dialog.kind === "none" && panel.kind === "none" && !sidebarOpen && !chatCovered
+                  }
+                  channelId={activeChannelId}
+                  highlightMessageId={highlightMessageId}
+                  onOpenThread={openThread}
+                  onChannelClick={openChannel}
+                  onOpenProfile={openProfile}
+                  onInvite={self?.role === "guest" ? undefined : inviteFromIntro}
+                  onDetails={detailsFromIntro}
+                />
+                {calls.checkingDevices && (
+                  <Suspense fallback={null}>
+                    <DeviceCheckDialog />
+                  </Suspense>
                 )}
-                <div inert={chatCovered} className="flex min-h-0 flex-1 flex-col">
-                  <MessageTimeline
-                    readActive={
-                      dialog.kind === "none" &&
-                      panel.kind === "none" &&
-                      !sidebarOpen &&
-                      !chatCovered
-                    }
+                {inHuddle && (
+                  <Suspense fallback={null}>
+                    <HuddleBar
+                      view={huddleView}
+                      onViewChange={setHuddleView}
+                      onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
+                      onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
+                    />
+                  </Suspense>
+                )}
+                <div hidden={chatCovered} className="contents">
+                  <JumpToLatestBar
                     channelId={activeChannelId}
-                    highlightMessageId={highlightMessageId}
-                    onOpenThread={openThread}
-                    onChannelClick={openChannel}
-                    onOpenProfile={openProfile}
-                    onInvite={self?.role === "guest" ? undefined : inviteFromIntro}
-                    onDetails={detailsFromIntro}
+                    onJump={() => setHighlightMessageId(null)}
+                  />
+                  <Composer
+                    channelId={activeChannelId}
+                    placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
+                    autoFocus
                   />
                 </div>
               </div>
-              {calls.checkingDevices && (
-                <Suspense fallback={null}>
-                  <DeviceCheckDialog />
-                </Suspense>
-              )}
-              {inHuddle && (
-                <Suspense fallback={null}>
-                  <HuddleBar
-                    view={huddleView}
-                    onViewChange={setHuddleView}
-                    onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
-                    onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
-                  />
-                </Suspense>
-              )}
-              <div hidden={chatCovered} className="contents">
-                <JumpToLatestBar
-                  channelId={activeChannelId}
-                  onJump={() => setHighlightMessageId(null)}
-                />
-                <Composer
-                  channelId={activeChannelId}
-                  placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
-                  autoFocus
-                />
-              </div>
-            </>
+            </div>
           ) : (
             <div className="flex flex-1 items-center justify-center text-ink-faint">
               Pick a channel to start.

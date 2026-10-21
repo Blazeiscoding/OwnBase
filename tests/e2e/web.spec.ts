@@ -468,15 +468,14 @@ test(
             .evaluateAll((videos) => videos.some((v) => (v as HTMLVideoElement).videoWidth > 0)),
         )
         .toBe(true);
-      // The video gets a stage of its own above the chat, with Alice named on it.
-      const bobStage = bob.getByRole("region", { name: "Huddle video" });
+      // The video opens the call, with Alice named on her tile.
+      const bobStage = bob.getByRole("region", { name: "Huddle call" });
       await expect(bobStage.getByRole("group", { name: "alice", exact: true })).toBeVisible();
       await alice.getByRole("button", { name: "Mute microphone", pressed: false }).click();
       await expect(
         alice.getByRole("button", { name: "Mute microphone", pressed: true }),
       ).toBeVisible();
       // Muting is signalled, not guessed: Bob's copy of Alice says so.
-      await expect(bob.getByTitle("alice (muted)")).toBeVisible();
       await expect(
         bobStage.getByRole("group", { name: "alice, muted", exact: true }),
       ).toBeVisible();
