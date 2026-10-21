@@ -87,7 +87,8 @@
         "Schema 39 adds users.status_expires_at, when a status clears itself, or NULL for one kept until changed (UX-61).",
         "Schema 40 adds channel_members.starred, one member's star on a conversation (UX-20). It sits on the membership beside muted, so leaving drops it, joining again starts unstarred, and an archived channel keeps it.",
         "Schema 41 adds messages.forwarded_from_id, the message a forward passes on (E1). It has no foreign key, so a forward outlives an original removed with older history, and a partial index lets an edit or deletion find the forwards of one message.",
-        "Schema 42 adds link_previews (E2): one row per previewed link of a message, with its position, address, title, description, site name and picture bytes, type and size, and a removed flag the sender sets. UNIQUE(message_id, url), and ON DELETE CASCADE, so purging a message's row takes its previews."
+        "Schema 42 adds link_previews (E2): one row per previewed link of a message, with its position, address, title, description, site name and picture bytes, type and size, and a removed flag the sender sets. UNIQUE(message_id, url), and ON DELETE CASCADE, so purging a message's row takes its previews.",
+        "Schema 43 adds thread_follows.muted (E3): a thread one account muted, kept unfollowed when that account replies."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -350,7 +351,8 @@
         "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon, which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
         "A send can carry forwardFrom (E1). The sender must be able to read that message now: a missing, deleted or unreadable one answers 404 message_not_found. A forward with no words or files of its own passes on its original instead, and when the sender cannot read that original or it is gone the send answers 409 forward_unavailable. The forwarded id is part of the send's nonce identity.",
         "Link previews (E2): after a send or an edit commits, queuePreviews puts the message in a queue of at most 200 worked by two fetches at a time, unless the workspace is an isolated copy or previews are off (meta link_previews). findPreviews fetches the links it has no row for, through a cache of 25 addresses for half an hour shared by concurrent sends, then in one change adds what it found and emits message.updated with previewsOnly, unless the message was edited or deleted meanwhile. Shutdown aborts fetches under way.",
-        "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests."
+        "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests.",
+        "PUT /api/messages/:id/mute mutes or unmutes a thread root for the account asking, which a guest may too, and tells only that account's devices with thread.follow (E3)."
       ],
       "concepts": [
         "HTTP API",
@@ -405,7 +407,8 @@
         "A member's own choices for a conversation (notify level, muted, starred) live on their membership row, read in one shape by toPrefs for the ready snapshot, channel.access and the prefs route. Another member's row, and so their choices, is never touched.",
         "deleteMeta removes a meta row, as removing the workspace icon does.",
         "A forward keeps forwarded_from_id. Hydration reads each original as it now is, with its files, in one batch per page. Its words, files and author show only when the original is in a public channel or the forward's own conversation; otherwise the card is hidden, and a deleted or removed original says so. forwardSource answers a send's check, and reforwardEvents rewrites the log's copies of forwards after an edit, deletion or purge.",
-        "Link previews (E2): hydration reads each live message's previews in one batch per page, without the picture bytes, and leaves the field out when there are none. editMessage prunes previews of links the new words no longer have and keeps the rest in their new order; deleteMessage deletes them; redactEventRows empties previews in the log's copies. addPreview inserts or ignores; removePreview blanks a row and keeps it removed, so an edit keeping the link does not bring it back; previewOwner and previewImage answer the image and removal routes."
+        "Link previews (E2): hydration reads each live message's previews in one batch per page, without the picture bytes, and leaves the field out when there are none. editMessage prunes previews of links the new words no longer have and keeps the rest in their new order; deleteMessage deletes them; redactEventRows empties previews in the log's copies. addPreview inserts or ignores; removePreview blanks a row and keeps it removed, so an edit keeping the link does not bring it back; previewOwner and previewImage answer the image and removal routes.",
+        "setThreadMute (E3) unfollows a thread and keeps its read cursor where it was, so a mention from before stays unread. autoFollowThread leaves a muted thread unfollowed when its muter replies, catching the cursor up to the reply; the root's author keeps a mute as it keeps an unfollow. Following or marking the thread unread ends the mute. A muted thread is unfollowed, so Activity, the Threads list and its badge leave its replies out, apart from mentions, which still count."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -458,7 +461,8 @@
         "AuditAction includes workspace.renamed and workspace.access_policy_changed, with the target type workspace, recorded with the old and new value.",
         "ServerInfo.iconVersion gives the icon's version, or null, before sign-in; it is absent from older servers. The audit action workspace.icon_changed records a set or a removal (UX-60).",
         "Message.forwardedFrom is a ForwardReference: the original's id and conversation, and its author, words, files and time unless it is hidden (a private original forwarded elsewhere) or deleted. Servers before forwarding leave it out (E1).",
-        "Message.previews is LinkPreview[] (E2): id, the address as written, title, description, siteName, and the picture's size or null. Absent when a message has none and from older servers. AuditAction includes workspace.link_previews_changed."
+        "Message.previews is LinkPreview[] (E2): id, the address as written, title, description, siteName, and the picture's size or null. Absent when a message has none and from older servers. AuditAction includes workspace.link_previews_changed.",
+        "ThreadFollow.muted is true for a thread this account muted and absent otherwise, and from servers before schema 43 (E3)."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -472,7 +476,7 @@
         "EphemeralEvent carries presence, typing, read/unread changes, private saves/preferences/follows, correlated huddle admission and one-user app replies/forms; these are never replayed as durable history.",
         "ReadySnapshot describes current visible state and replayFrom, while synced marks completion. A null replay cursor replaces cached history; resync is the legacy fallback.",
         "The distinction lets a lost ephemeral notice recover through a new snapshot without preserving private/transient UI messages forever.",
-        "Flags on ReadySnapshot (huddleReports, inlineReplies, forwards, scheduledEvents, activityThreads, stars, linkPreviews) say what this server does, so a client offers nothing an older server would refuse or quietly drop.",
+        "Flags on ReadySnapshot (huddleReports, inlineReplies, forwards, scheduledEvents, activityThreads, threadMutes, stars, linkPreviews) say what this server does, so a client offers nothing an older server would refuse or quietly drop.",
         "workspace.accessPolicy tells everyone signed in who may join now, and ReadySnapshot.workspaceSettings says the server takes Workspace settings' changes (UX-60). Older clients ignore the event.",
         "ReadySnapshot.workspaceIcon advertises the workspace icon and iconVersion gives its version or null; the workspace.icon ephemeral event tells everyone signed in of a new version or a removal. Older clients ignore both (UX-60).",
         "message.updated may say previewsOnly: only the message's link previews changed, which is not an edit (E2). The ephemeral workspace.linkPreviews tells everyone signed in that previews were turned on or off."
@@ -539,7 +543,8 @@
         "channelPrefsBody takes notifyLevel, muted and starred, each optional. An older server's schema drops starred without an error, which is why clients wait for ReadySnapshot.stars.",
         "workspaceNameSchema is the one rule for a workspace's name, for its host and its admins: 1 to 80 characters once trimmed, no control characters. workspaceNameBody and accessPolicyBody are Workspace settings' requests (UX-60).",
         "WORKSPACE_ICON_TYPES (PNG, JPEG, WebP; no SVG), WORKSPACE_ICON_MAX_BYTES (256 KB) and WORKSPACE_ICON_PIXELS (256) are the one rule the server and the client share for the workspace icon (UX-60).",
-        "linkPreviewsBody is Workspace settings' request to turn link previews on or off (E2)."
+        "linkPreviewsBody is Workspace settings' request to turn link previews on or off (E2).",
+        "threadMuteBody is the request to mute or unmute a thread (E3)."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },

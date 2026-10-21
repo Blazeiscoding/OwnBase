@@ -25,7 +25,8 @@
         "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed.",
         "renameWorkspace and setAccessPolicy call PUT /api/admin/workspace/name and /access-policy, for Workspace settings.",
         "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60).",
-        "setLinkPreviews calls PUT /api/admin/workspace/link-previews, removeLinkPreview DELETE /api/link-previews/:id, and fetchPreviewImage reads a preview's picture with the session token, through the same private fetchBytes as fetchFile (E2)."
+        "setLinkPreviews calls PUT /api/admin/workspace/link-previews, removeLinkPreview DELETE /api/link-previews/:id, and fetchPreviewImage reads a preview's picture with the session token, through the same private fetchBytes as fetchFile (E2).",
+        "setThreadMute calls PUT /api/messages/:id/mute with muted (E3)."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -47,7 +48,8 @@
         "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered.",
         "The store holds workspaceIcon, from the ready snapshot's flag, and iconVersion, which the workspace.icon event replaces; a server without the flag gives no version. setWorkspaceIcon and removeWorkspaceIcon show the server's answer at once (UX-60).",
         "forwards says the server forwards a message (ReadySnapshot.forwards, E1). send takes a forward card and leaves it out for an older server, which would post the comment alone, so a forward with no words of its own sends nothing there. An edit or deletion refreshes forward cards in every loaded timeline, thread and thread root, since an original can live in another conversation. The two refusals of a forward, message_not_found and forward_unavailable, have their own failure text.",
-        "linkPreviews holds whether new messages get previews, from the snapshot and workspace.linkPreviews, or null from a server without them; setLinkPreviews shows the server's answer at once. A message.updated with previewsOnly replaces the message but neither marks its conversation's content changed nor requotes anything. removeLinkPreview takes the preview off at once and puts it back if the server refuses. fileOwner finds preview pictures among loaded messages too (E2)."
+        "linkPreviews holds whether new messages get previews, from the snapshot and workspace.linkPreviews, or null from a server without them; setLinkPreviews shows the server's answer at once. A message.updated with previewsOnly replaces the message but neither marks its conversation's content changed nor requotes anything. removeLinkPreview takes the preview off at once and puts it back if the server refuses. fileOwner finds preview pictures among loaded messages too (E2).",
+        "threadMutes says the server mutes a thread (ReadySnapshot.threadMutes, E3). setThreadMute shows a mute at once, unfollowed, and sends it in the same per-thread order as Follow and Mark unread, so a Follow chosen after it lands after it. Reading a muted thread keeps it muted; following it or marking it unread ends the mute, as on the server."
       ],
       "concepts": [
         "workspace replica",
@@ -188,7 +190,8 @@
         "decideNotification rejects own messages, inaccessible channels, muted/nothing preferences and active Do Not Disturb before deciding whether a DM, named mention or broadcast should ring.",
         "An @here broadcast applies only to a live message, so an old replay does not notify people as if they had been present when it was sent.",
         "isMessageOnScreen accounts for focus, covered timelines and the exact open thread. notificationBody converts mentions and labelled links to readable words and supplies an attachment-only description.",
-        "A reply that chose to notify the author of the message it answers counts as naming them, as Discord's reply ping does."
+        "A reply that chose to notify the author of the message it answers counts as naming them, as Discord's reply ping does.",
+        "A reply in a thread this account muted notifies only when it is addressed to it: named, a reply that pings it, or a room-wide mention in a room, the rule the mention badge counts by. That holds at the level all and in a DM, where any other reply would notify (E3)."
       ],
       "concepts": ["notification policy", "Do Not Disturb", "live versus replay", "visibility"]
     },
@@ -1162,7 +1165,8 @@
         "The hover toolbar draws its icons at 18 px with a stroke of 2, beside the reaction emoji, and marks each button icon-live so its icon moves when pointed at. A saved message's bookmark takes the accent colour alone; with two text colours on the button, the stylesheet's order had left it looking unsaved.",
         "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one.",
         "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files.",
-        "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2)."
+        "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2).",
+        "Mute thread or Unmute thread (E3) sits in More actions and the touch menu of a thread's first message in the channel, offered where the server mutes threads, once the thread has replies or while it is muted. A muted thread's reply count shows a bell-off mark and is named \"N replies, muted\"."
       ],
       "concepts": [
         "memoized row",
@@ -1190,7 +1194,8 @@
         "Loads the root's thread through WorkspaceClient, displays optimistic replies and manages retry/discard for waiting sends.",
         "Remembers reply reading anchors, protects current thread history from eviction and acknowledges the thread cursor when appropriate. Follow/Unfollow calls the client's thread-follow logic, which sends those requests in order (Q09).",
         "A thread composer uses a root-specific draft key and optional also-send-to-channel choice rather than clobbering the channel composer.",
-        "It is a chunk of its own, fetched as the workspace opens and drawn directly from then on, which keeps the first download under its size limit."
+        "It is a chunk of its own, fetched as the workspace opens and drawn directly from then on, which keeps the first download under its size limit.",
+        "Beside Follow, a bell-off toggle named Mute thread (aria-pressed) mutes and unmutes the thread through the client (E3), offered only where the server mutes threads. Muting turns Following back to Follow."
       ],
       "concepts": ["thread history", "reply drafts", "thread cursor", "Q09"]
     },
