@@ -297,7 +297,7 @@
         "Provides the active client and gates account-local consumers through WorkspaceStorageGate. The central conversation combines Sidebar, MessageTimeline, Composer and an optional thread, members or utility panel.",
         "Only one side panel is selected at a time. Persistent places such as channels, threads, saved panels and account sections map to route/history state; transient forms and pickers stay component state.",
         "The screen tracks what is truly visible and focused when deciding notifications and read acknowledgement. Missed messages are grouped through CatchUpSummary, and live messages can be announced politely to a screen reader.",
-        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the video stage use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. The thread panel is drawn the same way. These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
+        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the call use lazy imports with recoverable wrappers. The Ctrl+K palette is lazy too, but fetched as the screen opens and then drawn directly, so a switch typed straight after Ctrl+K never meets a loading state. The thread panel is drawn the same way. These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
         "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues.",
         "The conversation's header (UX-23) has the name and topic, which open the details, then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Search in this conversation, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. The search box and the Pinned and Members icons it replaced are gone; search is Ctrl+F, Jump to, or the menu.",
         "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting.",
@@ -306,7 +306,8 @@
         "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert).",
         "Runs useRememberWorkspaceIcon, so the saved workspaces show this one's icon while its server is off (UX-60).",
         "The phone drawer's button carries a small Badge: a red count of mentions elsewhere, capped at 99+, or a quiet dot for unread conversations, said in words as the button's description.",
-        "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4)."
+        "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4).",
+        "A huddle shows as the call or the chat (useHuddleView). The call takes the conversation's column: from 1280 px wide the chat sits beside it in a column of its own, which the call's Chat button hides for the session; narrower, or hidden, the call covers the chat, which stays mounted and inert. The timeline, the huddle bar, the jump bar and the composer are one column whatever the view, so the timeline keeps its place. Opening another conversation while the call covers the chat shows that conversation."
       ],
       "concepts": [
         "screen orchestration",
@@ -338,7 +339,8 @@
         "Icons move the way Its Hover's do, with its timings, inside a control marked icon-live: the smile blinks, the reply arrow nudges back, the speech bubble draws itself, the bookmark squeezes for as long as it is pointed at, the pencil writes its way up and the three dots land one after another. Distances are in the drawing's own units. The motion plays for a pointer that hovers or for keyboard focus, and not at all for someone who asked for less motion.",
         "On a phone held upright the workspace keeps the bottom bar's height free (--bottom-bar, 56 px and the home indicator's inset) through :has(> .bottom-bar), so the bar never covers the composer or the last message, and a side panel stops above it. The drawer opens over it. Under data-keyboard (onScreenKeyboard.ts) the bar is hidden and its room given back, and the composer drops its home-indicator padding.",
         "Safe areas (UX-71): the page is drawn under a notch and home indicator (viewport-fit=cover), so in the phone layout the conversation keeps clear of the sides, its header of the top, the drawer of the top, left and bottom, a covering side panel of the top, and on a phone on its side the panel sheet of the top, right and bottom. Under data-visual-viewport #root takes --visual-height and moves by --visual-top, for a browser that does not shrink the page for the keyboard. On a touchscreen text fields write at 16 px, so iOS does not zoom in on them. On a short window the drawer's body grows to what it holds, so its footer comes after the list rather than over it.",
-        ".bottom-sheet places Sheet along the bottom of a phone, clear of the home indicator, and makes the floating cards in it solid, since frosted over the dimmed page White's turned grey enough to fail contrast for red text."
+        ".bottom-sheet places Sheet along the bottom of a phone, clear of the home indicator, and makes the floating cards in it solid, since frosted over the dimmed page White's turned grey enough to fail contrast for red text.",
+        ".call-stage keeps the call dark in either theme, as Discord's voice channels are: Onyx's colour tokens, fills and shadows, declared on the call's own element. theme.test.ts checks every value there against Onyx's, since White's deeper red under Onyx's ink would not read."
       ],
       "concepts": [
         "design tokens",
@@ -689,10 +691,11 @@
     },
     {
       "path": "packages/ui/src/lib/huddleView.ts",
-      "plain": "Decides whether a call is shown small, expanded or hidden, and checks whether anyone's camera or screen share is on.",
-      "summary": "Defines docked, expanded and hidden call presentation and detects visible video.",
+      "plain": "Decides whether a huddle shows as the call or as the chat with the huddle bar, opens the call by itself when someone turns on a camera or shares a screen, and checks whether anyone's camera or screen share is on.",
+      "summary": "Defines the call and chat views of a huddle, when the call opens by itself, and detects visible video.",
       "details": [
         "huddleHasVideo checks local camera/share and every peer's camera/share stream.",
+        "useHuddleView opens the call when video starts, and again when someone new starts sharing. When the video stops it goes back to the chat, unless the person opened the call themselves. Out of a huddle it is the chat.",
         "This small presentation rule keeps screen layout independent from the WebRTC transport implementation."
       ],
       "concepts": ["call presentation", "media state"]
@@ -1763,7 +1766,8 @@
       "plain": "The call bar showing who is in the huddle, who is speaking, each person's volume and anyone you cannot connect to.",
       "summary": "Shows call presence, speaking rings and the header join/start control.",
       "details": [
-        "HuddleFace resolves participants and speaking state, while the compact bar hosts controls and a way to restore hidden video.",
+        "HuddleFace resolves participants and speaking state, while the compact bar hosts the controls and Show call, which opens the call, video or not.",
+        "While the call shows, the bar is hidden and keeps only HuddleAudio mounted, in the same place, so moving between the views never starts anyone's voice again, and there is one set of controls (and one screen picker) at a time.",
         "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
         "HuddleButton starts or joins through the shared call-preference store and provides meaningful error state. N04 makes this header path agree with Getting started about mute initialization.",
         "Once a peer's connection has a diagnosed trouble, the bar says Can't connect to them and offers Why? See the call log."
@@ -1775,11 +1779,11 @@
       "plain": "The mute, camera, screen share and leave buttons, with menus to switch microphone, speaker or camera.",
       "summary": "Provides shared microphone, camera, screen-share and leave actions.",
       "details": [
-        "Used by both the compact bar and fullscreen stage so the call actions stay available in either layout.",
+        "Used by the bar and by the call, which gives them its own look (stage): squarer buttons lit from within and a solid red Leave, as Discord draws a voice channel's. Over the call in full screen (overlay) they leave out the device menus.",
         "While the connection to the workspace is down (status reconnecting or connecting), a polite status line says the call goes on while it comes back.",
         "Stable accessible names plus aria-pressed describe toggles; captureFailure distinguishes a cancelled picker from a permission/device problem. A lost microphone exposes retry.",
         "Beside Mute and Camera, a small arrow opens a menu of microphones and speakers, or cameras, with the chosen one ticked (menuitemradio) and a link to Voice & video settings. The menus are left out of the full-screen overlay, because menus open on the page beneath a fullscreen element.",
-        "In the desktop app, Share screen opens ScreenShareDialog rather than asking the browser; a browser shows its own picker, and stopping needs none. Whether the picker is open is one small store for the window: the bar's controls draw it, and the controls in full screen leave full screen first, since a dialog does not show over it and those controls go with it."
+        "In the desktop app, Share screen opens ScreenShareDialog rather than asking the browser; a browser shows its own picker, and stopping needs none. Whether the picker is open is one small store for the window: the controls out of full screen draw it, in the bar or the call; in full screen they leave full screen first, since a dialog does not show over it, and draw it once full screen has ended. Moving between the bar and the call keeps it open; it closes when the huddle ends."
       ],
       "concepts": ["media controls", "accessible toggles", "capture errors", "device menus"]
     },
@@ -1820,15 +1824,24 @@
     },
     {
       "path": "packages/ui/src/components/HuddleStage.tsx",
-      "plain": "The video area of a call, which lays out cameras and screen shares as large as the window allows.",
-      "summary": "Arranges cameras and shares into docked, gallery, presenting or spotlight views.",
+      "plain": "The call itself, laid out like a Discord voice channel: everyone as a tile, a shared screen large with everyone else in a row under it, the controls along the bottom, and full screen for the share alone.",
+      "summary": "Draws the call: gallery, spotlight with a row of people, presenting, and full screen.",
       "details": [
         "stageItems prioritizes screen shares then participants; bestFit tries column counts to find the largest 16:9 tiles for the actual container dimensions.",
         "Video surfaces stay muted because HuddleAudio owns voices. Local self-video and remote camera/share streams display without opening a second media capture.",
-        "Resize observation updates layout, and accessible tiles/actions expose focus, fullscreen and share controls. Lazy loading keeps the stage out of initial conversation downloads until needed.",
+        "Resize observation updates layout, and accessible tiles/actions expose focus, fullscreen and share controls. Lazy loading keeps the call out of initial conversation downloads until needed.",
+        "It takes the conversation's column and is dark in either theme (.call-stage): beside the chat on a wide window (the chat prop, with Chat in its header), over it otherwise. The header says where the call is and who is on the main view, with a LIVE badge for a share, and has Grid view, Chat and Hide call. The bottom bar holds HuddleControls, with Everyone else (the row under a spotlight) and Full screen beside them, or up in the header below 600 px wide.",
+        "Full screen (the button, or a double-click on the main view) shows the main view out to the screen's edges. The header and the controls float over it and step aside after 3 s without movement; keyboard focus keeps them, the focus a click leaves does not. Everyone else starts hidden there. Escape leaves full screen, since the desktop app does not on its own.",
         "Another person's tile, in the gallery or the main view, has a volume button beside Pin. Its PersonVolume opens inside the tile rather than as a popover, because popovers portal to the page beneath a fullscreen element. A tile says when its person is muted for you."
       ],
-      "concepts": ["adaptive video grid", "media presentation", "single audio owner", "lazy chunk"]
+      "concepts": [
+        "adaptive video grid",
+        "media presentation",
+        "single audio owner",
+        "lazy chunk",
+        "call view",
+        "full screen"
+      ]
     },
     {
       "path": "packages/ui/src/components/MicrophoneCheck.tsx",
@@ -2369,7 +2382,7 @@
         },
         {
           "title": "Play each voice once",
-          "description": "Each person's voice plays once, at the volume you chose for them, while video tiles stay silent. The small huddle bar shows who is speaking. The larger call view loads only when you open it and fits cameras and screen shares to the space.",
+          "description": "Each person's voice plays once, at the volume you chose for them, while video tiles stay silent. The small huddle bar shows who is speaking. The call view, which opens by itself when someone turns on a camera or shares a screen, loads only then and fits cameras and screen shares to the space.",
           "files": [
             "packages/ui/src/components/HuddleAudio.tsx",
             "packages/ui/src/lib/callVolumes.ts",
