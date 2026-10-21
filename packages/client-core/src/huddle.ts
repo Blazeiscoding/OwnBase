@@ -29,6 +29,8 @@ export interface HuddlePeer {
   cameraStream: MediaStream | null;
   /** What they are sharing, or null while they are not. */
   screenStream: MediaStream | null;
+  /** The sound of what they are sharing, or null while their share has none. */
+  screenSoundStream?: MediaStream | null;
   /** True once the connection is carrying media. */
   connected: boolean;
   /** Their microphone is off, as they reported it. */
@@ -54,6 +56,82 @@ export interface ScreenShareQuality {
 }
 
 export const SCREEN_SHARE_QUALITY: ScreenShareQuality = { height: 1080, frameRate: 15 };
+
+/**
+ * A share's sound as it is: no echo cancellation, noise suppression or gain,
+ * which are for a voice and spoil music. `restrictOwnAudio` leaves this
+ * call's own sound out, so nobody hears themselves again a moment later.
+ */
+const SCREEN_SOUND = {
+  restrictOwnAudio: true,
+  echoCancellation: false,
+  noiseSuppression: false,
+  autoGainControl: false,
+} as MediaTrackConstraints;
+
+/** What Chrome's getDisplayMedia also takes, which the DOM types do not have yet. */
+interface ShareRequest extends DisplayMediaStreamOptions {
+  systemAudio?: "include" | "exclude";
+  windowAudio?: "exclude" | "window" | "system";
+  selfBrowserSurface?: "include" | "exclude";
+}
+
+/**
+ * Whether a share's sound can be asked for here with this call's own sound
+ * left out of it: Chromium 141 and later. Elsewhere a share sends no sound,
+ * since a screen's sound with the call in it would send everyone their own
+ * voices back.
+ */
+export function canShareScreenSound(): boolean {
+  const supported = navigator.mediaDevices?.getSupportedConstraints?.() as
+    { restrictOwnAudio?: boolean } | undefined;
+  return supported?.restrictOwnAudio === true;
+}
+
+/**
+ * Whether the browser kept this call's own sound out of a share's: it says it
+ * did, or it is another tab's sound, which never holds this page's. Checked
+ * rather than trusted to the request, because sending the call back to
+ * everyone in it is worse than sending no sound.
+ */
+function leavesCallOut(sound: MediaStreamTrack, picture: MediaStreamTrack): boolean {
+  const settings = sound.getSettings?.() as { restrictOwnAudio?: boolean } | undefined;
+  if (settings?.restrictOwnAudio === true) return true;
+  return picture.getSettings?.().displaySurface === "browser";
+}
+
+/** What the share's sound is encoded at, in stereo: enough for music, where a voice gets 32. */
+export const SCREEN_SOUND_KBPS = 96;
+
+/**
+ * A description of the call from the other side, marked to take the share's
+ * sound (the fourth media section) in stereo at `SCREEN_SOUND_KBPS`. A sender
+ * encodes what the receiver says it takes, and a browser says mono at a
+ * voice's rate, so each side marks the other's description before using it.
+ * Anything without that section, or without Opus in it, is left as it is.
+ */
+export function withStereoScreenSound(sdp: string): string {
+  // The session part, then the microphone, camera, screen and screen sound.
+  // Split before the line feed, so a CRLF's carriage return stays behind.
+  const sections = sdp.split(/(?=\nm=)/);
+  const sound = sections[4];
+  if (!sound?.startsWith("\nm=audio ")) return sdp;
+  const opus = /a=rtpmap:(\d+) opus\/48000/i.exec(sound)?.[1];
+  if (!opus) return sdp;
+  const wanted: Record<string, string> = {
+    stereo: "1",
+    "sprop-stereo": "1",
+    maxaveragebitrate: String(SCREEN_SOUND_KBPS * 1000),
+  };
+  sections[4] = sound.replace(new RegExp(`(a=fmtp:${opus} )([^\\r\\n]*)`), (_, head, params) => {
+    const kept = String(params)
+      .split(";")
+      .map((param) => param.trim())
+      .filter((param) => param && !(param.split("=")[0]! in wanted));
+    return head + [...kept, ...Object.entries(wanted).map(([k, v]) => `${k}=${v}`)].join(";");
+  });
+  return sections.join("");
+}
 
 /** How many lines a call keeps; the oldest go first. */
 const CALL_LOG_LIMIT = 400;
@@ -91,6 +169,8 @@ export interface HuddleState {
   micMuted: boolean;
   cameraOn: boolean;
   sharingScreen: boolean;
+  /** Your share sends its sound too. */
+  sharingScreenSound?: boolean;
   /** Your own camera, for the self-view tile. */
   localCameraStream: MediaStream | null;
   /** Your own share, so you can see what everyone else is seeing. */
@@ -136,11 +216,14 @@ function receivedLevel(peer: Peer): number {
 }
 
 /**
- * One connection per participant, with its three media slots fixed up front.
+ * One connection per participant, with its media slots fixed up front.
  *
- * The offerer declares microphone, camera, screen in that order. The answerer
- * adopts those slots from the offer. Subsequent camera/screen changes use
- * replaceTrack without renegotiation; incoming tracks use the negotiated order.
+ * The offerer declares microphone, camera, screen and screen sound in that
+ * order. The answerer adopts those slots from the offer. Subsequent changes
+ * use replaceTrack without renegotiation; incoming tracks use the negotiated
+ * order. The one exception is the screen sound slot, which the offerer opens
+ * for sending, with one more offer, the first time it has sound to send to
+ * someone who has that slot (see `openScreenSoundSlot`).
  */
 export class HuddleSession {
   private destroyed = false;
@@ -160,6 +243,8 @@ export class HuddleSession {
   private cameraId: string | undefined;
   private cameraTrack: MediaStreamTrack | null = null;
   private screenTrack: MediaStreamTrack | null = null;
+  /** The share's sound, sent apart from the microphone so each mutes alone. */
+  private screenSoundTrack: MediaStreamTrack | null = null;
   private localCameraStream: MediaStream | null = null;
   private localScreenStream: MediaStream | null = null;
   /** Who is currently shown as talking, and when each was last loud. */
@@ -488,6 +573,7 @@ export class HuddleSession {
       micMuted: this.micMuted,
       cameraOn: this.cameraOn,
       sharingScreen: this.sharingScreen,
+      sharingScreenSound: this.screenSoundTrack !== null,
       localCameraStream: this.localCameraStream,
       localScreenStream: this.localScreenStream,
       peers: [...this.peers.entries()].map(([userId, peer]) => ({
@@ -495,6 +581,7 @@ export class HuddleSession {
         audioStream: peer.audio,
         cameraStream: peer.cameraOn ? peer.camera : null,
         screenStream: peer.screenOn ? peer.screen : null,
+        screenSoundStream: peer.screenOn && peer.screenSoundOn ? peer.screenSound : null,
         connected: this.connected.has(userId),
         micMuted: peer.micMuted,
         speaking: this.speaking.has(userId),
@@ -538,17 +625,25 @@ export class HuddleSession {
     const audioTx = initiating ? pc.addTransceiver("audio", { direction: "sendrecv" }) : null;
     const cameraTx = initiating ? pc.addTransceiver("video", { direction: "sendrecv" }) : null;
     const screenTx = initiating ? pc.addTransceiver("video", { direction: "sendrecv" }) : null;
+    // The share's sound starts out only receiving. A client from before this
+    // slot takes any track on it for the person's microphone, so this side
+    // sends on it only to someone who says they have it.
+    const screenSoundTx = initiating ? pc.addTransceiver("audio", { direction: "recvonly" }) : null;
 
     const peer: Peer = {
       pc,
       audioTx,
       cameraTx,
       screenTx,
+      screenSoundTx,
       audio: null,
       camera: null,
       screen: null,
+      screenSound: null,
       cameraOn: false,
       screenOn: false,
+      screenSoundOn: false,
+      hasScreenSoundSlot: false,
       micMuted: false,
       pendingIce: [],
       initiating,
@@ -606,6 +701,7 @@ export class HuddleSession {
       const slot = pc.getTransceivers().indexOf(e.transceiver);
       if (slot === 1) peer.camera = stream;
       else if (slot === 2) peer.screen = stream;
+      else if (slot === 3) peer.screenSound = stream;
       else peer.audio = stream;
       this.onChange?.();
     };
@@ -775,6 +871,8 @@ export class HuddleSession {
       peer.audioTx?.sender.replaceTrack(this.localStream?.getAudioTracks()[0] ?? null),
       peer.cameraTx?.sender.replaceTrack(this.cameraTrack),
       peer.screenTx?.sender.replaceTrack(this.screenTrack),
+      // Sent only once the slot sends: see `openScreenSoundSlot`.
+      peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack),
     ]);
   }
 
@@ -808,11 +906,13 @@ export class HuddleSession {
     const pc = peer.pc;
     if (signal.kind === "offer") {
       this.note("Received their call setup.", from);
-      await pc.setRemoteDescription({ type: "offer", sdp: signal.sdp });
+      await pc.setRemoteDescription({ type: "offer", sdp: withStereoScreenSound(signal.sdp) });
       const slots = pc.getTransceivers();
       peer.audioTx = slots[0] ?? null;
       peer.cameraTx = slots[1] ?? null;
       peer.screenTx = slots[2] ?? null;
+      // Missing from a client older than the slot, which is then sent no sound.
+      peer.screenSoundTx = slots[3] ?? null;
       for (const slot of slots) slot.direction = "sendrecv";
       await this.attachLocalTracks(peer);
       await this.flushIce(peer);
@@ -831,13 +931,20 @@ export class HuddleSession {
         this.note(`Ignored an answer that came while ${pc.signalingState}.`, from);
         return;
       }
-      await pc.setRemoteDescription({ type: "answer", sdp: signal.sdp });
+      await pc.setRemoteDescription({ type: "answer", sdp: withStereoScreenSound(signal.sdp) });
       this.note("Received their answer.", from);
       await this.flushIce(peer);
+      // A slot opened while this setup was under way still has to be offered.
+      if (unoffered(peer.screenSoundTx)) this.offerAgain(from, peer);
     } else if (signal.kind === "media") {
       peer.cameraOn = signal.camera;
       peer.screenOn = signal.screen;
       peer.micMuted = signal.muted ?? false;
+      peer.screenSoundOn = signal.screenSound === true;
+      if (typeof signal.screenSound === "boolean" && !peer.hasScreenSoundSlot) {
+        peer.hasScreenSoundSlot = true;
+        this.openScreenSoundSlot(from, peer);
+      }
       this.onChange?.();
     } else {
       const { kind, protocol } = candidateOf(signal.candidate);
@@ -973,25 +1080,42 @@ export class HuddleSession {
     void this.publish("camera", null);
   }
 
-  /** Starts sharing the screen, at `quality`, or stops sharing it. */
-  async toggleScreenShare(quality: ScreenShareQuality = SCREEN_SHARE_QUALITY): Promise<void> {
+  /**
+   * Starts sharing the screen, at `quality`, or stops sharing it. With
+   * `sound`, where the browser can leave this call's own sound out of it, the
+   * share's sound goes too, in a slot of its own: muting the microphone leaves
+   * it playing, and it stops with the share. The browser's picker may still
+   * share none, which is fine.
+   */
+  async toggleScreenShare(
+    quality: ScreenShareQuality = SCREEN_SHARE_QUALITY,
+    sound = true,
+  ): Promise<void> {
     if (this.destroyed || this.acquiringScreen) return;
     if (this.screenTrack) {
       this.stopScreenShare();
       return;
     }
     if (!navigator.mediaDevices?.getDisplayMedia) throw unsupported("screen");
+    const withSound = sound && canShareScreenSound();
     this.acquiringScreen = true;
     let display: MediaStream;
     try {
-      display = await navigator.mediaDevices.getDisplayMedia({
+      const request: ShareRequest = {
         video: {
           width: { max: (quality.height * 16) / 9 },
           height: { max: quality.height },
           frameRate: { ideal: quality.frameRate, max: quality.frameRate },
         },
-        audio: false,
-      });
+        audio: withSound ? SCREEN_SOUND : false,
+        // Chrome's defaults, said because they matter here: sound is offered
+        // for a screen and a window as well as a tab, and this page's own tab
+        // is not offered at all.
+        ...(withSound
+          ? { systemAudio: "include", windowAudio: "system", selfBrowserSurface: "exclude" }
+          : {}),
+      };
+      display = await navigator.mediaDevices.getDisplayMedia(request);
     } finally {
       this.acquiringScreen = false;
     }
@@ -1000,7 +1124,20 @@ export class HuddleSession {
       return;
     }
     const track = display.getVideoTracks()[0];
-    if (!track) return;
+    if (!track) {
+      display.getTracks().forEach((t) => t.stop());
+      return;
+    }
+    const sharedSound = withSound ? display.getAudioTracks()[0] : undefined;
+    if (sharedSound && leavesCallOut(sharedSound, track)) {
+      this.screenSoundTrack = sharedSound;
+      // The sound can end on its own, its device gone; the picture goes on.
+      sharedSound.onended = () => this.stopScreenSound();
+      this.note("Sharing the screen with its sound.");
+    } else if (sharedSound) {
+      sharedSound.stop();
+      this.note("Sharing the screen without its sound: the browser could not leave the call out.");
+    }
     // Screen content: when bandwidth runs short, keep the resolution and drop
     // frames. Without the hint the encoder treats a screen like a camera and
     // blurs the text first. Sixty frames a second is asked for motion, a game
@@ -1010,6 +1147,7 @@ export class HuddleSession {
     this.localScreenStream = display;
     // Stopping from the browser's own bar must clean up too.
     track.onended = () => this.stopScreenShare();
+    await this.sendScreenSound();
     await this.publish("screen", track);
   }
 
@@ -1018,7 +1156,59 @@ export class HuddleSession {
     this.screenTrack.stop();
     this.screenTrack = null;
     this.localScreenStream = null;
+    this.stopScreenSound(false);
     void this.publish("screen", null);
+  }
+
+  /** Stops the share's sound, and says so unless the share is stopping too. */
+  private stopScreenSound(announce = true): void {
+    const track = this.screenSoundTrack;
+    if (!track) return;
+    track.onended = null;
+    track.stop();
+    this.screenSoundTrack = null;
+    void this.sendScreenSound();
+    if (!announce || this.destroyed) return;
+    this.note("The share's sound stopped; the picture goes on.");
+    this.announceMedia();
+    this.onChange?.();
+  }
+
+  /** Puts the share's sound, or none, in every connection's slot for it. */
+  private async sendScreenSound(): Promise<void> {
+    await Promise.all(
+      [...this.peers].map(([userId, peer]) => {
+        this.openScreenSoundSlot(userId, peer);
+        return peer.screenSoundTx?.sender.replaceTrack(this.screenSoundTrack).catch(() => {});
+      }),
+    );
+  }
+
+  /**
+   * Lets the share's sound go to someone who has a slot for it. The side
+   * that offers made that slot receive-only (see `createPeer`), so the first
+   * time it has sound for them it turns the slot both ways and offers again;
+   * the answering side's slot sends from the start.
+   */
+  private openScreenSoundSlot(userId: ID, peer: Peer): void {
+    const slot = peer.screenSoundTx;
+    if (!this.screenSoundTrack || !peer.hasScreenSoundSlot || !peer.initiating || !slot) return;
+    if (slot.direction === "sendrecv") return;
+    slot.direction = "sendrecv";
+    this.note("Setting up the share's sound.", userId);
+    this.offerAgain(userId, peer);
+  }
+
+  /**
+   * Offers again for a slot whose direction changed. Before the first offer,
+   * that offer carries it; during a setup, its answer looks again.
+   */
+  private offerAgain(userId: ID, peer: Peer): void {
+    if (this.destroyed || this.peers.get(userId) !== peer) return;
+    if (!peer.pc.localDescription || peer.pc.signalingState !== "stable") return;
+    void this.offer(userId, peer.pc).catch((err) =>
+      this.note(`Could not set up the share's sound: ${describeError(err)}.`, userId),
+    );
   }
 
   /**
@@ -1047,6 +1237,8 @@ export class HuddleSession {
       camera: this.cameraTrack !== null,
       screen: this.screenTrack !== null,
       muted: this.micMuted || this.micLost,
+      // Said either way: saying it at all tells them this side has the slot.
+      screenSound: this.screenSoundTrack !== null,
     };
     for (const userId of to ? [to] : this.peers.keys()) {
       this.transport.send({
@@ -1100,13 +1292,14 @@ export class HuddleSession {
     this.screenTrack?.stop();
     this.screenTrack = null;
     this.localScreenStream = null;
+    this.stopScreenSound(false);
     this.releaseMicrophone();
     this.mic = null;
     this.onChange = null;
   }
 }
 
-/** One connection and its three fixed media slots. */
+/** One connection and its fixed media slots. */
 interface Peer {
   pendingIce: RTCIceCandidateInit[];
   /** This side sends the offers, by id (`shouldInitiateOffer`). */
@@ -1125,13 +1318,28 @@ interface Peer {
   audioTx: RTCRtpTransceiver | null;
   cameraTx: RTCRtpTransceiver | null;
   screenTx: RTCRtpTransceiver | null;
+  /** Null where they offered no slot for it, from a client older than it. */
+  screenSoundTx: RTCRtpTransceiver | null;
   audio: MediaStream | null;
   camera: MediaStream | null;
   screen: MediaStream | null;
+  screenSound: MediaStream | null;
   /** What they told us they are sending; see the "media" signal. */
   cameraOn: boolean;
   screenOn: boolean;
+  screenSoundOn: boolean;
+  /** They said whether their share has sound, which only a client with the slot does. */
+  hasScreenSoundSlot: boolean;
   micMuted: boolean;
+}
+
+/**
+ * A slot this side opened for sending that the last setup did not carry,
+ * because it was opened while that setup was under way.
+ */
+function unoffered(slot: RTCRtpTransceiver | null): boolean {
+  if (!slot || slot.direction !== "sendrecv") return false;
+  return slot.currentDirection !== "sendrecv" && slot.currentDirection !== "sendonly";
 }
 
 const noCandidates = (): CandidateCounts => ({ host: 0, srflx: 0, prflx: 0, relay: 0 });

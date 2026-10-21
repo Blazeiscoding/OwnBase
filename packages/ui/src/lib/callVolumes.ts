@@ -35,6 +35,13 @@ function volumeOf(saved: unknown): PersonVolume | null {
   return { volume: level, muted: muted === true };
 }
 
+/**
+ * Where how loud someone's shared screen is to you is kept, beside their
+ * voice and apart from it, so a loud video can be turned down while they
+ * are still heard.
+ */
+export const screenSoundKey = (userId: ID): string => `screen:${userId}`;
+
 /** How many times as loud as they arrive someone is played: 0 to 2. */
 export function gainOf(choice: PersonVolume | undefined): number {
   if (!choice) return 1;

@@ -917,6 +917,115 @@ test("each person's volume is yours alone: turned down, up past as sent, or mute
   }
 });
 
+test("a shared screen's sound is heard apart from the sharer's voice, with a volume of its own", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const a = await browser.newContext({ permissions: ["microphone", "camera"] });
+  const b = await browser.newContext({ permissions: ["microphone", "camera"] });
+  try {
+    const alice = await a.newPage();
+    const bob = await b.newPage();
+    const errors: string[] = [];
+    for (const page of [alice, bob]) {
+      page.on("pageerror", (err) => errors.push(err.message));
+      // Both join with the microphone off, so what is heard of the other is
+      // their screen's sound alone. Chromium's fake picker shares the screen
+      // with a fake sound that beeps.
+      await page.addInitScript(() => {
+        localStorage.setItem(
+          "slackoss:call-preferences",
+          JSON.stringify({ joinMuted: true, noiseFilter: false, devicesChecked: true }),
+        );
+      });
+    }
+    await signIn(alice, "alice");
+    await signIn(bob, "bobby");
+    const bar = (page: Page) => page.getByRole("region", { name: "Active huddle", exact: true });
+    const stage = (page: Page) => page.getByRole("region", { name: "Huddle video", exact: true });
+    await alice.getByRole("button", { name: "Start a huddle", exact: true }).click();
+    await bob.getByRole("button", { name: "Join the huddle with alice", exact: true }).click();
+    await expect(bar(alice).getByRole("status")).toHaveText("With bobby");
+    await expect(bar(bob).getByRole("status")).toHaveText("With alice");
+
+    /**
+     * Each element `page` plays the other person through, in order (their
+     * voice, then their screen's sound): its volume and the loudest moment of
+     * what it plays, over long enough to catch a beep.
+     */
+    const plays = (page: Page) =>
+      page.evaluate(async () => {
+        const heard = [...document.querySelectorAll("audio")].filter(
+          (el) => el.srcObject && !el.muted,
+        );
+        const context = new AudioContext();
+        await context.resume();
+        const meters = heard.map((el) => {
+          const analyser = context.createAnalyser();
+          context.createMediaStreamSource(el.srcObject as MediaStream).connect(analyser);
+          return { analyser, samples: new Float32Array(analyser.fftSize), loudest: 0 };
+        });
+        for (let i = 0; i < 30; i++) {
+          for (const meter of meters) {
+            meter.analyser.getFloatTimeDomainData(meter.samples);
+            for (const v of meter.samples) meter.loudest = Math.max(meter.loudest, Math.abs(v));
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+        await context.close();
+        return heard.map((el, i) => ({ volume: el.volume, loudest: meters[i]!.loudest }));
+      });
+
+    // Alice shares her screen, and her screen is heard, though her microphone is off.
+    await bar(alice).getByRole("button", { name: "Share screen", exact: true }).click();
+    await expect(
+      stage(alice).getByRole("group", { name: "Your screen, with sound", exact: true }),
+    ).toContainText("Everyone in the huddle can see and hear it");
+    const share = stage(bob).getByRole("group", {
+      name: "alice's screen, with sound",
+      exact: true,
+    });
+    await expect(share).toBeVisible();
+    await expect.poll(async () => (await plays(bob)).length).toBe(2);
+    await expect.poll(async () => (await plays(bob))[1]?.loudest ?? 0).toBeGreaterThan(0);
+    const [voice] = await plays(bob);
+    expect(voice!.volume).toBe(1);
+    expect(voice!.loudest).toBeLessThan(0.01);
+
+    // Muting her screen for Bob leaves her voice as it was.
+    await stage(bob)
+      .getByRole("button", { name: "Volume for alice's screen", exact: true })
+      .click();
+    await expect(
+      share.getByRole("slider", { name: "alice's screen volume", exact: true }),
+    ).toHaveValue("100");
+    await share.getByRole("button", { name: "Mute alice's screen for you", exact: true }).click();
+    await expect(
+      stage(bob).getByRole("group", { name: "alice's screen, sound muted for you", exact: true }),
+    ).toBeVisible();
+    await expect.poll(async () => (await plays(bob)).map((p) => p.volume)).toEqual([1, 0]);
+    await expect
+      .poll(async () => Object.entries((await deviceValue<object>(bob, "call-volumes")) ?? {}))
+      .toEqual([[expect.stringMatching(/^screen:/), { volume: 100, muted: true }]]);
+
+    // Her share's sound stops with the share.
+    await bar(alice).getByRole("button", { name: "Share screen", exact: true }).click();
+    await expect(stage(bob)).toHaveCount(0);
+    await expect.poll(async () => (await plays(bob)).length).toBe(1);
+
+    // The other way round, from whichever side did not offer the first time.
+    await bar(bob).getByRole("button", { name: "Share screen", exact: true }).click();
+    await expect(
+      stage(alice).getByRole("group", { name: "bobby's screen, with sound", exact: true }),
+    ).toBeVisible();
+    await expect.poll(async () => (await plays(alice))[1]?.loudest ?? 0).toBeGreaterThan(0);
+    expect(errors).toEqual([]);
+  } finally {
+    await a.close().catch(() => {});
+    await b.close().catch(() => {});
+  }
+});
+
 test("scrolls back through a long channel without unbounded growth or losing its place", async ({
   browser,
 }) => {

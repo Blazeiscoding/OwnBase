@@ -18,6 +18,8 @@ type Tab = (typeof TABS)[number];
 export const REFRESH_MS = 3000;
 /** Where the last resolution and frame rate chosen are kept on this device. */
 export const QUALITY_KEY = "screen-share-quality";
+/** Where Share sound, when turned off, is kept off on this device. */
+export const SOUND_KEY = "screen-share-sound";
 const RESOLUTIONS = [720, 1080] as const;
 const FRAME_RATES = [15, 30, 60] as const;
 
@@ -33,10 +35,11 @@ function qualityOf(saved: unknown): ScreenShareQuality {
 
 /**
  * The desktop app's screen picker, in the manner of Discord's: every window
- * and screen with a picture of it, kept fresh while open, and how sharp and
- * smooth to send it. Sharing names the choice to the main process, then asks
- * the huddle for a screen, which shares that one. A browser has no such list
- * to offer, and shows its own picker instead.
+ * and screen with a picture of it, kept fresh while open, how sharp and
+ * smooth to send it, and, where this computer can share it, its sound.
+ * Sharing names the choice to the main process, then asks the huddle for a
+ * screen, which shares that one. A browser has no such list to offer, and
+ * shows its own picker instead.
  */
 export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
@@ -48,6 +51,9 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
   const [tab, setTab] = useState<Tab>("windows");
   const [chosen, setChosen] = useState<Partial<Record<Tab, string>>>({});
   const [quality, setQuality] = useState(SCREEN_SHARE_QUALITY);
+  const [sound, setSound] = useState(true);
+  /** Whether the screen's sound goes: offered here, and left on. */
+  const withSound = !!screenShare.sound && sound;
   const [starting, setStarting] = useState(false);
   /** Share was pressed with nothing chosen, so the list says what it needs. */
   const [asked, setAsked] = useState(false);
@@ -77,6 +83,12 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
       .get(QUALITY_KEY)
       .then((saved) => {
         if (live) setQuality(qualityOf(saved));
+      })
+      .catch(() => {});
+    void platform.storage
+      .get(SOUND_KEY)
+      .then((saved) => {
+        if (live) setSound(saved !== false);
       })
       .catch(() => {});
     return () => {
@@ -164,6 +176,11 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     void platform.storage.set(QUALITY_KEY, next).catch(() => {});
   };
 
+  const changeSound = (on: boolean) => {
+    setSound(on);
+    void platform.storage.set(SOUND_KEY, on).catch(() => {});
+  };
+
   // Share is never off for want of a choice: pressed without one, it says
   // what to choose beside the list and puts focus there.
   const share = async (source: ShareableSource | null) => {
@@ -178,7 +195,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     setAsked(false);
     setStarting(true);
     try {
-      await screenShare.choose(source.id);
+      await screenShare.choose(source.id, { sound: withSound });
     } catch (err) {
       setStarting(false);
       // The choice has gone since it was listed: said beside the list.
@@ -187,7 +204,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
       return;
     }
     try {
-      await client.toggleScreenShare(quality);
+      await client.toggleScreenShare(quality, withSound);
     } catch (err) {
       setStarting(false);
       // Chosen here, a refusal is not a closed picker, so it always says something.
@@ -298,7 +315,9 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
           ))}
         </div>
         <p id={descriptionId} className="text-xs text-ink-faint">
-          Everyone in the huddle sees what you share.
+          {withSound
+            ? "Everyone in the huddle sees what you share and hears your computer's sound."
+            : "Everyone in the huddle sees what you share."}
         </p>
       </div>
       <div {...tabs.panelProps} className="flex min-h-0 flex-1 flex-col">
@@ -338,6 +357,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
               value={quality.frameRate}
               onChange={(frameRate) => changeQuality({ frameRate })}
             />
+            {screenShare.sound && <SoundSwitch on={sound} onChange={changeSound} />}
           </div>
           <div className="ml-auto flex gap-2">
             <Button type="button" variant="quiet" onClick={onClose}>
@@ -422,6 +442,37 @@ function SourceTile({
           {source.name}
         </span>
       </span>
+    </label>
+  );
+}
+
+/**
+ * Share sound, as a switch beside the bars: everything this computer plays
+ * goes with the picture, less this app's own sound.
+ */
+function SoundSwitch({ on, onChange }: { on: boolean; onChange: (on: boolean) => void }) {
+  return (
+    <label className="flex h-[38px] cursor-pointer items-center gap-2.5 self-end rounded-lg pr-1 text-[13px] font-medium has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-copper">
+      <input
+        type="checkbox"
+        role="switch"
+        checked={on}
+        onChange={(event) => onChange(event.target.checked)}
+        className="sr-only"
+      />
+      <span
+        aria-hidden="true"
+        className={`relative h-5 w-9 shrink-0 rounded-full border transition-colors ${
+          on ? "border-copper bg-copper" : "border-edge bg-deep/40"
+        }`}
+      >
+        <span
+          className={`absolute left-0.5 top-0.5 size-3.5 rounded-full transition-transform ${
+            on ? "translate-x-4 bg-ground" : "bg-ink-faint"
+          }`}
+        />
+      </span>
+      <span className={on ? "text-ink" : "text-ink-dim"}>Share sound</span>
     </label>
   );
 }
