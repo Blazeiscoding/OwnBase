@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { isMessageRead, notificationBody } from "@slackoss/client-core";
+import { dueReminderCount, isMessageRead, notificationBody } from "@slackoss/client-core";
 import type { ID, Message } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
@@ -11,22 +11,28 @@ import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useTabs } from "../lib/useTabs.js";
 import { usePagedList } from "../lib/pagedList.js";
+import { RemindersList } from "./RemindersList.js";
 
-/** Activity's tabs (UX-52), and what each asks the server for. */
-const MODES = ["all", "mentions", "threads"] as const;
+/**
+ * Activity's tabs (UX-52), and what each asks the server for. Reminders (E4)
+ * is a list of its own, RemindersList.
+ */
+const MODES = ["all", "mentions", "threads", "reminders"] as const;
 type ActivityMode = (typeof MODES)[number];
 const ASKS = { all: "unread", mentions: "mentions", threads: "threads" } as const;
 const NAMES: Record<ActivityMode, string> = {
   all: "All",
   mentions: "Mentions",
   threads: "Threads",
+  reminders: "Reminders",
 };
 const ABOUT: Record<ActivityMode, string> = {
   all: "Unread messages in conversations you joined.",
   mentions: "Direct and room-wide mentions in conversations you joined.",
   threads: "Unread replies in threads you follow.",
+  reminders: "Messages you asked to be reminded about.",
 };
-const EMPTY: Record<ActivityMode, string> = {
+const EMPTY: Record<Exclude<ActivityMode, "reminders">, string> = {
   all: "You're caught up.",
   mentions: "No mentions yet.",
   threads: "No unread replies in threads you follow.",
@@ -85,9 +91,12 @@ export function ActivityPanel({
   const saved = useWorkspace((s) => s.saved);
   // An older server has no list of thread replies of its own to give.
   const threadsAnswered = useWorkspace((s) => s.activityThreads);
-  const modes: readonly ActivityMode[] = threadsAnswered
-    ? MODES
-    : MODES.filter((value) => value !== "threads");
+  // Nor reminders, which it does not keep.
+  const remindersKept = useWorkspace((s) => s.reminders !== null);
+  const dueReminders = useWorkspace(dueReminderCount);
+  const modes: readonly ActivityMode[] = MODES.filter(
+    (value) => (value !== "threads" || threadsAnswered) && (value !== "reminders" || remindersKept),
+  );
   const [chosen, setMode] = useState<ActivityMode>("all");
   const mode = modes.includes(chosen) ? chosen : "all";
   // In All, a new message anywhere, or a new reply in a thread, may belong
@@ -126,9 +135,11 @@ export function ActivityPanel({
   // one read, with what is shown kept meanwhile (REV-05).
   const paged = usePagedList<Message>(
     (cursor, signal) =>
-      client.api
-        .activity(ASKS[mode], { cursor, signal })
-        .then((page) => ({ items: page.messages, nextCursor: page.nextCursor })),
+      mode === "reminders"
+        ? Promise.resolve({ items: [], nextCursor: null })
+        : client.api
+            .activity(ASKS[mode], { cursor, signal })
+            .then((page) => ({ items: page.messages, nextCursor: page.nextCursor })),
     mode,
     ACTIVITY_REFRESH_DELAY_MS,
   );
@@ -258,9 +269,17 @@ export function ActivityPanel({
           <button
             key={value}
             {...tabs.tabProps(value)}
+            aria-label={
+              value === "reminders" && dueReminders > 0
+                ? `Reminders, ${dueReminders} due`
+                : undefined
+            }
             className={`flex-1 rounded-md px-3 py-1.5 text-[13px] font-medium transition-colors ${mode === value ? "bg-lifted text-ink shadow-[0_1px_2px_rgb(0_0_0/0.2)]" : "text-ink-faint hover:text-ink"}`}
           >
             {NAMES[value]}
+            {value === "reminders" && dueReminders > 0 && (
+              <span className="ml-1 text-copper">{dueReminders}</span>
+            )}
           </button>
         ))}
       </div>
@@ -271,75 +290,96 @@ export function ActivityPanel({
         aria-busy={paged.loading || paged.refreshing}
       >
         <p className="mb-2 px-2 text-xs text-ink-faint">{ABOUT[mode]}</p>
-        <ListStatus
-          loading={paged.loading}
-          placeholder={!result}
-          loadingLabel="Loading activity…"
-          error={
-            paged.failed ? "Could not load activity. Check your connection and try again." : null
-          }
-          onRetry={() => list.retry()}
-          empty={result && !messages.length && !paged.nextCursor ? EMPTY[mode] : null}
-          emptyIcon={mode === "mentions" ? "at" : mode === "threads" ? "thread" : "check"}
-        />
-        <div className="space-y-2.5">
-          {groups.map((group) => {
-            const channel = channels[group.channelId]!;
-            const where =
-              channel.type === "public" || channel.type === "private"
-                ? `#${channel.name}`
-                : // Each row names its author, the other person in a direct message.
-                  channel.type === "dm"
-                  ? "Direct message"
-                  : channelTitle(channel, users, selfId);
-            const fresh = group.messages.filter(unread).length;
-            const title = group.threadRootId ? `Thread in ${where}` : where;
-            return (
-              <section key={group.key} aria-labelledby={`${groupId}-${group.key}`}>
-                {/* Named outright: engines space the parts of a flex heading differently. */}
-                <h3
-                  id={`${groupId}-${group.key}`}
-                  aria-label={fresh > 0 ? `${title}, ${fresh} new` : title}
-                  className="flex items-baseline gap-2 px-2 pb-0.5 text-[12px] font-semibold text-ink-dim"
-                >
-                  <span className="truncate">{title}</span>
-                  {fresh > 0 && (
-                    <span className="ml-auto shrink-0 font-medium text-ink-faint">{fresh} new</span>
-                  )}
-                </h3>
-                <ul>
-                  {group.messages.map((message) => (
-                    <ActivityRow
-                      key={message.id}
-                      message={message}
-                      author={users[message.userId]?.displayName}
-                      avatarUser={users[message.userId]}
-                      preview={notificationBody(client.state, message)}
-                      // Threads groups by thread already.
-                      inThread={!!message.threadRootId && mode !== "threads"}
-                      unread={unread(message)}
-                      saved={!!saved[message.id]}
-                      onOpen={() => onJump(message.channelId, message.id)}
-                      onRead={(row) => {
-                        keepFocusFrom(row);
-                        markRead(message);
-                      }}
-                      onSave={() => void client.toggleSaved(message.id)}
-                    />
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
-        <LoadMore
-          more={!!paged.nextCursor}
-          loading={paged.loadingMore}
-          failed={paged.moreFailed}
-          count={result?.length ?? 0}
-          onMore={() => list.loadMore()}
-          scroller={scroller}
-        />
+        {mode === "all" && dueReminders > 0 && (
+          <button
+            type="button"
+            onClick={() => setMode("reminders")}
+            className="mb-2 flex w-full items-center gap-2 rounded-lg border border-edge px-3 py-2 text-left text-[13px] font-medium text-ink transition-colors hover:bg-ink/[0.035]"
+          >
+            <Icon name="clock" size={14} className="text-copper" />
+            {dueReminders === 1 ? "1 reminder is due" : `${dueReminders} reminders are due`}
+            <Icon name="arrow" size={12} className="ml-auto text-ink-faint" />
+          </button>
+        )}
+        {mode === "reminders" ? (
+          <RemindersList onJump={onJump} />
+        ) : (
+          <>
+            <ListStatus
+              loading={paged.loading}
+              placeholder={!result}
+              loadingLabel="Loading activity…"
+              error={
+                paged.failed
+                  ? "Could not load activity. Check your connection and try again."
+                  : null
+              }
+              onRetry={() => list.retry()}
+              empty={result && !messages.length && !paged.nextCursor ? EMPTY[mode] : null}
+              emptyIcon={mode === "mentions" ? "at" : mode === "threads" ? "thread" : "check"}
+            />
+            <div className="space-y-2.5">
+              {groups.map((group) => {
+                const channel = channels[group.channelId]!;
+                const where =
+                  channel.type === "public" || channel.type === "private"
+                    ? `#${channel.name}`
+                    : // Each row names its author, the other person in a direct message.
+                      channel.type === "dm"
+                      ? "Direct message"
+                      : channelTitle(channel, users, selfId);
+                const fresh = group.messages.filter(unread).length;
+                const title = group.threadRootId ? `Thread in ${where}` : where;
+                return (
+                  <section key={group.key} aria-labelledby={`${groupId}-${group.key}`}>
+                    {/* Named outright: engines space the parts of a flex heading differently. */}
+                    <h3
+                      id={`${groupId}-${group.key}`}
+                      aria-label={fresh > 0 ? `${title}, ${fresh} new` : title}
+                      className="flex items-baseline gap-2 px-2 pb-0.5 text-[12px] font-semibold text-ink-dim"
+                    >
+                      <span className="truncate">{title}</span>
+                      {fresh > 0 && (
+                        <span className="ml-auto shrink-0 font-medium text-ink-faint">
+                          {fresh} new
+                        </span>
+                      )}
+                    </h3>
+                    <ul>
+                      {group.messages.map((message) => (
+                        <ActivityRow
+                          key={message.id}
+                          message={message}
+                          author={users[message.userId]?.displayName}
+                          avatarUser={users[message.userId]}
+                          preview={notificationBody(client.state, message)}
+                          // Threads groups by thread already.
+                          inThread={!!message.threadRootId && mode !== "threads"}
+                          unread={unread(message)}
+                          saved={!!saved[message.id]}
+                          onOpen={() => onJump(message.channelId, message.id)}
+                          onRead={(row) => {
+                            keepFocusFrom(row);
+                            markRead(message);
+                          }}
+                          onSave={() => void client.toggleSaved(message.id)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                );
+              })}
+            </div>
+            <LoadMore
+              more={!!paged.nextCursor}
+              loading={paged.loadingMore}
+              failed={paged.moreFailed}
+              count={result?.length ?? 0}
+              onMore={() => list.loadMore()}
+              scroller={scroller}
+            />
+          </>
+        )}
       </div>
     </aside>
   );

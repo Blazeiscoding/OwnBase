@@ -337,6 +337,7 @@ export class Gateway {
           scheduledEvents: true,
           activityThreads: true,
           threadMutes: true,
+          reminders: this.store.reminders(user.id),
           stars: true,
           workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),

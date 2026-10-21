@@ -35,6 +35,19 @@ export function notificationContent(
 }
 
 /**
+ * What a reminder come due says under each choice (E4): that it is one, and
+ * then as much of its message as a message's notification would show.
+ */
+export function reminderContent(
+  preview: NotificationPreview,
+  message: { from: string; channelName?: string; body: string },
+): { title: string; body: string } {
+  if (preview === "none") return { title: "Reminder", body: "Open Tandem to see it." };
+  const title = `Reminder: ${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
+  return { title, body: preview === "full" ? message.body : "About a message" };
+}
+
+/**
  * What one notification for several missed messages says under each choice:
  * how many and where, then who sent them. Nothing about it names nobody and
  * no conversation.

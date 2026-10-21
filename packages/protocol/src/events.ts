@@ -8,6 +8,7 @@ import type {
   ModalView,
   User,
   ThreadFollow,
+  Reminder,
 } from "./entities.js";
 import type { CallReport, HuddleSignal } from "./huddle.js";
 
@@ -93,6 +94,16 @@ export type EphemeralEvent =
   | { type: "saved"; messageId: ID; saved: boolean }
   /** This user's follow state for one thread, so their devices stay in step. */
   | { type: "thread.follow"; state: ThreadFollow }
+  /**
+   * One of this user's reminders was set, changed or came due. Coming due
+   * carries the message, for the notification. Private to their own sockets.
+   */
+  | { type: "reminder"; reminder: Reminder; message?: Message }
+  /**
+   * One of this user's reminders is gone: done, cancelled, or its message
+   * deleted or out of their reach. Private to their own sockets.
+   */
+  | { type: "reminder.removed"; messageId: ID }
   /**
    * This user's queue of messages to send later changed: one was queued,
    * edited, moved, cancelled, sent, held for a new reason or given up on. Read
@@ -195,6 +206,11 @@ export interface ReadySnapshot {
   activityThreads?: true;
   /** This server mutes a thread (`PUT /api/messages/:id/mute`); an older one refuses it. */
   threadMutes?: true;
+  /**
+   * This account's reminders it can still reach, waiting and due (E4). Absent
+   * from a server that keeps none, so no reminder is offered there.
+   */
+  reminders?: Reminder[];
   /**
    * This server keeps a star per conversation, `ChannelPrefs.starred`. An
    * older one drops a star sent to it without saying so, so it is not offered.

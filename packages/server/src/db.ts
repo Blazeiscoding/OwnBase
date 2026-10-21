@@ -612,6 +612,24 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE thread_follows ADD COLUMN muted INTEGER NOT NULL DEFAULT 0;
   `,
+  // v44 — reminders (E4): one account's reminder about one message, when it
+  // is to come due, and when it did (NULL while it waits). One per account and
+  // message, so setting another changes it. Goes with the account or the
+  // message row; a deleted message's reminders are dropped by the server.
+  // Indexed for the soonest waiting one, which the server's timer is set for.
+  `
+  CREATE TABLE reminders (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    remind_at INTEGER NOT NULL,
+    due_at INTEGER,
+    created_at INTEGER NOT NULL,
+    UNIQUE (user_id, message_id)
+  );
+  CREATE INDEX idx_reminders_waiting ON reminders(remind_at) WHERE due_at IS NULL;
+  CREATE INDEX idx_reminders_message ON reminders(message_id);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

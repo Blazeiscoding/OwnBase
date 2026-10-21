@@ -3,7 +3,13 @@ export type { AppDetail, CommandHint } from "./api.js";
 export { FileCache, previewImageKey } from "./fileCache.js";
 export { forwardOf, forwardSource, quoteOf } from "./replies.js";
 export type { ForwardSource } from "./replies.js";
-export { decideNotification, isMessageOnScreen, notificationBody } from "./notify.js";
+export {
+  decideNotification,
+  decideReminderNotification,
+  dueReminderCount,
+  isMessageOnScreen,
+  notificationBody,
+} from "./notify.js";
 export type { NotifyDecision, OnScreen } from "./notify.js";
 export { HuddleSession, SCREEN_SHARE_QUALITY, testMicrophone } from "./huddle.js";
 export { CALL_CAUSES } from "./callLog.js";

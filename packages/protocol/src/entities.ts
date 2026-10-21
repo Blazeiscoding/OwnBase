@@ -468,6 +468,28 @@ export interface ThreadFollow {
   muted?: true;
 }
 
+/**
+ * One account's reminder about one message (E4). Setting another on the same
+ * message changes this one.
+ */
+export interface Reminder {
+  id: ID;
+  messageId: ID;
+  channelId: ID;
+  /** The thread the message is in, so a client can drop it with that thread. */
+  threadRootId: ID | null;
+  /** When it is to come due, in epoch ms. */
+  remindAt: number;
+  /** When it came due, or null while it waits. */
+  dueAt: number | null;
+}
+
+/** A reminder with the message it is about, as the Reminders list shows it. */
+export interface ReminderItem {
+  reminder: Reminder;
+  message: Message;
+}
+
 export interface FollowedThread {
   root: Message;
   lastSeq: number;

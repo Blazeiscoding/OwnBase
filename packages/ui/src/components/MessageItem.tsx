@@ -16,6 +16,7 @@ import { forwardSource, type ForwardSource } from "@slackoss/client-core";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
 import { formatFull, formatTime } from "../lib/format.js";
+import { formatReminderTime, reminderPresets } from "../lib/schedule.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
 import { conversationKey, startReply } from "../lib/replyTarget.js";
 import { Avatar } from "./Avatar.js";
@@ -46,6 +47,9 @@ const ReactionPicker = lazy(() =>
 // And forwarding a message somewhere else.
 const ForwardDialog = lazy(() =>
   import("./ForwardDialog.js").then((module) => ({ default: module.ForwardDialog })),
+);
+const TimePopover = lazy(() =>
+  import("./TimePopover.js").then((module) => ({ default: module.TimePopover })),
 );
 
 /** The three reactions most messages get; the picker has the rest. */
@@ -92,6 +96,11 @@ export const MessageItem = memo(function MessageItem({
   const canForward = useWorkspace((s) => s.forwards);
   const canMute = useWorkspace((s) => s.threadMutes);
   const threadMuted = useWorkspace((s) => s.threadFollows[message.id]?.muted === true);
+  // Offered where the server keeps reminders; an older one has none.
+  const canRemind = useWorkspace((s) => s.reminders !== null);
+  const reminder = useWorkspace((s) => s.reminders?.[message.id] ?? null);
+  /** Choosing when to be reminded, from the menu. */
+  const [reminding, setReminding] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   // The toolbar shows on hover; while its menu is open it stays, so the menu
@@ -193,6 +202,54 @@ export const MessageItem = memo(function MessageItem({
     if (inThread) client.markThreadUnread(message.threadRootId ?? message.id, message.seq);
     else client.markUnread(message.channelId, message.seq);
   }
+  function remind(at: Date) {
+    setReminding(false);
+    const when = at.getTime();
+    void client.setReminder(message.id, when).then((ok) =>
+      toast(
+        ok
+          ? { message: `Reminder set for ${formatReminderTime(when)}.`, kind: "success" }
+          : {
+              message: "Could not set that reminder.",
+              action: { label: "Try again", run: () => remind(at) },
+            },
+      ),
+    );
+  }
+  function finishReminder() {
+    void client.cancelReminder(message.id).then((ok) => {
+      if (!ok)
+        toast({
+          message: "Could not remove that reminder.",
+          action: { label: "Try again", run: finishReminder },
+        });
+    });
+  }
+  const remindItems: MenuItem[] = !canRemind
+    ? []
+    : reminder
+      ? [
+          {
+            id: "remind",
+            label: "Change reminder…",
+            icon: "clock",
+            onSelect: () => setReminding(true),
+          },
+          {
+            id: "remind-done",
+            label: reminder.dueAt === null ? "Cancel reminder" : "Mark reminder done",
+            icon: reminder.dueAt === null ? "close" : "check",
+            onSelect: finishReminder,
+          },
+        ]
+      : [
+          {
+            id: "remind",
+            label: "Remind me about this…",
+            icon: "clock",
+            onSelect: () => setReminding(true),
+          },
+        ];
   const pinLabel = message.pinned ? "Unpin from channel" : "Pin to channel";
   function togglePin() {
     reportRefusal(
@@ -317,6 +374,7 @@ export const MessageItem = memo(function MessageItem({
     copyItem,
     ...forwardItems,
     { id: "save", label: saveLabel, icon: "bookmark", onSelect: toggleSaved },
+    ...remindItems,
     unreadItem,
     ...muteItems,
     ...pinItems,
@@ -336,6 +394,7 @@ export const MessageItem = memo(function MessageItem({
   const moreItems: MenuItem[] = [
     copyItem,
     ...forwardItems,
+    ...remindItems,
     unreadItem,
     ...muteItems,
     ...pinItems,
@@ -691,6 +750,30 @@ export const MessageItem = memo(function MessageItem({
         >
           <Suspense fallback={null}>
             <ReactionPicker anchor={row} onPick={react} onClose={() => setPicking(false)} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
+      {reminding && (
+        <ErrorBoundary
+          fallback={
+            <Dialog title="Remind me" onClose={() => setReminding(false)}>
+              <p role="alert" className="text-sm text-ink-dim">
+                Reminders could not load. Reload the app to try again.
+              </p>
+            </Dialog>
+          }
+        >
+          <Suspense fallback={null}>
+            <TimePopover
+              label="Remind me"
+              presets={reminderPresets()}
+              submitLabel={(at) =>
+                at ? `Remind me ${formatReminderTime(at.getTime())}` : "Set reminder"
+              }
+              anchor={row}
+              onClose={() => setReminding(false)}
+              onPick={remind}
+            />
           </Suspense>
         </ErrorBoundary>
       )}

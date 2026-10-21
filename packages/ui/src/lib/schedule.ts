@@ -49,6 +49,28 @@ export function schedulePresets(now = new Date()): SchedulePreset[] {
 }
 
 /**
+ * A reminder's presets (E4): soon, later today, tomorrow morning, and the
+ * start of next week (Monday, a week on if today is Monday).
+ */
+export function reminderPresets(now = new Date()): SchedulePreset[] {
+  return [
+    { label: "In 20 minutes", at: new Date(now.getTime() + 20 * 60_000) },
+    { label: "In 1 hour", at: new Date(now.getTime() + 60 * 60_000) },
+    { label: "In 3 hours", at: new Date(now.getTime() + 3 * 60 * 60_000) },
+    { label: "Tomorrow morning", at: tomorrowMorning(now) },
+    { label: "Next week", at: at(9, (8 - now.getDay()) % 7 || 7, now) },
+  ];
+}
+
+/**
+ * When a reminder is for, to follow "Remind me" or "Reminder set for":
+ * "today at 3:00 PM", "tomorrow at 9:00 AM" or "Mon, Jan 5 at 9:00 AM".
+ */
+export function formatReminderTime(ts: number, today = new Date()): string {
+  return formatScheduleShort(ts, today).replace(/^(Today|Tomorrow)/, (day) => day.toLowerCase());
+}
+
+/**
  * "Tomorrow at 9:00 AM" or "Mon, Jan 5 at 9:00 AM": a scheduled time short
  * enough to name on the button that schedules it. The year is said only when
  * it is not this one.

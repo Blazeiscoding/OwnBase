@@ -13,6 +13,7 @@ import type { ID, Message } from "@slackoss/protocol";
 import {
   WorkspaceClient,
   decideNotification,
+  decideReminderNotification,
   isMessageOnScreen,
   isMessageRead,
   notificationBody,
@@ -35,6 +36,7 @@ import { CatchUpSummary, namesList } from "../lib/catchUp.js";
 import {
   catchUpContent,
   notificationContent,
+  reminderContent,
   previewAccount,
   previewFor,
   useNotificationPreviews,
@@ -1155,6 +1157,25 @@ function WorkspaceInner({
       clientFromCtx.onIncomingMessage = null;
     };
   }, [clientFromCtx, activeChannelId, openThreadId, hear, openMessage, platform]);
+
+  // A reminder come due says so wherever the person is looking: they asked.
+  useEffect(() => {
+    clientFromCtx.onReminderDue = (reminder, message) => {
+      const state = clientFromCtx.state;
+      if (!decideReminderNotification(state).notify) return;
+      const { title, body } = reminderContent(preview.current, {
+        from: state.users[message.userId]?.displayName ?? "Someone",
+        channelName: state.channels[message.channelId]?.name,
+        body: notificationBody(state, message),
+      });
+      platform.notify(title, body, () => openMessage(message.channelId, message.id), {
+        tag: `${accountTag.current} reminder ${reminder.id}`,
+      });
+    };
+    return () => {
+      clientFromCtx.onReminderDue = null;
+    };
+  }, [clientFromCtx, openMessage, platform]);
 
   const connectionLabel =
     status === "online"

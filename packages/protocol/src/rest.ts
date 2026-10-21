@@ -72,6 +72,8 @@ export const followedThreadsQuery = savedMessagesQuery.extend({
 });
 export const threadFollowBody = z.object({ following: z.boolean() });
 export const threadMuteBody = z.object({ muted: z.boolean() });
+/** When to be reminded about a message, in epoch ms (E4). */
+export const reminderBody = z.object({ at: z.number().int().positive() });
 export const threadReadBody = z.object({ seq: z.number().int().nonnegative() });
 /**
  * The message to leave unread. Everything from it onwards becomes unread, so

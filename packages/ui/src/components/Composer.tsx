@@ -7,7 +7,7 @@ import { formatBytes } from "../lib/format.js";
 import { useEmoji } from "../lib/emoji.js";
 import type { Emoji } from "../lib/emojiSet.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
-import { formatScheduleTime } from "../lib/schedule.js";
+import { formatScheduleShort, formatScheduleTime, schedulePresets } from "../lib/schedule.js";
 import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
 import { Icon } from "./Icon.js";
 import { iconFor } from "./Attachments.js";
@@ -35,8 +35,8 @@ import {
 } from "./FormattingToolbar.js";
 
 // Choosing a time to send is now and then, so its picker loads on first use.
-const SendLaterPopover = lazy(() =>
-  import("./SendLaterPopover.js").then((module) => ({ default: module.SendLaterPopover })),
+const TimePopover = lazy(() =>
+  import("./TimePopover.js").then((module) => ({ default: module.TimePopover })),
 );
 
 interface Props {
@@ -1243,7 +1243,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               }
             >
               <Suspense fallback={null}>
-                <SendLaterPopover
+                <TimePopover
+                  label="Send later"
+                  presets={schedulePresets()}
+                  submitLabel={(at) =>
+                    at ? `Schedule for ${formatScheduleShort(at.getTime())}` : "Schedule message"
+                  }
                   anchor={scheduleButton}
                   onClose={() => setScheduleOpen(false)}
                   onPick={(at) => void schedule(at)}

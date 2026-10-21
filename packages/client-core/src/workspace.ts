@@ -18,6 +18,7 @@ import {
   type SendMessageBody,
   type ServerToClient,
   type ThreadFollow,
+  type Reminder,
   type User,
   type WorkspaceEvent,
 } from "@slackoss/protocol";
@@ -502,6 +503,11 @@ export interface WorkspaceState {
   /** The server mutes a thread for one account; an older one refuses it, so it is not offered. */
   threadMutes: boolean;
   /**
+   * This account's reminders by message id, waiting and due (E4). Null where
+   * the server keeps none, so none is offered there.
+   */
+  reminders: Record<ID, Reminder> | null;
+  /**
    * The server keeps a star per conversation (`ChannelPrefs.starred`). An
    * older one would drop a star without saying so, so none is offered there.
    */
@@ -620,6 +626,7 @@ const initialState: WorkspaceState = {
   scheduledEvents: false,
   activityThreads: false,
   threadMutes: false,
+  reminders: null,
   stars: false,
   workspaceSettings: false,
   accessPolicy: null,
@@ -749,6 +756,8 @@ export class WorkspaceClient {
   onIncomingMessage: ((msg: Message, context: { live: boolean }) => void) | null = null;
   /** A message was deleted, so whatever was about to be said of it is not news. */
   onMessageDeleted: ((messageId: ID) => void) | null = null;
+  /** One of this account's reminders came due now; the app hooks its notification here. */
+  onReminderDue: ((reminder: Reminder, message: Message) => void) | null = null;
 
   /**
    * The server's seq when this connection opened. Everything at or below it
@@ -1034,6 +1043,9 @@ export class WorkspaceClient {
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
       threadMutes: snap.threadMutes === true,
+      reminders: snap.reminders
+        ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
+        : null,
       stars: snap.stars === true,
       workspaceSettings: snap.workspaceSettings === true,
       accessPolicy: snap.accessPolicy ?? null,
@@ -1335,6 +1347,14 @@ export class WorkspaceClient {
           this.reloadThreads.delete(rootId);
         }
         Object.assign(patch, { threads, threadPages, threadFollows, saved });
+        // Their reminders went with them on the server.
+        if (s.reminders)
+          patch.reminders = Object.fromEntries(
+            Object.entries(s.reminders).filter(
+              ([messageId, reminder]) =>
+                !gone.has(messageId) && !(reminder.threadRootId && gone.has(reminder.threadRootId)),
+            ),
+          );
         patch.removedHistory = { ...s.removedHistory, [event.channelId]: seq };
         this.requoteHeld(s, patch, event.channelId, event, seq);
         changed(event.channelId);
@@ -1739,6 +1759,20 @@ export class WorkspaceClient {
       });
     } else if (event.type === "thread.follow") {
       this.applyThreadFollow(event.state);
+    } else if (event.type === "reminder") {
+      if (!s.reminders) return;
+      const known = s.reminders[event.reminder.messageId];
+      this.store.setState({
+        reminders: { ...s.reminders, [event.reminder.messageId]: event.reminder },
+      });
+      // Told once as it comes due; the same reminder told again is not news.
+      if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
+        this.onReminderDue?.(event.reminder, event.message);
+    } else if (event.type === "reminder.removed") {
+      if (!s.reminders?.[event.messageId]) return;
+      const reminders = { ...s.reminders };
+      delete reminders[event.messageId];
+      this.store.setState({ reminders });
     } else if (event.type === "scheduled") {
       this.store.setState({ scheduledChanges: s.scheduledChanges + 1 });
     } else if (event.type === "ephemeral.message") {
@@ -2783,6 +2817,38 @@ export class WorkspaceClient {
       },
       () => this.inFollowOrder(rootId, () => this.api.setThreadFollow(rootId, following)),
     );
+  }
+
+  /**
+   * Sets a reminder about a message, or moves the one there, once the server
+   * has it. False if it refused, such as for a time already past.
+   */
+  async setReminder(messageId: ID, at: number): Promise<boolean> {
+    try {
+      const { reminder } = await this.api.setReminder(messageId, at);
+      this.store.setState((s) =>
+        s.reminders ? { reminders: { ...s.reminders, [messageId]: reminder } } : {},
+      );
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Removes a reminder, done or cancelled. One already gone counts as removed. */
+  async cancelReminder(messageId: ID): Promise<boolean> {
+    try {
+      await this.api.cancelReminder(messageId);
+    } catch (error) {
+      if (!(error instanceof ApiError && error.status === 404)) return false;
+    }
+    this.store.setState((s) => {
+      if (!s.reminders?.[messageId]) return {};
+      const reminders = { ...s.reminders };
+      delete reminders[messageId];
+      return { reminders };
+    });
+    return true;
   }
 
   /**
