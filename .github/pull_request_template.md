@@ -12,7 +12,7 @@
 If something on screen changes, check these too.
 [CONTRIBUTING.md](https://github.com/Blazeiscoding/Tandem/blob/main/CONTRIBUTING.md) says how.
 
-- [ ] It opens in the right place: a side panel to read beside the conversation, a dialog for a short task, a page for settings
+- [ ] It opens in the right place: a side panel to read beside the conversation, a dialog for a short task, the settings window for settings
 - [ ] It works from the keyboard, Escape closes it, and focus goes back to what opened it
 - [ ] Focus is visible on everything that takes it
 - [ ] Looked at in Onyx and White, and axe in a real browser is clean in both

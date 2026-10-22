@@ -13,7 +13,7 @@ import { accessibilityProblems } from "./accessibility.js";
 
 /**
  * Workspace settings (UX-60): the workspace's name and who may join, for its
- * owner and admins, as a page of its own.
+ * owner and admins, in a window of its own.
  */
 const person = (id: string, displayName: string, role: User["role"]): User => ({
   id,
@@ -74,7 +74,7 @@ function client(
   return workspace;
 }
 
-/** The page on its own, over a client whose admin calls answer from stubs. */
+/** The window on its own, over a client whose admin calls answer from stubs. */
 function page(
   options: Parameters<typeof client>[1] & { hostedHere?: boolean; role?: User["role"] } = {},
 ) {
@@ -98,7 +98,7 @@ function page(
   return { client: workspace, dialog, rename, choose, user: userEvent.setup() };
 }
 
-/** The whole workspace, as `role`, to find where the page opens from. */
+/** The whole workspace, as `role`, to find where the window opens from. */
 async function workspaceAs(role: User["role"]) {
   vi.stubGlobal("matchMedia", (query: string) => ({
     matches: query.includes("min-width"),
@@ -137,7 +137,7 @@ async function workspaceAs(role: User["role"]) {
 }
 
 describe("where Workspace settings opens", () => {
-  it("is in the workspace menu for the owner and admins, and opens as a page", async () => {
+  it("is in the workspace menu for the owner and admins, and opens as a window, as Account settings does", async () => {
     const { menu, user } = await workspaceAs("admin");
     await user.click(within(menu).getByRole("menuitem", { name: "Workspace settings" }));
     const settings = await screen.findByRole(
@@ -146,6 +146,8 @@ describe("where Workspace settings opens", () => {
       { timeout: 3_000 },
     );
     expect(await within(settings).findByLabelText("Workspace name")).toHaveValue("Rocket Team");
+    expect(settings).toHaveClass("settings-window", "dialog-surface", "animate-pop-in");
+    expect(within(settings).getAllByRole("button", { name: "Close" })).toHaveLength(1);
     // A place of its own: the address names it, so Back closes it and a reload reopens it.
     expect(window.location.hash).toMatch(/\/d\/workspace$/);
   });
