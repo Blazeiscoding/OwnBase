@@ -32,7 +32,8 @@
         "setThreadMute calls PUT /api/messages/:id/mute with muted (E3).",
         "setReminder, cancelReminder and listReminders call PUT and DELETE /api/messages/:id/reminder and GET /api/reminders (E4).",
         "votePoll and closePoll call PUT /api/messages/:id/poll/votes and POST /api/messages/:id/poll/close (E6).",
-        "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7)."
+        "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7).",
+        "createSidebarSection, renameSidebarSection, deleteSidebarSection and orderSidebarSections call the sidebar section routes (E8)."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -59,7 +60,8 @@
         "reminders holds this account's reminders by message id, or null where the server keeps none (E4). The ready snapshot fills it; reminder and reminder.removed keep it current, and history.removed drops those its threads took. onReminderDue is told once as one comes due, with its message. setReminder keeps the server's answer at once; cancelReminder treats one already gone as removed.",
         "draftTimes keeps when each draft last changed, as far as this device knows (E5). setDraft stamps a draft whose words change, or the time given for one put back; hydrateDrafts keeps the time of a draft whose words did not change, takes the stored time on restore, and dates one another window changed from hearing of it.",
         "pollChoices holds what this account chose in anonymous polls, by message id, or null where the server keeps no polls (E6); the ready snapshot fills it, poll.choices keeps it current and a deletion drops its entry. pollPicks holds choices made here that the server has not been heard to have. send takes poll, through the outbox like any message, refused alone with files or a forward or where polls are not kept; a poll's question is never read as a command. vote goes through choose, one request out at a time with the latest standing, shows the pick at once and lets it go once an echo or the answer says the server has it; a refused vote shows what the server last said. A message.updated with pollOnly is not an edit, so it changes no Activity and requotes nothing. closePoll shows the poll closed once the server says so.",
-        "sharedFiles says the server lists shared files (ReadySnapshot.sharedFiles, E7), so Files is offered only there."
+        "sharedFiles says the server lists shared files (ReadySnapshot.sharedFiles, E7), so Files is offered only there.",
+        "sidebarSections holds this account's sections in order, or null where the server keeps none (E8); the snapshot fills it and sidebar.sections keeps it current. Making, renaming and deleting one keep the server's answer. orderSidebarSections shows the new order at once; lists heard while it is on its way wait, and a refusal shows the last one heard. A conversation moves through setChannelPrefs with sectionId."
       ],
       "concepts": [
         "workspace replica",
@@ -983,7 +985,8 @@
       "details": [
         "starItem and muteItem name a choice by what it does now: Star channel, Unstar conversation, Mute channel, Unmute conversation. The sidebar row's More menu and the conversation's ⋯ menu share them.",
         "Both save through WorkspaceClient.setChannelPrefs, so the choice shows at once, reaches the server in order with any other choice for that conversation, and reaches the account's other devices as a prefs event. saved waits until nothing for that conversation is being saved and says whether this choice was refused.",
-        "A refusal puts back what the workspace has and shows a notice with Try again, since the row that made the choice may have moved by then. Star is offered only for a conversation this account is in, on a server that keeps stars (WorkspaceState.stars), because an older one would drop it without saying so."
+        "A refusal puts back what the workspace has and shows a notice with Try again, since the row that made the choice may have moved by then. Star is offered only for a conversation this account is in, on a server that keeps stars (WorkspaceState.stars), because an older one would drop it without saying so.",
+        "moveConversation puts a conversation in a section, or back with null, unstarring it; moveItems builds a menu's Move to group (E8)."
       ],
       "concepts": ["starred conversations", "optimistic state", "UX-20"]
     },
@@ -1516,6 +1519,16 @@
       "concepts": ["polls", "form validation", "outbox"]
     },
     {
+      "path": "packages/ui/src/components/SectionNameDialog.tsx",
+      "plain": "The small window for naming a sidebar section, new or renamed.",
+      "summary": "Takes a section's name, says what is wrong beside it, and stays open with the reason if the server refuses (E8).",
+      "details": [
+        "One field, up to SIDEBAR_SECTION_NAME_MAX characters. An empty name is asked for again; otherwise it waits for the caller's answer, which is null once the server has the name or the reason it refused.",
+        "The sidebar loads it on first use, for New section... in a row's menu (the row then moves into the new section) and Rename section... in a section's menu."
+      ],
+      "concepts": ["sidebar sections", "form validation"]
+    },
+    {
       "path": "packages/ui/src/components/Sidebar.tsx",
       "plain": "The sidebar with your workspaces, starred conversations, channels, direct messages, unread marks and account menu.",
       "summary": "Combines workspace switching, conversation navigation, unread context and account actions.",
@@ -1535,7 +1548,8 @@
         "Its counts are Badges: Activity a red count of mentions or a quiet one of unread conversations, Threads a quiet count of threads with unread replies, a row's red mention count named with its channel, and a dot on a section's header button (Friends) for what is new. The rail's own badge is still CountBadge.",
         "Activity's red badge counts due reminders with unread mentions, named for what it counts (E4).",
         "A Drafts row under Saved opens the Drafts panel, with a quiet count of the drafts it lists (E5). It shows only while there are drafts or the panel is open, so an empty row does not take a channel's place beside Getting started (UX-20).",
-        "A Files row under Saved is there while the file browser is open, as Drafts is, so it costs no channel's place beside Getting started (UX-20); onFiles is given only where the server lists shared files (E7)."
+        "A Files row under Saved is there while the file browser is open, as Drafts is, so it costs no channel's place beside Getting started (UX-20); onFiles is given only where the server lists shared files (E7).",
+        "Sidebar sections (E8): the account's sections sit between Starred and Channels in their order, each listing its conversations by name, channels and people together; a conversation naming a section the account no longer has goes back where it would be. An empty one says how to fill it. A section folds like the others, kept on this device as section:<id>. Its header menu renames it (SectionNameDialog, lazy), moves it up or down where it can go, and deletes it after asking. A row's menu has a Move to group (each other section, New section..., Remove from), and a row can be dragged with a pointer onto a section, Starred, or its own Channels or Direct messages; the place lights while it would take the row, and nothing happens where it already is. Focus follows a moved row, as it does a starred one."
       ],
       "concepts": [
         "workspace navigation",
@@ -2217,7 +2231,8 @@
       "summary": "Asks named questions for irreversible user actions and returns a boolean answer.",
       "details": [
         "ConfirmProvider and useConfirm expose a promise resolved true only by the explicitly named action; cancellation, closing and Escape resolve false.",
-        "A destructive question begins on Cancel and can explain the consequence. Callers act on the answer rather than inferring permission from dismissal."
+        "A destructive question begins on Cancel and can explain the consequence. Callers act on the answer rather than inferring permission from dismissal.",
+        "useOptionalConfirm is useConfirm where a screen may be drawn without a provider, as the sidebar is in tests: then nobody is asked."
       ],
       "concepts": ["explicit confirmation", "promise dialog", "destructive actions"]
     },

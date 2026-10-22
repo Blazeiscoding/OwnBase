@@ -93,7 +93,7 @@ describe("a notification choice for a channel", () => {
     first.pass();
     await expect
       .poll(() => stored())
-      .toEqual({ notifyLevel: "nothing", muted: true, starred: false });
+      .toEqual({ notifyLevel: "nothing", muted: true, starred: false, sectionId: null });
     // What was chosen meanwhile went as one request.
     expect(sent).toHaveBeenCalledTimes(2);
     expect(sent.mock.calls[1]).toEqual([channelId, { notifyLevel: "nothing", muted: true }]);
@@ -129,7 +129,7 @@ describe("a notification choice for a channel", () => {
     mine.fail();
     await expect
       .poll(() => shown())
-      .toEqual({ notifyLevel: "nothing", muted: true, starred: false });
+      .toEqual({ notifyLevel: "nothing", muted: true, starred: false, sectionId: null });
   });
 
   it("sends nothing more from a closed client, so its replacement's choice stands (REV-11)", async () => {
@@ -145,7 +145,7 @@ describe("a notification choice for a channel", () => {
       replacement.setChannelPrefs(channelId, { muted: false, notifyLevel: "nothing" });
       await expect
         .poll(() => stored())
-        .toEqual({ notifyLevel: "nothing", muted: false, starred: false });
+        .toEqual({ notifyLevel: "nothing", muted: false, starred: false, sectionId: null });
       first.pass();
       await new Promise((resolve) => setTimeout(resolve, 100));
       // The held request went; the closed client's waiting "muted" did not.
@@ -190,7 +190,12 @@ describe("a star on a conversation", () => {
     held.pass();
     await expect.poll(() => stored()?.starred).toBe(true);
     await expect.poll(() => client.state.prefsWrites[channelId]).toBeUndefined();
-    expect(shown()).toEqual({ notifyLevel: "mentions", muted: false, starred: true });
+    expect(shown()).toEqual({
+      notifyLevel: "mentions",
+      muted: false,
+      starred: true,
+      sectionId: null,
+    });
   });
 
   it("goes back when the server refuses it, and can be tried again", async () => {

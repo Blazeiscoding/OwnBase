@@ -24,6 +24,7 @@ import type {
   ThreadFollow,
   Reminder,
   SharedFile,
+  SidebarSection,
   ReminderItem,
   FollowedThread,
   EventSubscription,
@@ -615,6 +616,27 @@ export class Api {
     const query = new URLSearchParams({ limit: "30" });
     if (cursor) query.set("cursor", cursor);
     return this.request("GET", `/api/saved?${query}`, undefined, { signal, timeoutMs: 10_000 });
+  }
+
+  /** Adds a section at the end of this account's sidebar (E8). */
+  createSidebarSection(
+    name: string,
+  ): Promise<{ section: SidebarSection; sections: SidebarSection[] }> {
+    return this.request("POST", "/api/sidebar-sections", { name });
+  }
+
+  renameSidebarSection(id: ID, name: string): Promise<{ sections: SidebarSection[] }> {
+    return this.request("PATCH", `/api/sidebar-sections/${id}`, { name });
+  }
+
+  /** Deletes a section; its conversations go back where they would be. */
+  deleteSidebarSection(id: ID): Promise<{ sections: SidebarSection[] }> {
+    return this.request("DELETE", `/api/sidebar-sections/${id}`);
+  }
+
+  /** Puts every one of this account's sections in this order. */
+  orderSidebarSections(ids: ID[]): Promise<{ sections: SidebarSection[] }> {
+    return this.request("PUT", "/api/sidebar-sections/order", { ids });
   }
 
   /** A page of the files shared in conversations this account can read (E7). */

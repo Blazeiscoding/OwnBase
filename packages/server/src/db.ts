@@ -653,6 +653,21 @@ const MIGRATIONS: string[] = [
   );
   CREATE INDEX idx_poll_votes_user ON poll_votes(user_id);
   `,
+  // v46 — sidebar sections (E8): one account's own named sections, in its
+  // order, and on each membership the section it is kept in. No foreign key,
+  // as with forwarded_from_id: deleting a section clears its members' column
+  // in the same change, and a column with one could not be dropped again.
+  `
+  CREATE TABLE sidebar_sections (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_sidebar_sections_user ON sidebar_sections(user_id, position);
+  ALTER TABLE channel_members ADD COLUMN section_id TEXT;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

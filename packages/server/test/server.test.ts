@@ -607,13 +607,19 @@ describe("workspace server", () => {
       { method: "PATCH", token: aliceToken, body: { notifyLevel: "all", muted: true } },
     );
     expect(res.status).toBe(200);
-    expect(res.data.prefs).toEqual({ notifyLevel: "all", muted: true, starred: false });
+    expect(res.data.prefs).toEqual({
+      notifyLevel: "all",
+      muted: true,
+      starred: false,
+      sectionId: null,
+    });
 
     // Alice's choice is hers alone.
     expect(server.store.getChannelPrefs(general.id, bob.id)).toEqual({
       notifyLevel: "mentions",
       muted: false,
       starred: false,
+      sectionId: null,
     });
 
     await api(`/api/channels/${general.id}/prefs`, {
@@ -626,6 +632,7 @@ describe("workspace server", () => {
       notifyLevel: "all",
       muted: false,
       starred: false,
+      sectionId: null,
     });
   });
 

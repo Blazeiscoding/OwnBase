@@ -1,5 +1,7 @@
 import { z } from "zod";
 import {
+  SIDEBAR_SECTIONS_MAX,
+  SIDEBAR_SECTION_NAME_MAX,
   POLL_OPTION_MAX,
   POLL_OPTIONS_MAX,
   POLL_OPTIONS_MIN,
@@ -62,6 +64,20 @@ export const channelPrefsBody = z.object({
   muted: z.boolean().optional(),
   /** A server before schema v40 drops this unread; see `ReadySnapshot.stars`. */
   starred: z.boolean().optional(),
+  /** The sidebar section to keep it in, or null for none (E8). */
+  sectionId: z.string().min(1).max(64).nullable().optional(),
+});
+
+/** A sidebar section's name: no control characters, 1 to 80 characters once trimmed (E8). */
+export const sidebarSectionNameSchema = z
+  .string()
+  .refine((value) => !/\p{Cc}/u.test(value), "no control characters")
+  .transform((value) => value.trim())
+  .pipe(z.string().min(1).max(SIDEBAR_SECTION_NAME_MAX));
+export const sidebarSectionBody = z.object({ name: sidebarSectionNameSchema });
+/** Every one of the account's sections, in the order to keep them. */
+export const sidebarSectionOrderBody = z.object({
+  ids: z.array(z.string().min(1).max(64)).max(SIDEBAR_SECTIONS_MAX),
 });
 
 export const savedMessagesQuery = z.object({

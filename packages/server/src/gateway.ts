@@ -340,6 +340,7 @@ export class Gateway {
           reminders: this.store.reminders(user.id),
           pollChoices: this.store.anonymousPollChoices(user.id),
           sharedFiles: true,
+          sidebarSections: this.store.sidebarSections(user.id),
           stars: true,
           workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),

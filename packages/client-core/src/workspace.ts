@@ -19,6 +19,7 @@ import {
   type ServerToClient,
   type ThreadFollow,
   type Reminder,
+  type SidebarSection,
   type User,
   type WorkspaceEvent,
 } from "@slackoss/protocol";
@@ -509,6 +510,12 @@ export interface WorkspaceState {
   /** The server lists the files shared in conversations, so Files is offered (E7). */
   sharedFiles: boolean;
   /**
+   * This account's sidebar sections, in their order (E8). Null where the
+   * server keeps none, so none is offered there. A conversation's own is
+   * `ChannelPrefs.sectionId`; one naming a section not here has none.
+   */
+  sidebarSections: SidebarSection[] | null;
+  /**
    * This account's reminders by message id, waiting and due (E4). Null where
    * the server keeps none, so none is offered there.
    */
@@ -649,6 +656,7 @@ const initialState: WorkspaceState = {
   activityThreads: false,
   threadMutes: false,
   sharedFiles: false,
+  sidebarSections: null,
   reminders: null,
   pollChoices: null,
   pollPicks: {},
@@ -1035,6 +1043,7 @@ export class WorkspaceClient {
     }
     const reset = snap.replayFrom === null || this.state.lastSeq > snap.seq;
     if (reset) this.resetHistory();
+    this.heardSections = snap.sidebarSections ?? null;
     const users: Record<ID, User> = {};
     for (const u of snap.users) users[u.id] = u;
     const channels: Record<ID, Channel> = {};
@@ -1070,6 +1079,7 @@ export class WorkspaceClient {
       activityThreads: snap.activityThreads === true,
       threadMutes: snap.threadMutes === true,
       sharedFiles: snap.sharedFiles === true,
+      sidebarSections: snap.sidebarSections ?? null,
       reminders: snap.reminders
         ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
         : null,
@@ -1823,6 +1833,11 @@ export class WorkspaceClient {
       const reminders = { ...s.reminders };
       delete reminders[event.messageId];
       this.store.setState({ reminders });
+    } else if (event.type === "sidebar.sections") {
+      this.heardSections = event.sections;
+      // A reorder of this device's still on its way is not undone by an older word.
+      if (s.sidebarSections && !this.sectionOrderSending)
+        this.store.setState({ sidebarSections: event.sections });
     } else if (event.type === "poll.choices") {
       if (!s.pollChoices) return;
       const pollChoices = { ...s.pollChoices };
@@ -3209,6 +3224,78 @@ export class WorkspaceClient {
     const { iconVersion } = await this.api.setWorkspaceIcon(image);
     if (!this.stopped) this.store.setState({ iconVersion });
     return iconVersion;
+  }
+
+  /**
+   * Adds a section to this account's sidebar, last, and gives it once the
+   * server has it; null when it refused, such as at the limit (E8).
+   */
+  async createSidebarSection(name: string): Promise<SidebarSection | null> {
+    try {
+      const { section, sections } = await this.api.createSidebarSection(name);
+      this.keepSections(sections);
+      return section;
+    } catch {
+      return null;
+    }
+  }
+
+  /** Renames one of this account's sections; false when the server refused. */
+  async renameSidebarSection(id: ID, name: string): Promise<boolean> {
+    try {
+      this.keepSections((await this.api.renameSidebarSection(id, name)).sections);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Deletes one of this account's sections; its conversations go back where
+   * they would be. False when the server refused.
+   */
+  async deleteSidebarSection(id: ID): Promise<boolean> {
+    try {
+      this.keepSections((await this.api.deleteSidebarSection(id)).sections);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** How many reorders of the sections are on their way: lists heard meanwhile wait. */
+  private sectionOrderSending = 0;
+  /** The sections as the server last said, by an answer or an event. */
+  private heardSections: SidebarSection[] | null = null;
+
+  /**
+   * Puts this account's sections in a new order, shown at once. A refusal,
+   * such as a section added on another device meanwhile, shows the list the
+   * server last told this one.
+   */
+  async orderSidebarSections(ids: ID[]): Promise<boolean> {
+    const before = this.state.sidebarSections;
+    if (!before) return false;
+    this.heardSections ??= before;
+    const byId = new Map(before.map((section) => [section.id, section]));
+    this.store.setState({ sidebarSections: ids.flatMap((id) => byId.get(id) ?? []) });
+    this.sectionOrderSending++;
+    try {
+      const { sections } = await this.api.orderSidebarSections(ids);
+      this.sectionOrderSending--;
+      this.keepSections(sections);
+      return true;
+    } catch {
+      this.sectionOrderSending--;
+      if (!this.stopped && this.sectionOrderSending === 0)
+        this.store.setState({ sidebarSections: this.heardSections });
+      return false;
+    }
+  }
+
+  private keepSections(sections: SidebarSection[]): void {
+    this.heardSections = sections;
+    if (!this.stopped) this.store.setState({ sidebarSections: sections });
   }
 
   /** Removes the workspace's icon, for its owner and admins, at once here too. */
