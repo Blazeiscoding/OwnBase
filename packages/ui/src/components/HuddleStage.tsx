@@ -14,7 +14,7 @@ import { Avatar } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
-import { useCallVolumes, type PersonVolume as Volume } from "../lib/callVolumes.js";
+import { screenSoundKey, useCallVolumes, type PersonVolume as Volume } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
 
 /** Cameras send 16:9, so tiles keep that shape and nobody's head is cropped off. */
@@ -57,8 +57,10 @@ interface StageItem {
   self: boolean;
   speaking: boolean;
   muted: boolean;
-  /** Muted by you, for you alone. */
+  /** Muted by you, for you alone: their voice, or a shared screen's sound. */
   mutedForYou?: boolean;
+  /** A shared screen that sends its sound too. */
+  sound?: boolean;
   connecting: boolean;
   /** Connecting has taken long enough to know something is wrong. */
   stuck?: boolean;
@@ -86,6 +88,8 @@ function stageItems(
         self: false,
         speaking: false,
         muted: false,
+        sound: !!p.screenSoundStream,
+        mutedForYou: !!p.screenSoundStream && (volumes[screenSoundKey(p.userId)]?.muted ?? false),
         connecting: !p.connected,
       });
   if (huddle.localScreenStream)
@@ -99,6 +103,7 @@ function stageItems(
       self: true,
       speaking: false,
       muted: false,
+      sound: huddle.sharingScreenSound ?? false,
       connecting: false,
     });
   items.push({
@@ -133,8 +138,12 @@ function stageItems(
 
 /** What a tile is called for a screen reader: who, and what is off. */
 function describe(item: StageItem): string {
-  if (item.kind === "screen") return item.connecting ? `${item.name}, connecting` : item.name;
   const parts = [item.name];
+  if (item.kind === "screen") {
+    if (item.sound) parts.push(item.mutedForYou ? "sound muted for you" : "with sound");
+    if (item.connecting) parts.push("connecting");
+    return parts.join(", ");
+  }
   if (!item.stream) parts.push("camera off");
   if (item.muted) parts.push("muted");
   if (item.mutedForYou) parts.push("muted for you");
@@ -260,6 +269,7 @@ function TileBody({
         className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm"
       >
         {item.kind === "screen" && <Icon name="screen" size={13} />}
+        {item.sound && !item.mutedForYou && <Icon name="volume" size={13} />}
         {item.muted && <Icon name="micOff" size={13} className="text-alert" />}
         {item.mutedForYou && <Icon name="volumeOff" size={13} className="text-alert" />}
         <span className="truncate">{item.name}</span>
@@ -275,9 +285,9 @@ function TileBody({
   );
 }
 
-/** Someone else, on camera or not, whose volume is yours to set. */
+/** Someone else, on camera or not, or their screen with its sound: the volume is yours to set. */
 const hasVolume = (item: StageItem): item is StageItem & { userId: ID } =>
-  item.kind === "person" && !item.self && item.userId !== undefined;
+  (item.kind === "person" || !!item.sound) && !item.self && item.userId !== undefined;
 
 const tileFrame = (item: StageItem, radius = "rounded-2xl") =>
   `relative block size-full overflow-hidden ${radius} ${
@@ -317,11 +327,11 @@ function TileButton(props: {
 }
 
 /**
- * How loud someone is to you, from their tile. It opens in the tile rather
- * than as a popover, so it is there in full screen too, where only the stage
- * is shown.
+ * How loud someone, or the screen they share, is to you, from their tile. It
+ * opens in the tile rather than as a popover, so it is there in full screen
+ * too, where only the stage is shown.
  */
-function TileVolume({ userId, name }: { userId: ID; name: string }) {
+function TileVolume({ item }: { item: StageItem & { userId: ID } }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -335,7 +345,7 @@ function TileVolume({ userId, name }: { userId: ID; name: string }) {
   return (
     <div ref={wrap} className="contents">
       <TileButton
-        label={`Volume for ${name}`}
+        label={`Volume for ${item.name}`}
         icon="volume"
         place="beside"
         expanded={open}
@@ -352,7 +362,11 @@ function TileVolume({ userId, name }: { userId: ID; name: string }) {
             wrap.current?.querySelector<HTMLElement>("button[aria-expanded]")?.focus();
           }}
         >
-          <PersonVolume userId={userId} name={name} />
+          {item.kind === "screen" ? (
+            <PersonVolume userId={item.userId} name={item.user?.displayName ?? "Someone"} screen />
+          ) : (
+            <PersonVolume userId={item.userId} name={item.name} />
+          )}
         </div>
       )}
     </div>
@@ -389,7 +403,7 @@ function Gallery({
           >
             <TileBody item={item} height={tileHeight} />
             <TileButton label={`Pin ${item.name}`} icon="pin" onClick={() => onPin(item.key)} />
-            {hasVolume(item) && <TileVolume userId={item.userId} name={item.name} />}
+            {hasVolume(item) && <TileVolume item={item} />}
           </div>
         </li>
       ))}
@@ -426,7 +440,9 @@ function Presenting({ item, width, height }: { item: StageItem; width: number; h
       <div className="min-w-0">
         <p className="font-semibold">You're sharing your screen</p>
         <p className="mt-1 text-sm text-ink-dim">
-          Everyone in the huddle can see it
+          {item.sound
+            ? "Everyone in the huddle can see and hear it"
+            : "Everyone in the huddle can see it"}
           {layout === "small" ? "." : ". This preview is only for you."}
         </p>
       </div>
@@ -502,7 +518,7 @@ function Spotlight({
           onAspect={main.kind === "screen" ? setScreenAspect : undefined}
         />
         {pinned && <TileButton label={`Unpin ${main.name}`} icon="pin" onClick={onUnpin} active />}
-        {hasVolume(main) && <TileVolume userId={main.userId} name={main.name} />}
+        {hasVolume(main) && <TileVolume item={main} />}
       </div>
     );
   }

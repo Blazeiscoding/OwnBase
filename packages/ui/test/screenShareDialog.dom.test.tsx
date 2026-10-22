@@ -6,7 +6,7 @@ import type { User } from "@slackoss/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform, type Platform, type ShareableSource } from "../src/platform.js";
 import { HuddleControls } from "../src/components/HuddleControls.js";
-import { QUALITY_KEY, REFRESH_MS } from "../src/components/ScreenShareDialog.js";
+import { QUALITY_KEY, REFRESH_MS, SOUND_KEY } from "../src/components/ScreenShareDialog.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -59,6 +59,8 @@ function picker(
     quick?: () => Promise<ShareableSource[] | null>;
     choose?: (id: string) => Promise<void>;
     desktop?: boolean;
+    /** This computer can share a screen's sound. */
+    sound?: boolean;
   } = {},
 ) {
   const full = options.sources ?? (async () => [screen1, screen2, editor, notes]);
@@ -68,7 +70,9 @@ function picker(
   const choose = vi.fn(options.choose ?? (async () => {}));
   const platform: Platform = {
     ...webPlatform(),
-    ...(options.desktop === false ? {} : { screenShare: { sources, choose } }),
+    ...(options.desktop === false
+      ? {}
+      : { screenShare: { sources, choose, sound: options.sound ?? false } }),
   };
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
@@ -159,7 +163,7 @@ describe("choosing what to share in the desktop app", () => {
     expect(within(dialog).queryByRole("alert")).toBeNull();
     expect(windows).not.toHaveAttribute("aria-invalid");
     await user.click(button);
-    expect(choose).toHaveBeenCalledWith("window:2:0");
+    expect(choose).toHaveBeenCalledWith("window:2:0", { sound: false });
   });
 
   it("says why Share has nothing yet while the list is found, or when there is no window", async () => {
@@ -185,7 +189,7 @@ describe("choosing what to share in the desktop app", () => {
     await user.keyboard("{Enter}");
     expect(within(dialog).queryByRole("alert")).toBeNull();
     await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
-    expect(choose).toHaveBeenCalledWith("screen:0:0");
+    expect(choose).toHaveBeenCalledWith("screen:0:0", { sound: false });
   });
 
   it("shares the window chosen, at the quality chosen, and closes", async () => {
@@ -196,8 +200,8 @@ describe("choosing what to share in the desktop app", () => {
     await user.click(within(dialog).getByRole("radio", { name: "720p" }));
     await user.click(within(dialog).getByRole("radio", { name: "30 fps" }));
     await user.click(within(dialog).getByRole("button", { name: "Share window" }));
-    expect(choose).toHaveBeenCalledWith("window:1:0");
-    expect(share).toHaveBeenCalledWith({ height: 720, frameRate: 30 });
+    expect(choose).toHaveBeenCalledWith("window:1:0", { sound: false });
+    expect(share).toHaveBeenCalledWith({ height: 720, frameRate: 30 }, false);
     // Named to the main process before the huddle asks for a screen.
     expect(choose.mock.invocationCallOrder[0]).toBeLessThan(share.mock.invocationCallOrder[0]!);
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
@@ -211,8 +215,8 @@ describe("choosing what to share in the desktop app", () => {
     const screens = await within(dialog).findByRole("radiogroup", { name: "Screens" });
     expect(within(screens).getByRole("radio", { name: "Screen 1" })).toBeChecked();
     await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
-    expect(choose).toHaveBeenCalledWith("screen:0:0");
-    expect(share).toHaveBeenCalledWith({ height: 1080, frameRate: 15 });
+    expect(choose).toHaveBeenCalledWith("screen:0:0", { sound: false });
+    expect(share).toHaveBeenCalledWith({ height: 1080, frameRate: 15 }, false);
   });
 
   it("shares at once on Enter or a double click", async () => {
@@ -220,14 +224,14 @@ describe("choosing what to share in the desktop app", () => {
     const { choose } = picker();
     let dialog = await open(user);
     await user.dblClick(await within(dialog).findByText("Notes"));
-    expect(choose).toHaveBeenLastCalledWith("window:2:0");
+    expect(choose).toHaveBeenLastCalledWith("window:2:0", { sound: false });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
 
     dialog = await open(user);
     await user.click(within(dialog).getByRole("tab", { name: "Screens" }));
     await user.click(await within(dialog).findByRole("radio", { name: "Screen 2" }));
     await user.keyboard("{Enter}");
-    expect(choose).toHaveBeenLastCalledWith("screen:1:0");
+    expect(choose).toHaveBeenLastCalledWith("screen:1:0", { sound: false });
   });
 
   it("opens on Screens when there is no window to share", async () => {
@@ -266,6 +270,56 @@ describe("choosing what to share in the desktop app", () => {
     await waitFor(() =>
       expect(within(dialog).getByRole("radio", { name: "60 fps" })).toBeChecked(),
     );
+  });
+});
+
+describe("sharing the screen's sound", () => {
+  it("is offered where this computer can share it, on to begin with, and sent", async () => {
+    const user = userEvent.setup();
+    const { choose, share } = picker({ sound: true });
+    const dialog = await open(user);
+    const sound = within(dialog).getByRole("switch", { name: "Share sound" });
+    expect(sound).toBeChecked();
+    expect(dialog).toHaveAccessibleDescription(
+      "Everyone in the huddle sees what you share and hears your computer's sound.",
+    );
+    await within(dialog).findByRole("radio", { name: "Editor" });
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+    await user.click(within(dialog).getByRole("tab", { name: "Screens" }));
+    await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
+    expect(choose).toHaveBeenCalledWith("screen:0:0", { sound: true });
+    expect(share).toHaveBeenCalledWith({ height: 1080, frameRate: 15 }, true);
+  });
+
+  it("can be turned off, which is remembered for next time", async () => {
+    const user = userEvent.setup();
+    const { platform, choose, share } = picker({ sound: true });
+    let dialog = await open(user);
+    await user.click(within(dialog).getByRole("switch", { name: "Share sound" }));
+    expect(within(dialog).getByRole("switch", { name: "Share sound" })).not.toBeChecked();
+    expect(dialog).toHaveAccessibleDescription("Everyone in the huddle sees what you share.");
+    await waitFor(async () => expect(await platform.storage.get(SOUND_KEY)).toBe(false));
+    await user.click(within(dialog).getByRole("tab", { name: "Screens" }));
+    await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
+    expect(choose).toHaveBeenCalledWith("screen:0:0", { sound: false });
+    expect(share).toHaveBeenCalledWith({ height: 1080, frameRate: 15 }, false);
+    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+
+    dialog = await open(user);
+    await waitFor(() =>
+      expect(within(dialog).getByRole("switch", { name: "Share sound" })).not.toBeChecked(),
+    );
+  });
+
+  it("is not offered where this computer cannot share it", async () => {
+    const user = userEvent.setup();
+    const { choose, share } = picker();
+    const dialog = await open(user);
+    expect(within(dialog).queryByRole("switch")).toBeNull();
+    await user.click(within(dialog).getByRole("tab", { name: "Screens" }));
+    await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
+    expect(choose).toHaveBeenCalledWith("screen:0:0", { sound: false });
+    expect(share).toHaveBeenCalledWith({ height: 1080, frameRate: 15 }, false);
   });
 });
 

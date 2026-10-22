@@ -1,25 +1,43 @@
 import { useId } from "react";
 import type { ID } from "@slackoss/protocol";
-import { AS_SENT, DEFAULT_VOLUME, MAX_VOLUME, useCallVolumes } from "../lib/callVolumes.js";
+import {
+  AS_SENT,
+  DEFAULT_VOLUME,
+  MAX_VOLUME,
+  screenSoundKey,
+  useCallVolumes,
+} from "../lib/callVolumes.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 
 /**
  * How loud someone in the call is to you: muted for you alone, or anywhere
  * from silent to twice as loud as they arrive. Nobody else hears the change.
+ * With `screen`, the same for the sound of the screen they share, which is
+ * kept apart from their voice.
  */
-export function PersonVolume({ userId, name }: { userId: ID; name: string }) {
+export function PersonVolume({
+  userId,
+  name,
+  screen = false,
+}: {
+  userId: ID;
+  name: string;
+  screen?: boolean;
+}) {
   const { volumes, set } = useCallVolumes();
-  const choice = volumes[userId] ?? AS_SENT;
+  const key = screen ? screenSoundKey(userId) : userId;
+  const choice = volumes[key] ?? AS_SENT;
+  const who = screen ? `${name}'s screen` : name;
   const marks = useId();
   return (
     <div className="flex items-center gap-2">
-      <Tooltip label={choice.muted ? `Unmute ${name} for you` : `Mute ${name} for you`}>
+      <Tooltip label={choice.muted ? `Unmute ${who} for you` : `Mute ${who} for you`}>
         <button
           type="button"
-          aria-label={`Mute ${name} for you`}
+          aria-label={`Mute ${who} for you`}
           aria-pressed={choice.muted}
-          onClick={() => set(userId, { muted: !choice.muted })}
+          onClick={() => set(key, { muted: !choice.muted })}
           className={`flex size-8 shrink-0 items-center justify-center rounded-lg transition-colors hover:bg-ink/[0.06] ${
             choice.muted ? "text-alert" : "text-ink-dim hover:text-ink"
           }`}
@@ -35,9 +53,9 @@ export function PersonVolume({ userId, name }: { userId: ID; name: string }) {
         step={5}
         list={marks}
         value={choice.volume}
-        aria-label={`${name}'s volume`}
+        aria-label={screen ? `${name}'s screen volume` : `${name}'s volume`}
         aria-valuetext={`${choice.volume}%`}
-        onChange={(event) => set(userId, { volume: Number(event.target.value), muted: false })}
+        onChange={(event) => set(key, { volume: Number(event.target.value), muted: false })}
         className="min-w-0 flex-1"
       />
       {/* A mark where they are as they arrive, which the slider settles on near it. */}

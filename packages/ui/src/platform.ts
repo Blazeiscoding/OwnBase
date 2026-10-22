@@ -298,10 +298,16 @@ export interface Platform {
      */
     sources: (options?: { quick?: boolean }) => Promise<ShareableSource[] | null>;
     /**
-     * Shares this one when the huddle next asks for a screen. Rejects, saying
+     * Shares this one when the huddle next asks for a screen, with its sound
+     * when `sound` is given and this computer can share it. Rejects, saying
      * why, when it has gone since it was listed.
      */
-    choose: (id: string) => Promise<void>;
+    choose: (id: string, options?: { sound?: boolean }) => Promise<void>;
+    /**
+     * Whether this computer can share a screen's sound, with the app's own
+     * left out, so the picker offers it.
+     */
+    sound?: boolean;
   };
   /** Subscribe to LAN server discovery. Returns unsubscribe. Desktop only. */
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;

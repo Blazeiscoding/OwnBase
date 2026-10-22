@@ -173,26 +173,57 @@ export async function findSource(
 }
 
 /**
+ * Whether this system can share a screen's sound with the app's own left out
+ * of it: Windows 10 version 2004 (build 19041) and later, which can record
+ * the speakers less one app's sound. Electron's macOS loopback needs a
+ * permission this app does not ask for, and Linux has none, so there a share
+ * is its picture only.
+ */
+export function screenSoundSupported(platform: string, systemVersion: string): boolean {
+  if (platform !== "win32") return false;
+  const [major = 0, , build = 0] = systemVersion.split(".").map(Number);
+  return major > 10 || (major === 10 && build >= 19041);
+}
+
+/**
+ * What a getDisplayMedia request is answered with. "loopback" is what the
+ * speakers play; asked for with `restrictOwnAudio`, as the huddle does,
+ * Electron records it without this app's own sound (Chromium's
+ * "loopbackWithoutChrome"), so the call is not sent back to itself.
+ */
+export interface ShareStreams {
+  video: ChosenSource;
+  audio?: "loopback";
+}
+
+/**
  * Holds the picker's choice for the getDisplayMedia request it is made for,
  * which comes moments later. It is used once, and only while fresh: a request
  * the picker did not just answer shares nothing.
  */
 export class ScreenChoice {
-  private held: { source: ChosenSource; at: number } | null = null;
+  private held: { source: ChosenSource; sound: boolean; at: number } | null = null;
 
   constructor(
     private readonly freshForMs = 15_000,
     private readonly now: () => number = Date.now,
   ) {}
 
-  hold(source: ChosenSource): void {
-    this.held = { source, at: this.now() };
+  /** `sound`: the picker allowed the screen's sound, where this system can share it. */
+  hold(source: ChosenSource, sound = false): void {
+    this.held = { source, sound, at: this.now() };
   }
 
-  /** The choice, once, if it was made within the last few seconds; otherwise null. */
-  take(): ChosenSource | null {
+  /**
+   * What to share, once, if the choice was made within the last few seconds;
+   * otherwise null. The sound goes only when the page asked for it too.
+   */
+  take(audioRequested = false): ShareStreams | null {
     const held = this.held;
     this.held = null;
-    return held && this.now() - held.at <= this.freshForMs ? held.source : null;
+    if (!held || this.now() - held.at > this.freshForMs) return null;
+    return held.sound && audioRequested
+      ? { video: held.source, audio: "loopback" }
+      : { video: held.source };
   }
 }

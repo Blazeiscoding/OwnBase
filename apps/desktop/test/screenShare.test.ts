@@ -4,6 +4,7 @@ import {
   SourceList,
   blank,
   findSource,
+  screenSoundSupported,
   type CapturedSource,
 } from "../src/main/screenShare.js";
 
@@ -190,7 +191,7 @@ describe("holding the choice for the request it is made for", () => {
   it("gives it to the next request, and only that one", () => {
     const choice = new ScreenChoice();
     choice.hold(notes);
-    expect(choice.take()).toEqual(notes);
+    expect(choice.take()).toEqual({ video: notes });
     // A second request was not chosen for, so it shares nothing.
     expect(choice.take()).toBeNull();
   });
@@ -211,6 +212,47 @@ describe("holding the choice for the request it is made for", () => {
     const choice = new ScreenChoice();
     choice.hold(notes);
     choice.hold({ id: "screen:0:0", name: "Entire screen" });
-    expect(choice.take()).toEqual({ id: "screen:0:0", name: "Entire screen" });
+    expect(choice.take()).toEqual({ video: { id: "screen:0:0", name: "Entire screen" } });
+  });
+
+  it("shares the screen's sound when the page asks for it and the picker allowed it", () => {
+    const choice = new ScreenChoice();
+    choice.hold(notes, true);
+    // Asked for with restrictOwnAudio, Electron leaves the app's own sound out.
+    expect(choice.take(true)).toEqual({ video: notes, audio: "loopback" });
+  });
+
+  it("shares no sound the page did not ask for, or the picker did not allow", () => {
+    const choice = new ScreenChoice();
+    choice.hold(notes, true);
+    expect(choice.take(false)).toEqual({ video: notes });
+    choice.hold(notes, false);
+    expect(choice.take(true)).toEqual({ video: notes });
+    choice.hold(notes);
+    expect(choice.take(true)).toEqual({ video: notes });
+  });
+
+  it("shares no sound, or anything, for a request the picker did not just answer", () => {
+    let now = 1_000;
+    const choice = new ScreenChoice(15_000, () => now);
+    choice.hold(notes, true);
+    expect(choice.take(true)).not.toBeNull();
+    expect(choice.take(true)).toBeNull();
+    choice.hold(notes, true);
+    now += 15_001;
+    expect(choice.take(true)).toBeNull();
+  });
+});
+
+describe("where a share can send the screen's sound", () => {
+  it("is Windows 10 version 2004 and later, which can leave one app out", () => {
+    expect(screenSoundSupported("win32", "10.0.26300")).toBe(true);
+    expect(screenSoundSupported("win32", "10.0.19041")).toBe(true);
+    expect(screenSoundSupported("win32", "10.0.18363")).toBe(false);
+  });
+
+  it("is nowhere else, where a share is its picture only", () => {
+    expect(screenSoundSupported("darwin", "15.1.0")).toBe(false);
+    expect(screenSoundSupported("linux", "6.8.0")).toBe(false);
   });
 });

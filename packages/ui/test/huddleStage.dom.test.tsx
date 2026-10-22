@@ -188,6 +188,40 @@ describe("the call", () => {
     expect(await accessibilityProblems(region())).toEqual([]);
   });
 
+  it("says a shared screen has sound, and sets its volume apart from the sharer's voice", async () => {
+    const device = {
+      kind: "web",
+      storage: { get: async () => null, set: async () => {} },
+      notify: () => {},
+    } as unknown as Platform;
+    const { user } = stage(
+      { peers: [peer("U_PRIYA", { screenStream: stream(), screenSoundStream: stream() })] },
+      { on: device },
+    );
+    const share = within(region()).getByRole("group", { name: "Priya Shah's screen, with sound" });
+    await user.click(control("Volume for Priya Shah's screen"));
+    expect(within(share).getByRole("slider", { name: "Priya Shah's screen volume" })).toHaveValue(
+      "100",
+    );
+    await user.click(
+      within(share).getByRole("button", { name: "Mute Priya Shah's screen for you" }),
+    );
+    expect(
+      within(region()).getByRole("group", { name: "Priya Shah's screen, sound muted for you" }),
+    ).toBeInTheDocument();
+    // Her voice is as it was.
+    const strip = within(region()).getByRole("list", { name: "Everyone else" });
+    expect(within(strip).getByRole("button", { name: "Pin Priya Shah, camera off" })).toBeVisible();
+    expect(await accessibilityProblems(region())).toEqual([]);
+  });
+
+  it("tells you when everyone can hear your share as well as see it", () => {
+    stage({ localScreenStream: stream(), sharingScreen: true, sharingScreenSound: true });
+    expect(
+      within(region()).getByRole("group", { name: "Your screen, with sound" }),
+    ).toHaveTextContent("Everyone in the huddle can see and hear it");
+  });
+
   it("gives a shared screen the main view, and lets you pin someone in its place", async () => {
     const { user } = stage({
       peers: [peer("U_PRIYA", { cameraStream: stream(), screenStream: stream() })],

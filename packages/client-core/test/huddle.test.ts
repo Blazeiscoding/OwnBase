@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HuddleSignal, ID } from "@slackoss/protocol";
 import type { CallReport } from "@slackoss/protocol";
-import { HuddleSession, STALL_MS, testMicrophone } from "../src/huddle.js";
+import { HuddleSession, STALL_MS, testMicrophone, withStereoScreenSound } from "../src/huddle.js";
 
 /**
  * Just enough WebRTC to exercise the session's own logic. The parts that
@@ -18,6 +18,10 @@ interface FakeReceiver {
   getSynchronizationSources: () => { audioLevel: number }[];
 }
 interface FakeTransceiver {
+  kind: string;
+  /** What this side wants, and what the last finished setup agreed. */
+  direction: string;
+  currentDirection: string | null;
   sender: FakeSender;
   receiver: FakeReceiver;
 }
@@ -36,7 +40,10 @@ class FakePeerConnection {
   stats: Map<string, Record<string, unknown>> | null = null;
   oniceconnectionstatechange: (() => void) | null = null;
   closed = false;
-  remoteDescription: unknown = null;
+  remoteDescription: { type: string; sdp: string } | null = null;
+  localDescription: unknown = null;
+  /** The directions the last offer carried, which its answer agrees. */
+  offeredDirections: string[] = [];
   candidates: unknown[] = [];
   onicecandidate: ((e: unknown) => void) | null = null;
   ontrack: ((e: { transceiver: FakeTransceiver; track: unknown }) => void) | null = null;
@@ -46,8 +53,11 @@ class FakePeerConnection {
     FakePeerConnection.instances.push(this);
   }
 
-  addTransceiver(_kind: string, _init: unknown): FakeTransceiver {
+  addTransceiver(kind: string, init?: { direction?: string }): FakeTransceiver {
     const tx: FakeTransceiver = {
+      kind,
+      direction: init?.direction ?? "sendrecv",
+      currentDirection: null,
       sender: {
         track: null,
         replaceTrack(t: unknown) {
@@ -68,6 +78,7 @@ class FakePeerConnection {
 
   createOffer(options?: unknown) {
     this.offerOptions.push(options);
+    this.offeredDirections = this.transceivers.map((tx) => tx.direction);
     return Promise.resolve({ type: "offer", sdp: "fake-offer" });
   }
   setConfiguration(config: unknown) {
@@ -84,15 +95,26 @@ class FakePeerConnection {
   createAnswer() {
     return Promise.resolve({ type: "answer", sdp: "fake-answer" });
   }
-  setLocalDescription() {
+  setLocalDescription(description?: unknown) {
+    this.localDescription = description ?? { type: "offer" };
     return Promise.resolve();
   }
-  setRemoteDescription(description: unknown) {
+  setRemoteDescription(description: { type: string; sdp: string }) {
     this.remoteDescription = description;
     if (this.transceivers.length === 0) {
-      this.addTransceiver("audio", {});
-      this.addTransceiver("video", {});
-      this.addTransceiver("video", {});
+      // A slot for each section offered; a test's "offer" is an older client's three.
+      const kinds = description.sdp.match(/^m=\w+/gm)?.map((m) => m.slice(2)) ?? [
+        "audio",
+        "video",
+        "video",
+      ];
+      for (const kind of kinds) this.addTransceiver(kind, { direction: "recvonly" });
+    }
+    if (description.type === "answer") {
+      this.signalingState = "stable";
+      this.transceivers.forEach((tx, i) => {
+        tx.currentDirection = this.offeredDirections[i] ?? null;
+      });
     }
     return Promise.resolve();
   }
@@ -108,7 +130,7 @@ class FakePeerConnection {
   }
 
   /** Simulates the far side's track arriving on one slot. */
-  emitTrack(slot: 0 | 1 | 2): void {
+  emitTrack(slot: 0 | 1 | 2 | 3): void {
     this.ontrack?.({ transceiver: this.transceivers[slot]!, track: { kind: "video" } });
   }
 }
@@ -260,13 +282,20 @@ describe("HuddleSession", () => {
     expect(capture).toHaveBeenCalledOnce();
     session.destroy();
   });
-  it("gives every connection the same three slots before offering", async () => {
+  it("gives every connection the same four slots before offering, the share's sound only receiving", async () => {
     const { session, sent } = makeSession("A");
     session.syncParticipants(["A", "B"]);
     await flush();
 
     const pc = FakePeerConnection.instances[0]!;
-    expect(pc.transceivers).toHaveLength(3);
+    expect(pc.transceivers.map((tx) => [tx.kind, tx.direction])).toEqual([
+      ["audio", "sendrecv"],
+      ["video", "sendrecv"],
+      ["video", "sendrecv"],
+      // A client from before this slot would take a track on it for the
+      // microphone, so it sends only to someone who says they have it.
+      ["audio", "recvonly"],
+    ]);
     // "A" < "B", so this side offers.
     expect(sent.some((m) => m.signal.kind === "offer")).toBe(true);
     session.destroy();
@@ -562,6 +591,334 @@ describe("HuddleSession", () => {
     void session.handleSignal("B", { kind: "media", camera: false, screen: false });
     expect(session.state().peers[0]!.micMuted).toBe(false);
     session.destroy();
+  });
+});
+
+describe("the share's sound", () => {
+  /** A track as the browser hands one over, with what it says of itself. */
+  function fakeTrack(kind: "audio" | "video", settings: Record<string, unknown> = {}) {
+    return {
+      kind,
+      enabled: true,
+      stopped: false,
+      contentHint: "",
+      onended: null as (() => void) | null,
+      getSettings: () => settings,
+      stop() {
+        this.stopped = true;
+      },
+    };
+  }
+  type Track = ReturnType<typeof fakeTrack>;
+
+  /** What getDisplayMedia hands back: a picture, and sound where there is some. */
+  class FakeDisplay {
+    constructor(
+      public picture: Track,
+      public sound?: Track,
+    ) {}
+    getVideoTracks() {
+      return [this.picture];
+    }
+    getAudioTracks() {
+      return this.sound ? [this.sound] : [];
+    }
+    getTracks() {
+      return this.sound ? [this.picture, this.sound] : [this.picture];
+    }
+  }
+
+  /** A browser that can leave the call's own sound out, sharing a screen with this sound. */
+  function shareWithSound(
+    sound = fakeTrack("audio", { restrictOwnAudio: true }),
+    surface = "monitor",
+  ) {
+    const picture = fakeTrack("video", { displaySurface: surface });
+    const capture = vi
+      .spyOn(navigator.mediaDevices, "getDisplayMedia")
+      .mockResolvedValue(new FakeDisplay(picture, sound) as unknown as MediaStream);
+    Object.assign(navigator.mediaDevices, {
+      getSupportedConstraints: () => ({ restrictOwnAudio: true }),
+    });
+    return { picture, sound, capture };
+  }
+
+  const FOUR = ["audio", "video", "video", "audio"] as const;
+  /** A description with these sections, Opus on the audio ones, as a browser writes it. */
+  function sdpWith(kinds: readonly ("audio" | "video")[]): string {
+    const lines = ["v=0", "o=- 1 2 IN IP4 127.0.0.1", "s=-", "t=0 0"];
+    kinds.forEach((kind, mid) =>
+      lines.push(
+        ...(kind === "audio"
+          ? [
+              "m=audio 9 UDP/TLS/RTP/SAVPF 111 0",
+              `a=mid:${mid}`,
+              "a=rtpmap:111 opus/48000/2",
+              "a=fmtp:111 minptime=10;useinbandfec=1",
+              "a=rtpmap:0 PCMU/8000",
+            ]
+          : ["m=video 9 UDP/TLS/RTP/SAVPF 96", `a=mid:${mid}`, "a=rtpmap:96 VP8/90000"]),
+      ),
+    );
+    return lines.join("\r\n") + "\r\n";
+  }
+
+  /** The last thing said to `to` about what this side sends. */
+  function lastMedia(sent: { to: ID; signal: HuddleSignal }[], to: ID) {
+    return sent.filter((m) => m.to === to && m.signal.kind === "media").at(-1)?.signal;
+  }
+  const offersTo = (sent: { to: ID; signal: HuddleSignal }[], to: ID) =>
+    sent.filter((m) => m.to === to && m.signal.kind === "offer").length;
+
+  /** Answered by a client with every slot, the side that waits to be offered to. */
+  async function answeredByNewer(session: HuddleSession, sent: { to: ID; signal: HuddleSignal }[]) {
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    const pc = FakePeerConnection.instances[0]!;
+    pc.signalingState = "have-local-offer";
+    await session.handleSignal("B", { kind: "answer", sdp: sdpWith(FOUR) });
+    await session.handleSignal("B", {
+      kind: "media",
+      camera: false,
+      screen: false,
+      screenSound: false,
+    });
+    expect(offersTo(sent, "B")).toBe(1);
+    return pc;
+  }
+
+  it("goes in a slot of its own, apart from the microphone, and stops with the share", async () => {
+    const { sound, capture } = shareWithSound();
+    const { session, sent } = makeSession("Z");
+    await session.startLocalAudio();
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(FOUR) });
+    await session.handleSignal("B", {
+      kind: "media",
+      camera: false,
+      screen: false,
+      screenSound: false,
+    });
+    const pc = FakePeerConnection.instances[0]!;
+
+    await session.toggleScreenShare();
+    const request = capture.mock.calls[0]![0] as Record<string, unknown>;
+    // As it is, with this call's own sound left out of it.
+    expect(request.audio).toEqual({
+      restrictOwnAudio: true,
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+    });
+    expect(request).toMatchObject({ systemAudio: "include", selfBrowserSurface: "exclude" });
+    expect(pc.transceivers[3]!.sender.track).toBe(sound);
+    expect(pc.transceivers[0]!.sender.track).not.toBe(sound);
+    expect(lastMedia(sent, "B")).toMatchObject({ screen: true, screenSound: true });
+    expect(session.state().sharingScreenSound).toBe(true);
+
+    // Muting the microphone leaves the share's sound playing.
+    session.toggleMic();
+    expect(session.micMuted).toBe(true);
+    expect(sound.enabled).toBe(true);
+    expect(pc.transceivers[3]!.sender.track).toBe(sound);
+
+    await session.toggleScreenShare();
+    await flush();
+    expect(sound.stopped).toBe(true);
+    expect(pc.transceivers[3]!.sender.track).toBeNull();
+    expect(lastMedia(sent, "B")).toMatchObject({ screen: false, screenSound: false });
+    expect(session.state().sharingScreenSound).toBe(false);
+    session.destroy();
+  });
+
+  it("lets the picture go on when the sound ends on its own", async () => {
+    const { sound } = shareWithSound();
+    const { session, sent } = makeSession("Z");
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(FOUR) });
+    const pc = FakePeerConnection.instances[0]!;
+    await session.toggleScreenShare();
+
+    sound.onended!();
+    await flush();
+    expect(session.sharingScreen).toBe(true);
+    expect(pc.transceivers[2]!.sender.track).not.toBeNull();
+    expect(pc.transceivers[3]!.sender.track).toBeNull();
+    expect(lastMedia(sent, "B")).toMatchObject({ screen: true, screenSound: false });
+    session.destroy();
+  });
+
+  it("opens its slot with one more offer, the first time there is sound for someone who has it", async () => {
+    shareWithSound();
+    const { session, sent } = makeSession("A");
+    const pc = await answeredByNewer(session, sent);
+
+    await session.toggleScreenShare();
+    await flush();
+    expect(pc.transceivers[3]!.direction).toBe("sendrecv");
+    expect(offersTo(sent, "B")).toBe(2);
+
+    // Once that is answered, sharing again is only a change of track.
+    pc.signalingState = "have-local-offer";
+    await session.handleSignal("B", { kind: "answer", sdp: sdpWith(FOUR) });
+    expect(pc.transceivers[3]!.currentDirection).toBe("sendrecv");
+    await session.toggleScreenShare();
+    await session.toggleScreenShare();
+    await flush();
+    expect(offersTo(sent, "B")).toBe(2);
+    session.destroy();
+  });
+
+  it("offers a slot opened during a setup once that setup is answered", async () => {
+    shareWithSound();
+    const { session, sent } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    const pc = FakePeerConnection.instances[0]!;
+    pc.signalingState = "have-local-offer";
+    await session.handleSignal("B", {
+      kind: "media",
+      camera: false,
+      screen: false,
+      screenSound: false,
+    });
+
+    await session.toggleScreenShare();
+    await flush();
+    expect(offersTo(sent, "B")).toBe(1);
+    await session.handleSignal("B", { kind: "answer", sdp: sdpWith(FOUR) });
+    await flush();
+    expect(offersTo(sent, "B")).toBe(2);
+    session.destroy();
+  });
+
+  it("sends none to a client older than its slot, which never says it has one", async () => {
+    const { sound } = shareWithSound();
+    const { session, sent } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    await session.handleSignal("B", { kind: "media", camera: false, screen: false, muted: false });
+
+    await session.toggleScreenShare();
+    await flush();
+    const pc = FakePeerConnection.instances[0]!;
+    // Still only receiving, so nothing goes, and there is no new offer.
+    expect(pc.transceivers[3]!.direction).toBe("recvonly");
+    expect(offersTo(sent, "B")).toBe(1);
+    expect(pc.transceivers[2]!.sender.track).not.toBeNull();
+    session.destroy();
+    expect(sound.stopped).toBe(true);
+  });
+
+  it("shares only the picture with an older client, which offers three slots", async () => {
+    shareWithSound();
+    const { session } = makeSession("Z");
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(["audio", "video", "video"]) });
+    const pc = FakePeerConnection.instances[0]!;
+
+    await session.toggleScreenShare();
+    expect(pc.transceivers).toHaveLength(3);
+    expect(pc.transceivers[2]!.sender.track).not.toBeNull();
+    expect(session.sharingScreen).toBe(true);
+    session.destroy();
+  });
+
+  it("plays someone's share's sound only while they say their share has it", () => {
+    const { session } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    const pc = FakePeerConnection.instances[0]!;
+    pc.emitTrack(0);
+    pc.emitTrack(2);
+    pc.emitTrack(3);
+    const peer = () => session.state().peers[0]!;
+    // The fourth track is not taken for their microphone.
+    const microphone = peer().audioStream;
+    expect(microphone).not.toBeNull();
+    expect(peer().screenSoundStream).toBeNull();
+
+    void session.handleSignal("B", {
+      kind: "media",
+      camera: false,
+      screen: true,
+      screenSound: true,
+    });
+    expect(peer().screenSoundStream).not.toBeNull();
+    expect(peer().screenSoundStream).not.toBe(microphone);
+    expect(peer().audioStream).toBe(microphone);
+
+    void session.handleSignal("B", {
+      kind: "media",
+      camera: false,
+      screen: true,
+      screenSound: false,
+    });
+    expect(peer().screenSoundStream).toBeNull();
+    // An older sharer never says: the picture, and no sound.
+    void session.handleSignal("B", { kind: "media", camera: false, screen: true });
+    expect(peer().screenStream).not.toBeNull();
+    expect(peer().screenSoundStream).toBeNull();
+    session.destroy();
+  });
+
+  it("asks for no sound when told not to, or where the browser cannot leave the call out", async () => {
+    const { capture } = shareWithSound();
+    const { session } = makeSession("A");
+    await session.toggleScreenShare(undefined, false);
+    expect(capture.mock.calls[0]![0]).toMatchObject({ audio: false });
+    expect(capture.mock.calls[0]![0]).not.toHaveProperty("systemAudio");
+    await session.toggleScreenShare();
+
+    Object.assign(navigator.mediaDevices, { getSupportedConstraints: () => ({}) });
+    await session.toggleScreenShare();
+    expect(capture.mock.calls[1]![0]).toMatchObject({ audio: false });
+    session.destroy();
+  });
+
+  it("drops sound the browser does not say leaves the call out", async () => {
+    const { sound } = shareWithSound(fakeTrack("audio", {}));
+    const { session, sent } = makeSession("Z");
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(FOUR) });
+    const pc = FakePeerConnection.instances[0]!;
+
+    await session.toggleScreenShare();
+    expect(sound.stopped).toBe(true);
+    expect(session.sharingScreen).toBe(true);
+    expect(pc.transceivers[3]!.sender.track).toBeNull();
+    expect(lastMedia(sent, "B")).toMatchObject({ screen: true, screenSound: false });
+    session.destroy();
+  });
+
+  it("keeps another tab's sound, which never holds this page's", async () => {
+    const { sound } = shareWithSound(fakeTrack("audio", {}), "browser");
+    const { session } = makeSession("Z");
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(FOUR) });
+
+    await session.toggleScreenShare();
+    expect(sound.stopped).toBe(false);
+    expect(FakePeerConnection.instances[0]!.transceivers[3]!.sender.track).toBe(sound);
+    session.destroy();
+  });
+
+  it("asks the other side for it in stereo at a rate for music, and leaves the microphone a voice", async () => {
+    const { session } = makeSession("Z");
+    await session.handleSignal("B", { kind: "offer", sdp: sdpWith(FOUR) });
+    const sections = FakePeerConnection.instances[0]!.remoteDescription!.sdp.split(/(?=\r\nm=)/);
+    expect(sections[4]).toContain(
+      "a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=96000\r\n",
+    );
+    expect(sections[1]).toContain("a=fmtp:111 minptime=10;useinbandfec=1\r\n");
+    session.destroy();
+  });
+
+  it("marks only a description that has the slot, and says each setting once", () => {
+    const three = sdpWith(["audio", "video", "video"]);
+    expect(withStereoScreenSound(three)).toBe(three);
+    const sections = sdpWith(FOUR).split(/(?=\r\nm=)/);
+    sections[4] = sections[4]!.replace("useinbandfec=1", "stereo=0;useinbandfec=1");
+    const marked = withStereoScreenSound(sections.join("")).split(/(?=\r\nm=)/)[4]!;
+    // stereo=1 and sprop-stereo=1, with the stereo=0 gone.
+    expect(marked.match(/stereo=/g)).toHaveLength(2);
+    expect(marked).toContain(
+      "a=fmtp:111 minptime=10;useinbandfec=1;stereo=1;sprop-stereo=1;maxaveragebitrate=96000\r\n",
+    );
   });
 });
 
