@@ -130,6 +130,7 @@ export function DirectMessagesPanel(props: {
             const others = (channel.memberIds ?? []).filter((id) => id !== self?.id);
             const first = users[others[0] ?? ""];
             const online = others.some((id) => presence[id] === "online");
+            const away = !online && others.some((id) => presence[id] === "away");
             const title = channelTitle(channel, users, self?.id);
             const active = channel.id === props.activeChannelId;
             const muted = prefs[channel.id]?.muted ?? false;
@@ -153,6 +154,7 @@ export function DirectMessagesPanel(props: {
                   <AvatarWithPresence
                     user={first}
                     online={online}
+                    away={away}
                     size={32}
                     ring="var(--color-ground)"
                   />

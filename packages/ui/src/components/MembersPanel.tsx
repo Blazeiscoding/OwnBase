@@ -50,9 +50,11 @@ export function MembersPanel(props: {
       .map((id) => users[id])
       .filter((u): u is User => !!u && !u.deactivated)
       .sort((a, b) => a.displayName.localeCompare(b.displayName));
+    // Away is here too (E9), with its own mark.
+    const here = (u: User) => presence[u.id] === "online" || presence[u.id] === "away";
     return {
-      online: people.filter((u) => presence[u.id] === "online"),
-      offline: people.filter((u) => presence[u.id] !== "online"),
+      online: people.filter(here),
+      offline: people.filter((u) => !here(u)),
     };
   }, [loaded, users, presence]);
 
@@ -88,6 +90,7 @@ export function MembersPanel(props: {
               title={`Online — ${online.length}`}
               people={online}
               online
+              away={(id) => presence[id] === "away"}
               onOpen={props.onOpenProfile}
             />
             <MemberGroup
@@ -107,6 +110,8 @@ function MemberGroup(props: {
   title: string;
   people: User[];
   online: boolean;
+  /** Who of those here is away (E9). */
+  away?: (id: ID) => boolean;
   onOpen: (userId: ID) => void;
 }) {
   if (props.people.length === 0) return null;
@@ -127,16 +132,22 @@ function MemberGroup(props: {
             >
               <AvatarWithPresence
                 user={user}
-                online={props.online}
+                online={props.online && !props.away?.(user.id)}
+                away={props.away?.(user.id) ?? false}
                 size={32}
                 ring="var(--color-ground)"
               />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-[15px] font-medium">{user.displayName}</span>
-                {(user.statusText || user.statusEmoji) && (
+                {user.statusText || user.statusEmoji ? (
                   <span className="block truncate text-[12px] text-ink-faint">
                     {`${user.statusEmoji ?? ""} ${user.statusText ?? ""}`.trim()}
                   </span>
+                ) : (
+                  // Away is said in words too, not only by its ring (E9).
+                  props.away?.(user.id) && (
+                    <span className="block truncate text-[12px] text-ink-faint">Away</span>
+                  )
                 )}
               </span>
             </button>

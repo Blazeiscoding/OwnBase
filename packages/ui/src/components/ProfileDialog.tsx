@@ -1,6 +1,8 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError } from "@slackoss/client-core";
 import type { ID } from "@slackoss/protocol";
+import { IconProblem, prepareIcon } from "../lib/iconImage.js";
+import { readerTimeZone, theirTime, useMinute } from "../lib/localTime.js";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Modal } from "./Modal.js";
@@ -32,7 +34,9 @@ export function ProfileDialog(props: {
   const client = useClient();
   const user = useWorkspace((s) => s.users[props.userId]);
   const presence = useWorkspace((s) => s.presence[props.userId] ?? "offline");
-  const selfId = useWorkspace((s) => s.self?.id);
+  const self = useWorkspace((s) => s.self);
+  const selfId = self?.id;
+  const now = useMinute();
   const [opening, setOpening] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   // The press on Message this card is waiting on. Once the card is closed, or
@@ -67,6 +71,10 @@ export function ProfileDialog(props: {
   }
 
   const online = presence === "online";
+  const away = presence === "away";
+  const presenceWords = online ? "Active now" : away ? "Away" : "Offline";
+  // Their clock, where their zone is known (E9).
+  const local = theirTime(user, self, now);
   return (
     // Discord's profile card: a band of the person's colour, their picture
     // set into it, and who they are on a card of its own beneath.
@@ -97,9 +105,9 @@ export function ProfileDialog(props: {
             <Avatar user={user} size={80} />
             <span
               role="img"
-              aria-label={online ? "Active now" : "Offline"}
+              aria-label={presenceWords}
               className={`absolute bottom-2 right-2 size-5 rounded-full ring-4 ring-raised ${
-                online ? "bg-online" : "bg-ink-faint"
+                online ? "bg-online" : away ? "border-4 border-online bg-raised" : "bg-ink-faint"
               }`}
             />
           </span>
@@ -115,10 +123,21 @@ export function ProfileDialog(props: {
           <div className="mt-2 flex items-center gap-1.5 text-[13px] text-ink-dim">
             <span
               aria-hidden="true"
-              className={`size-2 rounded-full ${online ? "bg-online" : "bg-ink-faint"}`}
+              className={`size-2 rounded-full ${
+                online ? "bg-online" : away ? "border-2 border-online" : "bg-ink-faint"
+              }`}
             />
-            {online ? "Active now" : "Offline"}
+            {presenceWords}
           </div>
+          {local && (
+            <div className="mt-1 flex items-center gap-1.5 text-[13px] text-ink-dim">
+              <Icon name="clock" size={13} className="text-ink-faint" />
+              {local.time} local time
+              {local.differs && user.id !== selfId && (
+                <span className="text-ink-faint">· {user.timeZone}</span>
+              )}
+            </div>
+          )}
           {(user.statusEmoji || user.statusText) && (
             <p className="mt-3 border-t border-edge pt-3 text-sm">
               {user.statusEmoji && <span className="mr-1.5">{user.statusEmoji}</span>}
@@ -175,6 +194,59 @@ export function ProfileForm() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const id = useId();
+  // The server keeps pictures and time zones (E9); an older one offers neither.
+  const profiles = useWorkspace((s) => s.profiles);
+  const picker = useRef<HTMLInputElement>(null);
+  const [picture, setPicture] = useState<{ busy: boolean; problem: string | null }>({
+    busy: false,
+    problem: null,
+  });
+  const [zoneNote, setZoneNote] = useState<string | null>(null);
+  const zones = useMemo(() => {
+    let all: string[] = [];
+    try {
+      all = Intl.supportedValuesOf("timeZone");
+    } catch {
+      all = [];
+    }
+    const mine = self?.timeZone;
+    return mine && !all.includes(mine) ? [mine, ...all] : all;
+  }, [self?.timeZone]);
+  const detected = readerTimeZone(undefined);
+
+  async function choosePicture(file: File) {
+    setPicture({ busy: true, problem: null });
+    try {
+      const ok = await client.setAvatar(await prepareIcon(file, "a profile picture"));
+      setPicture({
+        busy: false,
+        problem: ok ? null : "Your picture was not changed. Check your connection and try again.",
+      });
+    } catch (err) {
+      setPicture({
+        busy: false,
+        problem:
+          err instanceof IconProblem
+            ? err.message
+            : "Your picture was not changed. Check your connection and try again.",
+      });
+    }
+  }
+
+  async function removePicture() {
+    setPicture({ busy: true, problem: null });
+    const ok = await client.removeAvatar();
+    setPicture({
+      busy: false,
+      problem: ok ? null : "Your picture was not removed. Check your connection and try again.",
+    });
+  }
+
+  async function chooseZone(zone: string) {
+    setZoneNote(null);
+    const ok = await client.setTimeZone(zone);
+    setZoneNote(ok ? "Time zone saved." : "Your time zone was not saved. Try again.");
+  }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
@@ -237,6 +309,95 @@ export function ProfileForm() {
           />
         </div>
       </div>
+
+      {profiles && (
+        <div>
+          <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">Profile picture</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => picker.current?.click()}
+              aria-disabled={picture.busy || undefined}
+              className={buttonClass("secondary", "aria-disabled:opacity-60")}
+            >
+              {picture.busy
+                ? "Saving…"
+                : self?.avatarVersion
+                  ? "Change picture"
+                  : "Upload a picture"}
+            </button>
+            {self?.avatarVersion && (
+              <button
+                type="button"
+                onClick={() => void removePicture()}
+                aria-disabled={picture.busy || undefined}
+                className={buttonClass("quiet", "aria-disabled:opacity-60")}
+              >
+                Remove
+              </button>
+            )}
+            <input
+              ref={picker}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              hidden
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file && !picture.busy) void choosePicture(file);
+              }}
+            />
+          </div>
+          {picture.problem && (
+            <p role="alert" className="mt-1.5 text-sm text-alert">
+              {picture.problem}
+            </p>
+          )}
+        </div>
+      )}
+
+      {profiles && (
+        <div>
+          <label
+            htmlFor={`${id}-time-zone`}
+            className="mb-1.5 block text-[13px] font-medium text-ink-dim"
+          >
+            Time zone
+          </label>
+          <select
+            id={`${id}-time-zone`}
+            value={self?.timeZone ?? ""}
+            onChange={(e) => void chooseZone(e.target.value)}
+            className={inputCls}
+          >
+            {!self?.timeZone && <option value="">Not set</option>}
+            {zones.map((zone) => (
+              <option key={zone} value={zone}>
+                {zone.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-[13px] text-ink-faint">
+            Others see your local time from it.
+            {self?.timeZone !== detected && (
+              <>
+                {" "}
+                This device is in {detected.replaceAll("_", " ")}.{" "}
+                <button
+                  type="button"
+                  onClick={() => void chooseZone(detected)}
+                  className="font-medium text-ink-dim underline hover:text-ink"
+                >
+                  Use it
+                </button>
+              </>
+            )}
+          </p>
+          <p role="status" className="mt-1 text-[13px] text-ink-dim empty:hidden">
+            {zoneNote ?? ""}
+          </p>
+        </div>
+      )}
 
       <fieldset>
         <legend className="mb-1.5 block text-[13px] font-medium text-ink-dim">Status</legend>

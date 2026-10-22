@@ -508,6 +508,7 @@ export function Sidebar(props: Props) {
   function dmRow(ch: Channel) {
     const others = (ch.memberIds ?? []).filter((id) => id !== self?.id);
     const online = others.some((id) => presence[id] === "online");
+    const away = !online && others.some((id) => presence[id] === "away");
     const first = users[others[0] ?? ""];
     const title = channelTitle(ch, users, self?.id);
     return (
@@ -525,9 +526,15 @@ export function Sidebar(props: Props) {
         {...draggable(ch.id)}
         icon={
           first ? (
-            <AvatarWithPresence user={first} online={online} size={20} ring="var(--color-deep)" />
+            <AvatarWithPresence
+              user={first}
+              online={online}
+              away={away}
+              size={20}
+              ring="var(--color-deep)"
+            />
           ) : (
-            <PresenceDot online={online} />
+            <PresenceDot online={online} away={away} />
           )
         }
         label={title}
@@ -1098,6 +1105,9 @@ export function AccountMenu(props: {
   trigger?: { label: string; className: string; content: ReactNode };
 }) {
   const self = useWorkspace((s) => s.self);
+  // The server keeps away by hand (E9); an older one offers none.
+  const profiles = useWorkspace((s) => s.profiles);
+  const selfAway = useWorkspace((s) => s.presence[s.self?.id ?? ""] === "away");
   const client = useClient();
   const toast = useOptionalToast();
   const items: MenuItem[] = [];
@@ -1141,6 +1151,23 @@ export function AccountMenu(props: {
           onSelect: () => setStatus(p.emoji, p.text, statusEnd(p.clearAfter)),
         });
       });
+  }
+  if (profiles && self) {
+    const awayByHand = self.away === true;
+    items.push({
+      id: "away",
+      label: awayByHand ? "Set yourself active" : "Set yourself away",
+      icon: awayByHand ? "sun" : "moon",
+      section: true,
+      onSelect: () =>
+        void client.setAway(!awayByHand).then((ok) => {
+          if (!ok)
+            toast?.({
+              message: "Your presence was not changed. Check your connection and try again.",
+              kind: "error",
+            });
+        }),
+    });
   }
   if (props.guest && props.onCreateAccount)
     items.push({
@@ -1189,7 +1216,7 @@ export function AccountMenu(props: {
       section: props.onShortcuts ? undefined : true,
       onSelect: props.onDiagnostics,
     });
-  const heading = <AccountHeading guest={props.guest} snoozed={props.snoozed} />;
+  const heading = <AccountHeading guest={props.guest} snoozed={props.snoozed} away={selfAway} />;
   if (props.trigger)
     return (
       <Menu
@@ -1222,7 +1249,8 @@ export function AccountMenu(props: {
           <>
             <AvatarWithPresence
               user={self ?? undefined}
-              online={!props.snoozed}
+              online={!props.snoozed && !selfAway}
+              away={!props.snoozed && selfAway}
               size={32}
               ring="var(--color-raised)"
             />
@@ -1243,13 +1271,14 @@ export function AccountMenu(props: {
  * Atop the account menu, whose it is: your picture, with whether you are
  * here, your name, and the handle people mention you by.
  */
-function AccountHeading(props: { guest: boolean; snoozed: boolean }) {
+function AccountHeading(props: { guest: boolean; snoozed: boolean; away: boolean }) {
   const self = useWorkspace((s) => s.self);
   return (
     <div className="flex items-center gap-3">
       <AvatarWithPresence
         user={self ?? undefined}
-        online={!props.snoozed}
+        online={!props.snoozed && !props.away}
+        away={!props.snoozed && props.away}
         size={36}
         ring="var(--color-lifted)"
       />

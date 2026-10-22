@@ -157,7 +157,10 @@ export function FriendsDialog({
                     <span className="block truncate text-sm font-medium">{user.displayName}</span>
                     <span className="text-xs text-ink-faint">@{user.handle}</span>
                   </span>
-                  <PresenceDot online={presence[user.id] === "online"} />
+                  <PresenceDot
+                    online={presence[user.id] === "online"}
+                    away={presence[user.id] === "away"}
+                  />
                 </button>
                 {friends.find((f) => f.userId === user.id)?.status === "outgoing" && (
                   <p className="mb-2 text-xs text-ink-faint">Request sent</p>

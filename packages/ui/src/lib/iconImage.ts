@@ -22,11 +22,15 @@ function encoded(canvas: HTMLCanvasElement, type: string, quality?: number): Pro
  * resizes it, so the work is done here. Throws `IconProblem`, saying why,
  * for a picture that cannot become one.
  */
-export async function prepareIcon(file: File): Promise<Blob> {
+export async function prepareIcon(
+  file: File,
+  /** What it becomes, as its problems say: "an icon", or "a profile picture" (E9). */
+  noun = "an icon",
+): Promise<Blob> {
   if (!(WORKSPACE_ICON_TYPES as readonly string[]).includes(file.type))
     throw new IconProblem(
       file.type === "image/svg+xml"
-        ? "An SVG can't be an icon. Choose a PNG, JPEG or WebP picture."
+        ? `An SVG can't be ${noun}. Choose a PNG, JPEG or WebP picture.`
         : "Choose a PNG, JPEG or WebP picture.",
     );
   if (file.size > LARGEST_PICTURE)
@@ -44,7 +48,7 @@ export async function prepareIcon(file: File): Promise<Blob> {
     const image = webp?.type === "image/webp" ? webp : await encoded(canvas, "image/png");
     if (!image) throw new IconProblem("That picture could not be prepared. Try another one.");
     if (image.size > WORKSPACE_ICON_MAX_BYTES)
-      throw new IconProblem("That picture is too detailed for an icon. Choose a simpler one.");
+      throw new IconProblem(`That picture is too detailed for ${noun}. Choose a simpler one.`);
     return image;
   } finally {
     picture.close();
