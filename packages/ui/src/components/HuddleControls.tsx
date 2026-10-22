@@ -53,13 +53,13 @@ function DeviceMenu({
   label,
   items,
   disabled,
-  dark,
+  inCall,
 }: {
   label: string;
   items: MenuItem[];
   disabled?: boolean;
-  /** In the call, which is dark in either theme. */
-  dark?: boolean;
+  /** Along the call's bottom, rather than in the bar. */
+  inCall?: boolean;
 }) {
   return (
     <Menu
@@ -76,8 +76,8 @@ function DeviceMenu({
         </>
       }
       triggerClassName={
-        dark
-          ? "-ml-1 flex h-11 w-6 items-center justify-center rounded-lg text-white/65 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+        inCall
+          ? "-ml-1 flex h-11 w-6 items-center justify-center rounded-lg text-ink/65 transition-colors hover:bg-ink/10 hover:text-ink disabled:opacity-40"
           : "-ml-1.5 flex h-10 w-6 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
       }
     />
@@ -97,7 +97,7 @@ export function HuddleControls({
   overlay = false,
   onOpenSettings,
 }: {
-  /** In the call, which is dark in either theme, rather than in the bar. */
+  /** In the call, rather than in the bar. */
   stage?: boolean;
   /** Over the call in full screen, where a menu or a dialog would open out of sight. */
   overlay?: boolean;
@@ -142,16 +142,17 @@ export function HuddleControls({
     }
   };
 
-  const dark = stage || overlay;
-  const off = dark
-    ? "bg-white/[0.09] text-white hover:bg-white/[0.16]"
+  // In ink, so the same buttons read on Onyx's black and on White's grey.
+  const inCall = stage || overlay;
+  const off = inCall
+    ? "bg-ink/[0.09] text-ink hover:bg-ink/[0.16]"
     : "border-edge text-ink-dim hover:border-ink-faint hover:text-ink";
   const toggleCls = (on: boolean, onCls: string) =>
     `flex shrink-0 items-center justify-center transition-colors disabled:opacity-50 ${
-      dark ? "size-11 rounded-xl" : "size-10 rounded-full border"
+      inCall ? "size-11 rounded-xl" : "size-10 rounded-full border"
     } ${on ? onCls : off}`;
-  const lit = dark
-    ? "bg-white text-black hover:bg-white/85"
+  const lit = inCall
+    ? "bg-ink text-ground hover:bg-ink/85"
     : "border-transparent bg-ink text-ground";
 
   const shareScreen = () => {
@@ -187,7 +188,7 @@ export function HuddleControls({
     <DeviceMenu
       label="Microphone and speaker"
       disabled={pickerDisabled}
-      dark={dark}
+      inCall={inCall}
       items={[
         ...deviceItems(
           "mic",
@@ -215,7 +216,7 @@ export function HuddleControls({
     <DeviceMenu
       label="Camera options"
       disabled={pickerDisabled}
-      dark={dark}
+      inCall={inCall}
       items={[
         ...deviceItems(
           "camera",
@@ -246,7 +247,7 @@ export function HuddleControls({
             onClick={() => client.toggleMic()}
             className={toggleCls(
               huddle.micMuted,
-              dark ? "bg-alert/20 text-alert hover:bg-alert/30" : "border-alert text-alert",
+              inCall ? "bg-alert/20 text-alert hover:bg-alert/30" : "border-alert text-alert",
             )}
           >
             <Swap on={huddle.micMuted}>
@@ -282,7 +283,7 @@ export function HuddleControls({
         <button
           onClick={() => client.leaveHuddle()}
           className={
-            dark
+            inCall
               ? "ml-1 flex h-11 items-center gap-2 rounded-xl bg-alert px-4 text-sm font-semibold text-ground transition-colors hover:bg-alert/85"
               : "flex h-10 items-center gap-2 rounded-full border border-alert/40 px-4 text-sm font-semibold text-alert transition-colors hover:bg-alert hover:text-ground"
           }
@@ -295,7 +296,7 @@ export function HuddleControls({
         <p
           role="status"
           className={`flex basis-full items-center gap-2 text-xs ${
-            dark
+            inCall
               ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
               : "justify-end text-ink-dim"
           }`}
@@ -307,7 +308,7 @@ export function HuddleControls({
         <p
           role="alert"
           className={`flex basis-full items-center gap-3 text-xs ${
-            dark
+            inCall
               ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
               : "justify-end text-alert"
           }`}
@@ -332,7 +333,7 @@ export function HuddleControls({
         <p
           role="alert"
           className={`flex basis-full items-start gap-2 text-xs ${
-            dark
+            inCall
               ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
               : "justify-end text-alert"
           }`}

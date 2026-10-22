@@ -333,8 +333,8 @@ export const OUTPUTS = {
     );
     out = setDeclarations(out, ':root[data-theme="light"] {\n  --shadow-float', p.lightVibrant);
     out = setDeclarations(out, ':root[data-theme="system"] {\n    --shadow-float', p.lightVibrant);
-    // The call, dark in either theme.
-    out = setDeclarations(out, ".call-stage {", {
+    // A call in full screen, dark in either theme.
+    out = setDeclarations(out, ".call-dark {", {
       ...p.darkTokens,
       "--accent-grad": p.darkRoot["--accent-grad"],
       "--accent-glow": p.darkRoot["--accent-glow"],

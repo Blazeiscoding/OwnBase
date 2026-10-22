@@ -322,6 +322,20 @@ describe("the call", () => {
     }
   });
 
+  it("takes the theme's colours, and Onyx's in full screen, where a share fills the screen on black", async () => {
+    const fullscreen = fakeFullscreen();
+    try {
+      const { user } = stage({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
+      expect(region()).not.toHaveClass("call-dark");
+      await user.click(control("Full screen"));
+      expect(region()).toHaveClass("call-dark");
+      await user.keyboard("{Escape}");
+      expect(region()).not.toHaveClass("call-dark");
+    } finally {
+      fullscreen.restore();
+    }
+  });
+
   it("goes in and out of full screen when the share is double-clicked", async () => {
     const fullscreen = fakeFullscreen();
     try {

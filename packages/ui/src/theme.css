@@ -495,6 +495,9 @@
   --white-deep: #e9e9ec;
   --white-ground: #ffffff;
   --white-edge: #e1e1e4;
+  /* The call's ground and its tiles: black and graphite, as a cinema. */
+  --call-ground: #000;
+  --call-tile: var(--color-lifted);
 }
 
 /* White, chosen, or the system's choice on a device that prefers light. */
@@ -521,6 +524,9 @@
   --card-fill: rgba(255, 255, 255, 0.6);
   --glow: rgba(249, 115, 22, 0.12);
   --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,15,19,0.06)'/%3E%3C/svg%3E");
+  /* The call: the window's grey, with a sheet of paper for each person. */
+  --call-ground: var(--color-deep);
+  --call-tile: var(--color-ground);
 }
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
@@ -546,6 +552,9 @@
     --card-fill: rgba(255, 255, 255, 0.6);
     --glow: rgba(249, 115, 22, 0.12);
     --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,15,19,0.06)'/%3E%3C/svg%3E");
+    /* The call: the window's grey, with a sheet of paper for each person. */
+    --call-ground: var(--color-deep);
+    --call-tile: var(--color-ground);
   }
 }
 
@@ -586,12 +595,15 @@
 }
 
 /*
- * The call is dark in either theme, as Discord's voice channels and a cinema
- * are: faces and a shared screen read best on black. Onyx's colours, fills and
- * shadows; scripts/generate-palette.mjs writes the colours and fills here too.
+ * The call takes the theme's colours, but full screen is dark in either, as a
+ * cinema is: a share fills the screen on black, and the controls float over
+ * it. Onyx's colours, fills and shadows; scripts/generate-palette.mjs writes
+ * the colours and fills here too.
  */
-.call-stage {
+.call-dark {
   color-scheme: dark;
+  --call-ground: #000;
+  --call-tile: var(--color-lifted);
   --color-deep: #111115;
   --color-ground: #1a1a1f;
   --color-raised: #1f2025;

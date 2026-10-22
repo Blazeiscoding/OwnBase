@@ -264,9 +264,10 @@ function TileBody({
           {item.stuck ? "Can't connect · trying again" : "Connecting…"}
         </span>
       )}
+      {/* Dark on any picture and in either theme, so its red is Onyx's, which reads on it. */}
       <span
         aria-hidden="true"
-        className="pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm"
+        className="call-dark pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm"
       >
         {item.kind === "screen" && <Icon name="screen" size={13} />}
         {item.sound && !item.mutedForYou && <Icon name="volume" size={13} />}
@@ -291,7 +292,7 @@ const hasVolume = (item: StageItem): item is StageItem & { userId: ID } =>
 
 const tileFrame = (item: StageItem, radius = "rounded-2xl") =>
   `relative block size-full overflow-hidden ${radius} ${
-    item.kind === "screen" ? "bg-black" : "bg-lifted"
+    item.kind === "screen" ? "bg-black" : "bg-[var(--call-tile)]"
   }`;
 
 /** A small button over a tile's corner, shown on hover and keyboard focus, and always on touch. */
@@ -555,7 +556,7 @@ function Spotlight({
   );
 }
 
-/** A button in the call's header or along its bottom, light on the dark. */
+/** A button in the call's header or along its bottom, in ink, so it reads in either theme. */
 function StageButton(props: {
   label: string;
   /** What pressing it does now, when the name alone does not say. */
@@ -573,9 +574,7 @@ function StageButton(props: {
         aria-pressed={props.pressed}
         onClick={props.onClick}
         className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
-          props.pressed
-            ? "bg-white/15 text-white"
-            : "text-white/70 hover:bg-white/10 hover:text-white"
+          props.pressed ? "bg-ink/15 text-ink" : "text-ink/70 hover:bg-ink/10 hover:text-ink"
         }`}
       >
         <Icon name={props.icon} size={18} />
@@ -585,16 +584,17 @@ function StageButton(props: {
 }
 
 /**
- * The call, as Discord draws a voice channel: dark in either theme, everyone
- * as a tile, and the controls centred along the bottom. It takes the
- * conversation's column, with the chat beside it where there is room for
- * both and under it where there is not. A share takes the main view by
- * itself, with everyone else in a row under it, and any tile can be pinned
- * there instead.
+ * The call, as Discord draws a voice channel: everyone as a tile, and the
+ * controls centred along the bottom. Black in Onyx; in White, the window's
+ * grey with a white tile for each person. It takes the conversation's column,
+ * with the chat beside it where there is room for both and under it where
+ * there is not. A share takes the main view by itself, with everyone else in
+ * a row under it, and any tile can be pinned there instead.
  *
- * In full screen the share fills the screen, edge to edge. The header and
- * the controls float over it and step aside after a few seconds without
- * movement; everyone else starts hidden, and the same button brings them back.
+ * In full screen the share fills the screen, edge to edge, dark in either
+ * theme (.call-dark). The header and the controls float over it and step
+ * aside after a few seconds without movement; everyone else starts hidden,
+ * and the same button brings them back.
  */
 export function HuddleStage({
   chat,
@@ -747,9 +747,9 @@ export function HuddleStage({
       ref={stage}
       aria-label="Huddle call"
       onKeyDown={onKeyDown}
-      className={`call-stage flex flex-col bg-black text-ink ${idle ? "cursor-none" : ""} ${
-        chat?.shown ? "relative min-w-0 flex-1" : "absolute inset-0 z-20"
-      }`}
+      className={`flex flex-col bg-[var(--call-ground)] text-ink ${fullscreen ? "call-dark" : ""} ${
+        idle ? "cursor-none" : ""
+      } ${chat?.shown ? "relative min-w-0 flex-1" : "absolute inset-0 z-20"}`}
     >
       <div className={`flex h-14 shrink-0 items-center gap-1 pl-4 pr-2 ${floating("top")}`}>
         {/* Where the call is, and who is on the main view at a glance: their
@@ -766,7 +766,7 @@ export function HuddleStage({
           </p>
           {main && (
             <>
-              {!compact && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-white/15" />}
+              {!compact && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />}
               {main.user && <Avatar user={main.user} size={20} />}
               <p className="min-w-0 truncate text-sm text-ink-dim">{focusText}</p>
               {main.kind === "screen" && (
