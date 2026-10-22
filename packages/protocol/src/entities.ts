@@ -85,7 +85,26 @@ export interface ChannelPrefs {
    * false. See `ReadySnapshot.stars`.
    */
   starred?: boolean;
+  /**
+   * The sidebar section this account keeps it in, or null (E8). A
+   * conversation sits in one place: a section, Starred, or where it would
+   * be. Absent from servers before schema v46; see `ReadySnapshot.sidebarSections`.
+   */
+  sectionId?: ID | null;
 }
+
+/**
+ * A section of one account's sidebar, named by them, between Starred and
+ * Channels (E8). Its conversations say so in `ChannelPrefs.sectionId`.
+ */
+export interface SidebarSection {
+  id: ID;
+  name: string;
+}
+
+/** The most sections one account keeps, and the longest a name may be once trimmed. */
+export const SIDEBAR_SECTIONS_MAX = 50;
+export const SIDEBAR_SECTION_NAME_MAX = 80;
 
 export interface ChannelMembership extends ChannelPrefs {
   channelId: ID;

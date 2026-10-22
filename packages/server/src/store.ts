@@ -21,6 +21,7 @@ import type {
   Poll,
   ReplyReference,
   SharedFile,
+  SidebarSection,
   NotifyLevel,
   ParsedSearch,
   Role,
@@ -146,6 +147,7 @@ type PrefsRow = {
   notify_level: string;
   muted: number;
   starred: number;
+  section_id: string | null;
 };
 
 function toPrefs(r: PrefsRow): ChannelPrefs {
@@ -153,6 +155,7 @@ function toPrefs(r: PrefsRow): ChannelPrefs {
     notifyLevel: r.notify_level as NotifyLevel,
     muted: r.muted === 1,
     starred: r.starred === 1,
+    sectionId: r.section_id,
   };
 }
 
@@ -847,7 +850,8 @@ export class Store {
   }[] {
     const rows = this.db
       .prepare(
-        `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, muted, starred
+        `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, muted, starred,
+                section_id
          FROM channel_members WHERE user_id = ?`,
       )
       .all(userId) as ({
@@ -866,7 +870,8 @@ export class Store {
   getChannelPrefs(channelId: ID, userId: ID): ChannelPrefs | null {
     const r = this.db
       .prepare(
-        "SELECT notify_level, muted, starred FROM channel_members WHERE channel_id = ? AND user_id = ?",
+        `SELECT notify_level, muted, starred, section_id FROM channel_members
+         WHERE channel_id = ? AND user_id = ?`,
       )
       .get(channelId, userId) as PrefsRow | undefined;
     return r ? toPrefs(r) : null;
@@ -875,10 +880,15 @@ export class Store {
   setChannelPrefs(
     channelId: ID,
     userId: ID,
-    patch: { notifyLevel?: NotifyLevel; muted?: boolean; starred?: boolean },
+    patch: {
+      notifyLevel?: NotifyLevel;
+      muted?: boolean;
+      starred?: boolean;
+      sectionId?: ID | null;
+    },
   ): ChannelPrefs | null {
     const sets: string[] = [];
-    const params: (string | number)[] = [];
+    const params: (string | number | null)[] = [];
     if (patch.notifyLevel !== undefined) {
       sets.push("notify_level = ?");
       params.push(patch.notifyLevel);
@@ -887,9 +897,17 @@ export class Store {
       sets.push("muted = ?");
       params.push(patch.muted ? 1 : 0);
     }
-    if (patch.starred !== undefined) {
+    // One place each, as Slack keeps them: a star takes a conversation out of
+    // its section, and a section takes its star (E8).
+    const starred = patch.sectionId ? false : patch.starred;
+    const sectionId = patch.starred ? null : patch.sectionId;
+    if (starred !== undefined) {
       sets.push("starred = ?");
-      params.push(patch.starred ? 1 : 0);
+      params.push(starred ? 1 : 0);
+    }
+    if (sectionId !== undefined) {
+      sets.push("section_id = ?");
+      params.push(sectionId);
     }
     if (sets.length > 0) {
       this.db
@@ -899,6 +917,75 @@ export class Store {
         .run(...params, channelId, userId);
     }
     return this.getChannelPrefs(channelId, userId);
+  }
+
+  // ---------- sidebar sections (E8) ----------
+
+  /** One account's sidebar sections, in its order. */
+  sidebarSections(userId: ID): SidebarSection[] {
+    return this.db
+      .prepare(
+        "SELECT id, name FROM sidebar_sections WHERE user_id = ? ORDER BY position, created_at, id",
+      )
+      .all(userId) as unknown as SidebarSection[];
+  }
+
+  /** Whether this section is one of this account's own. */
+  ownsSidebarSection(userId: ID, sectionId: ID): boolean {
+    return !!this.db
+      .prepare("SELECT 1 FROM sidebar_sections WHERE id = ? AND user_id = ?")
+      .get(sectionId, userId);
+  }
+
+  /** Adds a section at the end of the account's list. */
+  createSidebarSection(userId: ID, name: string): SidebarSection {
+    const id = ulid();
+    this.db
+      .prepare(
+        `INSERT INTO sidebar_sections (id, user_id, name, position, created_at)
+         SELECT ?, ?, ?, COALESCE(MAX(position), -1) + 1, ? FROM sidebar_sections WHERE user_id = ?`,
+      )
+      .run(id, userId, name, Date.now(), userId);
+    return { id, name };
+  }
+
+  /** Renames one of the account's sections; false when it has no such section. */
+  renameSidebarSection(userId: ID, sectionId: ID, name: string): boolean {
+    return (
+      this.db
+        .prepare("UPDATE sidebar_sections SET name = ? WHERE id = ? AND user_id = ?")
+        .run(name, sectionId, userId).changes > 0
+    );
+  }
+
+  /**
+   * Deletes one of the account's sections. Its conversations go back where
+   * they would be; says which, or null when it has no such section.
+   */
+  deleteSidebarSection(userId: ID, sectionId: ID): ID[] | null {
+    const gone = this.db
+      .prepare("DELETE FROM sidebar_sections WHERE id = ? AND user_id = ?")
+      .run(sectionId, userId);
+    if (gone.changes === 0) return null;
+    const freed = this.db
+      .prepare(
+        `UPDATE channel_members SET section_id = NULL WHERE user_id = ? AND section_id = ?
+         RETURNING channel_id`,
+      )
+      .all(userId, sectionId) as { channel_id: string }[];
+    return freed.map((row) => row.channel_id);
+  }
+
+  /** Puts the account's sections in this order; false unless `ids` is every one of them. */
+  orderSidebarSections(userId: ID, ids: ID[]): boolean {
+    const have = this.sidebarSections(userId).map((section) => section.id);
+    if (ids.length !== have.length || new Set(ids).size !== ids.length) return false;
+    if (!ids.every((id) => have.includes(id))) return false;
+    const place = this.db.prepare(
+      "UPDATE sidebar_sections SET position = ? WHERE id = ? AND user_id = ?",
+    );
+    ids.forEach((id, position) => place.run(position, id, userId));
+    return true;
   }
 
   /**

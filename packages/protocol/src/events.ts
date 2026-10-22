@@ -9,6 +9,7 @@ import type {
   User,
   ThreadFollow,
   Reminder,
+  SidebarSection,
 } from "./entities.js";
 import type { CallReport, HuddleSignal } from "./huddle.js";
 
@@ -111,6 +112,11 @@ export type EphemeralEvent =
    * sockets.
    */
   | { type: "poll.choices"; messageId: ID; choices: number[] }
+  /**
+   * This account's sidebar sections, in their order, after any change to
+   * them (E8). Private to their own sockets.
+   */
+  | { type: "sidebar.sections"; sections: SidebarSection[] }
   /**
    * This user's queue of messages to send later changed: one was queued,
    * edited, moved, cancelled, sent, held for a new reason or given up on. Read
@@ -229,6 +235,11 @@ export interface ReadySnapshot {
    * E7). An older one does not, so the file browser is not offered there.
    */
   sharedFiles?: true;
+  /**
+   * This account's sidebar sections, in their order (E8). Absent from a
+   * server that keeps none, so none is offered there.
+   */
+  sidebarSections?: SidebarSection[];
   /**
    * This server keeps a star per conversation, `ChannelPrefs.starred`. An
    * older one drops a star sent to it without saying so, so it is not offered.

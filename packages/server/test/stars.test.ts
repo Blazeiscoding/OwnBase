@@ -101,7 +101,12 @@ describe("a starred conversation", () => {
   it("is kept for the account that starred it, and nobody else", async () => {
     const starred = await ctx.star(general, owner.token, { starred: true });
     expect(starred.status).toBe(200);
-    expect(starred.body.prefs).toEqual({ notifyLevel: "mentions", muted: false, starred: true });
+    expect(starred.body.prefs).toEqual({
+      notifyLevel: "mentions",
+      muted: false,
+      starred: true,
+      sectionId: null,
+    });
     expect(ctx.server.store.getChannelPrefs(general, owner.id)?.starred).toBe(true);
     expect(ctx.server.store.getChannelPrefs(general, peer.id)?.starred).toBe(false);
 
@@ -116,9 +121,19 @@ describe("a starred conversation", () => {
   it("leaves the other choices alone, and they leave it alone", async () => {
     await ctx.star(general, owner.token, { starred: true });
     const muted = await ctx.star(general, owner.token, { muted: true });
-    expect(muted.body.prefs).toEqual({ notifyLevel: "mentions", muted: true, starred: true });
+    expect(muted.body.prefs).toEqual({
+      notifyLevel: "mentions",
+      muted: true,
+      starred: true,
+      sectionId: null,
+    });
     const unstarred = await ctx.star(general, owner.token, { starred: false });
-    expect(unstarred.body.prefs).toEqual({ notifyLevel: "mentions", muted: true, starred: false });
+    expect(unstarred.body.prefs).toEqual({
+      notifyLevel: "mentions",
+      muted: true,
+      starred: false,
+      sectionId: null,
+    });
   });
 
   it("reaches the account's other devices, and not other members", async () => {
@@ -220,11 +235,13 @@ describe("upgrading a workspace to stars (v40)", () => {
         notifyLevel: "all",
         muted: true,
         starred: false,
+        sectionId: null,
       });
       expect(store.memberships("U2")[0]?.prefs).toEqual({
         notifyLevel: "mentions",
         muted: false,
         starred: false,
+        sectionId: null,
       });
       expect(store.setChannelPrefs("C1", "U2", { starred: true })?.starred).toBe(true);
       expect(store.getChannelPrefs("C1", "U1")?.starred).toBe(false);

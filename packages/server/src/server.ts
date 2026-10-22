@@ -27,6 +27,9 @@ import {
   reminderBody,
   pollVotesBody,
   sharedFilesQuery,
+  sidebarSectionBody,
+  sidebarSectionOrderBody,
+  SIDEBAR_SECTIONS_MAX,
   adminUserBody,
   createAppBody,
   createCommandBody,
@@ -239,6 +242,10 @@ export const GUEST_ROUTES = new Set([
   "PUT /api/messages/:id/save",
   "DELETE /api/messages/:id/save",
   "PATCH /api/channels/:id/prefs",
+  "POST /api/sidebar-sections",
+  "PATCH /api/sidebar-sections/:id",
+  "DELETE /api/sidebar-sections/:id",
+  "PUT /api/sidebar-sections/order",
   "PUT /api/messages/:id/follow",
   "PUT /api/messages/:id/mute",
   "PUT /api/messages/:id/reminder",
@@ -4836,11 +4843,63 @@ async function startWorkspaceServer(
     requireChannelAccess(req.params.id, me);
     if (!store.isMember(req.params.id, me.id)) throw new HttpError(400, "not_a_member");
     const body = channelPrefsBody.parse(req.body ?? {});
+    if (body.sectionId && !store.ownsSidebarSection(me.id, body.sectionId))
+      throw new HttpError(404, "section_not_found", "That section is not in your sidebar.");
     const prefs = store.setChannelPrefs(req.params.id, me.id, body);
     if (!prefs) throw new HttpError(404, "channel_not_found");
     // Preferences are personal: only this user's own devices need to know.
     gateway.sendToUser(me.id, { type: "prefs", channelId: req.params.id, prefs });
     return { prefs };
+  });
+
+  // ---------- sidebar sections (E8) ----------
+
+  /** Tells the account's devices its sections as they now are, and answers with them. */
+  const sectionsChanged = (userId: ID) => {
+    const sections = store.sidebarSections(userId);
+    gateway.sendToUser(userId, { type: "sidebar.sections", sections });
+    return sections;
+  };
+
+  app.post("/api/sidebar-sections", async (req, reply) => {
+    const me = requireUser(req);
+    const { name } = sidebarSectionBody.parse(req.body ?? {});
+    if (store.sidebarSections(me.id).length >= SIDEBAR_SECTIONS_MAX)
+      throw new HttpError(
+        409,
+        "too_many_sections",
+        `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections.`,
+      );
+    const section = store.createSidebarSection(me.id, name);
+    return reply.status(201).send({ section, sections: sectionsChanged(me.id) });
+  });
+
+  app.patch<{ Params: { id: string } }>("/api/sidebar-sections/:id", async (req) => {
+    const me = requireUser(req);
+    const { name } = sidebarSectionBody.parse(req.body ?? {});
+    if (!store.renameSidebarSection(me.id, req.params.id, name))
+      throw new HttpError(404, "section_not_found");
+    return { sections: sectionsChanged(me.id) };
+  });
+
+  /** Deletes a section; its conversations go back where they would be. */
+  app.delete<{ Params: { id: string } }>("/api/sidebar-sections/:id", async (req) => {
+    const me = requireUser(req);
+    const freed = store.transaction(() => store.deleteSidebarSection(me.id, req.params.id));
+    if (!freed) throw new HttpError(404, "section_not_found");
+    for (const channelId of freed) {
+      const prefs = store.getChannelPrefs(channelId, me.id);
+      if (prefs) gateway.sendToUser(me.id, { type: "prefs", channelId, prefs });
+    }
+    return { sections: sectionsChanged(me.id) };
+  });
+
+  app.put("/api/sidebar-sections/order", async (req) => {
+    const me = requireUser(req);
+    const { ids } = sidebarSectionOrderBody.parse(req.body ?? {});
+    const ordered = store.transaction(() => store.orderSidebarSections(me.id, ids));
+    if (!ordered) throw new HttpError(409, "sections_changed", "Your sections changed. Try again.");
+    return { sections: sectionsChanged(me.id) };
   });
 
   app.put<{ Params: { id: string } }>("/api/messages/:id/follow", async (req) => {
