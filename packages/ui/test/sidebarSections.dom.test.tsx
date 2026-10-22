@@ -287,6 +287,11 @@ describe("moving a conversation", () => {
     drag(design.id, "Reading");
     expect(sent).toHaveBeenLastCalledWith(design.id, { sectionId: reading.id, starred: false });
     expect(rows("Reading")).toEqual(["design"]);
+    // Dropped again where it already is, it asks nothing.
+    const asked = sent.mock.calls.length;
+    drag(design.id, "Reading");
+    await new Promise((settled) => setTimeout(settled, 50));
+    expect(sent.mock.calls.length).toBe(asked);
 
     drag(design.id, "Starred");
     // Sent once the move before it is answered: one request about a conversation at a time.

@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -70,6 +70,8 @@ describe("sidebar sections on the client", () => {
     expect(work).toEqual({ id: expect.any(String), name: "Work" });
     expect(names(laptop.state)).toEqual(["Work"]);
     await until(phone, (s) => names(s).join() === "Work", "the phone to hear it");
+    // A device signing in now has it from the start.
+    expect(names((await online()).state)).toEqual(["Work"]);
 
     expect(await laptop.renameSidebarSection(work!.id, "Projects")).toBe(true);
     expect(names(laptop.state)).toEqual(["Projects"]);
@@ -103,12 +105,23 @@ describe("sidebar sections on the client", () => {
     expect(await ordered).toBe(true);
     await until(phone, (s) => names(s).join() === "Beta,Alpha", "the phone's order");
 
-    // The phone adds one the laptop has not heard of yet, so the laptop's
-    // order leaves one out and is refused: it shows the server's list.
-    await new Api(base, token).createSidebarSection("Gamma");
+    // Another device adds one while the laptop's order is on its way, so the
+    // order leaves it out and is refused. The laptop heard of it meanwhile,
+    // without showing it then, and shows that list now.
+    const send = laptop.api.orderSidebarSections.bind(laptop.api);
+    vi.spyOn(laptop.api, "orderSidebarSections").mockImplementationOnce(async (ids) => {
+      await new Api(base, token).createSidebarSection("Gamma");
+      await until(phone, (s) => names(s).includes("Gamma"), "the phone to hear of Gamma");
+      await new Promise((settled) => setTimeout(settled, 50));
+      // Heard, but not shown over the order still on its way.
+      expect(names(laptop.state)).toEqual(["Alpha", "Beta"]);
+      return send(ids);
+    });
     const stale = laptop.orderSidebarSections([a.id, b.id]);
+    expect(names(laptop.state)).toEqual(["Alpha", "Beta"]);
     expect(await stale).toBe(false);
-    await until(laptop, (s) => names(s).join() === "Beta,Alpha,Gamma", "the server's list");
+    expect(names(laptop.state)).toEqual(["Beta", "Alpha", "Gamma"]);
+    vi.restoreAllMocks();
 
     for (const section of laptop.state.sidebarSections!)
       await laptop.deleteSidebarSection(section.id);
