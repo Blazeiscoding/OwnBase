@@ -115,6 +115,59 @@ describe("a menu", () => {
     expect(screen.getByRole("menu")).toBeVisible();
     expect(screen.getByRole("menuitem", { name: "Make admin" })).toBeVisible();
   });
+
+  it("marks no item as chosen after a click opens it, until the pointer or an arrow reaches one", async () => {
+    const { items } = actions();
+    const user = userEvent.setup();
+    render(<Menu label="Actions for Sam Rivera" items={items} />);
+    await user.click(screen.getByRole("button", { name: "Actions for Sam Rivera" }));
+    const promote = screen.getByRole("menuitem", { name: "Make admin" });
+    const deactivate = screen.getByRole("menuitem", { name: "Deactivate" });
+
+    // Focus is on the first item for the keyboard, which shows it only where
+    // focus shows; a click is not the keyboard, so nothing looks picked.
+    expect(promote).toHaveFocus();
+    expect(promote).not.toHaveClass("bg-copper/[0.12]");
+    expect(promote).toHaveClass("focus-visible:bg-copper/[0.12]");
+
+    await user.hover(deactivate);
+    expect(deactivate).toHaveClass("bg-alert/10");
+    await user.keyboard("{ArrowDown}");
+    expect(promote).toHaveFocus();
+    expect(promote).toHaveClass("bg-copper/[0.12]");
+  });
+
+  it("shows a heading to look at, a line under an item, and the keys that do the same", async () => {
+    const user = userEvent.setup();
+    render(
+      <Menu
+        label="Your account"
+        heading={<span>Sam Rivera</span>}
+        items={[
+          {
+            id: "clear",
+            label: "Clear status",
+            description: "In a meeting · until 15:00",
+            onSelect: () => {},
+          },
+          { id: "shortcuts", label: "Keyboard shortcuts", keys: ["Ctrl", "/"], onSelect: () => {} },
+        ]}
+      />,
+    );
+    await user.click(screen.getByRole("button", { name: "Your account" }));
+    const menu = screen.getByRole("menu", { name: "Your account" });
+
+    // The trigger already names whose it is, so the heading is not said again.
+    expect(screen.getByText("Sam Rivera")).toBeVisible();
+    expect(screen.getByText("Sam Rivera").closest("[aria-hidden='true']")).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: /^Clear status/ })).toHaveTextContent(
+      "Clear statusIn a meeting · until 15:00",
+    );
+    const shortcuts = screen.getByRole("menuitem", { name: "Keyboard shortcuts" });
+    expect(shortcuts).toHaveTextContent("Ctrl/");
+    expect(shortcuts).toHaveAttribute("aria-keyshortcuts", "Control+/");
+    expect(await accessibilityProblems(menu)).toEqual([]);
+  });
 });
 
 describe("a menu whose trigger has a hint", () => {

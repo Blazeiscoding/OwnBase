@@ -6,7 +6,7 @@ import { channelTitle } from "../lib/format.js";
 import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
-import { shortcutLabel } from "../lib/shortcuts.js";
+import { modKey, shortcutLabel } from "../lib/shortcuts.js";
 import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
 import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -835,7 +835,8 @@ export function AccountMenu(props: {
         id: "clear-status",
         label: "Clear status",
         icon: "close",
-        section: current,
+        description: current,
+        section: "Status",
         ariaLabel: `Clear status, ${current}`,
         onSelect: () => setStatus("", "", null),
       });
@@ -892,6 +893,7 @@ export function AccountMenu(props: {
       id: "shortcuts",
       label: "Keyboard shortcuts",
       icon: "keyboard",
+      keys: [modKey(), "/"],
       section: true,
       onSelect: props.onShortcuts,
     });
@@ -899,16 +901,18 @@ export function AccountMenu(props: {
     items.push({
       id: "diagnostics",
       label: "Diagnostics",
-      icon: "help",
+      icon: "gauge",
       section: props.onShortcuts ? undefined : true,
       onSelect: props.onDiagnostics,
     });
+  const heading = <AccountHeading guest={props.guest} snoozed={props.snoozed} />;
   if (props.trigger)
     return (
       <Menu
         label="Your account"
         triggerLabel={props.trigger.label}
         items={items}
+        heading={heading}
         align="start"
         sheet
         triggerClassName={props.trigger.className}
@@ -926,6 +930,8 @@ export function AccountMenu(props: {
         label="Your account"
         triggerLabel={`${self?.displayName ?? "…"}, ${status}, your account`}
         items={items}
+        heading={heading}
+        width={256}
         align="start"
         triggerClassName="flex w-full min-w-0 items-center gap-2.5 rounded-lg px-1.5 py-1.5 text-left transition-colors hover:bg-ink/[0.05]"
         triggerContent={
@@ -945,6 +951,32 @@ export function AccountMenu(props: {
           </>
         }
       />
+    </div>
+  );
+}
+
+/**
+ * Atop the account menu, whose it is: your picture, with whether you are
+ * here, your name, and the handle people mention you by.
+ */
+function AccountHeading(props: { guest: boolean; snoozed: boolean }) {
+  const self = useWorkspace((s) => s.self);
+  return (
+    <div className="flex items-center gap-3">
+      <AvatarWithPresence
+        user={self ?? undefined}
+        online={!props.snoozed}
+        size={36}
+        ring="var(--color-lifted)"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-[15px] font-semibold text-ink">
+          {self?.displayName ?? "…"}
+        </div>
+        <div className="truncate text-[12px] text-ink-faint">
+          {props.guest ? "Guest" : self ? `@${self.handle}` : ""}
+        </div>
+      </div>
     </div>
   );
 }
