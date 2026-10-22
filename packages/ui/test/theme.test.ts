@@ -146,17 +146,31 @@ describe("the other themes", () => {
     expect(css).not.toContain('data-theme="contrast"');
   });
 
-  it("leave the call dark in either theme, with every one of Onyx's colours", () => {
-    const declared = (opening: string) =>
-      Object.fromEntries(
-        [...block(opening).matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [
-          m[1]!,
-          m[2]!.replace(/\s+/g, " ").trim(),
-        ]),
-      );
-    const onyx = { ...declared(THEME_BLOCKS.dark), ...declared(":root {\n  color-scheme: dark;") };
-    const call = declared(".call-stage {");
-    expect(block(".call-stage {")).toContain("color-scheme: dark;");
+  /** A block's custom properties, by name, as written. */
+  const declared = (opening: string): Record<string, string> =>
+    Object.fromEntries(
+      [...block(opening).matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [
+        m[1]!,
+        m[2]!.replace(/\s+/g, " ").trim(),
+      ]),
+    );
+  const onyxRoot = ":root {\n  color-scheme: dark;";
+
+  it("give the call the theme's colours: black in Onyx, White's grey with white tiles", () => {
+    expect(declared(onyxRoot)).toMatchObject({
+      "--call-ground": "#000",
+      "--call-tile": "var(--color-lifted)",
+    });
+    expect(declared(THEME_BLOCKS.light)).toMatchObject({
+      "--call-ground": "var(--color-deep)",
+      "--call-tile": "var(--color-ground)",
+    });
+  });
+
+  it("keep a call in full screen dark in either theme, with every one of Onyx's colours", () => {
+    const onyx = { ...declared(THEME_BLOCKS.dark), ...declared(onyxRoot) };
+    const call = declared(".call-dark {");
+    expect(block(".call-dark {")).toContain("color-scheme: dark;");
     expect(Object.keys(call)).toEqual(
       expect.arrayContaining(Object.keys(onyx).filter((name) => name.startsWith("--color-"))),
     );
