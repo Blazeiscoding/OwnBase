@@ -4,30 +4,22 @@ import {
   useRef,
   useState,
   type KeyboardEvent,
-  type PointerEvent,
   type ReactNode,
 } from "react";
 import type { HuddleState } from "@slackoss/client-core";
 import type { ID, User } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { avatarColor } from "../lib/format.js";
+import { avatarColor, channelTitle } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
-import { huddleHasVideo, type HuddleView } from "../lib/huddleView.js";
 import { screenSoundKey, useCallVolumes, type PersonVolume as Volume } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
-
-export { huddleHasVideo, type HuddleView };
-
-/** Where the huddle's video sits: above the chat, over it, or out of sight. */
 
 /** Cameras send 16:9, so tiles keep that shape and nobody's head is cropped off. */
 const ASPECT = 16 / 9;
 const GAP = 12;
-const MIN_PORTION = 0.2;
-const MAX_PORTION = 0.8;
 
 /**
  * The largest 16:9 tile that fits `count` of them into a width × height box,
@@ -465,7 +457,11 @@ function Presenting({ item, width, height }: { item: StageItem; width: number; h
   );
 }
 
-/** One thing large, everyone else in a strip beside it or below it. */
+/**
+ * One thing large and everyone else in a row under it, as Discord shows a
+ * stream. The row can be put away, and in full screen it starts put away, so
+ * the share has the screen to itself.
+ */
 function Spotlight({
   main,
   others,
@@ -474,6 +470,9 @@ function Spotlight({
   pinned,
   onPin,
   onUnpin,
+  strip,
+  edge,
+  onOpen,
 }: {
   main: StageItem;
   others: StageItem[];
@@ -482,34 +481,36 @@ function Spotlight({
   pinned: boolean;
   onPin: (key: string) => void;
   onUnpin: () => void;
+  /** Everyone else shows, in the row under the main view. */
+  strip: boolean;
+  /** In full screen: the main view out to the screen's edges, with no frame. */
+  edge: boolean;
+  /** Double-clicking the main view, into full screen and out again. */
+  onOpen: () => void;
 }) {
-  // Beside the main view when there is width to spare, under it otherwise, and
-  // small enough for everyone to fit without scrolling while that stays legible.
-  const side = width >= 640 && width >= height * 1.25;
-  const fits = (space: number) => (space - 8 * (others.length - 1)) / Math.max(1, others.length);
-  const thumbHeight = side
-    ? Math.round(Math.min(135, Math.max(72, fits(height))))
-    : Math.round(Math.min(135, height * 0.24, Math.max(63, fits(width) / ASPECT)));
+  const row = strip && others.length > 0;
+  // Small enough to leave the share most of the height, big enough to tell faces apart.
+  const thumbHeight = Math.round(Math.min(120, Math.max(60, height * 0.17)));
   const thumbWidth = Math.round(thumbHeight * ASPECT);
-  const mainWidth = side && others.length > 0 ? width - thumbWidth - GAP : width;
-  const mainHeight = !side && others.length > 0 ? height - thumbHeight - GAP : height;
+  const mainHeight = row ? height - thumbHeight - GAP : height;
   // The picture's own shape, once the video says what it is. A screen is
   // rarely 16:9, and a frame of the wrong shape showed it in wide black bars.
   const [screenAspect, setScreenAspect] = useState<number | null>(null);
   const presenting = main.kind === "screen" && main.self;
   const aspect = main.kind === "screen" ? (screenAspect ?? ASPECT) : ASPECT;
-  const box = presenting ? null : bestFit(1, mainWidth, mainHeight, GAP, aspect);
+  const box = presenting ? null : bestFit(1, width, mainHeight, GAP, aspect);
 
   let body: ReactNode;
   if (presenting) {
-    body = <Presenting item={main} width={mainWidth} height={mainHeight} />;
+    body = <Presenting item={main} width={width} height={mainHeight} />;
   } else {
     body = (
       <div
         role="group"
         aria-label={describe(main)}
-        className={`group/tile ${tileFrame(main)} ${main.kind === "screen" ? "shadow-2xl ring-1 ring-edge" : ""}`}
+        className={`group/tile ${tileFrame(main, edge ? "" : "rounded-2xl")}`}
         style={box ? { width: box.width, height: Math.floor(box.width / aspect) } : undefined}
+        onDoubleClick={onOpen}
       >
         <TileBody
           item={main}
@@ -523,24 +524,13 @@ function Spotlight({
   }
 
   return (
-    // The picture and the strip sit together in the middle, so the strip is
-    // beside the share rather than out at the stage's far edge.
-    <div
-      className={`flex size-full items-center justify-center ${side ? "flex-row" : "flex-col"}`}
-      style={{ gap: GAP }}
-    >
-      <div
-        className={`flex min-h-0 min-w-0 items-center justify-center ${presenting ? "size-full flex-1" : ""}`}
-      >
-        {body}
-      </div>
-      {others.length > 0 && (
+    <div className="flex size-full flex-col items-center" style={{ gap: GAP }}>
+      <div className="flex min-h-0 w-full flex-1 items-center justify-center">{body}</div>
+      {row && (
         <ul
           aria-label="Everyone else"
-          className={`flex shrink-0 gap-2 ${
-            side ? "max-h-full flex-col overflow-y-auto" : "max-w-full flex-row overflow-x-auto"
-          }`}
-          style={side ? { width: thumbWidth } : { height: thumbHeight }}
+          className="flex max-w-full shrink-0 flex-row gap-2 overflow-x-auto"
+          style={{ height: thumbHeight }}
         >
           {others.map((item) => (
             <li
@@ -565,59 +555,74 @@ function Spotlight({
   );
 }
 
+/** A button in the call's header or along its bottom, light on the dark. */
 function StageButton(props: {
   label: string;
   /** What pressing it does now, when the name alone does not say. */
   hint?: string;
   icon: IconName;
   pressed?: boolean;
+  /** Where its hint shows: under a button in the header, over one at the bottom. */
+  side?: "top" | "bottom";
   onClick: () => void;
 }) {
   return (
-    <Tooltip label={props.hint ?? props.label} side="bottom">
+    <Tooltip label={props.hint ?? props.label} side={props.side ?? "bottom"}>
       <button
         aria-label={props.label}
         aria-pressed={props.pressed}
         onClick={props.onClick}
-        className={`flex size-8 items-center justify-center rounded-lg transition-colors ${
+        className={`flex size-10 shrink-0 items-center justify-center rounded-xl transition-colors ${
           props.pressed
-            ? "bg-copper/15 text-copper"
-            : "text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
+            ? "bg-white/15 text-white"
+            : "text-white/70 hover:bg-white/10 hover:text-white"
         }`}
       >
-        <Icon name={props.icon} size={16} />
+        <Icon name={props.icon} size={18} />
       </button>
     </Tooltip>
   );
 }
 
 /**
- * The huddle's video. Above the chat by default, at a height you can drag;
- * expanded, it covers the chat; in full screen it takes the screen, with the
- * call's controls on top. A share takes the main view by itself, with everyone
- * else in a strip, and any tile can be pinned there instead.
+ * The call, as Discord draws a voice channel: dark in either theme, everyone
+ * as a tile, and the controls centred along the bottom. It takes the
+ * conversation's column, with the chat beside it where there is room for
+ * both and under it where there is not. A share takes the main view by
+ * itself, with everyone else in a row under it, and any tile can be pinned
+ * there instead.
  *
- * It shows nothing in a call without video: the huddle bar already says who is
- * there and who is talking.
+ * In full screen the share fills the screen, edge to edge. The header and
+ * the controls float over it and step aside after a few seconds without
+ * movement; everyone else starts hidden, and the same button brings them back.
  */
 export function HuddleStage({
-  view,
-  onViewChange,
+  chat,
+  onHide,
+  onShowCallLog,
+  onOpenSettings,
 }: {
-  view: HuddleView;
-  onViewChange: (view: HuddleView) => void;
+  /** The chat beside the call, on a window with room for both; absent on a narrower one. */
+  chat?: { shown: boolean; onToggle: () => void };
+  /** Back to the chat; the huddle carries on. */
+  onHide: () => void;
+  /** Opens the call log, for someone who cannot connect to know why. */
+  onShowCallLog?: () => void;
+  /** Opens Voice & video settings, from the device menus. */
+  onOpenSettings?: () => void;
 }) {
   const huddle = useWorkspace((s) => s.huddle);
   const users = useWorkspace((s) => s.users);
+  const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
   const { volumes } = useCallVolumes();
   const stage = useRef<HTMLElement | null>(null);
   const [measure, area] = useElementSize();
   const [pinned, setPinned] = useState<string | null>(null);
   const [grid, setGrid] = useState(false);
-  /** How much of the column the stage takes, once someone has resized it; null until then. */
-  const [portion, setPortion] = useState<number | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
+  /** Whether everyone else shows under the spotlight, in the call and in full screen. */
+  const [strip, setStrip] = useState({ call: true, fullscreen: false });
 
   useEffect(() => {
     const onChange = () =>
@@ -628,7 +633,7 @@ export function HuddleStage({
 
   // In full screen the controls sit over the picture, so they step aside, with
   // the pointer, once nobody has moved for a few seconds. Any movement or key
-  // brings them back, and focus inside them keeps them there.
+  // brings them back, and keyboard focus inside them keeps them there.
   const [idle, setIdle] = useState(false);
   useEffect(() => {
     const el = stage.current;
@@ -651,15 +656,7 @@ export function HuddleStage({
     };
   }, [fullscreen]);
 
-  // Someone starting to share is worth seeing, even with the video put away.
-  const sharer = huddle?.peers.find((p) => p.screenStream)?.userId ?? null;
-  const lastSharer = useRef<ID | null>(null);
-  useEffect(() => {
-    if (sharer && sharer !== lastSharer.current && view === "hidden") onViewChange("docked");
-    lastSharer.current = sharer;
-  }, [sharer, view, onViewChange]);
-
-  if (!huddle || view === "hidden" || !huddleHasVideo(huddle)) return null;
+  if (!huddle) return null;
 
   const items = stageItems(huddle, users, selfId, volumes);
   const pinnedItem = pinned ? items.find((i) => i.key === pinned) : undefined;
@@ -670,9 +667,10 @@ export function HuddleStage({
   if (pinned !== null && !pinnedItem) setPinned(null);
   if (grid && !firstShare && !pinnedItem) setGrid(false);
   const main = grid ? undefined : (pinnedItem ?? firstShare);
-  const expanded = view === "expanded";
-  // A share is what people watch, so it starts taller than a row of faces.
-  const current = portion ?? (firstShare ? 0.75 : 0.5);
+  const others = main ? items.filter((i) => i.key !== main.key) : [];
+  const showStrip = fullscreen ? strip.fullscreen : strip.call;
+  // A phone's width has no room beside the controls, so these go up into the header.
+  const compact = area.width > 0 && area.width < 600;
 
   const pin = (key: string) => {
     setPinned(key);
@@ -682,80 +680,116 @@ export function HuddleStage({
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
     else void stage.current?.requestFullscreen().catch(() => {});
   };
-
-  const resizeBy = (delta: number) =>
-    setPortion(Math.min(MAX_PORTION, Math.max(MIN_PORTION, current + delta)));
-  const onHandleKey = (e: KeyboardEvent<HTMLDivElement>) => {
-    const step = { ArrowUp: -0.05, ArrowDown: 0.05 }[e.key];
-    if (step !== undefined) resizeBy(step);
-    else if (e.key === "Home") setPortion(MIN_PORTION);
-    else if (e.key === "End") setPortion(MAX_PORTION);
-    else return;
+  // A browser leaves full screen on Escape by itself; the desktop app does not.
+  const onKeyDown = (e: KeyboardEvent<HTMLElement>) => {
+    if (e.key !== "Escape" || document.fullscreenElement !== stage.current) return;
     e.preventDefault();
-  };
-  const onHandleDown = (e: PointerEvent<HTMLDivElement>) => {
-    const column = stage.current?.parentElement;
-    if (!stage.current || !column) return;
-    e.preventDefault();
-    const handle = e.currentTarget;
-    handle.setPointerCapture?.(e.pointerId);
-    const total = column.getBoundingClientRect().height || 1;
-    const startY = e.clientY;
-    const startHeight = stage.current.getBoundingClientRect().height;
-    const move = (ev: globalThis.PointerEvent) =>
-      setPortion(
-        Math.min(MAX_PORTION, Math.max(MIN_PORTION, (startHeight + ev.clientY - startY) / total)),
-      );
-    const up = () => {
-      handle.removeEventListener("pointermove", move);
-      handle.removeEventListener("pointerup", up);
-      handle.removeEventListener("pointercancel", up);
-    };
-    handle.addEventListener("pointermove", move);
-    handle.addEventListener("pointerup", up);
-    handle.addEventListener("pointercancel", up);
+    void document.exitFullscreen().catch(() => {});
   };
 
+  const channel = channels[huddle.channelId];
+  const where = channel
+    ? channel.name
+      ? `#${channel.name}`
+      : channelTitle(channel, users, selfId)
+    : "Huddle";
+  const stuck = huddle.peers.some((p) => !p.connected && p.trouble);
+  const viewButtons = (side: "top" | "bottom") => (
+    <>
+      {main && others.length > 0 && (
+        <StageButton
+          label="Everyone else"
+          hint={showStrip ? "Hide everyone else" : "Show everyone else"}
+          icon="members"
+          pressed={showStrip}
+          side={side}
+          onClick={() =>
+            setStrip((s) =>
+              fullscreen ? { ...s, fullscreen: !s.fullscreen } : { ...s, call: !s.call },
+            )
+          }
+        />
+      )}
+      {document.fullscreenEnabled && (
+        <StageButton
+          label="Full screen"
+          hint={fullscreen ? "Leave full screen" : "Full screen"}
+          icon={fullscreen ? "fullscreenExit" : "fullscreen"}
+          pressed={fullscreen}
+          side={side}
+          onClick={toggleFullscreen}
+        />
+      )}
+    </>
+  );
   const focusText = main
     ? main.kind === "screen"
       ? main.self
         ? "You're sharing your screen"
         : `${main.user?.displayName ?? "Someone"} is sharing their screen`
       : `${main.name} is pinned`
-    : "Huddle video";
-  // Who is on the main view, at a glance: their face, the sentence, and a
-  // badge while it is a screen.
-  const focus = (
-    <div className="flex min-w-0 flex-1 items-center gap-2.5">
-      {main?.user && <Avatar user={main.user} size={22} />}
-      <p className={`min-w-0 truncate text-sm ${main ? "font-medium text-ink" : "text-ink-dim"}`}>
-        {focusText}
-      </p>
-      {main?.kind === "screen" && (
-        <span
-          aria-hidden="true"
-          className="flex shrink-0 items-center gap-1.5 rounded-full bg-copper/15 px-2 py-0.5 text-[11px] font-semibold text-copper"
-        >
-          <span className="size-1.5 animate-pulse rounded-full bg-copper motion-reduce:animate-none" />
-          Presenting
-        </span>
-      )}
-    </div>
-  );
+    : null;
+
+  // Over the picture in full screen, shaded so they read on any share, and out
+  // of the way while nobody moves. Keyboard focus keeps them; the focus a
+  // click leaves on Full screen does not.
+  const floating = (edge: "top" | "bottom") =>
+    fullscreen
+      ? `absolute inset-x-0 z-10 transition-opacity duration-300 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100 ${
+          edge === "top"
+            ? "top-0 bg-linear-to-b from-black/75 to-transparent"
+            : "bottom-0 bg-linear-to-t from-black/75 to-transparent"
+        } ${idle ? "pointer-events-none opacity-0" : "opacity-100"}`
+      : "";
 
   return (
     <section
       ref={stage}
-      aria-label="Huddle video"
-      className={`flex flex-col bg-deep ${idle ? "cursor-none" : ""} ${
-        expanded
-          ? "absolute inset-0 z-20"
-          : "relative max-h-[calc(100%-7.5rem)] min-h-[200px] shrink-0 border-b border-edge"
+      aria-label="Huddle call"
+      onKeyDown={onKeyDown}
+      className={`call-stage flex flex-col bg-black text-ink ${idle ? "cursor-none" : ""} ${
+        chat?.shown ? "relative min-w-0 flex-1" : "absolute inset-0 z-20"
       }`}
-      style={expanded ? undefined : { height: `${current * 100}%` }}
     >
-      <div className="flex h-12 shrink-0 items-center gap-1 pl-4 pr-2">
-        {focus}
+      <div className={`flex h-14 shrink-0 items-center gap-1 pl-4 pr-2 ${floating("top")}`}>
+        {/* Where the call is, and who is on the main view at a glance: their
+            face, the sentence, and a badge while it is a screen. On a phone
+            the sentence has the room; the app's header already says where. */}
+        <div className="flex min-w-0 flex-1 items-center gap-2.5">
+          <Icon name="headphones" size={18} className="shrink-0 text-online" />
+          <p
+            className={`max-w-[40%] shrink-0 truncate text-[15px] font-semibold ${
+              compact && main ? "sr-only" : ""
+            }`}
+          >
+            {where}
+          </p>
+          {main && (
+            <>
+              {!compact && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-white/15" />}
+              {main.user && <Avatar user={main.user} size={20} />}
+              <p className="min-w-0 truncate text-sm text-ink-dim">{focusText}</p>
+              {main.kind === "screen" && (
+                <span
+                  aria-hidden="true"
+                  className="shrink-0 rounded-md bg-alert px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-ground"
+                >
+                  LIVE
+                </span>
+              )}
+            </>
+          )}
+          {stuck && onShowCallLog && (
+            <button
+              type="button"
+              onClick={onShowCallLog}
+              className="shrink-0 text-xs text-copper underline decoration-copper/40 hover:decoration-copper"
+            >
+              Can't connect to someone? See the call log
+            </button>
+          )}
+        </div>
+        {compact && viewButtons("bottom")}
         {(firstShare || pinnedItem) && (
           <StageButton
             label="Grid view"
@@ -768,78 +802,65 @@ export function HuddleStage({
             }}
           />
         )}
-        {!fullscreen && (
+        {chat && !fullscreen && (
           <StageButton
-            label="Expand video"
-            hint={expanded ? "Show the chat again" : "Expand the video over the chat"}
-            icon={expanded ? "shrink" : "expand"}
-            pressed={expanded}
-            onClick={() => onViewChange(expanded ? "docked" : "expanded")}
-          />
-        )}
-        {document.fullscreenEnabled && (
-          <StageButton
-            label="Full screen"
-            hint={fullscreen ? "Leave full screen" : "Full screen"}
-            icon={fullscreen ? "fullscreenExit" : "fullscreen"}
-            pressed={fullscreen}
-            onClick={toggleFullscreen}
+            label="Chat"
+            hint={chat.shown ? "Hide the chat" : "Show the chat beside the call"}
+            icon="messages"
+            pressed={chat.shown}
+            onClick={chat.onToggle}
           />
         )}
         {!fullscreen && (
           <StageButton
-            label="Hide video"
-            hint="Hide the video; the huddle carries on"
+            label="Hide call"
+            hint="Back to the chat; the huddle carries on"
             icon="chevronDown"
-            onClick={() => onViewChange("hidden")}
+            onClick={onHide}
           />
         )}
       </div>
-      <div ref={measure} className="min-h-0 flex-1 px-4 pb-4">
+      <div
+        ref={measure}
+        className={`min-h-0 flex-1 ${
+          !fullscreen ? "px-3" : main ? (showStrip ? "pb-24" : "") : "px-4 py-16"
+        }`}
+      >
         {main ? (
           <Spotlight
             main={main}
-            others={items.filter((i) => i.key !== main.key)}
-            width={area.width - 32}
-            height={area.height - 16}
+            others={others}
+            width={area.width - (fullscreen ? 0 : 24)}
+            height={area.height - (fullscreen && showStrip ? 96 : 0)}
             pinned={main.key === pinned}
             onPin={pin}
             onUnpin={() => setPinned(null)}
+            strip={showStrip}
+            edge={fullscreen}
+            onOpen={toggleFullscreen}
           />
         ) : (
           <Gallery
             items={items.filter((i) => i.kind === "person" || grid)}
-            width={area.width - 32}
-            height={area.height - 16}
+            width={area.width - (fullscreen ? 32 : 24)}
+            height={area.height - (fullscreen ? 128 : 0)}
             onPin={pin}
           />
         )}
       </div>
-      {fullscreen && (
-        <div
-          className={`absolute bottom-6 left-1/2 -translate-x-1/2 transition-opacity duration-300 focus-within:pointer-events-auto focus-within:opacity-100 ${
-            idle ? "pointer-events-none opacity-0" : "opacity-100"
-          }`}
-        >
-          <HuddleControls overlay />
+      <div
+        className={`shrink-0 px-4 pb-4 pt-3 ${
+          compact ? "flex justify-center" : "grid grid-cols-[1fr_auto_1fr] items-end gap-3"
+        } ${floating("bottom")}`}
+      >
+        {!compact && <div />}
+        <div className="flex min-w-0 flex-col items-center gap-2">
+          <HuddleControls stage overlay={fullscreen} onOpenSettings={onOpenSettings} />
         </div>
-      )}
-      {!expanded && !fullscreen && (
-        <div
-          role="separator"
-          aria-orientation="horizontal"
-          aria-label="Resize huddle video"
-          aria-valuemin={MIN_PORTION * 100}
-          aria-valuemax={MAX_PORTION * 100}
-          aria-valuenow={Math.round(current * 100)}
-          tabIndex={0}
-          onPointerDown={onHandleDown}
-          onKeyDown={onHandleKey}
-          className="group/handle absolute inset-x-0 -bottom-2 z-10 flex h-4 cursor-row-resize touch-none items-center justify-center outline-none"
-        >
-          <span className="h-1 w-12 rounded-full bg-edge transition-colors group-hover/handle:bg-ink-faint group-focus-visible/handle:bg-copper" />
-        </div>
-      )}
+        {!compact && (
+          <div className="flex items-center justify-end gap-1">{viewButtons("top")}</div>
+        )}
+      </div>
     </section>
   );
 }

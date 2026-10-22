@@ -468,15 +468,14 @@ test(
             .evaluateAll((videos) => videos.some((v) => (v as HTMLVideoElement).videoWidth > 0)),
         )
         .toBe(true);
-      // The video gets a stage of its own above the chat, with Alice named on it.
-      const bobStage = bob.getByRole("region", { name: "Huddle video" });
+      // The video opens the call, with Alice named on her tile.
+      const bobStage = bob.getByRole("region", { name: "Huddle call" });
       await expect(bobStage.getByRole("group", { name: "alice", exact: true })).toBeVisible();
       await alice.getByRole("button", { name: "Mute microphone", pressed: false }).click();
       await expect(
         alice.getByRole("button", { name: "Mute microphone", pressed: true }),
       ).toBeVisible();
       // Muting is signalled, not guessed: Bob's copy of Alice says so.
-      await expect(bob.getByTitle("alice (muted)")).toBeVisible();
       await expect(
         bobStage.getByRole("group", { name: "alice, muted", exact: true }),
       ).toBeVisible();
@@ -980,7 +979,7 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
     await signIn(alice, "alice");
     await signIn(bob, "bobby");
     const bar = (page: Page) => page.getByRole("region", { name: "Active huddle", exact: true });
-    const stage = (page: Page) => page.getByRole("region", { name: "Huddle video", exact: true });
+    const stage = (page: Page) => page.getByRole("region", { name: "Huddle call", exact: true });
     await alice.getByRole("button", { name: "Start a huddle", exact: true }).click();
     await bob.getByRole("button", { name: "Join the huddle with alice", exact: true }).click();
     await expect(bar(alice).getByRole("status")).toHaveText("With bobby");
@@ -1015,7 +1014,7 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
       });
 
     // Alice shares her screen, and her screen is heard, though her microphone is off.
-    await bar(alice).getByRole("button", { name: "Share screen", exact: true }).click();
+    await alice.getByRole("button", { name: "Share screen", exact: true }).click();
     await expect(
       stage(alice).getByRole("group", { name: "Your screen, with sound", exact: true }),
     ).toContainText("Everyone in the huddle can see and hear it");
@@ -1047,12 +1046,12 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
       .toEqual([[expect.stringMatching(/^screen:/), { volume: 100, muted: true }]]);
 
     // Her share's sound stops with the share.
-    await bar(alice).getByRole("button", { name: "Share screen", exact: true }).click();
-    await expect(stage(bob)).toHaveCount(0);
+    await alice.getByRole("button", { name: "Share screen", exact: true }).click();
+    await expect(stage(bob)).toBeHidden();
     await expect.poll(async () => (await plays(bob)).length).toBe(1);
 
     // The other way round, from whichever side did not offer the first time.
-    await bar(bob).getByRole("button", { name: "Share screen", exact: true }).click();
+    await bob.getByRole("button", { name: "Share screen", exact: true }).click();
     await expect(
       stage(alice).getByRole("group", { name: "bobby's screen, with sound", exact: true }),
     ).toBeVisible();

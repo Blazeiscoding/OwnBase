@@ -200,18 +200,18 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={c}>
-          <HuddleStage view="docked" onViewChange={() => {}} />
+          <HuddleStage onHide={() => {}} chat={{ shown: true, onToggle: () => {} }} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
-    const region = screen.getByRole("region", { name: "Huddle video" });
+    const region = screen.getByRole("region", { name: "Huddle call" });
     expect(region.querySelector("[title]")).toBeNull();
 
     const grid = within(region).getByRole("button", { name: "Grid view" });
     expect(await tabTo(user, grid)).toHaveTextContent("Show everyone the same size");
-    const expand = within(region).getByRole("button", { name: "Expand video" });
-    expect(await tabTo(user, expand)).toHaveTextContent("Expand the video over the chat");
-    expect(expand).toHaveAccessibleDescription("Expand the video over the chat");
+    const chat = within(region).getByRole("button", { name: "Chat" });
+    expect(await tabTo(user, chat)).toHaveTextContent("Hide the chat");
+    expect(chat).toHaveAccessibleDescription("Hide the chat");
 
     const strip = within(region).getByRole("list", { name: "Everyone else" });
     const priya = within(strip).getByRole("button", { name: "Pin Priya Shah" });

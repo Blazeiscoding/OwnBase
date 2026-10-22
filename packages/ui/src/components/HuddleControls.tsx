@@ -12,9 +12,10 @@ import { ScreenShareDialog } from "./ScreenShareDialog.js";
 import { Tooltip } from "./Tooltip.js";
 
 /**
- * Whether the desktop app's screen picker is open. The bar's controls show
- * it. The controls in full screen leave full screen to open it, since a
- * dialog does not show over full screen, and they go away as it ends.
+ * Whether the desktop app's screen picker is open. The controls out of full
+ * screen show it, in the bar or the call. In full screen they leave it to
+ * open the picker, since a dialog does not show over full screen, and show it
+ * once full screen has ended.
  */
 const picker = createStore(() => ({ open: false }));
 
@@ -52,10 +53,13 @@ function DeviceMenu({
   label,
   items,
   disabled,
+  dark,
 }: {
   label: string;
   items: MenuItem[];
   disabled?: boolean;
+  /** In the call, which is dark in either theme. */
+  dark?: boolean;
 }) {
   return (
     <Menu
@@ -71,22 +75,31 @@ function DeviceMenu({
           <span className="sr-only">{label}</span>
         </>
       }
-      triggerClassName="-ml-1.5 flex h-10 w-6 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
+      triggerClassName={
+        dark
+          ? "-ml-1 flex h-11 w-6 items-center justify-center rounded-lg text-white/65 transition-colors hover:bg-white/10 hover:text-white disabled:opacity-40"
+          : "-ml-1.5 flex h-10 w-6 items-center justify-center rounded-full text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40"
+      }
     />
   );
 }
 
 /**
  * Microphone, camera, screen and Leave. The huddle bar shows them, and so does
- * the stage in full screen, where the bar is out of sight.
+ * the call, along its bottom, as Discord does: squarer, lit from within, and
+ * in full screen without the device menus.
  *
  * A toggle names what it controls, and aria-pressed, not the name, says whether
  * it is on: a screen reader hears the same button before and after a press.
  */
 export function HuddleControls({
+  stage = false,
   overlay = false,
   onOpenSettings,
 }: {
+  /** In the call, which is dark in either theme, rather than in the bar. */
+  stage?: boolean;
+  /** Over the call in full screen, where a menu or a dialog would open out of sight. */
   overlay?: boolean;
   /** Opens Voice & video settings, from the device menus. */
   onOpenSettings?: () => void;
@@ -102,11 +115,14 @@ export function HuddleControls({
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const choosingScreen = useStore(picker, (s) => s.open);
-  // The picker goes with the huddle, and does not open again with the next one.
-  useEffect(() => {
-    if (overlay) return;
-    return () => picker.setState({ open: false });
-  }, [overlay]);
+  // The picker goes with the huddle, and does not open again with the next
+  // one. Moving between the bar and the call keeps it open.
+  useEffect(
+    () => () => {
+      if (!client.store.getState().huddle) picker.setState({ open: false });
+    },
+    [client],
+  );
   if (!huddle) return null;
 
   /**
@@ -126,15 +142,16 @@ export function HuddleControls({
     }
   };
 
-  const off = overlay
-    ? "border-white/15 bg-black/45 text-white hover:bg-black/65"
+  const dark = stage || overlay;
+  const off = dark
+    ? "bg-white/[0.09] text-white hover:bg-white/[0.16]"
     : "border-edge text-ink-dim hover:border-ink-faint hover:text-ink";
   const toggleCls = (on: boolean, onCls: string) =>
-    `flex size-10 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
-      on ? onCls : off
-    }`;
-  const lit = overlay
-    ? "border-transparent bg-white/90 text-black"
+    `flex shrink-0 items-center justify-center transition-colors disabled:opacity-50 ${
+      dark ? "size-11 rounded-xl" : "size-10 rounded-full border"
+    } ${on ? onCls : off}`;
+  const lit = dark
+    ? "bg-white text-black hover:bg-white/85"
     : "border-transparent bg-ink text-ground";
 
   const shareScreen = () => {
@@ -170,6 +187,7 @@ export function HuddleControls({
     <DeviceMenu
       label="Microphone and speaker"
       disabled={pickerDisabled}
+      dark={dark}
       items={[
         ...deviceItems(
           "mic",
@@ -197,6 +215,7 @@ export function HuddleControls({
     <DeviceMenu
       label="Camera options"
       disabled={pickerDisabled}
+      dark={dark}
       items={[
         ...deviceItems(
           "camera",
@@ -217,7 +236,7 @@ export function HuddleControls({
         role="group"
         aria-label="Huddle controls"
         className={`flex shrink-0 items-center gap-2 ${
-          overlay ? "rounded-2xl bg-black/35 p-2 backdrop-blur" : "ml-auto"
+          overlay ? "rounded-2xl bg-black/50 p-1.5 backdrop-blur" : stage ? "" : "ml-auto"
         }`}
       >
         <Tooltip label={huddle.micMuted ? "Unmute" : "Mute"}>
@@ -227,7 +246,7 @@ export function HuddleControls({
             onClick={() => client.toggleMic()}
             className={toggleCls(
               huddle.micMuted,
-              overlay ? "border-alert bg-black/45 text-alert" : "border-alert text-alert",
+              dark ? "bg-alert/20 text-alert hover:bg-alert/30" : "border-alert text-alert",
             )}
           >
             <Swap on={huddle.micMuted}>
@@ -262,7 +281,11 @@ export function HuddleControls({
         {/* Leave keeps its word: an arrow out of a door reads as signing out just as easily. */}
         <button
           onClick={() => client.leaveHuddle()}
-          className="flex h-10 items-center gap-2 rounded-full border border-alert/40 px-4 text-sm font-semibold text-alert transition-colors hover:bg-alert hover:text-ground"
+          className={
+            dark
+              ? "ml-1 flex h-11 items-center gap-2 rounded-xl bg-alert px-4 text-sm font-semibold text-ground transition-colors hover:bg-alert/85"
+              : "flex h-10 items-center gap-2 rounded-full border border-alert/40 px-4 text-sm font-semibold text-alert transition-colors hover:bg-alert hover:text-ground"
+          }
         >
           <Icon name="leave" size={16} />
           Leave
@@ -271,8 +294,10 @@ export function HuddleControls({
       {away && (
         <p
           role="status"
-          className={`flex basis-full items-center justify-end gap-2 text-xs ${
-            overlay ? "mt-2 rounded-lg bg-black/60 px-3 py-2 text-white" : "text-ink-dim"
+          className={`flex basis-full items-center gap-2 text-xs ${
+            dark
+              ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
+              : "justify-end text-ink-dim"
           }`}
         >
           The connection to the workspace dropped. You stay in the call while it comes back.
@@ -281,8 +306,10 @@ export function HuddleControls({
       {huddle.micLost && (
         <p
           role="alert"
-          className={`flex basis-full items-center justify-end gap-3 text-xs ${
-            overlay ? "mt-2 rounded-lg bg-black/60 px-3 py-2 text-white" : "text-alert"
+          className={`flex basis-full items-center gap-3 text-xs ${
+            dark
+              ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
+              : "justify-end text-alert"
           }`}
         >
           <span>
@@ -304,8 +331,10 @@ export function HuddleControls({
       {failure && (
         <p
           role="alert"
-          className={`flex basis-full items-start justify-end gap-2 text-xs ${
-            overlay ? "mt-2 rounded-lg bg-black/60 px-3 py-2 text-white" : "text-alert"
+          className={`flex basis-full items-start gap-2 text-xs ${
+            dark
+              ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
+              : "justify-end text-alert"
           }`}
         >
           <span>{failure}</span>

@@ -146,6 +146,25 @@ describe("the other themes", () => {
     expect(css).not.toContain('data-theme="contrast"');
   });
 
+  it("leave the call dark in either theme, with every one of Onyx's colours", () => {
+    const declared = (opening: string) =>
+      Object.fromEntries(
+        [...block(opening).matchAll(/(--[a-z0-9-]+):\s*([^;]+);/g)].map((m) => [
+          m[1]!,
+          m[2]!.replace(/\s+/g, " ").trim(),
+        ]),
+      );
+    const onyx = { ...declared(THEME_BLOCKS.dark), ...declared(":root {\n  color-scheme: dark;") };
+    const call = declared(".call-stage {");
+    expect(block(".call-stage {")).toContain("color-scheme: dark;");
+    expect(Object.keys(call)).toEqual(
+      expect.arrayContaining(Object.keys(onyx).filter((name) => name.startsWith("--color-"))),
+    );
+    // The fills and shadows too: White's darker red under Onyx's ink would not read.
+    expect(Object.keys(call)).toEqual(expect.arrayContaining(["--alert-grad", "--accent-grad"]));
+    for (const [name, value] of Object.entries(call)) expect(value, name).toBe(onyx[name]);
+  });
+
   it("use White for the system theme on a device that prefers light, word for word", () => {
     const system = block("@media (prefers-color-scheme: light) {");
     const inner = system.slice(system.indexOf("{") + 1, system.lastIndexOf("}"));
