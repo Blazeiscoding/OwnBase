@@ -72,8 +72,17 @@ function opened(pages: { files: SharedFile[]; nextCursor: string | null }[] = []
   clients.push(client);
   client.store.setState({
     self: sam,
-    users: { U_SAM: sam, U_PRIYA: priya },
-    channels: { C_GENERAL: general, C_DESIGN: design },
+    users: {
+      U_SAM: sam,
+      U_PRIYA: priya,
+      U_GONE: { ...person("U_GONE", "Former Member"), deactivated: true },
+    },
+    channels: {
+      C_GENERAL: general,
+      C_DESIGN: design,
+      // Private, and this person is not in it.
+      C_BOARD: { ...room("C_BOARD", "board"), type: "private" },
+    },
     memberships: { C_GENERAL: 0, C_DESIGN: 0 },
     status: "online",
     sharedFiles: true,
@@ -172,6 +181,16 @@ describe("the file browser", () => {
         .map((o) => o.textContent);
     expect(options("From")).toEqual(["Anyone", "Priya Shah", "Sam Rivera (you)"]);
     expect(options("In")).toEqual(["Anywhere", "design", "general"]);
+  });
+
+  it("reads the list again when a listed conversation's messages change", async () => {
+    const { client, list } = opened();
+    await waitFor(() => expect(rows()).toHaveLength(2));
+    const asked = list.mock.calls.length;
+    // A conversation nothing here was shared in changes: nothing to read.
+    client.store.setState((s) => ({ changedContent: { ...s.changedContent, C_OTHER: 1 } }));
+    client.store.setState((s) => ({ changedContent: { ...s.changedContent, C_DESIGN: 1 } }));
+    await waitFor(() => expect(list.mock.calls.length).toBe(asked + 1));
   });
 
   it("reads the next page from where the last ended", async () => {

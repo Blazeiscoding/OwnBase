@@ -179,6 +179,10 @@ describe("the file list", () => {
     await share(general, [["kept.txt", "text/plain"]]);
     expect((await request(`/api/messages/${gone.id}`, undefined, "DELETE")).status).toBe(200);
     expect(await names()).toEqual(["kept.txt"]);
+    // A message marked deleted is left out even while its file rows remain.
+    const marked = await share(general, [["marked.txt", "text/plain"]]);
+    server!.store.deleteMessage(marked.id);
+    expect(await names()).toEqual(["kept.txt"]);
   });
 });
 
@@ -214,11 +218,14 @@ describe("who sees which files", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ displayName: "Visitor" }),
     });
-    const guest = (await joined.json()) as { token: string };
+    const guest = (await joined.json()) as { token: string; user: { id: string } };
     const secret = (await request("/api/channels", { type: "private", name: "secret" })).body
       .channel.id as string;
     await share(general, [["open.txt", "text/plain"]]);
     await share(secret, [["closed.txt", "text/plain"]]);
+    expect(await names({}, guest.token)).toEqual(["open.txt"]);
+    // Even put in a private conversation, a guest reads only public ones, as for downloads.
+    expect(server!.store.addMember(secret, guest.user.id)).toBe(true);
     expect(await names({}, guest.token)).toEqual(["open.txt"]);
   });
 });

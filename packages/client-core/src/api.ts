@@ -627,7 +627,7 @@ export class Api {
     if (filter.kind) query.set("kind", filter.kind);
     if (filter.userId) query.set("userId", filter.userId);
     if (filter.channelId) query.set("channelId", filter.channelId);
-    if (filter.q?.trim()) query.set("q", filter.q.trim());
+    if (filter.q) query.set("q", filter.q);
     if (cursor) query.set("cursor", cursor);
     return this.request("GET", `/api/files?${query}`, undefined, { signal, timeoutMs: 10_000 });
   }
