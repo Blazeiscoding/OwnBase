@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FileMeta, ID, ReplyReference } from "@slackoss/protocol";
+import type { PollDraft } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Composer } from "./Composer.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useRovingMessages } from "../lib/useRovingMessages.js";
 import { MessageItem } from "./MessageItem.js";
 import { ReplyQuote } from "./ReplyQuote.js";
+import { PendingPoll } from "./PollCard.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -350,7 +352,7 @@ export function ThreadPanel({
         {pending.map((p) => (
           <div key={p.nonce} className="px-5 py-1 text-[15px] opacity-60">
             {p.replyTo && <PendingQuote quote={p.replyTo} />}
-            {p.text}
+            {p.poll ? <PendingThreadPoll text={p.text} poll={p.poll} /> : p.text}
             <PendingAttachments attachments={p.attachments} progress={p.uploadProgress} />
             <span className="ml-2 font-mono text-[11px] text-ink-faint">
               {p.failed ? (p.failureReason ?? "Could not send this reply.") : "sending…"}
@@ -370,6 +372,13 @@ export function ThreadPanel({
       {lightboxFile && <Lightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
     </aside>
   );
+}
+
+/** A poll still sending in a thread, its names from the replica. */
+function PendingThreadPoll({ text, poll }: { text: string; poll: PollDraft }) {
+  const users = useWorkspace((s) => s.users);
+  const channels = useWorkspace((s) => s.channels);
+  return <PendingPoll text={text} poll={poll} users={users} channels={channels} />;
 }
 
 /** What a reply still sending answers, named from the replica. */

@@ -32,6 +32,7 @@ import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
 import { LinkPreviews } from "./LinkPreviews.js";
+import { PollCard } from "./PollCard.js";
 import { LazyDialog } from "./LazyView.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
@@ -124,8 +125,10 @@ export const MessageItem = memo(function MessageItem({
   const author = users[message.userId];
   const profileLabel = author ? `View ${author.displayName}'s profile` : "View profile";
   const mine = message.userId === selfId;
+  // People voted on a poll's question as it was, so it is not edited.
+  const editable = mine && !message.poll;
   // The Drafts list asks for this to finish an unsaved edit.
-  useEditRequest(message.id, mine, () => setEditing(true));
+  useEditRequest(message.id, editable, () => setEditing(true));
   const canDelete = mine || selfRole === "owner" || selfRole === "admin";
   // Named in it, or answered by it with a notification, as Discord marks both.
   const mentionsMe = selfId
@@ -381,7 +384,7 @@ export const MessageItem = memo(function MessageItem({
     unreadItem,
     ...muteItems,
     ...pinItems,
-    ...(mine
+    ...(editable
       ? [
           {
             id: "edit",
@@ -543,23 +546,32 @@ export const MessageItem = memo(function MessageItem({
             </ErrorBoundary>
           ) : (
             <>
-              {message.text && (
-                <div
-                  className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
-                    onlyEmoji(message.text) ? "message-jumbo" : ""
-                  }`}
-                >
-                  <Mrkdwn
-                    text={message.text}
-                    users={users}
-                    channels={channels}
-                    selfId={selfId}
-                    onChannelClick={onChannelClick}
-                  />
-                  {message.editedAt && (
-                    <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>
-                  )}
-                </div>
+              {message.poll ? (
+                <PollCard
+                  message={message}
+                  users={users}
+                  channels={channels}
+                  onChannelClick={onChannelClick}
+                />
+              ) : (
+                message.text && (
+                  <div
+                    className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
+                      onlyEmoji(message.text) ? "message-jumbo" : ""
+                    }`}
+                  >
+                    <Mrkdwn
+                      text={message.text}
+                      users={users}
+                      channels={channels}
+                      selfId={selfId}
+                      onChannelClick={onChannelClick}
+                    />
+                    {message.editedAt && (
+                      <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>
+                    )}
+                  </div>
+                )
               )}
               <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
               <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
@@ -678,7 +690,7 @@ export const MessageItem = memo(function MessageItem({
             active={isSaved}
             onClick={toggleSaved}
           />
-          {mine && (
+          {editable && (
             <ToolbarButton
               label={<Icon name="edit" size={18} strokeWidth={2} />}
               title="Edit message"

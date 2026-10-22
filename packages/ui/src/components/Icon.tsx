@@ -88,6 +88,8 @@ const paths = {
   screen: "M4 5h16a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V6a1 1 0 0 1 1-1zM9 21h6M12 16v5",
   leave: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9",
   grid: "M4 4h6.5v6.5H4zM13.5 4H20v6.5h-6.5zM4 13.5h6.5V20H4zM13.5 13.5H20V20h-6.5z",
+  /** Bars of different lengths off an axis: a poll and how it is going. */
+  poll: "M3 3v18h18M7 7h9M7 12h12M7 17h5",
   /** Arrows out to the corners: make this bigger. */
   expand: "M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7",
   /** Arrows in from the corners: make this smaller again. */
