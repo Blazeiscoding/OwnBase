@@ -333,7 +333,8 @@ type SidePanel =
   /** `edit`: a queued message whose unsaved edit to open, from Drafts. */
   | { kind: "scheduled"; edit?: ID }
   | { kind: "drafts" }
-  | { kind: "files" }
+  /** `channelId`: a conversation to show the files of, from its menu. */
+  | { kind: "files"; channelId?: ID }
   | { kind: "activity" }
   | { kind: "dms" }
   | { kind: "members" };
@@ -1404,6 +1405,11 @@ function WorkspaceInner({
                   title={isRoom ? `#${title}` : title}
                   isRoom={isRoom}
                   onPins={() => setPanel({ kind: "pins" })}
+                  onFiles={
+                    sharedFiles
+                      ? () => setPanel({ kind: "files", channelId: activeChannelId })
+                      : undefined
+                  }
                   onSearch={() => setDialog({ kind: "search", inConversation: true })}
                   onNotifications={
                     isMember
@@ -1612,7 +1618,13 @@ function WorkspaceInner({
       )}
       {panel.kind === "files" && (
         <LazyPanel name="Files" onClose={() => setPanel({ kind: "none" })}>
-          <FilesPanel onClose={() => setPanel({ kind: "none" })} onJump={jumpToMessage} />
+          <FilesPanel
+            // Opened again for another conversation, it starts again there.
+            key={panel.channelId ?? ""}
+            channelId={panel.channelId}
+            onClose={() => setPanel({ kind: "none" })}
+            onJump={jumpToMessage}
+          />
         </LazyPanel>
       )}
       {panel.kind === "dms" && (

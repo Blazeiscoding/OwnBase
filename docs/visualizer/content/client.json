@@ -331,7 +331,7 @@
         "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4).",
         "A huddle shows as the call or the chat (useHuddleView). The call takes the conversation's column: from 1280 px wide the chat sits beside it in a column of its own, which the call's Chat button hides for the session; narrower, or hidden, the call covers the chat, which stays mounted and inert. The timeline, the huddle bar, the jump bar and the composer are one column whatever the view, so the timeline keeps its place. Opening another conversation while the call covers the chat shows that conversation.",
         "The Drafts panel (E5) is a side panel of its own, from the sidebar, the palette and its route. openDraft opens a draft where it was written: the conversation, the thread, the message with its editor (requestEdit, then a jump), or Scheduled with that edit open.",
-        "Files (E7) opens FilesPanel, a lazy chunk, from the sidebar, the palette and the address, where the server lists shared files; Show in conversation goes through jumpToMessage, so a reply opens its thread."
+        "Files (E7) opens FilesPanel, a lazy chunk, from the palette, the address and a conversation's menu, which starts it in that conversation, where the server lists shared files; Show in conversation goes through jumpToMessage, so a reply opens its thread."
       ],
       "concepts": [
         "screen orchestration",
@@ -1350,7 +1350,7 @@
       "plain": "The Files panel: every file shared in the conversations you can read, newest first, which you can narrow to pictures, documents or the rest, to one person or conversation, or by words in the name.",
       "summary": "Lists shared files a page at a time from the server, filters them, opens or saves one and goes to the message that shared it (E7).",
       "details": [
-        "Search by name waits for typing to rest a quarter of a second. Kind is a tab row (All, Images, Documents, Other) through useTabs; From lists everyone, you marked, and In the conversations this person is in and every public channel. Each change is another list, read from the top through usePagedList, with Show more.",
+        "Search by name waits for typing to rest a quarter of a second. Kind is a tab row (All, Images, Documents, Other) through useTabs; From lists everyone, you marked, and In the conversations this person is in and every public channel. Opened from a conversation's menu, In starts on that conversation. Each change is another list, read from the top through usePagedList, with Show more.",
         "A row is one button named with the file, its size, who shared it, where and when. A picture opens in the Lightbox; anything else, or a large picture, is saved through useFileDownload, which says when it fails. Beside it, Show in conversation goes to the message.",
         "A picture's square loads once it scrolls near, at the size a message would fetch; anything else shows its kind's icon. Empty, it says nothing is shared yet, or that nothing matches with Clear filters. It reads the list again when a listed conversation's content changes, as Saved does."
       ],
@@ -1535,7 +1535,7 @@
         "Its counts are Badges: Activity a red count of mentions or a quiet one of unread conversations, Threads a quiet count of threads with unread replies, a row's red mention count named with its channel, and a dot on a section's header button (Friends) for what is new. The rail's own badge is still CountBadge.",
         "Activity's red badge counts due reminders with unread mentions, named for what it counts (E4).",
         "A Drafts row under Saved opens the Drafts panel, with a quiet count of the drafts it lists (E5). It shows only while there are drafts or the panel is open, so an empty row does not take a channel's place beside Getting started (UX-20).",
-        "A Files row under Saved opens the file browser, where the server lists shared files (onFiles, E7)."
+        "A Files row under Saved is there while the file browser is open, as Drafts is, so it costs no channel's place beside Getting started (UX-20); onFiles is given only where the server lists shared files (E7)."
       ],
       "concepts": [
         "workspace navigation",
@@ -1864,7 +1864,8 @@
         "MemberStack shows up to three faces, people online first, and a count; it opens and closes the Members panel. A group message knows its people; a channel's are asked for, and asked again when memberChanges moves or the connection comes back. A phone shows one face.",
         "ConversationMenu holds Pinned messages, Search in #name (search opened on this conversation), Star or Unstar (\"channel\", or \"conversation\" for people), Notification settings (the details' Notifications tab, only for a member) and the details. Star shows only for a member, on a server that keeps stars.",
         "PinnedBar asks for one pin and the total, shows \"3 pinned\" with the newest pin's first words, and opens the Pinned panel; it asks again when changedContent moves, so a pin, an unpin or an edit shows at once. A server too old to count says only \"Pinned\".",
-        "The last answers are kept per client, so going back to a conversation shows its faces and pins at once instead of the header moving as they arrive."
+        "The last answers are kept per client, so going back to a conversation shows its faces and pins at once instead of the header moving as they arrive.",
+        "ConversationMenu offers Files where the server lists shared files: the file browser, started in this conversation (E7)."
       ],
       "concepts": ["conversation header", "UX-23", "live panels", "UX-20"]
     },

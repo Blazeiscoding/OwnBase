@@ -117,6 +117,8 @@ export function ConversationMenu(props: {
   isRoom: boolean;
   onPins: () => void;
   onSearch: () => void;
+  /** The files shared here, where the server lists shared files (E7). */
+  onFiles?: () => void;
   /** Absent for a channel this account only looks into, which has no settings of its own. */
   onNotifications?: () => void;
   onDetails: () => void;
@@ -132,6 +134,9 @@ export function ConversationMenu(props: {
   };
   const items: MenuItem[] = [
     { id: "pins", label: "Pinned messages", icon: "pin", onSelect: props.onPins },
+    ...(props.onFiles
+      ? [{ id: "files", label: "Files", icon: "file" as const, onSelect: props.onFiles }]
+      : []),
     {
       id: "search",
       label: `Search in ${props.title}`,

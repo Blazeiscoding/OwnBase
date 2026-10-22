@@ -40,9 +40,12 @@ type Row = SharedFile & { id: string };
  * message that shared it.
  */
 export function FilesPanel({
+  channelId: initialChannelId,
   onClose,
   onJump,
 }: {
+  /** A conversation to start in, as its menu's Files does. */
+  channelId?: ID;
   onClose: () => void;
   onJump: (channelId: ID, messageId: ID) => void;
 }) {
@@ -54,7 +57,7 @@ export function FilesPanel({
   const changedContent = useWorkspace((s) => s.changedContent);
   const [kind, setKind] = useState<Kind>("all");
   const [userId, setUserId] = useState("");
-  const [channelId, setChannelId] = useState("");
+  const [channelId, setChannelId] = useState(initialChannelId ?? "");
   const [typed, setTyped] = useState("");
   const [search, setSearch] = useState("");
   const [viewing, setViewing] = useState<FileMeta | null>(null);

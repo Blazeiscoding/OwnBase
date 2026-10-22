@@ -7,6 +7,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { FilesPanel } from "../src/components/FilesPanel.js";
 import { Sidebar } from "../src/components/Sidebar.js";
+import { ConversationMenu } from "../src/components/ConversationHeader.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -67,7 +68,10 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function opened(pages: { files: SharedFile[]; nextCursor: string | null }[] = []) {
+function opened(
+  pages: { files: SharedFile[]; nextCursor: string | null }[] = [],
+  channelId?: string,
+) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   clients.push(client);
   client.store.setState({
@@ -101,7 +105,7 @@ function opened(pages: { files: SharedFile[]; nextCursor: string | null }[] = []
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <FilesPanel onClose={vi.fn()} onJump={onJump} />
+        <FilesPanel channelId={channelId} onClose={vi.fn()} onJump={onJump} />
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
@@ -221,6 +225,22 @@ describe("the file browser", () => {
     expect(onJump).toHaveBeenCalledWith("C_GENERAL", "M_F_BRIEF");
   });
 
+  it("starts in a conversation when its menu opens it, and can leave it", async () => {
+    const { list, user } = opened([], "C_DESIGN");
+    await waitFor(() =>
+      expect(list).toHaveBeenCalledWith(
+        { channelId: "C_DESIGN" },
+        undefined,
+        expect.any(AbortSignal),
+      ),
+    );
+    expect(screen.getByRole("combobox", { name: "In" })).toHaveValue("C_DESIGN");
+    await user.selectOptions(screen.getByRole("combobox", { name: "In" }), "");
+    await waitFor(() =>
+      expect(list).toHaveBeenLastCalledWith({}, undefined, expect.any(AbortSignal)),
+    );
+  });
+
   it("says when nothing has been shared yet", async () => {
     opened([{ files: [], nextCursor: null }]);
     expect(await screen.findByText(/No files shared yet/)).toBeVisible();
@@ -229,7 +249,7 @@ describe("the file browser", () => {
 });
 
 describe("the sidebar's Files row", () => {
-  function sidebar(onFiles?: () => void) {
+  function sidebar(onFiles?: () => void, openPanel?: string) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     clients.push(client);
     client.store.setState({
@@ -252,7 +272,7 @@ describe("the sidebar's Files row", () => {
           onSearch={vi.fn()}
           onSaved={vi.fn()}
           onFiles={onFiles}
-          openPanel="files"
+          openPanel={openPanel}
           onActivity={vi.fn()}
           onThreads={vi.fn()}
           onEditProfile={vi.fn()}
@@ -266,16 +286,62 @@ describe("the sidebar's Files row", () => {
     );
   }
 
-  it("opens Files, and is there only where the server lists files", async () => {
+  it("is there while Files is open, and opens it", async () => {
     const onFiles = vi.fn();
-    sidebar(onFiles);
-    const row = screen.getByRole("button", { name: /^Files/ });
-    await userEvent.setup().click(row);
+    sidebar(onFiles, "files");
+    await userEvent.setup().click(screen.getByRole("button", { name: /^Files/ }));
     expect(onFiles).toHaveBeenCalled();
   });
 
-  it("is left out where the server does not list files", () => {
-    sidebar(undefined);
+  it("gives its place to a channel otherwise, as Drafts does (UX-20)", () => {
+    sidebar(vi.fn(), "saved");
     expect(screen.queryByRole("button", { name: /^Files/ })).toBeNull();
+  });
+
+  it("is left out where the server does not list files", () => {
+    sidebar(undefined, "files");
+    expect(screen.queryByRole("button", { name: /^Files/ })).toBeNull();
+  });
+});
+
+describe("a conversation's menu", () => {
+  function menu(onFiles?: () => void) {
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    clients.push(client);
+    client.store.setState({
+      self: sam,
+      users: { U_SAM: sam },
+      channels: { C_DESIGN: design },
+      memberships: { C_DESIGN: 0 },
+      status: "online",
+    });
+    render(
+      <ClientContext.Provider value={client}>
+        <ConversationMenu
+          channelId="C_DESIGN"
+          title="#design"
+          isRoom
+          onPins={vi.fn()}
+          onFiles={onFiles}
+          onSearch={vi.fn()}
+          onDetails={vi.fn()}
+        />
+      </ClientContext.Provider>,
+    );
+  }
+
+  it("offers the files shared there, where the server lists them", async () => {
+    const onFiles = vi.fn();
+    menu(onFiles);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Conversation options" }));
+    await user.click(screen.getByRole("menuitem", { name: "Files" }));
+    expect(onFiles).toHaveBeenCalled();
+  });
+
+  it("does not where the server does not", async () => {
+    menu(undefined);
+    await userEvent.setup().click(screen.getByRole("button", { name: "Conversation options" }));
+    expect(screen.queryByRole("menuitem", { name: "Files" })).toBeNull();
   });
 });
