@@ -4,6 +4,7 @@ import {
   type ReplyReference,
 } from "@slackoss/protocol";
 import type { StoredPending } from "./workspace.js";
+import type { PollDraft } from "./polls.js";
 
 /**
  * The outbox as every window open on one account keeps it on the device.
@@ -81,6 +82,7 @@ export function isStoredPending(entry: unknown): entry is StoredPending {
     (e.broadcast === undefined || typeof e.broadcast === "boolean") &&
     (e.replyTo === undefined || isReplyReference(e.replyTo)) &&
     (e.forward === undefined || isForwardReference(e.forward)) &&
+    (e.poll === undefined || isPollDraft(e.poll)) &&
     typeof e.text === "string" &&
     typeof e.userId === "string" &&
     Number.isFinite(e.createdAt) &&
@@ -132,6 +134,18 @@ function isForwardReference(value: unknown): value is ForwardReference {
   );
 }
 
+function isPollDraft(value: unknown): value is PollDraft {
+  const p = value as Record<string, unknown> | null;
+  return (
+    !!p &&
+    typeof p === "object" &&
+    Array.isArray(p.options) &&
+    p.options.every((option) => typeof option === "string") &&
+    typeof p.multiple === "boolean" &&
+    typeof p.anonymous === "boolean"
+  );
+}
+
 const isRevision = (value: unknown): value is number =>
   typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
 
@@ -166,6 +180,15 @@ export function storedPending(entry: StoredPending): StoredPending {
             createdAt: entry.forward.createdAt,
             deleted: entry.forward.deleted,
             hidden: entry.forward.hidden,
+          },
+        }),
+    ...(entry.poll === undefined
+      ? {}
+      : {
+          poll: {
+            options: [...entry.poll.options],
+            multiple: entry.poll.multiple,
+            anonymous: entry.poll.anonymous,
           },
         }),
     text: entry.text,

@@ -19,11 +19,12 @@ import type { CallReport, HuddleSignal } from "./huddle.js";
  *
  * A `message.updated` that says `previewsOnly` changes only the message's link
  * previews, found or removed (E2). It is not an edit, so apps are not told and
- * nothing quoting the message changes. An edit leaves it out.
+ * nothing quoting the message changes. An edit leaves it out. One that says
+ * `pollOnly` changes only its poll: votes, or its closing (E6), in the same way.
  */
 export type WorkspaceEvent =
   | { type: "message.created"; message: Message }
-  | { type: "message.updated"; message: Message; previewsOnly?: true }
+  | { type: "message.updated"; message: Message; previewsOnly?: true; pollOnly?: true }
   | { type: "message.deleted"; channelId: ID; messageId: ID; threadRootId: ID | null }
   | { type: "reaction.added"; channelId: ID; messageId: ID; emoji: string; userId: ID }
   | { type: "reaction.removed"; channelId: ID; messageId: ID; emoji: string; userId: ID }
@@ -104,6 +105,12 @@ export type EphemeralEvent =
    * deleted or out of their reach. Private to their own sockets.
    */
   | { type: "reminder.removed"; messageId: ID }
+  /**
+   * What this user chose in an anonymous poll, which no message says (E6):
+   * option places, empty once they take their vote back. Private to their own
+   * sockets.
+   */
+  | { type: "poll.choices"; messageId: ID; choices: number[] }
   /**
    * This user's queue of messages to send later changed: one was queued,
    * edited, moved, cancelled, sent, held for a new reason or given up on. Read
@@ -211,6 +218,12 @@ export interface ReadySnapshot {
    * from a server that keeps none, so no reminder is offered there.
    */
   reminders?: Reminder[];
+  /**
+   * What this account chose in each anonymous poll it voted in and can still
+   * read, by message id (E6). Absent from a server without polls, so none is
+   * offered there.
+   */
+  pollChoices?: Record<ID, number[]>;
   /**
    * This server keeps a star per conversation, `ChannelPrefs.starred`. An
    * older one drops a star sent to it without saying so, so it is not offered.

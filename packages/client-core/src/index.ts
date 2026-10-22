@@ -66,6 +66,8 @@ export type {
   MicrophoneTest,
   ScreenShareQuality,
 } from "./huddle.js";
+export { serverPollChoices, shownPoll } from "./polls.js";
+export type { PollDraft } from "./polls.js";
 export { OUTBOX_LIMIT, WorkspaceClient, isMessageRead, unreadThreadCount } from "./workspace.js";
 export type {
   ChannelTimeline,

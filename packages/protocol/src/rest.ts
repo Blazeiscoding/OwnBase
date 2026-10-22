@@ -1,5 +1,11 @@
 import { z } from "zod";
-import type { AccessPolicy } from "./entities.js";
+import {
+  POLL_OPTION_MAX,
+  POLL_OPTIONS_MAX,
+  POLL_OPTIONS_MIN,
+  POLL_QUESTION_MAX,
+  type AccessPolicy,
+} from "./entities.js";
 
 export const handleSchema = z
   .string()
@@ -72,6 +78,18 @@ export const followedThreadsQuery = savedMessagesQuery.extend({
 });
 export const threadFollowBody = z.object({ following: z.boolean() });
 export const threadMuteBody = z.object({ muted: z.boolean() });
+/** What a voter chooses in a poll, by option place; none takes their vote back (E6). */
+export const pollVotesBody = z.object({
+  choices: z
+    .array(
+      z
+        .number()
+        .int()
+        .min(0)
+        .max(POLL_OPTIONS_MAX - 1),
+    )
+    .max(POLL_OPTIONS_MAX),
+});
 /** When to be reminded about a message, in epoch ms (E4). */
 export const reminderBody = z.object({ at: z.number().int().positive() });
 export const threadReadBody = z.object({ seq: z.number().int().nonnegative() });
@@ -129,11 +147,31 @@ export const sendMessageBody = z
     replyPing: z.boolean().optional(),
     /** A message to pass on under this one's words, from anywhere the sender can read. */
     forwardFrom: z.string().max(64).optional(),
+    /** Makes the message a poll, its words the question (E6). */
+    poll: z
+      .object({
+        options: z
+          .array(z.string().trim().min(1).max(POLL_OPTION_MAX))
+          .min(POLL_OPTIONS_MIN)
+          .max(POLL_OPTIONS_MAX)
+          .refine(
+            (options) => new Set(options.map((o) => o.toLowerCase())).size === options.length,
+            "each choice must be different",
+          ),
+        multiple: z.boolean().default(false),
+        anonymous: z.boolean().default(false),
+      })
+      .optional(),
   })
   // A message needs words, attachments or a message it forwards.
   .refine(
     (b) => b.text.trim().length > 0 || (b.fileIds?.length ?? 0) > 0 || b.forwardFrom !== undefined,
     { message: "message must have text or files" },
+  )
+  // A poll's words are its question: there, and short enough to read as one.
+  .refine(
+    (b) => !b.poll || (b.text.trim().length > 0 && b.text.trim().length <= POLL_QUESTION_MAX),
+    { message: `a poll needs a question of up to ${POLL_QUESTION_MAX} characters` },
   );
 
 export const scheduleMessageBody = z
@@ -367,7 +405,8 @@ export type GuestAccountBody = z.infer<typeof guestAccountBody>;
 export type UpdateMeBody = z.infer<typeof updateMeBody>;
 export type CreateChannelBody = z.infer<typeof createChannelBody>;
 export type UpdateChannelBody = z.infer<typeof updateChannelBody>;
-export type SendMessageBody = z.infer<typeof sendMessageBody>;
+export type SendMessageBody = z.input<typeof sendMessageBody>;
+export type PollVotesBody = z.infer<typeof pollVotesBody>;
 export type EditMessageBody = z.infer<typeof editMessageBody>;
 export type MarkReadBody = z.infer<typeof markReadBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;

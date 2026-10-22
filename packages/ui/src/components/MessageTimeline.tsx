@@ -6,6 +6,7 @@ import { formatDay, sameDay } from "../lib/format.js";
 import { MessageItem } from "./MessageItem.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
+import { PendingPoll } from "./PollCard.js";
 import { Avatar } from "./Avatar.js";
 import { ListStatus } from "./ListStatus.js";
 import { Lightbox, PendingAttachments } from "./Attachments.js";
@@ -782,7 +783,16 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
       <div className="flex gap-3.5">
         <div className="w-10 shrink-0" />
         <div className="min-w-0 flex-1 text-[15px]">
-          {pending.text && <Mrkdwn text={pending.text} users={users} channels={channels} />}
+          {pending.poll ? (
+            <PendingPoll
+              text={pending.text}
+              poll={pending.poll}
+              users={users}
+              channels={channels}
+            />
+          ) : (
+            pending.text && <Mrkdwn text={pending.text} users={users} channels={channels} />
+          )}
           <PendingAttachments attachments={pending.attachments} progress={pending.uploadProgress} />
           {pending.forward && (
             <ForwardCard

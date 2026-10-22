@@ -10,7 +10,8 @@
         "Re-exports the workspace client, typed REST client, huddle session, file cache and notification rules.",
         "Also exposes the plain-data draft, outbox and record merge functions so browser storage and Electron's main process can use the same rules.",
         "Exports decideReminderNotification and dueReminderCount (E4).",
-        "Exports readableText (E5)."
+        "Exports readableText (E5).",
+        "Exports shownPoll and serverPollChoices, and the PollDraft type (E6)."
       ],
       "concepts": ["package boundary", "shared behavior"]
     },
@@ -29,7 +30,8 @@
         "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60).",
         "setLinkPreviews calls PUT /api/admin/workspace/link-previews, removeLinkPreview DELETE /api/link-previews/:id, and fetchPreviewImage reads a preview's picture with the session token, through the same private fetchBytes as fetchFile (E2).",
         "setThreadMute calls PUT /api/messages/:id/mute with muted (E3).",
-        "setReminder, cancelReminder and listReminders call PUT and DELETE /api/messages/:id/reminder and GET /api/reminders (E4)."
+        "setReminder, cancelReminder and listReminders call PUT and DELETE /api/messages/:id/reminder and GET /api/reminders (E4).",
+        "votePoll and closePoll call PUT /api/messages/:id/poll/votes and POST /api/messages/:id/poll/close (E6)."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -54,7 +56,8 @@
         "linkPreviews holds whether new messages get previews, from the snapshot and workspace.linkPreviews, or null from a server without them; setLinkPreviews shows the server's answer at once. A message.updated with previewsOnly replaces the message but neither marks its conversation's content changed nor requotes anything. removeLinkPreview takes the preview off at once and puts it back if the server refuses. fileOwner finds preview pictures among loaded messages too (E2).",
         "threadMutes says the server mutes a thread (ReadySnapshot.threadMutes, E3). setThreadMute shows a mute at once, unfollowed, and sends it in the same per-thread order as Follow and Mark unread, so a Follow chosen after it lands after it. Reading a muted thread keeps it muted; following it or marking it unread ends the mute, as on the server.",
         "reminders holds this account's reminders by message id, or null where the server keeps none (E4). The ready snapshot fills it; reminder and reminder.removed keep it current, and history.removed drops those its threads took. onReminderDue is told once as one comes due, with its message. setReminder keeps the server's answer at once; cancelReminder treats one already gone as removed.",
-        "draftTimes keeps when each draft last changed, as far as this device knows (E5). setDraft stamps a draft whose words change, or the time given for one put back; hydrateDrafts keeps the time of a draft whose words did not change, takes the stored time on restore, and dates one another window changed from hearing of it."
+        "draftTimes keeps when each draft last changed, as far as this device knows (E5). setDraft stamps a draft whose words change, or the time given for one put back; hydrateDrafts keeps the time of a draft whose words did not change, takes the stored time on restore, and dates one another window changed from hearing of it.",
+        "pollChoices holds what this account chose in anonymous polls, by message id, or null where the server keeps no polls (E6); the ready snapshot fills it, poll.choices keeps it current and a deletion drops its entry. pollPicks holds choices made here that the server has not been heard to have. send takes poll, through the outbox like any message, refused alone with files or a forward or where polls are not kept; a poll's question is never read as a command. vote goes through choose, one request out at a time with the latest standing, shows the pick at once and lets it go once an echo or the answer says the server has it; a refused vote shows what the server last said. A message.updated with pollOnly is not an edit, so it changes no Activity and requotes nothing. closePoll shows the poll closed once the server says so."
       ],
       "concepts": [
         "workspace replica",
@@ -89,7 +92,8 @@
         "Delivered or discarded sends leave tombstones that prevent another window from reintroducing its old copy. A compactedThrough floor continues refusing older absent entries after individual tombstones are trimmed.",
         "The merge keeps at least 500 tombstones, additionally retaining those inside the send retry window, with a 10,000 upper bound. This bounds the record while preserving removal intent.",
         "Stored outboxes can be read from the current version-2 shape or an earlier plain entry array. Attachment metadata survives; preview URLs and raw File objects do not.",
-        "A waiting forward keeps its card across restarts; a stored entry with a malformed card is refused like any other malformed entry."
+        "A waiting forward keeps its card across restarts; a stored entry with a malformed card is refused like any other malformed entry.",
+        "A waiting poll keeps its question and choices across restarts; a stored entry with a malformed poll is refused (E6)."
       ],
       "concepts": ["outbox", "request nonce", "revision", "tombstone", "bounded storage"]
     },
@@ -214,6 +218,17 @@
         "forwardSource picks what forwarding a message passes on, as the server does: the message, the original of a forward with no words or files of its own, or nothing when that original is hidden or deleted. forwardOf builds the card a waiting forward shows, hidden for a private original going to another conversation. requote refreshes forward cards too, and an edit leaves a hidden or deleted card as it is."
       ],
       "concepts": ["inline replies", "quote freshness", "stable lists"]
+    },
+    {
+      "path": "packages/client-core/src/polls.ts",
+      "plain": "Works out how a poll looks to you: how many chose each answer and which ones are yours, counting a vote you just made before the server has answered.",
+      "summary": "Derives a poll's shown counts and this account's choices from the server's poll, its private choices and picks still on their way (E6).",
+      "details": [
+        "serverPollChoices reads what the server has as this account's choices: from each option's voterIds, or for an anonymous poll from the choices it told this account alone.",
+        "shownPoll lays a pick still on its way over the server's poll, moving that account's vote between options, its face and the count of voters, and says what is chosen. Once the server's poll has the pick, the two agree and nothing moves.",
+        "pollChoicesKey writes a set of choices as one comparable value, which is what WorkspaceClient.vote sends through choose and compares echoes with."
+      ],
+      "concepts": ["polls", "optimistic state", "anonymity"]
     },
     {
       "path": "packages/ui/src/index.ts",
@@ -820,7 +835,8 @@
       "summary": "Subscribes each message row only to the users and channels it actually displays.",
       "details": [
         "Extracts author, mention, reaction and linked-channel IDs from message data, for a reply the author and mentions of the message it quotes, and for a forward the original's author, its conversation and the people it names.",
-        "usePick preserves object identity until a referenced entry changes and skips work while the source map is unchanged. Renaming an unrelated person or typing elsewhere therefore need not rerender every visible message."
+        "usePick preserves object identity until a referenced entry changes and skips work while the source map is unchanged. Renaming an unrelated person or typing elsewhere therefore need not rerender every visible message.",
+        "Who chose each of a poll's choices counts too, so a voter the message does not otherwise name is shown by name and redraws on a rename (E6)."
       ],
       "concepts": ["selective rendering", "stable selectors", "message references"]
     },
@@ -1116,7 +1132,8 @@
         "While Reply is chosen, a bar above the text names whom you answer, with an @ toggle for whether they are notified and a close button; Escape cancels it before the panel behind can take Escape. One send answers it, and Send later is not offered meanwhile because a scheduled message cannot answer in place.",
         "A word typed after a colon is completed from every emoji by Slack's shortcodes, the closest and most used first, in this device's skin tone; a shortcode typed out in full, as :tada:, becomes its emoji when its closing colon is typed, except in code. The emoji arrive with the kit the workspace fetches as it opens.",
         "Since Q04 the preference caller keeps Enter a new line when the saved choice cannot be read. N03 covers normal preparation and persistence acknowledgements, not every power-loss or OS-termination case.",
-        "Send later opens TimePopover with its own presets and words."
+        "Send later opens TimePopover with its own presets and words.",
+        "Where the server keeps polls, the round plus opens a menu, Upload a file or Create a poll; elsewhere it attaches a file as before, and guests see neither (E6). /poll, with any words after it as the question, opens the same PollDialog, loaded on first use, and once the poll is made the /poll is cleared. A guest's /poll is answered here that guests cannot make polls."
       ],
       "concepts": [
         "draft ownership",
@@ -1182,7 +1199,8 @@
         "Readers at the latest message stay pinned as content or viewport size changes; readers looking back are not pulled to the bottom, except by a send of their own, which brings them down to it as Discord and Slack do. History entries remember where a conversation was being read.",
         "Separately renders optimistic pending sends with Retry/Discard and ephemeral app answers with dismissal/limit notices. Date dividers, an unread boundary and typing indicators make the timeline understandable.",
         "Read acknowledgement follows a genuinely visible tail, and useRovingMessages makes the list a manageable keyboard region. The actual row count is bounded in client-core rather than claiming full DOM virtualization.",
-        "A waiting forward shows its card under its words, as it will once sent."
+        "A waiting forward shows its card under its words, as it will once sent.",
+        "A waiting poll shows its question and choices, through PendingPoll, with nothing to press (E6)."
       ],
       "concepts": [
         "history paging",
@@ -1208,7 +1226,8 @@
         "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2).",
         "Mute thread or Unmute thread (E3) sits in More actions and the touch menu of a thread's first message in the channel, offered where the server mutes threads, once the thread has replies or while it is muted. A muted thread's reply count shows a bell-off mark and is named \"N replies, muted\".",
         "Remind me about this… (E4) sits in More actions and the touch menu where the server keeps reminders, and opens TimePopover from the row. Once set, the menu offers Change reminder… and Cancel reminder, or Mark reminder done once it is due; a toast says when it is set for, or that it was refused, with Try again.",
-        "Opens its editor when the Drafts list asks for this message's unsaved edit, through useEditRequest, for the person's own messages only (E5)."
+        "Opens its editor when the Drafts list asks for this message's unsaved edit, through useEditRequest, for the person's own messages only (E5).",
+        "A poll's question shows in its PollCard rather than as the message's words, and Edit message is offered nowhere for a poll, nor by the Drafts list (E6)."
       ],
       "concepts": [
         "memoized row",
@@ -1238,7 +1257,8 @@
         "Remembers reply reading anchors, protects current thread history from eviction and acknowledges the thread cursor when appropriate. Follow/Unfollow calls the client's thread-follow logic, which sends those requests in order (Q09).",
         "A thread composer uses a root-specific draft key and optional also-send-to-channel choice rather than clobbering the channel composer.",
         "It is a chunk of its own, fetched as the workspace opens and drawn directly from then on, which keeps the first download under its size limit.",
-        "Beside Follow, a bell-off toggle named Mute thread (aria-pressed) mutes and unmutes the thread through the client (E3), offered only where the server mutes threads. Muting turns Following back to Follow."
+        "Beside Follow, a bell-off toggle named Mute thread (aria-pressed) mutes and unmutes the thread through the client (E3), offered only where the server mutes threads. Muting turns Following back to Follow.",
+        "A waiting poll in a thread shows the same way, through PendingPoll (E6)."
       ],
       "concepts": ["thread history", "reply drafts", "thread cursor", "Q09"]
     },
@@ -1455,6 +1475,29 @@
         "The sender sees Remove on each card, which calls WorkspaceClient.removeLinkPreview and says so in a toast if the server refuses."
       ],
       "concepts": ["link previews", "server-fetched images", "stable layout"]
+    },
+    {
+      "path": "packages/ui/src/components/PollCard.tsx",
+      "plain": "The poll in a message: the question, each answer with a bar for how many chose it and their faces, and Close poll for the person who asked.",
+      "summary": "Renders a poll from shownPoll, votes by pressing an answer, shows a closed poll's result and lets its author close it (E6).",
+      "details": [
+        "Each answer is a button with aria-pressed, named by its words, its count and who chose it. Pressing one votes for it at once, moving a single-choice vote, and pressing it again takes it back. A refused vote goes back and a toast says so.",
+        "The bar is the answer's share of the people who voted, so a poll taking many choices can add up past 100%. Up to three faces show who chose it, and its name lists them with \"you\" last, as a reaction's does, unless the poll is anonymous; then nobody is named, the person's own choice included only for them.",
+        "A closed poll, or one in an archived conversation, shows its rows as plain text, the person's own choice said in words. Close poll asks first, through useConfirm, since votes are final after it.",
+        "PendingPoll shows a poll still sending, its question and choices with nothing to press. MessageItem imports the card directly, so it is in the entry bundle; PollDialog is a lazy chunk."
+      ],
+      "concepts": ["polls", "aria-pressed", "optimistic state"]
+    },
+    {
+      "path": "packages/ui/src/components/PollDialog.tsx",
+      "plain": "The window for making a poll: the question, two to ten answers, and whether people may pick more than one and whether who picked what stays hidden.",
+      "summary": "Collects a poll's question, choices and rules, says what is missing beside the field, and sends it through the outbox (E6).",
+      "details": [
+        "Enter in the question moves to the first choice; Enter in a choice moves to the next, and in the last filled one adds another, up to ten. Remove choice is offered while there are more than two.",
+        "Create poll checks before sending: a question, at least two choices and no two the same, ignoring case. Each problem is said beside its field, which takes focus.",
+        "It goes through client.send with poll, into the conversation or thread it was opened from; a full outbox keeps the window open and says why."
+      ],
+      "concepts": ["polls", "form validation", "outbox"]
     },
     {
       "path": "packages/ui/src/components/Sidebar.tsx",
@@ -1987,7 +2030,8 @@
         "Six icons (smile, reply, thread, bookmark, edit and the three dots) are redrawn after Its Hover's and kept as named parts. Such an icon carries data-icon and each path data-part, and every part has a path length of 1, so the stylesheet can move or draw one part without a motion library in the bundle.",
         "home (a house) and messages (two speech bubbles) are the phone's bottom bar's Home and DMs.",
         "star (five points) is Star and Unstar in a conversation's menus.",
-        "forward (an arrow passing a message on) is Forward in a message's menu."
+        "forward (an arrow passing a message on) is Forward in a message's menu.",
+        "poll (bars of different lengths off an axis) is Create a poll in the composer's + menu (E6)."
       ],
       "concepts": [
         "inline SVG",

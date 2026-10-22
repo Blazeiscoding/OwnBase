@@ -57,7 +57,8 @@
       "details": [
         "A map holds description, usage hint and a function that returns the message text or null for invalid arguments.",
         "/shrug escapes its backslash and underscores through the shared formatter so the visible arms survive mrkdwn parsing; /me wraps supplied text in italics.",
-        "Built-in names are reserved during app command registration, preventing an app from unexpectedly taking over these commands."
+        "Built-in names are reserved during app command registration, preventing an app from unexpectedly taking over these commands.",
+        "A built-in may say inApp: a command the app runs itself, which the server only lists and reserves, answering a client that sends it anyway with that sentence. /poll is one (E6)."
       ],
       "concepts": ["slash commands", "mrkdwn"]
     },
@@ -89,7 +90,8 @@
         "Schema 41 adds messages.forwarded_from_id, the message a forward passes on (E1). It has no foreign key, so a forward outlives an original removed with older history, and a partial index lets an edit or deletion find the forwards of one message.",
         "Schema 42 adds link_previews (E2): one row per previewed link of a message, with its position, address, title, description, site name and picture bytes, type and size, and a removed flag the sender sets. UNIQUE(message_id, url), and ON DELETE CASCADE, so purging a message's row takes its previews.",
         "Schema 43 adds thread_follows.muted (E3): a thread one account muted, kept unfollowed when that account replies.",
-        "Schema 44 adds reminders (E4): one per account and message, with remind_at and due_at (NULL while it waits), going with the account or the message row, and indexed for the soonest waiting one and for a message's reminders."
+        "Schema 44 adds reminders (E4): one per account and message, with remind_at and due_at (NULL while it waits), going with the account or the message row, and indexed for the soonest waiting one and for a message's reminders.",
+        "Schema 45 adds polls and poll_votes (E6): a poll per message, its choices in order as JSON, multiple, anonymous and closed_at; and one row per choice an account made, keyed by message, account and choice. Both go with the message's row, votes with the account too, and votes are indexed by account for the choices each account is sent."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -121,7 +123,8 @@
         "The ready snapshot advertises workspaceIcon and says iconVersion (or null), so a client offers the icon upload only where the server keeps one, and shows the icon at once (UX-60).",
         "The ready snapshot advertises forwards, so a client offers Forward only where the server keeps what a forward passes on (E1).",
         "The ready snapshot says linkPreviews, whether new messages get previews now, so Workspace settings shows the setting only where the server has it (E2).",
-        "The ready snapshot carries this account's reachable reminders, which also says the server keeps them (E4)."
+        "The ready snapshot carries this account's reachable reminders, which also says the server keeps them (E4).",
+        "The ready snapshot carries pollChoices, what this account chose in each anonymous poll it can still read, which also says the server keeps polls (E6)."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -180,7 +183,8 @@
         "Message, reaction, pin, membership, channel and user events map to supported Slack Events API payloads; unsupported native events return null.",
         "eventActorId identifies the account behind applicable events so the dispatcher can avoid feeding a bot its own actions and creating reply loops.",
         "Receiver code still needs to enforce timestamp freshness and deduplication; signing alone does not eliminate replay or repeated delivery.",
-        "A message.updated with previewsOnly maps to nothing (E2): a preview found or removed changes nothing an app was told, so it gets no message_changed."
+        "A message.updated with previewsOnly maps to nothing (E2): a preview found or removed changes nothing an app was told, so it gets no message_changed.",
+        "So does a message.updated with pollOnly (E6): a vote or a poll closing is not something an app was told about."
       ],
       "concepts": ["HMAC", "event adapter", "bot loop prevention"]
     },
@@ -355,7 +359,8 @@
         "Link previews (E2): after a send or an edit commits, queuePreviews puts the message in a queue of at most 200 worked by two fetches at a time, unless the workspace is an isolated copy or previews are off (meta link_previews). findPreviews fetches the links it has no row for, through a cache of 25 addresses for half an hour shared by concurrent sends, then in one change adds what it found and emits message.updated with previewsOnly, unless the message was edited or deleted meanwhile. Shutdown aborts fetches under way.",
         "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests.",
         "PUT /api/messages/:id/mute mutes or unmutes a thread root for the account asking, which a guest may too, and tells only that account's devices with thread.follow (E3).",
-        "Reminders (E4): PUT /api/messages/:id/reminder sets or moves one (a time in the future, within five years, 200 per account; REMINDER_LIMITS, overridable in reminderLimits), DELETE removes one, GET /api/reminders lists them; guests may use all three. One timer is set for the soonest, and runs on starting, so a reminder due while the server was stopped comes due then; an isolated copy sets none. Coming due tells the account's devices with the message. One whose message is gone, whose account cannot read it or is deactivated is dropped instead, with reminder.removed, and a deleted message's reminders are dropped as the deletion is published."
+        "Reminders (E4): PUT /api/messages/:id/reminder sets or moves one (a time in the future, within five years, 200 per account; REMINDER_LIMITS, overridable in reminderLimits), DELETE removes one, GET /api/reminders lists them; guests may use all three. One timer is set for the soonest, and runs on starting, so a reminder due while the server was stopped comes due then; an isolated copy sets none. Coming due tells the account's devices with the message. One whose message is gone, whose account cannot read it or is deactivated is dropped instead, with reminder.removed, and a deleted message's reminders are dropped as the deletion is published.",
+        "Polls (E6): a send can carry poll, its words the question; one with files or a forward is refused (400 bad_poll), and a guest's is refused (403 guest_not_allowed), as an upload is. The poll is part of the send's nonce identity, and an edit of a poll answers 409 poll_not_editable. PUT /api/messages/:id/poll/votes replaces the asking account's choices, guests included; it is refused for a message that is no poll, a closed poll (409 poll_closed), an archived conversation, a choice past the last or more than one on a single-choice poll. POST /api/messages/:id/poll/close is for the poll's author. Both tell readers with message.updated and pollOnly, only when something changed; a vote first tells the voter's own devices poll.choices, after the commit and before the count, so a device never counts its own vote twice. /poll is a built-in the server lists but answers with 400 in_app_command, so an older client is told where polls are made."
       ],
       "concepts": [
         "HTTP API",
@@ -412,7 +417,8 @@
         "A forward keeps forwarded_from_id. Hydration reads each original as it now is, with its files, in one batch per page. Its words, files and author show only when the original is in a public channel or the forward's own conversation; otherwise the card is hidden, and a deleted or removed original says so. forwardSource answers a send's check, and reforwardEvents rewrites the log's copies of forwards after an edit, deletion or purge.",
         "Link previews (E2): hydration reads each live message's previews in one batch per page, without the picture bytes, and leaves the field out when there are none. editMessage prunes previews of links the new words no longer have and keeps the rest in their new order; deleteMessage deletes them; redactEventRows empties previews in the log's copies. addPreview inserts or ignores; removePreview blanks a row and keeps it removed, so an edit keeping the link does not bring it back; previewOwner and previewImage answer the image and removal routes.",
         "setThreadMute (E3) unfollows a thread and keeps its read cursor where it was, so a mention from before stays unread. autoFollowThread leaves a muted thread unfollowed when its muter replies, catching the cursor up to the reply; the root's author keeps a mute as it keeps an unfollow. Following or marking the thread unread ends the mute. A muted thread is unfollowed, so Activity, the Threads list and its badge leave its replies out, apart from mentions, which still count.",
-        "Reminders (E4): setReminder sets one or moves it, waiting again; listReminders and reminders give those the account can still reach, the list due first, the latest first, then waiting, the soonest first, each with its message; dueReminders, markReminderDue and nextReminderAt serve the timer, and dropMessageReminders a deletion."
+        "Reminders (E4): setReminder sets one or moves it, waiting again; listReminders and reminders give those the account can still reach, the list due first, the latest first, then waiting, the soonest first, each with its message; dueReminders, markReminderDue and nextReminderAt serve the timer, and dropMessageReminders a deletion.",
+        "Polls (E6): hydration reads each live message's poll and its votes in one batch per page and counts them, naming voters on each choice only when the poll is not anonymous. createPoll, pollRules, pollChoices, setPollChoices (which says whether anything changed), closePoll and anonymousPollChoices (for the snapshot, those the account can still read) serve the routes; deleteMessage deletes the poll and redactEventRows drops poll from the log's copies."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -467,7 +473,8 @@
         "Message.forwardedFrom is a ForwardReference: the original's id and conversation, and its author, words, files and time unless it is hidden (a private original forwarded elsewhere) or deleted. Servers before forwarding leave it out (E1).",
         "Message.previews is LinkPreview[] (E2): id, the address as written, title, description, siteName, and the picture's size or null. Absent when a message has none and from older servers. AuditAction includes workspace.link_previews_changed.",
         "ThreadFollow.muted is true for a thread this account muted and absent otherwise, and from servers before schema 43 (E3).",
-        "Reminder is one account's reminder about one message: its conversation and thread, remindAt, and dueAt or null while it waits. ReminderItem pairs one with its message for the list (E4)."
+        "Reminder is one account's reminder about one message: its conversation and thread, remindAt, and dueAt or null while it waits. ReminderItem pairs one with its message for the list (E4).",
+        "Message.poll is a Poll (E6): options, each with its text, votes and, unless anonymous, voterIds; multiple, anonymous, voters (how many people chose anything) and closedAt. An option is known by its place. POLL_OPTIONS_MIN and POLL_OPTIONS_MAX (2 and 10), POLL_QUESTION_MAX (300) and POLL_OPTION_MAX (80) are the rules both sides share."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -485,7 +492,8 @@
         "workspace.accessPolicy tells everyone signed in who may join now, and ReadySnapshot.workspaceSettings says the server takes Workspace settings' changes (UX-60). Older clients ignore the event.",
         "ReadySnapshot.workspaceIcon advertises the workspace icon and iconVersion gives its version or null; the workspace.icon ephemeral event tells everyone signed in of a new version or a removal. Older clients ignore both (UX-60).",
         "message.updated may say previewsOnly: only the message's link previews changed, which is not an edit (E2). The ephemeral workspace.linkPreviews tells everyone signed in that previews were turned on or off.",
-        "reminder tells an account's own devices that one of its reminders was set, moved or came due, with the message when it came due; reminder.removed that one is gone. ReadySnapshot.reminders lists them, and is absent from a server that keeps none (E4)."
+        "reminder tells an account's own devices that one of its reminders was set, moved or came due, with the message when it came due; reminder.removed that one is gone. ReadySnapshot.reminders lists them, and is absent from a server that keeps none (E4).",
+        "message.updated may say pollOnly: only the message's poll changed, by a vote or its closing, which is not an edit (E6). poll.choices tells an account's own devices what it now chose in a poll; ReadySnapshot.pollChoices holds those for anonymous polls, and is absent from a server without polls."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -552,7 +560,8 @@
         "WORKSPACE_ICON_TYPES (PNG, JPEG, WebP; no SVG), WORKSPACE_ICON_MAX_BYTES (256 KB) and WORKSPACE_ICON_PIXELS (256) are the one rule the server and the client share for the workspace icon (UX-60).",
         "linkPreviewsBody is Workspace settings' request to turn link previews on or off (E2).",
         "threadMuteBody is the request to mute or unmute a thread (E3).",
-        "reminderBody is the time to be reminded at, in epoch ms (E4)."
+        "reminderBody is the time to be reminded at, in epoch ms (E4).",
+        "sendMessageBody.poll makes a message a poll (E6): two to ten different choices of up to 80 characters, multiple and anonymous defaulting to false, and a question of up to 300 characters. pollVotesBody is the choices a vote replaces the voter's with. SendMessageBody is the schema's input type, so a client may leave out what has a default."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },

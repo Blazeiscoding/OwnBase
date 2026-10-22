@@ -639,6 +639,15 @@ export class Api {
     return this.request("DELETE", `/api/messages/${messageId}/reminder`);
   }
 
+  /** Replaces this account's choices in a poll; none takes the vote back (E6). */
+  votePoll(messageId: ID, choices: number[]): Promise<{ message: Message; choices: number[] }> {
+    return this.request("PUT", `/api/messages/${messageId}/poll/votes`, { choices });
+  }
+
+  closePoll(messageId: ID): Promise<{ message: Message }> {
+    return this.request("POST", `/api/messages/${messageId}/poll/close`);
+  }
+
   listReminders(signal?: AbortSignal): Promise<{ reminders: ReminderItem[] }> {
     return this.request("GET", "/api/reminders", undefined, { signal });
   }

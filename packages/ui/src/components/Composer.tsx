@@ -10,6 +10,7 @@ import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { formatScheduleShort, formatScheduleTime, schedulePresets } from "../lib/schedule.js";
 import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
 import { Icon } from "./Icon.js";
+import { Menu } from "./Menu.js";
 import { iconFor } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Tooltip } from "./Tooltip.js";
@@ -38,6 +39,13 @@ import {
 const TimePopover = lazy(() =>
   import("./TimePopover.js").then((module) => ({ default: module.TimePopover })),
 );
+// So is making a poll (E6).
+const PollDialog = lazy(() =>
+  import("./PollDialog.js").then((module) => ({ default: module.PollDialog })),
+);
+
+/** `/poll` and any words after it, which become the question. */
+const POLL_COMMAND = /^\/poll(?:\s+([\s\S]*))?$/i;
 
 interface Props {
   channelId: ID;
@@ -71,6 +79,10 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   const isRoom = channelType === "public" || channelType === "private";
   // A guest writes, but does not upload, schedule or run an app's commands.
   const guest = useWorkspace((s) => s.self?.role === "guest");
+  // The server keeps polls; an older one would post the question alone.
+  const pollsKept = useWorkspace((s) => s.pollChoices !== null);
+  /** The question the poll window opens with; null while it is closed. */
+  const [pollQuestion, setPollQuestion] = useState<string | null>(null);
   // Threads keep their own draft slot so a channel draft isn't clobbered.
   const draftKey = conversationKey(channelId, threadRootId);
   /** The message the next send answers in place, chosen with Reply. */
@@ -519,6 +531,17 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       return;
     const trimmed = text.trim();
     if ((!trimmed && attached.length === 0) || text.length > MESSAGE_LIMIT) return;
+    // /poll opens the poll window, its words the question, as the + menu does.
+    const asked = attached.length === 0 && pollsKept ? POLL_COMMAND.exec(trimmed) : null;
+    if (asked) {
+      if (guest) {
+        setSendRefusal("Guests cannot make polls. Create an account to make one.");
+        return;
+      }
+      setSendRefusal(null);
+      setPollQuestion(asked[1]?.trim() ?? "");
+      return;
+    }
     let queued: string | null = null;
     const accepted = client.send(channelId, trimmed, {
       threadRootId,
@@ -817,6 +840,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       send();
     }
   }
+
+  /** Discord's round plus: the way to add anything to a message. */
+  const plus = (
+    <span className="flex size-6 items-center justify-center rounded-full bg-ink-dim text-lifted transition-colors group-hover/attach:bg-ink">
+      <Icon name="plus" size={14} strokeWidth={2.6} />
+    </span>
+  );
 
   return (
     <div ref={shell} className="composer-shell @container relative shrink-0 px-4 pb-5">
@@ -1170,20 +1200,42 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           </label>
         )}
         <div className="relative flex flex-wrap items-center gap-0.5 px-2 pb-2">
-          {!guest && (
-            <Tooltip label="Attach a file">
-              <button
-                onClick={() => filePicker.current?.click()}
-                aria-label="Attach a file"
-                className="group/attach flex size-8 items-center justify-center rounded-md"
-              >
-                {/* Discord's round plus: the way to add anything to a message. */}
-                <span className="flex size-6 items-center justify-center rounded-full bg-ink-dim text-lifted transition-colors group-hover/attach:bg-ink">
-                  <Icon name="plus" size={14} strokeWidth={2.6} />
-                </span>
-              </button>
-            </Tooltip>
-          )}
+          {!guest &&
+            (pollsKept ? (
+              // Discord's round plus, opening what can be added: a file, or a poll.
+              <Menu
+                label="Add to message"
+                triggerLabel="Add to message"
+                tooltip="Add to message"
+                align="start"
+                triggerClassName="group/attach flex size-8 items-center justify-center rounded-md"
+                triggerContent={plus}
+                items={[
+                  {
+                    id: "upload",
+                    label: "Upload a file",
+                    icon: "attach",
+                    onSelect: () => filePicker.current?.click(),
+                  },
+                  {
+                    id: "poll",
+                    label: "Create a poll",
+                    icon: "poll",
+                    onSelect: () => setPollQuestion(""),
+                  },
+                ]}
+              />
+            ) : (
+              <Tooltip label="Attach a file">
+                <button
+                  onClick={() => filePicker.current?.click()}
+                  aria-label="Attach a file"
+                  className="group/attach flex size-8 items-center justify-center rounded-md"
+                >
+                  {plus}
+                </button>
+              </Tooltip>
+            ))}
           <FormattingToolbar
             key={draftKey}
             placement="inline"
@@ -1268,6 +1320,28 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           }}
         />
       </fieldset>
+      {pollQuestion !== null && (
+        <ErrorBoundary
+          fallback={
+            <p role="alert" className="px-2 pt-1 text-xs text-ink-dim">
+              The poll window could not load. Reload the app to try again.
+            </p>
+          }
+        >
+          <Suspense fallback={null}>
+            <PollDialog
+              channelId={channelId}
+              threadRootId={threadRootId}
+              question={pollQuestion}
+              onClose={() => setPollQuestion(null)}
+              onSent={() => {
+                // The /poll that opened it is done with.
+                if (POLL_COMMAND.test(text.trim())) clearSent(draftKey);
+              }}
+            />
+          </Suspense>
+        </ErrorBoundary>
+      )}
     </div>
   );
 }
