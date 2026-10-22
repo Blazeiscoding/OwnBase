@@ -16,9 +16,11 @@ import type {
   MessageAction,
   ReactionGroup,
   ForwardReference,
+  FileKind,
   LinkPreview,
   Poll,
   ReplyReference,
+  SharedFile,
   NotifyLevel,
   ParsedSearch,
   Role,
@@ -35,7 +37,7 @@ import type {
   WorkspaceEvent,
   EventEnvelope,
 } from "@slackoss/protocol";
-import { FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
+import { FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
 import { previewLinks, type FetchedPreview } from "./linkPreview.js";
 
@@ -1963,6 +1965,125 @@ export class Store {
       size: r.size,
       width: r.width,
       height: r.height,
+    };
+  }
+
+  /**
+   * The files shared in conversations this account can read, for the file
+   * browser (E7): on live messages, newest shared first. Message ids are
+   * ordered by time, so the order walks `idx_files_message`; a message's
+   * files follow by id. Narrowed by kind, by who shared, by conversation and
+   * by every word of `q` in the name. Reading follows the download rule: a
+   * public conversation, or one this account is in and is no guest.
+   */
+  listSharedFiles(
+    userId: ID,
+    query: {
+      limit: number;
+      cursor?: string;
+      kind?: FileKind;
+      userId?: ID;
+      channelId?: ID;
+      q?: string;
+    },
+  ): { files: SharedFile[]; nextCursor: string | null } {
+    const where: string[] = [];
+    const params: (string | number)[] = [];
+    if (this.isGuest(userId)) where.push("c.type = 'public'");
+    else {
+      where.push(
+        `(c.type = 'public' OR EXISTS (SELECT 1 FROM channel_members cm
+           WHERE cm.channel_id = c.id AND cm.user_id = ?))`,
+      );
+      params.push(userId);
+    }
+    if (query.kind) {
+      // By `type:`'s patterns, so the browser and search agree on every file.
+      const matching = (kind: "image" | "document") => {
+        const tests = FILE_KIND_TYPES[kind].flatMap((type) => [
+          ...FILE_TYPE_MATCH[type].mime.map((mime) => ["lower(f.mime) LIKE ?", mime] as const),
+          ...FILE_TYPE_MATCH[type].ext.map((ext) => ["lower(f.name) LIKE ?", `%.${ext}`] as const),
+        ]);
+        return {
+          sql: `(${tests.map(([sql]) => sql).join(" OR ")})`,
+          params: tests.map(([, v]) => v),
+        };
+      };
+      const image = matching("image");
+      const document = matching("document");
+      if (query.kind === "image") {
+        where.push(image.sql);
+        params.push(...image.params);
+      } else if (query.kind === "document") {
+        // A picture is a picture, whatever its name ends with.
+        where.push(`${document.sql} AND NOT ${image.sql}`);
+        params.push(...document.params, ...image.params);
+      } else {
+        where.push(`NOT (${image.sql} OR ${document.sql})`);
+        params.push(...image.params, ...document.params);
+      }
+    }
+    if (query.userId) {
+      where.push("m.user_id = ?");
+      params.push(query.userId);
+    }
+    if (query.channelId) {
+      where.push("m.channel_id = ?");
+      params.push(query.channelId);
+    }
+    for (const term of query.q?.split(/\s+/).filter(Boolean) ?? []) {
+      where.push("f.name LIKE ? ESCAPE '\\'");
+      params.push(`%${term.replaceAll(/[\\%_]/g, "\\$&")}%`);
+    }
+    if (query.cursor) {
+      const [messageId, fileId] = query.cursor.split(":") as [string, string];
+      where.push("(f.message_id < ? OR (f.message_id = ? AND f.id < ?))");
+      params.push(messageId, messageId, fileId);
+    }
+    // CROSS JOIN keeps files the outer loop: left to choose, SQLite read every
+    // message and sorted them all, where this stops once a page is full.
+    const rows = this.db
+      .prepare(
+        `SELECT f.id, f.name, f.mime, f.size, f.width, f.height, f.message_id,
+                m.channel_id, m.thread_root_id, m.user_id, m.created_at
+         FROM files f
+         CROSS JOIN messages m ON m.id = f.message_id
+         CROSS JOIN channels c ON c.id = m.channel_id
+         WHERE f.message_id IS NOT NULL AND m.deleted_at IS NULL AND ${where.join(" AND ")}
+         ORDER BY f.message_id DESC, f.id DESC LIMIT ?`,
+      )
+      .all(...params, query.limit + 1) as {
+      id: string;
+      name: string;
+      mime: string;
+      size: number;
+      width: number | null;
+      height: number | null;
+      message_id: string;
+      channel_id: string;
+      thread_root_id: string | null;
+      user_id: string;
+      created_at: number;
+    }[];
+    const page = rows.slice(0, query.limit);
+    const last = page.at(-1);
+    return {
+      files: page.map((r) => ({
+        file: {
+          id: r.id,
+          name: r.name,
+          mime: r.mime,
+          size: r.size,
+          width: r.width,
+          height: r.height,
+        },
+        messageId: r.message_id,
+        channelId: r.channel_id,
+        threadRootId: r.thread_root_id,
+        userId: r.user_id,
+        sharedAt: r.created_at,
+      })),
+      nextCursor: rows.length > query.limit && last ? `${last.message_id}:${last.id}` : null,
     };
   }
 

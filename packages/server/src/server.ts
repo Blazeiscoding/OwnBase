@@ -26,6 +26,7 @@ import {
   threadReadBody,
   reminderBody,
   pollVotesBody,
+  sharedFilesQuery,
   adminUserBody,
   createAppBody,
   createCommandBody,
@@ -228,6 +229,7 @@ export const GUEST_ROUTES = new Set([
   "GET /api/channels/:id/messages/after/:messageId",
   "PATCH /api/messages/:id",
   "DELETE /api/messages/:id",
+  "GET /api/files",
   "GET /api/files/:id",
   "POST /api/files/:id/download-token",
   "PUT /api/messages/:id/reactions/:emoji",
@@ -2820,6 +2822,16 @@ async function startWorkspaceServer(
    * rather than trusted from when it was issued.
    */
   const DOWNLOAD_TOKEN_TTL_MS = 60_000;
+
+  /**
+   * The file browser's page (E7): files shared in conversations the asker can
+   * read, newest first, by kind, sharer, conversation and words in the name.
+   */
+  app.get("/api/files", async (req) => {
+    const me = requireUser(req);
+    const query = sharedFilesQuery.parse(req.query);
+    return store.listSharedFiles(me.id, query);
+  });
 
   app.post<{ Params: { id: string } }>("/api/files/:id/download-token", async (req, reply) => {
     const me = requireUser(req);

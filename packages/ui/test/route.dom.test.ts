@@ -34,6 +34,7 @@ describe("reading a place in a workspace from the address", () => {
       "threads",
       "scheduled",
       "drafts",
+      "files",
       "activity",
       "dms",
     ] as const) {

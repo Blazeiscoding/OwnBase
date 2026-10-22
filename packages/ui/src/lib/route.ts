@@ -8,6 +8,7 @@ export const ROUTE_VIEWS = [
   "threads",
   "scheduled",
   "drafts",
+  "files",
   "activity",
   "dms",
 ] as const;

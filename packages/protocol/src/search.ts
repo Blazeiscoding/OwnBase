@@ -73,7 +73,36 @@ export const FILE_TYPE_MATCH: Record<
   },
 };
 
-const isFileType = (value: string): value is FileType =>
+/**
+ * What the file browser sorts files into (E7): pictures, documents (PDFs,
+ * documents, spreadsheets and presentations, by `FILE_TYPE_MATCH`) and
+ * everything else. A picture is never also a document.
+ */
+export const FILE_KINDS = ["image", "document", "other"] as const;
+export type FileKind = (typeof FILE_KINDS)[number];
+export const FILE_KIND_TYPES: Record<Exclude<FileKind, "other">, readonly FileType[]> = {
+  image: ["image"],
+  document: ["pdf", "document", "spreadsheet", "presentation"],
+};
+
+/** Whether a file is of a `type:` kind, as the server's LIKE patterns say. */
+export function isFileType(type: FileType, mime: string, name: string): boolean {
+  const lower = mime.toLowerCase();
+  const fileName = name.toLowerCase();
+  const { mime: patterns, ext } = FILE_TYPE_MATCH[type];
+  return (
+    patterns.some((p) => (p.endsWith("%") ? lower.startsWith(p.slice(0, -1)) : lower === p)) ||
+    ext.some((e) => fileName.endsWith(`.${e}`))
+  );
+}
+
+export function fileKind(mime: string, name: string): FileKind {
+  for (const kind of ["image", "document"] as const)
+    if (FILE_KIND_TYPES[kind].some((type) => isFileType(type, mime, name))) return kind;
+  return "other";
+}
+
+const isFileTypeName = (value: string): value is FileType =>
   (FILE_TYPES as readonly string[]).includes(value);
 export interface ParsedSearch {
   /** Words left over after modifiers are removed. */
@@ -261,7 +290,7 @@ export function parseSearchQuery(raw: string, options: SearchQueryOptions = {}):
         // As with has:, a kind there is no such thing as is left out, and the
         // hints show it was not understood.
         const type = value.toLowerCase();
-        if (isFileType(type) && !result.types.includes(type)) result.types.push(type);
+        if (isFileTypeName(type) && !result.types.includes(type)) result.types.push(type);
         break;
       }
       case "before": {
