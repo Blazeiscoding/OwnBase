@@ -26,6 +26,7 @@ import { Api, ApiError, type CommandHint } from "./api.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { captureFailure } from "./capture.js";
 import { quoteChanges, requote } from "./replies.js";
+import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type { CallLogLine, HuddleSession, HuddleState, ScreenShareQuality } from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
 
@@ -62,6 +63,8 @@ export interface PendingMessage {
   replyTo?: ReplyReference;
   /** The message this one passes on, as it was when it was forwarded. */
   forward?: ForwardReference;
+  /** The choices it asks people to pick from, its words the question (E6). */
+  poll?: PollDraft;
   text: string;
   userId: ID;
   createdAt: number;
@@ -89,6 +92,7 @@ export interface StoredPending {
   broadcast?: boolean;
   replyTo?: ReplyReference;
   forward?: ForwardReference;
+  poll?: PollDraft;
   text: string;
   userId: ID;
   createdAt: number;
@@ -508,6 +512,17 @@ export interface WorkspaceState {
    */
   reminders: Record<ID, Reminder> | null;
   /**
+   * What this account chose in each anonymous poll it voted in, by message id,
+   * which no message says (E6). Null where the server keeps no polls, so none
+   * is offered there.
+   */
+  pollChoices: Record<ID, number[]> | null;
+  /**
+   * Choices made here in a poll that the server has not yet been heard to
+   * have, by message id: shown in place of its own; see `shownPoll`.
+   */
+  pollPicks: Record<ID, number[]>;
+  /**
    * The server keeps a star per conversation (`ChannelPrefs.starred`). An
    * older one would drop a star without saying so, so none is offered there.
    */
@@ -632,6 +647,8 @@ const initialState: WorkspaceState = {
   activityThreads: false,
   threadMutes: false,
   reminders: null,
+  pollChoices: null,
+  pollPicks: {},
   stars: false,
   workspaceSettings: false,
   accessPolicy: null,
@@ -1052,6 +1069,13 @@ export class WorkspaceClient {
       reminders: snap.reminders
         ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
         : null,
+      pollChoices: snap.pollChoices ?? null,
+      // What the server now says stands, but for votes still on their way.
+      pollPicks: Object.fromEntries(
+        Object.entries(prev.pollPicks).filter(([messageId]) =>
+          this.choices.has(`poll:${messageId}`),
+        ),
+      ),
       stars: snap.stars === true,
       workspaceSettings: snap.workspaceSettings === true,
       accessPolicy: snap.accessPolicy ?? null,
@@ -1313,8 +1337,10 @@ export class WorkspaceClient {
       }
       case "message.updated": {
         // Previews found or removed are not an edit: nothing quoting the
-        // message changes, and Activity has nothing new to show (E2).
-        if (!event.previewsOnly) changed(event.message.channelId);
+        // message changes, and Activity has nothing new to show (E2). Nor are
+        // a poll's votes (E6).
+        const edited = !event.previewsOnly && !event.pollOnly;
+        if (edited) changed(event.message.channelId);
         patch.timelines = this.patchMessage(
           s,
           event.message.channelId,
@@ -1325,7 +1351,12 @@ export class WorkspaceClient {
           seq,
         );
         patch.threads = this.patchThreadMessage(s, event.message.id, () => ({ ...event.message }));
-        if (!event.previewsOnly) this.requoteHeld(s, patch, event.message.channelId, event, seq);
+        if (edited) this.requoteHeld(s, patch, event.message.channelId, event, seq);
+        if (event.pollOnly && !event.message.poll?.anonymous) {
+          const mine = serverPollChoices(event.message, s.self?.id, null);
+          this.heardChoice(`poll:${event.message.id}`, pollChoicesKey(mine));
+          this.settlePollPick(s, patch, event.message.id, mine);
+        }
         break;
       }
       case "history.removed": {
@@ -1369,6 +1400,15 @@ export class WorkspaceClient {
       case "message.deleted": {
         changed(event.channelId);
         this.onMessageDeleted?.(event.messageId);
+        // Its poll went with it.
+        if (s.pollChoices?.[event.messageId]) {
+          const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
+          patch.pollChoices = pollChoices;
+        }
+        if (s.pollPicks[event.messageId]) {
+          const { [event.messageId]: _gone, ...pollPicks } = s.pollPicks;
+          patch.pollPicks = pollPicks;
+        }
         // Its files go with it, whether or not its history is still loaded (F07).
         this.files.invalidateMessage(event.messageId);
         const tl = s.timelines[event.channelId];
@@ -1779,6 +1819,15 @@ export class WorkspaceClient {
       const reminders = { ...s.reminders };
       delete reminders[event.messageId];
       this.store.setState({ reminders });
+    } else if (event.type === "poll.choices") {
+      if (!s.pollChoices) return;
+      const pollChoices = { ...s.pollChoices };
+      if (event.choices.length > 0) pollChoices[event.messageId] = event.choices;
+      else delete pollChoices[event.messageId];
+      const patch: Partial<WorkspaceState> = { pollChoices };
+      this.heardChoice(`poll:${event.messageId}`, pollChoicesKey(event.choices));
+      this.settlePollPick(s, patch, event.messageId, event.choices);
+      this.store.setState(patch);
     } else if (event.type === "scheduled") {
       this.store.setState({ scheduledChanges: s.scheduledChanges + 1 });
     } else if (event.type === "ephemeral.message") {
@@ -2402,6 +2451,8 @@ export class WorkspaceClient {
       replyTo?: ReplyReference;
       /** The message this one passes on, words of its own or none; see `forwardOf`. */
       forward?: ForwardReference;
+      /** Makes it a poll, `text` its question (E6); alone, without files or a forward. */
+      poll?: PollDraft;
       /** Told the nonce of the message queued, for its author to follow (F01). */
       onQueued?: (nonce: string) => void;
     } = {},
@@ -2412,11 +2463,14 @@ export class WorkspaceClient {
     // An older server would post a forward's comment alone, so it is not asked.
     const forward = opts.forward && this.state.forwards ? opts.forward : undefined;
     if (!text.trim() && files.length === 0 && !forward) return false;
+    // An older server would post the question alone; a poll carries nothing else.
+    const poll = opts.poll;
+    if (poll && (!this.state.pollChoices || files.length > 0 || forward)) return false;
 
     // A leading "/word" is a command, not a message. The trailing space or end
     // of line matters: it keeps a pasted path like /Users/me/notes.txt a
     // perfectly ordinary message.
-    if (!forward && files.length === 0 && /^\/[a-zA-Z0-9_-]+(\s|$)/.test(text.trim())) {
+    if (!poll && !forward && files.length === 0 && /^\/[a-zA-Z0-9_-]+(\s|$)/.test(text.trim())) {
       void this.runCommand(channelId, text.trim(), opts.threadRootId);
       return true;
     }
@@ -2441,6 +2495,7 @@ export class WorkspaceClient {
       // post it as a plain message, which is what it would then show.
       ...(opts.replyTo && this.state.inlineReplies ? { replyTo: opts.replyTo } : {}),
       ...(forward ? { forward } : {}),
+      ...(poll ? { poll } : {}),
       text,
       userId: self.id,
       createdAt: Date.now(),
@@ -2466,11 +2521,11 @@ export class WorkspaceClient {
   private async deliver(
     send: Pick<
       PendingMessage,
-      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "forward" | "text"
+      "nonce" | "channelId" | "threadRootId" | "broadcast" | "replyTo" | "forward" | "poll" | "text"
     >,
     files: File[],
   ): Promise<void> {
-    const { nonce, channelId, text, threadRootId, replyTo, forward } = send;
+    const { nonce, channelId, text, threadRootId, replyTo, forward, poll } = send;
     const setProgress = (fraction: number) =>
       this.store.setState((s) => ({
         pending: s.pending.map((p) => (p.nonce === nonce ? { ...p, uploadProgress: fraction } : p)),
@@ -2498,6 +2553,7 @@ export class WorkspaceClient {
         ...(fileIds.length > 0 ? { fileIds } : {}),
         ...(replyTo ? { replyToId: replyTo.id, replyPing: replyTo.ping } : {}),
         ...(forward ? { forwardFrom: forward.id } : {}),
+        ...(poll ? { poll } : {}),
       };
       const { message } = await this.api.sendMessage(channelId, body);
       if (!this.stopped && this.state.status !== "auth_failed") {
@@ -2558,6 +2614,7 @@ export class WorkspaceClient {
       broadcast: p.broadcast,
       ...(p.replyTo ? { replyTo: p.replyTo } : {}),
       ...(p.forward ? { forward: p.forward } : {}),
+      ...(p.poll ? { poll: p.poll } : {}),
       text: p.text,
       userId: p.userId,
       createdAt: p.createdAt,
@@ -2750,6 +2807,95 @@ export class WorkspaceClient {
     choice.confirmed = value;
     if (value !== choice.latest) choice.contested = true;
     return true;
+  }
+
+  /**
+   * Votes in a poll, replacing this account's choices; none takes the vote
+   * back. Shown at once, as a choice (see `choose`): one request is out at a
+   * time and the latest choice is the one that stands. Resolves false when the
+   * server refused it, such as for a poll closed meanwhile.
+   */
+  vote(message: Message, choices: number[]): Promise<boolean> {
+    const messageId = message.id;
+    const anonymous = message.poll?.anonymous ?? false;
+    const key = `poll:${messageId}`;
+    return this.choose(key, pollChoicesKey(choices), {
+      current: () => pollChoicesKey(this.serverChoicesIn(messageId, anonymous)),
+      show: (chosen) =>
+        this.store.setState((s) => {
+          const picked = pollChoicesOfKey(chosen);
+          const server = this.serverChoicesIn(messageId, anonymous, s);
+          // Settled, and what the server is known to have: nothing to hold.
+          if (!this.choices.has(key) && pollChoicesKey(server) === chosen) {
+            if (!s.pollPicks[messageId]) return {};
+            const { [messageId]: _settled, ...pollPicks } = s.pollPicks;
+            return { pollPicks };
+          }
+          return { pollPicks: { ...s.pollPicks, [messageId]: picked } };
+        }),
+      send: async (chosen) => {
+        const answer = await this.api.votePoll(messageId, pollChoicesOfKey(chosen));
+        if (anonymous)
+          this.store.setState((s) => {
+            if (!s.pollChoices) return {};
+            const pollChoices = { ...s.pollChoices };
+            if (answer.choices.length > 0) pollChoices[messageId] = answer.choices;
+            else delete pollChoices[messageId];
+            return { pollChoices };
+          });
+        return pollChoicesKey(answer.choices);
+      },
+    });
+  }
+
+  /** Its author closes a poll for good. False when the server refused. */
+  async closePoll(message: Message): Promise<boolean> {
+    try {
+      const { message: closed } = await this.api.closePoll(message.id);
+      const closedAt = closed.poll?.closedAt ?? null;
+      // Only that it closed: the counts are whatever was last heard.
+      const apply = (m: Message): Message =>
+        m.poll && m.poll.closedAt === null ? { ...m, poll: { ...m.poll, closedAt } } : m;
+      this.store.setState((s) => ({
+        timelines: this.patchMessage(s, message.channelId, message.id, apply),
+        threads: this.patchThreadMessage(s, message.id, apply),
+      }));
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** What the server has as this account's choices in a poll, from what is held of it. */
+  private serverChoicesIn(messageId: ID, anonymous: boolean, s = this.state): number[] {
+    if (anonymous) return s.pollChoices?.[messageId] ?? [];
+    const message =
+      Object.values(s.timelines)
+        .flatMap((tl) => tl.items)
+        .find((m) => m.id === messageId) ??
+      Object.values(s.threads)
+        .flat()
+        .find((m) => m.id === messageId);
+    return message ? serverPollChoices(message, s.self?.id, null) : [];
+  }
+
+  /**
+   * The server is heard to have `server` as this account's choices in a poll.
+   * A pick made here and settled is dropped once it matches; one still being
+   * sent stays shown until its answer.
+   */
+  private settlePollPick(
+    s: WorkspaceState,
+    patch: Partial<WorkspaceState>,
+    messageId: ID,
+    server: number[],
+  ): void {
+    const picks = patch.pollPicks ?? s.pollPicks;
+    const picked = picks[messageId];
+    if (!picked || this.choices.has(`poll:${messageId}`)) return;
+    if (pollChoicesKey(picked) !== pollChoicesKey(server)) return;
+    const { [messageId]: _settled, ...rest } = picks;
+    patch.pollPicks = rest;
   }
 
   /** Optimistic pin toggle; the channel-wide event confirms it. */

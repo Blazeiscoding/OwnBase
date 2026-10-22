@@ -66,6 +66,8 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     activityThreads: true,
     threadMutes: true,
     reminders: {},
+    pollChoices: {},
+    pollPicks: {},
     stars: true,
     workspaceSettings: true,
     accessPolicy: "account_required",

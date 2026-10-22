@@ -2992,14 +2992,17 @@ async function startWorkspaceServer(
     if (!rules.multiple && chosen.length > 1)
       throw new HttpError(400, "bad_choice", "This poll takes one choice.");
     let message = msg;
-    mutate((emit) => {
+    mutate((emit, afterCommit) => {
       if (!store.setPollChoices(msg.id, me.id, chosen)) return;
       message = store.getMessage(msg.id)!;
+      // Ahead of the new count, so a device of theirs never counts its own vote twice.
+      const mine = store.pollChoices(msg.id, me.id);
+      afterCommit(() =>
+        gateway.sendToUser(me.id, { type: "poll.choices", messageId: msg.id, choices: mine }),
+      );
       emit({ type: "message.updated", message, pollOnly: true }, msg.channelId);
     });
-    const mine = store.pollChoices(msg.id, me.id);
-    gateway.sendToUser(me.id, { type: "poll.choices", messageId: msg.id, choices: mine });
-    return { message, choices: mine };
+    return { message, choices: store.pollChoices(msg.id, me.id) };
   });
 
   /** Its author closes a poll for good: the votes stand and nobody can change them. */

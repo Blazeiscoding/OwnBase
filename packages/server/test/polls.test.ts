@@ -257,12 +257,23 @@ describe("voting", () => {
       .toEqual([{ type: "poll.choices", messageId: made.id, choices: [0] }]);
     expect(choicesTold(peerSees)).toHaveLength(1);
     expect(choicesTold(ownerSees)).toEqual([]);
+    // The voter's devices hear what they chose before the count that has it.
+    await expect.poll(() => pollUpdates(peerPhone).length).toBe(1);
+    const order = peerPhone.flatMap((f) =>
+      f.type === "ephemeral" && f.event.type === "poll.choices"
+        ? ["choices"]
+        : f.type === "event" && f.envelope.event.type === "message.updated"
+          ? ["count"]
+          : [],
+    );
+    expect(order).toEqual(["choices", "count"]);
 
     // Choosing again what is chosen changes nothing, so nobody is told.
     await vote(made.id, [0]);
     await vote(made.id, [1], owner.token);
     await expect.poll(() => pollUpdates(peerSees).length).toBe(2);
     expect(pollUpdates(ownerSees)).toHaveLength(2);
+    expect(choicesTold(peerSees)).toHaveLength(1);
   });
 
   it("is not passed to apps, which were told of the message and not its votes", () => {
