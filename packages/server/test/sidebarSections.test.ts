@@ -194,7 +194,8 @@ describe("the section list", () => {
     const snapshot = ready(await connect(owner.token));
     expect(names(snapshot.sidebarSections)).toEqual(["Beta", "Alpha"]);
     expect(
-      snapshot.memberships.find((m: { channelId: string }) => m.channelId === general).prefs.sectionId,
+      snapshot.memberships.find((m: { channelId: string }) => m.channelId === general).prefs
+        .sectionId,
     ).toBe(a.id);
   });
 });
