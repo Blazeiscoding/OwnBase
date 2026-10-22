@@ -72,6 +72,8 @@ import {
 } from "../lib/route.js";
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
+import { requestEdit } from "../lib/editRequest.js";
+import type { DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 
 const ActivityPanel = lazy(() =>
@@ -124,6 +126,9 @@ const MembersPanel = lazy(() =>
 );
 const ScheduledPanel = lazy(() =>
   import("../components/ScheduledPanel.js").then((module) => ({ default: module.ScheduledPanel })),
+);
+const DraftsPanel = lazy(() =>
+  import("../components/DraftsPanel.js").then((module) => ({ default: module.DraftsPanel })),
 );
 /** Which microphone and camera to use, asked once before a first huddle. */
 const DeviceCheckDialog = lazy(() =>
@@ -322,7 +327,9 @@ type SidePanel =
   | { kind: "pins" }
   | { kind: "saved" }
   | { kind: "threads" }
-  | { kind: "scheduled" }
+  /** `edit`: a queued message whose unsaved edit to open, from Drafts. */
+  | { kind: "scheduled"; edit?: ID }
+  | { kind: "drafts" }
   | { kind: "activity" }
   | { kind: "dms" }
   | { kind: "members" };
@@ -854,6 +861,26 @@ function WorkspaceInner({
       });
   }
 
+  /** Opens a draft from Drafts where it was being written. */
+  function openDraft(place: DraftPlace) {
+    switch (place.kind) {
+      case "conversation":
+        openChannel(place.channelId);
+        return;
+      case "thread":
+        openThreadInChannel(place.channelId, place.rootId);
+        return;
+      case "edit":
+        // The message's row opens its editor as it appears.
+        requestEdit(place.messageId);
+        jumpToMessage(place.channelId, place.messageId);
+        return;
+      case "scheduled-edit":
+        setPanel({ kind: "scheduled", edit: place.scheduledId });
+        return;
+    }
+  }
+
   // One function for the life of the screen, so links in every message can
   // hold it without each message redrawing whenever this screen does.
   const jumpTo = useRef(jumpToMessage);
@@ -877,7 +904,7 @@ function WorkspaceInner({
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const showsDark = appearance.theme === "dark" || (appearance.theme === "system" && prefersDark);
   const isGuest = self?.role === "guest";
-  const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled") => {
+  const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts") => {
     setPanel({ kind });
     setSidebarOpen(false);
   };
@@ -930,6 +957,13 @@ function WorkspaceInner({
             icon: "bookmark",
             keywords: "bookmarks later",
             run: () => openPanel("saved"),
+          },
+          {
+            id: "drafts",
+            label: "Drafts",
+            icon: "edit",
+            keywords: "unsent unsaved writing",
+            run: () => openPanel("drafts"),
           },
           ...(isGuest
             ? []
@@ -1217,6 +1251,10 @@ function WorkspaceInner({
         }}
         onScheduled={() => {
           setPanel({ kind: "scheduled" });
+          setSidebarOpen(false);
+        }}
+        onDrafts={() => {
+          setPanel({ kind: "drafts" });
           setSidebarOpen(false);
         }}
         onFriends={() => setDialog({ kind: "friends" })}
@@ -1508,6 +1546,16 @@ function WorkspaceInner({
             onClose={() => setPanel({ kind: "none" })}
             onJump={openChannel}
             onSaved={() => setPanel({ kind: "saved" })}
+            initialEdit={panel.edit}
+          />
+        </LazyPanel>
+      )}
+      {panel.kind === "drafts" && (
+        <LazyPanel name="Drafts" onClose={() => setPanel({ kind: "none" })}>
+          <DraftsPanel
+            onClose={() => setPanel({ kind: "none" })}
+            onOpen={openDraft}
+            onScheduled={self?.role === "guest" ? undefined : () => setPanel({ kind: "scheduled" })}
           />
         </LazyPanel>
       )}

@@ -139,21 +139,28 @@ export function isMessageOnScreen(message: Message, screen: OnScreen): boolean {
   return (inChannel && screen.channelVisible) || (inThread && screen.threadVisible);
 }
 
-/** Text for a notification, with mention markup resolved to readable names. */
-export function notificationBody(state: WorkspaceState, message: Message): string {
+/** Message text with mention markup resolved to readable names, as a notification shows it. */
+export function readableText(state: WorkspaceState, text: string): string {
   // Deliberately permissive: an id format change should not silently stop
   // mentions from resolving to names.
-  const text = message.text
-    .replaceAll(/<@([A-Za-z0-9_-]+)>/g, (_all, id: ID) => {
-      const user = state.users[id];
-      return user ? `@${user.displayName}` : "@someone";
-    })
-    .replaceAll(/<!(channel|here|everyone)>/g, (_all, who: string) => broadcastLabel(who))
-    // A labelled link reads as its label, and an unlabelled one as its address.
-    .replaceAll(
-      /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g,
-      (_all, url: string, label?: string) => label?.trim() || url,
-    );
+  return (
+    text
+      .replaceAll(/<@([A-Za-z0-9_-]+)>/g, (_all, id: ID) => {
+        const user = state.users[id];
+        return user ? `@${user.displayName}` : "@someone";
+      })
+      .replaceAll(/<!(channel|here|everyone)>/g, (_all, who: string) => broadcastLabel(who))
+      // A labelled link reads as its label, and an unlabelled one as its address.
+      .replaceAll(
+        /<(https?:\/\/[^\s|<>]+)(?:\|([^<>\n]+))?>/g,
+        (_all, url: string, label?: string) => label?.trim() || url,
+      )
+  );
+}
+
+/** Text for a notification, with mention markup resolved to readable names. */
+export function notificationBody(state: WorkspaceState, message: Message): string {
+  const text = readableText(state, message.text);
   if (text.trim()) return text;
   const count = message.files.length;
   return count === 1 ? "Sent a file" : `Sent ${count} files`;

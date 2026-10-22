@@ -363,3 +363,55 @@ describe("each person's volume, from the bar", () => {
     expect(audio.volume).toBeCloseTo(0.7);
   });
 });
+
+describe("the sound of a shared screen", () => {
+  const sharing = (userId: string): HuddlePeer => ({
+    ...peer(userId),
+    screenStream: {} as MediaStream,
+    screenSoundStream: {} as MediaStream,
+  });
+
+  it("plays beside their voice, each at the volume you chose for it", () => {
+    play.mockResolvedValue();
+    const a = sharing("A");
+    const { container, rerender } = render(
+      <HuddleAudio
+        peers={[a]}
+        volumes={{ A: { volume: 40, muted: false }, "screen:A": { volume: 70, muted: false } }}
+      />,
+    );
+    const [voice, sound] = container.querySelectorAll("audio");
+    expect(voice!.srcObject).toBe(a.audioStream);
+    expect(voice!.volume).toBeCloseTo(0.4);
+    expect(sound!.srcObject).toBe(a.screenSoundStream);
+    expect(sound!.volume).toBeCloseTo(0.7);
+
+    // Muting the video leaves them heard, and the other way round.
+    rerender(
+      <HuddleAudio
+        peers={[a]}
+        volumes={{ A: { volume: 40, muted: false }, "screen:A": { volume: 70, muted: true } }}
+      />,
+    );
+    expect(sound!.volume).toBe(0);
+    expect(voice!.volume).toBeCloseTo(0.4);
+
+    // A share without sound, or none, plays only the voice.
+    rerender(<HuddleAudio peers={[{ ...a, screenSoundStream: null }]} />);
+    expect(container.querySelectorAll("audio")).toHaveLength(1);
+    expect(container.querySelector("audio")!.srcObject).toBe(a.audioStream);
+  });
+
+  it("is asked for with the voices when the browser holds sound back, and plays with them", async () => {
+    const user = userEvent.setup();
+    play.mockImplementationOnce(refused).mockImplementationOnce(refused).mockResolvedValue();
+    render(<HuddleAudio peers={[sharing("A")]} />);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your browser is holding back the huddle's sound.",
+    );
+    await user.click(screen.getByRole("button", { name: "Turn on sound" }));
+    // Both elements tried again from the one press.
+    expect(play.mock.calls.length).toBeGreaterThanOrEqual(4);
+    expect(screen.queryByRole("alert")).toBeNull();
+  });
+});

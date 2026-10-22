@@ -33,6 +33,13 @@ export type HuddleSignal =
        * dropping over a missing badge.
        */
       muted?: boolean;
+      /**
+       * Whether their share sends its sound, in a fourth slot after the
+       * screen's. Only a client with that slot says, true or false; one from
+       * before it never does, and would take any fourth track for the
+       * person's microphone, so it is sent none.
+       */
+      screenSound?: boolean;
     };
 
 /**

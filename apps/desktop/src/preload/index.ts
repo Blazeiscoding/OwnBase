@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { screenSoundSupported } from "../main/screenShare.js";
 
 export interface SlackossBridge {
   downloadFile: (url: string) => Promise<void>;
@@ -70,8 +71,10 @@ export interface SlackossBridge {
   preparedClose: (id: number, saved: boolean) => Promise<void>;
   /** Every screen and window that can be shared, with a picture of each; `quick` from the last list. */
   screenSources: (quick: boolean) => Promise<unknown[] | null>;
-  /** Shares this screen or window at the next getDisplayMedia request. */
-  chooseScreen: (id: string) => Promise<void>;
+  /** Shares this screen or window at the next getDisplayMedia request, with its sound if `sound`. */
+  chooseScreen: (id: string, sound: boolean) => Promise<void>;
+  /** Whether a share can send the screen's sound here, as the main process decides it too. */
+  screenSound: boolean;
 }
 
 const bridge: SlackossBridge = {
@@ -158,7 +161,8 @@ const bridge: SlackossBridge = {
   },
   preparedClose: (id, saved) => ipcRenderer.invoke("window:preparedClose", id, saved),
   screenSources: (quick) => ipcRenderer.invoke("screen:sources", quick),
-  chooseScreen: (id) => ipcRenderer.invoke("screen:choose", id),
+  chooseScreen: (id, sound) => ipcRenderer.invoke("screen:choose", id, sound),
+  screenSound: screenSoundSupported(process.platform, process.getSystemVersion()),
 };
 
 contextBridge.exposeInMainWorld("slackoss", bridge);

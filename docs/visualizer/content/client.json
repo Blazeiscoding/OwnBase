@@ -9,7 +9,8 @@
       "details": [
         "Re-exports the workspace client, typed REST client, huddle session, file cache and notification rules.",
         "Also exposes the plain-data draft, outbox and record merge functions so browser storage and Electron's main process can use the same rules.",
-        "Exports decideReminderNotification and dueReminderCount (E4)."
+        "Exports decideReminderNotification and dueReminderCount (E4).",
+        "Exports readableText (E5)."
       ],
       "concepts": ["package boundary", "shared behavior"]
     },
@@ -52,7 +53,8 @@
         "forwards says the server forwards a message (ReadySnapshot.forwards, E1). send takes a forward card and leaves it out for an older server, which would post the comment alone, so a forward with no words of its own sends nothing there. An edit or deletion refreshes forward cards in every loaded timeline, thread and thread root, since an original can live in another conversation. The two refusals of a forward, message_not_found and forward_unavailable, have their own failure text.",
         "linkPreviews holds whether new messages get previews, from the snapshot and workspace.linkPreviews, or null from a server without them; setLinkPreviews shows the server's answer at once. A message.updated with previewsOnly replaces the message but neither marks its conversation's content changed nor requotes anything. removeLinkPreview takes the preview off at once and puts it back if the server refuses. fileOwner finds preview pictures among loaded messages too (E2).",
         "threadMutes says the server mutes a thread (ReadySnapshot.threadMutes, E3). setThreadMute shows a mute at once, unfollowed, and sends it in the same per-thread order as Follow and Mark unread, so a Follow chosen after it lands after it. Reading a muted thread keeps it muted; following it or marking it unread ends the mute, as on the server.",
-        "reminders holds this account's reminders by message id, or null where the server keeps none (E4). The ready snapshot fills it; reminder and reminder.removed keep it current, and history.removed drops those its threads took. onReminderDue is told once as one comes due, with its message. setReminder keeps the server's answer at once; cancelReminder treats one already gone as removed."
+        "reminders holds this account's reminders by message id, or null where the server keeps none (E4). The ready snapshot fills it; reminder and reminder.removed keep it current, and history.removed drops those its threads took. onReminderDue is told once as one comes due, with its message. setReminder keeps the server's answer at once; cancelReminder treats one already gone as removed.",
+        "draftTimes keeps when each draft last changed, as far as this device knows (E5). setDraft stamps a draft whose words change, or the time given for one put back; hydrateDrafts keeps the time of a draft whose words did not change, takes the stored time on restore, and dates one another window changed from hearing of it."
       ],
       "concepts": [
         "workspace replica",
@@ -141,16 +143,18 @@
     },
     {
       "path": "packages/client-core/src/huddle.ts",
-      "plain": "Runs your side of a huddle, opening your microphone, camera and screen share and connecting you to each person in the call.",
+      "plain": "Runs your side of a huddle, opening your microphone, camera, screen share and its sound, and connecting you to each person in the call.",
       "summary": "Owns microphone capture, WebRTC peer connections and call media state.",
       "details": [
-        "HuddleSession creates a mesh connection per participant with fixed microphone, camera and screen transceivers. Deterministic offer ownership prevents both peers from offering at once; camera and screen changes use replaceTrack instead of another negotiation.",
+        "HuddleSession creates a mesh connection per participant with fixed microphone, camera, screen and screen sound transceivers. Deterministic offer ownership prevents both peers from offering at once; camera and screen changes use replaceTrack instead of another negotiation.",
         "Every microphone is opened through openMicrophone as a feed: what is sent, the device track whose ending means it went, and a stop that releases both. With Strong noise suppression chosen and a NoiseFilter given, the device opens with the browser's own suppression off and the filter's output is sent; a filter that will not start closes that device and opens it again with the browser's suppression, and the call log says which suppression is in use.",
         "Microphone recovery asks again for the chosen microphone, falling back to the system default after loss, replaces audio tracks for peers, and exposes micLost with device-change retry when no microphone is available.",
         "setMicrophone and setCamera change devices mid-call: the new device opens (asked for exactly) before the old one stops, so one that will not start rejects and leaves the call as it was. Once open it reaches every peer through replaceTrack on the fixed slot, with no renegotiation, keeping the mute choice. A counter per kind drops an older choice that finishes after a newer one. A camera that reports busy is retried with the current one closed, since a virtual camera built on the webcam (NVIDIA Broadcast over a USB camera, as tested) cannot start while the webcam is held; if it still will not start the previous camera is reopened, and failing that the camera is turned off and announced.",
         "N04 keeps the latest mute intent separate from a particular MediaStreamTrack. Adopting a delayed or replacement microphone applies the current choice, and captured streams arriving after destruction are stopped.",
         "Remote speaking levels come from synchronization-source audio metadata; only the local microphone needs a Web Audio analyser. Samples run every 120 ms with a 500 ms hold, and publish to the UI only when speaking state changes.",
         "A screen is shared at the ScreenShareQuality asked for, 720p or 1080p (the cap, since a mesh encodes once per viewer) at 15, 30 or 60 frames a second, 1080p at 15 by default. It is hinted as detail, keeping text sharp and dropping frames when bandwidth runs short, except at 60, which is asked for motion.",
+        "A share asks for its sound too where the browser can leave this call's own sound out of it (restrictOwnAudio, Chromium 141 and later: canShareScreenSound), with echo cancellation, noise suppression and gain off, which suit a voice and spoil music. The sound is kept only when its track says the call was left out, or it is another tab's; otherwise it is stopped and the share goes on without it, since sending everyone their own voices back is worse than no sound. It goes in a fourth slot of its own, so muting the microphone leaves it playing, it can end alone while the picture goes on, and it stops with the share.",
+        "A client from before the fourth slot takes any track on it for the person's microphone, so the offerer adds it receive-only. The media signal's screenSound, said true or false, tells the other side this one has the slot. The first time the offerer has sound for someone who said so, it turns the slot both ways and offers again (openScreenSoundSlot); one opened while a setup was under way is offered once its answer arrives. The answerer's slot sends from the start. withStereoScreenSound marks each description from the other side so the fourth section's Opus is stereo at 96 kbps, since a browser describes mono at a voice's rate.",
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
         "closePeers closes every peer connection and keeps the microphone and camera, for coming back after the server let this device's place go: the others closed their end, so each connection is made afresh.",
         "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call."
@@ -195,7 +199,8 @@
         "isMessageOnScreen accounts for focus, covered timelines and the exact open thread. notificationBody converts mentions and labelled links to readable words and supplies an attachment-only description.",
         "A reply that chose to notify the author of the message it answers counts as naming them, as Discord's reply ping does.",
         "A reply in a thread this account muted notifies only when it is addressed to it: named, a reply that pings it, or a room-wide mention in a room, the rule the mention badge counts by. That holds at the level all and in a DM, where any other reply would notify (E3).",
-        "decideReminderNotification lets a reminder come due notify in a muted or quiet conversation, since the person asked for it, but not during Do Not Disturb. dueReminderCount counts those come due in conversations this client still has (E4)."
+        "decideReminderNotification lets a reminder come due notify in a muted or quiet conversation, since the person asked for it, but not during Do Not Disturb. dueReminderCount counts those come due in conversations this client still has (E4).",
+        "readableText resolves mentions, @channel and links in any text, as notificationBody does for a message; the Drafts list words drafts with it (E5)."
       ],
       "concepts": ["notification policy", "Do Not Disturb", "live versus replay", "visibility"]
     },
@@ -306,7 +311,8 @@
         "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert).",
         "Runs useRememberWorkspaceIcon, so the saved workspaces show this one's icon while its server is off (UX-60).",
         "The phone drawer's button carries a small Badge: a red count of mentions elsewhere, capped at 99+, or a quiet dot for unread conversations, said in words as the button's description.",
-        "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4)."
+        "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4).",
+        "The Drafts panel (E5) is a side panel of its own, from the sidebar, the palette and its route. openDraft opens a draft where it was written: the conversation, the thread, the message with its editor (requestEdit, then a jump), or Scheduled with that edit open."
       ],
       "concepts": [
         "screen orchestration",
@@ -467,13 +473,14 @@
     },
     {
       "path": "packages/ui/src/lib/callVolumes.ts",
-      "plain": "Remembers how loud each person in a call is for you, or that you muted them, across all your calls.",
+      "plain": "Remembers how loud each person in a call, and the screen they share, is for you, or that you muted them, across all your calls.",
       "summary": "Keeps how loud each person in a call is to you, as Discord's user volume.",
       "details": [
         "A per-Platform shared Zustand store of { volume 0-200 percent, muted } by user id, under call-volumes on this device, for every call and workspace. Only people turned up, down or muted are kept; anyone set back to 100% and unmuted is dropped.",
         "Muting keeps the volume for when they are unmuted. Saved entries are validated one by one: a volume is clamped and rounded, anything unreadable is as sent, and one bad entry does not lose the rest.",
         "A slider drag is written once it rests (400 ms), and never before the saved volumes have been read, so a change made while reading cannot replace everyone else's; a change made while reading wins over what was read.",
-        "gainOf turns a choice into how many times as loud someone is played: 0 when muted, up to 2."
+        "gainOf turns a choice into how many times as loud someone is played: 0 when muted, up to 2.",
+        "screenSoundKey keeps how loud someone's shared screen is to you under screen:<user id>, beside their voice and apart from it, so a loud video can be turned down while they are still heard."
       ],
       "concepts": ["per-person volume", "local mute", "debounced write", "read before write"]
     },
@@ -599,7 +606,8 @@
         "writeRoute adds a Back/Forward step for normal movement and replaces automatic or initial corrections. Phone drawer state stays in history rather than becoming a shareable link.",
         "ReadingPosition stores a message ID and viewport offset in the current history entry. Late position updates check the server/channel so an old scroller cannot rewrite a newer destination.",
         "The side panels with an address of their own are Pinned, Saved, Threads, Scheduled, Activity and the phone's Direct messages (/p/dms).",
-        "The dialogs with an address are Account settings (with its section), Workspace settings, People, Apps, Invite people, Keyboard shortcuts and the conversation's details."
+        "The dialogs with an address are Account settings (with its section), Workspace settings, People, Apps, Invite people, Keyboard shortcuts and the conversation's details.",
+        "drafts is a route view, so the Drafts panel has an address (E5)."
       ],
       "concepts": ["routing", "history ownership", "deep linking", "reading position"]
     },
@@ -822,6 +830,26 @@
         "Each choice of Reply is counted, so choosing it again on the same message still brings the message box back into focus."
       ],
       "concepts": ["inline replies", "per-conversation state"]
+    },
+    {
+      "path": "packages/ui/src/lib/drafts.ts",
+      "plain": "Knows how each kind of draft is kept, so the Drafts list, the message editor and the Scheduled list all read them the same way.",
+      "summary": "Reads draft keys and texts, and orders the drafts list.",
+      "details": [
+        "draftPlace reads a draft key: a conversation's composer (its id), a thread's (conversation and first message), an unsaved edit (conversation:edit:message) or an unsaved scheduled edit (conversation:scheduled-edit:id). editDraftKey and scheduledEditDraftKey make the last two, and readEditDraft and readScheduledEditDraft read their stored text.",
+        "listDrafts gives the drafts to show, newest first by the times the replica keeps, then those with no time (kept by an earlier version) in the order they were stored. readDraftTimes reads the stored times, keeping only numbers."
+      ],
+      "concepts": ["drafts", "E5"]
+    },
+    {
+      "path": "packages/ui/src/lib/editRequest.ts",
+      "plain": "Lets the Drafts list open a message's editor, even when the message is still scrolling into view.",
+      "summary": "Asks the row showing a message to open its editor, now or when it appears.",
+      "details": [
+        "requestEdit opens the editor of the message's row if one is on screen; otherwise the next row for that message to appear within ten seconds takes the request, as after a jump to it. One never shown lets it go.",
+        "useEditRequest is how MessageItem listens, only for the person's own messages."
+      ],
+      "concepts": ["drafts", "message editing", "E5"]
     },
     {
       "path": "packages/ui/src/lib/restoreInventory.ts",
@@ -1107,7 +1135,8 @@
         "Outbox persistence precedes clearing corresponding durable drafts. If a send was typed and sent before a saved draft existed, a separate unstored-sends recovery record can preserve its words when the outbox write fails.",
         "Recovery restores a nonce's words as a send or a draft according to durable ownership; missing File bytes still remain visibly unavailable. Failed reads and writes show Retry, and an ordinary retry flushes current memory instead of rereading stale disk over newer intent.",
         "For N03's native persist phase, restoration must succeed, current changes are flushed, and all owned writes including recovery follow-up work settle. Confirmed remaining differences and a retained failure prevent a later no-op write from falsely acknowledging lost text.",
-        "Pagehide/hidden/unmount ask for immediate flush, while normal desktop close can await acknowledgement. A browser crash relies on the storage journal when available; this file cannot promise that every refused or abruptly interrupted write reached disk."
+        "Pagehide/hidden/unmount ask for immediate flush, while normal desktop close can await acknowledgement. A browser crash relies on the storage journal when available; this file cannot promise that every refused or abruptly interrupted write reached disk.",
+        "Keeps a draft-times record beside the drafts (E5): read on restore and handed to hydrateDrafts, and written after each drafts write of this window's own with the times of the drafts it wrote, pruned to the drafts stored. Only the Drafts list's order rides on it, so a read or write that fails is let go without the warning."
       ],
       "concepts": [
         "durable outbox",
@@ -1175,7 +1204,8 @@
         "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files.",
         "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2).",
         "Mute thread or Unmute thread (E3) sits in More actions and the touch menu of a thread's first message in the channel, offered where the server mutes threads, once the thread has replies or while it is muted. A muted thread's reply count shows a bell-off mark and is named \"N replies, muted\".",
-        "Remind me about this… (E4) sits in More actions and the touch menu where the server keeps reminders, and opens TimePopover from the row. Once set, the menu offers Change reminder… and Cancel reminder, or Mark reminder done once it is due; a toast says when it is set for, or that it was refused, with Try again."
+        "Remind me about this… (E4) sits in More actions and the touch menu where the server keeps reminders, and opens TimePopover from the row. Once set, the menu offers Change reminder… and Cancel reminder, or Mark reminder done once it is due; a toast says when it is set for, or that it was refused, with Try again.",
+        "Opens its editor when the Drafts list asks for this message's unsaved edit, through useEditRequest, for the person's own messages only (E5)."
       ],
       "concepts": [
         "memoized row",
@@ -1191,7 +1221,8 @@
       "details": [
         "An edit draft has its own message-specific slot and stores both text and the message text it began from, including compatibility with older plain-text drafts.",
         "Save uses expectedText so a concurrent edit can be refused instead of being overwritten unnoticed. Formatting, preview, IME and code-block behavior match the composer.",
-        "The box and the Current message shown on an edit conflict read mentions as names; the kept {text, base} and the saved text keep their tokens. MessageItem loads the editor on first use."
+        "The box and the Current message shown on an edit conflict read mentions as names; the kept {text, base} and the saved text keep their tokens. MessageItem loads the editor on first use.",
+        "Its draft key and the reading of a kept edit come from lib/drafts.ts, which the Drafts list shares (E5)."
       ],
       "concepts": ["edit draft", "compare before write", "input safety"]
     },
@@ -1271,9 +1302,21 @@
       "details": [
         "Loads server-owned schedules and presents future delivery times, status and attachment context.",
         "Supports editing/rescheduling, cancelling and returning words to the appropriate draft. Server scheduling uses request identity, while the client preserves actionable refusal state and reads the queue again after an edit it could not confirm.",
-        "It reads the queue again whenever scheduledChanges moves: the server's private scheduled event, or a new connection. Only a server without scheduledEvents is still asked every 15 seconds (UX-08)."
+        "It reads the queue again whenever scheduledChanges moves: the server's private scheduled event, or a new connection. Only a server without scheduledEvents is still asked every 15 seconds (UX-08).",
+        "initialEdit opens one queued message's unsaved edit once the list has it, for a draft opened from Drafts (E5)."
       ],
       "concepts": ["scheduled messages", "retry", "draft recovery", "UX-08"]
+    },
+    {
+      "path": "packages/ui/src/components/DraftsPanel.tsx",
+      "plain": "Lists every message you started and left unsent on this device, and every edit you have not saved, the newest first, so you can pick one up again or throw it away.",
+      "summary": "Lists this device's drafts for the account, newest first, to open where they were written or delete.",
+      "details": [
+        "Reads the drafts and their times from the replica, so it keeps up with typing here and with other windows on this device without loading anything. A conversation's draft, a thread's, and unsaved edits of a message or a scheduled message each say where they belong; drafts in conversations no longer here, and keys it does not know, are left out (lib/drafts.ts).",
+        "A row opens the draft where it was written, as WorkspaceScreen's openDraft does it. Delete takes it away at once, with a toast and Undo, which puts the words back with their time unless something was written there since.",
+        "Its header links to Scheduled, except for a guest, who cannot schedule."
+      ],
+      "concepts": ["drafts", "local work", "E5"]
     },
     {
       "path": "packages/ui/src/components/Attachments.tsx",
@@ -1427,7 +1470,8 @@
         "The workspace menu offers Workspace settings to the owner and admins, after People and Apps; members and guests do not see it (UX-60).",
         "The rail draws each workspace through WorkspaceIcon: the one on screen with useCurrentWorkspaceIcon, the other saved sign-ins with the copy this device kept (OtherWorkspace.icon), each falling back to its square (UX-60).",
         "Its counts are Badges: Activity a red count of mentions or a quiet one of unread conversations, Threads a quiet count of threads with unread replies, a row's red mention count named with its channel, and a dot on a section's header button (Friends) for what is new. The rail's own badge is still CountBadge.",
-        "Activity's red badge counts due reminders with unread mentions, named for what it counts (E4)."
+        "Activity's red badge counts due reminders with unread mentions, named for what it counts (E4).",
+        "A Drafts row under Saved opens the Drafts panel, with a quiet count of the drafts it lists (E5). It shows only while there are drafts or the panel is open, so an empty row does not take a channel's place beside Getting started (UX-20)."
       ],
       "concepts": [
         "workspace navigation",
@@ -1777,7 +1821,7 @@
       "summary": "Shows call presence, speaking rings and the header join/start control.",
       "details": [
         "HuddleFace resolves participants and speaking state, while the compact bar hosts controls and a way to restore hidden video.",
-        "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
+        "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row, and someone sharing a screen with its sound a second row for that sound. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
         "HuddleButton starts or joins through the shared call-preference store and provides meaningful error state. N04 makes this header path agree with Getting started about mute initialization.",
         "Once a peer's connection has a diagnosed trouble, the bar says Can't connect to them and offers Why? See the call log."
       ],
@@ -1798,26 +1842,28 @@
     },
     {
       "path": "packages/ui/src/components/ScreenShareDialog.tsx",
-      "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, and the resolution and frame rate to share at.",
+      "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, the resolution and frame rate to share at, and whether your computer's sound goes too.",
       "summary": "Picks a window or screen to share, and how sharp and smooth, in the app rather than a system dialog.",
       "details": [
         "Windows come first and none is chosen for you, since the window on top is usually Tandem itself and one chosen for you could be one nobody was meant to see; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
         "The last list shows at once where there has been one (platform.screenShare.sources with quick), then a fresh one, then again every 3 s while open, so pictures move and windows come and go; a chosen window that closes leaves Share asking for another. Only a first fresh list that fails with nothing shown says so, with Try again.",
         "Share is never off for want of a choice. Pressed with nothing chosen, an alert beside the list says what is needed and focus goes to the first tile, without choosing it: choose a window, that window has closed, the list is still being found, or (with no window listed) open one or share a screen, with focus on the Screens tab. When the list failed, focus goes to Try again. The words follow the list as it changes, and choosing a tile or another tab takes them away. A window that closed between choosing and sharing is said there too.",
-        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A refusal from the system is said in the footer, and the dialog stays open; chosen here, even a plain refusal says sharing could not start."
+        "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A refusal from the system is said in the footer, and the dialog stays open; chosen here, even a plain refusal says sharing could not start.",
+        "Where this computer can share a screen's sound (platform.screenShare.sound, Windows on the desktop app), a Share sound switch sits beside the quality bars. It is on unless turned off, which is kept on the device as screen-share-sound, and while on the line under the tabs says everyone also hears the computer's sound. Share hands the choice to the main process with the source and to the huddle."
       ],
       "concepts": ["screen sharing", "in-app picker", "accessible choices"]
     },
     {
       "path": "packages/ui/src/components/HuddleAudio.tsx",
-      "plain": "Plays everyone's voice in a call through your chosen speaker at the volume you set, even with the video hidden.",
+      "plain": "Plays everyone's voice in a call, and the sound of a shared screen, through your chosen speaker at the volume you set, even with the video hidden.",
       "summary": "Keeps each remote microphone playing independently of video layout.",
       "details": [
         "Peer audio elements attach microphone streams even when the call has no camera or the video stage is hidden.",
         "Playback refusal produces a recovery action; one user gesture retries blocked peers while already audible streams are left intact. This avoids duplicate audio from video elements.",
         "Each peer's audio element plays through the speaker chosen in Voice & video settings.",
         "Each person plays as loud as you chose. Up to 100% the element's own volume does it, so the usual path is untouched. Past 100% their stream goes through a Web Audio gain into a stream the same element plays, so the chosen speaker still applies. A second, muted element holds their stream meanwhile, since Chromium gives an audio graph silence from a call's stream that no element plays (measured: 0 without it).",
-        "A boost's graph that will not start without a gesture is reported like a refused play, so Turn on sound starts it."
+        "A boost's graph that will not start without a gesture is reported like a refused play, so Turn on sound starts it.",
+        "A share's sound plays in an element of its own beside its sharer's voice, keyed by screenSoundKey, with its own volume and the same playback recovery, so muting either leaves the other."
       ],
       "concepts": ["remote audio", "autoplay recovery", "media attachment", "per-person volume"]
     },
@@ -1827,7 +1873,8 @@
       "summary": "One person's volume in a call: mute for you, and a slider from silent to 200%.",
       "details": [
         "A toggle button (aria-pressed) mutes the person for you alone, and a range input in steps of 5 sets their volume, with a tick at 100% from a datalist and the percent beside it, or Off.",
-        "Moving the slider unmutes them, since it means wanting to hear them. Used in the bar's list of who is there and inside a stage tile."
+        "Moving the slider unmutes them, since it means wanting to hear them. Used in the bar's list of who is there and inside a stage tile.",
+        "With screen, the same control sets the sound of the screen they share, kept under screenSoundKey and named as their screen."
       ],
       "concepts": ["per-person volume", "local mute", "range input"]
     },
@@ -1839,7 +1886,7 @@
         "stageItems prioritizes screen shares then participants; bestFit tries column counts to find the largest 16:9 tiles for the actual container dimensions.",
         "Video surfaces stay muted because HuddleAudio owns voices. Local self-video and remote camera/share streams display without opening a second media capture.",
         "Resize observation updates layout, and accessible tiles/actions expose focus, fullscreen and share controls. Lazy loading keeps the stage out of initial conversation downloads until needed.",
-        "Another person's tile, in the gallery or the main view, has a volume button beside Pin. Its PersonVolume opens inside the tile rather than as a popover, because popovers portal to the page beneath a fullscreen element. A tile says when its person is muted for you."
+        "Another person's tile, in the gallery or the main view, has a volume button beside Pin. Its PersonVolume opens inside the tile rather than as a popover, because popovers portal to the page beneath a fullscreen element. A tile says when its person is muted for you. A shared screen that sends its sound has a volume button too, for that sound alone, and its tile says it is with sound, with a speaker, or that its sound is muted for you. Your own share's panel says everyone can see and hear it."
       ],
       "concepts": ["adaptive video grid", "media presentation", "single audio owner", "lazy chunk"]
     },
@@ -2376,20 +2423,20 @@
         },
         {
           "title": "Join and connect to others",
-          "description": "The server confirms the join, and if joining fails, the app lets go of the microphone. For each pair of people, one side starts the connection. Fixed slots carry the microphone, camera and screen share.",
+          "description": "The server confirms the join, and if joining fails, the app lets go of the microphone. For each pair of people, one side starts the connection. Fixed slots carry the microphone, camera, screen share and its sound.",
           "files": ["packages/client-core/src/workspace.ts", "packages/client-core/src/huddle.ts"],
-          "detail": "Supported servers acknowledge huddle.join with a request ID; failure cleans local media. The roster chooses one offerer per peer and fixed microphone/camera/screen transceivers carry streams."
+          "detail": "Supported servers acknowledge huddle.join with a request ID; failure cleans local media. The roster chooses one offerer per peer and fixed microphone/camera/screen/screen sound transceivers carry streams. The screen sound slot opens for sending with one more offer, and only to a client that has it."
         },
         {
           "title": "Play each voice once",
-          "description": "Each person's voice plays once, at the volume you chose for them, while video tiles stay silent. The small huddle bar shows who is speaking. The larger call view loads only when you open it and fits cameras and screen shares to the space.",
+          "description": "Each person's voice, and the sound of a screen they share, plays once, at the volume you chose for each, while video tiles stay silent. The small huddle bar shows who is speaking. The larger call view loads only when you open it and fits cameras and screen shares to the space.",
           "files": [
             "packages/ui/src/components/HuddleAudio.tsx",
             "packages/ui/src/lib/callVolumes.ts",
             "packages/ui/src/components/HuddleBar.tsx",
             "packages/ui/src/components/HuddleStage.tsx"
           ],
-          "detail": "HuddleAudio owns remote voices, each as loud as you chose; video tiles stay muted. Speaking transitions update the compact bar, while the lazy stage fits cameras and shares to the available container."
+          "detail": "HuddleAudio owns remote voices and shared screens' sound, each as loud as you chose; video tiles stay muted. Speaking transitions update the compact bar, while the lazy stage fits cameras and shares to the available container."
         },
         {
           "title": "Switch microphones or leave",

@@ -9,6 +9,7 @@ const signal = z.discriminatedUnion("kind", [
     camera: z.boolean(),
     screen: z.boolean(),
     muted: z.boolean().optional(),
+    screenSound: z.boolean().optional(),
   }),
   z.object({
     kind: z.literal("ice"),

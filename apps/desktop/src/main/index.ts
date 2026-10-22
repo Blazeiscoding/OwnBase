@@ -58,7 +58,13 @@ import {
   RendererRecovery,
   isRendererLoadFailure,
 } from "./rendererRecovery.js";
-import { ScreenChoice, SourceList, THUMBNAIL_SIZE, findSource } from "./screenShare.js";
+import {
+  ScreenChoice,
+  SourceList,
+  THUMBNAIL_SIZE,
+  findSource,
+  screenSoundSupported,
+} from "./screenShare.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
 import { createHostingController } from "./hosting.js";
@@ -226,10 +232,11 @@ const screenSources = new SourceList((pictures) =>
   }),
 );
 const screenChoice = new ScreenChoice();
+const screenSound = screenSoundSupported(process.platform, process.getSystemVersion());
 handle("screen:sources", (_event, quick: unknown) =>
   quick === true ? screenSources.quick() : screenSources.full(),
 );
-handle("screen:choose", async (_event, id: unknown) => {
+handle("screen:choose", async (_event, id: unknown, sound: unknown) => {
   screenChoice.hold(
     await findSource(id, () =>
       desktopCapturer.getSources({
@@ -237,6 +244,7 @@ handle("screen:choose", async (_event, id: unknown) => {
         thumbnailSize: { width: 0, height: 0 },
       }),
     ),
+    sound === true && screenSound,
   );
 });
 
@@ -1130,9 +1138,13 @@ function createWindow(): void {
   });
   // The window chose what to share in its own picker just before asking, so
   // no system picker is shown: the request shares that choice, or nothing.
+  // Its sound goes only when the page asked for it and the picker allowed it.
   mainWindow.webContents.session.setDisplayMediaRequestHandler((request, callback) => {
-    const chosen = request.frame && trustedRenderer(request.frame.url) ? screenChoice.take() : null;
-    callback(chosen ? { video: chosen } : {});
+    const chosen =
+      request.frame && trustedRenderer(request.frame.url)
+        ? screenChoice.take(request.audioRequested)
+        : null;
+    callback(chosen ?? {});
   });
   mainWindow.webContents.on("will-navigate", (event) => {
     event.preventDefault();

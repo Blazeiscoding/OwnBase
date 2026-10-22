@@ -28,7 +28,15 @@ describe("reading a place in a workspace from the address", () => {
       threadRootId: null,
       view: "saved",
     });
-    for (const view of ["pins", "saved", "threads", "scheduled", "activity", "dms"] as const) {
+    for (const view of [
+      "pins",
+      "saved",
+      "threads",
+      "scheduled",
+      "drafts",
+      "activity",
+      "dms",
+    ] as const) {
       const route = { channelId: "C_DESIGN", threadRootId: null, view };
       expect(parseRouteHash(routeHash(route))).toEqual(route);
     }
