@@ -4046,37 +4046,43 @@ test("a dialog keeps its name, its sections and its buttons in sight, and scroll
   await settled(settings, voice);
   await voice.click();
   const section = settings.getByRole("tabpanel", { name: "Voice & video", exact: true });
+  const content = section.locator(".dialog-scroll");
+  const title = section.getByRole("heading", { name: "Voice & video", exact: true });
   const name = settings.getByRole("heading", { name: "Account settings" });
   const sections = settings.getByRole("tablist");
+  // The section's name steps in from the side as it opens.
+  await atRest(page);
   const before = {
     dialog: await box(settings),
     name: await box(name),
+    title: await box(title),
     sections: await box(sections),
   };
   expect(before.dialog.y + before.dialog.height).toBeLessThanOrEqual(620);
 
-  // The wheel over the section scrolls the section. Nothing else moves.
-  await section.hover();
+  // The wheel over the section scrolls what is under its name. Nothing else moves.
+  await content.hover();
   await page.mouse.wheel(0, 400);
-  await expect.poll(() => scrolled(section)).toBeGreaterThan(200);
+  await expect.poll(() => scrolled(content)).toBeGreaterThan(200);
   expect(await scrolled(settings)).toBe(0);
   expect(await box(settings)).toEqual(before.dialog);
   expect(await box(name)).toEqual(before.name);
+  expect(await box(title)).toEqual(before.title);
   expect(await box(sections)).toEqual(before.sections);
   await expect(settings.getByRole("button", { name: "Close" })).toBeInViewport();
   await expect(settings.getByRole("tab", { name: "Profile", exact: true })).toBeInViewport();
 
   // Page Down reaches the section from its tab, which is beside what scrolls.
-  await section.evaluate((el) => (el.scrollTop = 0));
+  await content.evaluate((el) => (el.scrollTop = 0));
   await voice.focus();
   await page.keyboard.press("PageDown");
-  await expect.poll(() => scrolled(section)).toBeGreaterThan(100);
+  await expect.poll(() => scrolled(content)).toBeGreaterThan(100);
 
   // Another section opens at its start, in a dialog that has not changed size.
   await settings.getByRole("tab", { name: "Notifications", exact: true }).click();
   const notifications = settings.getByRole("tabpanel", { name: "Notifications", exact: true });
   await expect(notifications.getByRole("heading", { name: "Pause notifications" })).toBeVisible();
-  expect(await scrolled(notifications)).toBe(0);
+  expect(await scrolled(notifications.locator(".dialog-scroll"))).toBe(0);
   expect(await box(settings)).toEqual(before.dialog);
   await page.keyboard.press("Escape");
   await expect(settings).toBeHidden();

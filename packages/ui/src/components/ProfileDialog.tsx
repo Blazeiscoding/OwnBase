@@ -321,7 +321,7 @@ export function ProfileForm() {
       <p role="status" className="text-sm text-online empty:hidden">
         {saved ? "Profile saved." : ""}
       </p>
-      <button type="submit" disabled={busy} className={buttonClass("primary", "w-full")}>
+      <button type="submit" disabled={busy} className={buttonClass("primary")}>
         {busy ? "Saving…" : "Save profile"}
       </button>
     </form>

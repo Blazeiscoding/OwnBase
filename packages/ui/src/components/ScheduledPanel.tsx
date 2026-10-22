@@ -10,18 +10,7 @@ import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
-
-function draftText(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (parsed && typeof parsed === "object" && "text" in parsed && typeof parsed.text === "string")
-      return parsed.text;
-  } catch {
-    // Ignore malformed local data rather than replacing the queued text with it.
-  }
-  return undefined;
-}
+import { readScheduledEditDraft as draftText, scheduledEditDraftKey } from "../lib/drafts.js";
 
 /** Messages queued to go out later, with the option to call them back. */
 export function ScheduledPanel(props: {
@@ -29,6 +18,8 @@ export function ScheduledPanel(props: {
   onJump: (channelId: ID) => void;
   /** Its neighbour: messages saved for later. */
   onSaved?: () => void;
+  /** A queued message whose unsaved edit to open once the list has it, from Drafts. */
+  initialEdit?: ID;
 }) {
   const client = useClient();
   const { panel, heading } = usePanelFocus({ takeFocus: true });
@@ -50,7 +41,7 @@ export function ScheduledPanel(props: {
   const [editText, setEditText] = useState("");
   const [editError, setEditError] = useState<string | null>(null);
   const edited = useRef(false);
-  const editKey = editing ? `${editing.channelId}:scheduled-edit:${editing.id}` : null;
+  const editKey = editing ? scheduledEditDraftKey(editing.channelId, editing.id) : null;
   const savedEdit = useWorkspace((s) => draftText(editKey ? s.drafts[editKey] : undefined));
   const currentEdit = items?.find((item) => item.id === editing?.id);
   useEffect(() => {
@@ -137,6 +128,25 @@ export function ScheduledPanel(props: {
     heard.current = scheduledChanges;
     void load();
   }, [load, scheduledChanges]);
+
+  function startEditing(s: ScheduledMessage) {
+    setEditing(s);
+    edited.current = false;
+    setEditText(draftText(client.state.drafts[scheduledEditDraftKey(s.channelId, s.id)]) ?? s.text);
+    setEditError(null);
+    setConfirmation(null);
+    setChanging(null);
+  }
+
+  // Opened from Drafts on one queued message's unsaved edit: open it once
+  // the list has it, and only once.
+  const editAsked = useRef(props.initialEdit);
+  useEffect(() => {
+    const wanted = items?.find((item) => item.id === editAsked.current);
+    if (!wanted) return;
+    editAsked.current = undefined;
+    startEditing(wanted);
+  });
 
   async function change(id: ID, sendAt?: number) {
     if (mutating.current) return;
@@ -359,17 +369,7 @@ export function ScheduledPanel(props: {
                   <button
                     disabled={busy !== null || editing !== null}
                     className="rounded-lg border border-edge px-2.5 py-1 text-xs text-ink-dim hover:border-ink-faint/50"
-                    onClick={() => {
-                      setEditing(s);
-                      edited.current = false;
-                      setEditText(
-                        draftText(client.state.drafts[`${s.channelId}:scheduled-edit:${s.id}`]) ??
-                          s.text,
-                      );
-                      setEditError(null);
-                      setConfirmation(null);
-                      setChanging(null);
-                    }}
+                    onClick={() => startEditing(s)}
                   >
                     Edit text
                   </button>

@@ -17,11 +17,13 @@ import {
   readWorkspaceDrafts,
   readWorkspaceOutbox,
   readWorkspaceStorage,
+  updateWorkspaceStorage,
   watchWorkspaceDrafts,
   watchWorkspaceOutbox,
   workspaceStorageKey,
   writeWorkspaceStorage,
 } from "../lib/workspaceStorage.js";
+import { readDraftTimes } from "../lib/drafts.js";
 import { keepLocalWork, settleLocalWork, waitingLocalWork } from "../lib/localWork.js";
 
 /** A send's words kept for a restart while the outbox could not store them. */
@@ -102,6 +104,11 @@ const REPAIRS = 3;
  * it may not live to: its outbox, and each draft it changed except one a send
  * not yet stored came from, which still waits for the outbox write (F01).
  *
+ * When each draft last changed is kept beside them, for the Drafts list's
+ * order: read on restoring, and written after each drafts write of this
+ * window's own for the drafts it wrote. Only order rides on it, so a write
+ * that fails, or that another window's at the same moment replaces, is let go.
+ *
  * Words sent before their draft was first saved have no saved draft to fall
  * back on. While outbox writes fail, the sends the outbox has not stored are
  * kept by nonce under a key of their own, and a restart puts any the outbox
@@ -115,6 +122,7 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
   const keys = useMemo(
     () => ({
       drafts: workspaceStorageKey(client.baseUrl, workspaceId, selfId, "drafts"),
+      draftTimes: workspaceStorageKey(client.baseUrl, workspaceId, selfId, "draft-times"),
       outbox: workspaceStorageKey(client.baseUrl, workspaceId, selfId, "outbox"),
       unstored: workspaceStorageKey(client.baseUrl, workspaceId, selfId, "unstored-sends"),
     }),
@@ -128,8 +136,9 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
     const draftKey = keys.drafts;
     const outboxKey = keys.outbox;
     const unstoredKey = keys.unstored;
+    const timesKey = keys.draftTimes;
     const self = selfId;
-    if (!draftKey || !outboxKey || !unstoredKey || !self) return;
+    if (!draftKey || !outboxKey || !unstoredKey || !timesKey || !self) return;
     let disposed = false;
     let loaded = false;
     let loading = false;
@@ -389,11 +398,25 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
       if (changed) quietly(() => client.hydrateDrafts(next));
     };
 
+    // The times of the drafts this window just wrote, beside them; and none
+    // for a draft no longer stored.
+    const writeTimes = (changes: DraftChanges, stored: Record<string, string>) => {
+      const times = client.state.draftTimes;
+      void updateWorkspaceStorage(platform, timesKey, (current) => {
+        const next = readDraftTimes(current);
+        for (const key of Object.keys(changes.put))
+          if (times[key] !== undefined) next[key] = times[key];
+        for (const key of Object.keys(next)) if (!(key in stored)) delete next[key];
+        return next;
+      }).catch(() => {});
+    };
+
     // What a drafts write that came back stored, taken on.
     const draftsWritten = (
       merged: { changes: DraftChanges; drafts: Record<string, string> } | null,
       bringing: Record<string, UnstoredSend>,
     ) => {
+      if (merged) writeTimes(merged.changes, merged.drafts);
       if (merged && !disposed && loaded) takeOnDrafts(merged.drafts, merged.changes);
       else if (merged) {
         for (const key of merged.changes.remove) delete baseDrafts[key];
@@ -570,8 +593,10 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
         readWorkspaceDrafts(platform, draftKey),
         readWorkspaceOutbox(platform, outboxKey),
         readWorkspaceStorage<unknown>(platform, unstoredKey),
+        // Only order rides on it: unreadable, the drafts come back without.
+        readWorkspaceStorage<unknown>(platform, timesKey).catch(() => null),
       ])
-        .then(([storedDrafts, record, unstored]) => {
+        .then(([storedDrafts, record, unstored, storedTimes]) => {
           baseDrafts = { ...storedDrafts };
           const drafts: Record<string, string> = { ...storedDrafts, ...currentDrafts };
           // Keep these edits across failed read retries as well as the first load.
@@ -601,7 +626,7 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
             if (editedDrafts.size) void saveDrafts(() => drafts);
             return;
           }
-          client.hydrateDrafts(drafts);
+          client.hydrateDrafts(drafts, readDraftTimes(storedTimes));
           quietly(() => load(record));
           observe();
           carried = back;

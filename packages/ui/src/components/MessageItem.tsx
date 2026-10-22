@@ -19,6 +19,7 @@ import { formatFull, formatTime } from "../lib/format.js";
 import { formatReminderTime, reminderPresets } from "../lib/schedule.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
 import { conversationKey, startReply } from "../lib/replyTarget.js";
+import { useEditRequest } from "../lib/editRequest.js";
 import { Avatar } from "./Avatar.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -123,6 +124,8 @@ export const MessageItem = memo(function MessageItem({
   const author = users[message.userId];
   const profileLabel = author ? `View ${author.displayName}'s profile` : "View profile";
   const mine = message.userId === selfId;
+  // The Drafts list asks for this to finish an unsaved edit.
+  useEditRequest(message.id, mine, () => setEditing(true));
   const canDelete = mine || selfRole === "owner" || selfRole === "admin";
   // Named in it, or answered by it with a notification, as Discord marks both.
   const mentionsMe = selfId

@@ -1588,18 +1588,6 @@ textarea::placeholder {
   }
 }
 
-/*
- * Account settings as a page (UX-60): its list of sections on the app's own
- * colour, as the sidebar is, and the section on the conversation's. In the
- * desktop app it starts under the title bar, whose window controls would
- * otherwise sit over its corner.
- */
-.settings-nav {
-  background: var(--color-deep);
-}
-.settings-page-under-titlebar {
-  top: 2.5rem;
-}
 /* A setting a search went to, marked for a moment for whoever sees no focus ring. */
 .setting-found {
   border-radius: 0.5rem;
@@ -1833,13 +1821,125 @@ textarea::placeholder {
   padding-bottom: 1rem;
 }
 /*
- * On a phone, settings' sections are a strip that scrolls sideways, with no
- * scrollbar drawn under it. The section chosen is brought to its middle, which
- * shows the ones either side.
+ * On a phone, a strip of tabs scrolls sideways with no scrollbar drawn under
+ * it. The tab chosen is brought to its middle, which shows the ones either side.
  */
 @media (width < 40rem) {
   .tab-strip {
     scrollbar-width: none;
+  }
+}
+
+/*
+ * Account and Workspace settings (UX-60), drawn by SettingsWindow. Where there
+ * is room, a window over the workspace like the other dialogs: the sections on
+ * the app's own colour, as the sidebar is, beside the open section, which
+ * scrolls under its name. It is one size for every section, so choosing
+ * another moves nothing under the pointer, and the close button keeps its
+ * corner. On a phone, or in a window narrower than the settings window, they
+ * fill it instead, as a page on the conversation's colour, with the sections
+ * as a strip above the open one. In the desktop app they start under the
+ * title bar, whose window controls would otherwise sit over their corner.
+ */
+.settings-under-titlebar {
+  top: 2.5rem;
+}
+.settings-window {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  /* Clipped to its corners, and not a scroller that bringing a setting into view could move. */
+  overflow: clip;
+}
+.settings-nav {
+  display: flex;
+  flex-shrink: 0;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: max(1rem, env(safe-area-inset-top)) 1rem 0.5rem;
+  background: var(--color-deep);
+}
+.settings-nav-head {
+  min-width: 0;
+  /* Clear of the close button, which is in the corner beside it. */
+  padding-right: 2.25rem;
+}
+.settings-close {
+  position: absolute;
+  top: max(1rem, env(safe-area-inset-top));
+  right: 0.75rem;
+}
+/* Out by its own padding, which leaves room for a focus ring, so its tabs line up with the search. */
+.settings-tabs {
+  margin-inline: -0.25rem;
+}
+.settings-section {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+.settings-head {
+  display: flex;
+  flex-shrink: 0;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem 0.5rem;
+}
+@media (width < 57rem) {
+  .settings-window.dialog-surface,
+  [data-leaving] .settings-window {
+    background: var(--color-ground);
+    box-shadow: none;
+    /* A page arrives and leaves with what it is over, as it fades. */
+    animation: none;
+  }
+  /* Lined up with the sections' strip, and no wider than reads well. */
+  .settings-window .dialog-body {
+    width: min(46rem, 100cqw - 2rem);
+    margin-inline-start: 1rem;
+  }
+  .settings-tabs {
+    scrollbar-width: none;
+  }
+}
+/* The window's width, 55rem, and a margin either side. */
+@media (width >= 57rem) {
+  .settings-backdrop {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 2.5rem 1rem;
+  }
+  .settings-window {
+    flex-direction: row;
+    width: min(55rem, 100%);
+    height: min(42.5rem, 100%);
+    border: 1px solid var(--card-edge);
+    border-radius: 1rem;
+  }
+  .settings-nav {
+    width: 15rem;
+    gap: 1rem;
+    padding: 1.25rem 0.75rem;
+    overflow-y: auto;
+  }
+  /* In line with the search's words and the sections' names. */
+  .settings-nav-head {
+    padding-inline: 0.75rem;
+  }
+  .settings-tabs {
+    flex-direction: column;
+  }
+  .settings-close {
+    top: 0.875rem;
+    right: 1rem;
+  }
+  .settings-head {
+    padding: 1.125rem 3.75rem 0.75rem 1.5rem;
   }
 }
 /*

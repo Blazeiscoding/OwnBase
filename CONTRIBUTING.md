@@ -175,11 +175,13 @@ A view in the client opens in one of three places, chosen by what it is for:
 - A dialog is a short task with an end, such as creating a channel, starting a
   message, inviting people or answering a confirmation. `Dialog` owns its
   focus, Escape and the inert page behind it, and it loads in `LazyDialog`.
-- A full page is for settings someone sets up and comes back to: preferences,
-  workspace settings and hosting. Account settings shows how: a `Modal` that
-  fills the window below the desktop title bar, its sections and a search on
-  one side, the open section scrolling on the other, and choices that save
-  themselves saying "Saved" through `useSaved`.
+- A settings window is for settings someone sets up and comes back to:
+  preferences, workspace settings and hosting. Account settings and Workspace
+  settings show how: `SettingsWindow`, centred over the workspace like a dialog
+  but one size for every section, its sections and a search on one side, the
+  open section scrolling under its name on the other, and choices that save
+  themselves saying "Saved" through `useSaved`. On a phone or in a narrow
+  window it fills the screen below the desktop title bar.
 
 A few actions on one control are a `Menu`, which is a sheet on a touch phone and
 a dropdown elsewhere. A small form on one control, like Send later, is a
@@ -188,8 +190,8 @@ coming back to has an address in `packages/ui/src/lib/route.ts`, so Back,
 Forward and a copied link reach it. Forms, pickers and search get none.
 
 Some views break the rule today, so follow the rule rather than them. Manage
-hosting is a dialog with four tabs, and there is no Workspace settings yet.
-Search results and Friends are lists, and both open as dialogs.
+hosting is a dialog with four tabs. Search results and Friends are lists, and
+both open as dialogs.
 
 New interface code is built from the shared parts in
 `packages/ui/src/components` rather than from restyled native elements:

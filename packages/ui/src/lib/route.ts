@@ -2,7 +2,15 @@ import type { ID } from "@slackoss/protocol";
 import { isAccountSection, type AccountSection } from "./accountSections.js";
 
 /** Side panels that are places of their own, as the address names them. */
-export const ROUTE_VIEWS = ["pins", "saved", "threads", "scheduled", "activity", "dms"] as const;
+export const ROUTE_VIEWS = [
+  "pins",
+  "saved",
+  "threads",
+  "scheduled",
+  "drafts",
+  "activity",
+  "dms",
+] as const;
 export type RouteView = (typeof ROUTE_VIEWS)[number];
 
 function isView(value: unknown): value is RouteView {
