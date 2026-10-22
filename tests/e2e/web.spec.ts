@@ -2387,6 +2387,58 @@ test("deactivating someone signs them out of the app they already have open", as
   }
 });
 
+test("a poll made from the + menu takes votes from two browsers, each seeing the other's (E6)", async ({
+  browser,
+}) => {
+  const aliceContext = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+  const bobbyContext = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+  const alice = await aliceContext.newPage();
+  const bobby = await bobbyContext.newPage();
+  try {
+    await signIn(alice, "alice");
+    await signIn(bobby, "bobby");
+
+    await alice.getByRole("button", { name: "Add to message", exact: true }).click();
+    await alice.getByRole("menuitem", { name: "Create a poll", exact: true }).click();
+    const dialog = alice.getByRole("dialog", { name: "Create a poll" });
+    await dialog.getByRole("textbox", { name: "Question" }).fill("Where for lunch?");
+    await dialog.getByRole("textbox", { name: "Choice 1" }).fill("Pizza");
+    await dialog.getByRole("textbox", { name: "Choice 2" }).fill("Tacos");
+    await dialog.getByRole("button", { name: "Create poll", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+
+    const card = (page: Page) => page.getByRole("group", { name: "Where for lunch?" });
+    const option = (page: Page, text: string) =>
+      card(page).getByRole("button", { name: new RegExp(`^${text},`) });
+    await expect(card(bobby)).toBeVisible();
+    await option(bobby, "Tacos").click();
+    await expect(option(bobby, "Tacos")).toHaveAttribute("aria-pressed", "true");
+    await expect(option(alice, "Tacos")).toHaveAccessibleName("Tacos, 1 vote: bobby");
+    await option(alice, "Pizza").click();
+    await expect(option(bobby, "Pizza")).toHaveAccessibleName("Pizza, 1 vote: alice");
+    await expect(card(bobby)).toContainText("2 votes");
+
+    // Bobby moves his vote; Alice sees it leave Tacos for Pizza.
+    await option(bobby, "Pizza").click();
+    await expect(option(alice, "Pizza")).toHaveAccessibleName("Pizza, 2 votes: bobby and you");
+    await expect(option(alice, "Tacos")).toHaveAccessibleName("Tacos, no votes yet");
+
+    // Only Alice asked, so only she can close it, and then nobody can vote.
+    await expect(card(bobby).getByRole("button", { name: "Close poll" })).toHaveCount(0);
+    await card(alice).getByRole("button", { name: "Close poll", exact: true }).click();
+    await alice
+      .getByRole("dialog", { name: "Close this poll?" })
+      .getByRole("button", { name: "Close poll", exact: true })
+      .click();
+    await expect(card(bobby)).toContainText("Closed");
+    await expect(card(bobby).getByRole("button")).toHaveCount(0);
+    await expect(card(alice).getByRole("button")).toHaveCount(0);
+  } finally {
+    await aliceContext.close().catch(() => {});
+    await bobbyContext.close().catch(() => {});
+  }
+});
+
 test("an admin who never copied a bot token can replace it, and the old one stops working", async ({
   browser,
 }) => {

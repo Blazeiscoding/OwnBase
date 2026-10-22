@@ -47,7 +47,11 @@ export function PollCard({
   const { poll, mine } = shown;
   const chosen = new Set(mine);
   const open = poll.closedAt === null && !archived;
-  const name = (id: ID) => (id === selfId ? "you" : (users[id]?.displayName ?? "someone"));
+  // "you" last, as people say it, and as a reaction's names are.
+  const names = (ids: ID[]) => [
+    ...ids.filter((id) => id !== selfId).map((id) => users[id]?.displayName ?? "someone"),
+    ...(selfId && ids.includes(selfId) ? ["you"] : []),
+  ];
 
   function pick(option: number) {
     const next = chosen.has(option)
@@ -98,8 +102,10 @@ export function PollCard({
           // A share of the people who voted, so a poll taking many choices adds up past 100.
           const share = poll.voters > 0 ? Math.round((option.votes / poll.voters) * 100) : 0;
           const voterIds = option.voterIds ?? [];
-          const who = voterIds.length > 0 ? `: ${listFormat(voterIds.map(name))}` : "";
-          // Said after the choice's words; a press says itself as pressed.
+          const who = voterIds.length > 0 ? `: ${listFormat(names(voterIds))}` : "";
+          // Said after the choice's words; a press says itself as pressed. A
+          // button says it in one piece: Chromium reads a hidden span as
+          // "Tacos , 1 vote", with a stray space before the comma.
           const details = `, ${votesLabel(option.votes).toLowerCase()}${who}${
             !open && isMine ? ", your choice" : ""
           }`;
@@ -122,7 +128,7 @@ export function PollCard({
               </span>
               <span className="relative min-w-0 flex-1 break-words text-[15px] text-ink">
                 {option.text}
-                <span className="sr-only">{details}</span>
+                {!open && <span className="sr-only">{details}</span>}
               </span>
               {voterIds.length > 0 && (
                 <span aria-hidden="true" className="relative flex shrink-0 -space-x-1.5">
@@ -149,6 +155,7 @@ export function PollCard({
                 <button
                   type="button"
                   aria-pressed={isMine}
+                  aria-label={`${option.text}${details}`}
                   onClick={() => pick(i)}
                   className={`${row} transition-colors ${
                     isMine

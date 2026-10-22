@@ -36,6 +36,7 @@ const person = (id: string, displayName: string, role: User["role"] = "member"):
 });
 const sam = person("U_SAM", "Sam Rivera");
 const priya = person("U_PRIYA", "Priya Shah");
+const lee = person("U_LEE", "Lee Park");
 const general: Channel = {
   id: "C_GENERAL",
   type: "public",
@@ -87,7 +88,7 @@ function shown(message: Message, opts: { self?: User; told?: Record<string, numb
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: opts.self ?? sam,
-    users: { U_SAM: sam, U_PRIYA: priya },
+    users: { U_SAM: sam, U_PRIYA: priya, U_LEE: lee },
     channels: { C_GENERAL: general },
     memberships: { C_GENERAL: 0 },
     status: "online",
@@ -156,6 +157,20 @@ describe("a poll in a message", () => {
     expect(choice(card, "Salad")).toHaveAttribute("aria-pressed", "true");
     // Two people of two chose Pizza: a share of the voters, not of the votes.
     expect(choice(card, "Pizza")).toHaveTextContent("100%");
+  });
+
+  it("names whoever chose, not only the people the message names", () => {
+    const { card } = shown(
+      lunch({
+        voters: 2,
+        options: [
+          { text: "Pizza", votes: 1, voterIds: ["U_PRIYA"] },
+          { text: "Tacos", votes: 1, voterIds: ["U_LEE"] },
+          { text: "Salad", votes: 0, voterIds: [] },
+        ],
+      }),
+    );
+    expect(choice(card, "Tacos")).toHaveAccessibleName("Tacos, 1 vote: Lee Park");
   });
 
   it("names nobody in an anonymous poll, and shows your own choice from the server", () => {

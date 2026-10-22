@@ -11,12 +11,13 @@ const LINK = /https?:\/\/[^\s<>]+/g;
 /**
  * The people and conversations a message row shows: its author, whoever it
  * names or reacted to it, the channels it names or links a message in, and
- * who wrote what it answers and whom that names, and what it forwards: its
- * conversation, who wrote it and whom it names. A superset of what `Mrkdwn`
+ * who wrote what it answers and whom that names, what it forwards: its
+ * conversation, who wrote it and whom it names, and who chose each of its
+ * poll's choices (E6). A superset of what `Mrkdwn`
  * looks up is harmless; a subset would leave a rename unshown.
  */
 export function messageReferences(
-  message: Pick<Message, "userId" | "text" | "reactions" | "replyTo" | "forwardedFrom">,
+  message: Pick<Message, "userId" | "text" | "reactions" | "replyTo" | "forwardedFrom" | "poll">,
 ): {
   userIds: ID[];
   channelIds: ID[];
@@ -37,6 +38,8 @@ export function messageReferences(
     if (link?.kind === "message") channelIds.add(link.channelId);
   }
   for (const group of message.reactions) for (const id of group.userIds) userIds.add(id);
+  for (const option of message.poll?.options ?? [])
+    for (const id of option.voterIds ?? []) userIds.add(id);
   return { userIds: [...userIds], channelIds: [...channelIds] };
 }
 
@@ -82,15 +85,15 @@ function usePick<T>(map: (s: WorkspaceState) => Record<ID, T>, ids: ID[]) {
  * anyone or anything else leaves the same objects, so the row does not render.
  */
 export function useMessageReferences(
-  message: Pick<Message, "userId" | "text" | "reactions" | "replyTo" | "forwardedFrom">,
+  message: Pick<Message, "userId" | "text" | "reactions" | "replyTo" | "forwardedFrom" | "poll">,
 ): {
   users: Record<ID, User>;
   channels: Record<ID, Channel>;
 } {
-  const { userId, text, reactions, replyTo, forwardedFrom } = message;
+  const { userId, text, reactions, replyTo, forwardedFrom, poll } = message;
   const refs = useMemo(
-    () => messageReferences({ userId, text, reactions, replyTo, forwardedFrom }),
-    [userId, text, reactions, replyTo, forwardedFrom],
+    () => messageReferences({ userId, text, reactions, replyTo, forwardedFrom, poll }),
+    [userId, text, reactions, replyTo, forwardedFrom, poll],
   );
   const users = useWorkspace(usePick((s) => s.users, refs.userIds));
   const channels = useWorkspace(usePick((s) => s.channels, refs.channelIds));

@@ -835,7 +835,8 @@
       "summary": "Subscribes each message row only to the users and channels it actually displays.",
       "details": [
         "Extracts author, mention, reaction and linked-channel IDs from message data, for a reply the author and mentions of the message it quotes, and for a forward the original's author, its conversation and the people it names.",
-        "usePick preserves object identity until a referenced entry changes and skips work while the source map is unchanged. Renaming an unrelated person or typing elsewhere therefore need not rerender every visible message."
+        "usePick preserves object identity until a referenced entry changes and skips work while the source map is unchanged. Renaming an unrelated person or typing elsewhere therefore need not rerender every visible message.",
+        "Who chose each of a poll's choices counts too, so a voter the message does not otherwise name is shown by name and redraws on a rename (E6)."
       ],
       "concepts": ["selective rendering", "stable selectors", "message references"]
     },
@@ -1481,7 +1482,7 @@
       "summary": "Renders a poll from shownPoll, votes by pressing an answer, shows a closed poll's result and lets its author close it (E6).",
       "details": [
         "Each answer is a button with aria-pressed, named by its words, its count and who chose it. Pressing one votes for it at once, moving a single-choice vote, and pressing it again takes it back. A refused vote goes back and a toast says so.",
-        "The bar is the answer's share of the people who voted, so a poll taking many choices can add up past 100%. Up to three faces show who chose it, unless the poll is anonymous; then nobody is named, the person's own choice included only for them.",
+        "The bar is the answer's share of the people who voted, so a poll taking many choices can add up past 100%. Up to three faces show who chose it, and its name lists them with \"you\" last, as a reaction's does, unless the poll is anonymous; then nobody is named, the person's own choice included only for them.",
         "A closed poll, or one in an archived conversation, shows its rows as plain text, the person's own choice said in words. Close poll asks first, through useConfirm, since votes are final after it.",
         "PendingPoll shows a poll still sending, its question and choices with nothing to press. MessageItem imports the card directly, so it is in the entry bundle; PollDialog is a lazy chunk."
       ],
