@@ -32,7 +32,7 @@ export function MessageAttachments({
   return (
     <div className="mt-1.5 flex flex-wrap gap-2">
       {files.map((f) =>
-        f.mime.startsWith("image/") && f.size < NATIVE_DOWNLOAD_BYTES ? (
+        opensAsPicture(f) ? (
           <ImageAttachment key={f.id} file={f} onOpen={() => onOpenImage(f)} />
         ) : (
           <FileCard key={f.id} file={f} />
@@ -132,7 +132,17 @@ function ImagePreview({
   );
 }
 
-function FileCard({ file }: { file: FileMeta }) {
+/** Whether a file opens in the picture viewer; anything else, or a large picture, is saved. */
+export const opensAsPicture = (file: FileMeta) =>
+  file.mime.startsWith("image/") && file.size < NATIVE_DOWNLOAD_BYTES;
+
+/**
+ * Saves a file where this person can keep it. The bytes are fetched and saved
+ * by a click this app owns, since sandboxed viewers block <a download>; a large
+ * file is handed to the browser or device to download instead. Says what is
+ * happening, and why it failed.
+ */
+export function useFileDownload(file: FileMeta) {
   const client = useClient();
   const platform = usePlatform();
   const native = file.size >= NATIVE_DOWNLOAD_BYTES;
@@ -150,7 +160,6 @@ function FileCard({ file }: { file: FileMeta }) {
     };
   }, [client, file.id]);
 
-  // Sandboxed viewers block <a download>, so fetch the bytes and save via a click we own.
   async function save() {
     if (saving) return;
     setSaving(true);
@@ -175,6 +184,11 @@ function FileCard({ file }: { file: FileMeta }) {
     }
   }
 
+  return { save, saving, error, handedOff, native };
+}
+
+function FileCard({ file }: { file: FileMeta }) {
+  const { save, saving, error, handedOff, native } = useFileDownload(file);
   return (
     <div>
       <button

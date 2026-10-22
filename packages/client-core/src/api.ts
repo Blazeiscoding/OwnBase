@@ -7,6 +7,7 @@ import type {
   ChannelPrefsBody,
   CreateChannelBody,
   CreateInviteBody,
+  FileKind,
   FileMeta,
   Friendship,
   ID,
@@ -22,6 +23,7 @@ import type {
   SlashCommand,
   ThreadFollow,
   Reminder,
+  SharedFile,
   ReminderItem,
   FollowedThread,
   EventSubscription,
@@ -613,6 +615,21 @@ export class Api {
     const query = new URLSearchParams({ limit: "30" });
     if (cursor) query.set("cursor", cursor);
     return this.request("GET", `/api/saved?${query}`, undefined, { signal, timeoutMs: 10_000 });
+  }
+
+  /** A page of the files shared in conversations this account can read (E7). */
+  listSharedFiles(
+    filter: { kind?: FileKind; userId?: ID; channelId?: ID; q?: string },
+    cursor?: string,
+    signal?: AbortSignal,
+  ): Promise<{ files: SharedFile[]; nextCursor: string | null }> {
+    const query = new URLSearchParams({ limit: "30" });
+    if (filter.kind) query.set("kind", filter.kind);
+    if (filter.userId) query.set("userId", filter.userId);
+    if (filter.channelId) query.set("channelId", filter.channelId);
+    if (filter.q?.trim()) query.set("q", filter.q.trim());
+    if (cursor) query.set("cursor", cursor);
+    return this.request("GET", `/api/files?${query}`, undefined, { signal, timeoutMs: 10_000 });
   }
 
   markUnread(channelId: ID, seq: number): Promise<{ ok: true; seq: number }> {

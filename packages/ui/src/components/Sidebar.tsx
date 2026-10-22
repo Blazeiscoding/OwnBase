@@ -36,6 +36,8 @@ interface Props {
   onScheduled?: () => void;
   /** Every draft on this device (E5), from its row under Saved. */
   onDrafts?: () => void;
+  /** Every file shared where this person can read (E7), where the server lists them. */
+  onFiles?: () => void;
   onActivity: () => void;
   onThreads: () => void;
   onInvite: () => void;
@@ -448,6 +450,16 @@ export function Sidebar(props: Props) {
                   open={props.openPanel === "saved"}
                 />
               </li>
+              {props.onFiles && (
+                <li>
+                  <NavRow
+                    icon="file"
+                    label="Files"
+                    onClick={props.onFiles}
+                    open={props.openPanel === "files"}
+                  />
+                </li>
+              )}
               {/* Shown while there are drafts, or while its panel is open: an
                 empty row would cost a channel's place beside Getting started
                 (UX-20). The palette and the address reach the panel always. */}

@@ -130,6 +130,9 @@ const ScheduledPanel = lazy(() =>
 const DraftsPanel = lazy(() =>
   import("../components/DraftsPanel.js").then((module) => ({ default: module.DraftsPanel })),
 );
+const FilesPanel = lazy(() =>
+  import("../components/FilesPanel.js").then((module) => ({ default: module.FilesPanel })),
+);
 /** Which microphone and camera to use, asked once before a first huddle. */
 const DeviceCheckDialog = lazy(() =>
   import("../components/DeviceCheckDialog.js").then((module) => ({
@@ -330,6 +333,7 @@ type SidePanel =
   /** `edit`: a queued message whose unsaved edit to open, from Drafts. */
   | { kind: "scheduled"; edit?: ID }
   | { kind: "drafts" }
+  | { kind: "files" }
   | { kind: "activity" }
   | { kind: "dms" }
   | { kind: "members" };
@@ -914,7 +918,9 @@ function WorkspaceInner({
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const showsDark = appearance.theme === "dark" || (appearance.theme === "system" && prefersDark);
   const isGuest = self?.role === "guest";
-  const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts") => {
+  // The server lists shared files (E7); an older one is offered no Files.
+  const sharedFiles = useWorkspace((s) => s.sharedFiles);
+  const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts" | "files") => {
     setPanel({ kind });
     setSidebarOpen(false);
   };
@@ -975,6 +981,17 @@ function WorkspaceInner({
             keywords: "unsent unsaved writing",
             run: () => openPanel("drafts"),
           },
+          ...(sharedFiles
+            ? [
+                {
+                  id: "files",
+                  label: "Files",
+                  icon: "file" as const,
+                  keywords: "attachments images documents uploads shared",
+                  run: () => openPanel("files"),
+                },
+              ]
+            : []),
           ...(isGuest
             ? []
             : [
@@ -1267,6 +1284,14 @@ function WorkspaceInner({
           setPanel({ kind: "drafts" });
           setSidebarOpen(false);
         }}
+        onFiles={
+          sharedFiles
+            ? () => {
+                setPanel({ kind: "files" });
+                setSidebarOpen(false);
+              }
+            : undefined
+        }
         onFriends={() => setDialog({ kind: "friends" })}
         onActivity={() => {
           setPanel({ kind: "activity" });
@@ -1583,6 +1608,11 @@ function WorkspaceInner({
             onOpen={openDraft}
             onScheduled={self?.role === "guest" ? undefined : () => setPanel({ kind: "scheduled" })}
           />
+        </LazyPanel>
+      )}
+      {panel.kind === "files" && (
+        <LazyPanel name="Files" onClose={() => setPanel({ kind: "none" })}>
+          <FilesPanel onClose={() => setPanel({ kind: "none" })} onJump={jumpToMessage} />
         </LazyPanel>
       )}
       {panel.kind === "dms" && (

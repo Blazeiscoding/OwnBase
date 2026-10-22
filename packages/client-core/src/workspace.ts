@@ -506,6 +506,8 @@ export interface WorkspaceState {
   activityThreads: boolean;
   /** The server mutes a thread for one account; an older one refuses it, so it is not offered. */
   threadMutes: boolean;
+  /** The server lists the files shared in conversations, so Files is offered (E7). */
+  sharedFiles: boolean;
   /**
    * This account's reminders by message id, waiting and due (E4). Null where
    * the server keeps none, so none is offered there.
@@ -646,6 +648,7 @@ const initialState: WorkspaceState = {
   scheduledEvents: false,
   activityThreads: false,
   threadMutes: false,
+  sharedFiles: false,
   reminders: null,
   pollChoices: null,
   pollPicks: {},
@@ -1066,6 +1069,7 @@ export class WorkspaceClient {
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
       threadMutes: snap.threadMutes === true,
+      sharedFiles: snap.sharedFiles === true,
       reminders: snap.reminders
         ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
         : null,
