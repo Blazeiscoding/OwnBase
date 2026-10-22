@@ -47,6 +47,21 @@ export interface User {
   dndUntil: number | null;
   createdAt: number;
   /**
+   * Their time zone, an IANA name such as "Asia/Kolkata", for the local time
+   * others see (E9). Absent until it is set, and from older servers.
+   */
+  timeZone?: string;
+  /**
+   * They set themselves away by hand, which stands until they set themselves
+   * back (E9). Being away by being idle is presence alone. Absent otherwise.
+   */
+  away?: true;
+  /**
+   * Names their profile picture: `GET /api/users/:id/avatar?v=` serves it,
+   * and it changes only when the picture does (E9). Absent when they have none.
+   */
+  avatarVersion?: string;
+  /**
    * Whether this account may create invite codes: always for an owner or admin,
    * and for a member only when an administrator has allowed it. Absent from
    * servers before schema v25, where every member could.

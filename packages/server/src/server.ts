@@ -218,6 +218,7 @@ export const GUEST_ROUTES = new Set([
   "GET /api/me",
   "PATCH /api/me",
   "GET /api/users",
+  "GET /api/users/:id/avatar",
   "GET /api/friends",
   "GET /api/channels",
   "POST /api/channels/:id/join",
@@ -2270,7 +2271,47 @@ async function startWorkspaceServer(
       return { user };
     });
     if (statusChanged) armStatusExpiry();
+    if (body.away !== undefined) gateway.refreshPresence(me.id);
     return result;
+  });
+
+  /**
+   * Someone's profile picture, for whoever is signed in (E9). A request
+   * naming its version may keep it for good: another picture has another.
+   */
+  app.get<{ Params: { id: string }; Querystring: { v?: unknown } }>(
+    "/api/users/:id/avatar",
+    async (req, reply) => {
+      requireUser(req);
+      const picture = store.avatar(req.params.id);
+      if (!picture) {
+        reply.header("cache-control", "no-store");
+        throw new HttpError(404, "no_avatar", "They have no profile picture.");
+      }
+      const etag = `"${picture.version}"`;
+      reply
+        .header("content-type", picture.type)
+        .header("x-content-type-options", "nosniff")
+        .header("content-security-policy", "default-src 'none'; sandbox")
+        .header("etag", etag)
+        .header(
+          "cache-control",
+          req.query.v === picture.version ? "private, max-age=31536000, immutable" : "no-cache",
+        );
+      if (req.headers["if-none-match"] === etag) return reply.status(304).send();
+      return reply.header("content-length", String(picture.bytes.length)).send(picture.bytes);
+    },
+  );
+
+  /** Removes this account's profile picture; its initials show again. */
+  app.delete("/api/me/avatar", async (req) => {
+    const me = requireUser(req);
+    if (me.role === "guest") throw guestRestricted();
+    return mutate((emit) => {
+      const user = store.setAvatar(me.id, null);
+      emit({ type: "user.updated", user }, null);
+      return { user };
+    });
   });
 
   app.get("/api/users", async (req) => {
@@ -4137,6 +4178,23 @@ async function startWorkspaceServer(
   await app.register(async (scope) => {
     scope.removeAllContentTypeParsers();
     scope.addContentTypeParser("*", { parseAs: "buffer" }, (_req, body, done) => done(null, body));
+    /** This account's profile picture, sent whole as the image itself, as the icon is (E9). */
+    scope.put("/api/me/avatar", async (req) => {
+      const me = requireUser(req);
+      if (me.role === "guest") throw guestRestricted();
+      const checked = checkIcon(
+        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
+        Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined,
+        "profile picture",
+      );
+      if ("refused" in checked)
+        throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
+      return mutate((emit) => {
+        const user = store.setAvatar(me.id, checked.icon);
+        emit({ type: "user.updated", user }, null);
+        return { user };
+      });
+    });
     scope.put("/api/admin/workspace/icon", async (req) => {
       const me = requireAdmin(req);
       const checked = checkIcon(

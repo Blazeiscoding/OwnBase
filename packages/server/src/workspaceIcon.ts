@@ -71,6 +71,8 @@ const NAMES: Record<WorkspaceIconType, string> = {
 export function checkIcon(
   bytes: Buffer,
   declared: string | undefined,
+  /** What the picture is, as its refusals name it: a profile picture keeps the same rules (E9). */
+  noun = "workspace icon",
 ): { icon: WorkspaceIcon } | { refused: IconRefusal } {
   const said = (declared ?? "").split(";")[0]!.trim().toLowerCase();
   if (!(WORKSPACE_ICON_TYPES as readonly string[]).includes(said))
@@ -78,7 +80,7 @@ export function checkIcon(
       refused: {
         status: 415,
         code: "unsupported_icon_type",
-        message: "A workspace icon is a PNG, JPEG or WebP image.",
+        message: `A ${noun} is a PNG, JPEG or WebP image.`,
       },
     };
   if (bytes.length > WORKSPACE_ICON_MAX_BYTES)
@@ -86,7 +88,7 @@ export function checkIcon(
       refused: {
         status: 413,
         code: "icon_too_large",
-        message: `A workspace icon has at most ${WORKSPACE_ICON_MAX_BYTES / 1024} KB.`,
+        message: `A ${noun} has at most ${WORKSPACE_ICON_MAX_BYTES / 1024} KB.`,
       },
     };
   const type = iconTypeOf(bytes);
@@ -120,7 +122,7 @@ export function checkIcon(
       refused: {
         status: 400,
         code: "icon_too_large",
-        message: `A workspace icon is at most ${WORKSPACE_ICON_MAX_SIDE} pixels on either side.`,
+        message: `A ${noun} is at most ${WORKSPACE_ICON_MAX_SIDE} pixels on either side.`,
       },
     };
   return { icon: { type, bytes, version: iconVersion(bytes) } };

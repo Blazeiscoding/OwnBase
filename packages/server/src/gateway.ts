@@ -25,6 +25,8 @@ interface Client {
   userId: ID;
   tokenHash: string;
   alive: boolean;
+  /** Its device has gone idle, as it says (E9); every one idle makes the account away. */
+  idle?: boolean;
 }
 
 /**
@@ -251,8 +253,36 @@ export class Gateway {
    */
   presenceMap(): Record<ID, Presence> {
     const out: Record<ID, Presence> = {};
-    for (const id of this.byUser.keys()) out[id] = "online";
+    for (const id of this.byUser.keys()) out[id] = this.presenceOf(id);
     return out;
+  }
+
+  /** Each connected account's presence as everyone was last told it. */
+  private told = new Map<ID, Presence>();
+
+  /**
+   * Someone's presence (E9): offline with no socket; away when they set
+   * themselves away, or when every device of theirs says it is idle; online
+   * otherwise.
+   */
+  private presenceOf(userId: ID): Presence {
+    const sockets = this.byUser.get(userId);
+    if (!sockets || sockets.size === 0) return "offline";
+    if (this.store.isAway(userId)) return "away";
+    return [...sockets].every((client) => client.idle) ? "away" : "online";
+  }
+
+  /**
+   * Tells everyone someone's presence when it is not what they were last
+   * told, while they are connected; going offline is told as sockets close.
+   */
+  refreshPresence(userId: ID): void {
+    const now = this.presenceOf(userId);
+    if (now === "offline" || this.told.get(userId) === now) return;
+    this.told.set(userId, now);
+    this.contained("presence", () =>
+      this.broadcastEphemeral({ type: "presence", userId, presence: now }, null),
+    );
   }
 
   private onConnection(ws: WebSocket): void {
@@ -341,6 +371,7 @@ export class Gateway {
           pollChoices: this.store.anonymousPollChoices(user.id),
           sharedFiles: true,
           sidebarSections: this.store.sidebarSections(user.id),
+          profiles: true,
           stars: true,
           workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),
@@ -426,6 +457,10 @@ export class Gateway {
             },
           });
         }
+      } else if (msg.type === "idle") {
+        if (!this.affordEphemeral(client.userId)) return;
+        client.idle = msg.idle;
+        this.refreshPresence(client.userId);
       } else if (msg.type === "huddle.report") {
         if (!this.affordEphemeral(client.userId)) return;
         // A report can come just after either side left, so only the
@@ -457,11 +492,12 @@ export class Gateway {
     if (!set) this.byUser.set(client.userId, (set = new Set()));
     set.add(client);
     if (firstSocket) {
-      this.broadcastEphemeral(
-        { type: "presence", userId: client.userId, presence: "online" },
-        null,
-      );
+      this.told.delete(client.userId);
+      this.refreshPresence(client.userId);
       this.presenceChanged();
+    } else {
+      // A device in use again makes someone away by idling online.
+      this.refreshPresence(client.userId);
     }
   }
 
@@ -488,7 +524,13 @@ export class Gateway {
     if (!set) return;
     set.delete(client);
     const offline = set.size === 0;
-    if (offline) this.byUser.delete(client.userId);
+    if (offline) {
+      this.byUser.delete(client.userId);
+      this.told.delete(client.userId);
+    } else {
+      // The devices left may all be idle.
+      this.contained("presence", () => this.refreshPresence(client.userId));
+    }
     if (later) {
       for (const channelId of left) this.departures.huddles.add(channelId);
       if (offline) {

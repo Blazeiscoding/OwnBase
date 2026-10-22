@@ -241,6 +241,11 @@ export interface ReadySnapshot {
    */
   sidebarSections?: SidebarSection[];
   /**
+   * This server keeps profile pictures, time zones and away by hand, and
+   * reads a socket's `idle` (E9). An older one offers none of them.
+   */
+  profiles?: true;
+  /**
    * This server keeps a star per conversation, `ChannelPrefs.starred`. An
    * older one drops a star sent to it without saying so, so it is not offered.
    */
@@ -303,4 +308,9 @@ export type ClientToServer =
   | { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }
   /** How one of this side's connections in a huddle went, for the host's call log. */
   | { type: "huddle.report"; channelId: ID; peer: ID; report: CallReport }
+  /**
+   * Whether this device has gone idle, nobody touching it for a while, or is
+   * in use again (E9). Every device idle makes the account away.
+   */
+  | { type: "idle"; idle: boolean }
   | { type: "ping" };

@@ -668,6 +668,19 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_sidebar_sections_user ON sidebar_sections(user_id, position);
   ALTER TABLE channel_members ADD COLUMN section_id TEXT;
   `,
+  // v47 — profiles (E9): a person's time zone, away by hand, and their
+  // picture: its bytes in a table of their own, and on the user the version
+  // that names them, so a user row says which picture to show without them.
+  `
+  ALTER TABLE users ADD COLUMN time_zone TEXT;
+  ALTER TABLE users ADD COLUMN away INTEGER NOT NULL DEFAULT 0;
+  ALTER TABLE users ADD COLUMN avatar_version TEXT;
+  CREATE TABLE user_avatars (
+    user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    type TEXT NOT NULL,
+    bytes BLOB NOT NULL
+  );
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

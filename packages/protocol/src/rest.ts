@@ -8,7 +8,7 @@ import {
   POLL_QUESTION_MAX,
   type AccessPolicy,
 } from "./entities.js";
-import { FILE_KINDS } from "./search.js";
+import { FILE_KINDS, isTimeZone } from "./search.js";
 
 export const handleSchema = z
   .string()
@@ -57,6 +57,15 @@ export const updateMeBody = z.object({
   statusExpiresAt: z.number().int().positive().nullable().optional(),
   /** Snooze notifications until this epoch ms; null clears it. */
   dndUntil: z.number().int().nullable().optional(),
+  /** An IANA time zone, such as this device's own; null forgets it (E9). */
+  timeZone: z
+    .string()
+    .max(64)
+    .refine((zone) => isTimeZone(zone), "an IANA time zone")
+    .nullable()
+    .optional(),
+  /** Away by hand, until set back (E9). */
+  away: z.boolean().optional(),
 });
 
 export const channelPrefsBody = z.object({
@@ -377,6 +386,15 @@ export const WORKSPACE_ICON_MAX_BYTES = 256 * 1024;
 
 /** How many pixels square a client makes an icon before sending it. */
 export const WORKSPACE_ICON_PIXELS = 256;
+
+/**
+ * A profile picture keeps the workspace icon's rules (E9): a PNG, JPEG or
+ * WebP image the client has made this many pixels square, within the same
+ * number of bytes, checked by the server the same way.
+ */
+export const PROFILE_PICTURE_TYPES = WORKSPACE_ICON_TYPES;
+export const PROFILE_PICTURE_MAX_BYTES = WORKSPACE_ICON_MAX_BYTES;
+export const PROFILE_PICTURE_PIXELS = WORKSPACE_ICON_PIXELS;
 
 /** A page of the administrative record. */
 export const auditQuery = z.object({
