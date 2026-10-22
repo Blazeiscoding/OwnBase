@@ -25,6 +25,7 @@ import {
   threadMuteBody,
   threadReadBody,
   reminderBody,
+  pollVotesBody,
   adminUserBody,
   createAppBody,
   createCommandBody,
@@ -231,6 +232,7 @@ export const GUEST_ROUTES = new Set([
   "POST /api/files/:id/download-token",
   "PUT /api/messages/:id/reactions/:emoji",
   "DELETE /api/messages/:id/reactions/:emoji",
+  "PUT /api/messages/:id/poll/votes",
   "GET /api/channels/:id/pins",
   "PUT /api/messages/:id/save",
   "DELETE /api/messages/:id/save",
@@ -1332,6 +1334,8 @@ async function startWorkspaceServer(
     replyPing?: boolean;
     /** A message to pass on under this one, from anywhere the sender can read. */
     forwardFromId?: ID | null;
+    /** Makes it a poll, its words the question (E6). */
+    poll?: { options: string[]; multiple: boolean; anonymous: boolean } | null;
     /** Marks this queue row delivered in the same transaction as the message. */
     scheduledId?: ID;
   }) => {
@@ -1351,6 +1355,7 @@ async function startWorkspaceServer(
           // Absent unless it answers something, so a request recorded before still matches.
           ...(input.replyToId ? [input.replyToId, input.replyPing ?? false] : []),
           ...(input.forwardFromId ? [{ forward: input.forwardFromId }] : []),
+          ...(input.poll ? [{ poll: input.poll }] : []),
         ]),
       );
       if (input.nonce !== null) {
@@ -1376,6 +1381,9 @@ async function startWorkspaceServer(
           );
       }
       if (channel.archived) throw new HttpError(400, "channel_archived");
+      // A poll is a question and its choices; files or a forward would be a second message.
+      if (input.poll && (input.fileIds.length > 0 || input.forwardFromId))
+        throw new HttpError(400, "bad_poll", "A poll cannot carry files or a forwarded message.");
       if (input.threadRootId) {
         const root = store.getMessage(input.threadRootId);
         if (!root || root.channelId !== channel.id || root.threadRootId)
@@ -1445,6 +1453,7 @@ async function startWorkspaceServer(
         replyToId: target ? input.replyToId : null,
         forwardedFromId,
       });
+      if (input.poll) store.createPoll(created.id, input.poll);
       if (
         !store.attachFiles(
           input.fileIds,
@@ -2611,6 +2620,13 @@ async function startWorkspaceServer(
     const channel = requireChannelAccess(req.params.id, me);
     if (channel.archived) throw new HttpError(400, "channel_archived");
     const body = sendMessageBody.parse(req.body);
+    // As with uploads: a guest takes part, and votes, but does not make polls.
+    if (body.poll && me.role === "guest")
+      throw new HttpError(
+        403,
+        "guest_not_allowed",
+        "Guests cannot make polls. Create an account to make one.",
+      );
 
     const message = postMessage({
       channelId: channel.id,
@@ -2624,6 +2640,7 @@ async function startWorkspaceServer(
       // Discord notifies the author unless the reply says not to.
       replyPing: body.replyPing ?? true,
       forwardFromId: body.forwardFrom ?? null,
+      poll: body.poll ?? null,
     });
     return reply.status(201).send({ message });
   });
@@ -2635,6 +2652,9 @@ async function startWorkspaceServer(
       throw new HttpError(404, "message_not_found");
     }
     if (existing.userId !== me.id) throw new HttpError(403, "not_your_message");
+    // People voted on the question as it was.
+    if (existing.poll)
+      throw new HttpError(409, "poll_not_editable", "A poll's question cannot be changed.");
     const body = editMessageBody.parse(req.body);
     // Words already the new ones are a retry whose answer was lost, not a conflict.
     if (
@@ -2947,6 +2967,58 @@ async function startWorkspaceServer(
       return { ok: true };
     },
   );
+
+  // ---------- polls (E6) ----------
+
+  /**
+   * A voter's choices, replacing any before; none takes the vote back. Readers
+   * are told the new count by a `message.updated` that says `pollOnly`, and the
+   * voter's own devices what they chose, which an anonymous poll says to nobody.
+   */
+  app.put<{ Params: { id: string } }>("/api/messages/:id/poll/votes", async (req) => {
+    const me = requireUser(req);
+    const msg = store.getMessage(req.params.id);
+    if (!msg || !store.canAccess(msg.channelId, me.id))
+      throw new HttpError(404, "message_not_found");
+    const rules = store.pollRules(msg.id);
+    if (!rules) throw new HttpError(404, "poll_not_found", "That message is not a poll.");
+    if (store.getChannel(msg.channelId)?.archived) throw new HttpError(400, "channel_archived");
+    if (rules.closedAt !== null)
+      throw new HttpError(409, "poll_closed", "This poll is closed, so its votes are final.");
+    const { choices } = pollVotesBody.parse(req.body);
+    const chosen = [...new Set(choices)];
+    if (chosen.some((c) => c >= rules.options))
+      throw new HttpError(400, "bad_choice", "That choice is not in this poll.");
+    if (!rules.multiple && chosen.length > 1)
+      throw new HttpError(400, "bad_choice", "This poll takes one choice.");
+    let message = msg;
+    mutate((emit) => {
+      if (!store.setPollChoices(msg.id, me.id, chosen)) return;
+      message = store.getMessage(msg.id)!;
+      emit({ type: "message.updated", message, pollOnly: true }, msg.channelId);
+    });
+    const mine = store.pollChoices(msg.id, me.id);
+    gateway.sendToUser(me.id, { type: "poll.choices", messageId: msg.id, choices: mine });
+    return { message, choices: mine };
+  });
+
+  /** Its author closes a poll for good: the votes stand and nobody can change them. */
+  app.post<{ Params: { id: string } }>("/api/messages/:id/poll/close", async (req) => {
+    const me = requireUser(req);
+    const msg = store.getMessage(req.params.id);
+    if (!msg || !store.canAccess(msg.channelId, me.id))
+      throw new HttpError(404, "message_not_found");
+    if (!store.pollRules(msg.id))
+      throw new HttpError(404, "poll_not_found", "That message is not a poll.");
+    if (msg.userId !== me.id) throw new HttpError(403, "not_your_message");
+    let message = msg;
+    mutate((emit) => {
+      if (!store.closePoll(msg.id)) return;
+      message = store.getMessage(msg.id)!;
+      emit({ type: "message.updated", message, pollOnly: true }, msg.channelId);
+    });
+    return { message };
+  });
 
   // ---------- apps, webhooks and the Slack-compatible API ----------
 
@@ -3689,6 +3761,7 @@ async function startWorkspaceServer(
 
     const builtin = BUILTIN_COMMANDS.get(name);
     if (builtin) {
+      if (builtin.inApp) throw new HttpError(400, "in_app_command", builtin.inApp);
       const text = builtin.run(argText, me);
       if (text === null) throw new HttpError(400, "usage", `usage: /${name} ${builtin.usageHint}`);
       // Built-ins create ordinary messages, so they spend the sender's post budget.

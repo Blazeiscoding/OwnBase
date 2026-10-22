@@ -159,7 +159,46 @@ export interface Message {
    * link previews, and empty while none has been found.
    */
   previews?: LinkPreview[];
+  /**
+   * The choices this message asks people to pick from, its words being the
+   * question (E6). Votes change it by a `message.updated` that says
+   * `pollOnly`. Absent from a message that is not a poll, and from servers
+   * before polls.
+   */
+  poll?: Poll;
 }
+
+/**
+ * A question with two to ten choices. An option is known by its place in
+ * `options`, which never changes. Who chose what is on each option unless the
+ * poll is anonymous; then each voter learns only their own choices, from
+ * `ReadySnapshot.pollChoices` and the `poll.choices` event.
+ */
+export interface Poll {
+  options: PollOption[];
+  /** Whether a voter may choose more than one. */
+  multiple: boolean;
+  /** Whether who chose what is kept from everyone, its author too. */
+  anonymous: boolean;
+  /** How many people have chosen something. */
+  voters: number;
+  /** When its author closed it, after which nobody can vote; null while open. */
+  closedAt: number | null;
+}
+
+export interface PollOption {
+  text: string;
+  votes: number;
+  /** Who chose it, first to last; absent from an anonymous poll. */
+  voterIds?: ID[];
+}
+
+/** The most choices a poll offers, and the fewest. */
+export const POLL_OPTIONS_MAX = 10;
+export const POLL_OPTIONS_MIN = 2;
+/** The longest a poll's question and each of its choices may be, once trimmed. */
+export const POLL_QUESTION_MAX = 300;
+export const POLL_OPTION_MAX = 80;
 
 /**
  * A web page a message links to, as the server read it: the page's own title,

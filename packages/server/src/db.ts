@@ -630,6 +630,29 @@ const MIGRATIONS: string[] = [
   CREATE INDEX idx_reminders_waiting ON reminders(remind_at) WHERE due_at IS NULL;
   CREATE INDEX idx_reminders_message ON reminders(message_id);
   `,
+  // v45 — polls (E6): a message whose words are a question, its choices in
+  // order as JSON (a choice is known by its place, and they never change),
+  // whether more than one may be chosen, whether who chose what is kept from
+  // everyone, and when its author closed it. One row per choice a person
+  // made. Both go with the message's row; a deleted message's poll is dropped
+  // by the server. Indexed by voter, for the choices each account is sent.
+  `
+  CREATE TABLE polls (
+    message_id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
+    options TEXT NOT NULL,
+    multiple INTEGER NOT NULL DEFAULT 0,
+    anonymous INTEGER NOT NULL DEFAULT 0,
+    closed_at INTEGER
+  );
+  CREATE TABLE poll_votes (
+    message_id TEXT NOT NULL REFERENCES polls(message_id) ON DELETE CASCADE,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    option INTEGER NOT NULL,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (message_id, user_id, option)
+  );
+  CREATE INDEX idx_poll_votes_user ON poll_votes(user_id);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

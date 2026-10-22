@@ -11,6 +11,11 @@ export interface BuiltinCommand {
   description: string;
   usageHint: string;
   run: (text: string, user: User) => string | null;
+  /**
+   * Set for a command the app runs itself, which the server only lists and
+   * reserves: what it says to a client that sends the command here instead.
+   */
+  inApp?: string;
 }
 
 /** What it must look like on screen. */
@@ -37,6 +42,16 @@ export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
       usageHint: "<message>",
       // Italics are how Slack renders these, and our mrkdwn already has them.
       run: (text) => (text ? `_${text}_` : null),
+    },
+  ],
+  [
+    "poll",
+    {
+      description: "Ask a question with choices to vote on",
+      usageHint: "[question]",
+      // The app opens its poll window for this; only an older one sends it here.
+      run: () => null,
+      inApp: "Polls are made in the poll window. Update Tandem to open it with /poll.",
     },
   ],
 ]);
