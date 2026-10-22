@@ -122,6 +122,8 @@ describe("polls on the client", () => {
     expect(readStoredOutbox([storedPending(stored!)])!.entries[0]!.poll).toEqual(
       client.state.pending[0]!.poll,
     );
+    // One whose poll is not one is refused, as any malformed entry is.
+    expect(readStoredOutbox([{ ...stored!, poll: { options: "Pizza" } }])).toBeNull();
     await until(client, (s) => s.pending.length === 0, "the send");
     const message = client.state.timelines[general.id]!.items.at(-1)!;
     expect(message.text).toBe("Where for lunch?");

@@ -199,6 +199,13 @@ describe("making a poll", () => {
     expect(first.status).toBe(201);
     expect(again.body.message.id).toBe(first.body.message.id);
     expect((await history()).filter((m) => m.poll)).toHaveLength(1);
+    // The same key asking something else is not a retry.
+    const other = await request(`/api/channels/${channelId}/messages`, {
+      ...body,
+      poll: { options: ["A", "C"] },
+    });
+    expect(other.status).toBe(409);
+    expect(other.body.error).toBe("nonce_conflict");
   });
 
   it("cannot have its question edited, since people voted on it as it was", async () => {
@@ -407,6 +414,9 @@ describe("deleting a poll", () => {
     expect((await request(`/api/messages/${made.id}`, undefined, "DELETE")).status).toBe(200);
 
     expect((await vote(made.id, [1])).status).toBe(404);
+    // Its rows go, not only its message.
+    expect(server!.store.pollRules(made.id)).toBeNull();
+    expect(server!.store.pollChoices(made.id, peer.id)).toEqual([]);
     const log = server!.store.eventsSince(0, owner.id)!;
     const copies = log.flatMap((e) =>
       (e.event.type === "message.created" || e.event.type === "message.updated") &&
