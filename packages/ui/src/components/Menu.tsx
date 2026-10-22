@@ -4,6 +4,14 @@ import { Sheet, sheetCard, wantsSheet } from "./Sheet.js";
 import { Icon, type IconName } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 
+/** How `aria-keyshortcuts` names the keys a menu draws as keycaps. */
+const KEY_NAMES: Record<string, string> = {
+  "⌘": "Meta",
+  Ctrl: "Control",
+  "⇧": "Shift",
+  "⌥": "Alt",
+};
+
 export interface MenuItem {
   id: string;
   label: string;
@@ -24,6 +32,10 @@ export interface MenuItem {
   checked?: boolean;
   /** A word or two after the label, such as how long a status lasts. */
   hint?: string;
+  /** A quieter line under the label, such as what the item acts on. */
+  description?: string;
+  /** The keys that do the same, as keycaps after the label; a phone's sheet leaves them out. */
+  keys?: string[];
   disabled?: boolean;
   onSelect: () => void;
 }
@@ -52,6 +64,11 @@ interface MenuProps {
   open?: boolean;
   /** Shown above the items, such as a row of quick reactions. */
   header?: (close: () => void) => React.ReactNode;
+  /**
+   * Who or what the menu is for, atop its items in a dropdown and a sheet
+   * alike. Only to look at: the trigger's name already says it.
+   */
+  heading?: React.ReactNode;
   /** On a phone, rise from the bottom of the screen within a thumb's reach. */
   sheet?: boolean;
   /** How wide it opens, for items such as device names that need the room. */
@@ -80,6 +97,7 @@ export function Menu({
   onOpenChange,
   open: openProp,
   header,
+  heading,
   sheet = false,
   width,
   multiple = false,
@@ -125,6 +143,7 @@ export function Menu({
           label={label}
           items={items}
           header={header}
+          heading={heading}
           sheet={sheet}
           width={width}
           align={align}
@@ -141,6 +160,7 @@ function MenuPanel({
   label,
   items,
   header,
+  heading,
   sheet,
   align,
   width: wanted,
@@ -151,6 +171,7 @@ function MenuPanel({
   label: string;
   items: MenuItem[];
   header?: (close: () => void) => React.ReactNode;
+  heading?: React.ReactNode;
   sheet: boolean;
   align: "start" | "end";
   width?: number;
@@ -162,6 +183,12 @@ function MenuPanel({
     const first = items.findIndex((item) => !item.disabled);
     return first === -1 ? 0 : first;
   });
+  /**
+   * Whether the pointer or the arrow keys have been on the items. Until then
+   * the first item shows as chosen only where focus shows, after a key opened
+   * the menu: opened with a click, nothing looks picked before it is.
+   */
+  const [engaged, setEngaged] = useState(false);
   const list = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const close = useRef(onClose);
@@ -263,6 +290,7 @@ function MenuPanel({
           onClose();
           return;
         }
+        if (["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) setEngaged(true);
         if (event.key === "ArrowDown") {
           event.preventDefault();
           move(1);
@@ -295,81 +323,129 @@ function MenuPanel({
         }
       }}
     >
-      <div ref={list} className="flex flex-col">
-        {items.map((item, index) => (
-          <div key={item.id} className="contents">
-            {item.section && index > 0 && (
-              <div role="separator" className="mx-1.5 my-1 h-px bg-edge" />
-            )}
-            {typeof item.section === "string" && (
-              <div
-                aria-hidden="true"
-                className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-ink-faint"
-              >
-                {item.section}
-              </div>
-            )}
-            <button
-              type="button"
-              role={
-                item.checked === undefined
-                  ? "menuitem"
-                  : multiple
-                    ? "menuitemcheckbox"
-                    : "menuitemradio"
-              }
-              aria-checked={item.checked}
-              data-menu-index={index}
-              tabIndex={-1}
-              disabled={item.disabled}
-              aria-disabled={item.disabled || undefined}
-              aria-label={item.ariaLabel}
-              onClick={() => choose(index)}
-              onMouseEnter={() => {
-                if (!item.disabled) setActive(index);
-              }}
-              className={`flex items-center gap-2.5 rounded-lg px-2.5 text-left transition-colors ${
-                asSheet ? "min-h-12 gap-3 px-3 text-[15px]" : "py-1.5 text-sm"
-              } ${
-                // A sheet answers a finger: it shows the press, not a choice
-                // made in advance, and the keyboard's place only when it is used.
-                asSheet
-                  ? `${item.destructive ? "text-alert" : "text-ink"} outline-none focus-visible:bg-ink/[0.07] active:bg-ink/[0.07]`
-                  : item.destructive
-                    ? index === active && !item.disabled
-                      ? "bg-alert/10 text-alert"
-                      : "text-alert"
-                    : index === active && !item.disabled
-                      ? "bg-copper/[0.12] text-ink"
-                      : "text-ink-dim"
-              } disabled:opacity-40`}
-            >
-              {item.icon && (
-                <Icon
-                  name={item.icon}
-                  size={16}
-                  className={item.destructive ? "" : "text-ink-faint"}
-                />
-              )}
-              {item.emoji && (
-                <span aria-hidden="true" className="w-4 text-center text-[15px] leading-none">
-                  {item.emoji}
-                </span>
-              )}
-              {item.checked === undefined && !item.hint ? (
-                item.label
-              ) : (
-                <>
-                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  {item.hint && (
-                    <span className="shrink-0 pl-3 text-[12px] text-ink-faint">{item.hint}</span>
-                  )}
-                  {item.checked && <Icon name="check" size={14} className="shrink-0 text-copper" />}
-                </>
-              )}
-            </button>
+      {heading && (
+        <>
+          <div aria-hidden="true" className={asSheet ? "px-3 pb-2.5 pt-2" : "px-2.5 pb-2 pt-1.5"}>
+            {heading}
           </div>
-        ))}
+          <div role="separator" className="mx-1.5 mb-1 h-px bg-edge" />
+        </>
+      )}
+      <div ref={list} className="flex flex-col">
+        {items.map((item, index) => {
+          const keys = asSheet ? undefined : item.keys;
+          return (
+            <div key={item.id} className="contents">
+              {item.section && index > 0 && (
+                <div role="separator" className="mx-1.5 my-1 h-px bg-edge" />
+              )}
+              {typeof item.section === "string" && (
+                <div
+                  aria-hidden="true"
+                  className="px-2.5 pb-1 pt-1.5 text-[11px] font-medium text-ink-faint"
+                >
+                  {item.section}
+                </div>
+              )}
+              <button
+                type="button"
+                role={
+                  item.checked === undefined
+                    ? "menuitem"
+                    : multiple
+                      ? "menuitemcheckbox"
+                      : "menuitemradio"
+                }
+                aria-checked={item.checked}
+                data-menu-index={index}
+                tabIndex={-1}
+                disabled={item.disabled}
+                aria-disabled={item.disabled || undefined}
+                aria-label={item.ariaLabel}
+                aria-keyshortcuts={item.keys?.map((key) => KEY_NAMES[key] ?? key).join("+")}
+                onClick={() => choose(index)}
+                onMouseEnter={() => {
+                  if (item.disabled) return;
+                  setActive(index);
+                  setEngaged(true);
+                }}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 text-left transition-colors ${
+                  asSheet ? "min-h-12 gap-3 px-3 text-[15px]" : "py-1.5 text-sm"
+                } ${
+                  // A sheet answers a finger: it shows the press, not a choice
+                  // made in advance, and the keyboard's place only when it is used.
+                  asSheet
+                    ? `${item.destructive ? "text-alert" : "text-ink"} outline-none focus-visible:bg-ink/[0.07] active:bg-ink/[0.07]`
+                    : item.destructive
+                      ? index === active && !item.disabled
+                        ? engaged
+                          ? "bg-alert/10 text-alert"
+                          : "text-alert focus-visible:bg-alert/10"
+                        : "text-alert"
+                      : index === active && !item.disabled
+                        ? engaged
+                          ? "bg-copper/[0.12] text-ink"
+                          : "text-ink-dim focus-visible:bg-copper/[0.12] focus-visible:text-ink"
+                        : "text-ink-dim"
+                } disabled:opacity-40`}
+              >
+                {item.icon && (
+                  <Icon
+                    name={item.icon}
+                    size={16}
+                    className={`shrink-0 ${item.destructive ? "" : "text-ink-faint"}`}
+                  />
+                )}
+                {/* A colour emoji draws larger than its size, and heavier than a
+                  line icon; a step smaller in the icon's square, it matches. */}
+                {item.emoji && (
+                  <span
+                    aria-hidden="true"
+                    className="flex size-4 shrink-0 items-center justify-center text-[13px] leading-none"
+                  >
+                    {item.emoji}
+                  </span>
+                )}
+                {item.checked === undefined && !item.hint && !item.description && !keys ? (
+                  item.label
+                ) : (
+                  <>
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{item.label}</span>
+                      {item.description && (
+                        <span className="block truncate text-[12px] leading-4 text-ink-faint">
+                          {item.description}
+                        </span>
+                      )}
+                    </span>
+                    {item.hint && (
+                      <span className="shrink-0 pl-3 text-[12px] tabular-nums text-ink-faint">
+                        {item.hint}
+                      </span>
+                    )}
+                    {/* Quieter and smaller than the shortcut sheet's keycaps:
+                        here they are a reminder, beside the item's name. */}
+                    {keys && (
+                      <span aria-hidden="true" className="flex shrink-0 gap-0.5 pl-2">
+                        {keys.map((key) => (
+                          <kbd
+                            key={key}
+                            className="inline-flex h-[18px] min-w-[18px] items-center justify-center rounded border border-edge bg-ink/[0.04] px-1 font-sans text-[11px] leading-none text-ink-faint"
+                          >
+                            {key}
+                          </kbd>
+                        ))}
+                      </span>
+                    )}
+                    {item.checked && (
+                      <Icon name="check" size={14} className="shrink-0 text-copper" />
+                    )}
+                  </>
+                )}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

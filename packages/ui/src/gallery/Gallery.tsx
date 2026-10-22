@@ -22,6 +22,7 @@ import { Sheet, sheetCard } from "../components/Sheet.js";
 import { TextField } from "../components/TextField.js";
 import { ToastProvider, useToast } from "../components/Toast.js";
 import { Tooltip } from "../components/Tooltip.js";
+import { modKey } from "../lib/shortcuts.js";
 
 /**
  * The primitives gallery, for development only: `#/gallery` shows Onyx and
@@ -607,6 +608,40 @@ function Menus() {
               icon: "trash",
               section: true,
               destructive: true,
+              onSelect: () => {},
+            },
+          ]}
+        />
+      </Specimen>
+      <Specimen name="heading, line under, keys">
+        <Menu
+          label="Your account"
+          triggerContent="Sam Rivera"
+          triggerLabel="Sam Rivera, your account"
+          heading={<span className="text-[15px] font-semibold text-ink">Sam Rivera</span>}
+          width={256}
+          items={[
+            {
+              id: "clear",
+              label: "Clear status",
+              icon: "close",
+              description: "💬 In a meeting · until 15:00",
+              section: "Status",
+              onSelect: () => {},
+            },
+            {
+              id: "lunch",
+              label: "Out for lunch",
+              emoji: "🍜",
+              hint: "1 hour",
+              onSelect: () => {},
+            },
+            {
+              id: "shortcuts",
+              label: "Keyboard shortcuts",
+              icon: "keyboard",
+              keys: [modKey(), "/"],
+              section: true,
               onSelect: () => {},
             },
           ]}
