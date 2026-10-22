@@ -109,6 +109,19 @@ export interface FileMeta {
   height: number | null;
 }
 
+/**
+ * A file as the file browser lists it (E7): the file, and the message that
+ * shared it, so it can be opened there. `sharedAt` is when that message was sent.
+ */
+export interface SharedFile {
+  file: FileMeta;
+  messageId: ID;
+  channelId: ID;
+  threadRootId: ID | null;
+  userId: ID;
+  sharedAt: number;
+}
+
 export interface Message {
   id: ID;
   channelId: ID;

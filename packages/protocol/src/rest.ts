@@ -6,6 +6,7 @@ import {
   POLL_QUESTION_MAX,
   type AccessPolicy,
 } from "./entities.js";
+import { FILE_KINDS } from "./search.js";
 
 export const handleSchema = z
   .string()
@@ -73,6 +74,22 @@ export const savedMessagesQuery = z.object({
 });
 
 export const pinnedMessagesQuery = savedMessagesQuery;
+/**
+ * The file browser's page (E7): newest shared first, narrowed by kind, by who
+ * shared it, by conversation and by words in its name. The cursor is the last
+ * file's message and file ids.
+ */
+export const sharedFilesQuery = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+  cursor: z
+    .string()
+    .regex(/^[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$/)
+    .optional(),
+  kind: z.enum(FILE_KINDS).optional(),
+  userId: z.string().min(1).max(64).optional(),
+  channelId: z.string().min(1).max(64).optional(),
+  q: z.string().trim().max(200).optional(),
+});
 export const followedThreadsQuery = savedMessagesQuery.extend({
   unreadOnly: z.enum(["true", "false"]).default("false"),
 });
@@ -407,6 +424,7 @@ export type CreateChannelBody = z.infer<typeof createChannelBody>;
 export type UpdateChannelBody = z.infer<typeof updateChannelBody>;
 export type SendMessageBody = z.input<typeof sendMessageBody>;
 export type PollVotesBody = z.infer<typeof pollVotesBody>;
+export type SharedFilesQuery = z.input<typeof sharedFilesQuery>;
 export type EditMessageBody = z.infer<typeof editMessageBody>;
 export type MarkReadBody = z.infer<typeof markReadBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;

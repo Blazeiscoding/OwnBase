@@ -225,6 +225,11 @@ export interface ReadySnapshot {
    */
   pollChoices?: Record<ID, number[]>;
   /**
+   * This server lists the files shared in conversations (`GET /api/files`,
+   * E7). An older one does not, so the file browser is not offered there.
+   */
+  sharedFiles?: true;
+  /**
    * This server keeps a star per conversation, `ChannelPrefs.starred`. An
    * older one drops a star sent to it without saying so, so it is not offered.
    */

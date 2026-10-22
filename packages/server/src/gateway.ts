@@ -339,6 +339,7 @@ export class Gateway {
           threadMutes: true,
           reminders: this.store.reminders(user.id),
           pollChoices: this.store.anonymousPollChoices(user.id),
+          sharedFiles: true,
           stars: true,
           workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),
