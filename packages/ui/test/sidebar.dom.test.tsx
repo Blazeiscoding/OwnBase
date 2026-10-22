@@ -134,6 +134,8 @@ describe("the account menu", () => {
   it("keeps what concerns only you apart from the workspace's", async () => {
     const { user } = sidebar({ admin: true });
     const { menu, items } = await accountMenu(user);
+    // Whose it is, atop the items: the name and the handle people mention.
+    expect(menu).toHaveTextContent(/Sam Rivera@samSet a status💬In a meeting/);
     expect(items).toEqual([
       // Each says how long it lasts.
       "💬In a meeting1 hour",
@@ -184,7 +186,8 @@ describe("the account menu", () => {
     );
     const { items } = await accountMenu(user);
     expect(items.slice(0, 3)).toEqual([
-      "Clear status",
+      // What it clears, under its name.
+      `Clear status💬 In a meeting · ${statusUntil(ends)}`,
       "🎧Heads downToday",
       "🍜Out for lunch1 hour",
     ]);
@@ -238,9 +241,14 @@ describe("the account menu", () => {
       "Profile and status",
       "Account settings",
       "Scheduled messages",
-      "Keyboard shortcuts",
+      // The keys that open the sheet too, drawn after its name and said apart from it.
+      "Keyboard shortcutsCtrl/",
       "Diagnostics",
     ]);
+    expect(screen.getByRole("menuitem", { name: "Keyboard shortcuts" })).toHaveAttribute(
+      "aria-keyshortcuts",
+      "Control+/",
+    );
     await user.click(screen.getByRole("menuitem", { name: "Scheduled messages" }));
     await accountMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "Keyboard shortcuts" }));
