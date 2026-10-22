@@ -2284,7 +2284,9 @@ async function startWorkspaceServer(
     async (req, reply) => {
       requireUser(req);
       const picture = store.avatar(req.params.id);
-      if (!picture) {
+      // A version that is not the picture's names one that is gone: the
+      // bytes now are another picture's, kept for good under that name.
+      if (!picture || (req.query.v !== undefined && req.query.v !== picture.version)) {
         reply.header("cache-control", "no-store");
         throw new HttpError(404, "no_avatar", "They have no profile picture.");
       }

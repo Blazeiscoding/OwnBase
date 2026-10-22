@@ -67,6 +67,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     threadMutes: true,
     sharedFiles: true,
     sidebarSections: [],
+    profiles: true,
     reminders: {},
     pollChoices: {},
     pollPicks: {},

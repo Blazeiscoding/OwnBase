@@ -152,7 +152,7 @@ describe("the account menu", () => {
     const { user, client } = sidebar({ admin: false });
     const updateMe = vi
       .spyOn(client.api, "updateMe")
-      .mockImplementation(async (body) => ({ user: { ...sam, ...body } }));
+      .mockImplementation(async (body) => ({ user: { ...sam, ...body } as User }));
     await accountMenu(user);
     const before = Date.now();
     await user.click(
@@ -386,7 +386,7 @@ describe("pausing notifications", () => {
     vi.setSystemTime(now);
     const { client, user } = sidebar({ admin: false });
     vi.spyOn(client.api, "updateMe").mockImplementation(async (body) => ({
-      user: { ...client.state.self!, ...body },
+      user: { ...client.state.self!, ...body } as User,
     }));
     const morning = new Date(2026, 8, 26, 9, 0);
     const time = morning.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });

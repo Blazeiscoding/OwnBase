@@ -178,6 +178,17 @@ describe("a profile picture", () => {
         "cache-control",
       ),
     ).toBe("no-cache");
+    // A version that is not the picture's is a picture that is gone.
+    expect(
+      (
+        await request(
+          `/api/users/${owner.id}/avatar?v=0000000000000000`,
+          undefined,
+          "GET",
+          peer.token,
+        )
+      ).status,
+    ).toBe(404);
     // Not to someone signed out.
     expect((await request(`/api/users/${owner.id}/avatar`, undefined, "GET", null)).status).toBe(
       401,
