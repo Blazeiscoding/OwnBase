@@ -1,4 +1,4 @@
-import type { ChannelPrefs, ID } from "@slackoss/protocol";
+import type { ChannelPrefs, ID, SidebarSection } from "@slackoss/protocol";
 import type { WorkspaceClient, WorkspaceState } from "@slackoss/client-core";
 import type { MenuItem } from "../components/Menu.js";
 import type { ToastRequest } from "../components/Toast.js";
@@ -79,6 +79,63 @@ export function starItem(
         `Could not ${starred ? "unstar" : "star"} that ${noun}.`,
       ),
   };
+}
+
+/**
+ * Moves a conversation into one of this account's sidebar sections, or with
+ * null back where it would be: out of Starred too, as one place each (E8).
+ */
+export function moveConversation(
+  client: WorkspaceClient,
+  toast: Toast,
+  conversation: Conversation,
+  sectionId: ID | null,
+) {
+  choose(
+    client,
+    toast,
+    conversation.id,
+    { sectionId, starred: false },
+    `Could not move that ${conversation.noun}.`,
+  );
+}
+
+/**
+ * The "Move to" group of a conversation's menu (E8): each other section, a
+ * new one, and out of the one it is in. `onMoved` is told where it goes.
+ */
+export function moveItems(
+  client: WorkspaceClient,
+  toast: Toast,
+  conversation: Conversation,
+  sections: SidebarSection[],
+  current: ID | null,
+  onNew: () => void,
+  onMoved: (sectionId: ID | null) => void,
+): MenuItem[] {
+  const move = (sectionId: ID | null) => () => {
+    onMoved(sectionId);
+    moveConversation(client, toast, conversation, sectionId);
+  };
+  const into = sections.filter((section) => section.id !== current);
+  const items: MenuItem[] = into.map((section) => ({
+    id: `move:${section.id}`,
+    label: section.name,
+    ariaLabel: `Move to ${section.name}`,
+    icon: "arrow",
+    onSelect: move(section.id),
+  }));
+  items.push({ id: "move:new", label: "New section…", icon: "plus", onSelect: onNew });
+  const from = sections.find((section) => section.id === current);
+  if (from)
+    items.push({
+      id: "move:out",
+      label: `Remove from ${from.name}`,
+      icon: "close",
+      onSelect: move(null),
+    });
+  items[0] = { ...items[0]!, section: "Move to" };
+  return items;
 }
 
 /** Mute or Unmute, which every server keeps. */

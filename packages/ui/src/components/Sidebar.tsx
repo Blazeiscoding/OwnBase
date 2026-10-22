@@ -1,5 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { channelPermissions, type Channel, type ID } from "@slackoss/protocol";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  channelPermissions,
+  SIDEBAR_SECTIONS_MAX,
+  type Channel,
+  type ChannelPrefs,
+  type ID,
+  type SidebarSection,
+} from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
 import { channelTitle } from "../lib/format.js";
@@ -16,10 +23,25 @@ import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { KeepAccountOffer } from "./KeepAccountOffer.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { useOptionalToast } from "./Toast.js";
+import { useOptionalConfirm } from "./Confirm.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
-import { muteItem, starItem, type Conversation } from "../lib/conversationChoices.js";
+import {
+  moveConversation,
+  moveItems,
+  muteItem,
+  starItem,
+  type Conversation,
+} from "../lib/conversationChoices.js";
+
+// Naming a section is now and then, so its window loads on first use (E8).
+const SectionNameDialog = lazy(() =>
+  import("./SectionNameDialog.js").then((module) => ({ default: module.SectionNameDialog })),
+);
+
+/** What a dragged conversation row carries. */
+const DRAG_TYPE = "application/x-tandem-conversation";
 
 interface Props {
   activeChannelId: ID | null;
@@ -181,6 +203,8 @@ export function Sidebar(props: Props) {
   const prefs = useWorkspace((s) => s.prefs);
   // An older server keeps no stars, so none is offered there.
   const stars = useWorkspace((s) => s.stars);
+  // Nor sections, which a server without them leaves null (E8).
+  const sections = useWorkspace((s) => s.sidebarSections);
   const huddles = useWorkspace((s) => s.huddles);
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
@@ -188,26 +212,37 @@ export function Sidebar(props: Props) {
   const others = props.otherWorkspaces ?? [];
   const name = workspaceName || "Connecting…";
 
-  const { starred, rooms, dms } = useMemo(() => {
+  const { starred, sectioned, rooms, dms } = useMemo(() => {
     const starred: Channel[] = [];
+    const sectioned = new Map<ID, Channel[]>((sections ?? []).map((s) => [s.id, []]));
     const rooms: Channel[] = [];
     const dms: Channel[] = [];
     for (const ch of Object.values(channels)) {
       // An archived channel keeps its star, and comes back to Starred with it.
       if (ch.archived || !(ch.id in memberships)) continue;
-      // Starred moves a conversation out of its usual section, as Slack's does.
+      // Starred moves a conversation out of its usual section, as Slack's does,
+      // and so does a section of this account's (E8); one it no longer has is none.
+      const inSection = sectioned.get(prefs[ch.id]?.sectionId ?? "");
       if (prefs[ch.id]?.starred) starred.push(ch);
+      else if (inSection) inSection.push(ch);
       else if (isDirect(ch)) dms.push(ch);
       else rooms.push(ch);
     }
     // By name, channels and people together, so a row stays where it was put
     // rather than jumping each time a message arrives.
     const named = (ch: Channel) => (isDirect(ch) ? channelTitle(ch, users, selfId) : ch.name);
-    starred.sort((a, b) => named(a).localeCompare(named(b)));
+    const byName = (a: Channel, b: Channel) => named(a).localeCompare(named(b));
+    starred.sort(byName);
+    for (const list of sectioned.values()) list.sort(byName);
     rooms.sort((a, b) => a.name.localeCompare(b.name));
     dms.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
-    return { starred, rooms, dms };
-  }, [channels, memberships, channelLastSeq, prefs, users, selfId]);
+    return { starred, sectioned, rooms, dms };
+  }, [channels, memberships, channelLastSeq, prefs, users, selfId, sections]);
+  /** The section of this account's a conversation is in, if it is in one it still has. */
+  const sectionOf = (id: ID): ID | null => {
+    const sectionId = prefs[id]?.sectionId ?? null;
+    return sectionId && sectioned.has(sectionId) && !prefs[id]?.starred ? sectionId : null;
+  };
 
   const isUnread = (id: ID) => (channelLastSeq[id] ?? 0) > (memberships[id] ?? 0);
   const hasDraft = (id: ID) => !!drafts[id];
@@ -236,7 +271,15 @@ export function Sidebar(props: Props) {
 
   const client = useClient();
   const toast = useOptionalToast();
+  const confirm = useOptionalConfirm();
   const nav = useRef<HTMLElement>(null);
+  /** A section being named: a new one, which the conversation `moveId` goes into, or one renamed. */
+  const [naming, setNaming] = useState<
+    { mode: "create"; moveId?: ID } | { mode: "rename"; section: SidebarSection } | null
+  >(null);
+  /** The conversation row being dragged, and the place it would land now. */
+  const dragging = useRef<ID | null>(null);
+  const [dropOn, setDropOn] = useState<string | null>(null);
   /**
    * A row starred or unstarred from its own menu moves to another section, and
    * the menu's button goes with it. Focus follows it there, or to the header
@@ -277,8 +320,156 @@ export function Sidebar(props: Props) {
         },
       });
     }
-    items.push(muteItem(client, toast, conversation, isMuted(ch.id)));
+    if (sections) {
+      const home = isDirect(ch) ? "dms" : "channels";
+      items.push(
+        ...moveItems(
+          client,
+          toast,
+          conversation,
+          sections,
+          sectionOf(ch.id),
+          () => setNaming({ mode: "create", moveId: ch.id }),
+          (to) => (moved.current = { id: ch.id, section: to ? `section:${to}` : home }),
+        ),
+      );
+    }
+    items.push({
+      ...muteItem(client, toast, conversation, isMuted(ch.id)),
+      ...(sections ? { section: true } : {}),
+    });
     return { label, items };
+  }
+
+  /**
+   * What landing a dragged conversation on a place does (E8): into a section,
+   * Starred, or back to Channels or Direct messages; null where it is already,
+   * or cannot go.
+   */
+  function dropPatch(place: string, id: ID): Partial<ChannelPrefs> | null {
+    const ch = channels[id];
+    if (!ch) return null;
+    const isStarred = prefs[id]?.starred === true;
+    const now = sectionOf(id);
+    if (place === "starred") return stars && !isStarred ? { starred: true } : null;
+    if (place === "channels" || place === "dms") {
+      if (place !== (isDirect(ch) ? "dms" : "channels") || (!isStarred && !now)) return null;
+      return { starred: false, sectionId: null };
+    }
+    const sectionId = place.slice("section:".length);
+    return now === sectionId ? null : { starred: false, sectionId };
+  }
+
+  /** Makes a section header and its rows a place a dragged conversation can land. */
+  function dropZone(place: string) {
+    return {
+      "data-drop-place": place,
+      "data-drop-over": dropOn === place || undefined,
+      onDragOver: (event: React.DragEvent) => {
+        const id = dragging.current;
+        if (!id || !dropPatch(place, id)) return;
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+        if (dropOn !== place) setDropOn(place);
+      },
+      onDragLeave: (event: React.DragEvent) => {
+        if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+        setDropOn((now) => (now === place ? null : now));
+      },
+      onDrop: (event: React.DragEvent) => {
+        event.preventDefault();
+        const id = event.dataTransfer.getData(DRAG_TYPE) || dragging.current;
+        dragging.current = null;
+        setDropOn(null);
+        const patch = id ? dropPatch(place, id) : null;
+        if (!id || !patch) return;
+        moved.current = { id, section: place };
+        const conversation: Conversation = {
+          id,
+          noun: isDirect(channels[id]!) ? "conversation" : "channel",
+        };
+        if (patch.starred) {
+          starItem(client, toast, conversation, false).onSelect();
+        } else moveConversation(client, toast, conversation, patch.sectionId ?? null);
+      },
+      className: "rounded-lg transition-colors data-[drop-over]:bg-copper/[0.09]",
+    };
+  }
+
+  /** A row a pointer can drag to a section, Starred or back home (E8). */
+  const draggable = (id: ID) =>
+    sections || stars
+      ? {
+          onDragStart: (event: React.DragEvent) => {
+            dragging.current = id;
+            event.dataTransfer.setData(DRAG_TYPE, id);
+            event.dataTransfer.effectAllowed = "move";
+          },
+          onDragEnd: () => {
+            dragging.current = null;
+            setDropOn(null);
+          },
+        }
+      : {};
+
+  /** A section's own menu: rename it, move it up or down, delete it. */
+  function sectionMenu(section: SidebarSection, index: number): RowMenu {
+    const list = sections ?? [];
+    const order = (to: number) => {
+      const ids = list.map((s) => s.id).filter((id) => id !== section.id);
+      ids.splice(to, 0, section.id);
+      void client.orderSidebarSections(ids).then((ok) => {
+        if (!ok) toast?.({ message: "Could not move that section. Its order is as it was." });
+      });
+    };
+    const items: MenuItem[] = [
+      {
+        id: "rename",
+        label: "Rename section…",
+        icon: "edit",
+        onSelect: () => setNaming({ mode: "rename", section }),
+      },
+    ];
+    if (index > 0)
+      items.push({
+        id: "up",
+        label: "Move up",
+        icon: "chevronUp",
+        onSelect: () => order(index - 1),
+      });
+    if (index < list.length - 1)
+      items.push({
+        id: "down",
+        label: "Move down",
+        icon: "chevronDown",
+        onSelect: () => order(index + 1),
+      });
+    items.push({
+      id: "delete",
+      label: "Delete section…",
+      icon: "trash",
+      destructive: true,
+      section: true,
+      onSelect: async () => {
+        const count = sectioned.get(section.id)?.length ?? 0;
+        const sure =
+          !confirm ||
+          (await confirm({
+            title: `Delete ${section.name}?`,
+            body:
+              count === 0
+                ? "The section goes from your sidebar."
+                : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
+            confirmLabel: "Delete section",
+            destructive: true,
+          }));
+        if (sure && !(await client.deleteSidebarSection(section.id)))
+          toast?.({
+            message: "Could not delete that section. Check your connection and try again.",
+          });
+      },
+    });
+    return { label: section.name, items };
   }
 
   function roomRow(ch: Channel) {
@@ -295,6 +486,7 @@ export function Sidebar(props: Props) {
         onClick={() => props.onSelect(ch.id)}
         actions={channelActions(ch)}
         menu={rowMenu(ch, ch.name)}
+        {...draggable(ch.id)}
         icon={
           ch.type === "private" ? (
             <span role="img" aria-label="Private channel" title="Private channel">
@@ -330,6 +522,7 @@ export function Sidebar(props: Props) {
         mentions={mentions(ch.id)}
         onClick={() => props.onSelect(ch.id)}
         menu={rowMenu(ch, title)}
+        {...draggable(ch.id)}
         icon={
           first ? (
             <AvatarWithPresence user={first} online={online} size={20} ring="var(--color-deep)" />
@@ -483,8 +676,9 @@ export function Sidebar(props: Props) {
               )}
             </ul>
 
-            {starred.length > 0 && (
-              <>
+            {/* Shown while it holds something, or while a row is dragged that it could take. */}
+            {(starred.length > 0 || (dropOn !== null && stars)) && (
+              <div {...dropZone("starred")}>
                 <SectionHeader
                   label="Starred"
                   section="starred"
@@ -497,45 +691,85 @@ export function Sidebar(props: Props) {
                     .filter((ch) => shown("starred", ch.id))
                     .map((ch) => (isDirect(ch) ? dmRow(ch) : roomRow(ch)))}
                 </ul>
-              </>
+              </div>
             )}
 
-            <SectionHeader
-              label="Channels"
-              section="channels"
-              collapsed={collapsed.has("channels")}
-              onToggle={() => toggleSection("channels")}
-              actions={[
-                { label: "Browse channels", icon: "compass", onClick: props.onBrowseChannels },
-                ...(guest
-                  ? []
-                  : [{ label: "New channel", icon: "plus" as const, onClick: props.onNewChannel }]),
-              ]}
-            />
-            <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
-              {rooms.filter((ch) => shown("channels", ch.id)).map(roomRow)}
-            </ul>
+            {(sections ?? []).map((section, index) => {
+              const place = `section:${section.id}`;
+              const inIt = sectioned.get(section.id) ?? [];
+              return (
+                <div key={section.id} {...dropZone(place)}>
+                  <SectionHeader
+                    label={section.name}
+                    section={place}
+                    collapsed={collapsed.has(place)}
+                    onToggle={() => toggleSection(place)}
+                    actions={[]}
+                    menu={sectionMenu(section, index)}
+                  />
+                  {inIt.length === 0 && !collapsed.has(place) && (
+                    <p className="mb-3 px-2 text-[13px] text-ink-faint">
+                      Move conversations here from their menu.
+                    </p>
+                  )}
+                  <ul
+                    key={reopened[place]}
+                    className={`${inIt.length > 0 ? "mb-4" : ""} space-y-px ${rowsIn(place)}`}
+                  >
+                    {inIt
+                      .filter((ch) => shown(place, ch.id))
+                      .map((ch) => (isDirect(ch) ? dmRow(ch) : roomRow(ch)))}
+                  </ul>
+                </div>
+              );
+            })}
 
-            {!guest && (
+            <div {...dropZone("channels")}>
               <SectionHeader
-                label="Direct messages"
-                section="dms"
-                collapsed={collapsed.has("dms")}
-                onToggle={() => toggleSection("dms")}
+                label="Channels"
+                section="channels"
+                collapsed={collapsed.has("channels")}
+                onToggle={() => toggleSection("channels")}
                 actions={[
-                  {
-                    label: "Friends",
-                    icon: "friends",
-                    onClick: props.onFriends,
-                    badge: friendRequests,
-                  },
-                  { label: "New message", icon: "plus", onClick: props.onNewDm },
+                  { label: "Browse channels", icon: "compass", onClick: props.onBrowseChannels },
+                  ...(guest
+                    ? []
+                    : [
+                        {
+                          label: "New channel",
+                          icon: "plus" as const,
+                          onClick: props.onNewChannel,
+                        },
+                      ]),
                 ]}
               />
-            )}
-            <ul key={reopened.dms} className={`space-y-px ${rowsIn("dms")}`}>
-              {dms.filter((ch) => shown("dms", ch.id)).map(dmRow)}
-            </ul>
+              <ul key={reopened.channels} className={`mb-4 space-y-px ${rowsIn("channels")}`}>
+                {rooms.filter((ch) => shown("channels", ch.id)).map(roomRow)}
+              </ul>
+            </div>
+
+            <div {...dropZone("dms")}>
+              {!guest && (
+                <SectionHeader
+                  label="Direct messages"
+                  section="dms"
+                  collapsed={collapsed.has("dms")}
+                  onToggle={() => toggleSection("dms")}
+                  actions={[
+                    {
+                      label: "Friends",
+                      icon: "friends",
+                      onClick: props.onFriends,
+                      badge: friendRequests,
+                    },
+                    { label: "New message", icon: "plus", onClick: props.onNewDm },
+                  ]}
+                />
+              )}
+              <ul key={reopened.dms} className={`space-y-px ${rowsIn("dms")}`}>
+                {dms.filter((ch) => shown("dms", ch.id)).map(dmRow)}
+              </ul>
+            </div>
             {/* For someone with nobody to talk to yet; starred ones still count. */}
             {dms.length === 0 && !starred.some(isDirect) && !guest && (
               <button
@@ -551,6 +785,38 @@ export function Sidebar(props: Props) {
           </div>
         </div>
       </div>
+      {naming && (
+        <Suspense fallback={null}>
+          <SectionNameDialog
+            title={naming.mode === "create" ? "New section" : "Rename section"}
+            submitLabel={naming.mode === "create" ? "Create section" : "Rename"}
+            initial={naming.mode === "rename" ? naming.section.name : ""}
+            onClose={() => setNaming(null)}
+            onSubmit={async (name) => {
+              if (naming.mode === "rename")
+                return (await client.renameSidebarSection(naming.section.id, name))
+                  ? null
+                  : "Could not rename the section. Check your connection and try again.";
+              const made = await client.createSidebarSection(name);
+              if (!made)
+                return (sections?.length ?? 0) >= SIDEBAR_SECTIONS_MAX
+                  ? `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections. Delete one to make another.`
+                  : "Could not create the section. Check your connection and try again.";
+              const moveId = naming.moveId;
+              if (moveId && channels[moveId]) {
+                moved.current = { id: moveId, section: `section:${made.id}` };
+                moveConversation(
+                  client,
+                  toast,
+                  { id: moveId, noun: isDirect(channels[moveId]) ? "conversation" : "channel" },
+                  made.id,
+                );
+              }
+              return null;
+            }}
+          />
+        </Suspense>
+      )}
       {guest && props.onCreateAccount && <KeepAccountOffer onKeep={props.onCreateAccount} />}
       {/* Discord's floating panel: you, across the foot of the rail and the list. */}
       <footer className="user-panel m-2 mt-0 shrink-0 rounded-xl border border-edge bg-raised p-1.5 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)]">
@@ -1053,6 +1319,8 @@ function SectionHeader(props: {
   onToggle?: () => void;
   /** Each action shows only its icon, and its label names it. */
   actions: { label: string; icon: IconName; onClick: () => void; badge?: number }[];
+  /** A section of this account's own has a menu of what can be done to it (E8). */
+  menu?: RowMenu;
 }) {
   return (
     <div className="group/section mb-0.5 flex h-7 items-center justify-between pr-0.5">
@@ -1087,6 +1355,17 @@ function SectionHeader(props: {
             </button>
           </Tooltip>
         ))}
+        {props.menu && (
+          <Menu
+            label={`Options for ${props.menu.label}`}
+            items={props.menu.items}
+            sheet
+            tooltip="Section options"
+            triggerLabel={`Options for section ${props.menu.label}`}
+            triggerContent={<Icon name="dots" size={15} strokeWidth={2} />}
+            triggerClassName="icon-live flex size-6 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
+          />
+        )}
       </span>
     </div>
   );
@@ -1135,6 +1414,9 @@ function ChannelRow(props: {
   actions?: RowAction[];
   /** More, after the actions; a right-click on the row opens it too. */
   menu?: RowMenu;
+  /** Lets a pointer drag the row to another section (E8). */
+  onDragStart?: (event: React.DragEvent) => void;
+  onDragEnd?: () => void;
 }) {
   const showUnread = props.unread && !props.active && !props.muted;
   // One that comes while the sidebar is open pops in, as the counts do.
@@ -1161,6 +1443,9 @@ function ChannelRow(props: {
       )}
       <button
         onClick={props.onClick}
+        draggable={props.onDragStart ? true : undefined}
+        onDragStart={props.onDragStart}
+        onDragEnd={props.onDragEnd}
         onContextMenu={
           props.menu &&
           ((event) => {

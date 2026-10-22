@@ -53,6 +53,15 @@ export function useConfirm(): Ask {
   return ask;
 }
 
+/** The same, where a screen may be drawn without one, as in a test: then nobody is asked. */
+export function useOptionalConfirm(): Ask | null {
+  const service = useContext(ConfirmContext);
+  const owner = useRef({});
+  useEffect(() => () => service?.cancel(owner.current), [service]);
+  const ask = useCallback<Ask>((request) => service!.ask(owner.current, request), [service]);
+  return service ? ask : null;
+}
+
 interface Pending {
   id: number;
   owner: object;
