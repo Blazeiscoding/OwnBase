@@ -95,6 +95,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     threadFollows: {},
     mentionCounts: {},
     drafts: {},
+    draftTimes: {},
     huddles: {},
     ephemerals: {},
     ephemeralsDropped: {},
