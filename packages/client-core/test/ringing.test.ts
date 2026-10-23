@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import { PROTOCOL_VERSION } from "@slackoss/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
+import { Api, WorkspaceClient, type HuddleState, type WorkspaceState } from "../src/index.js";
 
 /**
  * Ringing on the client (E10): a ring this account is part of, from the
@@ -34,8 +34,8 @@ function until(
   });
 }
 
-async function online(token: string) {
-  const client = new WorkspaceClient(base, token);
+async function online(token: string, url = base) {
+  const client = new WorkspaceClient(url, token);
   onTestFinished(() => client.destroy());
   client.connect();
   await until(client, (s) => s.status === "online", "connection");
@@ -43,8 +43,8 @@ async function online(token: string) {
 }
 
 /** A bare socket for the caller, since starting a real call needs a microphone. */
-async function socket(token: string) {
-  const ws = new WebSocket(base.replace("http", "ws") + "/ws");
+async function socket(token: string, url = base) {
+  const ws = new WebSocket(url.replace("http", "ws") + "/ws");
   onTestFinished(() => ws.close());
   const ready = new Promise<void>((resolve) =>
     ws.addEventListener("message", (event) => {
@@ -162,5 +162,55 @@ describe("rings on the client", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it("say once, on the caller's device in the call, who declined or that nobody answered", async () => {
+    const channelId = await directMessage();
+    // This device is the one in the call; the call itself goes on a bare socket.
+    const inCall = await online(alice.token);
+    inCall.store.setState({ huddle: { channelId } as HuddleState });
+    const elsewhere = await online(alice.token);
+    const caller = await socket(alice.token);
+    caller({ type: "huddle.join", channelId, requestId: "a" });
+    const callee = await online(bob.token);
+    await until(callee, (s) => !!s.rings?.[channelId], "the ring");
+
+    callee.declineRing(channelId);
+    const said = await until(inCall, (s) => s.ringNotice !== null, "the notice");
+    expect(said.ringNotice).toMatchObject({ channelId, message: "bob declined" });
+    await until(elsewhere, (s) => !s.rings?.[channelId], "the other device to hear it end");
+    expect(elsewhere.state.ringNotice).toBeNull();
+    expect(callee.state.ringNotice).toBeNull();
+    caller({ type: "huddle.leave", channelId });
+
+    // Nobody answering in time, on a server that rings briefly.
+    const brief = await createWorkspaceServer({
+      dataDir: ":memory:",
+      port: 0,
+      mdns: false,
+      rateLimits: false,
+      huddleRingMs: 150,
+    });
+    onTestFinished(() => brief.stop());
+    const url = `http://127.0.0.1:${brief.port}`;
+    const api = new Api(url);
+    const carol = await api.register({
+      handle: "carol",
+      displayName: "Carol",
+      password: "password123",
+    });
+    const dave = await api.register({
+      handle: "dave",
+      displayName: "Dave",
+      password: "password123",
+    });
+    const quiet = (
+      await new Api(url, carol.token).createChannel({ type: "dm", memberIds: [dave.user.id] })
+    ).channel.id;
+    const carols = await online(carol.token, url);
+    carols.store.setState({ huddle: { channelId: quiet } as HuddleState });
+    (await socket(carol.token, url))({ type: "huddle.join", channelId: quiet, requestId: "a" });
+    const missed = await until(carols, (s) => s.ringNotice !== null, "no answer");
+    expect(missed.ringNotice).toMatchObject({ channelId: quiet, message: "No answer" });
   });
 });

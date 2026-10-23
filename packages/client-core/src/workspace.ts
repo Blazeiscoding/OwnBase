@@ -656,6 +656,11 @@ export interface WorkspaceState {
    * from the next.
    */
   huddleEnded: { channelId: ID; message: string; error: boolean; at: number } | null;
+  /**
+   * What the caller's device in the call says once about its ring (E10): who
+   * declined, or that nobody answered. `at` tells one notice from the next.
+   */
+  ringNotice: { channelId: ID; message: string; at: number } | null;
 }
 
 const initialState: WorkspaceState = {
@@ -708,6 +713,7 @@ const initialState: WorkspaceState = {
   rings: null,
   huddle: null,
   huddleEnded: null,
+  ringNotice: null,
   ephemerals: {},
   ephemeralsDropped: {},
   modal: null,
@@ -1791,9 +1797,16 @@ export class WorkspaceClient {
     } else if (event.type === "huddle.ring") {
       // Over once it rings nobody; the server forgets it then too.
       const rings = { ...s.rings };
+      const before = rings[event.ring.channelId];
       if (event.ring.ringing.length > 0) rings[event.ring.channelId] = event.ring;
       else delete rings[event.ring.channelId];
-      this.store.setState({ rings });
+      const message = this.ringNoticeFor(before, event.ring);
+      this.store.setState({
+        rings,
+        ...(message
+          ? { ringNotice: { channelId: event.ring.channelId, message, at: Date.now() } }
+          : {}),
+      });
     } else if (event.type === "huddle.moved") {
       // The server already gave the place to the other device; saying so
       // again here would only be refused.
@@ -3594,6 +3607,21 @@ export class WorkspaceClient {
 
   leaveHuddle(): void {
     this.endHuddle();
+  }
+
+  /**
+   * What the caller's device in the call says as its ring changes (E10): who
+   * has just declined, or, once it ends with nobody answering, that nobody
+   * did. Their other devices say nothing, nor does anyone rung.
+   */
+  private ringNoticeFor(before: HuddleRing | undefined, after: HuddleRing): string | null {
+    if (after.callerId !== this.state.self?.id || this.state.huddle?.channelId !== after.channelId)
+      return null;
+    const declined = after.declined.filter((id) => !before?.declined.includes(id));
+    if (declined.length > 0)
+      return `${declined.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ")} declined`;
+    if (after.ringing.length === 0 && after.answered.length === 0) return "No answer";
+    return null;
   }
 
   /**

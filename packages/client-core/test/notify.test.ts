@@ -103,6 +103,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     draftTimes: {},
     huddles: {},
     rings: null,
+    ringNotice: null,
     ephemerals: {},
     ephemeralsDropped: {},
     modal: null,
