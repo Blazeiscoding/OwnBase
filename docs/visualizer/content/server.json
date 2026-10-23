@@ -92,7 +92,8 @@
         "Schema 43 adds thread_follows.muted (E3): a thread one account muted, kept unfollowed when that account replies.",
         "Schema 44 adds reminders (E4): one per account and message, with remind_at and due_at (NULL while it waits), going with the account or the message row, and indexed for the soonest waiting one and for a message's reminders.",
         "Schema 45 adds polls and poll_votes (E6): a poll per message, its choices in order as JSON, multiple, anonymous and closed_at; and one row per choice an account made, keyed by message, account and choice. Both go with the message's row, votes with the account too, and votes are indexed by account for the choices each account is sent.",
-        "Schema 46 adds sidebar_sections (E8): one account's own named sections with their position, going with the account, indexed by account and position; and channel_members.section_id, the section a membership is kept in. It has no foreign key, as forwarded_from_id has none: deleting a section clears it in the same change, and a column with one could not be dropped by the upgrade test."
+        "Schema 46 adds sidebar_sections (E8): one account's own named sections with their position, going with the account, indexed by account and position; and channel_members.section_id, the section a membership is kept in. It has no foreign key, as forwarded_from_id has none: deleting a section clears it in the same change, and a column with one could not be dropped by the upgrade test.",
+        "Schema 47 adds profiles (E9): users.time_zone, users.away (set by hand) and users.avatar_version, and user_avatars, one picture's type and bytes per account, going with the account. Removing a picture deletes its row."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -127,7 +128,8 @@
         "The ready snapshot carries this account's reachable reminders, which also says the server keeps them (E4).",
         "The ready snapshot carries pollChoices, what this account chose in each anonymous poll it can still read, which also says the server keeps polls (E6).",
         "The ready snapshot says sharedFiles, that the server lists shared files (E7).",
-        "The ready snapshot carries sidebarSections, the account's sections in order, which also says the server keeps them (E8)."
+        "The ready snapshot carries sidebarSections, the account's sections in order, which also says the server keeps them (E8).",
+        "Presence (E9): each socket says whether its device is idle. An account is offline with no socket, away when set away by hand or when every socket says idle, and online otherwise. refreshPresence tells everyone only a change, whether an idle message, a socket opening or closing, or away by hand made it; going offline is told as the last socket closes. The ready snapshot says profiles, and its presence map gives away too."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -162,7 +164,8 @@
         "iconTypeOf reads the first bytes for the PNG, JPEG and WebP signatures. checkIcon refuses a declared type that is not one of those three (415, so SVG and its script never get in), a body over WORKSPACE_ICON_MAX_BYTES (413), bytes that are none of them or disagree with the declared type (400), and a header claiming more than 1024 pixels a side, which every client would have to decode.",
         "The server never decodes or resizes, keeping it free of native image libraries; the client cuts the picture to 256 pixels square first. imageSize reads only the dimensions the header claims.",
         "An icon's version is the first 16 hex digits of the SHA-256 of its bytes, so the same picture always has the same version and a changed one a new version, which is what lets clients keep it under ?v= for a year.",
-        "It is kept as three meta rows (workspace_icon_type, workspace_icon_version, workspace_icon_data in base64) rather than a table, so no migration is needed and backups and restores carry it. readStoredIcon reads them back only when they make a whole icon whose bytes match their version; the desktop app reads a stopped workspace's icon through it."
+        "It is kept as three meta rows (workspace_icon_type, workspace_icon_version, workspace_icon_data in base64) rather than a table, so no migration is needed and backups and restores carry it. readStoredIcon reads them back only when they make a whole icon whose bytes match their version; the desktop app reads a stopped workspace's icon through it.",
+        "checkIcon takes a noun, so the same rules refuse a profile picture in its own words (E9)."
       ],
       "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
     },
@@ -365,7 +368,8 @@
         "Reminders (E4): PUT /api/messages/:id/reminder sets or moves one (a time in the future, within five years, 200 per account; REMINDER_LIMITS, overridable in reminderLimits), DELETE removes one, GET /api/reminders lists them; guests may use all three. One timer is set for the soonest, and runs on starting, so a reminder due while the server was stopped comes due then; an isolated copy sets none. Coming due tells the account's devices with the message. One whose message is gone, whose account cannot read it or is deactivated is dropped instead, with reminder.removed, and a deleted message's reminders are dropped as the deletion is published.",
         "Polls (E6): a send can carry poll, its words the question; one with files or a forward is refused (400 bad_poll), and a guest's is refused (403 guest_not_allowed), as an upload is. The poll is part of the send's nonce identity, and an edit of a poll answers 409 poll_not_editable. PUT /api/messages/:id/poll/votes replaces the asking account's choices, guests included; it is refused for a message that is no poll, a closed poll (409 poll_closed), an archived conversation, a choice past the last or more than one on a single-choice poll. POST /api/messages/:id/poll/close is for the poll's author. Both tell readers with message.updated and pollOnly, only when something changed; a vote first tells the voter's own devices poll.choices, after the commit and before the count, so a device never counts its own vote twice. /poll is a built-in the server lists but answers with 400 in_app_command, so an older client is told where polls are made.",
         "GET /api/files is the file browser's page (E7), guests included, who see only public conversations' files.",
-        "Sidebar sections (E8): POST /api/sidebar-sections adds one (at most SIDEBAR_SECTIONS_MAX, 409 too_many_sections), PATCH and DELETE /api/sidebar-sections/:id rename and delete one (404 section_not_found for another account's), and PUT /api/sidebar-sections/order takes every one in a new order (409 sections_changed otherwise); guests may use all four, as they may star. Each change tells the account's devices sidebar.sections, and a deletion sends prefs for the conversations it let go. PATCH /api/channels/:id/prefs takes sectionId only for the account's own section."
+        "Sidebar sections (E8): POST /api/sidebar-sections adds one (at most SIDEBAR_SECTIONS_MAX, 409 too_many_sections), PATCH and DELETE /api/sidebar-sections/:id rename and delete one (404 section_not_found for another account's), and PUT /api/sidebar-sections/order takes every one in a new order (409 sections_changed otherwise); guests may use all four, as they may star. Each change tells the account's devices sidebar.sections, and a deletion sends prefs for the conversations it let go. PATCH /api/channels/:id/prefs takes sectionId only for the account's own section.",
+        "Profiles (E9): PATCH /api/me takes timeZone, kept under its current name, and away, telling presence when away changes. PUT /api/me/avatar takes the picture's bytes, checked by checkIcon as a profile picture, and DELETE /api/me/avatar removes it; GUEST_ROUTES leaves both to members. GET /api/users/:id/avatar serves a picture to anyone signed in, guests too: 404 for a version that is not the picture's, kept for good under its version, and asked about again without one."
       ],
       "concepts": [
         "HTTP API",
@@ -385,7 +389,8 @@
         "A discriminated union admits hello, ping, typing, huddle join/leave and signaling with bounded IDs, tokens and cursors.",
         "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes. Media state takes an optional screenSound flag, which older clients leave out.",
         "Protocol TypeScript types alone cannot validate a remote caller; this Zod schema provides runtime enforcement without importing browser DOM types.",
-        "Validates huddle.report: counts, states and enums only, so a report cannot carry an address or arbitrary text."
+        "Validates huddle.report: counts, states and enums only, so a report cannot carry an address or arbitrary text.",
+        "Validates idle: whether the device has gone idle, a boolean (E9)."
       ],
       "concepts": ["runtime validation", "WebSocket", "bounded payload"]
     },
@@ -425,7 +430,8 @@
         "Reminders (E4): setReminder sets one or moves it, waiting again; listReminders and reminders give those the account can still reach, the list due first, the latest first, then waiting, the soonest first, each with its message; dueReminders, markReminderDue and nextReminderAt serve the timer, and dropMessageReminders a deletion.",
         "Polls (E6): hydration reads each live message's poll and its votes in one batch per page and counts them, naming voters on each choice only when the poll is not anonymous. createPoll, pollRules, pollChoices, setPollChoices (which says whether anything changed), closePoll and anonymousPollChoices (for the snapshot, those the account can still read) serve the routes; deleteMessage deletes the poll and redactEventRows drops poll from the log's copies.",
         "listSharedFiles (E7) lists the files on live messages one account can read, by the download rule (public, or a member and no guest), newest first by message id and then file id, and narrowed by kind (from FILE_TYPE_MATCH, so search and the browser agree; a picture is never a document), sharer, conversation and every word of q in the name, LIKE wildcards escaped. CROSS JOIN keeps files the outer loop, walking idx_files_message so a page stops once it is full; a test checks the plan.",
-        "Sidebar sections (E8): ChannelPrefs carries sectionId from channel_members.section_id. setChannelPrefs keeps a conversation in one place: a section clears its star and a star clears its section. sidebarSections lists an account's in order; createSidebarSection adds one last; renameSidebarSection, deleteSidebarSection (clearing its members' section_id and saying which) and orderSidebarSections (only the exact set) act on the account's own only."
+        "Sidebar sections (E8): ChannelPrefs carries sectionId from channel_members.section_id. setChannelPrefs keeps a conversation in one place: a section clears its star and a star clears its section. sidebarSections lists an account's in order; createSidebarSection adds one last; renameSidebarSection, deleteSidebarSection (clearing its members' section_id and saying which) and orderSidebarSections (only the exact set) act on the account's own only.",
+        "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -483,7 +489,8 @@
         "Reminder is one account's reminder about one message: its conversation and thread, remindAt, and dueAt or null while it waits. ReminderItem pairs one with its message for the list (E4).",
         "Message.poll is a Poll (E6): options, each with its text, votes and, unless anonymous, voterIds; multiple, anonymous, voters (how many people chose anything) and closedAt. An option is known by its place. POLL_OPTIONS_MIN and POLL_OPTIONS_MAX (2 and 10), POLL_QUESTION_MAX (300) and POLL_OPTION_MAX (80) are the rules both sides share.",
         "SharedFile is one file as the file browser lists it (E7): its FileMeta, and the message that shared it, with its conversation, thread, sharer and time.",
-        "SidebarSection is one account's named sidebar section (E8); ChannelPrefs.sectionId is the one a conversation is kept in, or null. SIDEBAR_SECTIONS_MAX (50) and SIDEBAR_SECTION_NAME_MAX (80) are the limits both sides share."
+        "SidebarSection is one account's named sidebar section (E8); ChannelPrefs.sectionId is the one a conversation is kept in, or null. SIDEBAR_SECTIONS_MAX (50) and SIDEBAR_SECTION_NAME_MAX (80) are the limits both sides share.",
+        "User.timeZone, User.away (set by hand) and User.avatarVersion are present only when set (E9); a picture is served under its version."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -504,7 +511,8 @@
         "reminder tells an account's own devices that one of its reminders was set, moved or came due, with the message when it came due; reminder.removed that one is gone. ReadySnapshot.reminders lists them, and is absent from a server that keeps none (E4).",
         "message.updated may say pollOnly: only the message's poll changed, by a vote or its closing, which is not an edit (E6). poll.choices tells an account's own devices what it now chose in a poll; ReadySnapshot.pollChoices holds those for anonymous polls, and is absent from a server without polls.",
         "ReadySnapshot.sharedFiles says the server lists shared files (E7); an older one is offered no Files.",
-        "sidebar.sections tells an account's own devices its sections after any change; ReadySnapshot.sidebarSections lists them, absent from a server that keeps none (E8)."
+        "sidebar.sections tells an account's own devices its sections after any change; ReadySnapshot.sidebarSections lists them, absent from a server that keeps none (E8).",
+        "ReadySnapshot.profiles says the server keeps pictures, time zones and away (E9), and a client's idle message says whether its device is idle."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -574,7 +582,8 @@
         "reminderBody is the time to be reminded at, in epoch ms (E4).",
         "sendMessageBody.poll makes a message a poll (E6): two to ten different choices of up to 80 characters, multiple and anonymous defaulting to false, and a question of up to 300 characters. pollVotesBody is the choices a vote replaces the voter's with. SendMessageBody is the schema's input type, so a client may leave out what has a default.",
         "sharedFilesQuery is the file browser's page (E7): limit (30, at most 100), a cursor of message and file ids, kind, userId, channelId and q.",
-        "channelPrefsBody takes sectionId (E8). sidebarSectionNameSchema is a section's name, 1 to 80 characters once trimmed and no control characters; sidebarSectionBody and sidebarSectionOrderBody are the requests to name one and to order them."
+        "channelPrefsBody takes sectionId (E8). sidebarSectionNameSchema is a section's name, 1 to 80 characters once trimmed and no control characters; sidebarSectionBody and sidebarSectionOrderBody are the requests to name one and to order them.",
+        "updateMeBody takes timeZone, an IANA zone kept under its current name, or null to forget it, and away (E9). PROFILE_PICTURE_TYPES, PROFILE_PICTURE_MAX_BYTES and PROFILE_PICTURE_PIXELS are the workspace icon's limits."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },
@@ -588,7 +597,8 @@
         "before excludes the named day; after starts at the following day in the reader's IANA timezone. Day boundaries account for daylight-saving transitions instead of assuming 24 hours.",
         "A bounded cache keeps at most 32 Intl.DateTimeFormat instances, avoiding repeated construction while preventing arbitrary timezone inputs from growing memory indefinitely.",
         "This parser returns criteria; Store still adds current conversation visibility and safe query parameter handling.",
-        "FILE_KINDS and FILE_KIND_TYPES are the file browser's kinds (E7): image is type:image, document is type:pdf, document, spreadsheet and presentation, and other is the rest. isFileType tests one file against a type's own LIKE patterns and name endings, and fileKind sorts a file, a picture before a document, so the client names a kind as the server filters it."
+        "FILE_KINDS and FILE_KIND_TYPES are the file browser's kinds (E7): image is type:image, document is type:pdf, document, spreadsheet and presentation, and other is the rest. isFileType tests one file against a type's own LIKE patterns and name endings, and fileKind sorts a file, a picture before a document, so the client names a kind as the server filters it.",
+        "currentZoneName gives the name the IANA database has now for the 19 zones Chromium, Electron and Node still give by an old one, such as Asia/Calcutta for Asia/Kolkata (E9)."
       ],
       "concepts": ["search syntax", "time zones", "bounded cache"]
     }

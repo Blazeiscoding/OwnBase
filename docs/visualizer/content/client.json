@@ -33,7 +33,8 @@
         "setReminder, cancelReminder and listReminders call PUT and DELETE /api/messages/:id/reminder and GET /api/reminders (E4).",
         "votePoll and closePoll call PUT /api/messages/:id/poll/votes and POST /api/messages/:id/poll/close (E6).",
         "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7).",
-        "createSidebarSection, renameSidebarSection, deleteSidebarSection and orderSidebarSections call the sidebar section routes (E8)."
+        "createSidebarSection, renameSidebarSection, deleteSidebarSection and orderSidebarSections call the sidebar section routes (E8).",
+        "setAvatar and removeAvatar call PUT and DELETE /api/me/avatar; fetchAvatar fetches GET /api/users/:id/avatar?v= with the session's token, which the browser may keep for that version (E9)."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -61,7 +62,8 @@
         "draftTimes keeps when each draft last changed, as far as this device knows (E5). setDraft stamps a draft whose words change, or the time given for one put back; hydrateDrafts keeps the time of a draft whose words did not change, takes the stored time on restore, and dates one another window changed from hearing of it.",
         "pollChoices holds what this account chose in anonymous polls, by message id, or null where the server keeps no polls (E6); the ready snapshot fills it, poll.choices keeps it current and a deletion drops its entry. pollPicks holds choices made here that the server has not been heard to have. send takes poll, through the outbox like any message, refused alone with files or a forward or where polls are not kept; a poll's question is never read as a command. vote goes through choose, one request out at a time with the latest standing, shows the pick at once and lets it go once an echo or the answer says the server has it; a refused vote shows what the server last said. A message.updated with pollOnly is not an edit, so it changes no Activity and requotes nothing. closePoll shows the poll closed once the server says so.",
         "sharedFiles says the server lists shared files (ReadySnapshot.sharedFiles, E7), so Files is offered only there.",
-        "sidebarSections holds this account's sections in order, or null where the server keeps none (E8); the snapshot fills it and sidebar.sections keeps it current. Making, renaming and deleting one keep the server's answer. orderSidebarSections shows the new order at once; lists heard while it is on its way wait, and a refusal shows the last one heard. A conversation moves through setChannelPrefs with sectionId."
+        "sidebarSections holds this account's sections in order, or null where the server keeps none (E8); the snapshot fills it and sidebar.sections keeps it current. Making, renaming and deleting one keep the server's answer. orderSidebarSections shows the new order at once; lists heard while it is on its way wait, and a refusal shows the last one heard. A conversation moves through setChannelPrefs with sectionId.",
+        "profiles says the server keeps pictures, time zones and away (ReadySnapshot.profiles, E9). setIdle tells it once per change that this device is idle or in use, and again on each new connection; an account with no zone takes this device's once it is in. setAway, setTimeZone, setAvatar and removeAvatar show the server's answer for this account at once. avatars is the AvatarCache, cleared when the client is destroyed."
       ],
       "concepts": [
         "workspace replica",
@@ -139,6 +141,16 @@
         "object URLs",
         "N10"
       ]
+    },
+    {
+      "path": "packages/client-core/src/avatars.ts",
+      "plain": "Fetches people's profile pictures with your session and keeps them ready to show.",
+      "summary": "Holds profile pictures as object URLs named by person and version (E9).",
+      "details": [
+        "The server serves a picture only to someone signed in, and an <img> cannot send the session's token, so AvatarCache fetches each through Api.fetchAvatar and keeps an object URL. A new picture has a new version, so no URL is ever shown for a picture it is not.",
+        "peek gives a URL already here; load fetches once however many ask, and gives null for a picture that cannot be had. At most 400 are kept, the least recently asked for revoked first, and clear revokes them all."
+      ],
+      "concepts": ["profile pictures", "object URLs", "request deduplication"]
     },
     {
       "path": "packages/client-core/src/callLog.ts",
@@ -333,7 +345,8 @@
         "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4).",
         "A huddle shows as the call or the chat (useHuddleView). The call takes the conversation's column: from 1280 px wide the chat sits beside it in a column of its own, which the call's Chat button hides for the session; narrower, or hidden, the call covers the chat, which stays mounted and inert. The timeline, the huddle bar, the jump bar and the composer are one column whatever the view, so the timeline keeps its place. Opening another conversation while the call covers the chat shows that conversation.",
         "The Drafts panel (E5) is a side panel of its own, from the sidebar, the palette and its route. openDraft opens a draft where it was written: the conversation, the thread, the message with its editor (requestEdit, then a jump), or Scheduled with that edit open.",
-        "Files (E7) opens FilesPanel, a lazy chunk, from the palette, the address and a conversation's menu, which starts it in that conversation, where the server lists shared files; Show in conversation goes through jumpToMessage, so a reply opens its thread."
+        "Files (E7) opens FilesPanel, a lazy chunk, from the palette, the address and a conversation's menu, which starts it in that conversation, where the server lists shared files; Show in conversation goes through jumpToMessage, so a reply opens its thread.",
+        "useIdleReport says when this window goes idle (E9), and a direct message's header ends with PartnerTime."
       ],
       "concepts": [
         "screen orchestration",
@@ -690,11 +703,12 @@
     },
     {
       "path": "packages/ui/src/lib/iconImage.ts",
-      "plain": "Turns a picture someone chose into a small square icon before it is sent to the server.",
+      "plain": "Turns a picture someone chose into a small square icon or profile picture before it is sent to the server.",
       "summary": "Crops and scales an uploaded picture to the workspace icon in the browser (UX-60).",
       "details": [
         "prepareIcon refuses anything but PNG, JPEG or WebP (an SVG is named as such) and pictures over 25 MB, decodes with createImageBitmap, cuts the middle square at WORKSPACE_ICON_PIXELS, and encodes WebP where the browser can, PNG where not. A result over WORKSPACE_ICON_MAX_BYTES is refused here as too detailed.",
-        "Throws IconProblem with words for the person who chose the file. Only Workspace settings imports it, so it stays in that lazily loaded chunk."
+        "Throws IconProblem with words for the person who chose the file. Workspace settings and the profile form import it, both lazily loaded, so it stays out of the entry.",
+        "prepareIcon takes a noun for its problems, so a profile picture is refused in its own words; the same 256 pixels square serve both (E9)."
       ],
       "concepts": ["workspace icon", "canvas", "UX-60"]
     },
@@ -977,6 +991,26 @@
         "Each preset carries how long it usually lasts (In a meeting and Out for lunch an hour, Heads down and Off sick today, On holiday until changed). statusEnd turns a Clear after choice into an end: minutes from now, or the last moment of today or of Sunday on this device's clock. statusUntil says it as until 3:41 PM, or until a day (UX-61)."
       ],
       "concepts": ["status presets", "status expiry", "UX-61"]
+    },
+    {
+      "path": "packages/ui/src/lib/localTime.ts",
+      "plain": "Works out what time it is for someone else, and whether it differs from yours.",
+      "summary": "Formats a time of day in a person's zone and compares it with the reader's (E9).",
+      "details": [
+        "timeIn writes the hour and minute in a zone as this reader writes times, keeping one formatter per zone, and gives null for a zone this device does not know. theirTime is someone's time now and whether it reads otherwise than the reader's, or null without a zone.",
+        "readerTimeZone is the account's zone, or else the device's under its current name (currentZoneName: Chromium gives India's as Asia/Calcutta). zoneLabel writes a zone with spaces. useMinute is the time now, changing as each minute starts."
+      ],
+      "concepts": ["time zones", "Intl", "IANA names"]
+    },
+    {
+      "path": "packages/ui/src/lib/idle.ts",
+      "plain": "Notices when nobody has used this window for ten minutes, so you can show as away.",
+      "summary": "Tells the workspace when this device goes idle and when it is used again (E9).",
+      "details": [
+        "useIdleReport waits IDLE_AFTER_MS, ten minutes, without a pointer, key, wheel, touch or focus, then calls WorkspaceClient.setIdle(true), and setIdle(false) at the next use. A moving pointer restarts the wait at most once a second.",
+        "The workspace screen runs it. The server makes the account away only once every one of its devices is idle."
+      ],
+      "concepts": ["presence", "idle detection"]
     },
     {
       "path": "packages/ui/src/lib/conversationChoices.ts",
@@ -1321,7 +1355,8 @@
         "Opened by DMs in the phone's bottom bar, and at #/c/<channel>/p/dms. Like every side panel it loads on first use in LazyPanel, takes focus on its heading through usePanelFocus, and below 1024 px covers the conversation.",
         "The list is the sidebar's own: conversations of type dm or group_dm this account is in and that are not archived, newest first by channelLastSeq. It comes from the workspace's live state, so it keeps itself current with nothing to load once the workspace has arrived; before then it shows ListStatus's stand-in rows.",
         "Each row is a button at least 48 px tall with the first other person's avatar and presence, the conversation's name, and Draft, Muted, a red mention count or an Unread dot; the one open is marked. Choosing one opens it, which closes the panel. The header has Friends (with a dot for requests waiting) and New message, which a guest does not get. The count, the dot and Friends' dot are Badges, always drawn so one that comes while the panel is open pops in.",
-        "Empty, it says how to start one and offers New message; a guest is told direct messages are for members. While the connection is down a line says the list may be out of date, and what this device knows stays listed."
+        "Empty, it says how to start one and offers New message; a guest is told direct messages are for members. While the connection is down a line says the list may be out of date, and what this device knows stays listed.",
+        "Someone away shows a ring rather than a filled dot (E9)."
       ],
       "concepts": ["direct messages", "side panel", "live state", "UX-70"]
     },
@@ -1549,7 +1584,8 @@
         "Activity's red badge counts due reminders with unread mentions, named for what it counts (E4).",
         "A Drafts row under Saved opens the Drafts panel, with a quiet count of the drafts it lists (E5). It shows only while there are drafts or the panel is open, so an empty row does not take a channel's place beside Getting started (UX-20).",
         "A Files row under Saved is there while the file browser is open, as Drafts is, so it costs no channel's place beside Getting started (UX-20); onFiles is given only where the server lists shared files (E7).",
-        "Sidebar sections (E8): the account's sections sit between Starred and Channels in their order, each listing its conversations by name, channels and people together; a conversation naming a section the account no longer has goes back where it would be. An empty one says how to fill it. A section folds like the others, kept on this device as section:<id>. Its header menu renames it (SectionNameDialog, lazy), moves it up or down where it can go, and deletes it after asking. A row's menu has a Move to group (each other section, New section..., Remove from), and a row can be dragged with a pointer onto a section, Starred, or its own Channels or Direct messages; the place lights while it would take the row, and nothing happens where it already is. Focus follows a moved row, as it does a starred one."
+        "Sidebar sections (E8): the account's sections sit between Starred and Channels in their order, each listing its conversations by name, channels and people together; a conversation naming a section the account no longer has goes back where it would be. An empty one says how to fill it. A section folds like the others, kept on this device as section:<id>. Its header menu renames it (SectionNameDialog, lazy), moves it up or down where it can go, and deletes it after asking. A row's menu has a Move to group (each other section, New section..., Remove from), and a row can be dragged with a pointer onto a section, Starred, or its own Channels or Direct messages; the place lights while it would take the row, and nothing happens where it already is. Focus follows a moved row, as it does a starred one.",
+        "Away (E9): on a server with profiles the account menu has Set yourself away, or Set yourself active once away by hand, and its heading and the footer show away as a ring; a direct message's row rings the dot of someone away."
       ],
       "concepts": [
         "workspace navigation",
@@ -1594,7 +1630,8 @@
       "details": [
         "DMs use their known participant IDs; channels fetch membership when opened and ignore results after disposal.",
         "Active users are sorted by name, grouped online/offline and linked to profiles. Shared loading and focus helpers make failure/retry and dismissal consistent.",
-        "A channel's list is asked for again, in place, when someone joins or leaves (memberChanges)."
+        "A channel's list is asked for again, in place, when someone joins or leaves (memberChanges).",
+        "Someone away (E9) is listed among those here with a ring for a dot, and says Away under their name when they have no status."
       ],
       "concepts": ["conversation membership", "presence", "request lifetime"]
     },
@@ -1652,14 +1689,33 @@
     },
     {
       "path": "packages/ui/src/components/ProfileDialog.tsx",
-      "plain": "Shows someone's profile with a way to message them, and lets you edit your own name and status.",
+      "plain": "Shows someone's profile with a way to message them, and lets you edit your own name, status, picture and time zone.",
       "summary": "Displays a person's profile and provides the shared self-profile editor.",
       "details": [
         "ProfileForm updates the current user's name and status through Api. Another person's profile can start/open a direct message.",
         "Since Q11 a press on Message is dropped once the card closes or shows someone else, so a late answer neither navigates nor changes the card.",
-        "Your own form offers Clear after (30 minutes, 1 hour, Today, This week, Don't clear) once there is a status; a preset picks its usual length, and a status saved again keeps the end it was set with. Someone else's card says until when their status lasts (UX-61)."
+        "Your own form offers Clear after (30 minutes, 1 hour, Today, This week, Don't clear) once there is a status; a preset picks its usual length, and a status saved again keeps the end it was set with. Someone else's card says until when their status lasts (UX-61).",
+        "A profile says Active now, Away (a ring, E9) or Offline, and the person's local time where their zone is known, with the zone, written with spaces, where their clock reads otherwise than yours.",
+        "Your own form, on a server with profiles (E9), uploads, changes or removes a picture through prepareIcon, and chooses a time zone from the device's list under current names, offering this device's own with Use it; each saves as it is chosen."
       ],
-      "concepts": ["profile", "direct message action", "Q11", "status expiry"]
+      "concepts": [
+        "profile",
+        "direct message action",
+        "Q11",
+        "status expiry",
+        "profile pictures",
+        "time zones"
+      ]
+    },
+    {
+      "path": "packages/ui/src/components/PartnerTime.tsx",
+      "plain": "The other person's time of day beside a direct message's name, when it is not yours.",
+      "summary": "Shows the one other person's local time in a direct message's header where their clock reads otherwise (E9).",
+      "details": [
+        "Only with exactly one other person, whose time zone is known; nothing when their time reads as the reader's. useMinute changes it as each minute starts.",
+        "The workspace screen puts it after the topic in a direct message's header."
+      ],
+      "concepts": ["time zones", "direct messages"]
     },
     {
       "path": "packages/ui/src/components/FriendsDialog.tsx",
@@ -1668,7 +1724,8 @@
       "details": [
         "FriendActions requests, accepts or removes a relationship through Api and displays current request state.",
         "The list resolves workspace people and supports opening their profiles or conversations; relationship state belongs to the server-backed replica.",
-        "An empty tab says so with EmptyState: no friends yet, no pending requests or no people found."
+        "An empty tab says so with EmptyState: no friends yet, no pending requests or no people found.",
+        "Someone away shows a ring for a dot (E9)."
       ],
       "concepts": ["friend requests", "server state", "people navigation"]
     },
@@ -2044,13 +2101,13 @@
     },
     {
       "path": "packages/ui/src/components/Avatar.tsx",
-      "plain": "Draws each person's colored initials and the dot that shows whether they are online.",
-      "summary": "Draws consistent initials avatars and presence indicators without image downloads.",
+      "plain": "Draws each person's picture, or their colored initials, and the dot that shows whether they are here.",
+      "summary": "Draws consistent avatars, with a profile picture where there is one, and presence indicators.",
       "details": [
-        "Avatar uses the account's deterministic hue and display-name initials; missing users receive a fallback.",
-        "PresenceDot and AvatarWithPresence draw online state with a ring matching the parent surface, keeping the same visual rule across rows and calls."
+        "Avatar shows the person's profile picture once the client's AvatarCache has it (E9), and otherwise the account's deterministic hue and display-name initials; missing users receive a fallback. It stays hidden from screen readers, since the name is always written beside it.",
+        "PresenceDot and AvatarWithPresence draw online state with a ring matching the parent surface, keeping the same visual rule across rows and calls. Away is a ring of the same green, as Slack draws it (E9)."
       ],
-      "concepts": ["deterministic avatar", "presence", "no image dependency"]
+      "concepts": ["deterministic avatar", "presence", "profile pictures"]
     },
     {
       "path": "packages/ui/src/components/Icon.tsx",
