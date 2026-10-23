@@ -1,5 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { ID, User, ScheduleMessageBody } from "@slackoss/protocol";
+import { MentionTags } from "./MentionTags.js";
 import { ApiError, OUTBOX_LIMIT, quoteOf } from "@slackoss/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
@@ -1116,62 +1117,65 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             ))}
           </ul>
         )}
-        <textarea
-          ref={box}
-          value={field.doc.shown}
-          readOnly={saving?.draftKey === draftKey}
-          aria-busy={saving?.draftKey === draftKey}
-          rows={1}
-          placeholder={dragging ? "Drop files to attach" : placeholder}
-          aria-label={placeholder}
-          {...(mentionQuery && candidates.length
-            ? mentionList
-            : emojiQuery && emojiCandidates.length
-              ? emojiList
-              : commandList
-          ).ownerProps}
-          onPaste={(e) => {
-            const data = e.clipboardData;
-            // Some browsers offer a pasted image only as an item, not among the files.
-            const files =
-              data.files.length > 0
-                ? [...data.files]
-                : [...data.items]
-                    .filter((item) => item.kind === "file")
-                    .map((item) => item.getAsFile())
-                    .filter((file): file is File => file !== null);
-            if (files.length === 0) return;
-            // A clipboard holding a file is pasted as the file, even when it
-            // holds text as well, as a copy from an office app does (a
-            // picture of the selection beside its text). Saying so keeps the
-            // text from going missing unremarked.
-            e.preventDefault();
-            addFiles(
-              files,
-              data.getData("text/plain").trim()
-                ? "The clipboard's file was attached; the text copied with it was not pasted."
-                : undefined,
-            );
-          }}
-          onChange={(e) => {
-            const next = field.fromInput(e);
-            edited.current = true;
-            setText(next.stored);
-            refreshMentionState(e.target.value, e.target.selectionStart, next);
-            finishShortcode(e.target.value, e.target.selectionStart);
-            const now = Date.now();
-            if (now - lastTypingSent.current > 3000 && e.target.value.trim()) {
-              lastTypingSent.current = now;
-              client.sendTyping(channelId);
-            }
-          }}
-          onKeyDown={onKeyDown}
-          onBlur={() => {
-            setMentionQuery(null);
-            setEmojiQuery(null);
-          }}
-          className="block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[15px] leading-normal outline-none placeholder:text-ink-faint"
-        />
+        <div className="relative">
+          <MentionTags doc={field.doc} box={box} />
+          <textarea
+            ref={box}
+            value={field.doc.shown}
+            readOnly={saving?.draftKey === draftKey}
+            aria-busy={saving?.draftKey === draftKey}
+            rows={1}
+            placeholder={dragging ? "Drop files to attach" : placeholder}
+            aria-label={placeholder}
+            {...(mentionQuery && candidates.length
+              ? mentionList
+              : emojiQuery && emojiCandidates.length
+                ? emojiList
+                : commandList
+            ).ownerProps}
+            onPaste={(e) => {
+              const data = e.clipboardData;
+              // Some browsers offer a pasted image only as an item, not among the files.
+              const files =
+                data.files.length > 0
+                  ? [...data.files]
+                  : [...data.items]
+                      .filter((item) => item.kind === "file")
+                      .map((item) => item.getAsFile())
+                      .filter((file): file is File => file !== null);
+              if (files.length === 0) return;
+              // A clipboard holding a file is pasted as the file, even when it
+              // holds text as well, as a copy from an office app does (a
+              // picture of the selection beside its text). Saying so keeps the
+              // text from going missing unremarked.
+              e.preventDefault();
+              addFiles(
+                files,
+                data.getData("text/plain").trim()
+                  ? "The clipboard's file was attached; the text copied with it was not pasted."
+                  : undefined,
+              );
+            }}
+            onChange={(e) => {
+              const next = field.fromInput(e);
+              edited.current = true;
+              setText(next.stored);
+              refreshMentionState(e.target.value, e.target.selectionStart, next);
+              finishShortcode(e.target.value, e.target.selectionStart);
+              const now = Date.now();
+              if (now - lastTypingSent.current > 3000 && e.target.value.trim()) {
+                lastTypingSent.current = now;
+                client.sendTyping(channelId);
+              }
+            }}
+            onKeyDown={onKeyDown}
+            onBlur={() => {
+              setMentionQuery(null);
+              setEmojiQuery(null);
+            }}
+            className="relative block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[15px] leading-normal outline-none placeholder:text-ink-faint"
+          />
+        </div>
         {attachmentNote && (
           <p role="alert" className="px-4 pb-2 text-xs text-ink-dim">
             {attachmentNote}

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "@slackoss/protocol";
+import { MentionTags } from "./MentionTags.js";
 import { ApiError } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
@@ -171,54 +172,57 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
             <Mrkdwn text={draft} users={users} channels={channels} selfId={client.state.self?.id} />
           </div>
         )}
-        <textarea
-          ref={box}
-          value={field.doc.shown}
-          autoFocus
-          aria-label="Edit message"
-          onChange={(e) => change(field.fromInput(e).stored)}
-          onKeyDown={(e) => {
-            // Enter confirms an IME candidate rather than saving the edit.
-            if (isImeKey(e.nativeEvent)) return;
-            field.onKeyDown(e);
-            if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-              const marker = formattingShortcut(e.key);
-              if (marker) {
-                e.preventDefault();
-                format(marker, "text");
-                return;
+        <div className="relative">
+          <MentionTags doc={field.doc} box={box} />
+          <textarea
+            ref={box}
+            value={field.doc.shown}
+            autoFocus
+            aria-label="Edit message"
+            onChange={(e) => change(field.fromInput(e).stored)}
+            onKeyDown={(e) => {
+              // Enter confirms an IME candidate rather than saving the edit.
+              if (isImeKey(e.nativeEvent)) return;
+              field.onKeyDown(e);
+              if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+                const marker = formattingShortcut(e.key);
+                if (marker) {
+                  e.preventDefault();
+                  format(marker, "text");
+                  return;
+                }
+                const listed = listShortcut(e);
+                if (listed) {
+                  e.preventDefault();
+                  list(listed);
+                  return;
+                }
+                // Saves from anywhere, a code block included, as it sends in the composer.
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  if (!changedElsewhere) void save();
+                  return;
+                }
               }
-              const listed = listShortcut(e);
-              if (listed) {
-                e.preventDefault();
-                list(listed);
-                return;
-              }
-              // Saves from anywhere, a code block included, as it sends in the composer.
-              if (e.key === "Enter") {
+              if (
+                e.key === "Enter" &&
+                !e.shiftKey &&
+                // A new line of the code, not half a code block saved.
+                !insideCodeBlock(e.currentTarget.value, e.currentTarget.selectionStart)
+              ) {
                 e.preventDefault();
                 if (!changedElsewhere) void save();
-                return;
               }
-            }
-            if (
-              e.key === "Enter" &&
-              !e.shiftKey &&
-              // A new line of the code, not half a code block saved.
-              !insideCodeBlock(e.currentTarget.value, e.currentTarget.selectionStart)
-            ) {
-              e.preventDefault();
-              if (!changedElsewhere) void save();
-            }
-            if (e.key === "Escape") {
-              e.preventDefault();
-              e.stopPropagation();
-              cancel();
-            }
-          }}
-          rows={Math.min(8, Math.max(2, draft.split("\n").length))}
-          className="block max-h-64 w-full resize-y bg-transparent px-3 py-2 text-[15px] outline-none"
-        />
+              if (e.key === "Escape") {
+                e.preventDefault();
+                e.stopPropagation();
+                cancel();
+              }
+            }}
+            rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+            className="relative block max-h-64 w-full resize-y bg-transparent px-3 py-2 text-[15px] outline-none"
+          />
+        </div>
         <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs">
           <span className={draft.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}>
             {draft.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()}
