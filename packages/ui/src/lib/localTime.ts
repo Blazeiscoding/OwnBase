@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { User } from "@slackoss/protocol";
+import { currentZoneName, type User } from "@slackoss/protocol";
 
 /**
  * Someone's local time (E9): the time in their zone, as this reader writes
@@ -26,14 +26,22 @@ export function timeIn(timeZone: string, at: number): string | null {
   return format.format(at);
 }
 
-/** This reader's zone: the one their account keeps, or else this device's. */
+/**
+ * This reader's zone: the one their account keeps, or else this device's,
+ * under its current name, where Chromium gives India's as "Asia/Calcutta".
+ */
 export function readerTimeZone(self: User | null | undefined): string {
   if (self?.timeZone) return self.timeZone;
   try {
-    return Intl.DateTimeFormat().resolvedOptions().timeZone;
+    return currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone);
   } catch {
     return "UTC";
   }
+}
+
+/** A zone as people write it: "America/New York" for "America/New_York". */
+export function zoneLabel(timeZone: string): string {
+  return currentZoneName(timeZone).replaceAll("_", " ");
 }
 
 /**

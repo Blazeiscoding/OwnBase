@@ -1,8 +1,8 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError } from "@slackoss/client-core";
-import type { ID } from "@slackoss/protocol";
+import { currentZoneName, sameTimeZone, type ID } from "@slackoss/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
-import { readerTimeZone, theirTime, useMinute } from "../lib/localTime.js";
+import { readerTimeZone, theirTime, useMinute, zoneLabel } from "../lib/localTime.js";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Modal } from "./Modal.js";
@@ -134,7 +134,9 @@ export function ProfileDialog(props: {
               <Icon name="clock" size={13} className="text-ink-faint" />
               {local.time} local time
               {local.differs && user.id !== selfId && (
-                <span className="text-ink-faint">· {user.timeZone}</span>
+                <span className="text-ink-faint">
+                  · {user.timeZone && zoneLabel(user.timeZone)}
+                </span>
               )}
             </div>
           )}
@@ -205,7 +207,9 @@ export function ProfileForm() {
   const zones = useMemo(() => {
     let all: string[] = [];
     try {
-      all = Intl.supportedValuesOf("timeZone");
+      // Chromium lists some zones by names the IANA database has since
+      // changed, India's as "Asia/Calcutta"; each is offered by its current one.
+      all = [...new Set(Intl.supportedValuesOf("timeZone").map(currentZoneName))].sort();
     } catch {
       all = [];
     }
@@ -213,6 +217,7 @@ export function ProfileForm() {
     return mine && !all.includes(mine) ? [mine, ...all] : all;
   }, [self?.timeZone]);
   const detected = readerTimeZone(undefined);
+  const onThisDevice = !!self?.timeZone && sameTimeZone(self.timeZone, detected);
 
   async function choosePicture(file: File) {
     setPicture({ busy: true, problem: null });
@@ -373,16 +378,16 @@ export function ProfileForm() {
             {!self?.timeZone && <option value="">Not set</option>}
             {zones.map((zone) => (
               <option key={zone} value={zone}>
-                {zone.replaceAll("_", " ")}
+                {zoneLabel(zone)}
               </option>
             ))}
           </select>
           <p className="mt-1.5 text-[13px] text-ink-faint">
             Others see your local time from it.
-            {self?.timeZone !== detected && (
+            {!onThisDevice && (
               <>
                 {" "}
-                This device is in {detected.replaceAll("_", " ")}.{" "}
+                This device is in {zoneLabel(detected)}.{" "}
                 <button
                   type="button"
                   onClick={() => void chooseZone(detected)}

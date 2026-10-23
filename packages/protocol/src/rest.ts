@@ -8,7 +8,7 @@ import {
   POLL_QUESTION_MAX,
   type AccessPolicy,
 } from "./entities.js";
-import { FILE_KINDS, isTimeZone } from "./search.js";
+import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
 
 export const handleSchema = z
   .string()
@@ -57,11 +57,15 @@ export const updateMeBody = z.object({
   statusExpiresAt: z.number().int().positive().nullable().optional(),
   /** Snooze notifications until this epoch ms; null clears it. */
   dndUntil: z.number().int().nullable().optional(),
-  /** An IANA time zone, such as this device's own; null forgets it (E9). */
+  /**
+   * An IANA time zone, such as this device's own; null forgets it (E9). Kept
+   * under its current name: "Asia/Calcutta", as Chromium says, is "Asia/Kolkata".
+   */
   timeZone: z
     .string()
     .max(64)
     .refine((zone) => isTimeZone(zone), "an IANA time zone")
+    .transform((zone) => currentZoneName(zone))
     .nullable()
     .optional(),
   /** Away by hand, until set back (E9). */

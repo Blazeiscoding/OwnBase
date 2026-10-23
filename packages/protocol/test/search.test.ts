@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   cachedTimeZones,
+  currentZoneName,
   fileKind,
   hasSearchCriteria,
   isTimeZone,
   parseSearchQuery,
+  sameTimeZone,
 } from "../src/search.js";
 
 describe("parseSearchQuery", () => {
@@ -147,6 +149,29 @@ describe("dates in a search", () => {
   it("knows a time zone from a made-up one", () => {
     expect(isTimeZone("Europe/Paris")).toBe(true);
     expect(isTimeZone("Mars/Olympus_Mons")).toBe(false);
+  });
+
+  it("gives a zone the name it has now, where a runtime still gives an old one", () => {
+    expect(currentZoneName("Asia/Calcutta")).toBe("Asia/Kolkata");
+    expect(currentZoneName("Europe/Kiev")).toBe("Europe/Kyiv");
+    expect(currentZoneName("Europe/Paris")).toBe("Europe/Paris");
+    // Every zone this runtime lists, under its current name, is one it knows,
+    // and reads the same clock as under the name it gave.
+    const at = Date.UTC(2026, 6, 1, 12, 34);
+    const clock = (zone: string) =>
+      new Intl.DateTimeFormat("en-US", { timeZone: zone, timeStyle: "short" }).format(at);
+    for (const zone of Intl.supportedValuesOf("timeZone")) {
+      expect(isTimeZone(currentZoneName(zone)), zone).toBe(true);
+      expect(clock(currentZoneName(zone)), zone).toBe(clock(zone));
+    }
+  });
+
+  it("knows two names of one zone, and two zones that only share a clock", () => {
+    expect(sameTimeZone("Asia/Calcutta", "Asia/Kolkata")).toBe(true);
+    expect(sameTimeZone("asia/kolkata", "Asia/Calcutta")).toBe(true);
+    expect(sameTimeZone("Europe/Kyiv", "Europe/Kiev")).toBe(true);
+    expect(sameTimeZone("Europe/Paris", "Europe/Berlin")).toBe(false);
+    expect(sameTimeZone("Mars/Olympus_Mons", "Europe/Paris")).toBe(false);
   });
 });
 

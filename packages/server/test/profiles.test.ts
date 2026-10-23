@@ -257,6 +257,13 @@ describe("a time zone", () => {
     const forgotten = await request("/api/me", { timeZone: null }, "PATCH");
     expect(forgotten.body.user.timeZone).toBeUndefined();
   });
+
+  it("is kept under its current name, where Chromium sends India's old one", async () => {
+    const set = await request("/api/me", { timeZone: "Asia/Calcutta" }, "PATCH");
+    expect(set.status).toBe(200);
+    expect(set.body.user.timeZone).toBe("Asia/Kolkata");
+    expect((await me()).timeZone).toBe("Asia/Kolkata");
+  });
 });
 
 describe("away", () => {

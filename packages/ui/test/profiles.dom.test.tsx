@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { currentZoneName, type Channel, type User } from "@slackoss/protocol";
 import { ClientContext } from "../src/context.js";
 import { Avatar } from "../src/components/Avatar.js";
 import { ProfileDialog, ProfileForm } from "../src/components/ProfileDialog.js";
@@ -223,9 +223,37 @@ describe("your profile in settings", () => {
     // This device's own zone, a press away.
     await user.click(screen.getByRole("button", { name: "Use it" }));
     expect(updateMe).toHaveBeenLastCalledWith({
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      timeZone: currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone),
     });
     expect(await accessibilityProblems(container)).toEqual([]);
+  });
+
+  it("takes a device that says Asia/Calcutta, as Chromium does, to be in Asia/Kolkata", async () => {
+    const original = process.env.TZ;
+    const before = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    process.env.TZ = "Asia/Calcutta";
+    try {
+      const { client, user } = workspace({ self: { ...sam, timeZone: "Europe/London" } });
+      const updateMe = vi.spyOn(client.api, "updateMe").mockImplementation(async (body) => ({
+        user: { ...client.state.self!, timeZone: body.timeZone ?? undefined },
+      }));
+      shown(client, <ProfileForm />);
+      expect(screen.getByText(/This device is in Asia\/Kolkata\./)).toBeInTheDocument();
+      await user.click(screen.getByRole("button", { name: "Use it" }));
+      expect(updateMe).toHaveBeenLastCalledWith({ timeZone: "Asia/Kolkata" });
+      // Its zone now, by either name: nothing more to offer.
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Use it" })).toBeNull());
+      const zone = screen.getByRole("combobox", { name: "Time zone" });
+      expect(zone).toHaveValue("Asia/Kolkata");
+      const offered = within(zone)
+        .getAllByRole("option")
+        .map((option) => option.getAttribute("value"));
+      expect(offered.filter((name) => name === "Asia/Kolkata")).toHaveLength(1);
+      expect(offered).not.toContain("Asia/Calcutta");
+      expect(within(zone).getByRole("option", { name: "America/New York" })).toBeInTheDocument();
+    } finally {
+      process.env.TZ = original ?? before;
+    }
   });
 });
 
