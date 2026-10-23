@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
+import { currentZoneName } from "@slackoss/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
 import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
 
@@ -98,7 +99,8 @@ afterAll(async () => {
 
 describe("profiles on the client", () => {
   it("keep this device's time zone for an account with none, and no other's over it", async () => {
-    const device = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    // Under its current name, as the server keeps it: this runtime may say Asia/Calcutta.
+    const device = currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone);
     const laptop = await online();
     expect(laptop.state.profiles).toBe(true);
     await until(laptop, (s) => s.self?.timeZone === device, "the detected zone");
