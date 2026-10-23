@@ -8,7 +8,7 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import { ringingLine, type HuddleView } from "../lib/huddleView.js";
+import { aloneLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
@@ -182,6 +182,7 @@ export function HuddleBar({
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
   const ring = useWorkspace((s) => (s.huddle ? s.rings?.[s.huddle.channelId] : undefined));
+  const ringNotice = useWorkspace((s) => s.ringNotice);
   const speakerId = useCallPreferences().devices.speakerId;
   const { volumes } = useCallVolumes();
 
@@ -229,7 +230,8 @@ export function HuddleBar({
   const ringing = ringingLine(ring, users, selfId);
   const summary =
     huddle.peers.length === 0
-      ? (ringing ?? "Waiting for someone to join…")
+      ? (aloneLine(ring, ringNotice, huddle.channelId, users, selfId) ??
+        "Waiting for someone to join…")
       : stuck.length > 0
         ? `Can't connect to ${stuck
             .map((p) => users[p.userId]?.displayName ?? "someone")

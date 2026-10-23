@@ -30,7 +30,7 @@ import {
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
 import { useHuddleView } from "../lib/huddleView.js";
-import { useHuddleEndedNotice, useRingNotice } from "../lib/huddleEnded.js";
+import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { CatchUpSummary, namesList } from "../lib/catchUp.js";
 import {
@@ -495,7 +495,6 @@ function WorkspaceInner({
   const [huddleView, setHuddleView] = useHuddleView();
   const inHuddle = useWorkspace((s) => !!s.huddle);
   useHuddleEndedNotice();
-  useRingNotice();
   const rungHere = useWorkspace((s) =>
     Object.values(s.rings ?? {}).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
   );

@@ -117,7 +117,7 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
   return (
     <section
       aria-labelledby={titleId}
-      className="pointer-events-auto flex w-full max-w-[26rem] animate-pop-in items-center gap-3 rounded-2xl border border-edge bg-raised p-3 shadow-lg"
+      className="pointer-events-auto flex w-full max-w-[32rem] animate-pop-in items-center gap-3 rounded-2xl border border-edge bg-raised p-3 shadow-lg"
     >
       <span className="relative flex shrink-0">
         <span

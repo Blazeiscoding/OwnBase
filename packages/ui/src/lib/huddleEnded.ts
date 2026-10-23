@@ -15,15 +15,3 @@ export function useHuddleEndedNotice(): void {
     if (ended && toast) toast({ message: ended.message, kind: ended.error ? "error" : "success" });
   }, [ended, toast]);
 }
-
-/**
- * Says once, on the caller's device in the call, how its ring went (E10): who
- * declined, or that nobody answered (`WorkspaceState.ringNotice`).
- */
-export function useRingNotice(): void {
-  const notice = useWorkspace((s) => s.ringNotice);
-  const toast = useOptionalToast();
-  useEffect(() => {
-    if (notice && toast) toast({ message: notice.message, kind: "success" });
-  }, [notice, toast]);
-}

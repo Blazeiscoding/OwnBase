@@ -5369,8 +5369,7 @@ test("a huddle in a direct message rings the other browser, which can decline, a
     await expect(bar(alice).getByRole("status")).toHaveText("Ringing bobby…");
     await prompt(bob, "alice").getByRole("button", { name: "Decline", exact: true }).click();
     await expect(prompt(bob, "alice")).toHaveCount(0);
-    await expect(alice.getByText("bobby declined", { exact: true })).toBeVisible();
-    await expect(bar(alice).getByRole("status")).toHaveText("Waiting for someone to join…");
+    await expect(bar(alice).getByRole("status")).toHaveText("bobby declined");
     await bar(alice).getByRole("button", { name: "Leave", exact: true }).click();
 
     // Rung again, he answers from the prompt, which takes him to the conversation.

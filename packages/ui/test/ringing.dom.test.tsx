@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddleState } from "@slackoss/client-core";
 import type { Channel, HuddleRing, Message, User } from "@slackoss/protocol";
@@ -8,10 +8,10 @@ import type { Platform } from "../src/platform.js";
 import { IncomingCall } from "../src/components/IncomingCall.js";
 import { CallNote } from "../src/components/CallNote.js";
 import { HuddleBar } from "../src/components/HuddleBar.js";
+import { HuddleStage } from "../src/components/HuddleStage.js";
 import { MessageItem } from "../src/components/MessageItem.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
-import { useRingNotice } from "../src/lib/huddleEnded.js";
 import { ringContent } from "../src/lib/notificationPreview.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -307,22 +307,38 @@ describe("the caller", () => {
     expect(screen.getByRole("status")).toHaveTextContent(/^With Maya Chen$/);
   });
 
-  it("hears once who declined, or that nobody answered", async () => {
+  it("reads who declined, or that nobody answered, while alone in the call it rang for", () => {
     const { client, shown } = workspace(null);
-    function Notices() {
-      useRingNotice();
-      return null;
-    }
-    shown(<Notices />);
+    inCall(client);
+    shown(<HuddleBar />);
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for someone to join…");
+    // How another conversation's ring went says nothing here.
     act(() =>
       client.store.setState({
         ringNotice: { channelId: "C_DM", message: "Maya Chen declined", at: 1 },
       }),
     );
-    await waitFor(() => expect(screen.getByText("Maya Chen declined")).toBeInTheDocument());
+    expect(screen.getByRole("status")).toHaveTextContent("Waiting for someone to join…");
     act(() =>
-      client.store.setState({ ringNotice: { channelId: "C_DM", message: "No answer", at: 2 } }),
+      client.store.setState({ ringNotice: { channelId: "C_GROUP", message: "No answer", at: 2 } }),
     );
-    await waitFor(() => expect(screen.getByText("No answer")).toBeInTheDocument());
+    expect(screen.getByRole("status")).toHaveTextContent(/^No answer$/);
+  });
+
+  it("reads the same over the call itself", () => {
+    const { client, shown } = workspace({
+      C_GROUP: ring({ channelId: "C_GROUP", callerId: "U_SAM", ringing: ["U_MAYA"] }),
+    });
+    inCall(client);
+    shown(<HuddleStage onHide={vi.fn()} />);
+    const call = screen.getByRole("region", { name: "Huddle call" });
+    expect(within(call).getByText("Ringing Maya Chen…")).toBeInTheDocument();
+    act(() =>
+      client.store.setState({
+        rings: {},
+        ringNotice: { channelId: "C_GROUP", message: "Maya Chen declined", at: 1 },
+      }),
+    );
+    expect(within(call).getByText("Maya Chen declined")).toBeInTheDocument();
   });
 });

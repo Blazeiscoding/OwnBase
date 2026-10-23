@@ -10,7 +10,7 @@ import type { HuddleState } from "@slackoss/client-core";
 import type { ID, User } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
-import { ringingLine } from "../lib/huddleView.js";
+import { aloneLine, ringingLine } from "../lib/huddleView.js";
 import { Avatar } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -617,6 +617,7 @@ export function HuddleStage({
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
   const ring = useWorkspace((s) => (s.huddle ? s.rings?.[s.huddle.channelId] : undefined));
+  const ringNotice = useWorkspace((s) => s.ringNotice);
   const { volumes } = useCallVolumes();
   const stage = useRef<HTMLElement | null>(null);
   const [measure, area] = useElementSize();
@@ -696,6 +697,11 @@ export function HuddleStage({
       : channelTitle(channel, users, selfId)
     : "Huddle";
   const stuck = huddle.peers.some((p) => !p.connected && p.trouble);
+  // The caller reads who a ring still rings, and alone, how it went (E10).
+  const alone =
+    huddle.peers.length === 0
+      ? aloneLine(ring, ringNotice, huddle.channelId, users, selfId)
+      : ringingLine(ring, users, selfId);
   const viewButtons = (side: "top" | "bottom") => (
     <>
       {main && others.length > 0 && (
@@ -781,11 +787,11 @@ export function HuddleStage({
               )}
             </>
           )}
-          {!main && ringingLine(ring, users, selfId) && (
+          {!main && alone && (
             <>
               <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />
               <p role="status" className="min-w-0 truncate text-sm text-ink-dim">
-                {ringingLine(ring, users, selfId)}
+                {alone}
               </p>
             </>
           )}

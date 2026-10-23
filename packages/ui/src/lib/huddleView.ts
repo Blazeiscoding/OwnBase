@@ -74,6 +74,22 @@ export function ringingLine(
   return `Ringing ${namesList(ring.ringing.map((id) => users[id]?.displayName ?? "someone"))}…`;
 }
 
+/**
+ * What the caller reads while alone in a huddle they rang for (E10): who it
+ * is ringing, or then who declined, or that nobody answered; null otherwise.
+ */
+export function aloneLine(
+  ring: HuddleRing | undefined,
+  notice: { channelId: ID; message: string } | null,
+  channelId: ID,
+  users: Record<ID, User>,
+  selfId: ID | undefined,
+): string | null {
+  return (
+    ringingLine(ring, users, selfId) ?? (notice?.channelId === channelId ? notice.message : null)
+  );
+}
+
 export function huddleNames(
   ids: readonly ID[],
   users: Record<ID, User>,

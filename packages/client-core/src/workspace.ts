@@ -657,8 +657,10 @@ export interface WorkspaceState {
    */
   huddleEnded: { channelId: ID; message: string; error: boolean; at: number } | null;
   /**
-   * What the caller's device in the call says once about its ring (E10): who
-   * declined, or that nobody answered. `at` tells one notice from the next.
+   * How the ring of the huddle this device is in went, for its caller (E10):
+   * who declined, or that nobody answered. Cleared as this device joins or
+   * leaves a huddle, so it never speaks of another call. `at` tells one from
+   * the next.
    */
   ringNotice: { channelId: ID; message: string; at: number } | null;
 }
@@ -3502,7 +3504,7 @@ export class WorkspaceClient {
     const attempt = this.huddleAttempt;
     const selfId = this.state.self?.id;
     if (!selfId) return;
-    this.store.setState({ huddleEnded: null });
+    this.store.setState({ huddleEnded: null, ringNotice: null });
 
     let config: RTCConfiguration;
     try {
@@ -3659,6 +3661,7 @@ export class WorkspaceClient {
     if (!session) return;
     this.session = null;
     if (tellServer) this.sendSocket({ type: "huddle.leave", channelId: session.channelId });
+    this.store.setState({ ringNotice: null });
     if (why) session.note(why.message);
     session.destroy();
     this.publishHuddleState();

@@ -213,4 +213,18 @@ describe("rings on the client", () => {
     const missed = await until(carols, (s) => s.ringNotice !== null, "no answer");
     expect(missed.ringNotice).toMatchObject({ channelId: quiet, message: "No answer" });
   });
+
+  it("forget how a ring went once this device joins a huddle", async () => {
+    const quiet = new WorkspaceClient(base, alice.token);
+    onTestFinished(() => quiet.destroy());
+    const { user } = await quiet.api.me();
+    quiet.store.setState({
+      self: user,
+      ringNotice: { channelId: "C_ELSEWHERE", message: "No answer", at: 1 },
+    });
+    // Node has no microphone, so the join goes no further; the notice is gone already.
+    const joining = quiet.joinHuddle("C_ANOTHER").catch(() => {});
+    expect(quiet.state.ringNotice).toBeNull();
+    await joining;
+  });
 });
