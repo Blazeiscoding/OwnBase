@@ -383,7 +383,8 @@
         "On a phone held upright the workspace keeps the bottom bar's height free (--bottom-bar, 56 px and the home indicator's inset) through :has(> .bottom-bar), so the bar never covers the composer or the last message, and a side panel stops above it. The drawer opens over it. Under data-keyboard (onScreenKeyboard.ts) the bar is hidden and its room given back, and the composer drops its home-indicator padding.",
         "Safe areas (UX-71): the page is drawn under a notch and home indicator (viewport-fit=cover), so in the phone layout the conversation keeps clear of the sides, its header of the top, the drawer of the top, left and bottom, a covering side panel of the top, and on a phone on its side the panel sheet of the top, right and bottom. Under data-visual-viewport #root takes --visual-height and moves by --visual-top, for a browser that does not shrink the page for the keyboard. On a touchscreen text fields write at 16 px, so iOS does not zoom in on them. On a short window the drawer's body grows to what it holds, so its footer comes after the list rather than over it.",
         ".bottom-sheet places Sheet along the bottom of a phone, clear of the home indicator, and makes the floating cards in it solid, since frosted over the dimmed page White's turned grey enough to fail contrast for red text.",
-        "The call takes the theme's colours, with two of its own: --call-ground (black in Onyx, White's deep grey) and --call-tile (Onyx's lifted, White's paper). .call-dark keeps a call in full screen dark in either theme, as a cinema is: Onyx's colour tokens, fills and shadows, declared on the call's own element; a tile's name pill takes it too, since it is dark over any picture. theme.test.ts checks every value there against Onyx's, since White's deeper red under Onyx's ink would not read."
+        "The call takes the theme's colours, with two of its own: --call-ground (black in Onyx, White's deep grey) and --call-tile (Onyx's lifted, White's paper). .call-dark keeps a call in full screen dark in either theme, as a cinema is: Onyx's colour tokens, fills and shadows, declared on the call's own element; a tile's name pill takes it too, since it is dark over any picture. theme.test.ts checks every value there against Onyx's, since White's deeper red under Onyx's ink would not read.",
+        ".mention-tag fills a mention in a message box with the accent; its shadow widens the fill without moving a letter, and a name wrapping across lines is a tag on each."
       ],
       "concepts": [
         "design tokens",
@@ -1063,6 +1064,16 @@
       "concepts": ["mention identity", "readable editing", "canonical serialization"]
     },
     {
+      "path": "packages/ui/src/components/MentionTags.tsx",
+      "plain": "Makes a person or channel tagged in the message box look tagged, rather than like ordinary words starting with @.",
+      "summary": "Draws each mention in a message box as a tag behind its name.",
+      "details": [
+        "A textarea cannot style part of its text, so a layer behind the box holds the same text, invisible, with each mention segment of the box's MentionDocument wrapped in a .mention-tag span. The box is positioned above it with no background, so the tag shows through under the name.",
+        "The layer reads the box's padding and type from its computed style before each paint, so it lays text out as the box does (a touchscreen writes at 16 px), scrolls with the box, and has the same thin scrollbar, so a long message wraps at the same width. It is hidden from screen readers, which read the box, and absent while nothing is mentioned."
+      ],
+      "concepts": ["mentions", "composer", "textarea overlay"]
+    },
+    {
       "path": "packages/ui/src/lib/useMentionField.ts",
       "plain": "Makes the message box and the edit box show mentions as names, and lets Undo, Backspace and Delete treat each as one piece.",
       "summary": "Binds a textarea to readable mentions for both the composer and the message editor.",
@@ -1190,7 +1201,8 @@
         "A word typed after a colon is completed from every emoji by Slack's shortcodes, the closest and most used first, in this device's skin tone; a shortcode typed out in full, as :tada:, becomes its emoji when its closing colon is typed, except in code. The emoji arrive with the kit the workspace fetches as it opens.",
         "Since Q04 the preference caller keeps Enter a new line when the saved choice cannot be read. N03 covers normal preparation and persistence acknowledgements, not every power-loss or OS-termination case.",
         "Send later opens TimePopover with its own presets and words.",
-        "Where the server keeps polls, the round plus opens a menu, Upload a file or Create a poll; elsewhere it attaches a file as before, and guests see neither (E6). /poll, with any words after it as the question, opens the same PollDialog, loaded on first use, and once the poll is made the /poll is cleared. A guest's /poll is answered here that guests cannot make polls."
+        "Where the server keeps polls, the round plus opens a menu, Upload a file or Create a poll; elsewhere it attaches a file as before, and guests see neither (E6). /poll, with any words after it as the question, opens the same PollDialog, loaded on first use, and once the poll is made the /poll is cleared. A guest's /poll is answered here that guests cannot make polls.",
+        "Its box sits over MentionTags, so a mention chosen or restored from a draft reads as a tag; a name typed or pasted stays words."
       ],
       "concepts": [
         "draft ownership",
@@ -1302,7 +1314,8 @@
         "An edit draft has its own message-specific slot and stores both text and the message text it began from, including compatibility with older plain-text drafts.",
         "Save uses expectedText so a concurrent edit can be refused instead of being overwritten unnoticed. Formatting, preview, IME and code-block behavior match the composer.",
         "The box and the Current message shown on an edit conflict read mentions as names; the kept {text, base} and the saved text keep their tokens. MessageItem loads the editor on first use.",
-        "Its draft key and the reading of a kept edit come from lib/drafts.ts, which the Drafts list shares (E5)."
+        "Its draft key and the reading of a kept edit come from lib/drafts.ts, which the Drafts list shares (E5).",
+        "Its box sits over MentionTags too, so a message's mentions read as tags while it is edited."
       ],
       "concepts": ["edit draft", "compare before write", "input safety"]
     },
