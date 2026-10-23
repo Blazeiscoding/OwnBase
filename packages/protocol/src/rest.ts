@@ -62,6 +62,15 @@ export const twoStepSignInBody = z
     message: "a code or a recovery code",
   });
 
+/** A report of a message (E12): why, and anything the reporter adds. */
+export const reportMessageBody = z.object({
+  reason: z.enum(["spam", "harassment", "inappropriate", "other"]),
+  note: z.string().max(500).optional(),
+});
+
+/** What an admin does about a reported message (E12). */
+export const resolveReportBody = z.object({ action: z.enum(["dismiss", "remove", "deactivate"]) });
+
 /** Proves it is this account's owner before its two-step sign-in changes (E11). */
 export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(256) });
 

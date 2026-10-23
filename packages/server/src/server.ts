@@ -50,6 +50,9 @@ import {
   twoStepCodeBody,
   twoStepPasswordBody,
   twoStepSignInBody,
+  reportMessageBody,
+  resolveReportBody,
+  type ReportedMessage,
   guestAccountBody,
   guestJoinBody,
   accessPolicyBody,
@@ -241,6 +244,9 @@ export const GUEST_ROUTES = new Set([
   "GET /api/users",
   "GET /api/users/:id/avatar",
   "GET /api/friends",
+  "PUT /api/me/blocks/:id",
+  "DELETE /api/me/blocks/:id",
+  "POST /api/messages/:id/report",
   "GET /api/channels",
   "POST /api/channels/:id/join",
   "POST /api/channels/:id/leave",
@@ -1734,29 +1740,31 @@ async function startWorkspaceServer(
    * redacted — and each is announced, replies before the message they answered,
    * so an open thread empties before it closes.
    */
+  /** Deletes a message, its thread's replies with it, and their files, within `mutate`. */
+  const removeMessageWithin = (existing: Message, emit: typeof recordEvent): void => {
+    const replies = existing.threadRootId === null ? store.threadReplyIds(existing.id) : [];
+    const doomed = [
+      ...replies.map((id) => ({ id, threadRootId: existing.id as ID | null })),
+      { id: existing.id, threadRootId: existing.threadRootId },
+    ];
+    for (const message of doomed) {
+      const fileIds = store.fileIdsForMessage(message.id);
+      store.deleteFiles(fileIds);
+      store.queueFileDeletions(fileIds);
+      store.deleteMessage(message.id);
+      emit(
+        {
+          type: "message.deleted",
+          channelId: existing.channelId,
+          messageId: message.id,
+          threadRootId: message.threadRootId,
+        },
+        existing.channelId,
+      );
+    }
+  };
   const removeMessage = (existing: Message) =>
-    mutate((emit) => {
-      const replies = existing.threadRootId === null ? store.threadReplyIds(existing.id) : [];
-      const doomed = [
-        ...replies.map((id) => ({ id, threadRootId: existing.id as ID | null })),
-        { id: existing.id, threadRootId: existing.threadRootId },
-      ];
-      for (const message of doomed) {
-        const fileIds = store.fileIdsForMessage(message.id);
-        store.deleteFiles(fileIds);
-        store.queueFileDeletions(fileIds);
-        store.deleteMessage(message.id);
-        emit(
-          {
-            type: "message.deleted",
-            channelId: existing.channelId,
-            messageId: message.id,
-            threadRootId: message.threadRootId,
-          },
-          existing.channelId,
-        );
-      }
-    });
+    mutate((emit) => removeMessageWithin(existing, emit));
 
   const app = Fastify({
     // Redacting where the log is configured rather than at each call site: the
@@ -2604,6 +2612,46 @@ async function startWorkspaceServer(
     return { friends: store.listFriends(me.id) };
   });
 
+  /**
+   * Blocks someone for this account (E12): it hears nothing from them, and
+   * they are told nothing. Blocking also ends a friendship or a request between
+   * the two, as it does elsewhere; that alone reaches them, as an unfriending.
+   */
+  app.put<{ Params: { id: string } }>("/api/me/blocks/:id", async (req) => {
+    const me = requireUser(req);
+    const other = store.getUser(req.params.id);
+    if (!other) throw new HttpError(404, "user_not_found");
+    if (other.id === me.id) throw new HttpError(400, "cannot_block_self");
+    if (other.isBot)
+      throw new HttpError(
+        400,
+        "cannot_block_app",
+        "Apps cannot be blocked. Ask an admin about one.",
+      );
+    const befriended = store.listFriends(me.id).some((friend) => friend.userId === other.id);
+    const added = store.transaction(() => {
+      if (!store.setBlocked(me.id, other.id, true)) return false;
+      if (befriended) store.removeFriend(me.id, other.id);
+      return true;
+    });
+    if (added) {
+      gateway.sendToUser(me.id, { type: "blocks", blocked: store.blockedIds(me.id) });
+      if (befriended) publishFriends(me.id, other.id);
+      pushMentionCounts([me.id]);
+    }
+    return { blocked: store.blockedIds(me.id) };
+  });
+
+  /** Unblocks someone for this account (E12). */
+  app.delete<{ Params: { id: string } }>("/api/me/blocks/:id", async (req) => {
+    const me = requireUser(req);
+    if (store.setBlocked(me.id, req.params.id, false)) {
+      gateway.sendToUser(me.id, { type: "blocks", blocked: store.blockedIds(me.id) });
+      pushMentionCounts([me.id]);
+    }
+    return { blocked: store.blockedIds(me.id) };
+  });
+
   app.get("/api/channels", async (req) => {
     const me = requireUser(req);
     return { channels: store.listChannelsVisibleTo(me.id) };
@@ -2990,6 +3038,32 @@ async function startWorkspaceServer(
 
     removeMessage(existing);
     await flushFileDeletions();
+    return { ok: true };
+  });
+
+  /** Tells the owner and admins how many reported messages wait now (E12). */
+  const publishOpenReports = (): void => {
+    const open = store.openReportCount();
+    for (const user of store.listUsers())
+      if ((user.role === "owner" || user.role === "admin") && !user.deactivated)
+        gateway.sendToUser(user.id, { type: "reports", open });
+  };
+
+  /**
+   * Reports a message to the workspace's admins (E12), by anyone who can read
+   * it but its author. Reporting it again while the first report is open
+   * changes nothing, and its author is told nothing.
+   */
+  app.post<{ Params: { id: string } }>("/api/messages/:id/report", async (req) => {
+    const me = requireUser(req);
+    const body = reportMessageBody.parse(req.body);
+    const message = store.getMessage(req.params.id);
+    if (!message || !store.canAccess(message.channelId, me.id)) {
+      throw new HttpError(404, "message_not_found");
+    }
+    if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
+    if (store.reportMessage(message.id, me.id, body.reason, body.note?.trim() ?? ""))
+      publishOpenReports();
     return { ok: true };
   });
 
@@ -4380,6 +4454,70 @@ async function startWorkspaceServer(
         details: {},
       });
     });
+    return { ok: true };
+  });
+
+  /**
+   * The reported messages waiting for an admin (E12), each with its reports:
+   * the message itself even from a conversation the admin is not in, since
+   * whoever reported it showed it to them, and null once its author deleted it.
+   */
+  app.get("/api/admin/reports", async (req) => {
+    requireAdmin(req);
+    const reports: ReportedMessage[] = [];
+    for (const open of store.openReports()) {
+      const channel = store.getChannel(open.channelId);
+      if (!channel) continue;
+      reports.push({ ...open, message: store.getMessage(open.messageId), channel });
+    }
+    return { reports };
+  });
+
+  /**
+   * Settles a reported message (E12): dismissed, removed, or removed with its
+   * author deactivated, by People's rules for deactivating. Every open report
+   * of it closes, and the record says what was done and to whom, never what
+   * the message said.
+   */
+  app.post<{ Params: { id: string } }>("/api/admin/reports/:id/resolve", async (req) => {
+    const me = requireAdmin(req);
+    const { action } = resolveReportBody.parse(req.body);
+    const open = store.openReports().find((held) => held.messageId === req.params.id);
+    if (!open) throw new HttpError(404, "report_not_found");
+    const author = store.getUser(open.authorId);
+    if (action === "deactivate" && author) {
+      if (author.id === me.id) throw new HttpError(400, "cannot_change_self");
+      if (author.role === "owner") throw new HttpError(403, "owner_is_protected");
+      if (author.role === "admin" && me.role !== "owner") {
+        throw new HttpError(403, "admins_are_equals", "only the owner can change another admin");
+      }
+    }
+    mutate((emit, afterCommit) => {
+      const message = store.getMessage(open.messageId);
+      if (action !== "dismiss" && message) removeMessageWithin(message, emit);
+      if (action === "deactivate" && author && !author.deactivated) {
+        const updated = store.updateUser(author.id, { deactivated: true });
+        store.recordAudit({
+          actorId: me.id,
+          action: "user.deactivated",
+          targetType: "user",
+          targetId: author.id,
+        });
+        store.deleteSessionsFor(author.id);
+        afterCommit(() => gateway.disconnectUser(author.id));
+        emit({ type: "user.updated", user: updated }, null);
+      }
+      const reports = store.resolveReports(open.messageId, me.id, action);
+      store.recordAudit({
+        actorId: me.id,
+        action: "report.resolved",
+        targetType: "user",
+        targetId: open.authorId,
+        details: { resolution: action, reports },
+      });
+    });
+    await flushFileDeletions();
+    publishOpenReports();
     return { ok: true };
   });
 

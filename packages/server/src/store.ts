@@ -38,6 +38,8 @@ import type {
   Webhook,
   WorkspaceEvent,
   EventEnvelope,
+  MessageReport,
+  ReportReason,
 } from "@slackoss/protocol";
 import { FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
@@ -265,6 +267,113 @@ export class Store {
         )
         .run(low!, high!, otherId).changes > 0
     );
+  }
+
+  // ---------- blocks and reports (E12) ----------
+
+  /** The people this account blocked, oldest first. */
+  blockedIds(userId: ID): ID[] {
+    const rows = this.db
+      .prepare(
+        "SELECT blocked_id FROM user_blocks WHERE user_id = ? ORDER BY created_at, blocked_id",
+      )
+      .all(userId) as { blocked_id: string }[];
+    return rows.map((row) => row.blocked_id);
+  }
+
+  /** Blocks or unblocks someone for this account; whether anything changed. */
+  setBlocked(userId: ID, otherId: ID, blocked: boolean): boolean {
+    return (
+      (blocked
+        ? this.db
+            .prepare(
+              "INSERT OR IGNORE INTO user_blocks (user_id, blocked_id, created_at) VALUES (?, ?, ?)",
+            )
+            .run(userId, otherId, Date.now())
+        : this.db
+            .prepare("DELETE FROM user_blocks WHERE user_id = ? AND blocked_id = ?")
+            .run(userId, otherId)
+      ).changes === 1
+    );
+  }
+
+  /** Keeps someone's report of a message; false when they have one open for it already. */
+  reportMessage(messageId: ID, reporterId: ID, reason: string, note: string): boolean {
+    return (
+      this.db
+        .prepare(
+          `INSERT OR IGNORE INTO message_reports (id, message_id, reporter_id, reason, note, created_at)
+           VALUES (?, ?, ?, ?, ?, ?)`,
+        )
+        .run(ulid(), messageId, reporterId, reason, note, Date.now()).changes === 1
+    );
+  }
+
+  /** How many reported messages wait for an admin. */
+  openReportCount(): number {
+    return (
+      this.db
+        .prepare(
+          "SELECT COUNT(DISTINCT message_id) AS n FROM message_reports WHERE resolved_at IS NULL",
+        )
+        .get() as { n: number }
+    ).n;
+  }
+
+  /**
+   * The reported messages waiting for an admin, the longest waiting first,
+   * each with where it was posted, who wrote it (known after its author
+   * deleted it too) and its open reports in the order they came.
+   */
+  openReports(): { messageId: ID; channelId: ID; authorId: ID; reports: MessageReport[] }[] {
+    const rows = this.db
+      .prepare(
+        `SELECT r.id, r.message_id, r.reporter_id, r.reason, r.note, r.created_at,
+           m.channel_id, m.user_id AS author_id
+         FROM message_reports r JOIN messages m ON m.id = r.message_id
+         WHERE r.resolved_at IS NULL ORDER BY r.created_at, r.id`,
+      )
+      .all() as {
+      id: string;
+      message_id: string;
+      reporter_id: string;
+      reason: string;
+      note: string;
+      created_at: number;
+      channel_id: string;
+      author_id: string;
+    }[];
+    const byMessage = new Map<
+      ID,
+      { messageId: ID; channelId: ID; authorId: ID; reports: MessageReport[] }
+    >();
+    for (const row of rows) {
+      const held = byMessage.get(row.message_id) ?? {
+        messageId: row.message_id,
+        channelId: row.channel_id,
+        authorId: row.author_id,
+        reports: [],
+      };
+      held.reports.push({
+        id: row.id,
+        reporterId: row.reporter_id,
+        reason: row.reason as ReportReason,
+        note: row.note,
+        createdAt: row.created_at,
+      });
+      byMessage.set(row.message_id, held);
+    }
+    return [...byMessage.values()];
+  }
+
+  /** Closes a message's open reports as an admin resolved them; how many there were. */
+  resolveReports(messageId: ID, adminId: ID, resolution: string): number {
+    return this.db
+      .prepare(
+        `UPDATE message_reports SET resolved_at = ?, resolved_by = ?, resolution = ?
+         WHERE message_id = ? AND resolved_at IS NULL`,
+      )
+      .run(Date.now(), adminId, resolution, messageId).changes as number;
   }
 
   removeFriend(userId: ID, otherId: ID): void {
@@ -4603,7 +4712,12 @@ export class Store {
     userId: ID,
     opts: { mode: "unread" | "mentions" | "threads"; cursor?: ID; limit: number },
   ): Message[] {
-    const conditions = ["cm.user_id = ?", "m.user_id != ?", "m.deleted_at IS NULL"];
+    const conditions = [
+      "cm.user_id = ?",
+      "m.user_id != ?",
+      "m.deleted_at IS NULL",
+      Store.NOT_BLOCKED,
+    ];
     const params: (string | number)[] = [userId, userId];
     if (opts.mode === "unread") {
       // What the channel shows, replies in threads followed, and anything
@@ -4694,6 +4808,13 @@ export class Store {
     "(mm.user_id = ? OR (mm.user_id = '!' AND c.type IN ('public', 'private')))";
 
   /**
+   * Beside `messages m` and `channel_members cm`: not written by someone the
+   * member blocked (E12), whom Activity and the badges leave out.
+   */
+  private static readonly NOT_BLOCKED =
+    "NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.user_id = cm.user_id AND ub.blocked_id = m.user_id)";
+
+  /**
    * Unread mentions per conversation, for the badge beside its name. Read
    * from who each message names, so it costs what this account's mentions
    * cost, not what its channels' histories do.
@@ -4706,6 +4827,7 @@ export class Store {
          JOIN channels c ON c.id = mm.channel_id
          JOIN messages m ON m.id = mm.message_id
          WHERE ${Store.NAMES_ME} AND m.user_id != ? AND m.deleted_at IS NULL
+         AND ${Store.NOT_BLOCKED}
          AND ${Store.UNREAD}
          AND (m.thread_root_id IS NULL OR EXISTS (
            SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL
