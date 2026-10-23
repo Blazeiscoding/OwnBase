@@ -2308,7 +2308,6 @@ async function startWorkspaceServer(
   /** Removes this account's profile picture; its initials show again. */
   app.delete("/api/me/avatar", async (req) => {
     const me = requireUser(req);
-    if (me.role === "guest") throw guestRestricted();
     return mutate((emit) => {
       const user = store.setAvatar(me.id, null);
       emit({ type: "user.updated", user }, null);
@@ -4183,7 +4182,6 @@ async function startWorkspaceServer(
     /** This account's profile picture, sent whole as the image itself, as the icon is (E9). */
     scope.put("/api/me/avatar", async (req) => {
       const me = requireUser(req);
-      if (me.role === "guest") throw guestRestricted();
       const checked = checkIcon(
         Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
         Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined,

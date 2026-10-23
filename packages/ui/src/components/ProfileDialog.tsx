@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError } from "@slackoss/client-core";
-import { currentZoneName, sameTimeZone, type ID } from "@slackoss/protocol";
+import { currentZoneName, type ID } from "@slackoss/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { readerTimeZone, theirTime, useMinute, zoneLabel } from "../lib/localTime.js";
 import { useClient, useWorkspace } from "../context.js";
@@ -217,7 +217,8 @@ export function ProfileForm() {
     return mine && !all.includes(mine) ? [mine, ...all] : all;
   }, [self?.timeZone]);
   const detected = readerTimeZone(undefined);
-  const onThisDevice = !!self?.timeZone && sameTimeZone(self.timeZone, detected);
+  // Both by current names: the server keeps them so, and so is `detected`.
+  const onThisDevice = self?.timeZone === detected;
 
   async function choosePicture(file: File) {
     setPicture({ busy: true, problem: null });

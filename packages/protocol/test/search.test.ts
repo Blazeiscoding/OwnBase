@@ -6,7 +6,6 @@ import {
   hasSearchCriteria,
   isTimeZone,
   parseSearchQuery,
-  sameTimeZone,
 } from "../src/search.js";
 
 describe("parseSearchQuery", () => {
@@ -164,14 +163,6 @@ describe("dates in a search", () => {
       expect(isTimeZone(currentZoneName(zone)), zone).toBe(true);
       expect(clock(currentZoneName(zone)), zone).toBe(clock(zone));
     }
-  });
-
-  it("knows two names of one zone, and two zones that only share a clock", () => {
-    expect(sameTimeZone("Asia/Calcutta", "Asia/Kolkata")).toBe(true);
-    expect(sameTimeZone("asia/kolkata", "Asia/Calcutta")).toBe(true);
-    expect(sameTimeZone("Europe/Kyiv", "Europe/Kiev")).toBe(true);
-    expect(sameTimeZone("Europe/Paris", "Europe/Berlin")).toBe(false);
-    expect(sameTimeZone("Mars/Olympus_Mons", "Europe/Paris")).toBe(false);
   });
 });
 

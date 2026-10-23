@@ -235,17 +235,6 @@ export function currentZoneName(timeZone: string): string {
   return RENAMED_ZONES[timeZone] ?? timeZone;
 }
 
-/** Whether two names are one zone, such as "Asia/Calcutta" and "Asia/Kolkata". */
-export function sameTimeZone(a: string, b: string): boolean {
-  if (a === b) return true;
-  try {
-    const named = (zone: string) => currentZoneName(formatter(zone).resolvedOptions().timeZone);
-    return named(a) === named(b);
-  } catch {
-    return false;
-  }
-}
-
 /** The calendar day an instant falls on in a zone, as the number yyyymmdd. */
 function dayNumberAt(instant: number, zone: Intl.DateTimeFormat): number {
   let year = 0;
