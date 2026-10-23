@@ -5602,8 +5602,10 @@ test("blocking folds someone away and closes their DM, and a reported message re
       .getByRole("dialog", { name: "Profile", exact: true })
       .getByRole("button", { name: "Message alice", exact: true })
       .click();
-    await bobby.locator("textarea").fill("Are you there?");
-    await bobby.locator("textarea").press("Enter");
+    const toAlice = bobby.getByRole("textbox", { name: "Message alice", exact: true });
+    await expect(toAlice).toBeEditable();
+    await toAlice.fill("Are you there?");
+    await toAlice.press("Enter");
     await expect(history(bobby).getByText("Are you there?", { exact: true })).toBeVisible();
     await alice.waitForTimeout(500);
     await expect(alice.getByRole("navigation").getByText("bobby", { exact: true })).toHaveCount(0);
