@@ -116,6 +116,22 @@ describe("someone's profile", () => {
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 
+  it("gives their local time but not their zone when their clock reads as yours", () => {
+    const { client } = workspace({ users: [{ ...maya, timeZone: "Europe/London" }] });
+    shown(client, <ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
+    const dialog = screen.getByRole("dialog", { name: "Profile" });
+    expect(dialog).toHaveTextContent(`${at("Europe/London")} local time`);
+    expect(dialog).not.toHaveTextContent("Europe/London");
+  });
+
+  it("writes a zone as people do, with spaces", () => {
+    const { client } = workspace({ users: [{ ...maya, timeZone: "America/New_York" }] });
+    shown(client, <ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
+    expect(screen.getByRole("dialog", { name: "Profile" })).toHaveTextContent(
+      `${at("America/New_York")} local time· America/New York`,
+    );
+  });
+
   it("gives no local time for someone whose zone is not known", () => {
     const { client } = workspace({ users: [person("U_NEW", "New Person")] });
     shown(client, <ProfileDialog userId="U_NEW" onClose={vi.fn()} onOpenDm={vi.fn()} />);
@@ -135,6 +151,24 @@ describe("a direct message's header", () => {
       users: [{ ...maya, timeZone: "Europe/London" }],
     });
     const { container } = shown(client, <PartnerTime channelId="C_DM" />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  it("says nothing with more than one other person, whose clocks may each read otherwise", () => {
+    const lee = person("U_LEE", "Lee Park", { timeZone: "Asia/Tokyo" });
+    const { client } = workspace({ users: [maya, lee] });
+    client.store.setState((s) => ({
+      channels: {
+        ...s.channels,
+        C_GROUP: {
+          ...dm,
+          id: "C_GROUP",
+          type: "group_dm",
+          memberIds: ["U_SAM", "U_MAYA", "U_LEE"],
+        },
+      },
+    }));
+    const { container } = shown(client, <PartnerTime channelId="C_GROUP" />);
     expect(container).toBeEmptyDOMElement();
   });
 });

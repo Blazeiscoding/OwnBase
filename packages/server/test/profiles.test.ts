@@ -1,4 +1,5 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { DatabaseSync } from "node:sqlite";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
@@ -336,5 +337,17 @@ describe("a profile", () => {
     expect(kept).toMatchObject({ avatarVersion: version, timeZone: "Europe/Lisbon", away: true });
     const served = await request(`/api/users/${owner.id}/avatar?v=${version}`, undefined, "GET");
     expect(served.status).toBe(200);
+  });
+
+  it("keeps none of a removed picture's bytes", async () => {
+    await upload(png());
+    expect((await request("/api/me/avatar", undefined, "DELETE")).status).toBe(200);
+    await stop();
+    const db = new DatabaseSync(join(dataDir, "workspace.db"));
+    try {
+      expect(db.prepare("SELECT COUNT(*) AS n FROM user_avatars").get()).toEqual({ n: 0 });
+    } finally {
+      db.close();
+    }
   });
 });
