@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import type {
   App,
+  CallNotice,
   Channel,
   ChannelPrefs,
   ChannelType,
@@ -98,6 +99,8 @@ interface MessageRow {
   reply_to_id: string | null;
   reply_ping: number;
   forwarded_from_id: string | null;
+  /** A note the server left about a call (E10); absent from rows read without it. */
+  call_kind?: string | null;
 }
 
 /** A reminder's row beside its message's conversation and thread. */
@@ -1185,6 +1188,8 @@ export class Store {
     replyPing?: boolean;
     /** The message this one passes on; the caller has checked the sender may read it. */
     forwardedFromId?: ID | null;
+    /** Makes it the server's note about a call (E10). */
+    call?: CallNotice | null;
   }): Message {
     // Messages are read back in the order of their ids, so that order has to
     // be the order they were made in, within one millisecond too.
@@ -1195,8 +1200,8 @@ export class Store {
       .prepare(
         `INSERT INTO messages
            (id, channel_id, user_id, text, thread_root_id, broadcast, nonce, created_at, actions,
-            reply_to_id, reply_ping, forwarded_from_id)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            reply_to_id, reply_ping, forwarded_from_id, call_kind)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         id,
@@ -1211,6 +1216,7 @@ export class Store {
         input.replyToId ?? null,
         pinged ? 1 : 0,
         input.forwardedFromId ?? null,
+        input.call?.kind ?? null,
       );
     this.indexMentions(id, input.channelId, input.text, { pinged });
     return this.getMessage(id)!;
@@ -1981,6 +1987,7 @@ export class Store {
       ...forwardedFrom(r),
       ...(previews.has(r.id) ? { previews: previews.get(r.id)! } : {}),
       ...(polls.has(r.id) ? { poll: polls.get(r.id)! } : {}),
+      ...(r.call_kind === "missed" ? { call: { kind: "missed" as const } } : {}),
     }));
   }
 

@@ -55,6 +55,7 @@ import {
   workspaceNameSchema,
   ACCESS_POLICIES,
   type AccessPolicy,
+  type CallNotice,
   markReadBody,
   markUnreadBody,
   messageHistoryQuery,
@@ -158,6 +159,9 @@ export const REMINDER_LIMITS = {
 
 /** Delivered queue rows are kept this long as proof of completion. */
 const SCHEDULED_RETENTION_MS = 7 * 24 * 3600_000;
+
+/** What a missed call's note says, to older clients, search and notifications too (E10). */
+const MISSED_CALL_TEXT = "Missed huddle";
 
 /**
  * How long a removed message's send key is kept after it was posted: an app's
@@ -335,6 +339,8 @@ export interface ServerOptions {
    * (`HUDDLE_GRACE_MS` by default). For tests.
    */
   huddleGraceMs?: number;
+  /** How long a direct message's huddle rings (`HUDDLE_RING_MS` by default). For tests. */
+  huddleRingMs?: number;
   /** Private deployments default to LAN-only media with no external ICE service. */
   iceServers?: { urls: string | string[]; username?: string; credential?: string }[];
   /**
@@ -794,7 +800,12 @@ async function startWorkspaceServer(
       ),
     (err, where) =>
       app.log.error({ err, where }, "socket work failed; its socket closes to reconnect"),
-    { huddleGraceMs: opts.huddleGraceMs },
+    {
+      huddleGraceMs: opts.huddleGraceMs,
+      huddleRingMs: opts.huddleRingMs,
+      // Rung only once the server is up, by which time the note can be posted.
+      missedCall: (channelId, callerId) => postMissedCall(channelId, callerId),
+    },
   );
 
   const recordEvent = (event: WorkspaceEvent, channelId: ID | null): EventEnvelope => {
@@ -1348,6 +1359,8 @@ async function startWorkspaceServer(
     poll?: { options: string[]; multiple: boolean; anonymous: boolean } | null;
     /** Marks this queue row delivered in the same transaction as the message. */
     scheduledId?: ID;
+    /** Makes it the server's note about a call (E10); never from a request. */
+    call?: CallNotice;
   }) => {
     const events: EventEnvelope[] = [];
     const message = store.transaction(() => {
@@ -1484,6 +1497,26 @@ async function startWorkspaceServer(
     publishCommitted(events.map((envelope) => ({ envelope, channelId: input.channelId })));
     queuePreviews(message);
     return message;
+  };
+
+  /**
+   * The note a ring nobody answered leaves in its direct message, as from the
+   * person who rang (E10), unless they can no longer post there.
+   */
+  const postMissedCall = (channelId: ID, callerId: ID): void => {
+    const caller = store.getUser(callerId);
+    const channel = store.getChannel(channelId);
+    if (!caller || caller.deactivated || !channel || channel.archived) return;
+    if (!store.canAccess(channelId, callerId)) return;
+    postMessage({
+      channelId,
+      userId: callerId,
+      text: MISSED_CALL_TEXT,
+      threadRootId: null,
+      nonce: null,
+      fileIds: [],
+      call: { kind: "missed" },
+    });
   };
 
   // Uploads live beside the database so one folder is the whole workspace.
@@ -2706,6 +2739,9 @@ async function startWorkspaceServer(
     // People voted on the question as it was.
     if (existing.poll)
       throw new HttpError(409, "poll_not_editable", "A poll's question cannot be changed.");
+    // It says what happened to a call, not what its caller wrote.
+    if (existing.call)
+      throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
     const body = editMessageBody.parse(req.body);
     // Words already the new ones are a retry whose answer was lost, not a conflict.
     if (

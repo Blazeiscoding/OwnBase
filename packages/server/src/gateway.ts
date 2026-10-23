@@ -6,6 +6,7 @@ import {
   type ClientToServer,
   type EphemeralEvent,
   type EventEnvelope,
+  type HuddleRing,
   type ID,
   type Presence,
   type ReadySnapshot,
@@ -37,6 +38,20 @@ interface Client {
 export const HUDDLE_GRACE_MS = 30_000;
 
 /**
+ * How long a direct message's huddle rings the people in it before whoever
+ * has not answered has missed it (E10).
+ */
+export const HUDDLE_RING_MS = 30_000;
+
+/** A ring as the gateway keeps it: its state as told, everyone it rang, and its end. */
+interface Ring {
+  state: HuddleRing;
+  /** Everyone it rang, who hear each change, whether or not it still rings them. */
+  rang: ID[];
+  timer: NodeJS.Timeout | null;
+}
+
+/**
  * Someone's place in a huddle: the socket of the device in the call, or none
  * while that device's connection is down, until it comes back or `released`
  * gives the place up.
@@ -61,6 +76,8 @@ export class Gateway {
    * written to the event log and does not survive a restart.
    */
   private huddles = new Map<ID, Map<ID, Seat>>();
+  /** channelId -> the ring of a direct message's huddle just started (E10), live as huddles are. */
+  private rings = new Map<ID, Ring>();
   /** What happened in huddles lately, for the host (see `CallLog`). */
   readonly calls = new CallLog();
   private heartbeat: NodeJS.Timeout;
@@ -87,7 +104,13 @@ export class Gateway {
      * never sees: an exception there would otherwise end the process (F03).
      */
     private reportFailure: (err: unknown, where: string) => void = () => {},
-    private options: { huddleGraceMs?: number } = {},
+    private options: {
+      huddleGraceMs?: number;
+      /** How long a ring lasts (`HUDDLE_RING_MS` by default). */
+      huddleRingMs?: number;
+      /** Leaves the note of a ring nobody answered in its conversation (E10). */
+      missedCall?: (channelId: ID, callerId: ID) => void;
+    } = {},
   ) {
     this.heartbeat = setInterval(() => {
       this.contained("heartbeat", () => {
@@ -190,6 +213,9 @@ export class Gateway {
     clearInterval(this.heartbeat);
     for (const room of this.huddles.values())
       for (const seat of room.values()) if (seat.released) clearTimeout(seat.released);
+    // Stopping misses nobody's call: the rings end with the huddles, unannounced.
+    for (const ring of this.rings.values()) if (ring.timer) clearTimeout(ring.timer);
+    this.rings.clear();
     this.closePromise = Promise.all(
       [...this.sockets].map(
         (ws) =>
@@ -362,6 +388,7 @@ export class Gateway {
           huddles: this.huddlesVisibleTo(user.id),
           huddleJoinReplies: true,
           huddleReports: true,
+          huddleRings: this.ringsFor(user.id),
           inlineReplies: true,
           forwards: true,
           scheduledEvents: true,
@@ -418,6 +445,9 @@ export class Gateway {
         this.joinHuddle(msg.channelId, client, msg.requestId);
       } else if (msg.type === "huddle.leave") {
         this.leaveFrom(msg.channelId, client);
+      } else if (msg.type === "huddle.decline") {
+        if (!this.affordEphemeral(client.userId)) return;
+        this.declineRing(msg.channelId, client.userId);
       } else if (msg.type === "huddle.signal") {
         if (!this.affordEphemeral(client.userId)) return;
         // Only relay between the two devices in the same huddle: not to the
@@ -626,9 +656,12 @@ export class Gateway {
       );
       return;
     }
+    const started = !room;
     if (!room) this.huddles.set(channelId, (room = new Map()));
     room.set(userId, { client, released: null });
     this.calls.add({ channelId, userId, kind: "joined" });
+    // The first one in a direct message's huddle rings the others (E10).
+    if (started) this.contained("huddle ring", () => this.startRing(channelId, userId));
     this.publishHuddle(channelId);
     if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
   }
@@ -703,7 +736,7 @@ export class Gateway {
     }
   }
 
-  /** Tells the channel who is in its huddle now. */
+  /** Tells the channel who is in its huddle now, and brings its ring up to date (E10). */
   private publishHuddle(channelId: ID, authorized?: (client: Client) => boolean): void {
     this.broadcastEphemeral(
       {
@@ -714,6 +747,118 @@ export class Gateway {
       this.audienceForChannel(channelId),
       authorized,
     );
+    this.contained("huddle ring", () => this.settleRing(channelId));
+  }
+
+  // ---------- rings (E10) ----------
+
+  /**
+   * Rings everyone else in a direct message whose huddle this person has
+   * just started: not bots, who cannot answer, nor deactivated accounts.
+   * Joining a huddle already going rings nobody, and a channel never rings.
+   */
+  private startRing(channelId: ID, callerId: ID): void {
+    const channel = this.store.getChannel(channelId);
+    if (!channel || (channel.type !== "dm" && channel.type !== "group_dm")) return;
+    const rang = this.store.memberIds(channelId).filter((id) => {
+      if (id === callerId) return false;
+      const user = this.store.getUser(id);
+      return !!user && !user.isBot && !user.deactivated;
+    });
+    if (rang.length === 0) return;
+    const before = this.rings.get(channelId);
+    if (before) this.endRing(channelId, before);
+    const ms = this.options.huddleRingMs ?? HUDDLE_RING_MS;
+    const startedAt = Date.now();
+    const ring: Ring = {
+      state: {
+        channelId,
+        callerId,
+        startedAt,
+        endsAt: startedAt + ms,
+        ringing: rang,
+        answered: [],
+        declined: [],
+      },
+      rang,
+      timer: null,
+    };
+    ring.timer = setTimeout(() => {
+      ring.timer = null;
+      this.contained("huddle ring", () => this.endRing(channelId, ring));
+    }, ms);
+    ring.timer.unref?.();
+    this.rings.set(channelId, ring);
+    this.tellRing(ring);
+  }
+
+  /**
+   * Brings a ring up to date with who is in its huddle: someone it rang who
+   * is in the huddle now has answered, and a ring whose caller is no longer
+   * in it is over.
+   */
+  private settleRing(channelId: ID): void {
+    const ring = this.rings.get(channelId);
+    if (!ring) return;
+    const room = this.huddles.get(channelId);
+    if (!room?.has(ring.state.callerId)) return this.endRing(channelId, ring);
+    const { state } = ring;
+    const joined = ring.rang.filter((id) => room.has(id) && !state.answered.includes(id));
+    if (joined.length === 0) return;
+    state.ringing = state.ringing.filter((id) => !joined.includes(id));
+    state.declined = state.declined.filter((id) => !joined.includes(id));
+    state.answered = [...state.answered, ...joined];
+    if (state.ringing.length === 0) this.endRing(channelId, ring);
+    else this.tellRing(ring);
+  }
+
+  /** Someone it is ringing says no, which the caller hears. */
+  private declineRing(channelId: ID, userId: ID): void {
+    const ring = this.rings.get(channelId);
+    if (!ring || !ring.state.ringing.includes(userId)) return;
+    ring.state.ringing = ring.state.ringing.filter((id) => id !== userId);
+    ring.state.declined = [...ring.state.declined, userId];
+    if (ring.state.ringing.length === 0) this.endRing(channelId, ring);
+    else this.tellRing(ring);
+  }
+
+  /**
+   * Stops a ring for everyone. Whoever it was still ringing missed it, and if
+   * nobody answered, the conversation is left a note saying so, as from the
+   * caller.
+   */
+  private endRing(channelId: ID, ring: Ring): void {
+    if (this.rings.get(channelId) !== ring) return;
+    this.rings.delete(channelId);
+    if (ring.timer) clearTimeout(ring.timer);
+    ring.timer = null;
+    const missed = ring.state.ringing.length > 0;
+    ring.state.ringing = [];
+    this.tellRing(ring);
+    if (missed && ring.state.answered.length === 0)
+      this.contained("missed call", () =>
+        this.options.missedCall?.(channelId, ring.state.callerId),
+      );
+  }
+
+  /** Tells the caller and everyone it rang how a ring stands, on all their devices. */
+  private tellRing(ring: Ring): void {
+    const event: EphemeralEvent = { type: "huddle.ring", ring: { ...ring.state } };
+    for (const userId of [ring.state.callerId, ...ring.rang])
+      this.contained("huddle ring", () => this.sendToUser(userId, event));
+  }
+
+  /** The rings this account is part of, calling or called, for its snapshot. */
+  private ringsFor(userId: ID): HuddleRing[] {
+    return [...this.rings.values()]
+      .filter((ring) => ring.state.callerId === userId || ring.rang.includes(userId))
+      .map((ring) => ({ ...ring.state }));
+  }
+
+  /** A channel's ring as it stands, for tests and diagnostics. */
+  huddleRing(channelId: ID): HuddleRing | null {
+    const ring = this.rings.get(channelId);
+    return ring ? { ...ring.state } : null;
   }
 
   /** Who went offline when their sockets failed, not yet told to anyone. */
