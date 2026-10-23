@@ -63,10 +63,11 @@ export function useHuddleView(): [HuddleView, (view: HuddleView) => void] {
 /** Who is in a channel's huddle, by name: you first, as "you", then everyone else. */
 /**
  * Who a call's ring still rings (E10), such as "Ringing Maya…", for whoever is
- * in that call; null once it rings nobody.
+ * in that call; null without one. The workspace keeps a ring only while it
+ * rings someone, so there is always someone to name.
  */
 export function ringingLine(ring: HuddleRing | undefined, users: Record<ID, User>): string | null {
-  if (!ring || ring.ringing.length === 0) return null;
+  if (!ring) return null;
   return `Ringing ${namesList(ring.ringing.map((id) => users[id]?.displayName ?? "someone"))}…`;
 }
 
