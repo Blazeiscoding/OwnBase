@@ -686,6 +686,19 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE messages ADD COLUMN call_kind TEXT;
   `,
+  // v49 — two-step sign-in (E11): an account's authenticator key (null while
+  // it has none) and the last time step a code was accepted for, so no code
+  // works twice; and its recovery codes, kept only as hashes, each used once.
+  `
+  ALTER TABLE users ADD COLUMN two_step_secret TEXT;
+  ALTER TABLE users ADD COLUMN two_step_step INTEGER;
+  CREATE TABLE two_step_codes (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    code_hash TEXT NOT NULL,
+    used_at INTEGER,
+    PRIMARY KEY (user_id, code_hash)
+  );
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

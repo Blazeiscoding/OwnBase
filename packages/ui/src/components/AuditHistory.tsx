@@ -36,6 +36,8 @@ export function describeAuditEntry(
       return `${actor} reactivated ${target}`;
     case "user.password_reset":
       return `${actor} reset ${possessive(target)} password`;
+    case "user.two_step_reset":
+      return `${actor} turned off ${possessive(target)} two-step sign-in`;
     case "user.invite_permission_granted":
       return `${actor} allowed ${target} to create invite codes`;
     case "user.invite_permission_removed":
@@ -43,7 +45,7 @@ export function describeAuditEntry(
     case "account.recovered":
       return `The host recovered ${possessive(target)} account from the server's command line${
         d.madeOwner ? " and made them the owner" : ""
-      }`;
+      }${d.twoStepCleared ? `${d.madeOwner ? "," : ""} and turned off their two-step sign-in` : ""}`;
     case "workspace.ownership_transferred":
       return `${actor} handed the workspace over to ${target}`;
     case "workspace.renamed":

@@ -302,7 +302,9 @@ if (command === "recover") {
 
       ${result.temporaryPassword}
 
-  ${result.revokedSessions} existing ${result.revokedSessions === 1 ? "session was" : "sessions were"} ended.
+  ${result.revokedSessions} existing ${result.revokedSessions === 1 ? "session was" : "sessions were"} ended.${
+    result.twoStepCleared ? "\n  Two-step sign-in was turned off; they can set it up again." : ""
+  }
   Signing in with this password leads straight to choosing a new one; nothing
   else in the workspace is reachable until then. It is not stored anywhere, so
   copy it now.

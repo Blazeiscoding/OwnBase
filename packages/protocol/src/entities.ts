@@ -370,6 +370,7 @@ export type AuditAction =
   | "user.deactivated"
   | "user.reactivated"
   | "user.password_reset"
+  | "user.two_step_reset"
   | "user.invite_permission_granted"
   | "user.invite_permission_removed"
   | "account.recovered"
