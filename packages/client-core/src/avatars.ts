@@ -10,7 +10,6 @@ import type { ID } from "@slackoss/protocol";
 export class AvatarCache {
   private urls = new Map<string, string>();
   private loading = new Map<string, Promise<string | null>>();
-  private listeners = new Set<() => void>();
   private stopped = false;
 
   constructor(
@@ -46,7 +45,6 @@ export class AvatarCache {
           this.urls.delete(oldest);
           URL.revokeObjectURL(gone);
         }
-        for (const listener of this.listeners) listener();
         return url;
       })
       .catch(() => null)
@@ -55,17 +53,10 @@ export class AvatarCache {
     return loading;
   }
 
-  /** Told whenever a picture arrives. */
-  subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => void this.listeners.delete(listener);
-  }
-
   /** Lets every picture go, for a client being closed. */
   clear(): void {
     this.stopped = true;
     for (const url of this.urls.values()) URL.revokeObjectURL(url);
     this.urls.clear();
-    this.listeners.clear();
   }
 }
