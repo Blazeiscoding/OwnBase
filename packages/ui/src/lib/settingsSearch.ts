@@ -60,6 +60,11 @@ export const SETTINGS: readonly Setting[] = [
     words: "muted mute huddle call joining",
   },
   { section: "security", label: "Change password", words: "password" },
+  {
+    section: "security",
+    label: "Two-step sign-in",
+    words: "2fa mfa two factor authenticator app code totp otp recovery codes verification",
+  },
   { section: "security", label: "Sign out", words: "log out logout leave" },
   { section: "devices", label: "Signed-in devices", words: "sessions sign out remove" },
   {

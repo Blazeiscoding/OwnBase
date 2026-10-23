@@ -44,7 +44,29 @@ export const changePasswordBody = z.object({
 export const loginBody = z.object({
   handle: handleSchema,
   password: z.string().min(1).max(256),
+  /**
+   * This client can answer a second step (E11). An account with two-step
+   * sign-in is refused to one that does not say so, which could not finish.
+   */
+  twoStep: z.literal(true).optional(),
 });
+
+/** The second step of signing in (E11): the first step's challenge, and a code or a recovery code. */
+export const twoStepSignInBody = z
+  .object({
+    challenge: z.string().min(1).max(128),
+    code: z.string().min(1).max(16).optional(),
+    recoveryCode: z.string().min(1).max(32).optional(),
+  })
+  .refine((body) => (body.code === undefined) !== (body.recoveryCode === undefined), {
+    message: "a code or a recovery code",
+  });
+
+/** Proves it is this account's owner before its two-step sign-in changes (E11). */
+export const twoStepPasswordBody = z.object({ password: z.string().min(1).max(256) });
+
+/** A code from the authenticator app, to turn two-step sign-in on (E11). */
+export const twoStepCodeBody = z.object({ code: z.string().min(1).max(16) });
 
 export const updateMeBody = z.object({
   displayName: z.string().min(1).max(80).optional(),

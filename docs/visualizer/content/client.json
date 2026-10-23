@@ -34,7 +34,8 @@
         "votePoll and closePoll call PUT /api/messages/:id/poll/votes and POST /api/messages/:id/poll/close (E6).",
         "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7).",
         "createSidebarSection, renameSidebarSection, deleteSidebarSection and orderSidebarSections call the sidebar section routes (E8).",
-        "setAvatar and removeAvatar call PUT and DELETE /api/me/avatar; fetchAvatar fetches GET /api/users/:id/avatar?v= with the session's token, which the browser may keep for that version (E9)."
+        "setAvatar and removeAvatar call PUT and DELETE /api/me/avatar; fetchAvatar fetches GET /api/users/:id/avatar?v= with the session's token, which the browser may keep for that version (E9).",
+        "login always sends twoStep: true, which an older server does not read, and its LoginResult is a session (SignedIn) or the second step's challenge, which signInSecondStep answers with a code or a recovery code (E11). twoStep, startTwoStep, enableTwoStep, newRecoveryCodes and disableTwoStep are the account's own calls and resetTwoStep an admin's; listAllUsers may say twoStep."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -316,7 +317,8 @@
         "Its errors say whether the server was reached (UX-05): no answer is Could not reach the server, a wait that ran out says the server took too long, and an answer it has no words for repeats the server's own message, or says the server had a problem (5xx) or turned it down, with the code.",
         "Its fields take inputClass('large') from TextField.tsx: taller and rounder than a dialog's, and lit from above while in use (field-spot), with the same border and invalid colours as every other field.",
         "Workspace icons (UX-60): the join card fetches the icon ServerInfo.iconVersion names, so anyone sees it before signing in; the workspace serving the page does too; saved workspaces show the copy this device kept (savedIcons), since their servers may be off; the stopped workspace offered under Hosted on this computer shows the icon read from its own database; a workspace found on the network shows the icon its announcement names, fetched from its own address (FoundServerRow). Each falls back to the gradient square.",
-        "Direct connect checks when Connect is pressed rather than greying it out: no address, or one normalizeServerUrl cannot read, is said under the field, which takes focus. While a workspace is being contacted Connect is aria-disabled, so focus stays on it."
+        "Direct connect checks when Connect is pressed rather than greying it out: no address, or one normalizeServerUrl cannot read, is said under the field, which takes focus. While a workspace is being contacted Connect is aria-disabled, so focus stays on it.",
+        "Two-step sign-in (E11): a password answered with a challenge turns the card to its second step, a Code field (one-time-code, numeric) or, by Use a recovery code instead, a Recovery code field. A wrong code is said there; an expired second step goes back to the password, emptied. Signing in with a recovery code says how many are left before Continue, since the phone is probably gone, and one whose password was issued by someone else goes on to choosing a new one."
       ],
       "concepts": [
         "LAN discovery",
@@ -599,7 +601,8 @@
       "summary": "Turns account refusal codes and session user agents into readable labels.",
       "details": [
         "accountError distinguishes changed credentials, expired sessions, role restrictions and invalid password changes instead of showing raw API codes.",
-        "deviceLabel derives a coarse browser/app and operating-system name for the Devices list. It does not claim to identify an exact physical device."
+        "deviceLabel derives a coarse browser/app and operating-system name for the Devices list. It does not claim to identify an exact physical device.",
+        "accountError words the two-step refusals: a wrong code, a setup that took too long, already on or off, and too many tries (E11)."
       ],
       "concepts": ["account errors", "session labels"]
     },
@@ -1706,7 +1709,8 @@
       "summary": "Renders a QR code as one SVG path with a quiet zone, using the uqr encoder.",
       "details": [
         "Encodes with error correction level M, which survives about 15 percent of the code being smudged or covered, and keeps the four-module quiet zone scanners need.",
-        "Nothing leaves the device: the encoder runs in the page, never through a service."
+        "Nothing leaves the device: the encoder runs in the page, never through a service.",
+        "TwoStepSettings draws an authenticator app's otpauth URI with it (E11)."
       ],
       "concepts": ["QR code", "offline"]
     },
@@ -1763,9 +1767,21 @@
         "Choices that save themselves report through savedNote, and the section's title row says \"Saved\" for two seconds in a polite live region that is always present, so it is read out without competing with the section's own status messages.",
         "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences. When I press Enter is a Select.",
         "Security and Devices change passwords, list/revoke sessions and sign out through the server; Storage displays server usage. Confirmation identifies destructive session changes.",
-        "The Q03 and Q04 repairs live in the underlying helpers; this dialog only shows their state, including Try again for a composer preference that could not be read."
+        "The Q03 and Q04 repairs live in the underlying helpers; this dialog only shows their state, including Try again for a composer preference that could not be read.",
+        "Security holds TwoStepSettings between Change password and Sign out (E11)."
       ],
       "concepts": ["account settings", "session management", "device preferences", "N04"]
+    },
+    {
+      "path": "packages/ui/src/components/TwoStepSettings.tsx",
+      "plain": "The part of Account settings, under Security, where someone turns on two-step sign-in with an authenticator app, keeps their recovery codes, and turns it off.",
+      "summary": "Sets two-step sign-in up and manages it, a step at a time (E11).",
+      "details": [
+        "Setting up takes the password, then shows a QrCode of the otpauth URI and the key in fours with Copy key, then takes a first code in a one-time-code field. The ten recovery codes then show once, with Copy codes, Save as a file (a text file through a download link, as Diagnostics saves its report) and Done; their panel takes focus.",
+        "Once on, it says how many recovery codes are left, in the alert colour at three or fewer, and offers New recovery codes and Turn off, each after the password. A setup that took too long goes back to the password and says so.",
+        "Each step's field takes focus as it shows, and a password field always starts empty. Guests, who have no password, are not shown it."
+      ],
+      "concepts": ["two-step sign-in", "authenticator app", "recovery codes", "E11"]
     },
     {
       "path": "packages/ui/src/components/WorkspaceSettings.tsx",
@@ -1815,7 +1831,8 @@
         "Lists the workspace's users from the store, which an admin's snapshot holds in full and user.joined/user.updated keep current, so there is no Refresh. listAllUsers adds only last-seen times; if it fails the rows still show and ListStatus offers Try again. Someone whose presence leaves online while it is open shows as last seen then, and a change made here is applied from the server's answer before the socket's copy arrives.",
         "A search field matches name or handle as the switcher does (a leading @ ignored); deactivated matches are counted under the list rather than hidden silently, and Escape empties the search before closing. Offers role/deactivation/invite-permission actions, password reset and ownership transfer where permitted.",
         "PersonMenu consolidates row actions into one accessible menu. Confirmations and mapped refusal messages communicate lost access, protected ownership and equal-admin restrictions; hidden buttons are not treated as authorization.",
-        "Transfer ownership asks for the new owner's username in a TextField and checks it when pressed: missing or typed differently, it says so under the field and puts focus there. While the change is saved the field is read-only and the button aria-disabled."
+        "Transfer ownership asks for the new owner's username in a TextField and checks it when pressed: missing or typed differently, it says so under the field and puts focus there. While the change is saved the field is read-only and the button aria-disabled.",
+        "Reset two-step sign-in is in a person's menu only when the admin list says they have it, and asks first (E11). The list's twoStep is kept as the socket brings changes to people."
       ],
       "concepts": ["user administration", "roles", "account recovery", "server enforcement"]
     },
@@ -1849,7 +1866,8 @@
         "Loads only when requested, pages through the server audit log and preserves keyboard focus when the final page removes a pagination control.",
         "Renaming the workspace and changing who can join read as sentences too, with the old and new name, or the new rule in plain words; an entry made by the desktop app's host names the host.",
         "Says workspace.icon_changed as changing or removing the workspace's icon (UX-60).",
-        "Says workspace.link_previews_changed as turning link previews on or off (E2)."
+        "Says workspace.link_previews_changed as turning link previews on or off (E2).",
+        "Says user.two_step_reset as turning off someone's two-step sign-in, and account.recovered adds that the host turned it off when it did (E11)."
       ],
       "concepts": ["audit log", "defensive rendering", "focus preservation"]
     },

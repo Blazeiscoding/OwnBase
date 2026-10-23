@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
 import type { ClientToServer } from "@slackoss/protocol";
-import { Api, WorkspaceClient } from "../src/index.js";
+import { Api, WorkspaceClient, type SignedIn } from "../src/index.js";
 import { HuddleSession } from "../src/huddle.js";
 
 /**
@@ -171,7 +171,10 @@ describe("a call joined on another device", () => {
     const laptop = await open(base, account.token);
     await laptop.client.joinHuddle(laptop.general);
     const self = laptop.client.state.self!.id;
-    const second = await new Api(base).login({ handle: "caller", password: "password123" });
+    const second = (await new Api(base).login({
+      handle: "caller",
+      password: "password123",
+    })) as SignedIn;
     const phone = await open(base, second.token);
     await phone.client.joinHuddle(phone.general);
 

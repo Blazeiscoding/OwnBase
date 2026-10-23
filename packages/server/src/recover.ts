@@ -79,7 +79,13 @@ export async function recoverAccount(opts: {
   handle: string;
   /** Also make this account the owner. For a workspace whose owner is gone. */
   makeOwner?: boolean;
-}): Promise<{ temporaryPassword: string; role: string; revokedSessions: number }> {
+}): Promise<{
+  temporaryPassword: string;
+  role: string;
+  revokedSessions: number;
+  /** Whether two-step sign-in was on, and is now off (E11). */
+  twoStepCleared: boolean;
+}> {
   const { db, close } = openWorkspace(opts.dataDir);
   try {
     const store = new Store(db);
@@ -90,8 +96,11 @@ export async function recoverAccount(opts: {
 
     const temporaryPassword = secretToken().slice(0, 16);
     const credentials = await hashPassword(temporaryPassword);
-    const { revoked, role } = store.transaction(() => {
+    const { revoked, role, twoStepCleared } = store.transaction(() => {
       store.setPassword(user.id, credentials.hash, credentials.salt, true);
+      // Whoever lost their password may have lost their authenticator too, and
+      // the host on this machine is trusted with both (E11).
+      const twoStepCleared = store.disableTwoStep(user.id);
       // Recovery is pointless if the account cannot sign in at all.
       if (user.deactivated) store.updateUser(user.id, { deactivated: false });
       if (opts.makeOwner) {
@@ -116,11 +125,12 @@ export async function recoverAccount(opts: {
           madeOwner: opts.makeOwner === true,
           reactivated: user.deactivated,
           sessionsEnded: revoked,
+          twoStepCleared,
         },
       });
-      return { revoked, role: store.getUser(user.id)!.role };
+      return { revoked, role: store.getUser(user.id)!.role, twoStepCleared };
     });
-    return { temporaryPassword, role, revokedSessions: revoked };
+    return { temporaryPassword, role, revokedSessions: revoked, twoStepCleared };
   } finally {
     close();
   }

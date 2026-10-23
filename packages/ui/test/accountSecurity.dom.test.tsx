@@ -55,6 +55,11 @@ function account(section: AccountSection) {
     revokeOthers: vi
       .spyOn(client.api, "revokeOtherSessions")
       .mockResolvedValue({ revoked: 1 } as never),
+    // Security also says whether two-step sign-in is on (E11).
+    twoStep: vi.spyOn(client.api, "twoStep").mockResolvedValue({
+      enabled: false,
+      recoveryCodesLeft: 0,
+    }),
   };
   const platform: Platform = {
     kind: "web",

@@ -15,7 +15,9 @@ import { buttonClass } from "./Button.js";
 import { ListStatus } from "./ListStatus.js";
 import { isImeKey } from "../lib/textInput.js";
 
-type Person = User & { lastSeenAt: number | null };
+/** Someone on the admin list: when last here, and whether they have two-step sign-in (E11). */
+type Person = User & { lastSeenAt: number | null; twoStep?: boolean };
+type Action = "reset" | "twoStep" | "transfer";
 
 /**
  * Running the workspace: who has an account, what they can do, and taking that
@@ -40,7 +42,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const [busy, setBusy] = useState<ID | null>(null);
   const [showInactive, setShowInactive] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
-  const [action, setAction] = useState<{ kind: "reset" | "transfer"; person: Person } | null>(null);
+  const [action, setAction] = useState<{ kind: Action; person: Person } | null>(null);
   const [confirmation, setConfirmation] = useState("");
   /** Why Transfer did not go ahead, said under the username once it is pressed. */
   const [confirmError, setConfirmError] = useState<string | null>(null);
@@ -130,6 +132,14 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
         if (!alive.current) return;
         setIssued({ person: action.person, password: result.temporaryPassword });
         setReveal(false);
+      } else if (action.kind === "twoStep") {
+        await client.api.resetTwoStep(action.person.id);
+        if (!alive.current) return;
+        const { id } = action.person;
+        setPeople((list) => list?.map((p) => (p.id === id ? { ...p, twoStep: false } : p)) ?? list);
+        setNotice(
+          `${action.person.displayName}'s two-step sign-in is off. They can set it up again in Account settings.`,
+        );
       } else {
         const result = await client.api.transferOwnership(action.person.id);
         if (!alive.current) return;
@@ -154,7 +164,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     }
   }
 
-  function beginAction(kind: "reset" | "transfer", person: Person) {
+  function beginAction(kind: Action, person: Person) {
     setAction({ kind, person });
     setConfirmation("");
     setConfirmError(null);
@@ -165,8 +175,14 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const isOwner = self?.role === "owner";
   const currentPeople = useMemo(() => {
     const byId = new Map<ID, Person>((people ?? []).map((person) => [person.id, person]));
-    for (const user of Object.values(liveUsers))
-      byId.set(user.id, { ...user, lastSeenAt: byId.get(user.id)?.lastSeenAt ?? null });
+    for (const user of Object.values(liveUsers)) {
+      const listed = byId.get(user.id);
+      byId.set(user.id, {
+        ...user,
+        lastSeenAt: listed?.lastSeenAt ?? null,
+        ...(listed?.twoStep !== undefined ? { twoStep: listed.twoStep } : {}),
+      });
+    }
     return [...byId.values()]
       .map((person) => {
         const left = leftAt[person.id];
@@ -265,12 +281,16 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
           <h3 className="font-semibold">
             {action.kind === "reset"
               ? `Reset ${action.person.displayName}'s password?`
-              : `Transfer ownership to ${action.person.displayName}?`}
+              : action.kind === "twoStep"
+                ? `Turn off ${action.person.displayName}'s two-step sign-in?`
+                : `Transfer ownership to ${action.person.displayName}?`}
           </h3>
           <p className="mt-2 text-sm text-ink-dim">
             {action.kind === "reset"
               ? `This replaces @${action.person.handle}'s password and signs out all their devices. A temporary password will appear here for you to share privately.`
-              : `@${action.person.handle} will become the workspace owner. You will remain an administrator. Only the new owner will be able to transfer ownership again.`}
+              : action.kind === "twoStep"
+                ? `For someone who lost their phone and their recovery codes. @${action.person.handle} then signs in with their password alone until they set it up again. Their devices stay signed in. Make sure it is really them asking.`
+                : `@${action.person.handle} will become the workspace owner. You will remain an administrator. Only the new owner will be able to transfer ownership again.`}
           </p>
           {/* Transfer always answers: without the username typed, it says so under the field. */}
           <form noValidate onSubmit={(event) => void confirmAction(event)}>
@@ -317,7 +337,9 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                   ? "Saving…"
                   : action.kind === "reset"
                     ? "Reset password"
-                    : "Transfer ownership"}
+                    : action.kind === "twoStep"
+                      ? "Turn off two-step sign-in"
+                      : "Transfer ownership"}
               </button>
             </div>
           </form>
@@ -469,7 +491,7 @@ function PersonMenu({
     person: Person,
     patch: { role?: "member" | "admin"; deactivated?: boolean; canInvite?: boolean },
   ) => void;
-  onBeginAction: (kind: "reset" | "transfer", person: Person) => void;
+  onBeginAction: (kind: Action, person: Person) => void;
 }) {
   const items: MenuItem[] = [];
   // A guest has no password and becomes a member only by creating an account
@@ -506,6 +528,14 @@ function PersonMenu({
       label: "Reset password",
       onSelect: () => onBeginAction("reset", person),
     });
+    // Only for someone who has it: an older server does not say, and offers none.
+    if (person.twoStep) {
+      items.push({
+        id: "two-step",
+        label: "Reset two-step sign-in",
+        onSelect: () => onBeginAction("twoStep", person),
+      });
+    }
     if (isOwner) {
       items.push({
         id: "transfer",

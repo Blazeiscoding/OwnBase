@@ -47,6 +47,9 @@ import {
   changePasswordBody,
   editMessageBody,
   loginBody,
+  twoStepCodeBody,
+  twoStepPasswordBody,
+  twoStepSignInBody,
   guestAccountBody,
   guestJoinBody,
   accessPolicyBody,
@@ -96,6 +99,13 @@ import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPrevi
 import { parsePort, parsePublicUrl } from "./config.js";
 import { callRelaySchema, createRelaySource, withRelay, type CallRelay } from "./relay.js";
 import { iceServersSchema } from "./rtc.js";
+import {
+  checkCode,
+  newRecoveryCodes,
+  newTwoStepSecret,
+  normalRecoveryCode,
+  otpauthUri,
+} from "./twoStep.js";
 import {
   APP_CALLS_IN_FLIGHT,
   CAPABILITIES_ALIVE,
@@ -162,6 +172,13 @@ const SCHEDULED_RETENTION_MS = 7 * 24 * 3600_000;
 
 /** What a missed call's note says, to older clients, search and notifications too (E10). */
 const MISSED_CALL_TEXT = "Missed huddle";
+
+/** How long the second step of signing in waits for its code (E11). */
+const TWO_STEP_CHALLENGE_MS = 5 * 60_000;
+/** Wrong codes one sign-in may try before its password must be given again (E11). */
+const TWO_STEP_TRIES = 5;
+/** How long a key being set up waits for its first code (E11). */
+const TWO_STEP_SETUP_MS = 10 * 60_000;
 
 /**
  * How long a removed message's send key is kept after it was posted: an app's
@@ -2185,11 +2202,113 @@ async function startWorkspaceServer(
     ) {
       throw new HttpError(401, "invalid_credentials");
     }
+    // An account with two-step sign-in has a second step to pass first (E11).
+    // What its handle has spent stays spent until then, so a right password
+    // does not buy more guesses at the code.
+    if (store.twoStep(auth.id).secret) {
+      if (!body.twoStep)
+        throw new HttpError(
+          401,
+          "two_step_required",
+          "This account asks for a code from an authenticator app. Update Tandem to sign in with it.",
+        );
+      const challenge = secretToken();
+      const now = Date.now();
+      for (const [key, held] of twoStepChallenges)
+        if (held.expiresAt <= now) twoStepChallenges.delete(key);
+      twoStepChallenges.set(hashToken(challenge), {
+        userId: auth.id,
+        passwordHash: latest.passwordHash,
+        expiresAt: now + TWO_STEP_CHALLENGE_MS,
+        tries: 0,
+      });
+      return { twoStep: { challenge, expiresAt: now + TWO_STEP_CHALLENGE_MS } };
+    }
     authSucceeded(auth.handle);
     const { token, tokenHash } = newSessionToken();
     store.createSession(tokenHash, auth.id, deviceName(req));
     const { passwordHash: _p, salt: _s, ...user } = latest;
     return { token, user, mustChangePassword: store.mustChangePassword(auth.id) };
+  });
+
+  /**
+   * Sign-ins waiting on their second step (E11), by their challenge's hash:
+   * whose, with the password they gave, until when, and how many wrong codes
+   * so far. In memory: a restart asks for the password again.
+   */
+  const twoStepChallenges = new Map<
+    string,
+    { userId: ID; passwordHash: string; expiresAt: number; tries: number }
+  >();
+
+  /**
+   * The second step of signing in (E11): a code from the authenticator app,
+   * each step's once, or a recovery code, each once. A few wrong ones send
+   * the person back to their password.
+   */
+  app.post("/api/auth/two-step", async (req) => {
+    const body = twoStepSignInBody.parse(req.body);
+    ration("authByAddress", callerAddress(req));
+    const key = hashToken(body.challenge);
+    const held = twoStepChallenges.get(key);
+    const expired = () =>
+      new HttpError(
+        401,
+        "two_step_expired",
+        "That sign-in has expired. Enter your password again.",
+      );
+    if (!held || held.expiresAt <= Date.now()) {
+      twoStepChallenges.delete(key);
+      throw expired();
+    }
+    const account = store.getUser(held.userId);
+    const auth = account ? store.getUserAuthByHandle(account.handle) : null;
+    // Deactivated, or the password changed, since the first step.
+    if (!auth || auth.deactivated || auth.passwordHash !== held.passwordHash) {
+      twoStepChallenges.delete(key);
+      throw expired();
+    }
+    ration("authByHandle", auth.handle.toLowerCase());
+    const second = store.twoStep(auth.id);
+    let passed = second.secret === null; // Reset meanwhile: the password is enough again.
+    if (!passed && body.code !== undefined) {
+      const step = checkCode(second.secret!, body.code, Date.now(), second.step);
+      if (step !== null) {
+        store.useTwoStepStep(auth.id, step);
+        passed = true;
+      }
+    } else if (!passed && body.recoveryCode !== undefined) {
+      passed = store.useRecoveryCode(auth.id, hashToken(normalRecoveryCode(body.recoveryCode)));
+    }
+    if (!passed) {
+      held.tries++;
+      if (held.tries >= TWO_STEP_TRIES) {
+        twoStepChallenges.delete(key);
+        throw new HttpError(
+          401,
+          "two_step_expired",
+          "That was too many wrong codes. Enter your password again.",
+        );
+      }
+      throw new HttpError(
+        401,
+        "invalid_two_step_code",
+        body.code !== undefined
+          ? "That code is not right. Enter the one your authenticator app shows now."
+          : "That recovery code is not right, or has been used.",
+      );
+    }
+    twoStepChallenges.delete(key);
+    authSucceeded(auth.handle);
+    const { token, tokenHash } = newSessionToken();
+    store.createSession(tokenHash, auth.id, deviceName(req));
+    const { passwordHash: _p, salt: _s, ...user } = auth;
+    return {
+      token,
+      user,
+      mustChangePassword: store.mustChangePassword(auth.id),
+      recoveryCodesLeft: store.twoStep(auth.id).codesLeft,
+    };
   });
 
   app.post("/api/auth/logout", async (req) => {
@@ -2249,6 +2368,107 @@ async function startWorkspaceServer(
     for (const revoked of revokedSessions) {
       gateway.disconnectSession(revoked);
     }
+    return { ok: true };
+  });
+
+  /**
+   * Whether this is the password of the account signed in here, asked before
+   * its two-step sign-in changes (E11), and guessable by whoever has the
+   * session, so rationed as signing in is.
+   */
+  const confirmPassword = async (me: User, password: string): Promise<void> => {
+    ration("authByHandle", me.handle.toLowerCase());
+    const auth = store.getUserAuthByHandle(me.handle);
+    if (!auth) throw new HttpError(404, "user_not_found");
+    beginAuth();
+    let valid = false;
+    try {
+      valid = await verifyPassword(password, auth.salt, auth.passwordHash);
+    } finally {
+      authJobs--;
+    }
+    if (!valid) throw new HttpError(403, "invalid_credentials", "That is not your password.");
+    authSucceeded(me.handle);
+  };
+
+  /** Keys being set up, waiting for their first code (E11), by account. In memory. */
+  const twoStepSetups = new Map<ID, { secret: string; expiresAt: number }>();
+
+  /** Whether two-step sign-in is on, and how many recovery codes are left (E11). */
+  app.get("/api/me/two-step", async (req) => {
+    const me = requireUser(req);
+    const second = store.twoStep(me.id);
+    return { enabled: second.secret !== null, recoveryCodesLeft: second.codesLeft };
+  });
+
+  /** Starts setting two-step sign-in up: a new key and what an app scans for it (E11). */
+  app.post("/api/me/two-step", async (req) => {
+    const me = requireUser(req);
+    const body = twoStepPasswordBody.parse(req.body);
+    await confirmPassword(me, body.password);
+    if (store.twoStep(me.id).secret)
+      throw new HttpError(409, "two_step_on", "Two-step sign-in is already on.");
+    const secret = newTwoStepSecret();
+    twoStepSetups.set(me.id, { secret, expiresAt: Date.now() + TWO_STEP_SETUP_MS });
+    return { secret, uri: otpauthUri(secret, workspaceName(), me.handle) };
+  });
+
+  /**
+   * Turns two-step sign-in on once a code from the new key is right (E11),
+   * and gives the recovery codes, which are never shown again. Other devices
+   * stay signed in; it is asked for at each sign-in from now on.
+   */
+  app.post("/api/me/two-step/enable", async (req) => {
+    const me = requireUser(req);
+    const body = twoStepCodeBody.parse(req.body);
+    const setup = twoStepSetups.get(me.id);
+    if (!setup || setup.expiresAt <= Date.now()) {
+      twoStepSetups.delete(me.id);
+      throw new HttpError(409, "two_step_setup_expired", "Setting up took too long. Start again.");
+    }
+    const step = checkCode(setup.secret, body.code, Date.now(), null);
+    if (step === null)
+      throw new HttpError(
+        400,
+        "invalid_two_step_code",
+        "That code is not right. Enter the one your authenticator app shows now.",
+      );
+    const recoveryCodes = newRecoveryCodes();
+    store.transaction(() =>
+      store.enableTwoStep(
+        me.id,
+        setup.secret,
+        step,
+        recoveryCodes.map((code) => hashToken(normalRecoveryCode(code))),
+      ),
+    );
+    twoStepSetups.delete(me.id);
+    return { recoveryCodes };
+  });
+
+  /** A new set of recovery codes in place of the old (E11), shown once. */
+  app.post("/api/me/two-step/recovery-codes", async (req) => {
+    const me = requireUser(req);
+    const body = twoStepPasswordBody.parse(req.body);
+    await confirmPassword(me, body.password);
+    if (!store.twoStep(me.id).secret)
+      throw new HttpError(409, "two_step_off", "Two-step sign-in is off.");
+    const recoveryCodes = newRecoveryCodes();
+    store.transaction(() =>
+      store.replaceRecoveryCodes(
+        me.id,
+        recoveryCodes.map((code) => hashToken(normalRecoveryCode(code))),
+      ),
+    );
+    return { recoveryCodes };
+  });
+
+  /** Turns two-step sign-in off (E11). */
+  app.post("/api/me/two-step/disable", async (req) => {
+    const me = requireUser(req);
+    const body = twoStepPasswordBody.parse(req.body);
+    await confirmPassword(me, body.password);
+    store.transaction(() => store.disableTwoStep(me.id));
     return { ok: true };
   });
 
@@ -3986,8 +4206,14 @@ async function startWorkspaceServer(
   app.get("/api/admin/users", async (req) => {
     requireAdmin(req);
     const lastSeen = store.lastSeenByUser();
+    const twoStepIds = store.twoStepUserIds();
     return {
-      users: store.listUsers().map((u) => ({ ...u, lastSeenAt: lastSeen[u.id] ?? null })),
+      users: store.listUsers().map((u) => ({
+        ...u,
+        lastSeenAt: lastSeen[u.id] ?? null,
+        // Who has two-step sign-in, for an admin who may reset it (E11).
+        twoStep: twoStepIds.has(u.id),
+      })),
     };
   });
 
@@ -4080,27 +4306,34 @@ async function startWorkspaceServer(
   });
 
   /**
+   * Whose password or two-step sign-in an admin may reset (E11 shares them):
+   * not their own, an app's or a guest's; never the owner's; another admin's
+   * only as the owner. The admin asking, and whom.
+   */
+  const resettable = (
+    req: FastifyRequest<{ Params: { id: string } }>,
+  ): { me: User; target: User } => {
+    const me = requireAdmin(req);
+    const target = store.getUser(req.params.id);
+    if (!target) throw new HttpError(404, "user_not_found");
+    if (target.id === me.id) throw new HttpError(400, "cannot_reset_self");
+    if (target.isBot) throw new HttpError(400, "bots_have_no_password");
+    if (target.role === "guest") throw new HttpError(400, "guest_account");
+    if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
+    if (target.role === "admin" && me.role !== "owner") {
+      throw new HttpError(403, "admins_are_equals", "only the owner can reset another admin");
+    }
+    return { me, target };
+  };
+
+  /**
    * Password recovery for an installation with no email: an admin issues a
    * temporary password and reads it to the person over whatever channel they
    * trust. It is shown once, all their sessions end, and they are expected to
-   * change it. The rules match those above — the owner cannot be reset by an
-   * admin, and nobody resets themselves, since that is what the ordinary
-   * password change is for.
+   * change it. Who may be reset is resettable's to say.
    */
   app.post<{ Params: { id: string } }>("/api/admin/users/:id/password", async (req) => {
-    const authorize = () => {
-      const me = requireAdmin(req);
-      const target = store.getUser(req.params.id);
-      if (!target) throw new HttpError(404, "user_not_found");
-      if (target.id === me.id) throw new HttpError(400, "cannot_reset_self");
-      if (target.isBot) throw new HttpError(400, "bots_have_no_password");
-      if (target.role === "guest") throw new HttpError(400, "guest_account");
-      if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
-      if (target.role === "admin" && me.role !== "owner") {
-        throw new HttpError(403, "admins_are_equals", "only the owner can reset another admin");
-      }
-      return target;
-    };
+    const authorize = () => resettable(req);
     authorize();
     const temporaryPassword = secretToken().slice(0, 16);
     beginAuth();
@@ -4110,8 +4343,7 @@ async function startWorkspaceServer(
     } finally {
       authJobs--;
     }
-    const target = authorize();
-    const actor = requireAdmin(req);
+    const { me: actor, target } = authorize();
     const revokedSessions = store.transaction(() => {
       store.setPassword(target.id, credentials.hash, credentials.salt, true);
       const revoked = store.revokeSessions(target.id);
@@ -4128,6 +4360,27 @@ async function startWorkspaceServer(
       gateway.disconnectSession(tokenHash);
     }
     return { temporaryPassword };
+  });
+
+  /**
+   * Turns someone's two-step sign-in off, for one who lost their authenticator
+   * app and recovery codes (E11). Their devices stay signed in; their next
+   * sign-in asks for the password alone, and they can set it up again.
+   */
+  app.post<{ Params: { id: string } }>("/api/admin/users/:id/two-step/reset", async (req) => {
+    const { me: actor, target } = resettable(req);
+    store.transaction(() => {
+      if (!store.disableTwoStep(target.id))
+        throw new HttpError(409, "two_step_off", "Their two-step sign-in is already off.");
+      store.recordAudit({
+        actorId: actor.id,
+        action: "user.two_step_reset",
+        targetType: "user",
+        targetId: target.id,
+        details: {},
+      });
+    });
+    return { ok: true };
   });
 
   /**

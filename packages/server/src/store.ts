@@ -433,6 +433,85 @@ export class Store {
     return this.getUser(id)!;
   }
 
+  /**
+   * An account's two-step sign-in (E11): its authenticator key, or null for
+   * none; the last time step a code was accepted for; and how many recovery
+   * codes it has left.
+   */
+  twoStep(userId: ID): { secret: string | null; step: number | null; codesLeft: number } {
+    const row = this.db
+      .prepare(
+        `SELECT two_step_secret, two_step_step,
+           (SELECT COUNT(*) FROM two_step_codes c WHERE c.user_id = u.id AND c.used_at IS NULL)
+             AS codes_left
+         FROM users u WHERE id = ?`,
+      )
+      .get(userId) as
+      | { two_step_secret: string | null; two_step_step: number | null; codes_left: number }
+      | undefined;
+    return {
+      secret: row?.two_step_secret ?? null,
+      step: row?.two_step_step ?? null,
+      codesLeft: row?.codes_left ?? 0,
+    };
+  }
+
+  /** The accounts with two-step sign-in on, for the admins' list (E11). */
+  twoStepUserIds(): Set<ID> {
+    const rows = this.db
+      .prepare("SELECT id FROM users WHERE two_step_secret IS NOT NULL")
+      .all() as { id: string }[];
+    return new Set(rows.map((row) => row.id));
+  }
+
+  /**
+   * Turns two-step sign-in on with this key, the step its first code was for,
+   * and new codes. Call inside a transaction.
+   */
+  enableTwoStep(userId: ID, secret: string, step: number, codeHashes: string[]): void {
+    this.db
+      .prepare("UPDATE users SET two_step_secret = ?, two_step_step = ? WHERE id = ?")
+      .run(secret, step, userId);
+    this.replaceRecoveryCodes(userId, codeHashes);
+  }
+
+  /**
+   * Turns two-step sign-in off, its key and every recovery code gone. Whether
+   * it was on. Call inside a transaction.
+   */
+  disableTwoStep(userId: ID): boolean {
+    const was = this.db
+      .prepare(
+        "UPDATE users SET two_step_secret = NULL, two_step_step = NULL WHERE id = ? AND two_step_secret IS NOT NULL",
+      )
+      .run(userId).changes;
+    this.db.prepare("DELETE FROM two_step_codes WHERE user_id = ?").run(userId);
+    return was === 1;
+  }
+
+  /** Remembers the time step a code was just accepted for, so it cannot be used again. */
+  useTwoStepStep(userId: ID, step: number): void {
+    this.db.prepare("UPDATE users SET two_step_step = ? WHERE id = ?").run(step, userId);
+  }
+
+  /** A new set of recovery codes, by their hashes, in place of any before. Call inside a transaction. */
+  replaceRecoveryCodes(userId: ID, codeHashes: string[]): void {
+    this.db.prepare("DELETE FROM two_step_codes WHERE user_id = ?").run(userId);
+    const add = this.db.prepare("INSERT INTO two_step_codes (user_id, code_hash) VALUES (?, ?)");
+    for (const hash of codeHashes) add.run(userId, hash);
+  }
+
+  /** Uses up a recovery code; false for one that is not this account's, or already used. */
+  useRecoveryCode(userId: ID, codeHash: string): boolean {
+    return (
+      this.db
+        .prepare(
+          "UPDATE two_step_codes SET used_at = ? WHERE user_id = ? AND code_hash = ? AND used_at IS NULL",
+        )
+        .run(Date.now(), userId, codeHash).changes === 1
+    );
+  }
+
   /** Whether this account set itself away by hand (E9). */
   isAway(userId: ID): boolean {
     return this.db.prepare("SELECT away FROM users WHERE id = ?").get(userId)?.away === 1;
