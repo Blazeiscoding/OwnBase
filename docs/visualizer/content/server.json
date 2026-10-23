@@ -14,6 +14,18 @@
       "concepts": ["authentication", "scrypt", "session hashing"]
     },
     {
+      "path": "packages/server/src/twoStep.ts",
+      "plain": "Makes and checks the six-digit codes an authenticator app shows, and the recovery codes for when the phone is gone.",
+      "summary": "RFC 6238 time-based codes and recovery codes for two-step sign-in, made with node:crypto alone (E11).",
+      "details": [
+        "codeFor is RFC 4226's truncation of an HMAC-SHA1 over a thirty-second time step, six digits long; a test checks the codes RFC 6238 publishes. base32 and fromBase32 carry the twenty-byte key as authenticator apps take it, as RFC 4648 writes it.",
+        "checkCode takes a code for now or one step either side, for a clock a little out, and returns the step it answered. A step at or before the last one accepted is refused, so each code works once even inside its window. Codes are compared with timingSafeEqual.",
+        "otpauthUri is what the app scans: the key, the issuer \"<workspace> on Tandem\" and the handle, with spaces written as %20.",
+        "newRecoveryCodes makes ten codes like k7mq-3hxv from letters and digits nobody misreads (no 0, o, 1, l or i). normalRecoveryCode makes a typed one comparable, so case, spaces and the dash do not matter. The server keeps only their SHA-256 hashes."
+      ],
+      "concepts": ["two-step sign-in", "TOTP", "RFC 6238", "recovery codes", "E11"]
+    },
+    {
       "path": "packages/server/src/backup.ts",
       "plain": "Makes a complete backup of the workspace and its files, checks it, and puts a backup back in place when the host restores one.",
       "summary": "Captures, verifies, inventories and restores portable workspace backups.",
@@ -94,7 +106,8 @@
         "Schema 45 adds polls and poll_votes (E6): a poll per message, its choices in order as JSON, multiple, anonymous and closed_at; and one row per choice an account made, keyed by message, account and choice. Both go with the message's row, votes with the account too, and votes are indexed by account for the choices each account is sent.",
         "Schema 46 adds sidebar_sections (E8): one account's own named sections with their position, going with the account, indexed by account and position; and channel_members.section_id, the section a membership is kept in. It has no foreign key, as forwarded_from_id has none: deleting a section clears it in the same change, and a column with one could not be dropped by the upgrade test.",
         "Schema 47 adds profiles (E9): users.time_zone, users.away (set by hand) and users.avatar_version, and user_avatars, one picture's type and bytes per account, going with the account. Removing a picture deletes its row.",
-        "Schema 48 adds messages.call_kind (E10): the kind of note the server left about a call, missed, and null on every other message."
+        "Schema 48 adds messages.call_kind (E10): the kind of note the server left about a call, missed, and null on every other message.",
+        "Schema 49 adds two-step sign-in (E11): users.two_step_secret (null while it is off) and users.two_step_step, the last time step a code was accepted for; and two_step_codes, an account's recovery codes as SHA-256 hashes with used_at, going with the account."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -220,7 +233,8 @@
         "Verification prints the consequences of starting a backup: app callbacks, queued messages, accepted sessions and host settings that must be configured again.",
         "Ordinary startup reports reachable addresses and first-owner claim information, advertises discovery when enabled and handles process shutdown.",
         "This is an executable entry point; desktop embedding uses the library API instead.",
-        "--name, --invite-only and --access-policy set up a new workspace only. On a workspace that already has an owner the stored name and rule win, and the start prints one line for each flag that disagrees (keptSettingsNotes)."
+        "--name, --invite-only and --access-policy set up a new workspace only. On a workspace that already has an owner the stored name and rule win, and the start prints one line for each flag that disagrees (keptSettingsNotes).",
+        "recover says when it turned two-step sign-in off (E11)."
       ],
       "concepts": ["CLI", "self-hosting", "operator workflow"]
     },
@@ -294,7 +308,8 @@
         "Recovery refuses a workspace already held by a server and opens the database directly under an exclusive hold; no unauthenticated remote recovery endpoint exists.",
         "It issues a temporary password, revokes all existing sessions, reactivates the account if needed and forces a new password before ordinary workspace use.",
         "Optional makeOwner demotes any prior owner to admin and promotes the recovered human account, preserving a path back when an owner has left.",
-        "The changes and host-origin audit entry are transactional; handles close and the hold releases on every exit. Bot accounts are refused because they use tokens."
+        "The changes and host-origin audit entry are transactional; handles close and the hold releases on every exit. Bot accounts are refused because they use tokens.",
+        "It also turns two-step sign-in off (E11), since whoever lost their password may have lost their phone too, and says so in its result and its audit entry."
       ],
       "concepts": ["account recovery", "forced password change", "audit"]
     },
@@ -372,7 +387,10 @@
         "GET /api/files is the file browser's page (E7), guests included, who see only public conversations' files.",
         "Sidebar sections (E8): POST /api/sidebar-sections adds one (at most SIDEBAR_SECTIONS_MAX, 409 too_many_sections), PATCH and DELETE /api/sidebar-sections/:id rename and delete one (404 section_not_found for another account's), and PUT /api/sidebar-sections/order takes every one in a new order (409 sections_changed otherwise); guests may use all four, as they may star. Each change tells the account's devices sidebar.sections, and a deletion sends prefs for the conversations it let go. PATCH /api/channels/:id/prefs takes sectionId only for the account's own section.",
         "Profiles (E9): PATCH /api/me takes timeZone, kept under its current name, and away, telling presence when away changes. PUT /api/me/avatar takes the picture's bytes, checked by checkIcon as a profile picture, and DELETE /api/me/avatar removes it; GUEST_ROUTES leaves both to members. GET /api/users/:id/avatar serves a picture to anyone signed in, guests too: 404 for a version that is not the picture's, kept for good under its version, and asked about again without one.",
-        "Missed calls (E10): postMissedCall posts the note of a ring nobody answered, as from the caller, through postMessage with call (\"Missed huddle\"); one postMessage refuses leaves none. PATCH /api/messages/:id answers 409 call_not_editable for one."
+        "Missed calls (E10): postMissedCall posts the note of a ring nobody answered, as from the caller, through postMessage with call (\"Missed huddle\"); one postMessage refuses leaves none. PATCH /api/messages/:id answers 409 call_not_editable for one.",
+        "Two-step sign-in (E11): POST /api/auth/login answers a right password for an account with it with { twoStep: { challenge, expiresAt } } in place of a session, but only to a client that says loginBody.twoStep; an older one gets 401 two_step_required. The challenge is held in memory by its hash for five minutes and five wrong codes, with the password hash it was given for. POST /api/auth/two-step takes a code or a recovery code and gives the session, refusing with two_step_expired once the password changed or the account was deactivated meanwhile; one whose two-step sign-in was turned off meanwhile passes on the password. A right password clears what the handle spent on rate limits only once a session is issued, so it buys no more guesses at the code.",
+        "GET /api/me/two-step says whether it is on and how many recovery codes are left. POST /api/me/two-step takes the password and gives a new key and its otpauth URI, held in memory for ten minutes; POST /api/me/two-step/enable takes a first code from that key, turns it on and gives the recovery codes once; POST /api/me/two-step/recovery-codes and /disable take the password. Turning it on keeps every session. confirmPassword checks a password as signing in does, rationed by handle. Guests are refused by GUEST_ROUTES, and an app's token is no session.",
+        "POST /api/admin/users/:id/two-step/reset turns someone's off by resettable's rules, which the password reset shares: not one's own, an app's or a guest's, never the owner's, and another admin's only as the owner. It is audited as user.two_step_reset, and GET /api/admin/users says twoStep for each account."
       ],
       "concepts": [
         "HTTP API",
@@ -436,7 +454,8 @@
         "listSharedFiles (E7) lists the files on live messages one account can read, by the download rule (public, or a member and no guest), newest first by message id and then file id, and narrowed by kind (from FILE_TYPE_MATCH, so search and the browser agree; a picture is never a document), sharer, conversation and every word of q in the name, LIKE wildcards escaped. CROSS JOIN keeps files the outer loop, walking idx_files_message so a page stops once it is full; a test checks the plan.",
         "Sidebar sections (E8): ChannelPrefs carries sectionId from channel_members.section_id. setChannelPrefs keeps a conversation in one place: a section clears its star and a star clears its section. sidebarSections lists an account's in order; createSidebarSection adds one last; renameSidebarSection, deleteSidebarSection (clearing its members' section_id and saying which) and orderSidebarSections (only the exact set) act on the account's own only.",
         "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes.",
-        "A message row's call_kind becomes Message.call, and createMessage keeps one (E10)."
+        "A message row's call_kind becomes Message.call, and createMessage keeps one (E10).",
+        "Two-step sign-in (E11): twoStep reads an account's key, last step and recovery codes left; twoStepUserIds lists who has it. enableTwoStep, disableTwoStep (which says whether it was on) and replaceRecoveryCodes are called inside a transaction; useTwoStepStep keeps the step a code was accepted for, and useRecoveryCode spends a code once."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -496,7 +515,8 @@
         "SharedFile is one file as the file browser lists it (E7): its FileMeta, and the message that shared it, with its conversation, thread, sharer and time.",
         "SidebarSection is one account's named sidebar section (E8); ChannelPrefs.sectionId is the one a conversation is kept in, or null. SIDEBAR_SECTIONS_MAX (50) and SIDEBAR_SECTION_NAME_MAX (80) are the limits both sides share.",
         "User.timeZone, User.away (set by hand) and User.avatarVersion are present only when set (E9); a picture is served under its version.",
-        "Message.call is a CallNotice, a note the server left about a call as from its caller (E10); kind missed is a huddle nobody answered."
+        "Message.call is a CallNotice, a note the server left about a call as from its caller (E10); kind missed is a huddle nobody answered.",
+        "AuditAction user.two_step_reset is an admin turning off someone's two-step sign-in (E11)."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -591,7 +611,8 @@
         "sendMessageBody.poll makes a message a poll (E6): two to ten different choices of up to 80 characters, multiple and anonymous defaulting to false, and a question of up to 300 characters. pollVotesBody is the choices a vote replaces the voter's with. SendMessageBody is the schema's input type, so a client may leave out what has a default.",
         "sharedFilesQuery is the file browser's page (E7): limit (30, at most 100), a cursor of message and file ids, kind, userId, channelId and q.",
         "channelPrefsBody takes sectionId (E8). sidebarSectionNameSchema is a section's name, 1 to 80 characters once trimmed and no control characters; sidebarSectionBody and sidebarSectionOrderBody are the requests to name one and to order them.",
-        "updateMeBody takes timeZone, an IANA zone kept under its current name, or null to forget it, and away (E9). PROFILE_PICTURE_TYPES, PROFILE_PICTURE_MAX_BYTES and PROFILE_PICTURE_PIXELS are the workspace icon's limits."
+        "updateMeBody takes timeZone, an IANA zone kept under its current name, or null to forget it, and away (E9). PROFILE_PICTURE_TYPES, PROFILE_PICTURE_MAX_BYTES and PROFILE_PICTURE_PIXELS are the workspace icon's limits.",
+        "loginBody.twoStep says a client can answer a second step (E11). twoStepSignInBody takes the challenge and exactly one of code and recoveryCode; twoStepPasswordBody and twoStepCodeBody carry the account's own changes."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },
