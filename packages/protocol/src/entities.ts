@@ -213,6 +213,17 @@ export interface Message {
    * before polls.
    */
   poll?: Poll;
+  /**
+   * A note about a call, left by the server as from the person who rang
+   * (E10): a huddle nobody answered. Its words say the same to older clients.
+   * Absent from every other message.
+   */
+  call?: CallNotice;
+}
+
+/** What a call note says happened (E10). */
+export interface CallNotice {
+  kind: "missed";
 }
 
 /**

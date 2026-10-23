@@ -5331,3 +5331,68 @@ test("a picture, a time zone and away set in one browser reach the other as they
     rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test("a huddle in a direct message rings the other browser, which can decline, answer or miss it (E10)", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const a = await browser.newContext({ permissions: ["microphone"] });
+  const b = await browser.newContext({ permissions: ["microphone"] });
+  try {
+    const alice = await a.newPage();
+    const bob = await b.newPage();
+    for (const page of [alice, bob]) await skipDeviceCheck(page);
+    await signIn(alice, "alice");
+    await signIn(bob, "bobby");
+    const headers = { authorization: `Bearer ${await savedToken(alice)}` };
+    const { users } = (await (await fetch(`${base}/api/users`, { headers })).json()) as {
+      users: { id: string; handle: string }[];
+    };
+    const made = await fetch(`${base}/api/channels`, {
+      method: "POST",
+      headers: { ...headers, "content-type": "application/json" },
+      body: JSON.stringify({
+        type: "dm",
+        memberIds: [users.find((u) => u.handle === "bobby")!.id],
+      }),
+    });
+    const channelId = ((await made.json()) as { channel: { id: string } }).channel.id;
+    await alice.evaluate((id) => (location.hash = `#/c/${id}`), channelId);
+    const bar = (page: Page) => page.getByRole("region", { name: "Active huddle", exact: true });
+    const prompt = (page: Page, from: string) =>
+      page.getByRole("region", { name: `${from} is calling`, exact: true });
+    const start = () => alice.getByRole("button", { name: "Start a huddle", exact: true }).click();
+
+    // Bobby, in #general, is rung and says no; Alice hears it and stays, alone.
+    await start();
+    await expect(prompt(bob, "alice")).toContainText("Huddle with you");
+    await expect(bar(alice).getByRole("status")).toHaveText("Ringing bobby…");
+    await prompt(bob, "alice").getByRole("button", { name: "Decline", exact: true }).click();
+    await expect(prompt(bob, "alice")).toHaveCount(0);
+    await expect(bar(alice).getByRole("status")).toHaveText("bobby declined");
+    await bar(alice).getByRole("button", { name: "Leave", exact: true }).click();
+
+    // Rung again, he answers from the prompt, which takes him to the conversation.
+    await start();
+    await prompt(bob, "alice").getByRole("button", { name: "Join", exact: true }).click();
+    await expect(prompt(bob, "alice")).toHaveCount(0);
+    await expect(bar(alice).getByRole("status")).toHaveText("With bobby");
+    await expect(bar(bob).getByRole("status")).toHaveText("With alice");
+    for (const page of [bob, alice])
+      await bar(page).getByRole("button", { name: "Leave", exact: true }).click();
+
+    // Alice gives up before he answers: he missed it, and calls her back from its note.
+    await start();
+    await expect(prompt(bob, "alice")).toBeVisible();
+    await bar(alice).getByRole("button", { name: "Leave", exact: true }).click();
+    await expect(prompt(bob, "alice")).toHaveCount(0);
+    await expect(alice.getByRole("article").filter({ hasText: "No answer" })).toBeVisible();
+    const note = bob.getByRole("article").filter({ hasText: "Missed huddle" });
+    await note.getByRole("button", { name: "Call back", exact: true }).click();
+    await expect(prompt(alice, "bobby")).toContainText("Huddle with you");
+    await expect(bar(bob).getByRole("status")).toHaveText("Ringing alice…");
+  } finally {
+    await a.close().catch(() => {});
+    await b.close().catch(() => {});
+  }
+});

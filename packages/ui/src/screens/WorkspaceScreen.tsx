@@ -145,6 +145,10 @@ const DeviceCheckDialog = lazy(() =>
 const HuddleBar = lazy(() =>
   import("../components/HuddleBar.js").then((module) => ({ default: module.HuddleBar })),
 );
+/** A direct message's huddle ringing this account (E10), fetched when one rings. */
+const IncomingCall = lazy(() =>
+  import("../components/IncomingCall.js").then((module) => ({ default: module.IncomingCall })),
+);
 /** A form an app opens, which most sessions never see. */
 const ViewModal = lazy(() =>
   import("../components/ViewModal.js").then((module) => ({ default: module.ViewModal })),
@@ -491,6 +495,9 @@ function WorkspaceInner({
   const [huddleView, setHuddleView] = useHuddleView();
   const inHuddle = useWorkspace((s) => !!s.huddle);
   useHuddleEndedNotice();
+  const rungHere = useWorkspace((s) =>
+    Object.values(s.rings ?? {}).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
+  );
   // Wide enough for the chat beside the call with room left for a share, as
   // Discord shows a voice channel's. The choice to hide it lasts the session.
   const roomForChat = useMediaQuery("(min-width: 1280px)");
@@ -1760,6 +1767,13 @@ function WorkspaceInner({
       <Suspense fallback={null}>
         <ViewModal />
       </Suspense>
+      {rungHere && (
+        <ErrorBoundary fallback={<span hidden />}>
+          <Suspense fallback={null}>
+            <IncomingCall onOpen={openChannel} preview={preview.current} tag={account} />
+          </Suspense>
+        </ErrorBoundary>
+      )}
       {dialog.kind === "friends" && (
         <LazyDialog loading="Loading friends" onClose={closeDialog}>
           <FriendsDialog

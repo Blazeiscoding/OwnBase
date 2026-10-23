@@ -118,6 +118,28 @@ export interface HuddleState {
 }
 
 /**
+ * A direct message's huddle ringing the people in it (E10). It starts when
+ * the first person joins a dm or group_dm huddle nobody is in, and stops for
+ * each person who answers by joining, declines, or is still ringing at
+ * `endsAt`, and for everyone once its caller leaves. `huddle.ring` tells the
+ * caller and everyone it rang at each change; `ringing` empty means it is over.
+ */
+export interface HuddleRing {
+  channelId: ID;
+  /** Who started the huddle. */
+  callerId: ID;
+  startedAt: number;
+  /** When whoever is still ringing has missed it. */
+  endsAt: number;
+  /** Who it is ringing still. */
+  ringing: ID[];
+  /** Who answered by joining. */
+  answered: ID[];
+  /** Who said no. */
+  declined: ID[];
+}
+
+/**
  * Deterministic tie-break for who sends the offer, so two peers learning about
  * each other at the same moment don't both offer (WebRTC "glare").
  */

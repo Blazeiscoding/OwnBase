@@ -11,7 +11,7 @@ import type {
   Reminder,
   SidebarSection,
 } from "./entities.js";
-import type { CallReport, HuddleSignal } from "./huddle.js";
+import type { CallReport, HuddleRing, HuddleSignal } from "./huddle.js";
 
 /**
  * Durable workspace events. Every mutation appends one to the event log and
@@ -146,6 +146,11 @@ export type EphemeralEvent =
   /** A relayed WebRTC handshake payload from one peer. */
   | { type: "huddle.signal"; channelId: ID; from: ID; signal: HuddleSignal }
   /**
+   * A direct message's huddle ringing, as it is now (E10), to its caller and
+   * everyone it rang, at each change. `ring.ringing` empty means it is over.
+   */
+  | { type: "huddle.ring"; ring: HuddleRing }
+  /**
    * A reply only the recipient sees — how a slash command answers privately.
    * It is never stored, so it disappears on reload, exactly like Slack's.
    */
@@ -209,6 +214,12 @@ export interface ReadySnapshot {
   huddleJoinReplies?: true;
   /** This server keeps a call log and takes `huddle.report`; older ones close on it. */
   huddleReports?: true;
+  /**
+   * The rings this account is part of, calling or called (E10). Present only
+   * where the server rings direct calls and takes `huddle.decline`; an older
+   * one closes the socket on it.
+   */
+  huddleRings?: HuddleRing[];
   /** This server keeps inline replies; older ones post one as an ordinary message. */
   inlineReplies?: true;
   /** This server forwards a message (`forwardFrom`); an older one would drop the original. */
@@ -308,6 +319,8 @@ export type ClientToServer =
   | { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }
   /** How one of this side's connections in a huddle went, for the host's call log. */
   | { type: "huddle.report"; channelId: ID; peer: ID; report: CallReport }
+  /** Says no to a ring this account is being rung by (E10). */
+  | { type: "huddle.decline"; channelId: ID }
   /**
    * Whether this device has gone idle, nobody touching it for a while, or is
    * in use again (E9). Every device idle makes the account away.

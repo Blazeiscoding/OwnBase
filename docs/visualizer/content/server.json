@@ -93,7 +93,8 @@
         "Schema 44 adds reminders (E4): one per account and message, with remind_at and due_at (NULL while it waits), going with the account or the message row, and indexed for the soonest waiting one and for a message's reminders.",
         "Schema 45 adds polls and poll_votes (E6): a poll per message, its choices in order as JSON, multiple, anonymous and closed_at; and one row per choice an account made, keyed by message, account and choice. Both go with the message's row, votes with the account too, and votes are indexed by account for the choices each account is sent.",
         "Schema 46 adds sidebar_sections (E8): one account's own named sections with their position, going with the account, indexed by account and position; and channel_members.section_id, the section a membership is kept in. It has no foreign key, as forwarded_from_id has none: deleting a section clears it in the same change, and a column with one could not be dropped by the upgrade test.",
-        "Schema 47 adds profiles (E9): users.time_zone, users.away (set by hand) and users.avatar_version, and user_avatars, one picture's type and bytes per account, going with the account. Removing a picture deletes its row."
+        "Schema 47 adds profiles (E9): users.time_zone, users.away (set by hand) and users.avatar_version, and user_avatars, one picture's type and bytes per account, going with the account. Removing a picture deletes its row.",
+        "Schema 48 adds messages.call_kind (E10): the kind of note the server left about a call, missed, and null on every other message."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -129,7 +130,8 @@
         "The ready snapshot carries pollChoices, what this account chose in each anonymous poll it can still read, which also says the server keeps polls (E6).",
         "The ready snapshot says sharedFiles, that the server lists shared files (E7).",
         "The ready snapshot carries sidebarSections, the account's sections in order, which also says the server keeps them (E8).",
-        "Presence (E9): each socket says whether its device is idle. An account is offline with no socket, away when set away by hand or when every socket says idle, and online otherwise. refreshPresence tells everyone only a change, whether an idle message, a socket opening or closing, or away by hand made it; going offline is told as the last socket closes. The ready snapshot says profiles, and its presence map gives away too."
+        "Presence (E9): each socket says whether its device is idle. An account is offline with no socket, away when set away by hand or when every socket says idle, and online otherwise. refreshPresence tells everyone only a change, whether an idle message, a socket opening or closing, or away by hand made it; going offline is told as the last socket closes. The ready snapshot says profiles, and its presence map gives away too.",
+        "Rings (E10): the first one into a dm or group_dm huddle rings everyone else in it but bots and deactivated accounts, for HUDDLE_RING_MS (30 s, option huddleRingMs). publishHuddle settles it: whoever it rang who is in the huddle answered, and the caller gone ends it. huddle.decline moves someone to declined. huddle.ring tells the caller and everyone rung each change, ringing empty meaning over. A ring that ends with nobody answering and someone missing it calls missedCall. The snapshot lists an account's rings as huddleRings; rings are live, and stopping announces none."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -369,7 +371,8 @@
         "Polls (E6): a send can carry poll, its words the question; one with files or a forward is refused (400 bad_poll), and a guest's is refused (403 guest_not_allowed), as an upload is. The poll is part of the send's nonce identity, and an edit of a poll answers 409 poll_not_editable. PUT /api/messages/:id/poll/votes replaces the asking account's choices, guests included; it is refused for a message that is no poll, a closed poll (409 poll_closed), an archived conversation, a choice past the last or more than one on a single-choice poll. POST /api/messages/:id/poll/close is for the poll's author. Both tell readers with message.updated and pollOnly, only when something changed; a vote first tells the voter's own devices poll.choices, after the commit and before the count, so a device never counts its own vote twice. /poll is a built-in the server lists but answers with 400 in_app_command, so an older client is told where polls are made.",
         "GET /api/files is the file browser's page (E7), guests included, who see only public conversations' files.",
         "Sidebar sections (E8): POST /api/sidebar-sections adds one (at most SIDEBAR_SECTIONS_MAX, 409 too_many_sections), PATCH and DELETE /api/sidebar-sections/:id rename and delete one (404 section_not_found for another account's), and PUT /api/sidebar-sections/order takes every one in a new order (409 sections_changed otherwise); guests may use all four, as they may star. Each change tells the account's devices sidebar.sections, and a deletion sends prefs for the conversations it let go. PATCH /api/channels/:id/prefs takes sectionId only for the account's own section.",
-        "Profiles (E9): PATCH /api/me takes timeZone, kept under its current name, and away, telling presence when away changes. PUT /api/me/avatar takes the picture's bytes, checked by checkIcon as a profile picture, and DELETE /api/me/avatar removes it; GUEST_ROUTES leaves both to members. GET /api/users/:id/avatar serves a picture to anyone signed in, guests too: 404 for a version that is not the picture's, kept for good under its version, and asked about again without one."
+        "Profiles (E9): PATCH /api/me takes timeZone, kept under its current name, and away, telling presence when away changes. PUT /api/me/avatar takes the picture's bytes, checked by checkIcon as a profile picture, and DELETE /api/me/avatar removes it; GUEST_ROUTES leaves both to members. GET /api/users/:id/avatar serves a picture to anyone signed in, guests too: 404 for a version that is not the picture's, kept for good under its version, and asked about again without one.",
+        "Missed calls (E10): postMissedCall posts the note of a ring nobody answered, as from the caller, through postMessage with call (\"Missed huddle\"); one postMessage refuses leaves none. PATCH /api/messages/:id answers 409 call_not_editable for one."
       ],
       "concepts": [
         "HTTP API",
@@ -390,7 +393,8 @@
         "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes. Media state takes an optional screenSound flag, which older clients leave out.",
         "Protocol TypeScript types alone cannot validate a remote caller; this Zod schema provides runtime enforcement without importing browser DOM types.",
         "Validates huddle.report: counts, states and enums only, so a report cannot carry an address or arbitrary text.",
-        "Validates idle: whether the device has gone idle, a boolean (E9)."
+        "Validates idle: whether the device has gone idle, a boolean (E9).",
+        "Validates huddle.decline: the conversation whose ring to say no to (E10)."
       ],
       "concepts": ["runtime validation", "WebSocket", "bounded payload"]
     },
@@ -431,7 +435,8 @@
         "Polls (E6): hydration reads each live message's poll and its votes in one batch per page and counts them, naming voters on each choice only when the poll is not anonymous. createPoll, pollRules, pollChoices, setPollChoices (which says whether anything changed), closePoll and anonymousPollChoices (for the snapshot, those the account can still read) serve the routes; deleteMessage deletes the poll and redactEventRows drops poll from the log's copies.",
         "listSharedFiles (E7) lists the files on live messages one account can read, by the download rule (public, or a member and no guest), newest first by message id and then file id, and narrowed by kind (from FILE_TYPE_MATCH, so search and the browser agree; a picture is never a document), sharer, conversation and every word of q in the name, LIKE wildcards escaped. CROSS JOIN keeps files the outer loop, walking idx_files_message so a page stops once it is full; a test checks the plan.",
         "Sidebar sections (E8): ChannelPrefs carries sectionId from channel_members.section_id. setChannelPrefs keeps a conversation in one place: a section clears its star and a star clears its section. sidebarSections lists an account's in order; createSidebarSection adds one last; renameSidebarSection, deleteSidebarSection (clearing its members' section_id and saying which) and orderSidebarSections (only the exact set) act on the account's own only.",
-        "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes."
+        "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes.",
+        "A message row's call_kind becomes Message.call, and createMessage keeps one (E10)."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -490,7 +495,8 @@
         "Message.poll is a Poll (E6): options, each with its text, votes and, unless anonymous, voterIds; multiple, anonymous, voters (how many people chose anything) and closedAt. An option is known by its place. POLL_OPTIONS_MIN and POLL_OPTIONS_MAX (2 and 10), POLL_QUESTION_MAX (300) and POLL_OPTION_MAX (80) are the rules both sides share.",
         "SharedFile is one file as the file browser lists it (E7): its FileMeta, and the message that shared it, with its conversation, thread, sharer and time.",
         "SidebarSection is one account's named sidebar section (E8); ChannelPrefs.sectionId is the one a conversation is kept in, or null. SIDEBAR_SECTIONS_MAX (50) and SIDEBAR_SECTION_NAME_MAX (80) are the limits both sides share.",
-        "User.timeZone, User.away (set by hand) and User.avatarVersion are present only when set (E9); a picture is served under its version."
+        "User.timeZone, User.away (set by hand) and User.avatarVersion are present only when set (E9); a picture is served under its version.",
+        "Message.call is a CallNotice, a note the server left about a call as from its caller (E10); kind missed is a huddle nobody answered."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -512,7 +518,8 @@
         "message.updated may say pollOnly: only the message's poll changed, by a vote or its closing, which is not an edit (E6). poll.choices tells an account's own devices what it now chose in a poll; ReadySnapshot.pollChoices holds those for anonymous polls, and is absent from a server without polls.",
         "ReadySnapshot.sharedFiles says the server lists shared files (E7); an older one is offered no Files.",
         "sidebar.sections tells an account's own devices its sections after any change; ReadySnapshot.sidebarSections lists them, absent from a server that keeps none (E8).",
-        "ReadySnapshot.profiles says the server keeps pictures, time zones and away (E9), and a client's idle message says whether its device is idle."
+        "ReadySnapshot.profiles says the server keeps pictures, time zones and away (E9), and a client's idle message says whether its device is idle.",
+        "huddle.ring carries a HuddleRing as it now stands (E10); ReadySnapshot.huddleRings lists those an account is part of and says the server rings; huddle.decline says no to one."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -537,7 +544,8 @@
         "Explicit media flags distinguish an active camera from a silent negotiated slot; a receiver track's muted flag alone is not evidence that frames exist.",
         "shouldInitiateOffer uses user-ID ordering so two peers discovering each other do not both offer simultaneously.",
         "HuddleState lists live participants. The protocol carries handshake/control state rather than audio or video bytes.",
-        "CallReport, CallCause, CandidateKind and CallLogEntry describe what a side saw of a connection and the server's call log, without addresses or SDP."
+        "CallReport, CallCause, CandidateKind and CallLogEntry describe what a side saw of a connection and the server's call log, without addresses or SDP.",
+        "HuddleRing is a direct message's huddle ringing the people in it (E10): its caller, when it started and runs out, and who it still rings, who answered by joining and who declined."
       ],
       "concepts": ["WebRTC", "offer tie-break", "media state"]
     },

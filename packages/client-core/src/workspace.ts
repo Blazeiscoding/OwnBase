@@ -8,6 +8,7 @@ import {
   type EphemeralEvent,
   type EventEnvelope,
   type Friendship,
+  type HuddleRing,
   type ID,
   type Message,
   type ModalView,
@@ -633,6 +634,12 @@ export interface WorkspaceState {
   draftTimes: Record<string, number>;
   /** channelId -> who is in that channel's huddle right now. */
   huddles: Record<ID, ID[]>;
+  /**
+   * channelId -> the ring of a direct message's huddle this account is part
+   * of, calling or called, while it rings (E10). Null where the server rings
+   * nobody, so nothing can be declined there.
+   */
+  rings: Record<ID, HuddleRing> | null;
   /** Private replies per channel, newest last, within EPHEMERAL_LIMITS. */
   ephemerals: Record<ID, EphemeralMessage[]>;
   /** channelId -> private replies let go there to stay within the limits. */
@@ -649,6 +656,12 @@ export interface WorkspaceState {
    * from the next.
    */
   huddleEnded: { channelId: ID; message: string; error: boolean; at: number } | null;
+  /**
+   * How the ring of the huddle this device is in went, for its caller (E10):
+   * who declined, or that nobody answered. Cleared as this device joins a
+   * huddle, so it never speaks of another call. `at` tells one from the next.
+   */
+  ringNotice: { channelId: ID; message: string; at: number } | null;
 }
 
 const initialState: WorkspaceState = {
@@ -698,8 +711,10 @@ const initialState: WorkspaceState = {
   drafts: {},
   draftTimes: {},
   huddles: {},
+  rings: null,
   huddle: null,
   huddleEnded: null,
+  ringNotice: null,
   ephemerals: {},
   ephemeralsDropped: {},
   modal: null,
@@ -1123,6 +1138,9 @@ export class WorkspaceClient {
       mentionCounts: snap.mentionCounts ?? {},
       saved,
       huddles: snap.huddles,
+      rings: snap.huddleRings
+        ? Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring]))
+        : null,
       friends: snap.friends ?? [],
       lastSeq: reset || prev.lastSeq === 0 ? snap.seq : (snap.replayFrom ?? prev.lastSeq),
       // Keep loaded timelines — replayed events patch them incrementally.
@@ -1240,6 +1258,7 @@ export class WorkspaceClient {
       channelLastSeq: without(state.channelLastSeq),
       typing: without(state.typing),
       huddles: without(state.huddles),
+      rings: state.rings && without(state.rings),
       ephemerals: without(state.ephemerals),
       ephemeralsDropped: without(state.ephemeralsDropped),
       threads: Object.fromEntries(
@@ -1776,6 +1795,19 @@ export class WorkspaceClient {
         this.session.syncParticipants(event.userIds);
         this.publishHuddleState();
       }
+    } else if (event.type === "huddle.ring") {
+      // Over once it rings nobody; the server forgets it then too.
+      const rings = { ...s.rings };
+      const before = rings[event.ring.channelId];
+      if (event.ring.ringing.length > 0) rings[event.ring.channelId] = event.ring;
+      else delete rings[event.ring.channelId];
+      const message = this.ringNoticeFor(before, event.ring);
+      this.store.setState({
+        rings,
+        ...(message
+          ? { ringNotice: { channelId: event.ring.channelId, message, at: Date.now() } }
+          : {}),
+      });
     } else if (event.type === "huddle.moved") {
       // The server already gave the place to the other device; saying so
       // again here would only be refused.
@@ -3471,7 +3503,7 @@ export class WorkspaceClient {
     const attempt = this.huddleAttempt;
     const selfId = this.state.self?.id;
     if (!selfId) return;
-    this.store.setState({ huddleEnded: null });
+    this.store.setState({ huddleEnded: null, ringNotice: null });
 
     let config: RTCConfiguration;
     try {
@@ -3576,6 +3608,40 @@ export class WorkspaceClient {
 
   leaveHuddle(): void {
     this.endHuddle();
+  }
+
+  /**
+   * What the caller's device in the call says as its ring changes (E10): who
+   * has just declined, or, once it ends with nobody answering, that nobody
+   * did. Their other devices say nothing, nor does anyone rung.
+   */
+  private ringNoticeFor(before: HuddleRing | undefined, after: HuddleRing): string | null {
+    if (after.callerId !== this.state.self?.id || this.state.huddle?.channelId !== after.channelId)
+      return null;
+    const declined = after.declined.filter((id) => !before?.declined.includes(id));
+    if (declined.length > 0)
+      return `${declined.map((id) => this.state.users[id]?.displayName ?? "Someone").join(" and ")} declined`;
+    if (after.ringing.length === 0 && after.answered.length === 0) return "No answer";
+    return null;
+  }
+
+  /**
+   * Says no to the ring of this direct message's huddle (E10). It stops here
+   * at once and on this account's other devices when the server says so; the
+   * caller is told. Only where the server rings, since an older one would
+   * close the socket on it.
+   */
+  declineRing(channelId: ID): void {
+    const ring = this.state.rings?.[channelId];
+    const selfId = this.state.self?.id;
+    if (!ring || !selfId || !ring.ringing.includes(selfId)) return;
+    this.sendSocket({ type: "huddle.decline", channelId });
+    const ringing = ring.ringing.filter((id) => id !== selfId);
+    const rings = { ...this.state.rings };
+    if (ringing.length > 0)
+      rings[channelId] = { ...ring, ringing, declined: [...ring.declined, selfId] };
+    else delete rings[channelId];
+    this.store.setState({ rings });
   }
 
   /**

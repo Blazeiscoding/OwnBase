@@ -681,6 +681,11 @@ const MIGRATIONS: string[] = [
     bytes BLOB NOT NULL
   );
   `,
+  // v48 — call notes (E10): a message the server leaves about a call, such
+  // as a huddle nobody answered, says which kind; null on every other message.
+  `
+  ALTER TABLE messages ADD COLUMN call_kind TEXT;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

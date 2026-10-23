@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { HuddleState } from "@slackoss/client-core";
-import type { ID, User } from "@slackoss/protocol";
+import type { HuddleRing, ID, User } from "@slackoss/protocol";
 import { useWorkspace } from "../context.js";
+import { namesList } from "./catchUp.js";
 
 /**
  * Where a huddle shows: the call, taking the conversation's column with the
@@ -60,6 +61,29 @@ export function useHuddleView(): [HuddleView, (view: HuddleView) => void] {
 }
 
 /** Who is in a channel's huddle, by name: you first, as "you", then everyone else. */
+/**
+ * Who a call's ring still rings (E10), such as "Ringing Maya…", for whoever is
+ * in that call; null without one. The workspace keeps a ring only while it
+ * rings someone, so there is always someone to name.
+ */
+export function ringingLine(ring: HuddleRing | undefined, users: Record<ID, User>): string | null {
+  if (!ring) return null;
+  return `Ringing ${namesList(ring.ringing.map((id) => users[id]?.displayName ?? "someone"))}…`;
+}
+
+/**
+ * What someone alone in a call reads of its ring (E10): who it is ringing,
+ * or then, for the caller, who declined or that nobody answered.
+ */
+export function aloneLine(
+  ring: HuddleRing | undefined,
+  notice: { channelId: ID; message: string } | null,
+  channelId: ID,
+  users: Record<ID, User>,
+): string | null {
+  return ringingLine(ring, users) ?? (notice?.channelId === channelId ? notice.message : null);
+}
+
 export function huddleNames(
   ids: readonly ID[],
   users: Record<ID, User>,
