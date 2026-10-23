@@ -64,6 +64,20 @@ export class ApiError extends Error {
   }
 }
 
+/** A session, as signing in or joining gives one. */
+export interface SignedIn {
+  token: string;
+  user: User;
+  /** The password used was issued by someone else, and must be replaced first. */
+  mustChangePassword?: boolean;
+}
+
+/**
+ * What a password gets: a session, or, for an account with two-step sign-in
+ * (E11), the challenge its second step answers before `expiresAt`.
+ */
+export type LoginResult = SignedIn | { twoStep: { challenge: string; expiresAt: number } };
+
 /** Typed REST client for one workspace server. */
 export class Api {
   constructor(
@@ -163,11 +177,23 @@ export class Api {
     return this.request("POST", "/api/auth/register", body);
   }
 
-  login(body: {
-    handle: string;
-    password: string;
-  }): Promise<{ token: string; user: User; mustChangePassword?: boolean }> {
-    return this.request("POST", "/api/auth/login", body);
+  /**
+   * Signs in with a password. This client always says it can answer a second
+   * step (E11), which an older server does not read; an account with
+   * two-step sign-in then gets a challenge in place of a session.
+   */
+  login(body: { handle: string; password: string }): Promise<LoginResult> {
+    return this.request("POST", "/api/auth/login", { ...body, twoStep: true });
+  }
+
+  /**
+   * The second step of signing in (E11): the first step's challenge, and a
+   * code from the authenticator app or one of the recovery codes.
+   */
+  signInSecondStep(
+    body: { challenge: string } & ({ code: string } | { recoveryCode: string }),
+  ): Promise<SignedIn & { recoveryCodesLeft: number }> {
+    return this.request("POST", "/api/auth/two-step", body);
   }
 
   /** Joins with a display name alone, where the workspace allows guests. */
@@ -211,6 +237,50 @@ export class Api {
 
   revokeOtherSessions(): Promise<{ revoked: number }> {
     return this.request("DELETE", "/api/auth/sessions", undefined, { timeoutMs: 10_000 });
+  }
+
+  /** Whether this account asks for a code at sign-in, and how many recovery codes it has left (E11). */
+  twoStep(): Promise<{ enabled: boolean; recoveryCodesLeft: number }> {
+    return this.request("GET", "/api/me/two-step", undefined, { timeoutMs: 10_000 });
+  }
+
+  /**
+   * Starts setting two-step sign-in up (E11): a new key, and the address an
+   * authenticator app scans for it. Nothing changes until a code from it is
+   * given to `enableTwoStep`.
+   */
+  startTwoStep(password: string): Promise<{ secret: string; uri: string }> {
+    return this.request("POST", "/api/me/two-step", { password }, { timeoutMs: 20_000 });
+  }
+
+  /** Turns two-step sign-in on with a code from the new key; the recovery codes, shown once. */
+  enableTwoStep(code: string): Promise<{ recoveryCodes: string[] }> {
+    return this.request("POST", "/api/me/two-step/enable", { code }, { timeoutMs: 10_000 });
+  }
+
+  /** A new set of recovery codes in place of the old (E11), shown once. */
+  newRecoveryCodes(password: string): Promise<{ recoveryCodes: string[] }> {
+    return this.request(
+      "POST",
+      "/api/me/two-step/recovery-codes",
+      { password },
+      { timeoutMs: 20_000 },
+    );
+  }
+
+  /** Turns two-step sign-in off (E11). */
+  disableTwoStep(password: string): Promise<{ ok: true }> {
+    return this.request("POST", "/api/me/two-step/disable", { password }, { timeoutMs: 20_000 });
+  }
+
+  /** Turns someone's two-step sign-in off, for one who lost their app and codes. Admins only. */
+  resetTwoStep(userId: ID): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      `/api/admin/users/${encodeURIComponent(userId)}/two-step/reset`,
+      undefined,
+      { timeoutMs: 10_000 },
+    );
   }
 
   resetPassword(userId: ID): Promise<{ temporaryPassword: string }> {
@@ -852,8 +922,13 @@ export class Api {
     return this.request("POST", `/api/views/${viewId}/submit`, { values });
   }
 
-  /** Everyone with an account, with when they were last seen. Admins only. */
-  listAllUsers(): Promise<{ users: (User & { lastSeenAt: number | null })[] }> {
+  /**
+   * Everyone with an account, with when they were last seen, and whether they
+   * have two-step sign-in (E11; an older server does not say). Admins only.
+   */
+  listAllUsers(): Promise<{
+    users: (User & { lastSeenAt: number | null; twoStep?: boolean })[];
+  }> {
     return this.request("GET", "/api/admin/users", undefined, { timeoutMs: 10_000 });
   }
 
