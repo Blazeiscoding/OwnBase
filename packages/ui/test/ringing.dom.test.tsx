@@ -185,6 +185,18 @@ describe("a ring someone gets", () => {
     });
   });
 
+  it("says only that a huddle rings where the device shows nothing of notifications", () => {
+    vi.spyOn(document, "hasFocus").mockReturnValue(false);
+    const { notify, shown } = workspace();
+    shown(<IncomingCall onOpen={vi.fn()} preview="none" tag="sam" />);
+    expect(notify).toHaveBeenCalledWith(
+      "Incoming huddle",
+      "Open Tandem to answer it.",
+      expect.any(Function),
+      { tag: "sam ring C_DM" },
+    );
+  });
+
   it("tells the system nothing while the window is in front", () => {
     vi.spyOn(document, "hasFocus").mockReturnValue(true);
     const { notify, shown } = workspace();
@@ -340,5 +352,43 @@ describe("the caller", () => {
       }),
     );
     expect(within(call).getByText("Maya Chen declined")).toBeInTheDocument();
+  });
+});
+
+describe("someone in a call a ring still rings for", () => {
+  it("reads who it still rings over the call, and nothing of how it went for another", () => {
+    const { client, shown } = workspace({
+      C_GROUP: ring({ channelId: "C_GROUP", ringing: ["U_LEE"], answered: ["U_SAM"] }),
+    });
+    client.store.setState({
+      ringNotice: { channelId: "C_GROUP", message: "Lee Park declined", at: 1 },
+      huddle: {
+        channelId: "C_GROUP",
+        micMuted: false,
+        cameraOn: false,
+        sharingScreen: false,
+        localCameraStream: null,
+        localScreenStream: null,
+        speaking: false,
+        micLost: false,
+        peers: [
+          {
+            userId: "U_MAYA",
+            audioStream: null,
+            cameraStream: null,
+            screenStream: null,
+            connected: true,
+            micMuted: false,
+            speaking: false,
+          },
+        ],
+      },
+    });
+    shown(<HuddleStage onHide={vi.fn()} />);
+    const call = screen.getByRole("region", { name: "Huddle call" });
+    expect(within(call).getByText("Ringing Lee Park…")).toBeInTheDocument();
+    // With someone there, how a ring went is no longer the call's news.
+    act(() => client.store.setState({ rings: {} }));
+    expect(within(call).queryByText("Lee Park declined")).toBeNull();
   });
 });

@@ -697,11 +697,11 @@ export function HuddleStage({
       : channelTitle(channel, users, selfId)
     : "Huddle";
   const stuck = huddle.peers.some((p) => !p.connected && p.trouble);
-  // The caller reads who a ring still rings, and alone, how it went (E10).
-  const alone =
+  // Who a ring still rings, and alone, for its caller, how it went (E10).
+  const ringLine =
     huddle.peers.length === 0
-      ? aloneLine(ring, ringNotice, huddle.channelId, users, selfId)
-      : ringingLine(ring, users, selfId);
+      ? aloneLine(ring, ringNotice, huddle.channelId, users)
+      : ringingLine(ring, users);
   const viewButtons = (side: "top" | "bottom") => (
     <>
       {main && others.length > 0 && (
@@ -787,11 +787,11 @@ export function HuddleStage({
               )}
             </>
           )}
-          {!main && alone && (
+          {ringLine && (
             <>
               <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />
               <p role="status" className="min-w-0 truncate text-sm text-ink-dim">
-                {alone}
+                {ringLine}
               </p>
             </>
           )}

@@ -227,11 +227,10 @@ export function HuddleBar({
       ? " · You're sharing your screen"
       : "";
   // Everyone by name, so the line answers "who is here?" without a hover.
-  const ringing = ringingLine(ring, users, selfId);
+  const ringing = ringingLine(ring, users);
   const summary =
     huddle.peers.length === 0
-      ? (aloneLine(ring, ringNotice, huddle.channelId, users, selfId) ??
-        "Waiting for someone to join…")
+      ? (aloneLine(ring, ringNotice, huddle.channelId, users) ?? "Waiting for someone to join…")
       : stuck.length > 0
         ? `Can't connect to ${stuck
             .map((p) => users[p.userId]?.displayName ?? "someone")

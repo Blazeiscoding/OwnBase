@@ -227,4 +227,54 @@ describe("rings on the client", () => {
     expect(quiet.state.ringNotice).toBeNull();
     await joining;
   });
+
+  it("in a group, tell only the caller, and say nobody answered only when nobody did", async () => {
+    const brief = await createWorkspaceServer({
+      dataDir: ":memory:",
+      port: 0,
+      mdns: false,
+      rateLimits: false,
+      huddleRingMs: 300,
+    });
+    onTestFinished(() => brief.stop());
+    const url = `http://127.0.0.1:${brief.port}`;
+    const api = new Api(url);
+    const made = async (handle: string) =>
+      api.register({ handle, displayName: handle, password: "password123" });
+    const [carol, dave, erin] = [await made("carol"), await made("dave"), await made("erin")];
+    const channelId = (
+      await new Api(url, carol.token).createChannel({
+        type: "group_dm",
+        memberIds: [dave.user.id, erin.user.id],
+      })
+    ).channel.id;
+    const caller = await online(carol.token, url);
+    caller.store.setState({ huddle: { channelId } as HuddleState });
+    const answerer = await online(dave.token, url);
+    answerer.store.setState({ huddle: { channelId } as HuddleState });
+    const callerSocket = await socket(carol.token, url);
+    const daveSocket = await socket(dave.token, url);
+    const erins = await online(erin.token, url);
+
+    // Dave answers and Erin says no: Carol hears it, Dave, in the call too, does not.
+    callerSocket({ type: "huddle.join", channelId, requestId: "a" });
+    await until(erins, (s) => !!s.rings?.[channelId], "the ring");
+    daveSocket({ type: "huddle.join", channelId, requestId: "b" });
+    await until(erins, (s) => s.rings?.[channelId]?.answered.length === 1, "dave answering");
+    erins.declineRing(channelId);
+    const said = await until(caller, (s) => s.ringNotice !== null, "the notice");
+    expect(said.ringNotice?.message).toBe("erin declined");
+    await until(answerer, (s) => !s.rings?.[channelId], "the ring to end for dave");
+    expect(answerer.state.ringNotice).toBeNull();
+
+    // Again: Dave answers and Erin lets it ring out. Someone answered, so nothing is said.
+    for (const send of [callerSocket, daveSocket]) send({ type: "huddle.leave", channelId });
+    await expect.poll(() => brief.gateway.huddleParticipants(channelId)).toEqual([]);
+    caller.store.setState({ ringNotice: null });
+    callerSocket({ type: "huddle.join", channelId, requestId: "c" });
+    await until(erins, (s) => !!s.rings?.[channelId], "the second ring");
+    daveSocket({ type: "huddle.join", channelId, requestId: "d" });
+    await until(caller, (s) => !s.rings?.[channelId], "the second ring to run out");
+    expect(caller.state.ringNotice).toBeNull();
+  });
 });

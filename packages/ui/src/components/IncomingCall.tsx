@@ -117,7 +117,7 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
   return (
     <section
       aria-labelledby={titleId}
-      className="pointer-events-auto flex w-full max-w-[32rem] animate-pop-in items-center gap-3 rounded-2xl border border-edge bg-raised p-3 shadow-lg"
+      className="pointer-events-auto flex w-full max-w-[32rem] animate-pop-in flex-wrap items-center gap-3 rounded-2xl border border-edge bg-raised p-3 shadow-lg"
     >
       <span className="relative flex shrink-0">
         <span
@@ -126,7 +126,8 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
         />
         <Avatar user={caller} size={44} />
       </span>
-      <div className="min-w-0 flex-1">
+      {/* Room for the name; on a phone the buttons take a row of their own. */}
+      <div className="min-w-0 flex-1 basis-40">
         <p id={titleId} role="alert" className="truncate text-[15px] font-semibold">
           {name} is calling
         </p>
@@ -134,23 +135,25 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
           {group ? `Huddle with ${group}` : "Huddle with you"}
         </p>
       </div>
-      <button
-        type="button"
-        onClick={() => client.declineRing(ring.channelId)}
-        className={buttonClass("danger", "shrink-0 px-3")}
-      >
-        <Icon name="phoneOff" size={16} />
-        Decline
-      </button>
-      <button
-        type="button"
-        onClick={() => void join()}
-        aria-disabled={joining || undefined}
-        className={buttonClass("primary", "shrink-0 px-3 aria-disabled:opacity-60")}
-      >
-        <Icon name="headphones" size={16} />
-        {joining ? "Joining…" : "Join"}
-      </button>
+      <div className="flex shrink-0 gap-2 max-sm:w-full">
+        <button
+          type="button"
+          onClick={() => client.declineRing(ring.channelId)}
+          className={buttonClass("danger", "px-3 max-sm:flex-1")}
+        >
+          <Icon name="phoneOff" size={16} />
+          Decline
+        </button>
+        <button
+          type="button"
+          onClick={() => void join()}
+          aria-disabled={joining || undefined}
+          className={buttonClass("primary", "px-3 aria-disabled:opacity-60 max-sm:flex-1")}
+        >
+          <Icon name="headphones" size={16} />
+          {joining ? "Joining…" : "Join"}
+        </button>
+      </div>
     </section>
   );
 }

@@ -195,7 +195,10 @@ describe("a direct message's huddle", () => {
     // Only someone it rings can say no: the caller saying so changes nothing.
     caller.send({ type: "huddle.decline", channelId });
     await caller.settle();
-    expect(server.gateway.huddleRing(channelId)?.ringing).toEqual([bob.user.id]);
+    expect(server.gateway.huddleRing(channelId)).toMatchObject({
+      ringing: [bob.user.id],
+      declined: [],
+    });
 
     callee.send({ type: "huddle.decline", channelId });
     await expect
@@ -302,6 +305,9 @@ describe("a direct message's huddle", () => {
     ]);
     const callersOther = await connect(alice.token);
     expect(callersOther.ready().huddleRings).toHaveLength(1);
+    // Someone outside the conversation is not told of it.
+    const carol = await register("carol");
+    expect((await connect(carol.token)).ready().huddleRings).toEqual([]);
 
     late.send({ type: "huddle.decline", channelId });
     await expect.poll(() => last(late.rings())?.ringing).toEqual([]);

@@ -62,32 +62,25 @@ export function useHuddleView(): [HuddleView, (view: HuddleView) => void] {
 
 /** Who is in a channel's huddle, by name: you first, as "you", then everyone else. */
 /**
- * What the caller reads while their ring goes (E10), such as "Ringing Maya…";
- * null for anyone else, and once it rings nobody.
+ * Who a call's ring still rings (E10), such as "Ringing Maya…", for whoever is
+ * in that call; null once it rings nobody.
  */
-export function ringingLine(
-  ring: HuddleRing | undefined,
-  users: Record<ID, User>,
-  selfId: ID | undefined,
-): string | null {
-  if (!ring || ring.callerId !== selfId || ring.ringing.length === 0) return null;
+export function ringingLine(ring: HuddleRing | undefined, users: Record<ID, User>): string | null {
+  if (!ring || ring.ringing.length === 0) return null;
   return `Ringing ${namesList(ring.ringing.map((id) => users[id]?.displayName ?? "someone"))}…`;
 }
 
 /**
- * What the caller reads while alone in a huddle they rang for (E10): who it
- * is ringing, or then who declined, or that nobody answered; null otherwise.
+ * What someone alone in a call reads of its ring (E10): who it is ringing,
+ * or then, for the caller, who declined or that nobody answered.
  */
 export function aloneLine(
   ring: HuddleRing | undefined,
   notice: { channelId: ID; message: string } | null,
   channelId: ID,
   users: Record<ID, User>,
-  selfId: ID | undefined,
 ): string | null {
-  return (
-    ringingLine(ring, users, selfId) ?? (notice?.channelId === channelId ? notice.message : null)
-  );
+  return ringingLine(ring, users) ?? (notice?.channelId === channelId ? notice.message : null);
 }
 
 export function huddleNames(

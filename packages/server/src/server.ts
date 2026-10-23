@@ -1501,22 +1501,23 @@ async function startWorkspaceServer(
 
   /**
    * The note a ring nobody answered leaves in its direct message, as from the
-   * person who rang (E10), unless they can no longer post there.
+   * person who rang (E10). One who can no longer post there, deactivated or
+   * gone from it, leaves none: postMessage refuses it as it would them.
    */
   const postMissedCall = (channelId: ID, callerId: ID): void => {
-    const caller = store.getUser(callerId);
-    const channel = store.getChannel(channelId);
-    if (!caller || caller.deactivated || !channel || channel.archived) return;
-    if (!store.canAccess(channelId, callerId)) return;
-    postMessage({
-      channelId,
-      userId: callerId,
-      text: MISSED_CALL_TEXT,
-      threadRootId: null,
-      nonce: null,
-      fileIds: [],
-      call: { kind: "missed" },
-    });
+    try {
+      postMessage({
+        channelId,
+        userId: callerId,
+        text: MISSED_CALL_TEXT,
+        threadRootId: null,
+        nonce: null,
+        fileIds: [],
+        call: { kind: "missed" },
+      });
+    } catch (err) {
+      if (!(err instanceof HttpError)) throw err;
+    }
   };
 
   // Uploads live beside the database so one folder is the whole workspace.
