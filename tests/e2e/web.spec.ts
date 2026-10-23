@@ -8,6 +8,7 @@ import {
   type Page,
 } from "@playwright/test";
 import { spawn, type ChildProcess } from "node:child_process";
+import { createHmac } from "node:crypto";
 import { createServer, type Server } from "node:http";
 import { createServer as createNetServer, type AddressInfo } from "node:net";
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
@@ -182,6 +183,21 @@ async function dismissWelcome(page: Page) {
   await expect(welcome.locator("code").filter({ hasText: "/#/join/" })).toBeVisible();
   await welcome.getByRole("button", { name: "Done", exact: true }).click();
   await expect(welcome).toHaveCount(0);
+}
+
+/**
+ * What an authenticator app shows for a key and a thirty-second step (RFC
+ * 6238), worked out here apart from the server's own.
+ */
+function totp(key: string, step: number): string {
+  const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+  const bits = [...key].map((char) => alphabet.indexOf(char).toString(2).padStart(5, "0")).join("");
+  const secret = Buffer.from(bits.match(/.{8}/g)!.map((byte) => parseInt(byte, 2)));
+  const counter = Buffer.alloc(8);
+  counter.writeBigUInt64BE(BigInt(step));
+  const mac = createHmac("sha1", secret).update(counter).digest();
+  const offset = mac[mac.length - 1]! & 15;
+  return String((mac.readUInt32BE(offset) & 0x7fffffff) % 1_000_000).padStart(6, "0");
 }
 
 /** Signs an existing account in, rather than creating one. */
@@ -5394,5 +5410,112 @@ test("a huddle in a direct message rings the other browser, which can decline, a
   } finally {
     await a.close().catch(() => {});
     await b.close().catch(() => {});
+  }
+});
+
+test("two-step sign-in asks for the app's code, takes a recovery code once, and an admin can turn it off (E11)", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const contexts: BrowserContext[] = [];
+  const open = async () => {
+    const context = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+    contexts.push(context);
+    return context.newPage();
+  };
+  /** The password, then the card's second step; stops where a code is asked for. */
+  const password = async (page: Page, handle: string) => {
+    await reachAuthCard(page);
+    const signInTab = page.getByRole("tab", { name: "Sign in", exact: true }).first();
+    if (await signInTab.isVisible().catch(() => false)) await signInTab.click();
+    await page.getByLabel("Username", { exact: true }).fill(handle);
+    await page.getByLabel("Password", { exact: true }).fill("password123");
+    await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
+  };
+  try {
+    // Bobby turns it on in Account settings, under Security.
+    const laptop = await open();
+    await signIn(laptop, "bobby");
+    await laptop.getByRole("button", { name: /, your account$/ }).click();
+    await laptop.getByRole("menuitem", { name: "Account settings", exact: true }).click();
+    const settings = laptop.getByRole("dialog", { name: "Account settings", exact: true });
+    await settings.getByRole("tab", { name: "Security", exact: true }).click();
+    const section = settings.getByRole("region", { name: "Two-step sign-in", exact: true });
+    await section.getByRole("button", { name: "Set up two-step sign-in", exact: true }).click();
+    await section.getByLabel("Current password", { exact: true }).fill("password123");
+    await section.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(
+      section.getByRole("img", { name: "QR code for your authenticator app", exact: true }),
+    ).toBeVisible();
+    // Typed by hand, as someone whose phone cannot scan would.
+    const key = (await section.getByText(/^([A-Z2-7]{4} ){7}[A-Z2-7]{4}$/).textContent())!.replace(
+      / /g,
+      "",
+    );
+    const step = () => Math.floor(Date.now() / 30_000);
+    await section.getByLabel("Code from the app", { exact: true }).fill(totp(key, step()));
+    await section.getByRole("button", { name: "Turn on", exact: true }).click();
+    const list = section.getByRole("list", { name: "Recovery codes", exact: true });
+    await expect(list.getByRole("listitem")).toHaveCount(10);
+    const codes = await list.getByRole("listitem").allTextContents();
+    await section.getByRole("button", { name: "Done", exact: true }).click();
+    await expect(section.getByText("10 recovery codes left.", { exact: true })).toBeVisible();
+
+    // Another browser asks for the code after the password. The one that
+    // turned it on is spent, so the app's next one is given.
+    const phone = await open();
+    await password(phone, "bobby");
+    const code = phone.getByLabel("Code", { exact: true });
+    await expect(code).toBeFocused();
+    await code.fill("000000");
+    await phone.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(phone.getByRole("alert")).toContainText("That code is not right.");
+    await code.fill(totp(key, step() + 1));
+    await phone.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(phone.locator("textarea")).toBeVisible();
+
+    // A recovery code in place of the app, once, and said so before going in.
+    const borrowed = await open();
+    await password(borrowed, "bobby");
+    await borrowed
+      .getByRole("button", { name: "Use a recovery code instead", exact: true })
+      .click();
+    await borrowed.getByLabel("Recovery code", { exact: true }).fill(codes[0]!.toUpperCase());
+    await borrowed.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(borrowed.getByRole("status")).toContainText(
+      "You signed in with a recovery code. You have 9 left",
+    );
+    await borrowed.getByRole("button", { name: "Continue", exact: true }).click();
+    await expect(borrowed.locator("textarea")).toBeVisible();
+    const again = await open();
+    await password(again, "bobby");
+    await again.getByRole("button", { name: "Use a recovery code instead", exact: true }).click();
+    await again.getByLabel("Recovery code", { exact: true }).fill(codes[0]!);
+    await again.getByRole("button", { name: "Sign in", exact: true }).click();
+    await expect(again.getByRole("alert")).toContainText(
+      "That recovery code is not right, or has been used.",
+    );
+
+    // Alice, who owns the workspace, turns it off for him from People.
+    const owner = await open();
+    await signIn(owner, "alice");
+    await owner.getByRole("button", { name: /, workspace menu$/ }).click();
+    await owner.getByRole("menuitem", { name: "People", exact: true }).click();
+    const people = owner.getByRole("dialog", { name: "People" });
+    await people
+      .locator("li")
+      .filter({ hasText: "@bobby" })
+      .getByRole("button", { name: "Actions for bobby", exact: true })
+      .click();
+    await owner.getByRole("menuitem", { name: "Reset two-step sign-in", exact: true }).click();
+    await people.getByRole("button", { name: "Turn off two-step sign-in", exact: true }).click();
+    await expect(people.getByText("bobby's two-step sign-in is off.")).toBeVisible();
+
+    // His password alone signs him in now, and his signed-in browsers stay so.
+    const after = await open();
+    await signIn(after, "bobby");
+    await expect(phone.locator("textarea")).toBeVisible();
+  } finally {
+    for (const context of contexts) await context.close().catch(() => {});
   }
 });
