@@ -71,6 +71,15 @@ describe("blocking on the client", () => {
     expect(await laptop.setBlocked(accounts.sam!.id, true)).toBe(true);
     expect(laptop.state.blocked).toEqual([accounts.sam!.id]);
     await until(phone, (s) => s.blocked?.includes(accounts.sam!.id) === true, "the other device");
+    // A device coming online later has it from the snapshot.
+    const tablet = await online("maya");
+    expect(tablet.state.blocked).toEqual([accounts.sam!.id]);
+    // The answer is kept as well, for a device whose socket is not up yet.
+    const offline = new WorkspaceClient(base, accounts.maya!.token);
+    onTestFinished(() => offline.destroy());
+    expect(await offline.setBlocked(accounts.owner!.id, true)).toBe(true);
+    expect(offline.state.blocked).toEqual([accounts.sam!.id, accounts.owner!.id]);
+    expect(await offline.setBlocked(accounts.owner!.id, false)).toBe(true);
     expect(await phone.setBlocked(accounts.sam!.id, false)).toBe(true);
     await until(laptop, (s) => s.blocked?.length === 0, "unblocked everywhere");
     // Refused, it says so and keeps what it had.

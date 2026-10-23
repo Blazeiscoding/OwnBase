@@ -363,10 +363,43 @@ describe("the admins' reported messages", () => {
     await user.click(item.getByRole("button", { name: "Dismiss" }));
     expect(resolve).toHaveBeenCalledWith("M_1", "dismiss");
     expect(await screen.findByText("Dismissed. The message stays.")).toBeVisible();
-    // Asked again whenever the count moves, as when another admin settles one.
-    list.mockResolvedValue({ reports: [] });
-    act(() => client.store.setState({ openReports: 0 }));
     expect(await screen.findByText(/Nothing is waiting/)).toBeVisible();
+    // Asked again whenever the count moves, as when someone reports another.
+    list.mockResolvedValue({
+      reports: [
+        reported({ messageId: "M_9", message: message({ id: "M_9", text: "Spam again" }) }),
+      ],
+    });
+    act(() => client.store.setState({ openReports: 1 }));
+    expect(await screen.findByText("Spam again")).toBeVisible();
+  });
+
+  it("offers no deactivation that would be refused: of oneself, the owner, or another admin", async () => {
+    const ada = person("U_ADA", "Ada Admin", { role: "admin" });
+    const odin = person("U_ODIN", "Odin Admin", { role: "admin" });
+    const { client, shown } = workspace([], ada);
+    act(() =>
+      client.store.setState({ users: { ...client.state.users, U_ADA: ada, U_ODIN: odin } }),
+    );
+    const by = (id: string, authorId: string) =>
+      reported({
+        messageId: id,
+        authorId,
+        message: message({ id, userId: authorId }),
+        channel: general,
+      });
+    vi.spyOn(client.api, "listReports").mockResolvedValue({
+      reports: [by("M_A", "U_ADA"), by("M_S", "U_SAM"), by("M_O", "U_ODIN"), by("M_L", "U_LEE")],
+    });
+    shown(<ReportsDialog onClose={vi.fn()} />);
+    for (const name of ["Ada Admin", "Sam Rivera", "Odin Admin"]) {
+      const item = within(
+        await screen.findByRole("listitem", { name: new RegExp(`^${name}'s message`) }),
+      );
+      expect(item.queryByRole("button", { name: /deactivate/i })).toBeNull();
+    }
+    const lee = within(screen.getByRole("listitem", { name: /^Lee Park's message/ }));
+    expect(lee.getByRole("button", { name: "Remove and deactivate Lee Park" })).toBeVisible();
   });
 
   it("removes a message after asking, and offers no deactivation that would be refused", async () => {

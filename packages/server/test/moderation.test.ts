@@ -156,7 +156,8 @@ describe("blocking someone", () => {
 
     await block(maya, sam);
     // Told as it happens, as well as at the next connection.
-    await expect.poll(() => laptop.heard("mentions").at(-1)?.counts[general] ?? 0).toBe(0);
+    await expect.poll(() => laptop.heard("mentions").length).toBeGreaterThan(0);
+    expect(laptop.heard("mentions").at(-1)!.counts[general]).toBeUndefined();
     expect(await counts()).toBe(0);
     expect(await activity("mentions")).toBe(0);
     expect(await activity("unread")).toBe(0);
@@ -370,6 +371,9 @@ describe("settling a report", () => {
     await expect.poll(() => theirs.closed()).toBe(true);
     const actions = server.store.listAudit({ limit: 2 }).map((entry) => entry.action);
     expect(actions).toEqual(expect.arrayContaining(["user.deactivated", "report.resolved"]));
+    // Reactivated, they sign in again: what they held before is gone for good.
+    await call(`/api/admin/users/${maya.user.id}`, owner.token, { deactivated: false }, "PATCH");
+    expect((await call("/api/me", maya.token, undefined, "GET")).status).toBe(401);
   });
 
   it("deactivates by People's rules, and is for admins only", async () => {

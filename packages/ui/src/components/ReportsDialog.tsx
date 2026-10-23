@@ -166,10 +166,11 @@ function Reported({
       ? `#${item.channel.name}`
       : `${item.channel.type === "dm" ? "Direct message" : "Group DM"}: ${channelTitle(item.channel, users, undefined)}`;
   // People's rules for deactivating, so a button that would be refused is not offered.
+  // One's own message is among them: the owner is never deactivated, and an
+  // admin only by the owner.
   const deactivatable =
     !!author &&
     !author.deactivated &&
-    author.id !== self?.id &&
     author.role !== "owner" &&
     (author.role !== "admin" || self?.role === "owner");
   return (
