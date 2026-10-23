@@ -48,6 +48,22 @@ export function reminderContent(
 }
 
 /**
+ * What a direct message's huddle ringing says while the window is behind
+ * something else (E10): who is calling, and with whom in a group; under
+ * "Nothing about it", only that a huddle is ringing.
+ */
+export function ringContent(
+  preview: NotificationPreview,
+  ring: { from: string; group?: string },
+): { title: string; body: string } {
+  if (preview === "none") return { title: "Incoming huddle", body: "Open Tandem to answer it." };
+  return {
+    title: `${ring.from} is calling`,
+    body: ring.group ? `Huddle with ${ring.group}` : "Huddle with you",
+  };
+}
+
+/**
  * What one notification for several missed messages says under each choice:
  * how many and where, then who sent them. Nothing about it names nobody and
  * no conversation.

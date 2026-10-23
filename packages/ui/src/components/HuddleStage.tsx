@@ -10,6 +10,7 @@ import type { HuddleState } from "@slackoss/client-core";
 import type { ID, User } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
+import { ringingLine } from "../lib/huddleView.js";
 import { Avatar } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -615,6 +616,7 @@ export function HuddleStage({
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
+  const ring = useWorkspace((s) => (s.huddle ? s.rings?.[s.huddle.channelId] : undefined));
   const { volumes } = useCallVolumes();
   const stage = useRef<HTMLElement | null>(null);
   const [measure, area] = useElementSize();
@@ -777,6 +779,14 @@ export function HuddleStage({
                   LIVE
                 </span>
               )}
+            </>
+          )}
+          {!main && ringingLine(ring, users, selfId) && (
+            <>
+              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />
+              <p role="status" className="min-w-0 truncate text-sm text-ink-dim">
+                {ringingLine(ring, users, selfId)}
+              </p>
             </>
           )}
           {stuck && onShowCallLog && (

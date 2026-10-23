@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { HuddleState } from "@slackoss/client-core";
-import type { ID, User } from "@slackoss/protocol";
+import type { HuddleRing, ID, User } from "@slackoss/protocol";
 import { useWorkspace } from "../context.js";
+import { namesList } from "./catchUp.js";
 
 /**
  * Where a huddle shows: the call, taking the conversation's column with the
@@ -60,6 +61,19 @@ export function useHuddleView(): [HuddleView, (view: HuddleView) => void] {
 }
 
 /** Who is in a channel's huddle, by name: you first, as "you", then everyone else. */
+/**
+ * What the caller reads while their ring goes (E10), such as "Ringing Maya…";
+ * null for anyone else, and once it rings nobody.
+ */
+export function ringingLine(
+  ring: HuddleRing | undefined,
+  users: Record<ID, User>,
+  selfId: ID | undefined,
+): string | null {
+  if (!ring || ring.callerId !== selfId || ring.ringing.length === 0) return null;
+  return `Ringing ${namesList(ring.ringing.map((id) => users[id]?.displayName ?? "someone"))}…`;
+}
+
 export function huddleNames(
   ids: readonly ID[],
   users: Record<ID, User>,

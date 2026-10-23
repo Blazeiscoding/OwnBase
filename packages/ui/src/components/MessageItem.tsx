@@ -33,6 +33,7 @@ import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
 import { LinkPreviews } from "./LinkPreviews.js";
 import { PollCard } from "./PollCard.js";
+import { CallNote } from "./CallNote.js";
 import { LazyDialog } from "./LazyView.js";
 import { useConfirm } from "./Confirm.js";
 import { Tooltip } from "./Tooltip.js";
@@ -126,7 +127,8 @@ export const MessageItem = memo(function MessageItem({
   const profileLabel = author ? `View ${author.displayName}'s profile` : "View profile";
   const mine = message.userId === selfId;
   // People voted on a poll's question as it was, so it is not edited.
-  const editable = mine && !message.poll;
+  // A poll's question was voted on as it was; a call's note says what happened.
+  const editable = mine && !message.poll && !message.call;
   // The Drafts list asks for this to finish an unsaved edit.
   useEditRequest(message.id, editable, () => setEditing(true));
   const canDelete = mine || selfRole === "owner" || selfRole === "admin";
@@ -553,6 +555,8 @@ export const MessageItem = memo(function MessageItem({
                   channels={channels}
                   onChannelClick={onChannelClick}
                 />
+              ) : message.call ? (
+                <CallNote message={message} />
               ) : (
                 message.text && (
                   <div

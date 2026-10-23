@@ -8,7 +8,7 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import type { HuddleView } from "../lib/huddleView.js";
+import { ringingLine, type HuddleView } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
@@ -181,6 +181,7 @@ export function HuddleBar({
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
+  const ring = useWorkspace((s) => (s.huddle ? s.rings?.[s.huddle.channelId] : undefined));
   const speakerId = useCallPreferences().devices.speakerId;
   const { volumes } = useCallVolumes();
 
@@ -225,16 +226,17 @@ export function HuddleBar({
       ? " · You're sharing your screen"
       : "";
   // Everyone by name, so the line answers "who is here?" without a hover.
+  const ringing = ringingLine(ring, users, selfId);
   const summary =
     huddle.peers.length === 0
-      ? "Waiting for someone to join…"
+      ? (ringing ?? "Waiting for someone to join…")
       : stuck.length > 0
         ? `Can't connect to ${stuck
             .map((p) => users[p.userId]?.displayName ?? "someone")
             .join(", ")} · Trying again`
         : `With ${namesList(huddle.peers.map((p) => users[p.userId]?.displayName ?? "someone"))}${
             connecting ? " · Connecting…" : ""
-          }${sharing}`;
+          }${sharing}${ringing ? ` · ${ringing}` : ""}`;
 
   const calling = view === "call";
   return (
