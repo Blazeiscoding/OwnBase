@@ -176,6 +176,18 @@ describe("blocking someone", () => {
     await block(maya, sam);
     await expect.poll(() => theirs.heard("friends").at(-1)?.friends).toEqual([]);
     expect((await call("/api/friends", maya.token, undefined, "GET")).data.friends).toEqual([]);
+
+    // Asking again, they see their request waiting; she sees nothing until she unblocks.
+    expect((await call(`/api/friends/${maya.user.id}`, sam.token)).data.friends).toMatchObject([
+      { userId: maya.user.id, status: "outgoing" },
+    ]);
+    expect((await call("/api/friends", maya.token, undefined, "GET")).data.friends).toEqual([]);
+    const laptop = await connect(maya.token);
+    expect(laptop.ready().friends).toEqual([]);
+    await call(`/api/me/blocks/${sam.user.id}`, maya.token, undefined, "DELETE");
+    await expect
+      .poll(() => laptop.heard("friends").at(-1)?.friends)
+      .toMatchObject([{ userId: sam.user.id, status: "incoming" }]);
   });
 
   it("leaves them able to write, and their words reaching everyone, the blocker's devices too", async () => {

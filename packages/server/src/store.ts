@@ -242,11 +242,15 @@ export class Store {
       accepted: number;
       created_at: number;
     }[];
-    return rows.map((r) => ({
-      userId: r.user_low === userId ? r.user_high : r.user_low,
-      status: r.accepted ? "accepted" : r.requested_by === userId ? "outgoing" : "incoming",
-      createdAt: r.created_at,
-    }));
+    // A request from someone this account blocked waits unseen until they are unblocked (E12).
+    const blocked = new Set(this.blockedIds(userId));
+    return rows
+      .map((r): Friendship => ({
+        userId: r.user_low === userId ? r.user_high : r.user_low,
+        status: r.accepted ? "accepted" : r.requested_by === userId ? "outgoing" : "incoming",
+        createdAt: r.created_at,
+      }))
+      .filter((friend) => friend.status !== "incoming" || !blocked.has(friend.userId));
   }
 
   requestFriend(userId: ID, otherId: ID): void {

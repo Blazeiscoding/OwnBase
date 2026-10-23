@@ -2647,6 +2647,8 @@ async function startWorkspaceServer(
     const me = requireUser(req);
     if (store.setBlocked(me.id, req.params.id, false)) {
       gateway.sendToUser(me.id, { type: "blocks", blocked: store.blockedIds(me.id) });
+      // A request they sent meanwhile shows now.
+      gateway.sendToUser(me.id, { type: "friends", friends: store.listFriends(me.id) });
       pushMentionCounts([me.id]);
     }
     return { blocked: store.blockedIds(me.id) };

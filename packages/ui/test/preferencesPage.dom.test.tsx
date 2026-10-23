@@ -44,7 +44,8 @@ function page(
   } = {},
 ) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
-  client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online" });
+  // A server that blocks (E12), so Security lists blocked people.
+  client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online", blocked: [] });
   vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
   vi.spyOn(client.api, "storageUsage").mockResolvedValue({
     usedBytes: 0,

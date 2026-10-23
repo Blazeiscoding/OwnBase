@@ -7,6 +7,7 @@ import {
   type ID,
   type SidebarSection,
 } from "@slackoss/protocol";
+import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
 import { channelTitle } from "../lib/format.js";
@@ -83,6 +84,9 @@ interface Props {
   /** Admins only; absent for members. */
   onManageApps?: () => void;
   onManagePeople?: () => void;
+  /** Reported messages waiting for an admin (E12); null where there is no queue to show. */
+  reportsWaiting?: number | null;
+  onReviewReports?: () => void;
   onWorkspaceSettings?: () => void;
   connectionLabel: string | null;
   /** This computer's hosting, while it hosts or something is wrong with it. */
@@ -207,6 +211,7 @@ export function Sidebar(props: Props) {
   const sections = useWorkspace((s) => s.sidebarSections);
   const huddles = useWorkspace((s) => s.huddles);
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
+  const blocked = useWorkspace((s) => s.blocked);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const snoozed = dndUntil !== null && dndUntil > Date.now();
   const others = props.otherWorkspaces ?? [];
@@ -220,6 +225,8 @@ export function Sidebar(props: Props) {
     for (const ch of Object.values(channels)) {
       // An archived channel keeps its star, and comes back to Starred with it.
       if (ch.archived || !(ch.id in memberships)) continue;
+      // A DM with someone this account blocked leaves the sidebar (E12).
+      if (blockedPartner(ch, selfId, blocked)) continue;
       // Starred moves a conversation out of its usual section, as Slack's does,
       // and so does a section of this account's (E8); one it no longer has is none.
       const inSection = sectioned.get(prefs[ch.id]?.sectionId ?? "");
@@ -237,7 +244,7 @@ export function Sidebar(props: Props) {
     rooms.sort((a, b) => a.name.localeCompare(b.name));
     dms.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
     return { starred, sectioned, rooms, dms };
-  }, [channels, memberships, channelLastSeq, prefs, users, selfId, sections]);
+  }, [channels, memberships, channelLastSeq, prefs, users, selfId, sections, blocked]);
   /** The section of this account's a conversation is in, if it is in one it still has. */
   const sectionOf = (id: ID): ID | null => {
     const sectionId = prefs[id]?.sectionId ?? null;
@@ -251,7 +258,9 @@ export function Sidebar(props: Props) {
   const huddleWith = (id: ID) => huddleNames(huddles[id] ?? [], users, self?.id);
   const mentions = (id: ID) => mentionCounts[id] ?? 0;
   const totalMentions = Object.values(mentionCounts).reduce((sum, n) => sum + n, 0);
-  const unreadConversations = Object.keys(memberships).filter((id) => isUnread(id)).length;
+  const unreadConversations = Object.keys(memberships).filter(
+    (id) => isUnread(id) && !blockedPartner(channels[id], selfId, blocked),
+  ).length;
 
   const [collapsed, toggleCollapsed] = useCollapsedSections();
   // How often each category has been opened again: its rows come in afresh each time.
@@ -571,6 +580,8 @@ export function Sidebar(props: Props) {
                 onCreateAccount={guest ? props.onCreateAccount : undefined}
                 onInvite={props.onInvite}
                 onManagePeople={props.onManagePeople}
+                reportsWaiting={props.reportsWaiting ?? null}
+                onReviewReports={props.onReviewReports}
                 onManageApps={props.onManageApps}
                 onWorkspaceSettings={props.onWorkspaceSettings}
               />
@@ -1020,6 +1031,8 @@ function WorkspaceMenu(props: {
   onCreateAccount?: () => void;
   onInvite: () => void;
   onManagePeople?: () => void;
+  reportsWaiting: number | null;
+  onReviewReports?: () => void;
   onManageApps?: () => void;
   onWorkspaceSettings?: () => void;
 }) {
@@ -1035,6 +1048,14 @@ function WorkspaceMenu(props: {
     : [{ id: "invite", label: "Invite people", icon: "userPlus", onSelect: props.onInvite }];
   if (props.onManagePeople)
     items.push({ id: "people", label: "People", icon: "members", onSelect: props.onManagePeople });
+  if (props.onReviewReports)
+    items.push({
+      id: "reports",
+      label: "Reported messages",
+      icon: "flag",
+      hint: props.reportsWaiting ? `${props.reportsWaiting} waiting` : undefined,
+      onSelect: props.onReviewReports,
+    });
   if (props.onManageApps)
     items.push({
       id: "apps",
@@ -1049,6 +1070,8 @@ function WorkspaceMenu(props: {
       icon: "settings",
       onSelect: props.onWorkspaceSettings,
     });
+  // Reports waiting for an admin, which the menu's trigger shows as a dot.
+  const waiting = props.onReviewReports ? (props.reportsWaiting ?? 0) : 0;
   const names = props.others.map((w) => w.name);
   props.others.forEach((w, i) => {
     const shared = names.filter((n) => n === w.name).length > 1 || w.name === props.name;
@@ -1069,13 +1092,18 @@ function WorkspaceMenu(props: {
   return (
     <Menu
       label="Workspace"
-      triggerLabel={`${props.name}, workspace menu`}
+      triggerLabel={`${props.name}, workspace menu${
+        waiting ? `, ${waiting} reported ${waiting === 1 ? "message" : "messages"} waiting` : ""
+      }`}
       items={items}
       align="start"
       triggerClassName="group/ws flex h-9 w-full min-w-0 items-center gap-2 rounded-lg px-2 text-left transition-colors hover:bg-ink/[0.06]"
       triggerContent={
         <>
           <span className="min-w-0 flex-1 truncate">{props.name}</span>
+          {waiting > 0 && (
+            <span aria-hidden="true" className="size-2 shrink-0 rounded-full bg-alert" />
+          )}
           <Icon
             name="chevronDown"
             size={16}
