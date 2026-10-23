@@ -20,13 +20,16 @@ let member: { token: string; id: string };
 /** The clock the codes are read against, moved by the tests; the network keeps its own. */
 let now = Date.UTC(2026, 9, 23, 12, 0, 5);
 
-async function start(rateLimits = false) {
+/** Rate limits are off unless given; `{}` is the defaults. */
+async function start(
+  rateLimits: false | Record<string, { burst: number; perMinute: number }> = false,
+) {
   server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",
     port: 0,
     mdns: false,
-    ...(rateLimits ? {} : { rateLimits: false }),
+    rateLimits,
     logger: false,
     workspaceName: "Rocket Team",
   });
@@ -226,7 +229,7 @@ describe("signing in with two-step sign-in", () => {
   it("counts wrong codes against the account, which a right password does not clear", async () => {
     const { secret } = await setUp(member.token);
     await server!.stop();
-    await start(true);
+    await start({});
     later(1);
     // Five a minute for a handle: the password, three wrong codes, the
     // password again, and the next wrong code is one too many.
@@ -238,6 +241,51 @@ describe("signing in with two-step sign-in", () => {
     const again = (await password("maya")).data.twoStep.challenge;
     expect((await second(again, { code: "000000" })).status).toBe(429);
     expect((await second(again, { code: codeFor(secret, stepAt(now)) })).status).toBe(429);
+  });
+
+  it("rations the second step by address too, and the password asked before a change", async () => {
+    const { secret } = await setUp(member.token);
+    await server!.stop();
+    // Three for an address, against the handle's five: the fourth is refused.
+    await start({ authByAddress: { burst: 3, perMinute: 1 } });
+    later(1);
+    const { challenge } = (await password("maya")).data.twoStep;
+    for (let i = 0; i < 2; i++)
+      expect((await second(challenge, { code: "000000" })).data.error).toBe(
+        "invalid_two_step_code",
+      );
+    expect((await second(challenge, { code: codeFor(secret, stepAt(now)) })).status).toBe(429);
+
+    await server!.stop();
+    await start({});
+    for (let i = 0; i < 5; i++)
+      expect(
+        (await call("/api/me/two-step/recovery-codes", member.token, { password: "wrong-one" }))
+          .status,
+      ).toBe(403);
+    expect(
+      (await call("/api/me/two-step/recovery-codes", member.token, { password: "password123" }))
+        .status,
+    ).toBe(429);
+  });
+
+  it("refuses the second step to someone deactivated since the first", async () => {
+    const { secret } = await setUp(member.token);
+    later(1);
+    const { challenge } = (await password("maya")).data.twoStep;
+    await call(`/api/admin/users/${member.id}`, owner.token, { deactivated: true }, "PATCH");
+    expect((await second(challenge, { code: codeFor(secret, stepAt(now)) })).data.error).toBe(
+      "two_step_expired",
+    );
+  });
+
+  it("lets the password alone through when an admin turned it off between the steps", async () => {
+    await setUp(member.token);
+    const { challenge } = (await password("maya")).data.twoStep;
+    await call(`/api/admin/users/${member.id}/two-step/reset`, owner.token);
+    const signed = await second(challenge, { code: "000000" });
+    expect(signed.status).toBe(200);
+    expect(signed.data.recoveryCodesLeft).toBe(0);
   });
 
   it("refuses the second step once the password has changed since the first", async () => {
@@ -306,9 +354,10 @@ describe("resetting someone's two-step sign-in", () => {
       ).twoStep;
     expect(await listed()).toBe(true);
     // A member cannot, and nobody resets their own here.
-    expect((await call(`/api/admin/users/${owner.id}/two-step/reset`, member.token)).status).toBe(
-      403,
-    );
+    const other = await register("lee");
+    expect(
+      (await call(`/api/admin/users/${other.id}/two-step/reset`, member.token)).data.error,
+    ).toBe("admin_only");
     expect(
       (await call(`/api/admin/users/${owner.id}/two-step/reset`, owner.token)).data.error,
     ).toBe("cannot_reset_self");
@@ -358,10 +407,20 @@ describe("resetting someone's two-step sign-in", () => {
   });
 });
 
-describe("two-step sign-in for a guest", () => {
+describe("two-step sign-in for a guest or an app", () => {
   it("is not to be had", async () => {
     server!.setAccessPolicy("guest_allowed");
     const guest = await call("/api/auth/guest", null, { displayName: "Visitor" });
     expect((await call("/api/me/two-step", guest.data.token, undefined, "GET")).status).toBe(403);
+    const app = await call("/api/apps", owner.token, { name: "Deploy Bot" });
+    // An app's token is no session, which these need.
+    expect((await call("/api/me/two-step", app.data.token, undefined, "GET")).status).toBe(401);
+  });
+
+  it("has no recovery codes to replace while it is off", async () => {
+    expect(
+      (await call("/api/me/two-step/recovery-codes", member.token, { password: "password123" }))
+        .data.error,
+    ).toBe("two_step_off");
   });
 });

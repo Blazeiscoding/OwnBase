@@ -171,6 +171,18 @@ describe("two-step sign-in once on", () => {
     expect(await section().findByRole("list", { name: "Recovery codes" })).toBeVisible();
     await user.click(section().getByRole("button", { name: "Done" }));
     expect(section().getByText("10 recovery codes left.")).not.toHaveClass("text-alert");
+    // The password asked next starts empty.
+    await user.click(section().getByRole("button", { name: "Turn off" }));
+    expect(section().getByLabelText("Current password")).toHaveValue("");
+  });
+
+  it("says so when no recovery codes are left", async () => {
+    const { section } = security(true, 0);
+    expect(
+      await section().findByText(
+        "You have no recovery codes left. Make new ones so you can still sign in without your phone.",
+      ),
+    ).toHaveClass("text-alert");
   });
 
   it("turns off with the password, and says a wrong one was refused", async () => {
@@ -319,6 +331,21 @@ describe("signing in with two-step sign-in", () => {
     expect(onConnected).not.toHaveBeenCalled();
     await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(onConnected).toHaveBeenCalledWith(expect.objectContaining({ handle: "sam" }));
+  });
+
+  it("asks for a new password after the code when the one given was issued by someone else", async () => {
+    const { second, onConnected, user } = await atSecondStep();
+    second.mockResolvedValueOnce({
+      token: "test-token-not-a-credential",
+      user: sam,
+      mustChangePassword: true,
+      recoveryCodesLeft: 10,
+    });
+    await user.type(screen.getByLabelText("Code"), "123456");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+    expect(await screen.findByLabelText("New password")).toBeVisible();
+    expect(screen.getByText(/That password was issued to you by someone else/)).toBeVisible();
+    expect(onConnected).not.toHaveBeenCalled();
   });
 
   it("goes back to the password when the second step has expired", async () => {

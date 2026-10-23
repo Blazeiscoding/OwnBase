@@ -2394,23 +2394,16 @@ async function startWorkspaceServer(
   /** Keys being set up, waiting for their first code (E11), by account. In memory. */
   const twoStepSetups = new Map<ID, { secret: string; expiresAt: number }>();
 
-  /** A person's own two-step sign-in: guests and apps have none to set. */
-  const twoStepOwner = (req: FastifyRequest): User => {
-    const me = requireUser(req);
-    if (me.isBot) throw new HttpError(400, "bots_have_no_password");
-    return me;
-  };
-
   /** Whether two-step sign-in is on, and how many recovery codes are left (E11). */
   app.get("/api/me/two-step", async (req) => {
-    const me = twoStepOwner(req);
+    const me = requireUser(req);
     const second = store.twoStep(me.id);
     return { enabled: second.secret !== null, recoveryCodesLeft: second.codesLeft };
   });
 
   /** Starts setting two-step sign-in up: a new key and what an app scans for it (E11). */
   app.post("/api/me/two-step", async (req) => {
-    const me = twoStepOwner(req);
+    const me = requireUser(req);
     const body = twoStepPasswordBody.parse(req.body);
     await confirmPassword(me, body.password);
     if (store.twoStep(me.id).secret)
@@ -2426,9 +2419,8 @@ async function startWorkspaceServer(
    * stay signed in; it is asked for at each sign-in from now on.
    */
   app.post("/api/me/two-step/enable", async (req) => {
-    const me = twoStepOwner(req);
+    const me = requireUser(req);
     const body = twoStepCodeBody.parse(req.body);
-    ration("authByHandle", me.handle.toLowerCase());
     const setup = twoStepSetups.get(me.id);
     if (!setup || setup.expiresAt <= Date.now()) {
       twoStepSetups.delete(me.id);
@@ -2456,7 +2448,7 @@ async function startWorkspaceServer(
 
   /** A new set of recovery codes in place of the old (E11), shown once. */
   app.post("/api/me/two-step/recovery-codes", async (req) => {
-    const me = twoStepOwner(req);
+    const me = requireUser(req);
     const body = twoStepPasswordBody.parse(req.body);
     await confirmPassword(me, body.password);
     if (!store.twoStep(me.id).secret)
@@ -2473,7 +2465,7 @@ async function startWorkspaceServer(
 
   /** Turns two-step sign-in off (E11). */
   app.post("/api/me/two-step/disable", async (req) => {
-    const me = twoStepOwner(req);
+    const me = requireUser(req);
     const body = twoStepPasswordBody.parse(req.body);
     await confirmPassword(me, body.password);
     store.transaction(() => store.disableTwoStep(me.id));
@@ -4316,9 +4308,11 @@ async function startWorkspaceServer(
   /**
    * Whose password or two-step sign-in an admin may reset (E11 shares them):
    * not their own, an app's or a guest's; never the owner's; another admin's
-   * only as the owner.
+   * only as the owner. The admin asking, and whom.
    */
-  const resettable = (req: FastifyRequest<{ Params: { id: string } }>): User => {
+  const resettable = (
+    req: FastifyRequest<{ Params: { id: string } }>,
+  ): { me: User; target: User } => {
     const me = requireAdmin(req);
     const target = store.getUser(req.params.id);
     if (!target) throw new HttpError(404, "user_not_found");
@@ -4329,7 +4323,7 @@ async function startWorkspaceServer(
     if (target.role === "admin" && me.role !== "owner") {
       throw new HttpError(403, "admins_are_equals", "only the owner can reset another admin");
     }
-    return target;
+    return { me, target };
   };
 
   /**
@@ -4349,8 +4343,7 @@ async function startWorkspaceServer(
     } finally {
       authJobs--;
     }
-    const target = authorize();
-    const actor = requireAdmin(req);
+    const { me: actor, target } = authorize();
     const revokedSessions = store.transaction(() => {
       store.setPassword(target.id, credentials.hash, credentials.salt, true);
       const revoked = store.revokeSessions(target.id);
@@ -4375,8 +4368,7 @@ async function startWorkspaceServer(
    * sign-in asks for the password alone, and they can set it up again.
    */
   app.post<{ Params: { id: string } }>("/api/admin/users/:id/two-step/reset", async (req) => {
-    const target = resettable(req);
-    const actor = requireAdmin(req);
+    const { me: actor, target } = resettable(req);
     store.transaction(() => {
       if (!store.disableTwoStep(target.id))
         throw new HttpError(409, "two_step_off", "Their two-step sign-in is already off.");

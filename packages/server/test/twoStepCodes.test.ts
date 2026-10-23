@@ -30,6 +30,20 @@ describe("two-step codes", () => {
     }
   });
 
+  it("are written in base32 as RFC 4648 has it, and refuse what is not", () => {
+    for (const [text, encoded] of [
+      ["f", "MY"],
+      ["fo", "MZXQ"],
+      ["foo", "MZXW6"],
+      ["foob", "MZXW6YQ"],
+      ["foobar", "MZXW6YTBOI"],
+    ] as const) {
+      expect(base32(Buffer.from(text))).toBe(encoded);
+      expect(fromBase32(`${encoded}====`).toString()).toBe(text);
+    }
+    expect(() => fromBase32("MZ1W")).toThrow("not base32");
+  });
+
   it("keep a key through base32 both ways, whatever its case and spacing", () => {
     const bytes = Buffer.from([0, 1, 2, 250, 251, 252, 253, 254, 255, 7]);
     expect(fromBase32(base32(bytes))).toEqual(bytes);

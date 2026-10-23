@@ -49,8 +49,8 @@ export function TwoStepSettings() {
   const field = useRef<HTMLInputElement>(null);
   const codesPanel = useRef<HTMLDivElement>(null);
   const clipboard = useCopy();
-  // Guests have no password, and apps no settings, so neither has this.
-  const owned = !!self && self.role !== "guest" && !self.isBot;
+  // Guests have no password, so none of this either.
+  const owned = !!self && self.role !== "guest";
 
   const load = useCallback(async () => {
     try {
