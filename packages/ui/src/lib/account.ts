@@ -17,6 +17,12 @@ export function accountError(error: unknown): string {
       invalid_owner: "Choose an active person to own the workspace.",
       cannot_reset_self: "Use Account settings to change your own password.",
       bots_have_no_password: "App accounts do not use passwords.",
+      invalid_two_step_code:
+        "That code is not right. Enter the one your authenticator app shows now.",
+      two_step_setup_expired: "Setting up took too long. Start again.",
+      two_step_on: "Two-step sign-in is already on.",
+      two_step_off: "Two-step sign-in was already off.",
+      too_many_requests: "Too many tries for now. Wait a minute, then try again.",
     };
     return (
       messages[error.code] ?? "The workspace could not complete this change. Refresh and try again."

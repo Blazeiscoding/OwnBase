@@ -22,6 +22,7 @@ import { ListStatus } from "./ListStatus.js";
 import { ProfileForm } from "./ProfileDialog.js";
 import { SettingsWindow } from "./SettingsWindow.js";
 import { VoiceVideoSettings } from "./VoiceVideoSettings.js";
+import { TwoStepSettings } from "./TwoStepSettings.js";
 import { buttonClass } from "./Button.js";
 
 type Confirmation =
@@ -469,6 +470,7 @@ export function AccountDialog({
                 </fieldset>
               </form>
             </section>
+            <TwoStepSettings />
             <section
               aria-labelledby="account-signout-title"
               className="mt-6 border-t border-edge pt-5"

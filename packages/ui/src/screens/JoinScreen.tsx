@@ -791,6 +791,18 @@ function AuthCard(props: {
   const [mustReplace, setMustReplace] = useState<{ token: string; current: string } | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  /**
+   * Set when the password was right for an account with two-step sign-in
+   * (E11): the card asks for a code from its authenticator app, or one of its
+   * recovery codes, before going in.
+   */
+  const [secondStep, setSecondStep] = useState<{ challenge: string } | null>(null);
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [answer, setAnswer] = useState("");
+  /** Signed in with a recovery code: how many are left is said before going in. */
+  const [recoveryNote, setRecoveryNote] = useState<{ server: SavedServer; left: number } | null>(
+    null,
+  );
   const id = useId();
 
   useEffect(() => firstField.current?.focus(), []);
@@ -862,6 +874,13 @@ function AuthCard(props: {
                 ...(claimCode.trim() ? { claimCode: claimCode.trim() } : {}),
               });
       if (ticket !== attempt.current) return;
+      if ("twoStep" in result) {
+        setSecondStep({ challenge: result.twoStep.challenge });
+        setUseRecovery(false);
+        setAnswer("");
+        setBusy(false);
+        return;
+      }
       if ("mustChangePassword" in result && result.mustChangePassword) {
         setMustReplace({ token: result.token, current: password });
         setBusy(false);
@@ -882,6 +901,57 @@ function AuthCard(props: {
       if (ticket !== attempt.current) return;
       if (err instanceof ApiError && err.code === "claim_required") setRequiresClaim(true);
       setError(errorMessage(err, mode));
+      setBusy(false);
+    }
+  }
+
+  async function verify(e: React.FormEvent) {
+    e.preventDefault();
+    if (!secondStep) return;
+    setError(null);
+    const typed = answer.trim();
+    if (!typed) {
+      setError(
+        useRecovery ? "Enter one of your recovery codes." : "Enter the code your app shows.",
+      );
+      document.getElementById(`${id}-answer`)?.focus();
+      return;
+    }
+    setBusy(true);
+    const ticket = ++attempt.current;
+    try {
+      const result = await new Api(props.url).signInSecondStep({
+        challenge: secondStep.challenge,
+        ...(useRecovery ? { recoveryCode: typed } : { code: typed }),
+      });
+      if (ticket !== attempt.current) return;
+      setSecondStep(null);
+      if (result.mustChangePassword) {
+        setMustReplace({ token: result.token, current: password });
+        setBusy(false);
+        return;
+      }
+      const server: SavedServer = {
+        url: props.url,
+        token: result.token,
+        workspaceName: props.info.workspaceName,
+        handle: result.user.handle,
+        lastUsedAt: Date.now(),
+      };
+      if (useRecovery) {
+        setRecoveryNote({ server, left: result.recoveryCodesLeft });
+        setBusy(false);
+        return;
+      }
+      props.onConnected(server);
+    } catch (err) {
+      if (ticket !== attempt.current) return;
+      // Too long, or too many wrong codes: back to the password, which is asked again.
+      if (err instanceof ApiError && err.code === "two_step_expired") {
+        setSecondStep(null);
+        setPassword("");
+      }
+      setError(errorMessage(err, "login"));
       setBusy(false);
     }
   }
@@ -992,6 +1062,76 @@ function AuthCard(props: {
             )}
             <button type="submit" disabled={busy} className={submitCls}>
               <Swap text>{busy ? "Saving…" : "Set password and continue"}</Swap>
+            </button>
+          </form>
+        </>
+      ) : recoveryNote ? (
+        <>
+          <p
+            role="status"
+            className="mb-4 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim"
+          >
+            You signed in with a recovery code.{" "}
+            {recoveryNote.left === 0
+              ? "It was your last one."
+              : `You have ${recoveryNote.left} left, and each works once.`}{" "}
+            If your phone is gone, make new codes or set up your authenticator app again in Account
+            settings, under Security.
+          </p>
+          <button
+            type="button"
+            autoFocus
+            className={submitCls}
+            onClick={() => props.onConnected(recoveryNote.server)}
+          >
+            Continue
+          </button>
+        </>
+      ) : secondStep ? (
+        <>
+          <p className="mb-4 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim">
+            {useRecovery
+              ? "Enter one of the recovery codes you saved when you set up two-step sign-in."
+              : "This account has two-step sign-in. Enter the 6-digit code your authenticator app shows."}
+          </p>
+          <form onSubmit={verify} noValidate className={`space-y-4 ${shake}`}>
+            <div>
+              <label className={labelCls} htmlFor={`${id}-answer`}>
+                {useRecovery ? "Recovery code" : "Code"}
+              </label>
+              <input
+                id={`${id}-answer`}
+                key={useRecovery ? "recovery" : "code"}
+                autoFocus
+                inputMode={useRecovery ? "text" : "numeric"}
+                autoComplete={useRecovery ? "off" : "one-time-code"}
+                spellCheck={false}
+                autoCapitalize="none"
+                maxLength={useRecovery ? 32 : 16}
+                value={answer}
+                onChange={(e) => setAnswer(e.target.value)}
+                className={`${fieldCls} font-mono tracking-widest`}
+              />
+            </div>
+            {error && (
+              <p role="alert" className="animate-text-in text-sm text-alert">
+                {error}
+              </p>
+            )}
+            <button type="submit" disabled={busy} className={submitCls}>
+              <Swap text>{busy ? "Checking…" : "Sign in"}</Swap>
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                setUseRecovery((value) => !value);
+                setAnswer("");
+                setError(null);
+              }}
+              className="w-full text-center text-[13px] text-ink-dim underline-offset-2 transition-colors hover:text-ink hover:underline"
+            >
+              {useRecovery ? "Use a code from your app instead" : "Use a recovery code instead"}
             </button>
           </form>
         </>
