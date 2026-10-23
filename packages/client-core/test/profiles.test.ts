@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -171,5 +171,54 @@ describe("profiles on the client", () => {
 
     expect(await laptop.removeAvatar()).toBe(true);
     expect(laptop.state.self!.avatarVersion).toBeUndefined();
+  });
+
+  it("say idle only to a server that keeps profiles, and only when it changes", async () => {
+    const laptop = await online();
+    const sent: { type?: string; idle?: boolean }[] = [];
+    const send = WebSocket.prototype.send;
+    const spy = vi.spyOn(WebSocket.prototype, "send").mockImplementation(function (
+      this: WebSocket,
+      data,
+    ) {
+      sent.push(JSON.parse(String(data)));
+      return send.call(this, data);
+    });
+    try {
+      // An older server closes a socket on a message it does not know (4000),
+      // so it is told nothing, though this device still knows it is idle.
+      laptop.store.setState({ profiles: false });
+      laptop.setIdle(true);
+      laptop.setIdle(false);
+      laptop.store.setState({ profiles: true });
+      laptop.setIdle(true);
+      laptop.setIdle(true);
+      laptop.setIdle(false);
+      expect(sent.filter((message) => message.type === "idle")).toEqual([
+        { type: "idle", idle: true },
+        { type: "idle", idle: false },
+      ]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("show this account's own change from the answer, before any event of it", async () => {
+    // Never connected, so only the server's answer can say what changed.
+    const quiet = new WorkspaceClient(base, aliceToken);
+    onTestFinished(() => quiet.destroy());
+    const { user } = await quiet.api.me();
+    quiet.store.setState({ self: user, users: { [user.id]: user } });
+    expect(await quiet.setTimeZone("Europe/Oslo")).toBe(true);
+    expect(quiet.state.self?.timeZone).toBe("Europe/Oslo");
+    expect(await quiet.setAway(true)).toBe(true);
+    expect(quiet.state.self?.away).toBe(true);
+    expect(await quiet.setAway(false)).toBe(true);
+    expect(quiet.state.self?.away).toBeUndefined();
+    expect(await quiet.setAvatar(png())).toBe(true);
+    expect(quiet.state.self?.avatarVersion).toMatch(/^[0-9a-f]{16}$/);
+    expect(quiet.state.users[user.id]?.avatarVersion).toBe(quiet.state.self?.avatarVersion);
+    expect(await quiet.removeAvatar()).toBe(true);
+    expect(quiet.state.self?.avatarVersion).toBeUndefined();
   });
 });
