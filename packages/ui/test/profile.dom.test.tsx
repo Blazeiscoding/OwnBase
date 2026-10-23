@@ -241,7 +241,7 @@ describe("a status that clears itself", () => {
 
   const saving = (client: WorkspaceClient) =>
     vi.spyOn(client.api, "updateMe").mockImplementation(async (body) => ({
-      user: { ...sam, ...body },
+      user: { ...sam, ...body } as User,
     }));
 
   it("takes a preset's usual end, which Clear after can change", async () => {

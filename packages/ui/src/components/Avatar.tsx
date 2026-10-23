@@ -1,12 +1,45 @@
+import { useContext, useEffect, useState } from "react";
 import type { User } from "@slackoss/protocol";
+import { ClientContext } from "../context.js";
 import { avatarColor, initials } from "../lib/format.js";
 
 /**
- * A person's initials on a colour of their own, round as in Discord. Hidden
- * from screen readers: the name is always written beside it, or on the button
- * it sits in, and "M C Maya Chen" says the person twice.
+ * Someone's profile picture as an object URL, once the client has fetched it
+ * (E9); null while it comes, for someone with none, or with no client.
+ */
+function usePicture(user: User | undefined): string | null {
+  const client = useContext(ClientContext);
+  const id = user?.id;
+  const version = user?.avatarVersion;
+  const [url, setUrl] = useState(() =>
+    client && id && version ? client.avatars.peek(id, version) : null,
+  );
+  useEffect(() => {
+    if (!client || !id || !version) {
+      setUrl(null);
+      return;
+    }
+    const known = client.avatars.peek(id, version);
+    setUrl(known);
+    if (known) return;
+    let live = true;
+    void client.avatars.load(id, version).then((loaded) => {
+      if (live) setUrl(loaded);
+    });
+    return () => {
+      live = false;
+    };
+  }, [client, id, version]);
+  return url;
+}
+
+/**
+ * A person's picture, or their initials on a colour of their own, round as
+ * in Discord. Hidden from screen readers: the name is always written beside
+ * it, or on the button it sits in, and "M C Maya Chen" says the person twice.
  */
 export function Avatar({ user, size = 36 }: { user: User | undefined; size?: number }) {
+  const picture = usePicture(user);
   return (
     <div
       aria-hidden="true"
@@ -18,12 +51,33 @@ export function Avatar({ user, size = 36 }: { user: User | undefined; size?: num
         fontSize: size * 0.38,
       }}
     >
-      {initials(user?.displayName ?? "?")}
+      {picture ? (
+        <img
+          src={picture}
+          alt=""
+          decoding="async"
+          className="size-full rounded-full object-cover"
+        />
+      ) : (
+        initials(user?.displayName ?? "?")
+      )}
     </div>
   );
 }
 
-export function PresenceDot({ online, size = 8 }: { online: boolean; size?: number }) {
+/**
+ * Whether someone is here: filled when active, a ring of the same colour when
+ * away (E9), as Slack draws it, and a faint ring when not here.
+ */
+export function PresenceDot({
+  online,
+  away = false,
+  size = 8,
+}: {
+  online: boolean;
+  away?: boolean;
+  size?: number;
+}) {
   return (
     <span
       className="inline-block shrink-0 rounded-full"
@@ -31,7 +85,11 @@ export function PresenceDot({ online, size = 8 }: { online: boolean; size?: numb
         width: size,
         height: size,
         background: online ? "var(--color-online)" : "transparent",
-        border: online ? "none" : "1.5px solid var(--color-ink-faint)",
+        border: online
+          ? "none"
+          : away
+            ? "2px solid var(--color-online)"
+            : "1.5px solid var(--color-ink-faint)",
       }}
     />
   );
@@ -44,11 +102,14 @@ export function PresenceDot({ online, size = 8 }: { online: boolean; size?: numb
 export function AvatarWithPresence({
   user,
   online,
+  away = false,
   size = 32,
   ring = "var(--color-raised)",
 }: {
   user: User | undefined;
   online: boolean;
+  /** Here but away (E9): the dot is a ring rather than filled. */
+  away?: boolean;
   size?: number;
   /** The colour behind the avatar, so the dot reads as cut out of it. */
   ring?: string;
@@ -68,7 +129,11 @@ export function AvatarWithPresence({
           height: dot,
           right: overhang,
           bottom: overhang,
-          background: online ? "var(--color-online)" : "var(--color-ink-faint)",
+          background: online ? "var(--color-online)" : away ? ring : "var(--color-ink-faint)",
+          border:
+            !online && away
+              ? `${Math.max(2, Math.round(dot / 4))}px solid var(--color-online)`
+              : undefined,
           boxShadow: `0 0 0 ${cut}px ${ring}`,
         }}
       />

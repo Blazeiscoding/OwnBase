@@ -73,6 +73,8 @@ import {
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { requestEdit } from "../lib/editRequest.js";
+import { useIdleReport } from "../lib/idle.js";
+import { PartnerTime } from "../components/PartnerTime.js";
 import type { DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 
@@ -429,6 +431,8 @@ function WorkspaceInner({
   const users = useWorkspace((s) => s.users);
   const self = useWorkspace((s) => s.self);
   const clientFromCtx = useClient();
+  // Every device of an account idle makes it away (E9).
+  useIdleReport(clientFromCtx);
   const calls = useCallPreferences();
   const serverUrl = clientFromCtx.baseUrl;
   // Where the address, or Back and a reload, left this workspace. A link to a
@@ -1389,6 +1393,7 @@ function WorkspaceInner({
                   </p>
                 </>
               )}
+              {activeChannel?.type === "dm" && <PartnerTime channelId={activeChannel.id} />}
             </button>
             {activeChannelId && (
               <div className="flex shrink-0 items-center gap-1">

@@ -306,6 +306,32 @@ export class Api {
     return this.request("PATCH", "/api/me", body);
   }
 
+  /** Keeps this picture as this account's own (E9): the image itself, made small first. */
+  setAvatar(image: Blob): Promise<{ user: User }> {
+    return this.request("PUT", "/api/me/avatar", image, { timeoutMs: 30_000 });
+  }
+
+  /** Removes this account's picture; its initials show again. */
+  removeAvatar(): Promise<{ user: User }> {
+    return this.request("DELETE", "/api/me/avatar", undefined, { timeoutMs: 10_000 });
+  }
+
+  /**
+   * Someone's picture, named by its version, which the browser may keep:
+   * another picture has another version.
+   */
+  async fetchAvatar(userId: ID, version: string): Promise<Blob> {
+    const res = await fetch(
+      `${this.baseUrl}/api/users/${userId}/avatar?v=${encodeURIComponent(version)}`,
+      {
+        headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
+        signal: AbortSignal.timeout(30_000),
+      },
+    );
+    if (!res.ok) throw new ApiError(res.status, "avatar_unavailable");
+    return res.blob();
+  }
+
   listUsers(): Promise<{ users: User[] }> {
     return this.request("GET", "/api/users");
   }

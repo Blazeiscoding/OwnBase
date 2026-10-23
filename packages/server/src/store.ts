@@ -57,6 +57,9 @@ interface UserRow {
   dnd_until: number | null;
   created_at: number;
   can_invite?: number;
+  time_zone?: string | null;
+  away?: number;
+  avatar_version?: string | null;
 }
 
 interface ChannelRow {
@@ -139,6 +142,9 @@ function toUser(r: UserRow): User {
     dndUntil: r.dnd_until,
     createdAt: r.created_at,
     canInvite: mayInvite(r.role, r.is_bot, r.can_invite),
+    ...(r.time_zone ? { timeZone: r.time_zone } : {}),
+    ...(r.away === 1 ? { away: true as const } : {}),
+    ...(r.avatar_version ? { avatarVersion: r.avatar_version } : {}),
   };
 }
 
@@ -368,6 +374,8 @@ export class Store {
       role?: Role;
       deactivated?: boolean;
       canInvite?: boolean;
+      timeZone?: string | null;
+      away?: boolean;
     },
   ): User {
     const sets: string[] = [];
@@ -404,6 +412,14 @@ export class Store {
       sets.push("can_invite = ?");
       params.push(patch.canInvite ? 1 : 0);
     }
+    if (patch.timeZone !== undefined) {
+      sets.push("time_zone = ?");
+      params.push(patch.timeZone);
+    }
+    if (patch.away !== undefined) {
+      sets.push("away = ?");
+      params.push(patch.away ? 1 : 0);
+    }
     if (sets.length > 0) {
       this.db
         .prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
@@ -412,6 +428,40 @@ export class Store {
     // What this account scheduled while deactivated can go at the next flush.
     if (patch.deactivated === false) this.wakeHeldScheduled({ userId: id });
     return this.getUser(id)!;
+  }
+
+  /** Whether this account set itself away by hand (E9). */
+  isAway(userId: ID): boolean {
+    return this.db.prepare("SELECT away FROM users WHERE id = ?").get(userId)?.away === 1;
+  }
+
+  /** One account's profile picture, or null for none (E9). */
+  avatar(userId: ID): { type: string; bytes: Buffer; version: string } | null {
+    const row = this.db
+      .prepare(
+        `SELECT a.type, a.bytes, u.avatar_version FROM user_avatars a
+         JOIN users u ON u.id = a.user_id WHERE a.user_id = ?`,
+      )
+      .get(userId) as
+      { type: string; bytes: Uint8Array; avatar_version: string | null } | undefined;
+    if (!row?.avatar_version) return null;
+    return { type: row.type, bytes: Buffer.from(row.bytes), version: row.avatar_version };
+  }
+
+  /** Keeps a new profile picture for an account, or with null removes it; gives the user. */
+  setAvatar(userId: ID, picture: { type: string; bytes: Buffer; version: string } | null): User {
+    if (picture) {
+      this.db
+        .prepare(
+          `INSERT INTO user_avatars (user_id, type, bytes) VALUES (?, ?, ?)
+           ON CONFLICT(user_id) DO UPDATE SET type = excluded.type, bytes = excluded.bytes`,
+        )
+        .run(userId, picture.type, picture.bytes);
+    } else this.db.prepare("DELETE FROM user_avatars WHERE user_id = ?").run(userId);
+    this.db
+      .prepare("UPDATE users SET avatar_version = ? WHERE id = ?")
+      .run(picture?.version ?? null, userId);
+    return this.getUser(userId)!;
   }
 
   // ---------- sessions ----------

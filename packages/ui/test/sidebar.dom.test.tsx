@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import type { Channel, User } from "@slackoss/protocol";
 import { ClientContext } from "../src/context.js";
 import { Sidebar, type OtherWorkspace } from "../src/components/Sidebar.js";
 import { statusUntil } from "../src/lib/status.js";
@@ -152,7 +152,7 @@ describe("the account menu", () => {
     const { user, client } = sidebar({ admin: false });
     const updateMe = vi
       .spyOn(client.api, "updateMe")
-      .mockImplementation(async (body) => ({ user: { ...sam, ...body } }));
+      .mockImplementation(async (body) => ({ user: { ...sam, ...body } as User }));
     await accountMenu(user);
     const before = Date.now();
     await user.click(
@@ -386,7 +386,7 @@ describe("pausing notifications", () => {
     vi.setSystemTime(now);
     const { client, user } = sidebar({ admin: false });
     vi.spyOn(client.api, "updateMe").mockImplementation(async (body) => ({
-      user: { ...client.state.self!, ...body },
+      user: { ...client.state.self!, ...body } as User,
     }));
     const morning = new Date(2026, 8, 26, 9, 0);
     const time = morning.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -397,5 +397,41 @@ describe("pausing notifications", () => {
     expect(client.state.self?.dndUntil).toBe(morning.getTime());
     expect(client.api.updateMe).toHaveBeenCalledWith({ dndUntil: morning.getTime() });
     expect(screen.getByText(`Paused until tomorrow at ${time}`)).toBeInTheDocument();
+  });
+});
+
+describe("a direct message's row", () => {
+  it("rings the picture of someone away, and fills the dot of someone here (E9)", () => {
+    const { client } = sidebar({ admin: false });
+    const maya = { ...sam, id: "U_MAYA", handle: "maya", displayName: "Maya Chen" };
+    const lee = { ...sam, id: "U_LEE", handle: "lee", displayName: "Lee Park" };
+    const dm = (id: string, other: string): Channel => ({
+      id,
+      type: "dm",
+      name: "",
+      topic: "",
+      description: "",
+      creatorId: "U_SAM",
+      archived: false,
+      createdAt: 0,
+      memberIds: ["U_SAM", other],
+    });
+    act(() =>
+      client.store.setState((s) => ({
+        users: { ...s.users, U_MAYA: maya, U_LEE: lee },
+        channels: { C_MAYA: dm("C_MAYA", "U_MAYA"), C_LEE: dm("C_LEE", "U_LEE") },
+        memberships: { C_MAYA: 0, C_LEE: 0 },
+        profiles: true,
+        presence: { U_MAYA: "away", U_LEE: "online" },
+      })),
+    );
+    const dot = (id: string) =>
+      document.querySelector<HTMLElement>(
+        `[data-conversation="${id}"] span.absolute.rounded-full`,
+      )!;
+    expect(dot("C_MAYA").style.border).toBe("2px solid var(--color-online)");
+    expect(dot("C_MAYA").style.background).toBe("var(--color-deep)");
+    expect(dot("C_LEE").style.border).toBe("");
+    expect(dot("C_LEE").style.background).toBe("var(--color-online)");
   });
 });

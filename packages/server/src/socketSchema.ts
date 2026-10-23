@@ -70,4 +70,5 @@ export const socketMessage = z.discriminatedUnion("type", [
   z.object({ type: z.literal("huddle.leave"), channelId: id }),
   z.object({ type: z.literal("huddle.signal"), channelId: id, to: id, signal }),
   z.object({ type: z.literal("huddle.report"), channelId: id, peer: id, report }),
+  z.object({ type: z.literal("idle"), idle: z.boolean() }),
 ]);

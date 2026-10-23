@@ -5245,3 +5245,89 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
     rmSync(folder, { recursive: true, force: true });
   }
 });
+
+test("a picture, a time zone and away set in one browser reach the other as they change (E9)", async ({
+  browser,
+}) => {
+  // A picture taller than it is wide, as a phone takes one: the browser cuts it square.
+  const folder = mkdtempSync(join(tmpdir(), "tandem-avatar-"));
+  const picture = join(folder, "me.png");
+  writeFileSync(picture, solidPng(90, 120));
+  // Each browser in a zone of its own, as two people a world apart.
+  const aliceContext = await browser.newContext({
+    viewport: { width: 1280, height: 820 },
+    timezoneId: "Asia/Tokyo",
+  });
+  const bobbyContext = await browser.newContext({
+    viewport: { width: 1280, height: 820 },
+    timezoneId: "Europe/London",
+  });
+  const alice = await aliceContext.newPage();
+  const bobby = await bobbyContext.newPage();
+  const time = String.raw`\d{1,2}:\d{2}(\s?[AP]M)?`;
+  try {
+    await signIn(alice, "alice");
+    await signIn(bobby, "bobby");
+    await alice.locator("textarea").fill("Morning from Tokyo");
+    await alice.locator("textarea").press("Enter");
+    const byAlice = bobby.getByRole("button", { name: "View alice's profile", exact: true });
+    await expect(byAlice).toBeVisible();
+    await expect(byAlice.locator("img")).toHaveCount(0);
+
+    // Signing in gave Alice's account her device's zone. She adds a picture.
+    await alice.getByRole("button", { name: /, your account$/ }).click();
+    await alice.getByRole("menuitem", { name: "Profile and status", exact: true }).click();
+    const settings = alice.getByRole("dialog", { name: "Account settings", exact: true });
+    const form = settings.getByRole("form", { name: "Your profile" });
+    await expect(form.getByLabel("Time zone", { exact: true })).toHaveValue("Asia/Tokyo");
+    const chooser = alice.waitForEvent("filechooser");
+    await form.getByRole("button", { name: "Upload a picture", exact: true }).click();
+    await (await chooser).setFiles(picture);
+    await expect(form.getByRole("button", { name: "Change picture", exact: true })).toBeVisible();
+
+    // Bobby's view of her message changes without a reload, to the square her browser made.
+    const shown = byAlice.locator("img");
+    await expect(shown).toBeVisible();
+    await expect
+      .poll(() =>
+        shown.evaluate((image: HTMLImageElement) => [image.naturalWidth, image.naturalHeight]),
+      )
+      .toEqual([256, 256]);
+
+    // Her profile gives her time in Tokyo, since his clock in London reads otherwise.
+    await byAlice.click();
+    const profile = bobby.getByRole("dialog", { name: "Profile", exact: true });
+    await expect(profile.getByRole("img", { name: "Active now", exact: true })).toBeVisible();
+    await expect(profile.locator("img")).toBeVisible();
+    await expect(profile).toContainText(new RegExp(`${time} local time\\s*· Asia/Tokyo`));
+
+    // She moves to New York, then takes the picture away; his open card follows both.
+    await form.getByLabel("Time zone", { exact: true }).selectOption("America/New_York");
+    await expect(form.getByText("Time zone saved.", { exact: true })).toBeVisible();
+    await expect(profile).toContainText(new RegExp(`${time} local time\\s*· America/New York`));
+    await form.getByRole("button", { name: "Remove", exact: true }).click();
+    await expect(form.getByRole("button", { name: "Upload a picture", exact: true })).toBeVisible();
+    await expect(profile.locator("img")).toHaveCount(0);
+    await expect(byAlice.locator("img")).toHaveCount(0);
+
+    // Away by hand shows on his side at once, and so does coming back.
+    await alice.keyboard.press("Escape");
+    await expect(settings).toHaveCount(0);
+    const accountMenu = alice.getByRole("button", { name: /, your account$/ });
+    await accountMenu.click();
+    await alice.getByRole("menuitem", { name: "Set yourself away", exact: true }).click();
+    await expect(profile.getByRole("img", { name: "Away", exact: true })).toBeVisible();
+    await accountMenu.click();
+    await alice.getByRole("menuitem", { name: "Set yourself active", exact: true }).click();
+    await expect(profile.getByRole("img", { name: "Active now", exact: true })).toBeVisible();
+
+    // A direct message with her gives her time beside her name.
+    await profile.getByRole("button", { name: "Message alice", exact: true }).click();
+    await expect(profile).toHaveCount(0);
+    await expect(bobby.getByText(new RegExp(`^${time} for alice$`))).toBeVisible();
+  } finally {
+    await aliceContext.close().catch(() => {});
+    await bobbyContext.close().catch(() => {});
+    rmSync(folder, { recursive: true, force: true });
+  }
+});

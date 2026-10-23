@@ -25,6 +25,7 @@ import {
 } from "@slackoss/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
+import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
 import { quoteChanges, requote } from "./replies.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
@@ -516,6 +517,11 @@ export interface WorkspaceState {
    */
   sidebarSections: SidebarSection[] | null;
   /**
+   * The server keeps profile pictures, time zones and away by hand, and is
+   * told when this device goes idle (E9); an older one offers none of them.
+   */
+  profiles: boolean;
+  /**
    * This account's reminders by message id, waiting and due (E4). Null where
    * the server keeps none, so none is offered there.
    */
@@ -657,6 +663,7 @@ const initialState: WorkspaceState = {
   threadMutes: false,
   sharedFiles: false,
   sidebarSections: null,
+  profiles: false,
   reminders: null,
   pollChoices: null,
   pollPicks: {},
@@ -776,6 +783,8 @@ export class WorkspaceClient {
   readonly store: StoreApi<WorkspaceState>;
   readonly api: Api;
   readonly files: FileCache;
+  /** Profile pictures, fetched with this session and kept as object URLs (E9). */
+  readonly avatars: AvatarCache;
   private ws: WebSocket | null = null;
   private reconnectDelay = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -835,6 +844,7 @@ export class WorkspaceClient {
   ) {
     this.api = new Api(baseUrl, token);
     this.files = new FileCache(this.api, undefined, (fileId) => this.fileOwner(fileId));
+    this.avatars = new AvatarCache((userId, version) => this.api.fetchAvatar(userId, version));
     this.store = createStore<WorkspaceState>(() => ({ ...initialState }));
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
@@ -891,6 +901,7 @@ export class WorkspaceClient {
 
   destroy(): void {
     this.stopped = true;
+    this.avatars.clear();
     // Choices still out answer to nobody now; none may correct the server,
     // and none waiting behind them may go (REV-11).
     this.choices.clear();
@@ -987,6 +998,7 @@ export class WorkspaceClient {
     switch (msg.type) {
       case "ready":
         this.applyReady(msg);
+        this.afterReady(msg);
         break;
       case "synced":
         this.store.setState((s) => ({ lastSeq: Math.max(s.lastSeq, msg.seq), status: "online" }));
@@ -1080,6 +1092,7 @@ export class WorkspaceClient {
       threadMutes: snap.threadMutes === true,
       sharedFiles: snap.sharedFiles === true,
       sidebarSections: snap.sidebarSections ?? null,
+      profiles: snap.profiles === true,
       reminders: snap.reminders
         ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
         : null,
@@ -3926,6 +3939,88 @@ export class WorkspaceClient {
     } catch {
       /* an older server, or no permission — the composer simply shows no hints */
     }
+  }
+
+  /** Whether this device has gone idle, as it last told the server (E9). */
+  private idle = false;
+
+  /**
+   * Says this device has gone idle, nobody touching it for a while, or is in
+   * use again (E9). Every device of an account idle makes it away. Said again
+   * on each new connection, so a server that restarted still knows.
+   */
+  setIdle(idle: boolean): void {
+    if (this.idle === idle) return;
+    this.idle = idle;
+    if (this.state.profiles) this.sendSocket({ type: "idle", idle });
+  }
+
+  /** Away by hand, until set back (E9); false when the server refused. */
+  async setAway(away: boolean): Promise<boolean> {
+    try {
+      const { user } = await this.api.updateMe({ away });
+      this.keepSelf(user);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** A time zone for this account, such as one chosen in settings; null forgets it (E9). */
+  async setTimeZone(timeZone: string | null): Promise<boolean> {
+    try {
+      const { user } = await this.api.updateMe({ timeZone });
+      this.keepSelf(user);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Keeps a new profile picture for this account, made small first (E9). */
+  async setAvatar(image: Blob): Promise<boolean> {
+    try {
+      this.keepSelf((await this.api.setAvatar(image)).user);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Removes this account's picture (E9). */
+  async removeAvatar(): Promise<boolean> {
+    try {
+      this.keepSelf((await this.api.removeAvatar()).user);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** This account as the server now has it, shown at once rather than when its event comes. */
+  private keepSelf(user: User): void {
+    if (this.stopped) return;
+    this.store.setState((s) => ({
+      self: s.self?.id === user.id ? user : s.self,
+      users: { ...s.users, [user.id]: user },
+    }));
+  }
+
+  /**
+   * What this device tells a server that keeps profiles once it is in (E9):
+   * that it is idle, if it is, and its time zone, for an account with none.
+   */
+  private afterReady(snap: ReadySnapshot): void {
+    if (!snap.profiles) return;
+    if (this.idle) this.sendSocket({ type: "idle", idle: true });
+    if (snap.self.timeZone) return;
+    let zone: string | undefined;
+    try {
+      zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    } catch {
+      return;
+    }
+    if (zone) void this.setTimeZone(zone);
   }
 
   sendTyping(channelId: ID): void {
