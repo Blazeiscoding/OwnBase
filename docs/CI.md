@@ -26,7 +26,7 @@ The task-cache archive contains only `.turbo/cache`. Its key includes runner OS 
 
 Ordinary runtime PRs package Windows with `--win --dir`. This produces `win-unpacked/Tandem.exe`, which is what desktop E2E launches, while avoiding an unused NSIS installer. PRs changing installer configuration, resources, package manifests, lockfile, install configuration or the selection policy still build the installer. If the base diff cannot be read, selection defaults to full installer coverage. Manual Desktop runs also default to the installer, with an input to choose an unpacked build. Electron and electron-builder downloads use an OS/architecture cache; their self-versioned cache directories allow reuse across lockfile changes within permitted GitHub cache scopes.
 
-The packaged app's nine scenarios took 163–169 seconds of a four-minute Windows job, so Desktop runs two jobs side by side, `windows (1 of 2)` and `windows (2 of 2)`. Each packages the app and runs half of the scenarios (`playwright test --shard`; `fullyParallel` is on in `playwright.desktop.config.ts`, since each scenario launches the app on a data folder of its own). When the installer is wanted, only the first job builds it; both test the unpacked executable.
+The packaged app's nine scenarios took 163–169 seconds of a four-minute Windows job, so Desktop runs two jobs side by side, `windows (1 of 2)` and `windows (2 of 2)`. Each packages the app and runs half of the scenarios (`playwright test --shard`; `fullyParallel` is on in `playwright.desktop.config.ts`, since each scenario launches the app on a data folder of its own). When the installer is wanted, only the second job builds it, since the first half of the scenarios takes longer; both test the unpacked executable.
 
 ## Visual check
 
