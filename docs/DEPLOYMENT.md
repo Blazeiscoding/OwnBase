@@ -597,11 +597,86 @@ What the cause means:
   between them need a TURN relay in `TANDEM_ICE_SERVERS`.
 
 Browser microphone/camera access requires HTTPS (localhost is an exception).
-Use the Electron app for voice on plain HTTP LAN servers. Mesh huddles create one
-connection per other participant. Start with small calls and measure on target
-machines; larger meetings need an SFU. Cameras use a 360p/20fps target with a
-720p/24fps ceiling; screen sharing targets 10fps, capped at 15fps. These defaults
-reduce processing and bandwidth but do not guarantee a fixed RAM budget.
+Use the Electron app for voice on plain HTTP LAN servers. Cameras are asked for
+960 by 540 at 24 frames a second, and at most 1280 by 720 at 30. A shared screen
+goes at up to 1080p and 15 frames a second unless the sharer chooses 720p or a
+smoother rate. These defaults reduce processing and bandwidth but do not
+guarantee a fixed RAM budget.
+
+### How many people a call holds
+
+A huddle is a mesh: everyone sends their microphone and camera to everyone else
+on a connection of its own, and each connection has an encoder of its own. Every
+person who joins costs everyone else another encoder and another share of their
+upload. So the camera is sent smaller as a call grows:
+
+| People in the call | What the camera sends each of the others                            |
+| ------------------ | ------------------------------------------------------------------- |
+| 2                  | the picture as it comes, about 2 Mbit/s                             |
+| 3                  | full size, up to 24 frames a second and 1.2 Mbit/s                  |
+| 4                  | two thirds of its size, up to 20 frames a second, 800 kbit/s        |
+| 5 or 6             | two thirds of its size, up to 15 frames a second, 600 or 480 kbit/s |
+| 7 or more          | half its size, up to 15 frames a second, 400 kbit/s or less         |
+
+Each step keeps the camera's upload near 2.4 Mbit/s. The change is made on each
+connection in place, without setting the call up again, and the call log says
+each size. A call of more than six says to everyone in it that it can stutter
+and that turning cameras off helps. Nothing stops a seventh person joining.
+
+These are the measurements behind it, taken on 24 October 2026 with
+`scripts/measure-calls.mts`:
+
+- **Machine:** Windows 11 desktop, Intel Core i5-12400F (6 cores, 12 threads),
+  16 GB. Headless Chromium 153, VP8 encoded in software.
+- **Setup:** one headless Chromium per person, all on that machine, in one
+  huddle over loopback, microphone and camera on. The camera played a 960 by
+  540 clip made by the script, someone swaying in front of a wall and a
+  bookshelf with a webcam's grain; Chromium's own fake camera is flat colour and
+  needs a quarter of the bits. Each size settled for 30 seconds, then ran for two
+  minutes.
+- **CPU per person** is every process of that person's browser, as a share of
+  one core. All of them ran on one machine, so once the machine was busy all the
+  time they were fighting each other for it, and the call broke down there
+  before it would on separate computers.
+
+With the camera sized to the call:
+
+| People | CPU per person | Machine busy | Upload per person | Camera sent as | Round trip p95 | Audio concealed | Freezes |
+| ------ | -------------- | ------------ | ----------------- | -------------- | -------------- | --------------- | ------- |
+| 2      | 55%            | 12%          | 2.1 Mbit/s        | 540p, 24 fps   | 1 ms           | 0%              | 0       |
+| 3      | 101%           | 27%          | 2.6 Mbit/s        | 540p, 24 fps   | 1 ms           | 0%              | 0       |
+| 4      | 90%            | 32%          | 2.6 Mbit/s        | 360p, 20 fps   | 1 ms           | 0%              | 0       |
+| 5      | 106%           | 45%          | 2.7 Mbit/s        | 360p, 15 fps   | 2 ms           | 0%              | 0       |
+| 6      | 154%           | 84%          | 2.7 Mbit/s        | 360p, 15 fps   | 10 ms          | 0.1%            | 2       |
+
+Before it, every camera went out at full size to everyone:
+
+| People | CPU per person | Machine busy | Upload per person | Camera sent as | Round trip p95 | Audio concealed | Freezes |
+| ------ | -------------- | ------------ | ----------------- | -------------- | -------------- | --------------- | ------- |
+| 3      | 100%           | 28%          | 4.2 Mbit/s        | 540p, 24 fps   | 1 ms           | 0%              | 0       |
+| 4      | 203%           | 76%          | 5.5 Mbit/s        | 540p, 24 fps   | 1,083 ms       | 0.6%            | 362     |
+| 5      | 257%           | 100%         | 0.8 Mbit/s        | 540p, 4 fps    | 6,002 ms       | 42%             | 282     |
+| 6      | 277%           | 100%         | 1.2 Mbit/s        | 540p, 3 fps    | 16,345 ms      | 45%             | 1,109   |
+
+Download is the same as upload, since everyone receives what everyone sends.
+Over loopback the network adds no delay or loss, so round trip and jitter show
+only what the load did to the call. A connection with less upload than the
+table says holds the picture back further by itself.
+
+With every camera off, voice alone costs little: each person used 8% of a core
+and sent 46 kbit/s in a call of two, and 17% and 229 kbit/s in a call of six,
+with nothing concealed. It is the cameras that set the size a call holds.
+
+Not measured: real networks with delay and loss, calls through a TURN relay,
+slower laptops, the desktop app (the same Chromium engine), and screen sharing in
+a call this size, which is sent to each viewer at up to 1080p. To measure on your
+own computers, build the web client and run the script; `--sizes`, `--seconds`
+and `--camera=off` change what it measures:
+
+```sh
+pnpm --filter @slackoss/web build
+pnpm --filter @slackoss/server exec tsx ../../scripts/measure-calls.mts --out=calls.json
+```
 
 ## Attachment storage
 
