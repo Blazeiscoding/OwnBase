@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -230,6 +230,36 @@ describe("WorkspaceClient", () => {
       ["sent while you are here", true],
     ]);
     reconnected.destroy();
+  });
+
+  it("keeps a message, and the connection, when telling about it fails", async () => {
+    const client = new WorkspaceClient(base, aliceToken);
+    // Android's Chrome throws from a page's `new Notification`.
+    client.onIncomingMessage = () => {
+      throw new TypeError("Failed to construct 'Notification': Illegal constructor.");
+    };
+    const failed = vi.spyOn(console, "error").mockImplementation(() => {});
+    onTestFinished(() => failed.mockRestore());
+    client.connect();
+    await until(client, (s) => s.status === "online");
+    const general = Object.values(client.state.channels).find((c) => c.name === "general")!;
+    await client.loadTimeline(general.id);
+    const statuses: string[] = [];
+    const unsubscribe = client.store.subscribe((s) => {
+      if (statuses.at(-1) !== s.status) statuses.push(s.status);
+    });
+    onTestFinished(unsubscribe);
+
+    await new Api(base, bobToken).sendMessage(general.id, { text: "told or not" });
+    await until(
+      client,
+      (s) => (s.timelines[general.id]?.items ?? []).some((m) => m.text === "told or not"),
+      "the message",
+    );
+    // It arrived as it was sent, not after the socket was dropped and reopened.
+    expect(statuses.filter((status) => status !== "online")).toEqual([]);
+    expect(failed).toHaveBeenCalled();
+    client.destroy();
   });
 
   it("says when a message it caught up on was deleted since", async () => {

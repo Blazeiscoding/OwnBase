@@ -818,6 +818,20 @@ export class WorkspaceClient {
   onReminderDue: ((reminder: Reminder, message: Message) => void) | null = null;
 
   /**
+   * Tells the app through one of the hooks above. What the app does with it
+   * can fail on its own (Android's Chrome throws from a page's `new
+   * Notification`), and that must neither stop the event being applied nor
+   * be taken for a bad message from the server, which drops the connection.
+   */
+  private tellApp<A extends unknown[]>(hook: ((...args: A) => void) | null, ...args: A): void {
+    try {
+      hook?.(...args);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  /**
    * The server's seq when this connection opened. Everything at or below it
    * already happened; everything above it is arriving as it is sent.
    */
@@ -1371,7 +1385,7 @@ export class WorkspaceClient {
           if (appended) patch.timelines = appended;
         }
         if (message.userId !== s.self?.id) {
-          this.onIncomingMessage?.(message, { live: seq > this.connectedAtSeq });
+          this.tellApp(this.onIncomingMessage, message, { live: seq > this.connectedAtSeq });
         }
         // Clear the sender's typing indicator immediately.
         const chTyping = s.typing[message.channelId];
@@ -1445,7 +1459,7 @@ export class WorkspaceClient {
       }
       case "message.deleted": {
         changed(event.channelId);
-        this.onMessageDeleted?.(event.messageId);
+        this.tellApp(this.onMessageDeleted, event.messageId);
         // Its poll went with it.
         if (s.pollChoices?.[event.messageId]) {
           const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
@@ -1872,7 +1886,7 @@ export class WorkspaceClient {
       });
       // Told once as it comes due; the same reminder told again is not news.
       if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
-        this.onReminderDue?.(event.reminder, event.message);
+        this.tellApp(this.onReminderDue, event.reminder, event.message);
     } else if (event.type === "reminder.removed") {
       if (!s.reminders?.[event.messageId]) return;
       const reminders = { ...s.reminders };
