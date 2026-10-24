@@ -319,11 +319,9 @@ describe("a conversation's menu", () => {
       <ClientContext.Provider value={client}>
         <ConversationMenu
           channelId="C_DESIGN"
-          title="#design"
           isRoom
           onPins={vi.fn()}
           onFiles={onFiles}
-          onSearch={vi.fn()}
           onDetails={vi.fn()}
         />
       </ClientContext.Provider>,
