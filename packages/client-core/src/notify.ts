@@ -5,7 +5,14 @@ export type NotifyDecision =
   | {
       notify: false;
       reason:
-        "own-message" | "not-a-member" | "muted" | "thread-muted" | "level" | "dnd" | "not-here";
+        | "own-message"
+        | "blocked"
+        | "not-a-member"
+        | "muted"
+        | "thread-muted"
+        | "level"
+        | "dnd"
+        | "not-here";
     }
   | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" };
 
@@ -32,6 +39,8 @@ export function decideNotification(
   const { now = Date.now(), live = true } = context;
   const self = state.self;
   if (!self || message.userId === self.id) return { notify: false, reason: "own-message" };
+  // Someone this account blocked never reaches it, whatever they write (E12).
+  if (state.blocked?.includes(message.userId)) return { notify: false, reason: "blocked" };
 
   const channel = state.channels[message.channelId];
   if (!channel || !(message.channelId in state.memberships)) {

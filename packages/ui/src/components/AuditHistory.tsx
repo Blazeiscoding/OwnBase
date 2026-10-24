@@ -38,6 +38,14 @@ export function describeAuditEntry(
       return `${actor} reset ${possessive(target)} password`;
     case "user.two_step_reset":
       return `${actor} turned off ${possessive(target)} two-step sign-in`;
+    case "report.resolved": {
+      // How many reports it settled, and what was done (E12); never what it said.
+      const reports =
+        typeof d.reports === "number" && d.reports > 1 ? `${d.reports} reports` : "a report";
+      return d.resolution === "dismiss"
+        ? `${actor} dismissed ${reports} about ${possessive(target)} message`
+        : `${actor} removed ${possessive(target)} message after ${reports}`;
+    }
     case "user.invite_permission_granted":
       return `${actor} allowed ${target} to create invite codes`;
     case "user.invite_permission_removed":

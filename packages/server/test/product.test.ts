@@ -272,6 +272,8 @@ describe("self-hosted product", () => {
     const db = new DatabaseSync(join(dir, "workspace.db"));
     const historical = openDbAtVersion(":memory:", 8);
     try {
+      db.exec("DROP TABLE message_reports");
+      db.exec("DROP TABLE user_blocks");
       db.exec("DROP TABLE two_step_codes");
       db.exec("ALTER TABLE users DROP COLUMN two_step_step");
       db.exec("ALTER TABLE users DROP COLUMN two_step_secret");

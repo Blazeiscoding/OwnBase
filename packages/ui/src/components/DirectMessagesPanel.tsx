@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { Channel, ID } from "@slackoss/protocol";
+import { blockedPartner } from "../lib/blocking.js";
 import { useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
@@ -33,6 +34,7 @@ export function DirectMessagesPanel(props: {
   const prefs = useWorkspace((s) => s.prefs);
   const drafts = useWorkspace((s) => s.drafts);
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
+  const blocked = useWorkspace((s) => s.blocked);
   const friendRequests = useWorkspace(
     (s) => s.friends.filter((f) => f.status === "incoming").length,
   );
@@ -45,11 +47,13 @@ export function DirectMessagesPanel(props: {
       if (
         !channel.archived &&
         (channel.type === "dm" || channel.type === "group_dm") &&
-        channel.id in memberships
+        channel.id in memberships &&
+        // One with someone this account blocked is not listed (E12).
+        !blockedPartner(channel, self?.id, blocked)
       )
         list.push(channel);
     return list.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
-  }, [channels, memberships, channelLastSeq]);
+  }, [channels, memberships, channelLastSeq, self?.id, blocked]);
 
   // Nothing has arrived from the workspace yet, so there is nothing to list.
   const arriving = !self && status !== "online";
