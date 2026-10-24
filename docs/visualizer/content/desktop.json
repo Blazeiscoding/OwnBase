@@ -255,9 +255,10 @@
         "Converts Electron's channel-prefixed rejection into the actionable message written by main.",
         "Owns close-preparation delivery and route checkpoint subscriptions; followPlace restores the remembered history before shared App mounts.",
         "hosting.icon passes a hosted workspace's icon through from hostingIcon (UX-60).",
-        "screenShare.sound and choose's sound option carry the picker's Share sound to chooseScreen."
+        "screenShare.sound and choose's sound option carry the picker's Share sound to chooseScreen.",
+        "notify hands Electron windowsTag(tag), an 11-character cyrb53 fingerprint, rather than the tag itself. Windows drops a toast whose tag runs past 54 characters, without an error or a show event, and the screen's tags (the account's address and id, then what it is about) are longer, so until 2026-10-24 the app showed no notification on Windows at all."
       ],
-      "concepts": ["platform adapter", "shared UI", "IPC", "route restore"]
+      "concepts": ["platform adapter", "shared UI", "IPC", "route restore", "Windows notifications"]
     },
     {
       "path": "apps/desktop/src/renderer/src/main.tsx",

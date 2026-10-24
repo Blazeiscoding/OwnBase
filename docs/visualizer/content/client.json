@@ -47,6 +47,7 @@
         "A huddle goes on through a dropped socket: holdHuddle keeps the session (its media does not pass through the socket) and only a refusal that will not stop ends it. On the next ready snapshot resumeHuddle asks to go on with huddle.join: if the snapshot still lists this device in the room, every peer connection stays; if not, it closes its peers and dials again once let in. A refused rejoin, or huddle.moved from the server, ends the call and sets huddleEnded with the reason, which useHuddleEndedNotice shows once.",
         "WorkspaceClient combines Api, FileCache and a Zustand store. The store holds authenticated identity, users, channels, memberships, read cursors, loaded history, drafts, pending sends, app replies, forms and huddle state.",
         "The WebSocket hello includes the session token, protocol version and last observed event sequence. Ready snapshots and replay events rebuild the replica; reconnect delay grows up to 30 seconds. Authentication, forced-password and protocol refusals stop ordinary reconnect loops.",
+        "onIncomingMessage, onMessageDeleted and onReminderDue run through tellApp, which reports a hook's failure to the console and lets the event apply. Before, a hook that threw (Android's Chrome throws from a page's new Notification) stopped the event and was taken for a bad message from the server, which closed the socket, so every message that should have notified cost a reconnect.",
         "History requests carry identity and snapshot watermarks so late HTTP pages can be reconciled with socket events. Identical loads share work; superseded, revoked or evicted history requests are aborted. A timeline holds at most 300 messages and inactive history is bounded by a 20-entry cache limit.",
         "send creates a random request nonce and an optimistic PendingMessage, uploads files, posts the message and reconciles the response or socket echo by nonce. The outbox accepts up to 50 waiting sends per account. A known server refusal waits for deliberate Retry; an uncertain outcome can retry the same nonce.",
         "Restored outbox entries contain attachment descriptions rather than File objects. Missing attachment bytes and sends older than the retry window remain visibly failed instead of silently sending incomplete or stale content. destroy releases sockets, timers, media, previews and cached files.",
@@ -275,7 +276,7 @@
       "details": [
         "Platform describes acknowledged storage reads/writes and optional atomic initialization, outbox/draft/record merges and watchers. Optional discovery, hosting, backup and deep-link capabilities let one UI run in both shells.",
         "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly. trustAddress and changeSignIns map onto the trust and signIns ops, so an approved address or a sign-in change is one step for every tab.",
-        "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Downloads use a scoped URL through a hidden no-referrer iframe.",
+        "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Where the page may not make one (Android's Chrome throws Illegal constructor from new Notification), workerNotifications shows it through the service worker instead. Downloads use a scoped URL through a hidden no-referrer iframe.",
         "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation.",
         "HostingStatus.iconVersion and each hosted workspace's iconVersion say its icon's version, and hosting.icon reads one's icon as a data URL without starting it (UX-60)."
       ],
@@ -481,6 +482,17 @@
         "ringContent words a ring's notification (E10): <name> is calling, Huddle with you or with a group's names, or under Nothing about it, Incoming huddle."
       ],
       "concepts": ["notification privacy", "per-account choice", "watch ordering", "Q03"]
+    },
+    {
+      "path": "packages/ui/src/lib/workerNotifications.ts",
+      "plain": "Shows notifications on phones whose browser will not let the page show them itself, by asking the site's background worker to.",
+      "summary": "Shows a notification through the web client's service worker and answers its click.",
+      "details": [
+        "Android's Chrome grants notification permission but throws Illegal constructor from a page's new Notification; only ServiceWorkerRegistration.showNotification works. webPlatform's notify falls back to this when the constructor throws.",
+        "The first notification registers /notification-worker.js (apps/web/public) and waits for it to be ready; a refused registration, such as on a page served over plain HTTP, is tried again next time.",
+        "Each notification carries a random click id. The worker posts the id to every page of the site on a click and brings the one used last to the front; the page holding that id runs what it was given, opening the message. It keeps the last 50 click ids. With no page left, the worker opens the app."
+      ],
+      "concepts": ["service worker", "Android", "notification clicks"]
     },
     {
       "path": "packages/ui/src/lib/huddleEnded.ts",
