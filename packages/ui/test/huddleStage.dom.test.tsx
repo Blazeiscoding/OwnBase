@@ -1,5 +1,5 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddlePeer, type HuddleState } from "@slackoss/client-core";
 import type { Channel, User } from "@slackoss/protocol";
@@ -336,6 +336,18 @@ describe("the call", () => {
     }
   });
 
+  it("says over the controls when a call has more than six, as in full screen (E13)", async () => {
+    const others = (n: number) => Array.from({ length: n }, (_, i) => peer(`U_${i}`));
+    stage({ peers: others(5) });
+    expect(within(region()).queryByText(/can stutter/)).toBeNull();
+    cleanup();
+    stage({ peers: others(6) });
+    expect(within(region()).getByRole("status")).toHaveTextContent(
+      "Calls of more than 6 people can stutter. Turning cameras off helps.",
+    );
+    expect(await accessibilityProblems(region())).toEqual([]);
+  });
+
   it("goes in and out of full screen when the share is double-clicked", async () => {
     const fullscreen = fakeFullscreen();
     try {
@@ -389,6 +401,18 @@ describe("the huddle bar", () => {
     bar({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
     expect(screen.getByRole("status")).toHaveTextContent(
       "With Priya Shah · Priya Shah is sharing their screen",
+    );
+  });
+
+  it("says a call of more than six can stutter, and nothing in one of six (E13)", () => {
+    const others = (n: number) => Array.from({ length: n }, (_, i) => peer(`U_${i}`));
+    bar({ peers: others(5) });
+    expect(screen.getAllByRole("status")).toHaveLength(1);
+    expect(screen.queryByText(/can stutter/)).toBeNull();
+    cleanup();
+    bar({ peers: others(6) });
+    expect(screen.getAllByRole("status")[1]).toHaveTextContent(
+      "Calls of more than 6 people can stutter. Turning cameras off helps.",
     );
   });
 });

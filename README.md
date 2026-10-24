@@ -197,9 +197,13 @@ next time it starts.
 Any channel or DM can start a huddle with live audio, camera video and screen
 share. The chat server relays the handshake. Media goes directly between peers,
 or through your TURN relay when a direct connection is unavailable. Calls are a
-mesh, with one connection per other participant, so they suit small groups.
-Larger meetings need an SFU, which Tandem does not have. By default no STUN or
-TURN server is configured, and calls connect on the LAN only. See
+mesh, with one connection per other participant, so they suit small groups:
+six people with cameras on were measured to hold up, and a bigger call says it
+may stutter. The camera is sent smaller as a call grows, so each person's upload
+stays near 2.7 Mbit/s. Larger meetings need an SFU, which Tandem does not have.
+See [How many people a call holds](docs/DEPLOYMENT.md#how-many-people-a-call-holds).
+By default no STUN or TURN server is configured, and calls connect on the LAN
+only. See
 [Voice and huddles](docs/DEPLOYMENT.md#voice-and-huddles) for STUN and TURN
 configuration and the HTTPS requirement for browser microphone access.
 

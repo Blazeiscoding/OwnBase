@@ -58,6 +58,43 @@ export interface ScreenShareQuality {
 export const SCREEN_SHARE_QUALITY: ScreenShareQuality = { height: 1080, frameRate: 15 };
 
 /**
+ * What the camera sends each of the others: a share of its 960 by 540, at
+ * most so many frames a second and bits a second; no limits where absent.
+ */
+export interface CameraEncoding {
+  scaleResolutionDownBy: number;
+  maxFramerate?: number;
+  maxBitrate?: number;
+}
+
+/**
+ * What the camera sends each of the others, by how many others there are
+ * (E13). Every connection in the mesh has an encoder of its own, so each
+ * person costs everyone else another one: at the full picture, half a core of
+ * a six-core desktop and 2 Mbit/s of upload each, and four people on cameras
+ * already stalled one such desktop running all of them. With more than one
+ * other, the picture each gets is smaller and slower, keeping the upload near
+ * 2.4 Mbit/s however many join; a tile in a grid of four or six is no bigger
+ * than it anyway. Measured with `scripts/measure-calls.mts`; see "How many
+ * people a call holds" in docs/DEPLOYMENT.md.
+ */
+export function cameraEncoding(others: number): CameraEncoding {
+  if (others <= 1) return { scaleResolutionDownBy: 1 };
+  if (others === 2) return { scaleResolutionDownBy: 1, maxFramerate: 24, maxBitrate: 1_200_000 };
+  if (others <= 5)
+    return {
+      scaleResolutionDownBy: 1.5,
+      maxFramerate: others === 3 ? 20 : 15,
+      maxBitrate: Math.floor(2_400_000 / others),
+    };
+  return {
+    scaleResolutionDownBy: 2,
+    maxFramerate: 15,
+    maxBitrate: Math.max(250_000, Math.floor(2_400_000 / others)),
+  };
+}
+
+/**
  * A share's sound as it is: no echo cancellation, noise suppression or gain,
  * which are for a voice and spoil music. `restrictOwnAudio` leaves this
  * call's own sound out, so nobody hears themselves again a moment later.
@@ -610,7 +647,52 @@ export class HuddleSession {
       if (this.peers.has(userId)) continue;
       this.createPeer(userId);
     }
+    this.sizeCameras();
     this.onChange?.();
+  }
+
+  /**
+   * Sizes what the camera sends on every connection to how many others there
+   * are (`cameraEncoding`), without a new offer: a sender's parameters change
+   * in place. A connection that is not set up yet has nothing to size, and is
+   * sized once its setup is done.
+   */
+  private sizeCameras(): void {
+    for (const [userId, peer] of this.peers)
+      peer.sizing = peer.sizing.then(() => this.sizeCamera(userId, peer));
+  }
+
+  private async sizeCamera(userId: ID, peer: Peer): Promise<void> {
+    const others = this.peers.size;
+    const sender = peer.cameraTx?.sender;
+    if (this.destroyed || this.peers.get(userId) !== peer || peer.cameraSizedFor === others) return;
+    // A browser without sender parameters sends the camera as it comes.
+    if (!sender || typeof sender.getParameters !== "function") return;
+    const params = sender.getParameters();
+    const encoding = params.encodings?.[0];
+    if (!encoding) return;
+    const wanted = cameraEncoding(others);
+    encoding.scaleResolutionDownBy = wanted.scaleResolutionDownBy;
+    if (wanted.maxFramerate === undefined) delete encoding.maxFramerate;
+    else encoding.maxFramerate = wanted.maxFramerate;
+    if (wanted.maxBitrate === undefined) delete encoding.maxBitrate;
+    else encoding.maxBitrate = wanted.maxBitrate;
+    try {
+      await sender.setParameters(params);
+      const before = peer.cameraSizedFor;
+      peer.cameraSizedFor = others;
+      if (wanted.maxBitrate !== undefined)
+        this.note(
+          `Sending them the camera at ${Math.round(100 / wanted.scaleResolutionDownBy)}% of its ` +
+            `size, at most ${wanted.maxFramerate} frames a second and ` +
+            `${Math.round(wanted.maxBitrate / 1000)} kbit/s, for a call of ${others + 1}.`,
+          userId,
+        );
+      else if (before !== null)
+        this.note(`Sending them the camera at its full size, for a call of ${others + 1}.`, userId);
+    } catch (err) {
+      this.note(`Could not size the camera for them: ${describeError(err)}.`, userId);
+    }
   }
 
   private createPeer(userId: ID): Peer {
@@ -655,6 +737,8 @@ export class HuddleSession {
       logged: new Set(),
       trouble: null,
       stallTimer: null,
+      cameraSizedFor: null,
+      sizing: Promise.resolve(),
     };
     this.peers.set(userId, peer);
     this.startLevelPolling();
@@ -879,6 +963,7 @@ export class HuddleSession {
   private async offer(userId: ID, pc: RTCPeerConnection, iceRestart = false): Promise<void> {
     const offer = await pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
     await pc.setLocalDescription(offer);
+    this.sizeCameras();
     this.transport.send({
       type: "huddle.signal",
       channelId: this.channelId,
@@ -918,6 +1003,8 @@ export class HuddleSession {
       await this.flushIce(peer);
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
+      // The slots it adopted have parameters now, and the call has grown by one.
+      this.sizeCameras();
       this.transport.send({
         type: "huddle.signal",
         channelId: this.channelId,
@@ -1331,6 +1418,10 @@ interface Peer {
   /** They said whether their share has sound, which only a client with the slot does. */
   hasScreenSoundSlot: boolean;
   micMuted: boolean;
+  /** How many others the camera's sender was last sized for (`cameraEncoding`). */
+  cameraSizedFor: number | null;
+  /** Sizing the camera's sender, one change at a time. */
+  sizing: Promise<void>;
 }
 
 /**

@@ -1,16 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { HuddleSignal, ID } from "@slackoss/protocol";
 import type { CallReport } from "@slackoss/protocol";
-import { HuddleSession, STALL_MS, testMicrophone, withStereoScreenSound } from "../src/huddle.js";
+import {
+  cameraEncoding,
+  HuddleSession,
+  STALL_MS,
+  testMicrophone,
+  withStereoScreenSound,
+} from "../src/huddle.js";
 
 /**
  * Just enough WebRTC to exercise the session's own logic. The parts that
  * matter here are which transceiver a track lands on and what gets signalled —
  * not whether media actually flows, which only a real browser can tell us.
  */
+type FakeParameters = { encodings: Record<string, unknown>[] };
 interface FakeSender {
   track: unknown;
   replaceTrack: (t: unknown) => Promise<void>;
+  /** What the browser keeps of the sender's encodings. */
+  parameters: FakeParameters;
+  /** How many changes the browser took. */
+  changes: number;
+  getParameters: () => FakeParameters;
+  setParameters: (p: FakeParameters) => Promise<void>;
 }
 interface FakeReceiver {
   /** What the far side's last packet was worth, as the browser reports it. */
@@ -62,6 +75,16 @@ class FakePeerConnection {
         track: null,
         replaceTrack(t: unknown) {
           this.track = t;
+          return Promise.resolve();
+        },
+        parameters: { encodings: [{ active: true }] },
+        changes: 0,
+        getParameters() {
+          return structuredClone(this.parameters);
+        },
+        setParameters(p: FakeParameters) {
+          this.parameters = structuredClone(p);
+          this.changes++;
           return Promise.resolve();
         },
       },
@@ -591,6 +614,167 @@ describe("HuddleSession", () => {
     void session.handleSignal("B", { kind: "media", camera: false, screen: false });
     expect(session.state().peers[0]!.micMuted).toBe(false);
     session.destroy();
+  });
+});
+
+describe("the camera, sized to the call (E13)", () => {
+  const people = (n: number) => ["A", ..."BCDEFGHIJ".slice(0, n - 1)];
+  /** What A's camera sends each of the others, by who they are. */
+  const sizes = () =>
+    Object.fromEntries(
+      FakePeerConnection.instances
+        .filter((pc) => !pc.closed)
+        .map((pc, i) => [i, pc.transceivers[1]!.sender.parameters.encodings[0]]),
+    );
+
+  it("goes at full size to one other, and smaller to each as more join, keeping the upload", () => {
+    for (const others of [1, 2, 3, 4, 5, 6, 9]) {
+      const e = cameraEncoding(others);
+      const upload = (e.maxBitrate ?? 2_000_000) * others;
+      if (others === 1) expect(e).toEqual({ scaleResolutionDownBy: 1 });
+      // However many join, the camera's upload stays near 2.4 Mbit/s.
+      else expect(upload).toBeLessThanOrEqual(2_400_000);
+      expect(e.maxBitrate ?? Infinity).toBeGreaterThanOrEqual(250_000);
+    }
+    expect(cameraEncoding(2)).toEqual({
+      scaleResolutionDownBy: 1,
+      maxFramerate: 24,
+      maxBitrate: 1_200_000,
+    });
+    expect(cameraEncoding(3)).toEqual({
+      scaleResolutionDownBy: 1.5,
+      maxFramerate: 20,
+      maxBitrate: 800_000,
+    });
+    expect(cameraEncoding(5)).toEqual({
+      scaleResolutionDownBy: 1.5,
+      maxFramerate: 15,
+      maxBitrate: 480_000,
+    });
+    expect(cameraEncoding(6)).toEqual({
+      scaleResolutionDownBy: 2,
+      maxFramerate: 15,
+      maxBitrate: 400_000,
+    });
+    // From ten others on, each still gets enough to make out a face.
+    expect(cameraEncoding(12).maxBitrate).toBe(250_000);
+  });
+
+  it("resizes every connection as people come and go, without a new offer", async () => {
+    const { session, sent } = makeSession("A");
+    session.syncParticipants(people(2));
+    await flush();
+    expect(sizes()).toEqual({ 0: { active: true, scaleResolutionDownBy: 1 } });
+
+    session.syncParticipants(people(4));
+    await flush();
+    const three = { active: true, ...cameraEncoding(3) };
+    expect(sizes()).toEqual({ 0: three, 1: three, 2: three });
+
+    sent.length = 0;
+    session.syncParticipants(people(7));
+    await flush();
+    const six = { active: true, ...cameraEncoding(6) };
+    expect(Object.values(sizes())).toEqual([six, six, six, six, six, six]);
+    // Only the three who joined were offered to; the others changed in place.
+    expect(new Set(sent.filter((m) => m.signal.kind === "offer").map((m) => m.to))).toEqual(
+      new Set(["E", "F", "G"]),
+    );
+
+    // Back to two, the camera goes out as it comes again, with no limits left.
+    session.syncParticipants(people(2));
+    await flush();
+    expect(sizes()).toEqual({ 0: { active: true, scaleResolutionDownBy: 1 } });
+    expect(session.log.at(-1)?.text).toBe(
+      "Sending them the camera at its full size, for a call of 2.",
+    );
+    // B's sender changed once for each size the call had, and not again in between.
+    expect(FakePeerConnection.instances[0]!.transceivers[1]!.sender.changes).toBe(4);
+    session.destroy();
+  });
+
+  it("sizes a connection the other side set up once it is answered", async () => {
+    // Z waits for the others' offers, so it has no camera slot to size before them.
+    const { session } = makeSession("Z");
+    session.syncParticipants(["Z", "B", "C"]);
+    await flush();
+    await session.handleSignal("B", { kind: "offer", sdp: "offer" });
+    await flush();
+    const toB = FakePeerConnection.instances[0]!.transceivers[1]!.sender.parameters;
+    expect(toB.encodings[0]).toEqual({ active: true, ...cameraEncoding(2) });
+    expect(
+      session.log.some(
+        (l) =>
+          l.peerId === "B" &&
+          l.text ===
+            "Sending them the camera at 100% of its size, at most 24 frames a second and 1200 kbit/s, for a call of 3.",
+      ),
+    ).toBe(true);
+    session.destroy();
+  });
+
+  it("resizes for someone whose setup comes before the room says they joined", async () => {
+    const { session } = makeSession("A");
+    session.syncParticipants(people(2));
+    await flush();
+    // C's first word arrives before the roster that has C in it.
+    await session.handleSignal("C", {
+      kind: "ice",
+      candidate: { candidate: "candidate:x", sdpMid: "0", sdpMLineIndex: 0 },
+    });
+    await flush();
+    const two = { active: true, ...cameraEncoding(2) };
+    expect(sizes()).toEqual({ 0: two, 1: two });
+    session.destroy();
+  });
+
+  it("says so when the browser will not change it, and tries again at the next pass", async () => {
+    const { session } = makeSession("A");
+    session.syncParticipants(people(2));
+    await flush();
+    const sender = FakePeerConnection.instances[0]!.transceivers[1]!.sender;
+    const set = vi
+      .spyOn(sender, "setParameters")
+      .mockRejectedValueOnce(
+        new DOMException("Read-only field modified in setParameters()", "InvalidModificationError"),
+      );
+    // C joins: B's change is refused, then made again once C's setup is sent.
+    session.syncParticipants(people(3));
+    await flush();
+    const lines = session.log.filter((l) => l.peerId === "B").map((l) => l.text);
+    expect(lines).toContain(
+      "Could not size the camera for them: InvalidModificationError: Read-only field modified in setParameters().",
+    );
+    expect(set).toHaveBeenCalledTimes(2);
+    expect(sizes()).toEqual({
+      0: { active: true, ...cameraEncoding(2) },
+      1: { active: true, ...cameraEncoding(2) },
+    });
+    session.destroy();
+  });
+
+  it("leaves the camera as it comes where the browser has no sender parameters", async () => {
+    const { session } = makeSession("A");
+    const proto = FakePeerConnection.prototype;
+    const add = proto.addTransceiver;
+    const bare = vi.spyOn(proto, "addTransceiver").mockImplementation(function (
+      this: FakePeerConnection,
+      kind: string,
+      init?: { direction?: string },
+    ) {
+      const tx = add.call(this, kind, init);
+      (tx.sender as Partial<FakeSender>).getParameters = undefined;
+      return tx;
+    });
+    try {
+      session.syncParticipants(people(3));
+      await flush();
+      expect(FakePeerConnection.instances).toHaveLength(2);
+      expect(session.log.map((l) => l.text).join("\n")).not.toContain("camera");
+    } finally {
+      bare.mockRestore();
+      session.destroy();
+    }
   });
 });
 
