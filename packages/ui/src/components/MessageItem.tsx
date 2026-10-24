@@ -54,6 +54,10 @@ const ForwardDialog = lazy(() =>
 const TimePopover = lazy(() =>
   import("./TimePopover.js").then((module) => ({ default: module.TimePopover })),
 );
+// Reporting a message is rarer still (E12).
+const ReportMessageDialog = lazy(() =>
+  import("./ReportMessageDialog.js").then((module) => ({ default: module.ReportMessageDialog })),
+);
 
 /** The three reactions most messages get; the picker has the rest. */
 const QUICK_REACTIONS = ["👍", "❤️", "😂"];
@@ -74,7 +78,42 @@ interface Props {
   highlighted?: boolean;
 }
 
-export const MessageItem = memo(function MessageItem({
+/**
+ * A message; or, from someone this account blocked (E12), a line saying so,
+ * which shows it on request. It keeps its place for the arrow keys and links.
+ */
+export const MessageItem = memo(function MessageItem(props: Props) {
+  const blocked = useWorkspace((s) => s.blocked?.includes(props.message.userId) === true);
+  const [shown, setShown] = useState(false);
+  if (!blocked || shown) return <MessageRow {...props} />;
+  return (
+    <div
+      role="article"
+      data-message-id={props.message.id}
+      aria-label="Message from someone you blocked"
+      tabIndex={0}
+      className={`message-row py-0.5 pl-4 pr-12 ${props.compact ? "" : "mt-4"}`}
+    >
+      <div className="flex items-center gap-4">
+        <span aria-hidden="true" className="flex w-10 shrink-0 justify-center text-ink-faint">
+          <Icon name="ban" size={14} />
+        </span>
+        <p className="text-[13px] text-ink-faint">
+          Message from someone you blocked ·{" "}
+          <button
+            type="button"
+            onClick={() => setShown(true)}
+            className="underline-offset-2 hover:text-ink hover:underline"
+          >
+            Show
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+});
+
+const MessageRow = memo(function MessageRow({
   message,
   compact,
   inThread,
@@ -104,6 +143,9 @@ export const MessageItem = memo(function MessageItem({
   const reminder = useWorkspace((s) => s.reminders?.[message.id] ?? null);
   /** Choosing when to be reminded, from the menu. */
   const [reminding, setReminding] = useState(false);
+  // Offered where the server takes reports (E12), which an older one does not.
+  const canReport = useWorkspace((s) => s.blocked !== null);
+  const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
   // The toolbar shows on hover; while its menu is open it stays, so the menu
@@ -332,6 +374,18 @@ export const MessageItem = memo(function MessageItem({
   // Pinning changes the channel for everyone, which a guest may not.
   const pinItems: MenuItem[] =
     selfRole === "guest" ? [] : [{ id: "pin", label: pinLabel, icon: "pin", onSelect: togglePin }];
+  // Someone else's message, to the workspace's admins (E12).
+  const reportItems: MenuItem[] =
+    canReport && !mine
+      ? [
+          {
+            id: "report",
+            label: "Report message…",
+            icon: "flag",
+            onSelect: () => setReporting(true),
+          },
+        ]
+      : [];
   const deleteItems: MenuItem[] = canDelete
     ? [
         {
@@ -396,6 +450,7 @@ export const MessageItem = memo(function MessageItem({
           },
         ]
       : []),
+    ...reportItems,
     ...deleteItems.map((item) => ({ ...item, section: undefined })),
   ];
   /** What the toolbar keeps behind its last button: the less frequent half. */
@@ -406,6 +461,7 @@ export const MessageItem = memo(function MessageItem({
     unreadItem,
     ...muteItems,
     ...pinItems,
+    ...reportItems,
     ...deleteItems,
   ];
 
@@ -799,6 +855,11 @@ export const MessageItem = memo(function MessageItem({
       {forwarding && (
         <LazyDialog loading="Loading Forward message" onClose={() => setForwarding(null)}>
           <ForwardDialog source={forwarding} onClose={() => setForwarding(null)} />
+        </LazyDialog>
+      )}
+      {reporting && (
+        <LazyDialog loading="Loading Report message" onClose={() => setReporting(false)}>
+          <ReportMessageDialog message={message} onClose={() => setReporting(false)} />
         </LazyDialog>
       )}
     </div>

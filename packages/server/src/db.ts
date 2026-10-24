@@ -699,6 +699,32 @@ const MIGRATIONS: string[] = [
     PRIMARY KEY (user_id, code_hash)
   );
   `,
+  // v50 — blocking and reporting (E12): whom each account blocked, and reports
+  // of messages for the admins, each person's open one at most once per
+  // message. A report goes with its message and its reporter; who resolved it
+  // is a plain id, as an audit entry's actor is.
+  `
+  CREATE TABLE user_blocks (
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    blocked_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (user_id, blocked_id)
+  );
+  CREATE TABLE message_reports (
+    id TEXT PRIMARY KEY,
+    message_id TEXT NOT NULL REFERENCES messages(id) ON DELETE CASCADE,
+    reporter_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    reason TEXT NOT NULL,
+    note TEXT NOT NULL DEFAULT '',
+    created_at INTEGER NOT NULL,
+    resolved_at INTEGER,
+    resolved_by TEXT,
+    resolution TEXT
+  );
+  CREATE UNIQUE INDEX idx_message_reports_open
+    ON message_reports(message_id, reporter_id) WHERE resolved_at IS NULL;
+  CREATE INDEX idx_message_reports_reporter ON message_reports(reporter_id);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

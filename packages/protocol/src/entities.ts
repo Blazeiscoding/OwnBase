@@ -364,6 +364,42 @@ export interface Invite {
   status?: InviteStatus;
 }
 
+/** Why someone reported a message (E12). */
+export type ReportReason = "spam" | "harassment" | "inappropriate" | "other";
+export const REPORT_REASONS: readonly ReportReason[] = [
+  "spam",
+  "harassment",
+  "inappropriate",
+  "other",
+];
+/** The most a report's note may say. */
+export const REPORT_NOTE_MAX = 500;
+
+/** What an admin did about a reported message (E12). */
+export type ReportResolution = "dismiss" | "remove" | "deactivate";
+
+/** One person's report of a message, as admins see it (E12). */
+export interface MessageReport {
+  id: ID;
+  reporterId: ID;
+  reason: ReportReason;
+  /** What they added, or "". */
+  note: string;
+  createdAt: number;
+}
+
+/** A reported message waiting for an admin, with every open report of it (E12). */
+export interface ReportedMessage {
+  messageId: ID;
+  /** Who wrote it, known after they deleted it too. */
+  authorId: ID;
+  /** The message, or null once its author deleted it. */
+  message: Message | null;
+  /** Where it was posted, even a conversation the admin is not in. */
+  channel: Channel;
+  reports: MessageReport[];
+}
+
 /** An administrative action that was recorded. */
 export type AuditAction =
   | "user.role_changed"
@@ -371,6 +407,7 @@ export type AuditAction =
   | "user.reactivated"
   | "user.password_reset"
   | "user.two_step_reset"
+  | "report.resolved"
   | "user.invite_permission_granted"
   | "user.invite_permission_removed"
   | "account.recovered"
