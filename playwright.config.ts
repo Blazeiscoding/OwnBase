@@ -6,6 +6,10 @@ export default defineConfig({
   globalSetup: "./tests/e2e/fresh-web.setup.ts",
   outputDir: "test-results/web",
   testMatch: "web.spec.ts",
+  // Every scenario starts a workspace of its own (REV-08), so they can run in
+  // any order. That lets CI split the one file into shards that run side by
+  // side (`--shard`); Playwright otherwise splits by file.
+  fullyParallel: true,
   workers: 1,
   timeout: 60_000,
   expect: { timeout: 10_000 },
