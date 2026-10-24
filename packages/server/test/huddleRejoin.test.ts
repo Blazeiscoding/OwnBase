@@ -257,4 +257,29 @@ describe("what one side of a huddle says it is sending", () => {
       signal: { kind: "media", camera: false, screen: true, muted: true, screenSound: true },
     });
   });
+
+  it("passes on how big the other side draws their camera and share, or that it does not (E13b)", async () => {
+    await start();
+    const { alice, bob, a, b } = await call();
+    a.send({
+      type: "huddle.signal",
+      channelId: general(),
+      to: bob.user.id,
+      signal: { kind: "media", camera: true, screen: false, view: { camera: 180, screen: 720 } },
+    });
+    b.send({
+      type: "huddle.signal",
+      channelId: general(),
+      to: alice.user.id,
+      signal: { kind: "media", camera: true, screen: false, view: { camera: 0, screen: 0 } },
+    });
+    await expect.poll(() => b.events("huddle.signal")).toHaveLength(1);
+    await expect.poll(() => a.events("huddle.signal")).toHaveLength(1);
+    expect(b.events("huddle.signal")[0]).toMatchObject({
+      signal: { kind: "media", view: { camera: 180, screen: 720 } },
+    });
+    expect(a.events("huddle.signal")[0]).toMatchObject({
+      signal: { kind: "media", view: { camera: 0, screen: 0 } },
+    });
+  });
 });

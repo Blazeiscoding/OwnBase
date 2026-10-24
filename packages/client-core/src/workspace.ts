@@ -30,7 +30,13 @@ import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
 import { quoteChanges, requote } from "./replies.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
-import type { CallLogLine, HuddleSession, HuddleState, ScreenShareQuality } from "./huddle.js";
+import type {
+  CallLogLine,
+  CallView,
+  HuddleSession,
+  HuddleState,
+  ScreenShareQuality,
+} from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
 
 class HuddleJoinRefusedError extends Error {}
@@ -3492,6 +3498,8 @@ export class WorkspaceClient {
   // ---------- huddles ----------
 
   private session: HuddleSession | null = null;
+  /** How tall the call draws everyone's pictures; see `setCallViews`. */
+  private callViews: ReadonlyMap<ID, CallView> = new Map();
   private huddleAttempt = 0;
   private huddleAdmitted = false;
   /** Whether the session was let into its huddle, so a returning socket asks to go on with it. */
@@ -3577,6 +3585,7 @@ export class WorkspaceClient {
         },
       },
     );
+    session.setViews(this.callViews);
     this.session = session;
     this.lastCallLog = session.log;
     try {
@@ -3802,6 +3811,16 @@ export class WorkspaceClient {
 
   async toggleCamera(): Promise<void> {
     await this.session?.toggleCamera();
+  }
+
+  /**
+   * How tall the call draws each other person's camera and share, in device
+   * pixels; anyone left out is not drawn. Kept for a session started later,
+   * since the call's view can be up before it (`HuddleSession.setViews`).
+   */
+  setCallViews(views: ReadonlyMap<ID, CallView>): void {
+    this.callViews = views;
+    this.session?.setViews(views);
   }
 
   /** Changes the huddle's microphone, or its processing, while in one. */

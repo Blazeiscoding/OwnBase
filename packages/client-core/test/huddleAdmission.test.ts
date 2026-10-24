@@ -214,3 +214,25 @@ describe("huddle join acknowledgement", () => {
     expect(tracks[0]!.stop).not.toHaveBeenCalled();
   });
 });
+
+describe("how big the call draws everyone (E13b)", () => {
+  it("gives the call's session what the call draws, though the call's view came first", async () => {
+    const setViews = vi.spyOn(HuddleSession.prototype, "setViews");
+    const drawn = new Map([["U_PRIYA", { camera: 300, screen: 0 }]]);
+    client.setCallViews(drawn);
+    const sent = holdJoin();
+    const joining = client.joinHuddle(channelId);
+    await expect
+      .poll(() => sent.filter((message) => message.type === "huddle.join").length)
+      .toBe(1);
+    expect(setViews).toHaveBeenLastCalledWith(drawn);
+    const join = sent.find((message) => message.type === "huddle.join")!;
+    if (join.type !== "huddle.join") throw new Error("missing join");
+    result(join.requestId!, true);
+    await joining;
+
+    const closed = new Map();
+    client.setCallViews(closed);
+    expect(setViews).toHaveBeenLastCalledWith(closed);
+  });
+});

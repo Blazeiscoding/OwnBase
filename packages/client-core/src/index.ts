@@ -62,6 +62,7 @@ export {
 export type { StoredTrustedAddresses } from "./trustedAddresses.js";
 export type {
   CallLogLine,
+  CallView,
   HuddlePeer,
   HuddleState,
   MicrophoneTest,

@@ -95,6 +95,102 @@ export function cameraEncoding(others: number): CameraEncoding {
 }
 
 /**
+ * The heights someone asks for a camera or a share at, by how tall they draw
+ * it (E13b). Rounding to these keeps a window being resized from changing
+ * what is sent at every step.
+ */
+export const VIEW_HEIGHTS = [180, 270, 360, 540, 720, 1080, 1440, 2160] as const;
+
+/** How tall someone draws a person's camera and share, in device pixels; 0 where not at all. */
+export interface CallView {
+  camera: number;
+  screen: number;
+}
+
+/**
+ * The height to ask for a picture drawn `drawn` device pixels tall: the
+ * smallest of `VIEW_HEIGHTS` that is at least seven eighths of it, since a
+ * picture an eighth smaller than its tile still looks sharp, and 0 for one
+ * not drawn.
+ */
+export function viewHeight(drawn: number): number {
+  if (!(drawn > 0)) return 0;
+  return VIEW_HEIGHTS.find((height) => height >= (drawn * 7) / 8) ?? 2160;
+}
+
+/** What one connection's camera or share is set to send; see `cameraEncodingFor`. */
+export interface SentEncoding extends CameraEncoding {
+  /** False to send nothing at all: they draw none of it. */
+  active: boolean;
+}
+
+/**
+ * What the camera sends someone who draws it `view` tall (`viewHeight`), in a
+ * call with `others` besides you, from a camera whose picture is `height`
+ * tall. A small tile gets a picture no bigger than it, at a rate that suits
+ * it, and a tile not drawn gets nothing, so the encoder for it stops. Each
+ * limit is the stricter of that and the call's size (`cameraEncoding`). A
+ * client from before E13b never says how it draws, and gets the call's size.
+ */
+export function cameraEncodingFor(
+  others: number,
+  view: number | undefined,
+  height: number,
+): SentEncoding {
+  const bySize = cameraEncoding(others);
+  if (view === undefined) return { active: true, ...bySize };
+  if (view === 0) return { active: false, ...bySize };
+  // Smaller pictures move less and carry less.
+  const byView =
+    view <= 180
+      ? { maxFramerate: 15, maxBitrate: 200_000 }
+      : view <= 270
+        ? { maxFramerate: 15, maxBitrate: 350_000 }
+        : view <= 360
+          ? { maxFramerate: 20, maxBitrate: 600_000 }
+          : {};
+  const sent: SentEncoding = {
+    active: true,
+    scaleResolutionDownBy: Math.max(bySize.scaleResolutionDownBy, height / view),
+  };
+  const maxFramerate = stricter(bySize.maxFramerate, byView.maxFramerate);
+  if (maxFramerate !== undefined) sent.maxFramerate = maxFramerate;
+  const maxBitrate = stricter(bySize.maxBitrate, byView.maxBitrate);
+  if (maxBitrate !== undefined) sent.maxBitrate = maxBitrate;
+  return sent;
+}
+
+/**
+ * What the share sends someone who draws it `view` tall, from a share whose
+ * picture is `height` tall: no bigger than that, and nothing while it is not
+ * drawn. Its rate stays the sharer's choice. As it comes for a client from
+ * before E13b.
+ */
+export function screenEncodingFor(view: number | undefined, height: number): SentEncoding {
+  if (view === undefined) return { active: true, scaleResolutionDownBy: 1 };
+  if (view === 0) return { active: false, scaleResolutionDownBy: 1 };
+  return { active: true, scaleResolutionDownBy: Math.max(1, height / view) };
+}
+
+/** The lower of two limits, where either is set. */
+function stricter(a: number | undefined, b: number | undefined): number | undefined {
+  if (a === undefined) return b;
+  if (b === undefined) return a;
+  return Math.min(a, b);
+}
+
+/**
+ * How tall a track's picture is where a tile shows it: a camera fills a 16:9
+ * tile, so a phone's upright picture is cut to that shape first. Missing for a
+ * track that cannot say.
+ */
+function pictureHeight(track: MediaStreamTrack | null, fill: boolean): number | undefined {
+  const { width, height } = track?.getSettings?.() ?? {};
+  if (!height) return undefined;
+  return fill && width ? Math.min(height, (width * 9) / 16) : height;
+}
+
+/**
  * A share's sound as it is: no echo cancellation, noise suppression or gain,
  * which are for a voice and spoil music. `restrictOwnAudio` leaves this
  * call's own sound out, so nobody hears themselves again a moment later.
@@ -284,6 +380,8 @@ export class HuddleSession {
   private screenSoundTrack: MediaStreamTrack | null = null;
   private localCameraStream: MediaStream | null = null;
   private localScreenStream: MediaStream | null = null;
+  /** How tall this side draws each other person's camera and share; see `setViews`. */
+  private views: ReadonlyMap<ID, CallView> = new Map();
   /** Who is currently shown as talking, and when each was last loud. */
   private speaking = new Set<ID>();
   private spokeAt = new Map<ID, number>();
@@ -406,6 +504,16 @@ export class HuddleSession {
     return this.mic?.stream ?? null;
   }
 
+  /**
+   * What the microphone's slot sends: the microphone, or nothing at all while
+   * muted (E13b). A muted track would still be encoded as silence once for
+   * every connection, and heard as silence on every one, which in a big call
+   * of mostly muted people is most of what each of them spends on sound.
+   */
+  private get sentMicrophone(): MediaStreamTrack | null {
+    return this.muted ? null : (this.localStream?.getAudioTracks()[0] ?? null);
+  }
+
   /** Makes this the microphone everyone hears, and watches for it stopping. */
   private adoptMicrophone(feed: MicrophoneFeed): void {
     const track = feed.stream.getAudioTracks()[0];
@@ -456,7 +564,7 @@ export class HuddleSession {
       this.releaseMicrophone();
       this.adoptMicrophone(feed);
       this.stopWaitingForMicrophone();
-      await this.sendMicrophone(feed);
+      await this.sendMicrophone();
       return true;
     } catch {
       if (this.destroyed) return false;
@@ -499,14 +607,14 @@ export class HuddleSession {
     this.releaseMicrophone();
     this.adoptMicrophone(feed);
     this.stopWaitingForMicrophone();
-    await this.sendMicrophone(feed);
+    await this.sendMicrophone();
     this.announceMedia();
     this.onChange?.();
   }
 
-  /** Sends this microphone to everyone in place of the one before. */
-  private async sendMicrophone(feed: MicrophoneFeed): Promise<void> {
-    const track = feed.stream.getAudioTracks()[0] ?? null;
+  /** Sends the microphone, or nothing while muted, to everyone in place of what was before. */
+  private async sendMicrophone(): Promise<void> {
+    const track = this.sentMicrophone;
     await Promise.all(
       [...this.peers.values()].map((peer) =>
         peer.audioTx?.sender.replaceTrack(track).catch(() => {}),
@@ -560,7 +668,9 @@ export class HuddleSession {
     const now = Date.now();
     if (this.localLevel() > SPEAKING_LEVEL) this.spokeAt.set(this.selfId, now);
     for (const [userId, peer] of this.peers) {
-      if (receivedLevel(peer) > SPEAKING_LEVEL) this.spokeAt.set(userId, now);
+      // Muted, they send nothing, and the browser goes on reporting their last
+      // packet for seconds: someone muting mid-word would stay lit.
+      if (!peer.micMuted && receivedLevel(peer) > SPEAKING_LEVEL) this.spokeAt.set(userId, now);
     }
 
     let changed = false;
@@ -591,6 +701,7 @@ export class HuddleSession {
     if (this.destroyed || !track) return;
     this.muted = !this.muted;
     track.enabled = !this.muted;
+    void this.sendMicrophone();
     // Everyone else needs to know, or a muted person just looks silent.
     this.announceMedia();
     this.onChange?.();
@@ -647,31 +758,102 @@ export class HuddleSession {
       if (this.peers.has(userId)) continue;
       this.createPeer(userId);
     }
-    this.sizeCameras();
+    this.sizeSenders();
     this.onChange?.();
   }
 
   /**
-   * Sizes what the camera sends on every connection to how many others there
-   * are (`cameraEncoding`), without a new offer: a sender's parameters change
-   * in place. A connection that is not set up yet has nothing to size, and is
-   * sized once its setup is done.
+   * How tall this side draws each other person's camera and share, in device
+   * pixels; anyone left out draws as 0, not at all (E13b). Each of them is
+   * told when what they should send this side changes (`viewHeight`), and
+   * sends no more than that.
    */
-  private sizeCameras(): void {
-    for (const [userId, peer] of this.peers)
-      peer.sizing = peer.sizing.then(() => this.sizeCamera(userId, peer));
+  setViews(views: ReadonlyMap<ID, CallView>): void {
+    this.views = new Map(views);
+    for (const [userId, peer] of this.peers) {
+      const view = this.viewOf(userId);
+      if (peer.viewTold?.camera !== view.camera || peer.viewTold.screen !== view.screen)
+        this.announceMedia(userId);
+    }
+  }
+
+  /** What to ask someone to send this side, by how tall it draws them. */
+  private viewOf(userId: ID): CallView {
+    const drawn = this.views.get(userId);
+    return { camera: viewHeight(drawn?.camera ?? 0), screen: viewHeight(drawn?.screen ?? 0) };
+  }
+
+  /**
+   * Sizes what the camera and the share send on every connection, to how many
+   * others there are and how big each draws them, without a new offer: a
+   * sender's parameters change in place. A connection that is not set up yet
+   * has nothing to size, and is sized once its setup is done.
+   */
+  private sizeSenders(): void {
+    for (const [userId, peer] of this.peers) this.sizeFor(userId, peer);
+  }
+
+  private sizeFor(userId: ID, peer: Peer): void {
+    peer.sizing = peer.sizing
+      .then(() => this.sizeCamera(userId, peer))
+      .then(() => this.sizeScreen(userId, peer));
   }
 
   private async sizeCamera(userId: ID, peer: Peer): Promise<void> {
     const others = this.peers.size;
-    const sender = peer.cameraTx?.sender;
-    if (this.destroyed || this.peers.get(userId) !== peer || peer.cameraSizedFor === others) return;
-    // A browser without sender parameters sends the camera as it comes.
-    if (!sender || typeof sender.getParameters !== "function") return;
+    const view = peer.wants?.camera;
+    const wanted = cameraEncodingFor(others, view, pictureHeight(this.cameraTrack, true) ?? 540);
+    const key = JSON.stringify(wanted);
+    if (this.destroyed || this.peers.get(userId) !== peer || peer.cameraSized === key) return;
+    const before = peer.cameraSized;
+    if (!(await this.setEncoding(userId, peer.cameraTx?.sender, wanted, "camera"))) return;
+    peer.cameraSized = key;
+    const call = `a call of ${others + 1}`;
+    if (!wanted.active) this.note("Sending them no camera, since they are not showing it.", userId);
+    else if (wanted.maxBitrate !== undefined)
+      this.note(
+        `Sending them the camera at ${Math.round(100 / wanted.scaleResolutionDownBy)}% of its ` +
+          `size, at most ${wanted.maxFramerate} frames a second and ` +
+          `${Math.round(wanted.maxBitrate / 1000)} kbit/s, ` +
+          (view === undefined ? `for ${call}.` : `as they show it ${view} high, in ${call}.`),
+        userId,
+      );
+    else if (before !== null)
+      this.note(`Sending them the camera at its full size, for ${call}.`, userId);
+  }
+
+  private async sizeScreen(userId: ID, peer: Peer): Promise<void> {
+    const view = peer.wants?.screen;
+    const height = pictureHeight(this.screenTrack, false) ?? SCREEN_SHARE_QUALITY.height;
+    const wanted = screenEncodingFor(view, height);
+    const key = JSON.stringify(wanted);
+    if (this.destroyed || this.peers.get(userId) !== peer || peer.screenSized === key) return;
+    // Nobody has asked for anything yet, and the share goes as it comes.
+    if (view === undefined && peer.screenSized === null) return;
+    if (!(await this.setEncoding(userId, peer.screenTx?.sender, wanted, "share"))) return;
+    peer.screenSized = key;
+    if (!wanted.active) this.note("Sending them no share, since they are not showing it.", userId);
+    else
+      this.note(
+        `Sending them the share at ${Math.round(100 / wanted.scaleResolutionDownBy)}% of its size` +
+          (view === undefined ? "." : `, as they show it ${view} high.`),
+        userId,
+      );
+  }
+
+  /** Changes what one sender sends; false where it could not. */
+  private async setEncoding(
+    userId: ID,
+    sender: RTCRtpSender | undefined,
+    wanted: SentEncoding,
+    what: "camera" | "share",
+  ): Promise<boolean> {
+    // A browser without sender parameters sends the picture as it comes.
+    if (!sender || typeof sender.getParameters !== "function") return false;
     const params = sender.getParameters();
     const encoding = params.encodings?.[0];
-    if (!encoding) return;
-    const wanted = cameraEncoding(others);
+    if (!encoding) return false;
+    encoding.active = wanted.active;
     encoding.scaleResolutionDownBy = wanted.scaleResolutionDownBy;
     if (wanted.maxFramerate === undefined) delete encoding.maxFramerate;
     else encoding.maxFramerate = wanted.maxFramerate;
@@ -679,19 +861,10 @@ export class HuddleSession {
     else encoding.maxBitrate = wanted.maxBitrate;
     try {
       await sender.setParameters(params);
-      const before = peer.cameraSizedFor;
-      peer.cameraSizedFor = others;
-      if (wanted.maxBitrate !== undefined)
-        this.note(
-          `Sending them the camera at ${Math.round(100 / wanted.scaleResolutionDownBy)}% of its ` +
-            `size, at most ${wanted.maxFramerate} frames a second and ` +
-            `${Math.round(wanted.maxBitrate / 1000)} kbit/s, for a call of ${others + 1}.`,
-          userId,
-        );
-      else if (before !== null)
-        this.note(`Sending them the camera at its full size, for a call of ${others + 1}.`, userId);
+      return true;
     } catch (err) {
-      this.note(`Could not size the camera for them: ${describeError(err)}.`, userId);
+      this.note(`Could not size the ${what} for them: ${describeError(err)}.`, userId);
+      return false;
     }
   }
 
@@ -737,7 +910,10 @@ export class HuddleSession {
       logged: new Set(),
       trouble: null,
       stallTimer: null,
-      cameraSizedFor: null,
+      cameraSized: null,
+      screenSized: null,
+      wants: undefined,
+      viewTold: null,
       sizing: Promise.resolve(),
     };
     this.peers.set(userId, peer);
@@ -952,7 +1128,7 @@ export class HuddleSession {
 
   private async attachLocalTracks(peer: Peer): Promise<void> {
     await Promise.all([
-      peer.audioTx?.sender.replaceTrack(this.localStream?.getAudioTracks()[0] ?? null),
+      peer.audioTx?.sender.replaceTrack(this.sentMicrophone),
       peer.cameraTx?.sender.replaceTrack(this.cameraTrack),
       peer.screenTx?.sender.replaceTrack(this.screenTrack),
       // Sent only once the slot sends: see `openScreenSoundSlot`.
@@ -963,7 +1139,7 @@ export class HuddleSession {
   private async offer(userId: ID, pc: RTCPeerConnection, iceRestart = false): Promise<void> {
     const offer = await pc.createOffer(iceRestart ? { iceRestart: true } : undefined);
     await pc.setLocalDescription(offer);
-    this.sizeCameras();
+    this.sizeSenders();
     this.transport.send({
       type: "huddle.signal",
       channelId: this.channelId,
@@ -1004,7 +1180,7 @@ export class HuddleSession {
       const answer = await pc.createAnswer();
       await pc.setLocalDescription(answer);
       // The slots it adopted have parameters now, and the call has grown by one.
-      this.sizeCameras();
+      this.sizeSenders();
       this.transport.send({
         type: "huddle.signal",
         channelId: this.channelId,
@@ -1031,6 +1207,11 @@ export class HuddleSession {
       if (typeof signal.screenSound === "boolean" && !peer.hasScreenSoundSlot) {
         peer.hasScreenSoundSlot = true;
         this.openScreenSoundSlot(from, peer);
+      }
+      const view = signal.view;
+      if (view && (view.camera !== peer.wants?.camera || view.screen !== peer.wants.screen)) {
+        peer.wants = { camera: view.camera, screen: view.screen };
+        this.sizeFor(from, peer);
       }
       this.onChange?.();
     } else {
@@ -1312,27 +1493,35 @@ export class HuddleSession {
           .catch(() => {}),
       ),
     );
+    // A picture of another height is scaled to their tiles anew.
+    this.sizeSenders();
     this.announceMedia();
     this.onChange?.();
   }
 
-  /** Says which slots we are sending on, to one peer or to all of them. */
+  /**
+   * Says which slots we are sending on, and how big we draw theirs, to one
+   * peer or to all of them.
+   */
   private announceMedia(to?: ID): void {
     if (this.destroyed) return;
-    const signal = {
-      kind: "media" as const,
-      camera: this.cameraTrack !== null,
-      screen: this.screenTrack !== null,
-      muted: this.micMuted || this.micLost,
-      // Said either way: saying it at all tells them this side has the slot.
-      screenSound: this.screenSoundTrack !== null,
-    };
     for (const userId of to ? [to] : this.peers.keys()) {
+      const view = this.viewOf(userId);
+      const peer = this.peers.get(userId);
+      if (peer) peer.viewTold = view;
       this.transport.send({
         type: "huddle.signal",
         channelId: this.channelId,
         to: userId,
-        signal,
+        signal: {
+          kind: "media",
+          camera: this.cameraTrack !== null,
+          screen: this.screenTrack !== null,
+          muted: this.micMuted || this.micLost,
+          // Said either way: saying it at all tells them this side has the slot.
+          screenSound: this.screenSoundTrack !== null,
+          view,
+        },
       });
     }
   }
@@ -1418,9 +1607,14 @@ interface Peer {
   /** They said whether their share has sound, which only a client with the slot does. */
   hasScreenSoundSlot: boolean;
   micMuted: boolean;
-  /** How many others the camera's sender was last sized for (`cameraEncoding`). */
-  cameraSizedFor: number | null;
-  /** Sizing the camera's sender, one change at a time. */
+  /** What the camera's and the share's senders were last set to (`SentEncoding`, as JSON). */
+  cameraSized: string | null;
+  screenSized: string | null;
+  /** How big they draw this side's camera and share, as they last said; missing from a client before E13b. */
+  wants: CallView | undefined;
+  /** How big this side last told them it draws theirs. */
+  viewTold: CallView | null;
+  /** Sizing the senders, one change at a time. */
   sizing: Promise<void>;
 }
 

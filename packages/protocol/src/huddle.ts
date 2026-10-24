@@ -40,6 +40,16 @@ export type HuddleSignal =
        * person's microphone, so it is sent none.
        */
       screenSound?: boolean;
+      /**
+       * How tall whoever says this draws the camera and the share of the one
+       * it is sent to, in device pixels, rounded up to one of a few heights;
+       * 0 while one is not drawn at all: the call hidden behind the chat, the
+       * window out of sight, or the row under a share put away. That one sends
+       * them no bigger a picture, or none (E13b), since every connection in
+       * the mesh is an encoder of its own. A client from before it never says,
+       * and is sent what the call's size allows.
+       */
+      view?: { camera: number; screen: number };
     };
 
 /**

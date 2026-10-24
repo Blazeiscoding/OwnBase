@@ -22,8 +22,8 @@ export interface ToastAction {
 export interface ToastRequest {
   /** What happened, in one line and in the words the person would use. */
   message: string;
-  /** A success clears itself; a failure waits to be read. */
-  kind?: "success" | "error";
+  /** A success or a heads-up clears itself; a failure waits to be read. */
+  kind?: "success" | "info" | "error";
   /** Offered only where the operation supports it: try again, or undo. */
   action?: ToastAction;
 }
@@ -58,7 +58,7 @@ const MAX_VISIBLE = 4;
 interface Shown {
   id: number;
   message: string;
-  kind: "success" | "error";
+  kind: "success" | "info" | "error";
   action?: ToastAction;
 }
 
@@ -177,7 +177,7 @@ function ToastStack({ shown, dismiss }: { shown: Shown[]; dismiss: (id: number) 
         {shown.filter((notice) => notice.kind === "error").map(item)}
       </div>
       <div aria-live="polite" className="flex flex-col gap-2">
-        {shown.filter((notice) => notice.kind === "success").map(item)}
+        {shown.filter((notice) => notice.kind !== "error").map(item)}
       </div>
     </div>
   );
@@ -273,9 +273,11 @@ function ToastItem({
         }`}
       >
         <Icon
-          name={failed ? "alert" : "check"}
+          name={failed ? "alert" : notice.kind === "info" ? "info" : "check"}
           size={16}
-          className={`mt-0.5 ${failed ? "text-alert" : "text-online"}`}
+          className={`mt-0.5 ${
+            failed ? "text-alert" : notice.kind === "info" ? "text-ink-dim" : "text-online"
+          }`}
         />
         <p id={messageId} className="min-w-0 flex-1 leading-snug">
           {notice.message}

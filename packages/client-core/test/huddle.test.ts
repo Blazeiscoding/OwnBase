@@ -3,9 +3,12 @@ import type { HuddleSignal, ID } from "@slackoss/protocol";
 import type { CallReport } from "@slackoss/protocol";
 import {
   cameraEncoding,
+  cameraEncodingFor,
   HuddleSession,
+  screenEncodingFor,
   STALL_MS,
   testMicrophone,
+  viewHeight,
   withStereoScreenSound,
 } from "../src/huddle.js";
 
@@ -420,6 +423,26 @@ describe("HuddleSession", () => {
     }
   });
 
+  it("stops showing someone as talking once they mute, though their last packet still reads loud", async () => {
+    vi.useFakeTimers();
+    try {
+      const { session } = makeSession("A");
+      session.syncParticipants(["A", "B"]);
+      const audioSlot = FakePeerConnection.instances[0]!.transceivers[0]!;
+      audioSlot.receiver.level = 0.4;
+      vi.advanceTimersByTime(200);
+      expect(session.state().peers[0]!.speaking).toBe(true);
+
+      // Muted, they send nothing, and the browser goes on reporting the last packet.
+      await session.handleSignal("B", { kind: "media", camera: false, screen: false, muted: true });
+      vi.advanceTimersByTime(700);
+      expect(session.state().peers[0]!.speaking).toBe(false);
+      session.destroy();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("tells the others when the microphone goes off", async () => {
     const { session, sent } = makeSession("A");
     vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(
@@ -451,8 +474,17 @@ describe("HuddleSession", () => {
       kind: "media",
       muted: true,
     });
+    // Muted, the slot sends nothing at all, not silence that every connection encodes (E13b).
+    await flush();
+    const slot = FakePeerConnection.instances[0]!.transceivers[0]!.sender;
+    expect(slot.track).toBeNull();
     session.toggleMic();
     expect(mic.enabled).toBe(true);
+    await flush();
+    expect(slot.track).toBe(mic);
+    session.toggleMic();
+    await flush();
+    expect(slot.track).toBeNull();
     session.destroy();
   });
 
@@ -491,9 +523,14 @@ describe("HuddleSession", () => {
       await flush();
       await flush();
       expect(ask).toHaveBeenCalledTimes(2);
-      expect(pc.transceivers[0]!.sender.track).toBe(next);
+      // Muted, nothing goes out; the new microphone does once turned on.
+      expect(pc.transceivers[0]!.sender.track).toBeNull();
       expect(next.enabled).toBe(false);
       expect(session.state()).toMatchObject({ micMuted: true, micLost: false });
+      session.toggleMic();
+      await flush();
+      expect(pc.transceivers[0]!.sender.track).toBe(next);
+      expect(next.enabled).toBe(true);
       session.destroy();
     });
 
@@ -519,7 +556,7 @@ describe("HuddleSession", () => {
           finish(stream(next));
           expect(await recovery).toBe(true);
           expect(next.enabled).toBe(!muted);
-          expect(pc.transceivers[0]!.sender.track).toBe(next);
+          expect(pc.transceivers[0]!.sender.track).toBe(muted ? null : next);
           expect(session.state().micMuted).toBe(muted);
           expect(sent.at(-1)!.signal).toMatchObject({ kind: "media", muted });
         } finally {
@@ -546,6 +583,9 @@ describe("HuddleSession", () => {
         ask.mockResolvedValueOnce(stream(next));
         expect(await session.recoverMicrophone()).toBe(true);
         expect(next.enabled).toBe(false);
+        expect(pc.transceivers[0]!.sender.track).toBeNull();
+        session.toggleMic();
+        await flush();
         expect(pc.transceivers[0]!.sender.track).toBe(next);
       } finally {
         session.destroy();
@@ -775,6 +815,175 @@ describe("the camera, sized to the call (E13)", () => {
       bare.mockRestore();
       session.destroy();
     }
+  });
+});
+
+describe("the camera and the share, sized to how big each other person draws them (E13b)", () => {
+  /** What A's camera and share send B and C, by name. */
+  const sent = (slot: 1 | 2) => {
+    const [b, c] = FakePeerConnection.instances.map((pc) => pc.transceivers[slot]!.sender);
+    return { B: b!, C: c! };
+  };
+  const views = (entries: Record<ID, { camera: number; screen: number }>) =>
+    new Map(Object.entries(entries));
+  const media = (view?: { camera: number; screen: number }): HuddleSignal => ({
+    kind: "media",
+    camera: false,
+    screen: false,
+    ...(view ? { view } : {}),
+  });
+
+  it("asks for one of a few heights, at least seven eighths of the one drawn, and none undrawn", () => {
+    expect([0, -5, Number.NaN].map(viewHeight)).toEqual([0, 0, 0]);
+    expect([1, 180, 205, 206, 300, 400, 600].map(viewHeight)).toEqual([
+      180, 180, 180, 270, 270, 360, 540,
+    ]);
+    expect([1000, 2400, 5000].map(viewHeight)).toEqual([1080, 2160, 2160]);
+  });
+
+  it("sends a small tile no more than it shows, a hidden one nothing, and takes the stricter limit", () => {
+    // A tile in a call of ten, from a 540-line camera: a third of it, slow and light.
+    expect(cameraEncodingFor(9, 180, 540)).toEqual({
+      active: true,
+      scaleResolutionDownBy: 3,
+      maxFramerate: 15,
+      maxBitrate: 200_000,
+    });
+    expect(cameraEncodingFor(2, 270, 540)).toEqual({
+      active: true,
+      scaleResolutionDownBy: 2,
+      maxFramerate: 15,
+      maxBitrate: 350_000,
+    });
+    // The call's size is the stricter here: 24 frames for two others, 20 for the tile.
+    expect(cameraEncodingFor(2, 360, 540)).toEqual({
+      active: true,
+      scaleResolutionDownBy: 1.5,
+      maxFramerate: 20,
+      maxBitrate: 600_000,
+    });
+    // A big tile in a big call still gets only what the call allows.
+    expect(cameraEncodingFor(9, 720, 540)).toEqual({ active: true, ...cameraEncoding(9) });
+    // One other drawing it large gets it as it comes.
+    expect(cameraEncodingFor(1, 1080, 540)).toEqual({ active: true, scaleResolutionDownBy: 1 });
+    expect(cameraEncodingFor(1, 180, 720).scaleResolutionDownBy).toBe(4);
+    expect(cameraEncodingFor(3, 0, 540)).toEqual({ active: false, ...cameraEncoding(3) });
+    // A client from before E13b says nothing, and gets the call's size.
+    expect(cameraEncodingFor(3, undefined, 540)).toEqual({ active: true, ...cameraEncoding(3) });
+
+    expect(screenEncodingFor(undefined, 1080)).toEqual({ active: true, scaleResolutionDownBy: 1 });
+    expect(screenEncodingFor(0, 1080)).toEqual({ active: false, scaleResolutionDownBy: 1 });
+    expect(screenEncodingFor(720, 1080)).toEqual({ active: true, scaleResolutionDownBy: 1.5 });
+    expect(screenEncodingFor(1440, 1080)).toEqual({ active: true, scaleResolutionDownBy: 1 });
+  });
+
+  it("tells each of the others how big it draws them, and again only when that changes", async () => {
+    const { session, sent: signals } = makeSession("A");
+    session.syncParticipants(["A", "B", "C"]);
+    await flush();
+    // Nothing is drawn before the call says so.
+    const told = (to: ID) =>
+      signals.filter((m) => m.to === to && m.signal.kind === "media").map((m) => m.signal);
+    expect(told("B")).toEqual([expect.objectContaining({ view: { camera: 0, screen: 0 } })]);
+
+    signals.length = 0;
+    session.setViews(views({ B: { camera: 150, screen: 0 } }));
+    expect(told("B")).toEqual([
+      {
+        kind: "media",
+        camera: false,
+        screen: false,
+        muted: false,
+        screenSound: false,
+        view: { camera: 180, screen: 0 },
+      },
+    ]);
+    expect(told("C")).toEqual([]);
+
+    // Drawn a little bigger, but still within the same height: nothing new to say.
+    session.setViews(views({ B: { camera: 160, screen: 0 } }));
+    expect(signals).toHaveLength(1);
+
+    session.setViews(views({ B: { camera: 160, screen: 900 }, C: { camera: 700, screen: 0 } }));
+    expect(told("B").at(-1)).toMatchObject({ view: { camera: 180, screen: 1080 } });
+    expect(told("C")).toEqual([expect.objectContaining({ view: { camera: 720, screen: 0 } })]);
+
+    // The call put away: everyone hears that nothing is drawn.
+    session.setViews(new Map());
+    expect(told("B").at(-1)).toMatchObject({ view: { camera: 0, screen: 0 } });
+    expect(told("C").at(-1)).toMatchObject({ view: { camera: 0, screen: 0 } });
+    session.destroy();
+  });
+
+  it("sends each no bigger than they draw it, and nothing to someone not looking", async () => {
+    const { session } = makeSession("A");
+    session.syncParticipants(["A", "B", "C"]);
+    await flush();
+    await session.handleSignal("B", media({ camera: 180, screen: 0 }));
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toEqual(cameraEncodingFor(2, 180, 540));
+    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: false, scaleResolutionDownBy: 1 });
+    const lines = () => session.log.filter((l) => l.peerId === "B").map((l) => l.text);
+    expect(lines()).toContain(
+      "Sending them the camera at 33% of its size, at most 15 frames a second and 200 kbit/s, as they show it 180 high, in a call of 3.",
+    );
+    expect(lines()).toContain("Sending them no share, since they are not showing it.");
+    // C never said, as a client from before E13b: the call's size, and the share as it comes.
+    expect(sent(1).C.parameters.encodings[0]).toEqual({ active: true, ...cameraEncoding(2) });
+    expect(sent(2).C.changes).toBe(0);
+
+    const changes = sent(1).B.changes;
+    await session.handleSignal("B", media({ camera: 0, screen: 720 }));
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toMatchObject({ active: false });
+    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: true, scaleResolutionDownBy: 1.5 });
+    expect(lines()).toContain("Sending them no camera, since they are not showing it.");
+    expect(lines()).toContain(
+      "Sending them the share at 67% of its size, as they show it 720 high.",
+    );
+    expect(sent(1).B.changes).toBe(changes + 1);
+
+    // Said again, or said by a signal without it, it changes nothing.
+    await session.handleSignal("B", media({ camera: 0, screen: 720 }));
+    await session.handleSignal("B", media());
+    await flush();
+    expect(sent(1).B.changes).toBe(changes + 1);
+    expect(sent(1).B.parameters.encodings[0]).toMatchObject({ active: false });
+
+    // Only the share drawn larger: the share follows, the camera stays off.
+    await session.handleSignal("B", media({ camera: 0, screen: 1080 }));
+    await flush();
+    expect(sent(2).B.parameters.encodings[0]).toEqual({ active: true, scaleResolutionDownBy: 1 });
+    expect(sent(1).B.changes).toBe(changes + 1);
+    session.destroy();
+  });
+
+  it("sizes again for a camera of another height, cut to a tile's shape when upright", async () => {
+    const camera = (width: number, height: number) => ({
+      kind: "video",
+      stop() {},
+      getSettings: () => ({ width, height }),
+    });
+    const open = vi.fn();
+    (navigator.mediaDevices as { getUserMedia: unknown }).getUserMedia = open;
+    const { session } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    await flush();
+    await session.handleSignal("B", media({ camera: 180, screen: 0 }));
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toMatchObject({ scaleResolutionDownBy: 3 });
+
+    open.mockResolvedValueOnce(new FakeMediaStream([camera(1280, 720)]));
+    await session.toggleCamera();
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toMatchObject({ scaleResolutionDownBy: 4 });
+
+    // A phone held upright: the tile shows a 16:9 cut across it, 303.75 lines of it.
+    open.mockResolvedValueOnce(new FakeMediaStream([camera(540, 960)]));
+    await session.setCamera("upright");
+    await flush();
+    expect(sent(1).B.parameters.encodings[0]).toMatchObject({ scaleResolutionDownBy: 1.6875 });
+    session.destroy();
   });
 });
 
@@ -1497,7 +1706,8 @@ describe("choosing the microphone and camera (Voice & video)", () => {
     expect(ask.mock.calls[1]![0]).toMatchObject({
       audio: { deviceId: { exact: "usb-mic" }, echoCancellation: false },
     });
-    expect(pc.transceivers[0]!.sender.track).toBe(next);
+    // Muted as it was: nothing goes out until it is turned on.
+    expect(pc.transceivers[0]!.sender.track).toBeNull();
     expect(old.stop).toHaveBeenCalled();
     expect(next.enabled).toBe(false);
     expect(sent.some((m) => m.signal.kind === "offer")).toBe(false);
@@ -1690,9 +1900,13 @@ describe("choosing the microphone and camera (Voice & video)", () => {
       await flush();
       expect(stops[0]).toHaveBeenCalled();
       expect(device.stop).toHaveBeenCalled();
+      expect(pc.transceivers[0]!.sender.track).toBeNull();
+      session.toggleMic();
+      await flush();
+      // Turned on, what goes out is the cleaned sound, not the device's own.
       const sent = pc.transceivers[0]!.sender.track as Track;
       expect(sent).not.toBe(replacement);
-      expect(sent.enabled).toBe(false);
+      expect(sent.enabled).toBe(true);
       session.destroy();
       expect(stops[1]).toHaveBeenCalled();
       expect(replacement.stop).toHaveBeenCalled();
