@@ -126,6 +126,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
    * its draft key, so a send from another conversation is never cleared here.
    */
   const [saving, setSaving] = useState<{ draftKey: string; nonce: string } | null>(null);
+  /**
+   * This box's words wait for the device, so typing is refused. Not by making
+   * the box read only: a phone drops its keyboard from a read-only box, and it
+   * stays down once the box takes typing again.
+   */
+  const held = saving?.draftKey === draftKey;
   const box = useRef<HTMLTextAreaElement>(null);
   const filePicker = useRef<HTMLInputElement>(null);
   const lastTypingSent = useRef(0);
@@ -353,7 +359,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
 
   /** Rewrites the draft, selecting `start..end` of the new text. */
   function rewrite(next: string, start?: number, end = start) {
-    if (scheduleLock.current || recoveryBlocksSend) return;
+    if (scheduleLock.current || recoveryBlocksSend || held) return;
     setMentionQuery(null);
     setEmojiQuery(null);
     field.edit(next, start, end);
@@ -527,8 +533,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
 
   function send() {
     // Only this conversation's send waiting to be kept holds this one back.
-    if (archived || scheduleLock.current || recoveryBlocksSend || saving?.draftKey === draftKey)
-      return;
+    if (archived || scheduleLock.current || recoveryBlocksSend || held) return;
     const trimmed = text.trim();
     if ((!trimmed && attached.length === 0) || text.length > MESSAGE_LIMIT) return;
     // /poll opens the poll window, its words the question, as the + menu does.
@@ -1119,8 +1124,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         <textarea
           ref={box}
           value={field.doc.shown}
-          readOnly={saving?.draftKey === draftKey}
-          aria-busy={saving?.draftKey === draftKey}
+          aria-readonly={held}
+          aria-busy={held}
           rows={1}
           placeholder={dragging ? "Drop files to attach" : placeholder}
           aria-label={placeholder}
@@ -1154,6 +1159,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             );
           }}
           onChange={(e) => {
+            // Left unstored, the change is undone: the box shows what it holds.
+            if (held) return;
             const next = field.fromInput(e);
             edited.current = true;
             setText(next.stored);
@@ -1274,6 +1281,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             )}
             <Tooltip label="Send message" keys={enterSends ? "Enter" : "Ctrl/Cmd+Enter"}>
               <button
+                // Focus stays in the box, so a phone's keyboard stays up for the next message.
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => {
                   send();
                   box.current?.focus();
