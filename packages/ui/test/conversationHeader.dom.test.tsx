@@ -9,8 +9,9 @@ import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 
 /**
- * The conversation's header (UX-23): its name, who is in it, Huddle and one
- * menu for the rest, with a slim line under it while there are pins.
+ * The conversation's header (UX-23): its name, a search field, who is in it,
+ * Huddle and one menu for the rest, with a slim line under it while there are
+ * pins.
  */
 const person = (id: string, displayName: string): User => ({
   id,
@@ -126,7 +127,7 @@ async function workspace(
 }
 
 describe("the conversation's header", () => {
-  it("has the name and three controls: who is here, Huddle and a menu", async () => {
+  it("has the name, a search field and three controls: who is here, Huddle and a menu", async () => {
     const { header } = await workspace();
     await within(header).findByRole("button", { name: "Members (2)" });
     const names = within(header)
@@ -136,11 +137,11 @@ describe("the conversation's header", () => {
     expect(names).toEqual([
       "Open navigation",
       "#general",
+      "Search #general",
       "Members (2)",
       "Start a huddle",
       "Conversation options",
     ]);
-    expect(within(header).queryByRole("searchbox")).toBeNull();
   });
 
   it("opens the member list from the faces, and both count again when someone joins", async () => {
@@ -160,23 +161,10 @@ describe("the conversation's header", () => {
     expect(await within(panel).findByText("Omar")).toBeInTheDocument();
   });
 
-  it("offers pins, search here, notification settings and details from its menu", async () => {
+  it("opens search on this conversation from its search field", async () => {
     const user = userEvent.setup();
     const { header, search } = await workspace();
-    await user.click(within(header).getByRole("button", { name: "Conversation options" }));
-    const menu = await screen.findByRole("menu", { name: "Conversation options" });
-    expect(
-      within(menu)
-        .getAllByRole("menuitem")
-        .map((item) => item.textContent),
-    ).toEqual([
-      "Pinned messages",
-      "Search in #general",
-      "Notification settings",
-      "Channel details",
-    ]);
-
-    await user.click(within(menu).getByRole("menuitem", { name: "Search in #general" }));
+    await user.click(within(header).getByRole("button", { name: "Search #general" }));
     const dialog = await screen.findByRole("dialog", { name: "Search messages" });
     expect(
       within(dialog).getByRole("button", { name: "Remove filter: In #general" }),
@@ -188,11 +176,20 @@ describe("the conversation's header", () => {
         expect.objectContaining({ channelId: general.id }),
       ),
     );
-    await user.keyboard("{Escape}");
-    await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
+  });
 
+  it("offers pins, notification settings and details from its menu", async () => {
+    const user = userEvent.setup();
+    const { header } = await workspace();
     await user.click(within(header).getByRole("button", { name: "Conversation options" }));
-    await user.click(await screen.findByRole("menuitem", { name: "Notification settings" }));
+    const menu = await screen.findByRole("menu", { name: "Conversation options" });
+    expect(
+      within(menu)
+        .getAllByRole("menuitem")
+        .map((item) => item.textContent),
+    ).toEqual(["Pinned messages", "Notification settings", "Channel details"]);
+
+    await user.click(within(menu).getByRole("menuitem", { name: "Notification settings" }));
     const details = await screen.findByRole("dialog", { name: "#general" });
     expect(within(details).getByRole("tab", { name: "Notifications" })).toHaveAttribute(
       "aria-selected",

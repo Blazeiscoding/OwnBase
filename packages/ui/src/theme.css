@@ -1162,10 +1162,22 @@ textarea::placeholder {
   display: none;
 }
 
+/* The header's search field gives the conversation's name room in a narrow window. */
+.header-search {
+  width: min(240px, 26%);
+}
+
 @media (max-width: 760px) {
   .channel-header {
     gap: 4px;
     padding-inline: 8px;
+  }
+  /* A phone shows the field's icon alone. */
+  .header-search {
+    width: 2rem;
+    justify-content: center;
+    padding-inline: 0;
+    background: transparent;
   }
   .header-secondary,
   .composer-hint,
