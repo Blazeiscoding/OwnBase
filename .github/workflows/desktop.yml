@@ -41,8 +41,16 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  # The packaged app's scenarios take most of the time, so two jobs each
+  # package the app and run half of them side by side. Only the first builds
+  # the installer when one is wanted; both test the unpacked executable.
   windows:
+    name: windows (${{ matrix.shard }} of 2)
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -77,10 +85,10 @@ jobs:
       - name: Typecheck tests and scripts
         run: pnpm typecheck:automation
       - name: Package unpacked app
-        if: steps.packaging.outputs.installer == 'false'
+        if: steps.packaging.outputs.installer == 'false' || matrix.shard != 1
         run: pnpm --filter @slackoss/desktop package --win --dir
       - name: Package app and installer
-        if: steps.packaging.outputs.installer == 'true'
+        if: steps.packaging.outputs.installer == 'true' && matrix.shard == 1
         run: pnpm --filter @slackoss/desktop package --win
       - run: node scripts/check-web-bundle.mjs apps/desktop/out/renderer
       # No workspace database, attachment, log or collected workspace source
@@ -89,4 +97,4 @@ jobs:
       # The client a hosted workspace serves, with its compressed copies (REV-13).
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/win-unpacked/resources/web
       # Both modes produce the unpacked executable these tests launch.
-      - run: pnpm test:desktop
+      - run: pnpm test:desktop --shard=${{ matrix.shard }}/2
