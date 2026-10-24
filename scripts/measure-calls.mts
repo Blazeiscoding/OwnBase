@@ -24,11 +24,21 @@
  * is flat colour and costs the encoder next to nothing. Once the machine is
  * busy all the time, the browsers are fighting each other for it, and the
  * figures stop saying what one person's own computer would spend.
+ *
+ * The browser is Chromium itself, headless, which draws on the graphics card
+ * as a person's browser does. `--browser=shell` takes Playwright's headless
+ * shell instead, which draws in software: on this kind of machine that cost
+ * 40% of a core per person in a call of seven, which nobody's own computer
+ * spends. CPU is split by process: the page (its own script, and WebRTC's
+ * encoding, decoding and sending), drawing, sound, the camera and the network.
  * Needs `pnpm --filter @slackoss/web build` first.
  *
  *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-calls.mts \
  *     [--sizes=2,3,4,5,6] [--seconds=120] [--settle=20] [--every=5] \
- *     [--camera=on|off] [--out=calls.json] [--shots=<folder for a failed call's windows>]
+ *     [--camera=on|off] [--cameras=<how many turn theirs on; everyone>] \
+ *     [--talking=<how many join with their microphone on; everyone>] \
+ *     [--browser=chromium|shell] [--out=calls.json] \
+ *     [--shots=<folder for a failed call's windows>]
  *
  * Set CHROMIUM to a browser executable to use one other than Playwright's own.
  */
@@ -45,7 +55,13 @@ import {
 } from "node:fs";
 import { arch, cpus, platform, release, tmpdir, totalmem } from "node:os";
 import { join, resolve, sep } from "node:path";
-import { chromium, type Browser, type BrowserContext, type Page } from "@playwright/test";
+import {
+  chromium,
+  type Browser,
+  type BrowserContext,
+  type CDPSession,
+  type Page,
+} from "@playwright/test";
 import { createWorkspaceServer, type WorkspaceServer } from "../packages/server/src/index.js";
 import { check } from "./build-identity.mjs";
 
@@ -57,6 +73,11 @@ const params = {
   settleSeconds: number("settle", 20),
   sampleEverySeconds: number("every", 5),
   camera: (value("camera") ?? "on") !== "off",
+  /** How many of each call turn their camera on, the first to join first. */
+  cameras: number("cameras", Infinity),
+  /** How many of each call join with their microphone on; the rest join muted. */
+  talking: number("talking", Infinity),
+  browser: value("browser") === "shell" ? "shell" : "chromium",
 };
 const out = value("out");
 const shots = value("shots");
@@ -189,7 +210,7 @@ function machineTimes() {
  * have saved, so joining asks nothing. The fake microphone plays a tone,
  * which strong noise suppression takes out as noise.
  */
-const PREPARE = () => {
+const PREPARE = (joinMuted: boolean) => {
   const Original = window.RTCPeerConnection;
   const w = window as unknown as { peers: RTCPeerConnection[] };
   w.peers = [];
@@ -201,7 +222,7 @@ const PREPARE = () => {
   };
   localStorage.setItem(
     "slackoss:call-preferences",
-    JSON.stringify({ joinMuted: false, noiseFilter: false, devicesChecked: true }),
+    JSON.stringify({ joinMuted, noiseFilter: false, devicesChecked: true }),
   );
 };
 
@@ -324,17 +345,76 @@ const READ = async (): Promise<Reading> => {
   return r;
 };
 
-/** CPU seconds every process of one browser has used so far. */
-async function browserCpuSeconds(browser: Browser): Promise<number> {
+/**
+ * CPU seconds the processes of one browser have used so far, by kind: the
+ * page and its WebRTC (renderer), drawing (gpu), the browser itself, playing
+ * and recording sound (audio), the camera (capture), the network, and the rest.
+ */
+async function browserCpuSeconds(browser: Browser): Promise<Record<string, number>> {
   const cdp = await browser.newBrowserCDPSession();
   try {
     const { processInfo } = (await cdp.send("SystemInfo.getProcessInfo")) as {
       processInfo: { type: string; cpuTime: number }[];
     };
-    return processInfo.reduce((sum, p) => sum + p.cpuTime, 0);
+    const byKind: Record<string, number> = {};
+    for (const { type, cpuTime } of processInfo) {
+      const kind =
+        type === "renderer" || type === "browser"
+          ? type
+          : type === "GPU"
+            ? "gpu"
+            : /audio/i.test(type)
+              ? "audio"
+              : /video_capture/i.test(type)
+                ? "capture"
+                : /network/i.test(type)
+                  ? "network"
+                  : "other";
+      byKind[kind] = (byKind[kind] ?? 0) + cpuTime;
+    }
+    return byKind;
   } finally {
     await cdp.detach().catch(() => {});
   }
+}
+
+/** A page's timings, counted from now on (they count only while enabled). */
+async function watchMainThread(page: Page): Promise<CDPSession> {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Performance.enable");
+  return cdp;
+}
+
+/**
+ * Seconds the page's main thread has spent since `watchMainThread`: on
+ * everything, and on script, layout and style alone. The rest of a page's CPU
+ * is WebRTC's own threads, encoding, decoding and sending.
+ */
+async function mainThreadSeconds(cdp: CDPSession): Promise<Record<string, number>> {
+  const { metrics } = (await cdp.send("Performance.getMetrics")) as {
+    metrics: { name: string; value: number }[];
+  };
+  const of = (name: string) => metrics.find((m) => m.name === name)?.value ?? 0;
+  return {
+    main: of("TaskDuration"),
+    script: of("ScriptDuration"),
+    layout: of("LayoutDuration") + of("RecalcStyleDuration"),
+  };
+}
+
+/** The share of one core each kind used between two readings, and all of them together. */
+function cpuShares(
+  before: Record<string, number>,
+  after: Record<string, number>,
+  seconds: number,
+): Record<string, number> {
+  const shares: Record<string, number> = { total: 0 };
+  for (const kind of new Set([...Object.keys(before), ...Object.keys(after)])) {
+    const share = (((after[kind] ?? 0) - (before[kind] ?? 0)) / seconds) * 100;
+    shares[kind] = share;
+    shares.total! += share;
+  }
+  return shares;
 }
 
 const until = async (what: string, ms: number, ok: () => Promise<boolean>) => {
@@ -379,6 +459,8 @@ try {
   const launch = () =>
     chromium.launch({
       executablePath: process.env.CHROMIUM || undefined,
+      // Chromium itself, headless, draws on the graphics card; the shell cannot.
+      channel: process.env.CHROMIUM || params.browser === "shell" ? undefined : "chromium",
       args: [
         "--use-fake-device-for-media-stream",
         "--use-fake-ui-for-media-stream",
@@ -403,7 +485,13 @@ try {
       await page.getByLabel("Username", { exact: true }).fill(handle);
       await page.getByLabel("Password", { exact: true }).fill("password123");
       await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
-      await page.locator("textarea").waitFor();
+      await page
+        .locator("textarea")
+        .waitFor()
+        .catch(async (error: unknown) => {
+          if (shots) await page.screenshot({ path: join(shots, `signin-${handle}.png`) });
+          throw error;
+        });
       signedIn.push(await context.storageState({ indexedDB: true }));
       await context.close();
     }
@@ -416,6 +504,9 @@ try {
     process.stderr.write(`${size} people: joining\n`);
     const errors: string[] = [];
     const pages: Page[] = [];
+    const onCamera = params.camera ? Math.min(params.cameras, size) : 0;
+    /** How many cameras person `i` sees: everyone else's that is on. */
+    const cameras = (i: number) => (i < onCamera ? onCamera - 1 : onCamera);
     try {
       for (let i = 0; i < size; i++) {
         const browser = await launch();
@@ -425,30 +516,36 @@ try {
           viewport,
           permissions: ["microphone", "camera"],
         });
-        await context.addInitScript(PREPARE);
+        await context.addInitScript(PREPARE, i >= params.talking);
         const page = await context.newPage();
         pages.push(page);
+        // A big call keeps the machine busy, and a page opening into it is slow.
+        page.setDefaultTimeout(90_000);
         page.on("pageerror", (err) => errors.push(`${people[i]}: ${err.message}`));
-        await page.goto(base);
-        await page.getByRole("textbox", { name: "Message #general", exact: true }).waitFor();
-        await page
-          .getByRole("button", { name: i === 0 ? "Start a huddle" : /^Join the huddle with / })
-          .click();
-        await page.getByRole("button", { name: "Leave", exact: true }).first().waitFor();
-        if (params.camera)
-          await page.getByRole("button", { name: "Camera", exact: true, pressed: false }).click();
+        try {
+          await page.goto(base);
+          await page.getByRole("textbox", { name: "Message #general", exact: true }).waitFor();
+          await page
+            .getByRole("button", { name: i === 0 ? "Start a huddle" : /^Join the huddle with / })
+            .click();
+          await page.getByRole("button", { name: "Leave", exact: true }).first().waitFor();
+          if (i < onCamera)
+            await page.getByRole("button", { name: "Camera", exact: true, pressed: false }).click();
+        } catch (error) {
+          throw new Error(`${people[i]}, joining as number ${i + 1}: ${String(error)}`);
+        }
       }
       // Everyone is connected to everyone else, and sees each camera.
-      await until(`a call of ${size} connecting`, 60_000, async () => {
+      await until(`a call of ${size} connecting`, Math.max(60_000, size * 6_000), async () => {
         const readings = await Promise.all(pages.map((p) => p.evaluate(READ)));
-        return readings.every(
-          (r) => r.connected === size - 1 && (!params.camera || r.videoFrom === size - 1),
-        );
+        return readings.every((r, i) => r.connected === size - 1 && r.videoFrom === cameras(i));
       });
       process.stderr.write(`${size} people: settling for ${params.settleSeconds} s\n`);
       await new Promise((r) => setTimeout(r, params.settleSeconds * 1000));
 
       const cpuBefore = await Promise.all(browsers.map(browserCpuSeconds));
+      const watching = await Promise.all(pages.map(watchMainThread));
+      const mainBefore = await Promise.all(watching.map(mainThreadSeconds));
       const machineBefore = machineTimes();
       const first = await Promise.all(pages.map((p) => p.evaluate(READ)));
       const began = Date.now();
@@ -461,6 +558,8 @@ try {
       }
       const last = samples.map((s) => s.at(-1)!);
       const cpuAfter = await Promise.all(browsers.map(browserCpuSeconds));
+      const mainAfter = await Promise.all(watching.map(mainThreadSeconds));
+      await Promise.all(watching.map((cdp) => cdp.detach().catch(() => {})));
       const machineAfter = machineTimes();
       const seconds = (Date.now() - began) / 1000;
 
@@ -470,8 +569,20 @@ try {
         const b = last[i]!;
         const s = (b.at - a.at) / 1000;
         const limited = b.limitedTotal - a.limitedTotal;
+        const cpu = cpuShares(cpuBefore[i]!, cpuAfter[i]!, seconds);
+        const main = cpuShares(mainBefore[i]!, mainAfter[i]!, seconds);
         return {
-          cpuPctOfOneCore: ((cpuAfter[i]! - cpuBefore[i]!) / seconds) * 100,
+          cpuPctOfOneCore: cpu.total!,
+          rendererCpuPct: cpu.renderer ?? 0,
+          gpuCpuPct: cpu.gpu ?? 0,
+          browserCpuPct: cpu.browser ?? 0,
+          audioCpuPct: cpu.audio ?? 0,
+          captureCpuPct: cpu.capture ?? 0,
+          networkCpuPct: cpu.network ?? 0,
+          otherCpuPct: cpu.other ?? 0,
+          mainThreadPct: main.main ?? 0,
+          scriptPct: main.script ?? 0,
+          layoutPct: main.layout ?? 0,
           sentKbps: kbps(b.sent - a.sent, s),
           receivedKbps: kbps(b.received - a.received, s),
           sentAudioKbps: kbps(b.sentAudio - a.sentAudio, s),
@@ -498,7 +609,7 @@ try {
               : 0,
           // Whether every connection stayed up, and every camera came through.
           stayedConnected: samples[i]!.every((r) => r.connected === size - 1),
-          videoThroughout: !params.camera || samples[i]!.every((r) => r.videoFrom === size - 1),
+          videoThroughout: samples[i]!.every((r) => r.videoFrom === cameras(i)),
         };
       });
       const all = (pick: (r: Reading) => number[]) => samples.flat().flatMap(pick);
@@ -506,6 +617,7 @@ try {
         each.map((e) => e[key]).filter((v): v is number => typeof v === "number");
       const call = {
         size,
+        onCamera,
         seconds: +seconds.toFixed(1),
         machineBusyPct: +(
           ((machineAfter.busy - machineBefore.busy) / (machineAfter.total - machineBefore.total)) *
@@ -515,6 +627,22 @@ try {
           cpuPctOfOneCore: {
             mean: mean(per("cpuPctOfOneCore")),
             ...summary(per("cpuPctOfOneCore")),
+          },
+          // Which processes that CPU went to.
+          cpuByProcess: {
+            renderer: mean(per("rendererCpuPct")),
+            gpu: mean(per("gpuCpuPct")),
+            browser: mean(per("browserCpuPct")),
+            audio: mean(per("audioCpuPct")),
+            capture: mean(per("captureCpuPct")),
+            network: mean(per("networkCpuPct")),
+            other: mean(per("otherCpuPct")),
+          },
+          // Of the page's: its main thread, and the script, layout and style on it.
+          pageMainThread: {
+            all: mean(per("mainThreadPct")),
+            script: mean(per("scriptPct")),
+            layout: mean(per("layoutPct")),
           },
           sentKbps: { mean: mean(per("sentKbps")), ...summary(per("sentKbps")) },
           receivedKbps: { mean: mean(per("receivedKbps")), ...summary(per("receivedKbps")) },
@@ -552,7 +680,15 @@ try {
       calls.push(call);
       const p = call.perPerson;
       process.stderr.write(
-        `${size} people: CPU ${p.cpuPctOfOneCore.mean}% of a core each (machine ${call.machineBusyPct}%), ` +
+        `${size} people, ${onCamera} on camera, ${Math.min(params.talking, size)} talking: ` +
+          `CPU ${p.cpuPctOfOneCore.mean}% of a core each ` +
+          `(machine ${call.machineBusyPct}%; ` +
+          `page ${p.cpuByProcess.renderer} (main thread ${p.pageMainThread.all}, ` +
+          `script ${p.pageMainThread.script}, layout ${p.pageMainThread.layout}), ` +
+          `drawing ${p.cpuByProcess.gpu}, ` +
+          `sound ${p.cpuByProcess.audio}, camera ${p.cpuByProcess.capture}, ` +
+          `network ${p.cpuByProcess.network}, browser ${p.cpuByProcess.browser}, ` +
+          `other ${p.cpuByProcess.other}), ` +
           `up ${p.sentKbps.mean} kbit/s, down ${p.receivedKbps.mean} kbit/s, ` +
           `sent ${call.sentHeight.p50}p at ${call.sentFps.p50} fps, ` +
           `round trip p95 ${call.rttMs.p95} ms, jitter p95 ${call.audioJitterMs.p95} ms, ` +
@@ -578,6 +714,17 @@ try {
 
   const probe = await launch();
   const chromiumVersion = probe.version();
+  // What it drew with: the graphics card, or SwiftShader in software.
+  const drawnWith = await probe
+    .newPage()
+    .then((page) =>
+      page.evaluate(() => {
+        const gl = document.createElement("canvas").getContext("webgl");
+        const info = gl?.getExtension("WEBGL_debug_renderer_info");
+        return info ? String(gl!.getParameter(info.UNMASKED_RENDERER_WEBGL)) : null;
+      }),
+    )
+    .catch(() => null);
   await probe.close();
   const result = {
     measured: "calls",
@@ -593,6 +740,7 @@ try {
       memoryGiB: +(totalmem() / 2 ** 30).toFixed(1),
       node: process.version,
       chromium: chromiumVersion,
+      drawnWith,
       viewport,
     },
     calls,
