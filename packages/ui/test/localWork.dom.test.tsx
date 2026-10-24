@@ -1,4 +1,4 @@
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@slackoss/client-core";
 import { ClientContext, PlatformContext } from "../src/context.js";
@@ -52,13 +52,18 @@ function signedIn(workspaceId?: string) {
   return client;
 }
 
-/** Types into the box and presses Enter, in one turn, as a fast typist does. */
-async function typeAndSend(box: HTMLTextAreaElement, text: string) {
+/** Changes the box's text as typing does. */
+async function typeInto(box: HTMLTextAreaElement, text: string) {
   await act(async () => {
     const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!;
     setter.call(box, text);
     box.dispatchEvent(new Event("input", { bubbles: true }));
   });
+}
+
+/** Types into the box and presses Enter, in one turn, as a fast typist does. */
+async function typeAndSend(box: HTMLTextAreaElement, text: string) {
+  await typeInto(box, text);
   act(() => box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
 }
 
@@ -157,17 +162,41 @@ describe("a send's words before the device keeps it (GL-02)", () => {
     await waitFor(() => expect(held).toBe(true));
     // Held: the words are still here, and cannot be sent twice meanwhile.
     expect(box.value).toBe("fresh words");
-    expect(box.readOnly).toBe(true);
+    // Typing is refused, but the box is not read only: that drops a phone's keyboard.
+    expect(box.readOnly).toBe(false);
+    expect(box).toHaveAttribute("aria-readonly", "true");
+    await typeInto(box, "fresh words and more");
+    expect(box.value).toBe("fresh words");
     act(() => box.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })));
     expect(client.state.pending).toHaveLength(1);
 
     resume();
     await waitFor(() => expect(box.value).toBe(""));
-    expect(box.readOnly).toBe(false);
+    expect(box).toHaveAttribute("aria-readonly", "false");
     expect(JSON.stringify(device.values.get("outbox:http://127.0.0.1:9:U1"))).toContain(
       "fresh words",
     );
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+
+  it("leave focus in the box when Send is pressed, so a phone's keyboard stays up", async () => {
+    const device = sharedDevice();
+    const platform = device.window();
+    const client = signedIn();
+    vi.spyOn(client.api, "sendMessage").mockImplementation(() => new Promise(() => {}));
+    const box = mount(platform, client);
+    await waitFor(() => expect(device.values.has("outbox:http://127.0.0.1:9:U1")).toBe(true));
+
+    act(() => box.focus());
+    await typeInto(box, "tapped send");
+    const sendButton = screen.getByRole("button", { name: "Send message" });
+    // Pressing the button would otherwise move focus to it, and a phone's keyboard down.
+    expect(fireEvent.mouseDown(sendButton)).toBe(false);
+    act(() => sendButton.click());
+    expect(box).toHaveFocus();
+    await waitFor(() => expect(box.value).toBe(""));
+    expect(box).toHaveFocus();
+    expect(client.state.pending.map((p) => p.text)).toEqual(["tapped send"]);
   });
 
   it("are saved for a restart when the outbox write fails, and the box says nothing is lost", async () => {
@@ -291,7 +320,7 @@ describe("a send's words before the device keeps it (GL-02)", () => {
       </PlatformContext.Provider>,
     );
     const box = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Message test" });
-    expect(box.readOnly).toBe(false);
+    expect(box).toHaveAttribute("aria-readonly", "false");
     await typeAndSend(box, "sent from C2");
     expect(client.state.pending.map((p) => p.text)).toEqual(["held in C1", "sent from C2"]);
   });

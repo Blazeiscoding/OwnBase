@@ -1,6 +1,5 @@
 import { useEffect, useRef, useState } from "react";
 import type { Message } from "@slackoss/protocol";
-import { MentionTags } from "./MentionTags.js";
 import { ApiError } from "@slackoss/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
@@ -13,6 +12,7 @@ import {
   MESSAGE_LIMIT,
 } from "./FormattingToolbar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
+import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";

@@ -3709,6 +3709,64 @@ test("on a phone the bottom bar reaches Activity and a DM without the drawer, be
   }
 });
 
+test("on a phone a tap on Send leaves the keyboard up for the next message", async ({
+  browser,
+}) => {
+  const { token } = (await (
+    await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ handle: "alice", password: "password123" }),
+    })
+  ).json()) as { token: string };
+  const { channels } = await (
+    await fetch(`${base}/api/channels`, { headers: { authorization: `Bearer ${token}` } })
+  ).json();
+  const general = channels.find((c: { name: string }) => c.name === "general");
+
+  const context = await browser.newContext({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  try {
+    const page = await context.newPage();
+    await page.goto(base);
+    await page.evaluate(
+      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      { url: base, token, workspaceName: "Product Test", handle: "alice", lastUsedAt: 1 },
+    );
+    await page.goto(`${base}/#/c/${general.id}`);
+    await page.reload();
+    const box = page.getByRole("textbox", { name: "Message #general" });
+    await box.tap();
+    await expect(box).toBeFocused();
+    // A phone puts its keyboard away once the box loses focus or turns read
+    // only, even for a moment, and does not bring it back by itself.
+    await box.evaluate((field) => {
+      const down: string[] = [];
+      Object.assign(window, { keyboardDown: down });
+      field.addEventListener("blur", () => down.push("blur"));
+      new MutationObserver(() => {
+        if (field.hasAttribute("readonly")) down.push("readonly");
+      }).observe(field, { attributes: true, attributeFilter: ["readonly"] });
+    });
+
+    for (const words of ["Venue is booked", "Tickets go out Monday"]) {
+      await box.fill(words);
+      await page.getByRole("button", { name: "Send message" }).tap();
+      await expect(page.locator("[data-mid]").getByText(words, { exact: true })).toBeVisible();
+      await expect(box).toHaveValue("");
+    }
+    await expect(box).toBeFocused();
+    expect(
+      await page.evaluate(() => (window as unknown as { keyboardDown: string[] }).keyboardDown),
+    ).toEqual([]);
+  } finally {
+    await context.close().catch(() => {});
+  }
+});
+
 /**
  * Presses a key until `target` has focus, as somebody without a pointer would.
  * Fails rather than looping forever when the target is not reachable that way.
