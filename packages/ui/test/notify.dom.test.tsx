@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import {
@@ -170,4 +170,71 @@ describe("a notification", () => {
     webPlatform().notify("Sam in #design", "ping", () => {});
     expect(created).toHaveLength(0);
   });
+
+  it("is shown by the service worker where a page may not make one (Android's Chrome)", async () => {
+    installPageRefusingNotifications();
+    const worker = installServiceWorker();
+    const opened: string[] = [];
+    const platform = webPlatform();
+    platform.notify("Sam in #design", "ping", () => opened.push("ping"), { tag: "account m1" });
+    platform.notify("Sam in #design", "pong", () => opened.push("pong"));
+    await vi.waitFor(() => expect(worker.shown).toHaveLength(2));
+    expect(worker.register.mock.calls).toEqual([["/notification-worker.js"]]);
+    expect(worker.shown[0]).toMatchObject({
+      title: "Sam in #design",
+      options: { body: "ping", tag: "account m1" },
+    });
+
+    // The worker hands a click back naming the notification, which opens its message.
+    worker.relayClick(worker.shown[1]!.options.data.click);
+    expect(opened).toEqual(["pong"]);
+    // One another page showed is not this page's to open.
+    worker.relayClick("another page's");
+    expect(opened).toEqual(["pong"]);
+  });
+
+  it("fails quietly where a page may not make one and there is no service worker", () => {
+    installPageRefusingNotifications();
+    expect(() => webPlatform().notify("Sam in #design", "ping", () => {})).not.toThrow();
+  });
 });
+
+/** Android's Chrome: permission granted, but a page's `new Notification` throws. */
+function installPageRefusingNotifications() {
+  vi.stubGlobal(
+    "Notification",
+    class {
+      static permission: NotificationPermission = "granted";
+      constructor() {
+        throw new TypeError(
+          "Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.",
+        );
+      }
+    },
+  );
+}
+
+/** A service worker container that records what it is asked to show. */
+function installServiceWorker() {
+  const shown: Array<{
+    title: string;
+    options: NotificationOptions & { data: { click: string } };
+  }> = [];
+  const registration = {
+    showNotification: async (title: string, options: (typeof shown)[number]["options"]) => {
+      shown.push({ title, options });
+    },
+  };
+  const container = new EventTarget();
+  const register = vi.fn(async (_url: string) => registration);
+  Object.assign(container, { register, ready: Promise.resolve(registration) });
+  Object.defineProperty(navigator, "serviceWorker", { configurable: true, value: container });
+  onTestFinished(() => {
+    delete (navigator as { serviceWorker?: unknown }).serviceWorker;
+  });
+  const relayClick = (click: string) =>
+    container.dispatchEvent(
+      new MessageEvent("message", { data: { type: "tandem:notification-click", click } }),
+    );
+  return { shown, register, relayClick };
+}
