@@ -76,6 +76,9 @@ async function renderComposer(drafts?: Record<string, string>) {
   return { box, client, send, user: userEvent.setup() };
 }
 
+/** The mentions drawn as tags behind a box, by what each says. */
+const tags = () => [...document.querySelectorAll(".mention-tag")].map((tag) => tag.textContent);
+
 /** What was sent last. */
 const sent = (send: ReturnType<typeof workspace>["send"]) => send.mock.lastCall?.[1];
 
@@ -176,6 +179,48 @@ describe("a mention in the composer", () => {
     expect(sent(send)).toBe(`ask *<@${sadia.id}>*`);
   });
 
+  it("draws each mention chosen as a tag under its name, and nothing else", async () => {
+    const { box, user } = await renderComposer();
+    await user.type(box, "ask @sad");
+    await user.keyboard("{Tab}");
+    await user.type(box, "and @he");
+    await user.keyboard("{Tab}");
+    // A name typed or pasted is words, not a person tagged.
+    await user.paste("or @Kai?");
+    expect(box).toHaveValue("ask @Sadia Khan and @here or @Kai?");
+    expect(tags()).toEqual(["@Sadia Khan", "@here"]);
+    // The layer holds the box's words, unread by a screen reader, which reads the box.
+    const layer = document.querySelector(".mention-tag")!.parentElement!;
+    expect(layer).toHaveAttribute("aria-hidden", "true");
+    expect(layer.textContent).toBe(`${box.value}\u200b`);
+
+    box.setSelectionRange(15, 15);
+    await user.keyboard("{Backspace}");
+    expect(tags()).toEqual(["@here"]);
+  });
+
+  it("lays its tags out as the box lays out its words, and scrolls with it", async () => {
+    const { box, user } = await renderComposer();
+    // A touchscreen writes at 16 px; the tags follow whatever the box uses.
+    box.style.fontSize = "16px";
+    box.style.paddingLeft = "17px";
+    await user.type(box, "@sad");
+    await user.keyboard("{Tab}");
+    const layer = document.querySelector(".mention-tag")!.parentElement!;
+    expect(layer.style.fontSize).toBe("16px");
+    expect(layer.style.paddingLeft).toBe("17px");
+    box.scrollTop = 40;
+    fireEvent.scroll(box);
+    expect(layer.scrollTop).toBe(40);
+  });
+
+  it("draws no layer at all while nobody is mentioned", async () => {
+    const { box, user } = await renderComposer();
+    await user.type(box, "Just words, @nobody here");
+    expect(document.querySelector(".mention-tag")).toBeNull();
+    expect(box.previousElementSibling).toBeNull();
+  });
+
   it("does not offer a mention again for one already made", async () => {
     const { box, send, user } = await renderComposer();
     await user.type(box, "@ka");
@@ -236,6 +281,11 @@ describe("a mention in a message being edited", () => {
     });
     await user.keyboard("{Enter}");
     expect(edit).toHaveBeenCalledWith("M1", `Ship it <@${sadia.id}> <!here> today`, message.text);
+  });
+
+  it("draws its mentions as tags too", () => {
+    renderEditor();
+    expect(tags()).toEqual(["@Sadia Khan", "@here"]);
   });
 
   it("shows the message as changed elsewhere with names too", async () => {
