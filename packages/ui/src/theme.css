@@ -685,6 +685,20 @@ h3 {
   background: color-mix(in oklab, var(--color-copper) 30%, transparent);
 }
 
+/*
+ * A mention in a message box, drawn under its name by MentionTags: the accent
+ * as a tag, so a person or channel tagged reads as one before it is sent. The
+ * shadow widens the fill without moving a letter, which would pull the tag out
+ * from under the name; a name wrapping across lines is a tag on each.
+ */
+.mention-tag {
+  border-radius: 4px;
+  background: color-mix(in oklab, var(--color-copper) 24%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--color-copper) 24%, transparent);
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+
 /* Scrollbars that stay out of the way until the pointer is over them. */
 * {
   scrollbar-width: thin;
