@@ -84,6 +84,20 @@ export function aloneLine(
   return ringingLine(ring, users) ?? (notice?.channelId === channelId ? notice.message : null);
 }
 
+/**
+ * The most people a call was measured to hold up with, everyone's camera on
+ * (E13): each person sends to each of the others, so every one more costs
+ * everyone. See "How many people a call holds" in docs/DEPLOYMENT.md.
+ */
+export const CALL_HOLDS = 6;
+
+/** What a call bigger than that says to everyone in it; null for one that size or smaller. */
+export function bigCallLine(people: number): string | null {
+  return people > CALL_HOLDS
+    ? `Calls of more than ${CALL_HOLDS} people can stutter. Turning cameras off helps.`
+    : null;
+}
+
 export function huddleNames(
   ids: readonly ID[],
   users: Record<ID, User>,

@@ -8,7 +8,7 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import { aloneLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
+import { aloneLine, bigCallLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
@@ -238,6 +238,8 @@ export function HuddleBar({
         : `With ${namesList(huddle.peers.map((p) => users[p.userId]?.displayName ?? "someone"))}${
             connecting ? " · Connecting…" : ""
           }${sharing}${ringing ? ` · ${ringing}` : ""}`;
+  // You and everyone else: more than a call was measured to hold up with.
+  const big = bigCallLine(huddle.peers.length + 1);
 
   const calling = view === "call";
   return (
@@ -260,6 +262,11 @@ export function HuddleBar({
               <div role="status" className="truncate text-xs text-ink-faint" title={summary}>
                 {summary}
               </div>
+              {big && (
+                <div role="status" className="text-xs text-ink-dim">
+                  {big}
+                </div>
+              )}
               {stuck.length > 0 && onShowCallLog && (
                 <button
                   type="button"

@@ -10,7 +10,7 @@ import type { HuddleState } from "@slackoss/client-core";
 import type { ID, User } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
-import { aloneLine, ringingLine } from "../lib/huddleView.js";
+import { aloneLine, bigCallLine, ringingLine } from "../lib/huddleView.js";
 import { Avatar } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -702,6 +702,7 @@ export function HuddleStage({
     huddle.peers.length === 0
       ? aloneLine(ring, ringNotice, huddle.channelId, users)
       : ringingLine(ring, users);
+  const big = bigCallLine(huddle.peers.length + 1);
   const viewButtons = (side: "top" | "bottom") => (
     <>
       {main && others.length > 0 && (
@@ -871,6 +872,11 @@ export function HuddleStage({
       >
         {!compact && <div />}
         <div className="flex min-w-0 flex-col items-center gap-2">
+          {big && (
+            <p role="status" className="text-center text-xs text-ink-dim">
+              {big}
+            </p>
+          )}
           <HuddleControls stage overlay={fullscreen} onOpenSettings={onOpenSettings} />
         </div>
         {!compact && (
