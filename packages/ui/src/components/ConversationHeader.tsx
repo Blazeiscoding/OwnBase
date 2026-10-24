@@ -109,14 +109,33 @@ export function MemberStack(props: { channelId: ID; pressed: boolean; onToggle: 
   );
 }
 
+/**
+ * Search in this conversation, drawn as a field in the header. It opens search
+ * on this conversation, ready to type in. A phone has room for its icon only.
+ */
+export function ConversationSearch(props: {
+  /** "#design", or the people in a direct message. */
+  title: string;
+  onSearch: () => void;
+}) {
+  const label = `Search ${props.title}`;
+  return (
+    <button
+      onClick={props.onSearch}
+      aria-label={label}
+      className="header-search flex h-8 shrink-0 items-center gap-2 rounded-lg bg-ink/[0.06] px-2.5 text-[13px] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim"
+    >
+      <Icon name="search" size={14} className="shrink-0" />
+      <span className="header-secondary min-w-0 truncate">{label}</span>
+    </button>
+  );
+}
+
 /** The rest of what a conversation offers, behind `⋯`. */
 export function ConversationMenu(props: {
   channelId: ID;
-  /** "#design", or the people in a direct message. */
-  title: string;
   isRoom: boolean;
   onPins: () => void;
-  onSearch: () => void;
   /** The files shared here, where the server lists shared files (E7). */
   onFiles?: () => void;
   /** Absent for a channel this account only looks into, which has no settings of its own. */
@@ -137,12 +156,6 @@ export function ConversationMenu(props: {
     ...(props.onFiles
       ? [{ id: "files", label: "Files", icon: "file" as const, onSelect: props.onFiles }]
       : []),
-    {
-      id: "search",
-      label: `Search in ${props.title}`,
-      icon: "search",
-      onSelect: props.onSearch,
-    },
     ...(canStar ? [starItem(client, toast, conversation, starred)] : []),
     ...(props.onNotifications
       ? [

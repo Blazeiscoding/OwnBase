@@ -48,7 +48,12 @@ import { shortcutLabel } from "../lib/shortcuts.js";
 import type { AccountSection } from "../components/AccountDialog.js";
 import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction } from "../components/Banner.js";
-import { ConversationMenu, MemberStack, PinnedBar } from "../components/ConversationHeader.js";
+import {
+  ConversationMenu,
+  ConversationSearch,
+  MemberStack,
+  PinnedBar,
+} from "../components/ConversationHeader.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.js";
 import { LazyDialog, LazyPanel } from "../components/LazyView.js";
 import { Icon } from "../components/Icon.js";
@@ -1403,6 +1408,12 @@ function WorkspaceInner({
               {activeChannel?.type === "dm" && <PartnerTime channelId={activeChannel.id} />}
             </button>
             {activeChannelId && (
+              <ConversationSearch
+                title={isRoom ? `#${title}` : title}
+                onSearch={() => setDialog({ kind: "search", inConversation: true })}
+              />
+            )}
+            {activeChannelId && (
               <div className="flex shrink-0 items-center gap-1">
                 {activeChannel?.type !== "dm" && (
                   <MemberStack
@@ -1414,7 +1425,6 @@ function WorkspaceInner({
                 <HuddleButton channelId={activeChannelId} />
                 <ConversationMenu
                   channelId={activeChannelId}
-                  title={isRoom ? `#${title}` : title}
                   isRoom={isRoom}
                   onPins={() => setPanel({ kind: "pins" })}
                   onFiles={
@@ -1422,7 +1432,6 @@ function WorkspaceInner({
                       ? () => setPanel({ kind: "files", channelId: activeChannelId })
                       : undefined
                   }
-                  onSearch={() => setDialog({ kind: "search", inConversation: true })}
                   onNotifications={
                     isMember
                       ? () => setDialog({ kind: "channel-details", tab: "notifications" })

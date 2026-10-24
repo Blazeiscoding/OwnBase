@@ -369,10 +369,8 @@ describe("the conversation's ⋯ menu", () => {
       <ClientContext.Provider value={client}>
         <ConversationMenu
           channelId={channelId}
-          title={isRoom ? "#design" : "Maya"}
           isRoom={isRoom}
           onPins={vi.fn()}
-          onSearch={vi.fn()}
           onNotifications={vi.fn()}
           onDetails={vi.fn()}
         />
@@ -387,7 +385,6 @@ describe("the conversation's ⋯ menu", () => {
     await user.click(screen.getByRole("button", { name: "Conversation options" }));
     expect(items()).toEqual([
       "Pinned messages",
-      "Search in #design",
       "Star channel",
       "Notification settings",
       "Channel details",

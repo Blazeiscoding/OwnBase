@@ -1450,10 +1450,10 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   // Search, scheduled messages and channel details are downloaded the first
   // time they open, so each has to arrive, past the content security policy,
   // and work.
-  // Chosen from the conversation's menu, search opens on this conversation,
-  // ready to type in, and follows the typing with no Enter.
-  await options.click();
-  await page.getByRole("menuitem", { name: "Search in #design-studio", exact: true }).click();
+  // From the header's search field, search opens on this conversation, ready
+  // to type in, and follows the typing with no Enter.
+  const headerSearch = page.getByRole("button", { name: "Search #design-studio", exact: true });
+  await headerSearch.click();
   const search = page.getByRole("dialog", { name: "Search messages", exact: true });
   const searchBox = search.getByRole("textbox", { name: "Search messages", exact: true });
   await expect(searchBox).toBeFocused();
@@ -1575,11 +1575,14 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.emulateMedia({ reducedMotion: "reduce" });
-  // A phone's header keeps the same controls, with one face beside the count.
+  // A phone's header keeps the same controls, with one face beside the count
+  // and the search field as its icon.
   await expectTooltipInsideViewport(page, options, "More");
   const extraFaces = await membersToggle.locator(".header-secondary").all();
   expect(extraFaces.length).toBeGreaterThan(0);
   for (const face of extraFaces) await expect(face).toBeHidden();
+  await expect(headerSearch).toBeVisible();
+  await expect(headerSearch.locator(".header-secondary")).toBeHidden();
   // At phone width a notice still fits the window.
   await page.route("**/api/messages/*/save", (route) => route.abort("connectionfailed"));
   const newest = page.getByRole("article").last();
