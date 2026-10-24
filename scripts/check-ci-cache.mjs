@@ -117,6 +117,22 @@ const cases = [
     changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },
+  // Scripts the pages run that ui's tests read and run themselves.
+  {
+    file: "apps/web/public/first-paint.js",
+    changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
+    unchanged: [packageTask("desktop", "build")],
+  },
+  {
+    file: "apps/web/public/notification-worker.js",
+    changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
+    unchanged: [packageTask("desktop", "build")],
+  },
+  {
+    file: "apps/desktop/src/renderer/public/first-paint.js",
+    changed: [packageTask("desktop", "build"), packageTask("ui", "test")],
+    unchanged: [packageTask("web", "build")],
+  },
   {
     file: "packages/protocol/test/search.test.ts",
     changed: [packageTask("protocol", "test"), packageTask("protocol", "typecheck")],
