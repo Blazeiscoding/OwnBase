@@ -5661,3 +5661,148 @@ test("two-step sign-in asks for the app's code, takes a recovery code once, and 
     for (const context of contexts) await context.close().catch(() => {});
   }
 });
+
+test("blocking folds someone away and closes their DM, and a reported message reaches the admins, who remove it (E12)", async ({
+  browser,
+}) => {
+  test.setTimeout(120_000);
+  const token = async (handle: string) =>
+    (
+      (await (
+        await fetch(`${base}/api/auth/login`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ handle, password: "password123" }),
+        })
+      ).json()) as { token: string }
+    ).token;
+  const registered = await fetch(`${base}/api/auth/register`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ handle: "carol", displayName: "carol", password: "password123" }),
+  });
+  expect(registered.status).toBe(201);
+  const general = (
+    (await (
+      await fetch(`${base}/api/channels`, {
+        headers: { authorization: `Bearer ${await token("carol")}` },
+      })
+    ).json()) as { channels: { id: string; name: string }[] }
+  ).channels.find((channel) => channel.name === "general")!.id;
+  const post = async (handle: string, text: string) => {
+    const sent = await fetch(`${base}/api/channels/${general}/messages`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${await token(handle)}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ text }),
+    });
+    return ((await sent.json()) as { message: { id: string } }).message;
+  };
+  /** What a conversation shows, apart from the composer. */
+  const history = (page: Page) => page.getByLabel("Message history");
+  const aliceContext = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+  const bobbyContext = await browser.newContext({ viewport: { width: 1280, height: 820 } });
+  const alice = await aliceContext.newPage();
+  const bobby = await bobbyContext.newPage();
+  try {
+    await post("alice", "Morning, team");
+    await post("bobby", "Hello from Bobby");
+    await signIn(alice, "alice");
+    await signIn(bobby, "bobby");
+    await expect(alice.getByText("Hello from Bobby", { exact: true })).toBeVisible();
+
+    // Alice blocks Bobby from his card, after it says what that does.
+    await alice.getByRole("button", { name: "View bobby's profile", exact: true }).click();
+    const card = alice.getByRole("dialog", { name: "Profile", exact: true });
+    await card.getByRole("button", { name: "Block bobby", exact: true }).click();
+    const asking = alice.getByRole("dialog", { name: "Block bobby?", exact: true });
+    await expect(asking).toContainText("They are not told");
+    await asking.getByRole("button", { name: "Block", exact: true }).click();
+    await expect(card.getByText("You blocked bobby. They are not told.")).toBeVisible();
+    await alice.keyboard.press("Escape");
+    await expect(card).toHaveCount(0);
+
+    // His message folds away for her, and shows when she asks.
+    const folded = alice.getByRole("article", { name: "Message from someone you blocked" });
+    await expect(folded).toBeVisible();
+    await expect(alice.getByText("Hello from Bobby", { exact: true })).toHaveCount(0);
+    // What he writes now arrives folded too, though nothing tells him so.
+    await bobby.locator("textarea").fill("Did you get my last one?");
+    await bobby.locator("textarea").press("Enter");
+    await expect(
+      history(bobby).getByText("Did you get my last one?", { exact: true }),
+    ).toBeVisible();
+    await expect(folded).toHaveCount(2);
+    await folded.first().getByRole("button", { name: "Show", exact: true }).click();
+    await expect(alice.getByText("Hello from Bobby", { exact: true })).toBeVisible();
+
+    // His DM to her goes through for him, and is nowhere in her sidebar.
+    await bobby.getByRole("button", { name: "View alice's profile", exact: true }).first().click();
+    await bobby
+      .getByRole("dialog", { name: "Profile", exact: true })
+      .getByRole("button", { name: "Message alice", exact: true })
+      .click();
+    const toAlice = bobby.getByRole("textbox", { name: "Message alice", exact: true });
+    await expect(toAlice).toBeEditable();
+    await toAlice.fill("Are you there?");
+    await toAlice.press("Enter");
+    await expect(history(bobby).getByText("Are you there?", { exact: true })).toBeVisible();
+    await alice.waitForTimeout(500);
+    await expect(alice.getByRole("navigation").getByText("bobby", { exact: true })).toHaveCount(0);
+
+    // Opened from his card, the DM offers Unblock in place of the composer.
+    await alice.getByRole("button", { name: "View bobby's profile", exact: true }).click();
+    await alice
+      .getByRole("dialog", { name: "Profile", exact: true })
+      .getByRole("button", { name: "Message bobby", exact: true })
+      .click();
+    await expect(
+      alice.getByText(/You blocked bobby\. Their messages are folded away/),
+    ).toBeVisible();
+    await expect(alice.locator("textarea")).toHaveCount(0);
+    await alice.getByRole("button", { name: "Unblock", exact: true }).click();
+    await expect(alice.locator("textarea")).toBeVisible();
+    await expect(history(alice).getByText("Are you there?", { exact: true })).toBeVisible();
+
+    // Bobby reports what Carol wrote in #general.
+    const rude = await post("carol", "Nobody wants you here");
+    await bobby.goto(`${base}/#/c/${general}`);
+    const row = bobby.locator(`[data-message-id="${rude.id}"]`);
+    await row.hover();
+    await row.getByRole("button", { name: "More actions", exact: true }).click();
+    await bobby.getByRole("menuitem", { name: "Report message…", exact: true }).click();
+    const report = bobby.getByRole("dialog", { name: "Report message", exact: true });
+    await report.getByRole("radio", { name: /^Harassment or bullying/ }).check();
+    await report.getByLabel(/Anything to add/).fill("Aimed at the new starter");
+    await report.getByRole("button", { name: "Send report", exact: true }).click();
+    await expect(
+      bobby.getByText("Reported. The workspace's admins will look at it."),
+    ).toBeVisible();
+
+    // Alice's workspace menu says one waits; she removes it and deactivates Carol.
+    const menu = alice.getByRole("button", {
+      name: /, workspace menu, 1 reported message waiting$/,
+    });
+    await expect(menu).toBeVisible();
+    await menu.click();
+    await alice.getByRole("menuitem", { name: /^Reported messages/ }).click();
+    const queue = alice.getByRole("dialog", { name: "Reported messages", exact: true });
+    const item = queue.getByRole("listitem", { name: "carol's message in #general" });
+    await expect(item).toContainText("Nobody wants you here");
+    await expect(item).toContainText("Aimed at the new starter");
+    await item.getByRole("button", { name: "Remove and deactivate carol", exact: true }).click();
+    await alice
+      .getByRole("dialog", { name: "Remove it and deactivate carol?", exact: true })
+      .getByRole("button", { name: "Remove and deactivate", exact: true })
+      .click();
+    await expect(queue.getByText(/carol is deactivated/)).toBeVisible();
+    await expect(queue.getByText(/Nothing is waiting/)).toBeVisible();
+    await expect(bobby.getByText("Nobody wants you here", { exact: true })).toHaveCount(0);
+    await expect(alice.getByRole("button", { name: /, workspace menu$/ })).toBeVisible();
+  } finally {
+    await aliceContext.close().catch(() => {});
+    await bobbyContext.close().catch(() => {});
+  }
+});

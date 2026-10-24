@@ -408,6 +408,10 @@ export class Gateway {
           workspaceName: this.workspace.name(),
           workspaceId: this.store.getMeta("workspace_id") ?? undefined,
           friends: this.store.listFriends(user.id),
+          blocked: this.store.blockedIds(user.id),
+          ...(user.role === "owner" || user.role === "admin"
+            ? { openReports: this.store.openReportCount() }
+            : {}),
         };
         const missed =
           msg.lastSeq !== null && msg.lastSeq <= snapshot.seq

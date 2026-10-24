@@ -35,7 +35,8 @@
         "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7).",
         "createSidebarSection, renameSidebarSection, deleteSidebarSection and orderSidebarSections call the sidebar section routes (E8).",
         "setAvatar and removeAvatar call PUT and DELETE /api/me/avatar; fetchAvatar fetches GET /api/users/:id/avatar?v= with the session's token, which the browser may keep for that version (E9).",
-        "login always sends twoStep: true, which an older server does not read, and its LoginResult is a session (SignedIn) or the second step's challenge, which signInSecondStep answers with a code or a recovery code (E11). twoStep, startTwoStep, enableTwoStep, newRecoveryCodes and disableTwoStep are the account's own calls and resetTwoStep an admin's; listAllUsers may say twoStep."
+        "login always sends twoStep: true, which an older server does not read, and its LoginResult is a session (SignedIn) or the second step's challenge, which signInSecondStep answers with a code or a recovery code (E11). twoStep, startTwoStep, enableTwoStep, newRecoveryCodes and disableTwoStep are the account's own calls and resetTwoStep an admin's; listAllUsers may say twoStep.",
+        "blockUser, unblockUser, reportMessage, listReports and resolveReport are E12's calls."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
     },
@@ -66,7 +67,8 @@
         "sharedFiles says the server lists shared files (ReadySnapshot.sharedFiles, E7), so Files is offered only there.",
         "sidebarSections holds this account's sections in order, or null where the server keeps none (E8); the snapshot fills it and sidebar.sections keeps it current. Making, renaming and deleting one keep the server's answer. orderSidebarSections shows the new order at once; lists heard while it is on its way wait, and a refusal shows the last one heard. A conversation moves through setChannelPrefs with sectionId.",
         "profiles says the server keeps pictures, time zones and away (ReadySnapshot.profiles, E9). setIdle tells it once per change that this device is idle or in use, and again on each new connection; an account with no zone takes this device's once it is in. setAway, setTimeZone, setAvatar and removeAvatar show the server's answer for this account at once. avatars is the AvatarCache, cleared when the client is destroyed.",
-        "rings holds each ring of a direct message's huddle this account is part of, calling or called, from ReadySnapshot.huddleRings and each huddle.ring, until it rings nobody; null where the server rings nobody (E10). declineRing says no to one that rings this account, gone here at once, and only where the server rings, since an older one closes the socket on huddle.decline. ringNotice says, for the caller's device in that huddle, who has just declined or that nobody answered; joining a huddle clears it."
+        "rings holds each ring of a direct message's huddle this account is part of, calling or called, from ReadySnapshot.huddleRings and each huddle.ring, until it rings nobody; null where the server rings nobody (E10). declineRing says no to one that rings this account, gone here at once, and only where the server rings, since an older one closes the socket on huddle.decline. ringNotice says, for the caller's device in that huddle, who has just declined or that nobody answered; joining a huddle clears it.",
+        "WorkspaceState.blocked (null on a server that neither blocks nor takes reports) and openReports (null but for admins) follow the snapshot and the blocks and reports events; setBlocked keeps the server's answer (E12)."
       ],
       "concepts": [
         "workspace replica",
@@ -223,7 +225,8 @@
         "A reply that chose to notify the author of the message it answers counts as naming them, as Discord's reply ping does.",
         "A reply in a thread this account muted notifies only when it is addressed to it: named, a reply that pings it, or a room-wide mention in a room, the rule the mention badge counts by. That holds at the level all and in a DM, where any other reply would notify (E3).",
         "decideReminderNotification lets a reminder come due notify in a muted or quiet conversation, since the person asked for it, but not during Do Not Disturb. dueReminderCount counts those come due in conversations this client still has (E4).",
-        "readableText resolves mentions, @channel and links in any text, as notificationBody does for a message; the Drafts list words drafts with it (E5)."
+        "readableText resolves mentions, @channel and links in any text, as notificationBody does for a message; the Drafts list words drafts with it (E5).",
+        "Someone this account blocked never notifies it, before any other rule: reason blocked (E12)."
       ],
       "concepts": ["notification policy", "Do Not Disturb", "live versus replay", "visibility"]
     },
@@ -351,7 +354,8 @@
         "The Drafts panel (E5) is a side panel of its own, from the sidebar, the palette and its route. openDraft opens a draft where it was written: the conversation, the thread, the message with its editor (requestEdit, then a jump), or Scheduled with that edit open.",
         "Files (E7) opens FilesPanel, a lazy chunk, from the palette, the address and a conversation's menu, which starts it in that conversation, where the server lists shared files; Show in conversation goes through jumpToMessage, so a reply opens its thread.",
         "useIdleReport says when this window goes idle (E9), and a direct message's header ends with PartnerTime.",
-        "IncomingCall (E10) loads only while a ring rings this account, and opens the conversation through openChannel when answered; its notification follows this device's preview choice and account tag."
+        "IncomingCall (E10) loads only while a ring rings this account, and opens the conversation through openChannel when answered; its notification follows this device's preview choice and account tag.",
+        "Reported messages is an admins' dialog with its own address, like People; a one-to-one DM with someone blocked gets BlockedComposer in place of the composer, and leaves the navigation toggle's unread (E12)."
       ],
       "concepts": [
         "screen orchestration",
@@ -635,7 +639,8 @@
       "details": [
         "SECTION_LABELS names each section once, for the list of sections and for the search results. SETTINGS gives every findable setting its section, the label its section shows it under, and other words for it.",
         "findSettings splits the search into words; a setting is found when each word begins a word of its label, its other words or its section's name. Labels that begin with the whole search come first, then those whose label has a word beginning with the first word typed, then the rest in page order.",
-        "Each label must match the text of a heading, legend or label on the page, since that is how the page finds the setting to show. A DOM test searches for every entry and checks it lands on its setting."
+        "Each label must match the text of a heading, legend or label on the page, since that is how the page finds the setting to show. A DOM test searches for every entry and checks it lands on its setting.",
+        "Blocked people is under Security (E12)."
       ],
       "concepts": ["settings search", "synonyms"]
     },
@@ -661,9 +666,20 @@
         "The side panels with an address of their own are Pinned, Saved, Threads, Scheduled, Activity and the phone's Direct messages (/p/dms).",
         "The dialogs with an address are Account settings (with its section), Workspace settings, People, Apps, Invite people, Keyboard shortcuts and the conversation's details.",
         "drafts is a route view, so the Drafts panel has an address (E5).",
-        "files is a route view: the file browser beside the conversation (E7)."
+        "files is a route view: the file browser beside the conversation (E7).",
+        "reports is a dialog with an address (E12)."
       ],
       "concepts": ["routing", "history ownership", "deep linking", "reading position"]
+    },
+    {
+      "path": "packages/ui/src/lib/blocking.ts",
+      "plain": "Small helpers for blocking and reporting, shared by the sidebar, the message list and the dialogs.",
+      "summary": "blockedPartner and REPORT_REASON_LABELS (E12).",
+      "details": [
+        "blockedPartner names whom a one-to-one DM is with when they are blocked; the sidebar, the DM list, the unread totals and the composer use it. A group DM is never hidden.",
+        "REPORT_REASON_LABELS words each report reason, for the report dialog and the admins' queue."
+      ],
+      "concepts": ["blocking", "reporting", "E12"]
     },
     {
       "path": "packages/ui/src/lib/deeplink.ts",
@@ -1297,7 +1313,8 @@
         "Remind me about this… (E4) sits in More actions and the touch menu where the server keeps reminders, and opens TimePopover from the row. Once set, the menu offers Change reminder… and Cancel reminder, or Mark reminder done once it is due; a toast says when it is set for, or that it was refused, with Try again.",
         "Opens its editor when the Drafts list asks for this message's unsaved edit, through useEditRequest, for the person's own messages only (E5).",
         "A poll's question shows in its PollCard rather than as the message's words, and Edit message is offered nowhere for a poll, nor by the Drafts list (E6).",
-        "A call's note (Message.call, E10) shows as a CallNote in place of its words, and Edit message is offered nowhere for one."
+        "A call's note (Message.call, E10) shows as a CallNote in place of its words, and Edit message is offered nowhere for one.",
+        "MessageItem draws a message from someone blocked as one line, Message from someone you blocked with Show, keeping its article role and data-message-id for the arrow keys and links; MessageRow is the message itself. Report message… (lazy ReportMessageDialog) is in both menus for someone else's message where the server takes reports (E12)."
       ],
       "concepts": [
         "memoized row",
@@ -1305,6 +1322,16 @@
         "message actions",
         "truthful feedback"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/ReportMessageDialog.tsx",
+      "plain": "The small form for reporting a message to the workspace's admins: what is wrong with it, and anything to add.",
+      "summary": "Reports a message with a reason and an optional note (E12).",
+      "details": [
+        "Four reasons as radio cards, each with a line on what it covers, and a note of up to REPORT_NOTE_MAX characters. Send report without a reason says so and puts focus on the first.",
+        "It says the admins will see the message, who wrote it and the report, and that its author is not told. A sent report closes the dialog with a notice; one that failed stays open and says why."
+      ],
+      "concepts": ["reporting", "moderation", "E12"]
     },
     {
       "path": "packages/ui/src/components/MessageEditor.tsx",
@@ -1385,7 +1412,8 @@
         "The list is the sidebar's own: conversations of type dm or group_dm this account is in and that are not archived, newest first by channelLastSeq. It comes from the workspace's live state, so it keeps itself current with nothing to load once the workspace has arrived; before then it shows ListStatus's stand-in rows.",
         "Each row is a button at least 48 px tall with the first other person's avatar and presence, the conversation's name, and Draft, Muted, a red mention count or an Unread dot; the one open is marked. Choosing one opens it, which closes the panel. The header has Friends (with a dot for requests waiting) and New message, which a guest does not get. The count, the dot and Friends' dot are Badges, always drawn so one that comes while the panel is open pops in.",
         "Empty, it says how to start one and offers New message; a guest is told direct messages are for members. While the connection is down a line says the list may be out of date, and what this device knows stays listed.",
-        "Someone away shows a ring rather than a filled dot (E9)."
+        "Someone away shows a ring rather than a filled dot (E9).",
+        "Leaves out a one-to-one DM with someone blocked (E12)."
       ],
       "concepts": ["direct messages", "side panel", "live state", "UX-70"]
     },
@@ -1623,7 +1651,8 @@
         "A Drafts row under Saved opens the Drafts panel, with a quiet count of the drafts it lists (E5). It shows only while there are drafts or the panel is open, so an empty row does not take a channel's place beside Getting started (UX-20).",
         "A Files row under Saved is there while the file browser is open, as Drafts is, so it costs no channel's place beside Getting started (UX-20); onFiles is given only where the server lists shared files (E7).",
         "Sidebar sections (E8): the account's sections sit between Starred and Channels in their order, each listing its conversations by name, channels and people together; a conversation naming a section the account no longer has goes back where it would be. An empty one says how to fill it. A section folds like the others, kept on this device as section:<id>. Its header menu renames it (SectionNameDialog, lazy), moves it up or down where it can go, and deletes it after asking. A row's menu has a Move to group (each other section, New section..., Remove from), and a row can be dragged with a pointer onto a section, Starred, or its own Channels or Direct messages; the place lights while it would take the row, and nothing happens where it already is. Focus follows a moved row, as it does a starred one.",
-        "Away (E9): on a server with profiles the account menu has Set yourself away, or Set yourself active once away by hand, and its heading and the footer show away as a ring; a direct message's row rings the dot of someone away."
+        "Away (E9): on a server with profiles the account menu has Set yourself away, or Set yourself active once away by hand, and its heading and the footer show away as a ring; a direct message's row rings the dot of someone away.",
+        "A one-to-one DM with someone blocked is left out, with its unread uncounted. The workspace menu offers Reported messages to admins on a server that takes reports, with how many wait as its hint, and its trigger shows a dot and says the count (E12)."
       ],
       "concepts": [
         "workspace navigation",
@@ -1646,7 +1675,8 @@
         "Badges count what waits elsewhere, as the drawer's button does: the conversation on screen and muted ones do not count. Home has a dot for unread channels, DMs a red count of unread conversations, Activity a red count of mentions or a dot for unread replies in followed threads. Each is also said in words, as the button's description. They are small Badges, 16 px and capped at 99+, hidden from a screen reader since the description says them.",
         "The bar is inert under the open drawer, which covers it. useEdgeSwipe opens the drawer while theme.css's drawer query matches and no dialog is open; useOnScreenKeyboard runs on every size, so the layout follows the keyboard on a phone on its side too.",
         "With the drawer closed, the sidebar's heading, the workspace's name, is hidden with it, so a visually hidden copy stays the page's h1, in a top-level header (the page's banner).",
-        "Activity's count in the bar adds due reminders to mentions, and says both (E4)."
+        "Activity's count in the bar adds due reminders to mentions, and says both (E4).",
+        "A DM with someone blocked does not count as unread (E12)."
       ],
       "concepts": ["bottom navigation", "UX-70", "UX-71", "touch gestures", "responsive UI"]
     },
@@ -1735,7 +1765,8 @@
         "Since Q11 a press on Message is dropped once the card closes or shows someone else, so a late answer neither navigates nor changes the card.",
         "Your own form offers Clear after (30 minutes, 1 hour, Today, This week, Don't clear) once there is a status; a preset picks its usual length, and a status saved again keeps the end it was set with. Someone else's card says until when their status lasts (UX-61).",
         "A profile says Active now, Away (a ring, E9) or Offline, and the person's local time where their zone is known, with the zone, written with spaces, where their clock reads otherwise than yours.",
-        "Your own form, on a server with profiles (E9), uploads, changes or removes a picture through prepareIcon, and chooses a time zone from the device's list under current names, offering this device's own with Use it; each saves as it is chosen."
+        "Your own form, on a server with profiles (E9), uploads, changes or removes a picture through prepareIcon, and chooses a time zone from the device's list under current names, offering this device's own with Use it; each saves as it is chosen.",
+        "Block <name> asks first, through the shared confirmation where there is one, saying what blocking does; once blocked the card says so and offers Unblock, and no friend actions (E12)."
       ],
       "concepts": [
         "profile",
@@ -1745,6 +1776,16 @@
         "profile pictures",
         "time zones"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/Blocking.tsx",
+      "plain": "What stands in for the message box in a direct message with someone blocked, and the list of blocked people in Account settings.",
+      "summary": "BlockedComposer and BlockedPeople, both with Unblock (E12).",
+      "details": [
+        "BlockedComposer takes the composer's place in a one-to-one DM with someone blocked: it says so, and Unblock brings the composer back. BlockedPeople lists everyone blocked under Security, each with Unblock, and says when there is nobody; it is absent where the server does not block.",
+        "Both unblock through setBlocked and say when that did not work."
+      ],
+      "concepts": ["blocking", "E12"]
     },
     {
       "path": "packages/ui/src/components/PartnerTime.tsx",
@@ -1780,7 +1821,8 @@
         "Uses shared preference stores for notification preview, Enter behavior, appearance and join-muted choice. Calls includes a local microphone check and N04 retry for unreadable call preferences. When I press Enter is a Select.",
         "Security and Devices change passwords, list/revoke sessions and sign out through the server; Storage displays server usage. Confirmation identifies destructive session changes.",
         "The Q03 and Q04 repairs live in the underlying helpers; this dialog only shows their state, including Try again for a composer preference that could not be read.",
-        "Security holds TwoStepSettings between Change password and Sign out (E11)."
+        "Security holds TwoStepSettings between Change password and Sign out (E11).",
+        "Security lists blocked people after two-step sign-in (E12)."
       ],
       "concepts": ["account settings", "session management", "device preferences", "N04"]
     },
@@ -1849,6 +1891,16 @@
       "concepts": ["user administration", "roles", "account recovery", "server enforcement"]
     },
     {
+      "path": "packages/ui/src/components/ReportsDialog.tsx",
+      "plain": "Where the workspace's admins see the messages people reported, and dismiss them, remove the message or deactivate whoever wrote it.",
+      "summary": "The admins' queue of reported messages (E12).",
+      "details": [
+        "Each reported message shows its author, where and when it was posted (a DM by its members' names), its words through readableText, or that its author deleted it, and every report of it with the reporter, the reason and the note.",
+        "Dismiss acts at once; Remove message and Remove and deactivate ask first. Deactivation is offered only where People would allow it: not oneself, not the owner, another admin only for the owner. The list asks again whenever openReports moves, so another admin's settling shows."
+      ],
+      "concepts": ["moderation", "reports", "admin", "E12"]
+    },
+    {
       "path": "packages/ui/src/components/AppsDialog.tsx",
       "plain": "Where bots and other connected apps are set up and managed, along with their slash commands and delivery status.",
       "summary": "Manages bot apps, webhooks, commands, subscriptions and callback configuration.",
@@ -1879,7 +1931,8 @@
         "Renaming the workspace and changing who can join read as sentences too, with the old and new name, or the new rule in plain words; an entry made by the desktop app's host names the host.",
         "Says workspace.icon_changed as changing or removing the workspace's icon (UX-60).",
         "Says workspace.link_previews_changed as turning link previews on or off (E2).",
-        "Says user.two_step_reset as turning off someone's two-step sign-in, and account.recovered adds that the host turned it off when it did (E11)."
+        "Says user.two_step_reset as turning off someone's two-step sign-in, and account.recovered adds that the host turned it off when it did (E11).",
+        "Says report.resolved as dismissing a report, or removing a message after reports, with how many (E12)."
       ],
       "concepts": ["audit log", "defensive rendering", "focus preservation"]
     },
@@ -1986,7 +2039,8 @@
       "summary": "Shows each ring of a direct message's huddle that rings this account, rings, and tells the system while the window is behind (E10).",
       "details": [
         "A card per ring at the top of the window: the caller's picture, <name> is calling, and Huddle with you or with the group's names; on a phone its buttons take a row of their own. Join opens the conversation and joins through useCallPreferences, so the device check still comes first; Decline calls WorkspaceClient.declineRing.",
-        "While it rings, startRingTone plays and a system notification says who is calling once per ring if the window is not in front, worded by ringContent; both stay quiet during Do Not Disturb and in a muted conversation, where the card still shows. The title is an alert, so it is read as it appears."
+        "While it rings, startRingTone plays and a system notification says who is calling once per ring if the window is not in front, worded by ringContent; both stay quiet during Do Not Disturb and in a muted conversation, where the card still shows. The title is an alert, so it is read as it appears.",
+        "A ring from someone blocked never shows or sounds (E12)."
       ],
       "concepts": ["ringing", "huddles", "notifications"]
     },
@@ -2186,7 +2240,8 @@
         "star (five points) is Star and Unstar in a conversation's menus.",
         "forward (an arrow passing a message on) is Forward in a message's menu.",
         "poll (bars of different lengths off an axis) is Create a poll in the composer's + menu (E6).",
-        "phoneOff (a handset crossed out) is Decline on an incoming huddle, and phoneMissed (a handset with a cross) marks a missed huddle's note (E10)."
+        "phoneOff (a handset crossed out) is Decline on an incoming huddle, and phoneMissed (a handset with a cross) marks a missed huddle's note (E10).",
+        "flag reports a message and ban marks someone blocked (E12)."
       ],
       "concepts": [
         "inline SVG",

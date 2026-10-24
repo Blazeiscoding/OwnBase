@@ -107,7 +107,8 @@
         "Schema 46 adds sidebar_sections (E8): one account's own named sections with their position, going with the account, indexed by account and position; and channel_members.section_id, the section a membership is kept in. It has no foreign key, as forwarded_from_id has none: deleting a section clears it in the same change, and a column with one could not be dropped by the upgrade test.",
         "Schema 47 adds profiles (E9): users.time_zone, users.away (set by hand) and users.avatar_version, and user_avatars, one picture's type and bytes per account, going with the account. Removing a picture deletes its row.",
         "Schema 48 adds messages.call_kind (E10): the kind of note the server left about a call, missed, and null on every other message.",
-        "Schema 49 adds two-step sign-in (E11): users.two_step_secret (null while it is off) and users.two_step_step, the last time step a code was accepted for; and two_step_codes, an account's recovery codes as SHA-256 hashes with used_at, going with the account."
+        "Schema 49 adds two-step sign-in (E11): users.two_step_secret (null while it is off) and users.two_step_step, the last time step a code was accepted for; and two_step_codes, an account's recovery codes as SHA-256 hashes with used_at, going with the account.",
+        "Schema 50 adds blocking and reporting (E12): user_blocks, whom each account blocked, going with either account; and message_reports, a reason, a note and when each was resolved, by whom and how, going with the message and the reporter. A partial unique index keeps one open report per person per message, so a new one can open once the last is resolved."
       ],
       "concepts": ["SQLite", "schema 37", "atomic migration", "content cleanup"]
     },
@@ -144,7 +145,8 @@
         "The ready snapshot says sharedFiles, that the server lists shared files (E7).",
         "The ready snapshot carries sidebarSections, the account's sections in order, which also says the server keeps them (E8).",
         "Presence (E9): each socket says whether its device is idle. An account is offline with no socket, away when set away by hand or when every socket says idle, and online otherwise. refreshPresence tells everyone only a change, whether an idle message, a socket opening or closing, or away by hand made it; going offline is told as the last socket closes. The ready snapshot says profiles, and its presence map gives away too.",
-        "Rings (E10): the first one into a dm or group_dm huddle rings everyone else in it but bots and deactivated accounts, for HUDDLE_RING_MS (30 s, option huddleRingMs). publishHuddle settles it: whoever it rang who is in the huddle answered, and the caller gone ends it. huddle.decline moves someone to declined. huddle.ring tells the caller and everyone rung each change, ringing empty meaning over. A ring that ends with nobody answering and someone missing it calls missedCall. The snapshot lists an account's rings as huddleRings; rings are live, and stopping announces none."
+        "Rings (E10): the first one into a dm or group_dm huddle rings everyone else in it but bots and deactivated accounts, for HUDDLE_RING_MS (30 s, option huddleRingMs). publishHuddle settles it: whoever it rang who is in the huddle answered, and the caller gone ends it. huddle.decline moves someone to declined. huddle.ring tells the caller and everyone rung each change, ringing empty meaning over. A ring that ends with nobody answering and someone missing it calls missedCall. The snapshot lists an account's rings as huddleRings; rings are live, and stopping announces none.",
+        "The ready snapshot carries blocked, whom this account blocked, which also says the server blocks and takes reports (E12), and openReports for the owner and admins."
       ],
       "concepts": ["WebSocket", "replay", "access control", "presence", "huddle"]
     },
@@ -390,7 +392,9 @@
         "Missed calls (E10): postMissedCall posts the note of a ring nobody answered, as from the caller, through postMessage with call (\"Missed huddle\"); one postMessage refuses leaves none. PATCH /api/messages/:id answers 409 call_not_editable for one.",
         "Two-step sign-in (E11): POST /api/auth/login answers a right password for an account with it with { twoStep: { challenge, expiresAt } } in place of a session, but only to a client that says loginBody.twoStep; an older one gets 401 two_step_required. The challenge is held in memory by its hash for five minutes and five wrong codes, with the password hash it was given for. POST /api/auth/two-step takes a code or a recovery code and gives the session, refusing with two_step_expired once the password changed or the account was deactivated meanwhile; one whose two-step sign-in was turned off meanwhile passes on the password. A right password clears what the handle spent on rate limits only once a session is issued, so it buys no more guesses at the code.",
         "GET /api/me/two-step says whether it is on and how many recovery codes are left. POST /api/me/two-step takes the password and gives a new key and its otpauth URI, held in memory for ten minutes; POST /api/me/two-step/enable takes a first code from that key, turns it on and gives the recovery codes once; POST /api/me/two-step/recovery-codes and /disable take the password. Turning it on keeps every session. confirmPassword checks a password as signing in does, rationed by handle. Guests are refused by GUEST_ROUTES, and an app's token is no session.",
-        "POST /api/admin/users/:id/two-step/reset turns someone's off by resettable's rules, which the password reset shares: not one's own, an app's or a guest's, never the owner's, and another admin's only as the owner. It is audited as user.two_step_reset, and GET /api/admin/users says twoStep for each account."
+        "POST /api/admin/users/:id/two-step/reset turns someone's off by resettable's rules, which the password reset shares: not one's own, an app's or a guest's, never the owner's, and another admin's only as the owner. It is audited as user.two_step_reset, and GET /api/admin/users says twoStep for each account.",
+        "Blocking (E12): PUT and DELETE /api/me/blocks/:id, guests included, refusing oneself (cannot_block_self) and apps (cannot_block_app). The blocker's devices hear blocks and their mention counts again; nothing reaches the blocked person but an ended friendship, as an unfriending. Unblocking sends friends again, since a request made meanwhile shows only now. Messages from someone blocked are delivered as ever, for the client to fold.",
+        "Reports (E12): POST /api/messages/:id/report takes a reason and a note from anyone who can read the message but did not write it, guests included, and the owner and admins hear reports with the new count. GET /api/admin/reports lists the open ones by message with the message itself, even from a conversation the admin is not in, or null once its author deleted it. POST /api/admin/reports/:id/resolve dismisses, removes (removeMessageWithin, inside the same mutate) or removes and deactivates its author by People's rules, closes every open report of it and records report.resolved against the author with the resolution and how many reports, never the text."
       ],
       "concepts": [
         "HTTP API",
@@ -455,7 +459,8 @@
         "Sidebar sections (E8): ChannelPrefs carries sectionId from channel_members.section_id. setChannelPrefs keeps a conversation in one place: a section clears its star and a star clears its section. sidebarSections lists an account's in order; createSidebarSection adds one last; renameSidebarSection, deleteSidebarSection (clearing its members' section_id and saying which) and orderSidebarSections (only the exact set) act on the account's own only.",
         "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes.",
         "A message row's call_kind becomes Message.call, and createMessage keeps one (E10).",
-        "Two-step sign-in (E11): twoStep reads an account's key, last step and recovery codes left; twoStepUserIds lists who has it. enableTwoStep, disableTwoStep (which says whether it was on) and replaceRecoveryCodes are called inside a transaction; useTwoStepStep keeps the step a code was accepted for, and useRecoveryCode spends a code once."
+        "Two-step sign-in (E11): twoStep reads an account's key, last step and recovery codes left; twoStepUserIds lists who has it. enableTwoStep, disableTwoStep (which says whether it was on) and replaceRecoveryCodes are called inside a transaction; useTwoStepStep keeps the step a code was accepted for, and useRecoveryCode spends a code once.",
+        "Blocks and reports (E12): blockedIds, setBlocked, reportMessage (false for a second open report by the same person), openReportCount (messages waiting), openReports (grouped by message with its conversation and author, read through the message row) and resolveReports. NOT_BLOCKED leaves a blocked author out of unreadMentionCounts and activityMessages; listFriends leaves out a request from someone blocked."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -516,7 +521,8 @@
         "SidebarSection is one account's named sidebar section (E8); ChannelPrefs.sectionId is the one a conversation is kept in, or null. SIDEBAR_SECTIONS_MAX (50) and SIDEBAR_SECTION_NAME_MAX (80) are the limits both sides share.",
         "User.timeZone, User.away (set by hand) and User.avatarVersion are present only when set (E9); a picture is served under its version.",
         "Message.call is a CallNotice, a note the server left about a call as from its caller (E10); kind missed is a huddle nobody answered.",
-        "AuditAction user.two_step_reset is an admin turning off someone's two-step sign-in (E11)."
+        "AuditAction user.two_step_reset is an admin turning off someone's two-step sign-in (E11).",
+        "ReportReason (spam, harassment, inappropriate, other), REPORT_NOTE_MAX (500), ReportResolution (dismiss, remove, deactivate), MessageReport and ReportedMessage are what a report carries to admins (E12); AuditAction report.resolved records what was done."
       ],
       "concepts": ["shared entities", "compatibility", "idempotency", "read cursors"]
     },
@@ -539,7 +545,8 @@
         "ReadySnapshot.sharedFiles says the server lists shared files (E7); an older one is offered no Files.",
         "sidebar.sections tells an account's own devices its sections after any change; ReadySnapshot.sidebarSections lists them, absent from a server that keeps none (E8).",
         "ReadySnapshot.profiles says the server keeps pictures, time zones and away (E9), and a client's idle message says whether its device is idle.",
-        "huddle.ring carries a HuddleRing as it now stands (E10); ReadySnapshot.huddleRings lists those an account is part of and says the server rings; huddle.decline says no to one."
+        "huddle.ring carries a HuddleRing as it now stands (E10); ReadySnapshot.huddleRings lists those an account is part of and says the server rings; huddle.decline says no to one.",
+        "blocks tells an account's own devices whom it blocked, and reports tells the owner and admins how many reported messages wait (E12); ReadySnapshot.blocked and openReports give both at connection."
       ],
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
@@ -612,7 +619,8 @@
         "sharedFilesQuery is the file browser's page (E7): limit (30, at most 100), a cursor of message and file ids, kind, userId, channelId and q.",
         "channelPrefsBody takes sectionId (E8). sidebarSectionNameSchema is a section's name, 1 to 80 characters once trimmed and no control characters; sidebarSectionBody and sidebarSectionOrderBody are the requests to name one and to order them.",
         "updateMeBody takes timeZone, an IANA zone kept under its current name, or null to forget it, and away (E9). PROFILE_PICTURE_TYPES, PROFILE_PICTURE_MAX_BYTES and PROFILE_PICTURE_PIXELS are the workspace icon's limits.",
-        "loginBody.twoStep says a client can answer a second step (E11). twoStepSignInBody takes the challenge and exactly one of code and recoveryCode; twoStepPasswordBody and twoStepCodeBody carry the account's own changes."
+        "loginBody.twoStep says a client can answer a second step (E11). twoStepSignInBody takes the challenge and exactly one of code and recoveryCode; twoStepPasswordBody and twoStepCodeBody carry the account's own changes.",
+        "reportMessageBody and resolveReportBody carry a report and an admin's resolution (E12)."
       ],
       "concepts": ["Zod", "runtime validation", "request contract"]
     },

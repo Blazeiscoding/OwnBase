@@ -495,6 +495,17 @@ export function keepEphemeral(
 
 export interface WorkspaceState {
   friends: Friendship[];
+  /**
+   * The people this account blocked (E12), whose messages fold away and who
+   * never notify it; null where the server does not block, which takes no
+   * reports either, so neither is offered there.
+   */
+  blocked: ID[] | null;
+  /**
+   * How many reported messages wait for an admin (E12); null unless this
+   * account is one, on a server that takes reports.
+   */
+  openReports: number | null;
   status: ConnectionStatus;
   workspaceName: string;
   /** Authenticated storage identity; null when an older server does not expose it. */
@@ -666,6 +677,8 @@ export interface WorkspaceState {
 
 const initialState: WorkspaceState = {
   friends: [],
+  blocked: null,
+  openReports: null,
   status: "connecting",
   workspaceName: "",
   workspaceId: null,
@@ -1156,6 +1169,8 @@ export class WorkspaceClient {
         ? Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring]))
         : null,
       friends: snap.friends ?? [],
+      blocked: snap.blocked ?? null,
+      openReports: snap.openReports ?? null,
       lastSeq: reset || prev.lastSeq === 0 ? snap.seq : (snap.replayFrom ?? prev.lastSeq),
       // Keep loaded timelines — replayed events patch them incrementally.
       timelines: prev.timelines,
@@ -1744,6 +1759,14 @@ export class WorkspaceClient {
   private applyEphemeral(event: EphemeralEvent): void {
     if (event.type === "friends") {
       this.store.setState({ friends: event.friends });
+      return;
+    }
+    if (event.type === "blocks") {
+      this.store.setState({ blocked: event.blocked });
+      return;
+    }
+    if (event.type === "reports") {
+      this.store.setState({ openReports: event.open });
       return;
     }
     if (event.type === "workspace.renamed") {
@@ -4033,6 +4056,22 @@ export class WorkspaceClient {
     if (this.idle === idle) return;
     this.idle = idle;
     if (this.state.profiles) this.sendSocket({ type: "idle", idle });
+  }
+
+  /**
+   * Blocks or unblocks someone for this account (E12); false when the server
+   * refused. The list is kept from the answer, before the socket says it.
+   */
+  async setBlocked(userId: ID, blocked: boolean): Promise<boolean> {
+    try {
+      const result = blocked
+        ? await this.api.blockUser(userId)
+        : await this.api.unblockUser(userId);
+      if (!this.stopped) this.store.setState({ blocked: result.blocked });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   /** Away by hand, until set back (E9); false when the server refused. */

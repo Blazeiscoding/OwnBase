@@ -111,6 +111,15 @@ describe("an entry, as an administrator would say it", () => {
     ).toBe("The host removed the workspace's icon");
   });
 
+  it("says what was done about a reported message, and how many reported it", () => {
+    expect(say(entry("report.resolved", { details: { resolution: "dismiss", reports: 1 } }))).toBe(
+      "Alice dismissed a report about Bob's message",
+    );
+    expect(
+      say(entry("report.resolved", { details: { resolution: "deactivate", reports: 3 } })),
+    ).toBe("Alice removed Bob's message after 3 reports");
+  });
+
   it("has a sentence for every action the server records", () => {
     const actions: AuditAction[] = [
       "user.role_changed",
@@ -118,6 +127,7 @@ describe("an entry, as an administrator would say it", () => {
       "user.reactivated",
       "user.password_reset",
       "user.two_step_reset",
+      "report.resolved",
       "user.invite_permission_granted",
       "user.invite_permission_removed",
       "account.recovered",

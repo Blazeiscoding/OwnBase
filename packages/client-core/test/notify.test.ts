@@ -57,6 +57,8 @@ const message = (over: Partial<Message> = {}): Message => ({
 function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
   return {
     friends: [],
+    blocked: [],
+    openReports: null,
     status: "online",
     workspaceName: "W",
     workspaceId: null,
@@ -150,6 +152,16 @@ describe("decideNotification", () => {
   it("stays quiet for your own messages", () => {
     const d = decideNotification(state(), message({ userId: me.id }));
     expect(d).toEqual({ notify: false, reason: "own-message" });
+  });
+
+  it("stays quiet for someone this account blocked, even in a DM or naming it", () => {
+    const blocked = state({ blocked: [them.id], channels: { C1: channel("dm") } });
+    const naming = message({ text: `<@${me.id}> are you there?` });
+    expect(decideNotification(blocked, naming)).toEqual({ notify: false, reason: "blocked" });
+    // Others still reach it, and so do they once unblocked.
+    expect(decideNotification(state({ channels: { C1: channel("dm") } }), naming).notify).toBe(
+      true,
+    );
   });
 
   it("stays quiet for channels you are not in", () => {
