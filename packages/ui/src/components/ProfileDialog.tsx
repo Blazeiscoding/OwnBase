@@ -12,6 +12,7 @@ import { Dialog } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
+import { useOptionalConfirm } from "./Confirm.js";
 import {
   CLEAR_AFTER,
   STATUS_PRESETS,
@@ -39,6 +40,12 @@ export function ProfileDialog(props: {
   const now = useMinute();
   const [opening, setOpening] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
+  // Blocking is offered where the server blocks (E12).
+  const canBlock = useWorkspace((s) => s.blocked !== null);
+  const blockedThem = useWorkspace((s) => s.blocked?.includes(props.userId) === true);
+  const [blockError, setBlockError] = useState<string | null>(null);
+  // Asked over the workspace; a card drawn alone, as in a test, has nothing to ask with.
+  const confirm = useOptionalConfirm();
   // The press on Message this card is waiting on. Once the card is closed, or
   // shows someone else, an earlier press has nothing left to finish: opening
   // its conversation then would pull the reader out of wherever they went (Q11).
@@ -46,6 +53,7 @@ export function ProfileDialog(props: {
   useEffect(() => {
     setOpening(false);
     setDmError(null);
+    setBlockError(null);
     return () => {
       press.current += 1;
     };
@@ -68,6 +76,24 @@ export function ProfileDialog(props: {
     } finally {
       if (press.current === mine) setOpening(false);
     }
+  }
+
+  /** Blocks them, after saying what that does, or unblocks them (E12). */
+  async function toggleBlock(userId: ID, name: string) {
+    if (!blockedThem && confirm) {
+      const go = await confirm({
+        title: `Block ${name}?`,
+        body: `Nothing ${name} writes will notify you, their messages fold away for you, and your direct messages with them close. They are not told. You can unblock them here or in Account settings.`,
+        confirmLabel: "Block",
+        destructive: true,
+      });
+      if (!go) return;
+    }
+    setBlockError(null);
+    if (!(await client.setBlocked(userId, !blockedThem)))
+      setBlockError(
+        `Could not ${blockedThem ? "unblock" : "block"} ${name}. Check your connection and try again.`,
+      );
   }
 
   const online = presence === "online";
@@ -150,10 +176,16 @@ export function ProfileDialog(props: {
               )}
             </p>
           )}
-          {user.id !== selfId && !user.isBot && (
+          {user.id !== selfId && !user.isBot && !blockedThem && (
             <div className="mt-3 border-t border-edge pt-3">
               <FriendActions userId={user.id} />
             </div>
+          )}
+          {blockedThem && (
+            <p className="mt-3 flex items-center gap-1.5 border-t border-edge pt-3 text-[13px] text-ink-dim">
+              <Icon name="ban" size={13} className="text-ink-faint" />
+              You blocked {user.displayName}. They are not told.
+            </p>
           )}
         </div>
         {user.id !== selfId && dmError && (
@@ -175,6 +207,22 @@ export function ProfileDialog(props: {
           >
             {opening ? "Opening…" : `Message ${user.displayName}`}
           </button>
+        )}
+        {user.id !== selfId && !user.isBot && canBlock && (
+          <button
+            type="button"
+            onClick={() => void toggleBlock(user.id, user.displayName)}
+            className={`mt-2 w-full rounded-lg py-1.5 text-[13px] transition-colors hover:bg-ink/[0.04] ${
+              blockedThem ? "text-ink-dim hover:text-ink" : "text-ink-faint hover:text-alert"
+            }`}
+          >
+            {blockedThem ? `Unblock ${user.displayName}` : `Block ${user.displayName}`}
+          </button>
+        )}
+        {blockError && (
+          <p role="alert" className="mt-2 text-sm text-alert">
+            {blockError}
+          </p>
         )}
       </div>
     </Modal>

@@ -27,13 +27,21 @@ export function IncomingCall(props: {
   const platform = usePlatform();
   const rings = useWorkspace((s) => s.rings);
   const selfId = useWorkspace((s) => s.self?.id);
+  const blocked = useWorkspace((s) => s.blocked);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const prefs = useWorkspace((s) => s.prefs);
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const ringingMe = useMemo(
-    () => Object.values(rings ?? {}).filter((ring) => !!selfId && ring.ringing.includes(selfId)),
-    [rings, selfId],
+    () =>
+      Object.values(rings ?? {}).filter(
+        (ring) =>
+          !!selfId &&
+          ring.ringing.includes(selfId) &&
+          // Someone this account blocked never rings it (E12).
+          !blocked?.includes(ring.callerId),
+      ),
+    [rings, selfId, blocked],
   );
   const snoozed = dndUntil !== null && dndUntil > Date.now();
   const loud = ringingMe.filter((ring) => !snoozed && !prefs[ring.channelId]?.muted);

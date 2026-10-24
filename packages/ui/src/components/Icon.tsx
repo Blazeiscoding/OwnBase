@@ -15,6 +15,10 @@ const paths = {
   numbers:
     "M10 6h10M10 12h10M10 18h10M4 4.5 5.5 3.5v5M4 14.75a1.25 1.25 0 0 1 2.5 0c0 1.25-2.5 2-2.5 3.75h2.5",
   close: "m6 6 12 12M6 18 18 6",
+  /** A flag: report a message to the admins (E12). */
+  flag: "M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1zM4 22v-7",
+  /** A circle struck through: someone blocked (E12). */
+  ban: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M4.9 4.9l14.2 14.2",
   hash: "m10 3-4 18M18 3l-4 18M4 9h17M3 15h17",
   friends:
     "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M16 3a4 4 0 0 1 0 8M22 21v-2a4 4 0 0 0-3-3.87M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0",

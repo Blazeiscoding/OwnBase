@@ -10,6 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import type { ID, Message } from "@slackoss/protocol";
+import { blockedPartner } from "../lib/blocking.js";
+import { BlockedComposer } from "../components/Blocking.js";
 import {
   WorkspaceClient,
   decideNotification,
@@ -96,6 +98,9 @@ const AppsDialog = lazy(() =>
 );
 const PeopleDialog = lazy(() =>
   import("../components/PeopleDialog.js").then((module) => ({ default: module.PeopleDialog })),
+);
+const ReportsDialog = lazy(() =>
+  import("../components/ReportsDialog.js").then((module) => ({ default: module.ReportsDialog })),
 );
 const AccountDialog = lazy(() =>
   import("../components/AccountDialog.js").then((module) => ({ default: module.AccountDialog })),
@@ -296,6 +301,7 @@ type DialogKind =
   | { kind: "diagnostics"; callLog?: boolean }
   | { kind: "apps" }
   | { kind: "people" }
+  | { kind: "reports" }
   | { kind: "workspace" }
   | { kind: "guest-account" };
 
@@ -324,6 +330,7 @@ function routeDialogOf(dialog: DialogKind): RouteDialog | null {
     case "channel-details":
       return { name: "details" };
     case "people":
+    case "reports":
     case "apps":
     case "workspace":
     case "invite":
@@ -725,7 +732,10 @@ function WorkspaceInner({
     if (
       self &&
       !isAdmin &&
-      (dialog.kind === "people" || dialog.kind === "apps" || dialog.kind === "workspace")
+      (dialog.kind === "people" ||
+        dialog.kind === "reports" ||
+        dialog.kind === "apps" ||
+        dialog.kind === "workspace")
     ) {
       replaceDialogStep.current = true;
       setDialog({ kind: "none" });
@@ -935,6 +945,12 @@ function WorkspaceInner({
   const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
   const showsDark = appearance.theme === "dark" || (appearance.theme === "system" && prefersDark);
   const isGuest = self?.role === "guest";
+  // Reported messages waiting, for an admin on a server that takes reports (E12).
+  const openReports = useWorkspace((s) => s.openReports);
+  /** Whom this conversation is with, when it is a DM with someone blocked (E12). */
+  const blockedHere = useWorkspace((s) =>
+    activeChannelId ? blockedPartner(s.channels[activeChannelId], s.self?.id, s.blocked) : null,
+  );
   // The server lists shared files (E7); an older one is offered no Files.
   const sharedFiles = useWorkspace((s) => s.sharedFiles);
   const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts" | "files") => {
@@ -1065,6 +1081,17 @@ function WorkspaceInner({
                   keywords: "members admin roles deactivate",
                   run: () => setDialog({ kind: "people" }),
                 },
+                ...(openReports !== null
+                  ? [
+                      {
+                        id: "reports",
+                        label: "Reported messages",
+                        icon: "flag" as const,
+                        keywords: "reports moderation abuse spam queue",
+                        run: () => setDialog({ kind: "reports" }),
+                      },
+                    ]
+                  : []),
                 {
                   id: "apps",
                   label: "Apps and integrations",
@@ -1368,6 +1395,11 @@ function WorkspaceInner({
         onDiagnostics={() => setDialog({ kind: "diagnostics" })}
         onManageApps={isAdmin ? () => setDialog({ kind: "apps" }) : undefined}
         onManagePeople={isAdmin ? () => setDialog({ kind: "people" }) : undefined}
+        // A server that takes reports gives admins a count of those waiting (E12).
+        reportsWaiting={isAdmin ? openReports : null}
+        onReviewReports={
+          isAdmin && openReports !== null ? () => setDialog({ kind: "reports" }) : undefined
+        }
         onWorkspaceSettings={isAdmin ? () => setDialog({ kind: "workspace" }) : undefined}
         connectionLabel={connectionLabel}
         hosting={hosting}
@@ -1553,11 +1585,15 @@ function WorkspaceInner({
                     channelId={activeChannelId}
                     onJump={() => setHighlightMessageId(null)}
                   />
-                  <Composer
-                    channelId={activeChannelId}
-                    placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
-                    autoFocus
-                  />
+                  {blockedHere ? (
+                    <BlockedComposer userId={blockedHere} />
+                  ) : (
+                    <Composer
+                      channelId={activeChannelId}
+                      placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
+                      autoFocus
+                    />
+                  )}
                 </div>
               </div>
             </div>
@@ -1749,12 +1785,16 @@ function WorkspaceInner({
           <DiagnosticsDialog onClose={closeDialog} showCallLog={dialog.callLog} />
         </LazyDialog>
       )}
-      {(((dialog.kind === "apps" || dialog.kind === "people" || dialog.kind === "workspace") &&
+      {(((dialog.kind === "apps" ||
+        dialog.kind === "people" ||
+        dialog.kind === "reports" ||
+        dialog.kind === "workspace") &&
         isAdmin) ||
         dialog.kind === "account") && (
         <LazyDialog key={dialog.kind} loading="Loading settings" onClose={closeDialog}>
           {dialog.kind === "apps" && <AppsDialog onClose={closeDialog} />}
           {dialog.kind === "people" && <PeopleDialog onClose={closeDialog} />}
+          {dialog.kind === "reports" && <ReportsDialog onClose={closeDialog} />}
           {dialog.kind === "workspace" && (
             <WorkspaceSettings onClose={closeDialog} hostedHere={hostedHere} />
           )}
@@ -1865,6 +1905,8 @@ function NavigationToggle(props: {
         id !== activeChannelId &&
         !s.prefs[id]?.muted &&
         !s.channels[id]?.archived &&
+        // A DM with someone blocked waits unseen (E12).
+        !blockedPartner(s.channels[id], s.self?.id, s.blocked) &&
         (s.channelLastSeq[id] ?? 0) > (s.memberships[id] ?? 0),
     ),
   );

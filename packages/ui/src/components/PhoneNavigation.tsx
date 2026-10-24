@@ -1,5 +1,6 @@
 import { useId, type ReactNode } from "react";
 import type { ID } from "@slackoss/protocol";
+import { blockedPartner } from "../lib/blocking.js";
 import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
@@ -112,6 +113,8 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
           (channel?.type === "dm" || channel?.type === "group_dm") &&
           !channel.archived &&
           !s.prefs[id]?.muted &&
+          // Waiting unseen with someone blocked (E12).
+          !blockedPartner(channel, s.self?.id, s.blocked) &&
           (s.channelLastSeq[id] ?? 0) > (s.memberships[id] ?? 0)
         );
       }).length,

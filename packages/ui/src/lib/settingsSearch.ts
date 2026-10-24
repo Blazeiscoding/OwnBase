@@ -65,6 +65,11 @@ export const SETTINGS: readonly Setting[] = [
     label: "Two-step sign-in",
     words: "2fa mfa two factor authenticator app code totp otp recovery codes verification",
   },
+  {
+    section: "security",
+    label: "Blocked people",
+    words: "block unblock ignore hide person harassment",
+  },
   { section: "security", label: "Sign out", words: "log out logout leave" },
   { section: "devices", label: "Signed-in devices", words: "sessions sign out remove" },
   {

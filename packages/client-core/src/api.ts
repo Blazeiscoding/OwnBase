@@ -23,6 +23,9 @@ import type {
   SlashCommand,
   ThreadFollow,
   Reminder,
+  ReportReason,
+  ReportResolution,
+  ReportedMessage,
   SharedFile,
   SidebarSection,
   ReminderItem,
@@ -280,6 +283,45 @@ export class Api {
       `/api/admin/users/${encodeURIComponent(userId)}/two-step/reset`,
       undefined,
       { timeoutMs: 10_000 },
+    );
+  }
+
+  /** Blocks someone for this account (E12); everyone it has blocked now. */
+  blockUser(userId: ID): Promise<{ blocked: ID[] }> {
+    return this.request("PUT", `/api/me/blocks/${encodeURIComponent(userId)}`, undefined, {
+      timeoutMs: 10_000,
+    });
+  }
+
+  /** Unblocks someone for this account (E12); everyone it has blocked now. */
+  unblockUser(userId: ID): Promise<{ blocked: ID[] }> {
+    return this.request("DELETE", `/api/me/blocks/${encodeURIComponent(userId)}`, undefined, {
+      timeoutMs: 10_000,
+    });
+  }
+
+  /** Reports a message to the workspace's admins (E12), with why and anything to add. */
+  reportMessage(messageId: ID, reason: ReportReason, note = ""): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      `/api/messages/${encodeURIComponent(messageId)}/report`,
+      { reason, ...(note.trim() ? { note: note.trim() } : {}) },
+      { timeoutMs: 10_000 },
+    );
+  }
+
+  /** The reported messages waiting for an admin (E12). Admins only. */
+  listReports(): Promise<{ reports: ReportedMessage[] }> {
+    return this.request("GET", "/api/admin/reports", undefined, { timeoutMs: 10_000 });
+  }
+
+  /** Settles a reported message: dismissed, removed, or removed with its author deactivated (E12). Admins only. */
+  resolveReport(messageId: ID, action: ReportResolution): Promise<{ ok: true }> {
+    return this.request(
+      "POST",
+      `/api/admin/reports/${encodeURIComponent(messageId)}/resolve`,
+      { action },
+      { timeoutMs: 20_000 },
     );
   }
 

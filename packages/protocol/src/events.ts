@@ -65,6 +65,16 @@ export type EphemeralEvent =
       } | null;
     }
   | { type: "friends"; friends: Friendship[] }
+  /**
+   * The people this account has blocked, after any change (E12). Private to
+   * its own sockets: whoever is blocked is told nothing.
+   */
+  | { type: "blocks"; blocked: ID[] }
+  /**
+   * How many reported messages wait for an admin now (E12). Told to the owner
+   * and admins only, at each report and each one resolved.
+   */
+  | { type: "reports"; open: number }
   | { type: "typing"; channelId: ID; userId: ID }
   | { type: "presence"; userId: ID; presence: Presence }
   /**
@@ -288,6 +298,14 @@ export interface ReadySnapshot {
   /** Stable across address/name changes and backup restores. Older servers omit it. */
   workspaceId?: ID;
   friends?: Friendship[];
+  /**
+   * The people this account has blocked (E12), which also says this server
+   * blocks and takes reports of messages. An older one does neither, so
+   * neither is offered there.
+   */
+  blocked?: ID[];
+  /** How many reported messages wait for an admin (E12). Given to the owner and admins only. */
+  openReports?: number;
 }
 
 /** Everything the server can push over the socket. */
