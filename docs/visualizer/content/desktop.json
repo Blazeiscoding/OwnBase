@@ -676,6 +676,17 @@
       "concepts": ["tooling", "client benchmark"]
     },
     {
+      "path": "scripts/measure-calls.mts",
+      "plain": "Measures what a huddle of two to six people costs each of them: computer time, upload and download, delay and how smooth the call stays.",
+      "summary": "Starts one headless Chromium per person in one huddle and records CPU, bandwidth, round trip, jitter and video quality from getStats (E13).",
+      "details": [
+        "Each person is a browser of its own, so its CPU is read from every one of its processes (SystemInfo.getProcessInfo), beside the whole machine's. Bandwidth is the connections' transport bytes, with the audio and video parts; round trip comes from RTCP, jitter and concealed audio from what each listener receives, and the camera's sent size, frame rate, target bitrate and what held it back from the encoder.",
+        "The fake camera plays a clip made by the script (cameraClip): someone swaying in front of a wall and a shelf, with a webcam's grain, at the 960 by 540 and 24 frames a second the app asks for. Chromium's own fake picture is flat colour and cost the encoder a quarter of the bits.",
+        "Everyone shares one machine over loopback, so the network adds nothing; once that machine is busy all the time, the figures are the browsers fighting each other and no longer what one person's computer spends. The results are in docs/DEPLOYMENT.md, How many people a call holds."
+      ],
+      "concepts": ["tooling", "call benchmark", "E13"]
+    },
+    {
       "path": "scripts/measure-desktop-start.mts",
       "plain": "Measures how long two versions of the desktop app take to start and how much memory they use.",
       "summary": "Launches two packaged Electron builds alternately on fresh profiles.",
