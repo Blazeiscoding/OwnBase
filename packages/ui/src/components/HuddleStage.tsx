@@ -1,4 +1,7 @@
 import {
+  createContext,
+  useCallback,
+  useContext,
   useEffect,
   useLayoutEffect,
   useRef,
@@ -6,11 +9,11 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import type { HuddleState } from "@slackoss/client-core";
+import type { CallView, HuddleState } from "@slackoss/client-core";
 import type { ID, User } from "@slackoss/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
-import { aloneLine, bigCallLine, ringingLine } from "../lib/huddleView.js";
+import { aloneLine, ringingLine } from "../lib/huddleView.js";
 import { Avatar } from "./Avatar.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -152,6 +155,71 @@ function describe(item: StageItem): string {
   return parts.join(", ");
 }
 
+/** A tile's picture of someone else: whose, which, and how tall, in CSS pixels. */
+interface Drawn {
+  userId: ID;
+  kind: StageItem["kind"];
+  height: number;
+}
+
+/** Tells the stage how tall a tile draws its picture, or, with null, that it no longer does. */
+type ReportDrawn = (key: string, drawn: Drawn | null) => void;
+const ReportDrawn = createContext<ReportDrawn>(() => {});
+
+/**
+ * How tall the tiles draw each other person's camera and share, in device
+ * pixels; each has one tile at most. Out of sight, nothing is.
+ */
+function drawnViews(tiles: Iterable<Drawn>): Map<ID, CallView> {
+  const views = new Map<ID, CallView>();
+  if (document.visibilityState === "hidden") return views;
+  const scale = window.devicePixelRatio || 1;
+  for (const { userId, kind, height } of tiles) {
+    const view = views.get(userId) ?? { camera: 0, screen: 0 };
+    const pixels = Math.round(height * scale);
+    if (kind === "person") view.camera = pixels;
+    else view.screen = pixels;
+    views.set(userId, view);
+  }
+  return views;
+}
+
+/**
+ * Gathers how tall each tile draws someone else's camera or share, and gives
+ * it to the client, which asks each of them to send no bigger (E13b). In a
+ * mesh every viewer costs the sender an encoder of its own, so a picture
+ * nobody looks at, behind the chat or in a window out of sight, is sent not
+ * at all. The call closing draws nothing.
+ */
+function useCallViews(): ReportDrawn {
+  const client = useClient();
+  const tiles = useRef(new Map<string, Drawn>());
+  const queued = useRef(false);
+  const send = useCallback(() => {
+    queued.current = false;
+    client.setCallViews(drawnViews(tiles.current.values()));
+  }, [client]);
+  const report = useCallback<ReportDrawn>(
+    (key, drawn) => {
+      if (drawn) tiles.current.set(key, drawn);
+      else tiles.current.delete(key);
+      if (queued.current) return;
+      queued.current = true;
+      // Once every tile of a render has said, not once for each.
+      queueMicrotask(send);
+    },
+    [send],
+  );
+  useEffect(() => {
+    document.addEventListener("visibilitychange", send);
+    return () => {
+      document.removeEventListener("visibilitychange", send);
+      client.setCallViews(new Map());
+    };
+  }, [client, send]);
+  return report;
+}
+
 /** An element's size, followed as it changes. A callback ref, so a new element is measured too. */
 function useElementSize() {
   const [element, setElement] = useState<HTMLElement | null>(null);
@@ -233,6 +301,14 @@ function TileBody({
 }) {
   // Scaled to the tile, so a face in a big tile is not a postage stamp.
   const avatar = Math.round(Math.min(112, Math.max(32, height * 0.34)));
+  // Said with the camera off as well, so it comes the right size when it goes on.
+  const report = useContext(ReportDrawn);
+  const { key, userId, kind, self } = item;
+  useEffect(() => {
+    if (self || !userId) return;
+    report(key, { userId, kind, height });
+    return () => report(key, null);
+  }, [report, key, userId, kind, self, height]);
   return (
     <>
       {item.stream ? (
@@ -265,10 +341,12 @@ function TileBody({
           {item.stuck ? "Can't connect · trying again" : "Connecting…"}
         </span>
       )}
-      {/* Dark on any picture and in either theme, so its red is Onyx's, which reads on it. */}
+      {/* Dark on any picture and in either theme, so its red is Onyx's, which reads on it.
+          Not blurred: a blur over a video is drawn again at every frame of it, for
+          every tile, and a call of seven spent a fifth of a core per person on it. */}
       <span
         aria-hidden="true"
-        className="call-dark pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-black/55 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm"
+        className="call-dark pointer-events-none absolute bottom-2 left-2 flex max-w-[calc(100%-1rem)] items-center gap-1.5 rounded-lg bg-black/65 px-2 py-1 text-xs font-medium text-white"
       >
         {item.kind === "screen" && <Icon name="screen" size={13} />}
         {item.sound && !item.mutedForYou && <Icon name="volume" size={13} />}
@@ -314,10 +392,10 @@ function TileButton(props: {
         aria-label={props.label}
         aria-expanded={props.expanded}
         onClick={props.onClick}
-        className={`absolute ${props.place === "beside" ? "right-11" : "right-2"} top-2 flex size-8 items-center justify-center rounded-lg backdrop-blur-sm transition-opacity focus-visible:opacity-100 pointer-coarse:opacity-100 ${
+        className={`absolute ${props.place === "beside" ? "right-11" : "right-2"} top-2 flex size-8 items-center justify-center rounded-lg transition-opacity focus-visible:opacity-100 pointer-coarse:opacity-100 ${
           props.active
             ? "bg-copper text-ground hover:bg-copper-deep"
-            : `bg-black/55 text-white hover:bg-black/75 group-hover/tile:opacity-100 ${
+            : `bg-black/65 text-white hover:bg-black/80 group-hover/tile:opacity-100 ${
                 props.expanded ? "opacity-100" : "opacity-0"
               }`
         }`}
@@ -621,6 +699,7 @@ export function HuddleStage({
   const { volumes } = useCallVolumes();
   const stage = useRef<HTMLElement | null>(null);
   const [measure, area] = useElementSize();
+  const reportDrawn = useCallViews();
   const [pinned, setPinned] = useState<string | null>(null);
   const [grid, setGrid] = useState(false);
   const [fullscreen, setFullscreen] = useState(false);
@@ -702,7 +781,6 @@ export function HuddleStage({
     huddle.peers.length === 0
       ? aloneLine(ring, ringNotice, huddle.channelId, users)
       : ringingLine(ring, users);
-  const big = bigCallLine(huddle.peers.length + 1);
   const viewButtons = (side: "top" | "bottom") => (
     <>
       {main && others.length > 0 && (
@@ -752,137 +830,134 @@ export function HuddleStage({
       : "";
 
   return (
-    <section
-      ref={stage}
-      aria-label="Huddle call"
-      onKeyDown={onKeyDown}
-      className={`flex flex-col bg-[var(--call-ground)] text-ink ${fullscreen ? "call-dark" : ""} ${
-        idle ? "cursor-none" : ""
-      } ${chat?.shown ? "relative min-w-0 flex-1" : "absolute inset-0 z-20"}`}
-    >
-      <div className={`flex h-14 shrink-0 items-center gap-1 pl-4 pr-2 ${floating("top")}`}>
-        {/* Where the call is, and who is on the main view at a glance: their
+    <ReportDrawn.Provider value={reportDrawn}>
+      <section
+        ref={stage}
+        aria-label="Huddle call"
+        onKeyDown={onKeyDown}
+        className={`flex flex-col bg-[var(--call-ground)] text-ink ${fullscreen ? "call-dark" : ""} ${
+          idle ? "cursor-none" : ""
+        } ${chat?.shown ? "relative min-w-0 flex-1" : "absolute inset-0 z-20"}`}
+      >
+        <div className={`flex h-14 shrink-0 items-center gap-1 pl-4 pr-2 ${floating("top")}`}>
+          {/* Where the call is, and who is on the main view at a glance: their
             face, the sentence, and a badge while it is a screen. On a phone
             the sentence has the room; the app's header already says where. */}
-        <div className="flex min-w-0 flex-1 items-center gap-2.5">
-          <Icon name="headphones" size={18} className="shrink-0 text-online" />
-          <p
-            className={`max-w-[40%] shrink-0 truncate text-[15px] font-semibold ${
-              compact && main ? "sr-only" : ""
-            }`}
-          >
-            {where}
-          </p>
-          {main && (
-            <>
-              {!compact && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />}
-              {main.user && <Avatar user={main.user} size={20} />}
-              <p className="min-w-0 truncate text-sm text-ink-dim">{focusText}</p>
-              {main.kind === "screen" && (
-                <span
-                  aria-hidden="true"
-                  className="shrink-0 rounded-md bg-alert px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-ground"
-                >
-                  LIVE
-                </span>
-              )}
-            </>
-          )}
-          {ringLine && (
-            <>
-              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />
-              <p role="status" className="min-w-0 truncate text-sm text-ink-dim">
-                {ringLine}
-              </p>
-            </>
-          )}
-          {stuck && onShowCallLog && (
-            <button
-              type="button"
-              onClick={onShowCallLog}
-              className="shrink-0 text-xs text-copper underline decoration-copper/40 hover:decoration-copper"
+          <div className="flex min-w-0 flex-1 items-center gap-2.5">
+            <Icon name="headphones" size={18} className="shrink-0 text-online" />
+            <p
+              className={`max-w-[40%] shrink-0 truncate text-[15px] font-semibold ${
+                compact && main ? "sr-only" : ""
+              }`}
             >
-              Can't connect to someone? See the call log
-            </button>
-          )}
-        </div>
-        {compact && viewButtons("bottom")}
-        {(firstShare || pinnedItem) && (
-          <StageButton
-            label="Grid view"
-            hint={grid ? "Back to the spotlight" : "Show everyone the same size"}
-            icon="grid"
-            pressed={grid}
-            onClick={() => {
-              setGrid((on) => !on);
-              setPinned(null);
-            }}
-          />
-        )}
-        {chat && !fullscreen && (
-          <StageButton
-            label="Chat"
-            hint={chat.shown ? "Hide the chat" : "Show the chat beside the call"}
-            icon="messages"
-            pressed={chat.shown}
-            onClick={chat.onToggle}
-          />
-        )}
-        {!fullscreen && (
-          <StageButton
-            label="Hide call"
-            hint="Back to the chat; the huddle carries on"
-            icon="chevronDown"
-            onClick={onHide}
-          />
-        )}
-      </div>
-      <div
-        ref={measure}
-        className={`min-h-0 flex-1 ${
-          !fullscreen ? "px-3" : main ? (showStrip ? "pb-24" : "") : "px-4 py-16"
-        }`}
-      >
-        {main ? (
-          <Spotlight
-            main={main}
-            others={others}
-            width={area.width - (fullscreen ? 0 : 24)}
-            height={area.height - (fullscreen && showStrip ? 96 : 0)}
-            pinned={main.key === pinned}
-            onPin={pin}
-            onUnpin={() => setPinned(null)}
-            strip={showStrip}
-            edge={fullscreen}
-            onOpen={toggleFullscreen}
-          />
-        ) : (
-          <Gallery
-            items={items.filter((i) => i.kind === "person" || grid)}
-            width={area.width - (fullscreen ? 32 : 24)}
-            height={area.height - (fullscreen ? 128 : 0)}
-            onPin={pin}
-          />
-        )}
-      </div>
-      <div
-        className={`shrink-0 px-4 pb-4 pt-3 ${
-          compact ? "flex justify-center" : "grid grid-cols-[1fr_auto_1fr] items-end gap-3"
-        } ${floating("bottom")}`}
-      >
-        {!compact && <div />}
-        <div className="flex min-w-0 flex-col items-center gap-2">
-          {big && (
-            <p role="status" className="text-center text-xs text-ink-dim">
-              {big}
+              {where}
             </p>
+            {main && (
+              <>
+                {!compact && <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />}
+                {main.user && <Avatar user={main.user} size={20} />}
+                <p className="min-w-0 truncate text-sm text-ink-dim">{focusText}</p>
+                {main.kind === "screen" && (
+                  <span
+                    aria-hidden="true"
+                    className="shrink-0 rounded-md bg-alert px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-ground"
+                  >
+                    LIVE
+                  </span>
+                )}
+              </>
+            )}
+            {ringLine && (
+              <>
+                <span aria-hidden="true" className="h-4 w-px shrink-0 bg-ink/15" />
+                <p role="status" className="min-w-0 truncate text-sm text-ink-dim">
+                  {ringLine}
+                </p>
+              </>
+            )}
+            {stuck && onShowCallLog && (
+              <button
+                type="button"
+                onClick={onShowCallLog}
+                className="shrink-0 text-xs text-copper underline decoration-copper/40 hover:decoration-copper"
+              >
+                Can't connect to someone? See the call log
+              </button>
+            )}
+          </div>
+          {compact && viewButtons("bottom")}
+          {(firstShare || pinnedItem) && (
+            <StageButton
+              label="Grid view"
+              hint={grid ? "Back to the spotlight" : "Show everyone the same size"}
+              icon="grid"
+              pressed={grid}
+              onClick={() => {
+                setGrid((on) => !on);
+                setPinned(null);
+              }}
+            />
           )}
-          <HuddleControls stage overlay={fullscreen} onOpenSettings={onOpenSettings} />
+          {chat && !fullscreen && (
+            <StageButton
+              label="Chat"
+              hint={chat.shown ? "Hide the chat" : "Show the chat beside the call"}
+              icon="messages"
+              pressed={chat.shown}
+              onClick={chat.onToggle}
+            />
+          )}
+          {!fullscreen && (
+            <StageButton
+              label="Hide call"
+              hint="Back to the chat; the huddle carries on"
+              icon="chevronDown"
+              onClick={onHide}
+            />
+          )}
         </div>
-        {!compact && (
-          <div className="flex items-center justify-end gap-1">{viewButtons("top")}</div>
-        )}
-      </div>
-    </section>
+        <div
+          ref={measure}
+          className={`min-h-0 flex-1 ${
+            !fullscreen ? "px-3" : main ? (showStrip ? "pb-24" : "") : "px-4 py-16"
+          }`}
+        >
+          {main ? (
+            <Spotlight
+              main={main}
+              others={others}
+              width={area.width - (fullscreen ? 0 : 24)}
+              height={area.height - (fullscreen && showStrip ? 96 : 0)}
+              pinned={main.key === pinned}
+              onPin={pin}
+              onUnpin={() => setPinned(null)}
+              strip={showStrip}
+              edge={fullscreen}
+              onOpen={toggleFullscreen}
+            />
+          ) : (
+            <Gallery
+              items={items.filter((i) => i.kind === "person" || grid)}
+              width={area.width - (fullscreen ? 32 : 24)}
+              height={area.height - (fullscreen ? 128 : 0)}
+              onPin={pin}
+            />
+          )}
+        </div>
+        <div
+          className={`shrink-0 px-4 pb-4 pt-3 ${
+            compact ? "flex justify-center" : "grid grid-cols-[1fr_auto_1fr] items-end gap-3"
+          } ${floating("bottom")}`}
+        >
+          {!compact && <div />}
+          <div className="flex min-w-0 flex-col items-center gap-2">
+            <HuddleControls stage overlay={fullscreen} onOpenSettings={onOpenSettings} />
+          </div>
+          {!compact && (
+            <div className="flex items-center justify-end gap-1">{viewButtons("top")}</div>
+          )}
+        </div>
+      </section>
+    </ReportDrawn.Provider>
   );
 }

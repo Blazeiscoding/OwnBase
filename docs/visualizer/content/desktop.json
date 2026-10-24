@@ -677,11 +677,12 @@
     },
     {
       "path": "scripts/measure-calls.mts",
-      "plain": "Measures what a huddle of two to six people costs each of them: computer time, upload and download, delay and how smooth the call stays.",
-      "summary": "Starts one headless Chromium per person in one huddle and records CPU, bandwidth, round trip, jitter and video quality from getStats (E13).",
+      "plain": "Measures what a huddle costs each person in it: computer time, upload and download, delay and how smooth the call stays.",
+      "summary": "Starts one headless Chromium per person in one huddle and records CPU by process, bandwidth, round trip, jitter and video quality from getStats (E13, E13b).",
       "details": [
-        "Each person is a browser of its own, so its CPU is read from every one of its processes (SystemInfo.getProcessInfo), beside the whole machine's. Bandwidth is the connections' transport bytes, with the audio and video parts; round trip comes from RTCP, jitter and concealed audio from what each listener receives, and the camera's sent size, frame rate, target bitrate and what held it back from the encoder.",
+        "Each person is a browser of its own, so its CPU is read from every one of its processes (SystemInfo.getProcessInfo), split into the page, drawing, sound, the camera and the network, with the page's main thread from Performance.getMetrics, beside the whole machine's. Bandwidth is the connections' transport bytes, with the audio and video parts; round trip comes from RTCP, jitter and concealed audio from what each listener receives, and the camera's sent size, frame rate, target bitrate and what held it back from the encoder.",
         "The fake camera plays a clip made by the script (cameraClip): someone swaying in front of a wall and a shelf, with a webcam's grain, at the 960 by 540 and 24 frames a second the app asks for. Chromium's own fake picture is flat colour and cost the encoder a quarter of the bits.",
+        "It runs Chromium itself headless, which draws on the graphics card as a person's browser does; --browser=shell takes Playwright's headless shell, which draws in software and cost 40% of a core per person in a call of seven. --cameras and --talking say how many turn their camera on and join unmuted, the rest joining muted, and a person who cannot join is named.",
         "Everyone shares one machine over loopback, so the network adds nothing; once that machine is busy all the time, the figures are the browsers fighting each other and no longer what one person's computer spends. The results are in docs/DEPLOYMENT.md, How many people a call holds."
       ],
       "concepts": ["tooling", "call benchmark", "E13"]

@@ -777,6 +777,20 @@ function Toasts() {
           Show a success
         </Button>
       </Specimen>
+      <Specimen name="heads-up">
+        <Button
+          type="button"
+          onClick={() =>
+            toast({
+              message:
+                "With more than 8 cameras on, the call can stutter. Turning cameras off helps.",
+              kind: "info",
+            })
+          }
+        >
+          Show a heads-up
+        </Button>
+      </Specimen>
       <Specimen name="failure, with an action">
         <Button
           type="button"

@@ -85,17 +85,31 @@ export function aloneLine(
 }
 
 /**
- * The most people a call was measured to hold up with, everyone's camera on
- * (E13): each person sends to each of the others, so every one more costs
- * everyone. See "How many people a call holds" in docs/DEPLOYMENT.md.
+ * How many cameras a call holds up with (E13b). Each one costs everyone else
+ * a decoder, and its owner an encoder for every one of them, so it is the
+ * cameras more than the people that weigh on a call: eight people on camera
+ * each used most of a core, and twelve with two cameras on a third of one.
+ * See "How many people a call holds" in docs/DEPLOYMENT.md.
  */
-export const CALL_HOLDS = 6;
+export const CAMERAS_HOLD = 8;
 
-/** What a call bigger than that says to everyone in it; null for one that size or smaller. */
-export function bigCallLine(people: number): string | null {
-  return people > CALL_HOLDS
-    ? `Calls of more than ${CALL_HOLDS} people can stutter. Turning cameras off helps.`
-    : null;
+/**
+ * How many people a call holds up with, however few cameras are on: the most
+ * measured, sixteen with two cameras on and two talking. A muted microphone
+ * sends nothing, so it is the people talking who cost the others.
+ */
+export const CALL_HOLDS = 16;
+
+/**
+ * What a call this big tells everyone in it, once, as it gets so; null for one
+ * that holds up.
+ */
+export function bigCallLine(people: number, cameras: number): string | null {
+  if (cameras > CAMERAS_HOLD)
+    return `With more than ${CAMERAS_HOLD} cameras on, the call can stutter. Turning cameras off helps.`;
+  if (people > CALL_HOLDS)
+    return `Calls of more than ${CALL_HOLDS} people can stutter. Muting when you're not talking helps.`;
+  return null;
 }
 
 export function huddleNames(
