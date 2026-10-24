@@ -122,6 +122,28 @@ function plainly<T>(call: Promise<T>): Promise<T> {
   });
 }
 
+/**
+ * Windows drops a notification whose tag runs past 54 characters, with no
+ * error and no word from Electron, and the screen's tags (an account's
+ * address and id, then what it is about) are longer than that. So Electron is
+ * given a fingerprint of the tag instead (cyrb53, 53 bits): the same tag gives
+ * the same one, so telling about something again still replaces it.
+ */
+function windowsTag(tag: string): string {
+  let h1 = 0xdeadbeef;
+  let h2 = 0x41c6ce57;
+  for (let i = 0; i < tag.length; i++) {
+    const ch = tag.charCodeAt(i);
+    h1 = Math.imul(h1 ^ ch, 2654435761);
+    h2 = Math.imul(h2 ^ ch, 1597334677);
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507);
+  h1 ^= Math.imul(h2 ^ (h2 >>> 13), 3266489909);
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
+  h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
 export function electronPlatform(): Platform {
   const bridge = window.slackoss;
   const preparing = {
@@ -174,7 +196,8 @@ export function electronPlatform(): Platform {
         }),
     },
     notify: (title, body, onClick, options) => {
-      const note = new Notification(title, { body, silent: false, tag: options?.tag });
+      const tag = options?.tag === undefined ? undefined : windowsTag(options.tag);
+      const note = new Notification(title, { body, silent: false, tag });
       if (onClick) {
         note.onclick = (event) => {
           event.preventDefault();

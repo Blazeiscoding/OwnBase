@@ -8,6 +8,7 @@ import type { AccessPolicy } from "@slackoss/protocol";
 import { deviceStore } from "./lib/deviceStore.js";
 import type { SignInChange } from "./lib/savedServers.js";
 import { parseDeepLink } from "./lib/deeplink.js";
+import { workerNotifications, type WorkerNotifications } from "./lib/workerNotifications.js";
 
 /** A workspace server found on the local network via mDNS. */
 export interface DiscoveredServer {
@@ -455,6 +456,7 @@ export interface Platform {
 /** Browser fallback platform — used by the web client and in dev. */
 export function webPlatform(): Platform {
   const device = deviceStore();
+  let workers: WorkerNotifications | undefined;
   return {
     kind: "web",
     downloadFile: async (url) => {
@@ -502,7 +504,17 @@ export function webPlatform(): Platform {
     },
     notify: (title, body, onClick, options) => {
       if (typeof Notification === "undefined" || Notification.permission !== "granted") return;
-      const note = new Notification(title, { body, tag: options?.tag });
+      let note: Notification;
+      try {
+        note = new Notification(title, { body, tag: options?.tag });
+      } catch {
+        // Android's Chrome shows only what a service worker asks for.
+        if (navigator.serviceWorker) {
+          workers ??= workerNotifications(navigator.serviceWorker);
+          void workers.show(title, body, onClick, options?.tag);
+        }
+        return;
+      }
       if (onClick) {
         note.onclick = (event) => {
           event.preventDefault();

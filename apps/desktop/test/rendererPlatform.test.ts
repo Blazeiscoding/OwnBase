@@ -302,3 +302,46 @@ describe("following the page's place", () => {
     ).resolves.toBeUndefined();
   });
 });
+
+describe("notifications", () => {
+  afterEach(() => {
+    delete (globalThis as { Notification?: unknown }).Notification;
+  });
+
+  /** What the renderer asks Electron to show, one entry per notification. */
+  function shown() {
+    const made: Array<{ title: string; body?: string; tag?: string }> = [];
+    (globalThis as { window?: unknown }).window = { slackoss: {} as Bridge };
+    (globalThis as { Notification?: unknown }).Notification = class {
+      constructor(title: string, options?: NotificationOptions) {
+        made.push({ title, body: options?.body, tag: options?.tag });
+      }
+    };
+    return { platform: electronPlatform(), made };
+  }
+
+  it("tags each one briefly enough for Windows to show it", () => {
+    const { platform, made } = shown();
+    // How WorkspaceScreen tags a message: the account, then the message.
+    const account = "http://192.168.1.20:8543 01M5NEH8VBQEKYEXT5BP4AH72Y";
+    platform.notify("Bob", "one", undefined, { tag: `${account} 01M5NEH8VBQEKYEXT5BP4AH72Z` });
+    platform.notify("Bob", "two", undefined, { tag: `${account} 01M5NEH8VBQEKYEXT5BP4AH730` });
+    platform.notify("Bob", "one again", undefined, {
+      tag: `${account} 01M5NEH8VBQEKYEXT5BP4AH72Z`,
+    });
+    platform.notify("Bob", "untagged");
+    expect(made.map(({ title, body }) => [title, body])).toEqual([
+      ["Bob", "one"],
+      ["Bob", "two"],
+      ["Bob", "one again"],
+      ["Bob", "untagged"],
+    ]);
+    // Windows drops a notification whose tag runs past 54 characters, without
+    // an error or a word from Electron (measured on Windows 11, Electron 44).
+    for (const { tag } of made.slice(0, 3)) expect(tag!.length).toBeLessThanOrEqual(16);
+    // Still one tag per thing told about, so telling it again replaces it.
+    expect(made[0]!.tag).not.toBe(made[1]!.tag);
+    expect(made[2]!.tag).toBe(made[0]!.tag);
+    expect(made[3]!.tag).toBeUndefined();
+  });
+});

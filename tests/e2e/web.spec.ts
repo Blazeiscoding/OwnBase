@@ -2968,6 +2968,90 @@ test("notifications are offered after sign-in, and one opens its message", async
   }
 });
 
+test("a phone's browser notifies through the service worker, and keeps its connection", async ({
+  browser,
+}) => {
+  const phone = await browser.newContext({
+    viewport: { width: 412, height: 860 },
+    isMobile: true,
+    hasTouch: true,
+  });
+  // Android's Chrome: notifications are allowed, but a page's `new
+  // Notification` throws and only a service worker can show one. This browser
+  // has no permission to give one, so what the worker is asked to show is
+  // recorded instead. The phone is in a pocket: the page does not have focus.
+  await phone.addInitScript(() => {
+    class AndroidNotification {
+      static permission = "granted";
+      constructor() {
+        throw new TypeError(
+          "Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.",
+        );
+      }
+    }
+    const shown: string[] = [];
+    let sockets = 0;
+    const RealSocket = window.WebSocket;
+    Object.assign(window, {
+      Notification: AndroidNotification,
+      shown,
+      sockets: () => sockets,
+      WebSocket: class extends RealSocket {
+        constructor(...args: ConstructorParameters<typeof WebSocket>) {
+          super(...args);
+          sockets++;
+        }
+      },
+    });
+    ServiceWorkerRegistration.prototype.showNotification = async function (title, options) {
+      shown.push(`${title}: ${options?.body}`);
+    };
+    document.hasFocus = () => false;
+  });
+  try {
+    const page = await phone.newPage();
+    await signIn(page, "alice");
+    const login = (await (
+      await fetch(`${base}/api/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ handle: "bobby", password: "password123" }),
+      })
+    ).json()) as { token: string };
+    const auth = { authorization: `Bearer ${login.token}`, "content-type": "application/json" };
+    const { users } = await (await fetch(`${base}/api/users`, { headers: auth })).json();
+    const alice = users.find((u: { handle: string }) => u.handle === "alice");
+    const dm = await (
+      await fetch(`${base}/api/channels`, {
+        method: "POST",
+        headers: auth,
+        body: JSON.stringify({ type: "dm", memberIds: [alice.id] }),
+      })
+    ).json();
+    await fetch(`${base}/api/channels/${dm.channel.id}/messages`, {
+      method: "POST",
+      headers: auth,
+      body: JSON.stringify({ text: "phone notification check" }),
+    });
+
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as { shown: string[] }).shown))
+      .toEqual(["bobby: phone notification check"]);
+    // The worker the page registered is the one the server serves.
+    expect(
+      await page.evaluate(
+        async () => (await navigator.serviceWorker.getRegistration())?.active?.scriptURL,
+      ),
+    ).toBe(`${base}/notification-worker.js`);
+    // Failing to make the notification itself did not drop the connection.
+    expect(
+      await page.evaluate(() => (window as unknown as { sockets: () => number }).sockets()),
+    ).toBe(1);
+  } finally {
+    await phone.close().catch(() => {});
+  }
+});
+
 test("the demo seed fills a new workspace with something to try, and leaves one in use alone", async ({
   browser,
 }) => {
