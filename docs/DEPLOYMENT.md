@@ -605,10 +605,13 @@ guarantee a fixed RAM budget.
 
 ### How many people a call holds
 
-A huddle is a mesh: everyone sends their microphone and camera to everyone else
-on a connection of its own, and each connection has an encoder of its own. Every
-person who joins costs everyone else another encoder and another share of their
-upload. So the camera is sent smaller as a call grows:
+A huddle is a mesh. Everyone sends their microphone and camera to everyone else
+on a connection of its own, and each connection has an encoder of its own, so
+every person who joins costs everyone else another encoder and another share of
+their upload. Two limits keep that down, and each connection takes the stricter
+of the two.
+
+The first is the size of the call:
 
 | People in the call | What the camera sends each of the others                            |
 | ------------------ | ------------------------------------------------------------------- |
@@ -618,60 +621,118 @@ upload. So the camera is sent smaller as a call grows:
 | 5 or 6             | two thirds of its size, up to 15 frames a second, 600 or 480 kbit/s |
 | 7 or more          | half its size, up to 15 frames a second, 400 kbit/s or less         |
 
-Each step keeps the camera's upload near 2.4 Mbit/s. The change is made on each
-connection in place, without setting the call up again, and the call log says
-each size. A call of more than six says to everyone in it that it can stutter
-and that turning cameras off helps. Nothing stops a seventh person joining.
+The second is what each person sees. Each app tells the others how tall it draws
+their camera and their share, rounded up to 180, 270, 360, 540, 720 or 1,080
+lines, or 0 when it draws them nowhere. The call hidden behind the chat, a window
+minimised or covered, and the row under a share put away all count as nowhere. A
+camera drawn 180 lines tall or less is sent at that size, at up to 15 frames a
+second and 200 kbit/s. At 270 lines it gets up to 350 kbit/s, and at 360 lines 20
+frames a second and 600 kbit/s. A share is sent no taller than it is drawn.
+Nothing goes to someone who draws neither, and the encoder for them stops. An app
+from before this never says how it draws, and gets what the call's size allows.
 
-These are the measurements behind it, taken on 24 October 2026 with
+Both change each connection in place, without setting the call up again, and the
+call log says each change.
+
+A muted microphone sends nothing at all. It used to send silence, encoded once
+for every connection and decoded by everyone, so in a big call of mostly muted
+people that silence was most of what each person spent on sound. Turning the
+microphone on puts it back on every connection at once, again without setting
+the call up again.
+
+A call with more than eight cameras on, or more than sixteen people, tells
+everyone in it once, in a notice that goes by itself, that it can stutter and
+what helps: turning cameras off, or muting when not talking. Nothing stops
+anyone joining.
+
+The call view has nothing that moves forever and blurs nothing over a video.
+Either one made the browser draw the whole call again, every video in it, many
+times a second. In a call of seven, the pulsing "In huddle" dot and the blur
+behind each tile's name cost each person a third of a core between them.
+
+These are the measurements behind it, taken on 24 and 25 October 2026 with
 `scripts/measure-calls.mts`:
 
 - **Machine:** Windows 11 desktop, Intel Core i5-12400F (6 cores, 12 threads),
-  16 GB. Headless Chromium 153, VP8 encoded in software.
-- **Setup:** one headless Chromium per person, all on that machine, in one
-  huddle over loopback, microphone and camera on. The camera played a 960 by
-  540 clip made by the script, someone swaying in front of a wall and a
-  bookshelf with a webcam's grain; Chromium's own fake camera is flat colour and
-  needs a quarter of the bits. Each size settled for 30 seconds, then ran for two
-  minutes.
+  16 GB, NVIDIA GeForce RTX 3060. Chromium 153, headless and drawing on the
+  graphics card as a person's own browser does. VP8 encoded in software.
+- **Setup:** one browser per person, all on that machine, in one huddle over
+  loopback, each in a 1280 by 800 window showing the call with everyone the same
+  size. The camera played a 960 by 540 clip made by the script, someone swaying
+  in front of a wall and a bookshelf with a webcam's grain; Chromium's own fake
+  camera is flat colour and needs a quarter of the bits. Each size settled for
+  20 seconds, then ran for a minute.
 - **CPU per person** is every process of that person's browser, as a share of
   one core. All of them ran on one machine, so once the machine was busy all the
   time they were fighting each other for it, and the call broke down there
   before it would on separate computers.
 
-With the camera sized to the call:
+With everyone's camera on and everyone watching:
 
 | People | CPU per person | Machine busy | Upload per person | Camera sent as | Round trip p95 | Audio concealed | Freezes |
 | ------ | -------------- | ------------ | ----------------- | -------------- | -------------- | --------------- | ------- |
-| 2      | 55%            | 12%          | 2.1 Mbit/s        | 540p, 24 fps   | 1 ms           | 0%              | 0       |
-| 3      | 101%           | 27%          | 2.6 Mbit/s        | 540p, 24 fps   | 1 ms           | 0%              | 0       |
-| 4      | 90%            | 32%          | 2.6 Mbit/s        | 360p, 20 fps   | 1 ms           | 0%              | 0       |
-| 5      | 106%           | 45%          | 2.7 Mbit/s        | 360p, 15 fps   | 2 ms           | 0%              | 0       |
-| 6      | 154%           | 84%          | 2.7 Mbit/s        | 360p, 15 fps   | 10 ms          | 0.1%            | 2       |
+| 2      | 23%            | 11%          | 0.4 Mbit/s        | 270p, 15 fps   | 1 ms           | 0%              | 0       |
+| 3      | 33%            | 22%          | 0.5 Mbit/s        | 180p, 15 fps   | 1 ms           | 0%              | 0       |
+| 4      | 43%            | 25%          | 0.8 Mbit/s        | 180p, 15 fps   | 1 ms           | 0%              | 0       |
+| 5      | 54%            | 31%          | 1.0 Mbit/s        | 180p, 15 fps   | 1 ms           | 0%              | 0       |
+| 6      | 69%            | 46%          | 1.3 Mbit/s        | 180p, 15 fps   | 3 ms           | 0%              | 0       |
+| 7      | 80%            | 52%          | 1.5 Mbit/s        | 180p, 15 fps   | 3 ms           | 0%              | 0       |
+| 8      | 94%            | 74%          | 1.8 Mbit/s        | 180p, 15 fps   | 7 ms           | 0.1%            | 12      |
+| 9      | 104%           | 93%          | 2.0 Mbit/s        | 180p, 15 fps   | 79 ms          | 0.8%            | 220     |
 
-Before it, every camera went out at full size to everyone:
+The tiles in that window are small, so the cameras went out small. Someone drawn
+larger, pinned or with the call given the whole window, is sent larger, up to
+what the call's size allows.
 
-| People | CPU per person | Machine busy | Upload per person | Camera sent as | Round trip p95 | Audio concealed | Freezes |
-| ------ | -------------- | ------------ | ----------------- | -------------- | -------------- | --------------- | ------- |
-| 3      | 100%           | 28%          | 4.2 Mbit/s        | 540p, 24 fps   | 1 ms           | 0%              | 0       |
-| 4      | 203%           | 76%          | 5.5 Mbit/s        | 540p, 24 fps   | 1,083 ms       | 0.6%            | 362     |
-| 5      | 257%           | 100%         | 0.8 Mbit/s        | 540p, 4 fps    | 6,002 ms       | 42%             | 282     |
-| 6      | 277%           | 100%         | 1.2 Mbit/s        | 540p, 3 fps    | 16,345 ms      | 45%             | 1,109   |
+Ten browsers with every camera on needed more than the machine's 12 threads. It
+was busy all the time and the call broke down there, with a round trip of 1.7
+seconds. Each person's own share grew by 10 to 14 points of a core with each
+person who joined, which puts ten at about 115% of a core each on separate
+computers, a fifth of this desktop's six cores. Ten people did fit with fewer
+cameras:
+
+| Ten people  | CPU per person         | Machine busy | Upload per person             | Round trip p95 | Audio concealed | Freezes |
+| ----------- | ---------------------- | ------------ | ----------------------------- | -------------- | --------------- | ------- |
+| 4 on camera | 94% on camera, 52% off | 63%          | 2.3 Mbit/s on camera, 0.4 off | 4 ms           | 0%              | 0       |
+| Voice only  | 28%                    | 30%          | 0.4 Mbit/s                    | 1 ms           | 0%              | 0       |
+
+Bigger calls are mostly people listening. With two cameras on, two people
+talking and everyone else muted:
+
+| People | CPU per person | Machine busy | Upload per person, on average | Round trip p95 | Audio concealed |
+| ------ | -------------- | ------------ | ----------------------------- | -------------- | --------------- |
+| 12     | 31%            | 38%          | 0.5 Mbit/s                    | 2 ms           | 0%              |
+| 16     | 37%            | 70%          | 0.5 Mbit/s                    | 5 ms           | 0%              |
+
+While a muted microphone still sent silence, twelve such people cost 66% of a
+core each with the machine 76% busy, and sixteen could not all get into the
+call. Twenty were not measured. At sixteen the machine was already 70% busy,
+more than the browsers' own share, because every browser's sound went through
+its one audio engine, which on separate computers each would have to itself.
+
+Before any of this, with the camera sized to the call alone, seven people with
+every camera on cost 138% of a core each with the machine 96% busy, and eight
+could not all get into the call.
+
+Most of what is left is the mesh itself. Of each person's 80% in a call of seven,
+the page took 50%, nearly all of it WebRTC encoding, decoding and sending, and
+3% the page's own script. Drawing took 17%, the network 6%, and sound and the
+camera 3% each. Voice alone was 20% of the whole. Capturing the camera only as
+big as anyone was sent it saved another 3 points, too few to be worth a softer
+preview of yourself.
 
 Download is the same as upload, since everyone receives what everyone sends.
 Over loopback the network adds no delay or loss, so round trip and jitter show
 only what the load did to the call. A connection with less upload than the
 table says holds the picture back further by itself.
 
-With every camera off, voice alone costs little: each person used 8% of a core
-and sent 46 kbit/s in a call of two, and 17% and 229 kbit/s in a call of six,
-with nothing concealed. It is the cameras that set the size a call holds.
-
 Not measured: real networks with delay and loss, calls through a TURN relay,
 slower laptops, the desktop app (the same Chromium engine), and screen sharing in
-a call this size, which is sent to each viewer at up to 1080p. To measure on your
-own computers, build the web client and run the script; `--sizes`, `--seconds`
-and `--camera=off` change what it measures:
+a call this size, which goes to each viewer no taller than they draw it and at
+up to 1080p. To measure on your own computers, build the web client and run the
+script. `--sizes`, `--seconds`, `--camera=off`, `--cameras` (how many turn
+theirs on) and `--browser=shell` (Playwright's headless shell, which draws in
+software) change what it measures:
 
 ```sh
 pnpm --filter @slackoss/web build
