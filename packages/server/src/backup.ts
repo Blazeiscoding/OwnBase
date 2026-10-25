@@ -96,7 +96,8 @@ function contains(parent: string, child: string): boolean {
   );
 }
 
-async function separateDirectories(a: string, b: string): Promise<void> {
+/** Refuses two directories when either is, or will be, inside the other. */
+export async function separateDirectories(a: string, b: string): Promise<void> {
   const [left, right] = await Promise.all([canonical(a), canonical(b)]);
   if (contains(left, right) || contains(right, left)) {
     throw new Error(

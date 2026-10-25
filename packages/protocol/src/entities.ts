@@ -492,6 +492,22 @@ export interface WorkspaceStatus {
     lastSuccessAt: number | null;
     failures: number;
   };
+  /**
+   * Backups the server takes on a timer: off, or how often, how many it
+   * keeps, when the last one finished, failures since, and when the next is
+   * due. Absent from servers that predate them.
+   */
+  backups?:
+    | { enabled: false }
+    | {
+        enabled: true;
+        everyMs: number;
+        keep: number;
+        lastSuccessAt: number | null;
+        failures: number;
+        nextAt: number | null;
+        running: boolean;
+      };
   /** Open sockets, and the people they belong to. */
   connections: { sockets: number; people: number };
   /**

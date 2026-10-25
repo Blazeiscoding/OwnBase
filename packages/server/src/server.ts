@@ -89,6 +89,12 @@ import {
   type CallLogEntry,
 } from "@slackoss/protocol";
 import { openDb, SCHEMA_VERSION } from "./db.js";
+import { backupWorkspace, separateDirectories } from "./backup.js";
+import {
+  BackupSchedule,
+  type BackupScheduleStatus,
+  type ScheduledBackups,
+} from "./backupSchedule.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
 import { Store } from "./store.js";
 import { StorageBudget } from "./storageBudget.js";
@@ -99,7 +105,7 @@ import { imageSize } from "./imageSize.js";
 import { blocksToActions, parseView, payloadToText } from "./blockKit.js";
 import { OutboundError, postToUrl } from "./outbound.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
-import { parsePort, parsePublicUrl } from "./config.js";
+import { ConfigError, parsePort, parsePublicUrl } from "./config.js";
 import { callRelaySchema, createRelaySource, withRelay, type CallRelay } from "./relay.js";
 import { iceServersSchema } from "./rtc.js";
 import {
@@ -398,6 +404,12 @@ export interface ServerOptions {
    */
   retentionDays?: number;
   /**
+   * Backups taken on a timer into dated folders, keeping the newest few. Off
+   * when omitted. Never in an isolated copy, which would otherwise write into,
+   * and prune, the original's backups.
+   */
+  scheduledBackups?: ScheduledBackups;
+  /**
    * Starts a copy for looking at, such as a backup restored to check it. The
    * copy holds the original's apps, their signing secrets and its queue of
    * scheduled messages, so an ordinary start would post those messages a
@@ -450,6 +462,13 @@ export interface WorkspaceServer {
   sweepRetention: () => Promise<number>;
   /** Whether the last retention sweep succeeded, and if not, why. */
   retentionStatus: () => RetentionStatus;
+  /** How scheduled backups are going; null when they are off. */
+  backupStatus: () => BackupScheduleStatus | null;
+  /**
+   * Takes a scheduled backup now, or waits for the one running. Runs on a
+   * timer; exposed so tests need not wait. Never rejects; see `backupStatus`.
+   */
+  runBackup: () => Promise<void>;
   /** Delivers a bounded batch of committed integration events. */
   flushEventDeliveries: () => Promise<void>;
   /**
@@ -607,6 +626,22 @@ async function startWorkspaceServer(
         app.log.warn({ reason: error.message }, "the call relay gave no password"),
     });
   let relay = relaySource(opts.relay ?? null);
+  const scheduled = opts.isolated ? undefined : opts.scheduledBackups;
+  if (scheduled) {
+    if (opts.dataDir === ":memory:")
+      throw new ConfigError("Scheduled backups need a workspace folder, not one in memory.");
+    if (!Number.isSafeInteger(scheduled.everyMs) || scheduled.everyMs <= 0)
+      throw new ConfigError("Scheduled backups need a time between them greater than zero.");
+    if (!Number.isSafeInteger(scheduled.keep) || scheduled.keep < 1)
+      throw new ConfigError("Scheduled backups need to keep at least one.");
+    try {
+      await separateDirectories(opts.dataDir, scheduled.dir);
+    } catch {
+      throw new ConfigError(
+        `Backups must go outside the workspace folder, and the workspace must not be inside theirs: ${scheduled.dir}`,
+      );
+    }
+  }
   const dbPath = opts.dataDir === ":memory:" ? ":memory:" : join(opts.dataDir, "workspace.db");
   // Before anything reads or changes the folder: a second server would keep
   // its own count of the attachments and run its own queue and clean-up.
@@ -1557,6 +1592,14 @@ async function startWorkspaceServer(
   let fileCleanup: Promise<void> | null = null;
   let fileCleanupNext: ReturnType<typeof setImmediate> | null = null;
   /**
+   * While a scheduled backup copies attachments, none is removed, so a blob
+   * its snapshot names is still there when the copy reaches it. Removals wait
+   * in their queue and go when it ends.
+   */
+  let backupCopying = false;
+  /** Set once the server is listening; null when scheduled backups are off. */
+  let backups: BackupSchedule | null = null;
+  /**
    * Removes the blobs of committed deletions due by `now`, a page at a time
    * (REV-02). One that fails waits longer each time while the rest go on, so
    * a few that cannot be removed never hold back the many that can, and a
@@ -1566,6 +1609,7 @@ async function startWorkspaceServer(
    */
   const flushFileDeletions = (now = Date.now()): Promise<void> => {
     if (fileCleanup) return fileCleanup;
+    if (backupCopying) return Promise.resolve();
     let more = false;
     fileCleanup = (async () => {
       const due = store.dueFileDeletions(now, FILE_CLEANUP_PAGE);
@@ -3452,6 +3496,21 @@ async function startWorkspaceServer(
     }
   };
 
+  /** Scheduled backups for the status: times and counts, never the folder or an error's text. */
+  const backupSummary = (): NonNullable<WorkspaceStatus["backups"]> => {
+    const status = backups?.status();
+    if (!status) return { enabled: false };
+    return {
+      enabled: true,
+      everyMs: status.everyMs,
+      keep: status.keep,
+      lastSuccessAt: status.lastSuccessAt,
+      failures: status.failures,
+      nextAt: status.nextAt,
+      running: status.running,
+    };
+  };
+
   /**
    * For the owner and admins: whether the server is keeping up, from counts,
    * sizes and times alone. Nothing from a conversation, an app's delivery
@@ -3491,6 +3550,7 @@ async function startWorkspaceServer(
         lastSuccessAt: retention.lastSuccessAt,
         failures: retention.failures,
       },
+      backups: backupSummary(),
       connections: { sockets: gateway.socketCount(), people: gateway.onlineUserIds().length },
       eventLoopDelayMs: lastMinuteDelay,
       backgroundFailures: [...backgroundFailures].map(([queue, failing]) => ({
@@ -5833,6 +5893,28 @@ async function startWorkspaceServer(
     5_000,
   );
 
+  const takeBackup =
+    scheduled?.run ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
+  backups = scheduled
+    ? new BackupSchedule({
+        ...scheduled,
+        run: async (out, signal) => {
+          // A page of removals already under way is left to finish: its rows
+          // went in the transaction that queued them, so the snapshot taken
+          // after this cannot name its blobs.
+          backupCopying = true;
+          try {
+            return await takeBackup(out, signal);
+          } finally {
+            backupCopying = false;
+            inBackground("attachment cleanup", flushFileDeletions);
+          }
+        },
+        log: app.log,
+      })
+    : null;
+  await backups?.start();
+
   /**
    * An exception thrown from a timer is an uncaught exception, which ends the
    * process. Housekeeping that fails is reported and tried again next round,
@@ -5951,7 +6033,14 @@ async function startWorkspaceServer(
   // The stages of stopping that have finished. A stop that fails part-way
   // can be asked again, and the next try picks up at the first stage not yet
   // done instead of repeating the failure or a stage that must happen once.
-  const stopped = { started: false, gateway: false, http: false, drained: false, database: false };
+  const stopped = {
+    started: false,
+    gateway: false,
+    http: false,
+    backups: false,
+    drained: false,
+    database: false,
+  };
 
   return {
     port: actualPort,
@@ -5967,6 +6056,8 @@ async function startWorkspaceServer(
     applyRetention,
     sweepRetention,
     retentionStatus: () => ({ ...retention }),
+    backupStatus: () => backups?.status() ?? null,
+    runBackup: () => backups?.runNow() ?? Promise.resolve(),
     flushEventDeliveries,
     setPublicUrl: (url) => {
       // Checked before anything changes, so a refused address leaves the old one.
@@ -6041,6 +6132,11 @@ async function startWorkspaceServer(
         if (!stopped.http) {
           await app.close();
           stopped.http = true;
+        }
+        if (!stopped.backups) {
+          // Before the drain: removals held for a backup go once it has ended.
+          await backups?.stop();
+          stopped.backups = true;
         }
         if (!stopped.drained) {
           // Nothing new can arrive now, so this set only shrinks.

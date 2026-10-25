@@ -173,6 +173,22 @@ function roughDuration(ms: number): string {
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
+/** "Backups: every 24 h, keeping 7; last done …, next …", or that they are off. */
+function backupLine(backups: NonNullable<WorkspaceStatus["backups"]>): string {
+  if (!backups.enabled) return "Backups: not scheduled";
+  const hours = backups.everyMs / 3600_000;
+  return [
+    `Backups: every ${Number.isInteger(hours) ? `${hours} h` : roughDuration(backups.everyMs)}, keeping ${backups.keep}`,
+    backups.running
+      ? "one running now"
+      : backups.lastSuccessAt === null
+        ? "none yet"
+        : `last done ${new Date(backups.lastSuccessAt).toISOString()}`,
+    ...(backups.failures ? [`${plural(backups.failures, "failure")} since`] : []),
+    ...(backups.nextAt === null ? [] : [`next ${new Date(backups.nextAt).toISOString()}`]),
+  ].join("; ");
+}
+
 /**
  * The server's own account of itself (OPS-10): sizes, queues and timings, and
  * never what is in them. It holds no message, name, file, address or token.
@@ -213,6 +229,8 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
             : `last done ${new Date(retention.lastSuccessAt).toISOString()}`) +
           (retention.failures ? `, ${plural(retention.failures, "failure")} since` : "")
     }`,
+    // Servers before scheduled backups do not say, and a line would guess.
+    ...(status.backups ? [backupLine(status.backups)] : []),
     `Connections: ${plural(connections.sockets, "socket")} for ${plural(connections.people, "person", "people")}`,
     `Event loop delay: ${
       loop
