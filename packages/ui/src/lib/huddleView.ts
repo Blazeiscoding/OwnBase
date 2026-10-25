@@ -84,6 +84,34 @@ export function aloneLine(
   return ringingLine(ring, users) ?? (notice?.channelId === channelId ? notice.message : null);
 }
 
+/**
+ * How many cameras a call holds up with (E13b). Each one costs everyone else
+ * a decoder, and its owner an encoder for every one of them, so it is the
+ * cameras more than the people that weigh on a call: eight people on camera
+ * each used most of a core, and twelve with two cameras on a third of one.
+ * See "How many people a call holds" in docs/DEPLOYMENT.md.
+ */
+export const CAMERAS_HOLD = 8;
+
+/**
+ * How many people a call holds up with, however few cameras are on: the most
+ * measured, sixteen with two cameras on and two talking. A muted microphone
+ * sends nothing, so it is the people talking who cost the others.
+ */
+export const CALL_HOLDS = 16;
+
+/**
+ * What a call this big tells everyone in it, once, as it gets so; null for one
+ * that holds up.
+ */
+export function bigCallLine(people: number, cameras: number): string | null {
+  if (cameras > CAMERAS_HOLD)
+    return `With more than ${CAMERAS_HOLD} cameras on, the call can stutter. Turning cameras off helps.`;
+  if (people > CALL_HOLDS)
+    return `Calls of more than ${CALL_HOLDS} people can stutter. Muting when you're not talking helps.`;
+  return null;
+}
+
 export function huddleNames(
   ids: readonly ID[],
   users: Record<ID, User>,

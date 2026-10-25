@@ -1,11 +1,12 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddlePeer, type HuddleState } from "@slackoss/client-core";
 import type { Channel, User } from "@slackoss/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { webPlatform, type Platform } from "../src/platform.js";
-import { HuddleBar } from "../src/components/HuddleBar.js";
+import { HuddleBar, HuddleButton } from "../src/components/HuddleBar.js";
 import { bestFit, HuddleStage } from "../src/components/HuddleStage.js";
 import { useHuddleView } from "../src/lib/huddleView.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -336,6 +337,81 @@ describe("the call", () => {
     }
   });
 
+  it("tells the client how big it draws everyone's camera and share, and nothing out of sight (E13b)", async () => {
+    // jsdom lays nothing out, so the stage is given a size to fit tiles to.
+    vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockReturnValue(
+      DOMRect.fromRect({ width: 1000, height: 600 }),
+    );
+    const visibility = vi.spyOn(document, "visibilityState", "get");
+    Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 2 });
+    try {
+      const { client } = stage({ peers: [peer("U_PRIYA", { cameraStream: stream() })] });
+      const told = vi.spyOn(client, "setCallViews");
+      await act(async () => {});
+      // You and Priya, one above the other; her tile in device pixels, at twice the CSS.
+      const tile = Math.floor(bestFit(2, 1000, 600).width / (16 / 9));
+      expect(told).toHaveBeenCalledOnce();
+      expect(told).toHaveBeenLastCalledWith(
+        new Map([["U_PRIYA", { camera: tile * 2, screen: 0 }]]),
+      );
+
+      visibility.mockReturnValue("hidden");
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(told).toHaveBeenLastCalledWith(new Map());
+      visibility.mockReturnValue("visible");
+      document.dispatchEvent(new Event("visibilitychange"));
+      expect(told.mock.lastCall![0].get("U_PRIYA")).toEqual({ camera: tile * 2, screen: 0 });
+
+      cleanup();
+      expect(told).toHaveBeenLastCalledWith(new Map());
+
+      // A share large, her camera in the row under it, then that row put away.
+      const shared = stage({
+        peers: [peer("U_PRIYA", { cameraStream: stream(), screenStream: stream() })],
+      });
+      const toldShare = vi.spyOn(shared.client, "setCallViews");
+      await act(async () => {});
+      const withRow = toldShare.mock.lastCall![0].get("U_PRIYA")!;
+      expect(withRow.camera).toBeGreaterThan(0);
+      expect(withRow.screen).toBeGreaterThan(withRow.camera * 3);
+      await shared.user.click(control("Everyone else"));
+      await act(async () => {});
+      const rowAway = toldShare.mock.lastCall![0].get("U_PRIYA")!;
+      expect(rowAway.camera).toBe(0);
+      expect(rowAway.screen).toBeGreaterThan(withRow.screen);
+    } finally {
+      Object.defineProperty(window, "devicePixelRatio", { configurable: true, value: 1 });
+      vi.restoreAllMocks();
+    }
+  });
+
+  it("has nothing that moves forever, or blurs a video, so a still call is not drawn again (E13b)", () => {
+    // Either has every frame of the call drawn again: in a call of seven each
+    // cost a fifth of a core per person. The spinner shows only while connecting.
+    const busy = (root: Element) =>
+      [...root.querySelectorAll("[class]")]
+        .map((el) => el.getAttribute("class")!)
+        .filter((names) => /(^|\s)(backdrop-blur\S*|animate-(?!spin)\S+)/.test(names));
+    // Everyone the same size, with a pin and a volume over each tile, then a share large.
+    stage({ peers: [peer("U_PRIYA", { cameraStream: stream() })] });
+    expect(within(region()).getAllByRole("button", { name: /^Pin / }).length).toBeGreaterThan(0);
+    expect(busy(region())).toEqual([]);
+    cleanup();
+    const { client } = stage({
+      peers: [peer("U_PRIYA", { cameraStream: stream(), screenStream: stream() })],
+    });
+    expect(busy(region())).toEqual([]);
+    render(
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <HuddleButton channelId="C_GENERAL" />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
+    );
+    const pill = screen.getByText("In huddle").parentElement!;
+    expect(busy(pill)).toEqual([]);
+  });
+
   it("goes in and out of full screen when the share is double-clicked", async () => {
     const fullscreen = fakeFullscreen();
     try {
@@ -390,6 +466,64 @@ describe("the huddle bar", () => {
     expect(screen.getByRole("status")).toHaveTextContent(
       "With Priya Shah · Priya Shah is sharing their screen",
     );
+  });
+
+  it("says once, in a notice that goes by itself, when a call grows past what it holds (E13b)", () => {
+    const onCamera = (n: number) =>
+      Array.from({ length: n }, (_, i) => peer(`U_${i}`, { cameraStream: stream() }));
+    const client = huddleClient({ peers: onCamera(8) });
+    vi.useFakeTimers();
+    try {
+      render(
+        <ToastProvider>
+          <PlatformContext.Provider value={platform}>
+            <ClientContext.Provider value={client}>
+              <HuddleBar />
+            </ClientContext.Provider>
+          </PlatformContext.Provider>
+        </ToastProvider>,
+      );
+      const huddle = () => client.store.getState().huddle!;
+      // Eight cameras hold up, and the bar itself no longer says anything about size.
+      expect(screen.queryByText(/can stutter/)).toBeNull();
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+
+      // Yours makes nine: told once, politely, with nothing to press but Dismiss.
+      act(() => client.store.setState({ huddle: { ...huddle(), cameraOn: true } }));
+      const notice = screen.getByText(
+        "With more than 8 cameras on, the call can stutter. Turning cameras off helps.",
+      );
+      expect(notice.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
+      // Someone else joining while it stays that big says nothing new: the notice
+      // goes when its own five seconds are up, not five seconds after the join.
+      act(() => vi.advanceTimersByTime(4000));
+      act(() =>
+        client.store.setState({ huddle: { ...huddle(), peers: [...huddle().peers, peer("U_X")] } }),
+      );
+      act(() => vi.advanceTimersByTime(1500));
+      expect(screen.queryByText(/can stutter/)).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("tells a call of more than sixteen people, cameras off, that muting helps (E13b)", async () => {
+    const others = Array.from({ length: 16 }, (_, i) => peer(`U_${i}`));
+    const client = huddleClient({ peers: others });
+    render(
+      <ToastProvider>
+        <PlatformContext.Provider value={platform}>
+          <ClientContext.Provider value={client}>
+            <HuddleBar />
+          </ClientContext.Provider>
+        </PlatformContext.Provider>
+      </ToastProvider>,
+    );
+    expect(
+      await screen.findByText(
+        "Calls of more than 16 people can stutter. Muting when you're not talking helps.",
+      ),
+    ).toBeVisible();
   });
 });
 

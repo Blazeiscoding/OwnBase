@@ -48,6 +48,7 @@
         "A huddle goes on through a dropped socket: holdHuddle keeps the session (its media does not pass through the socket) and only a refusal that will not stop ends it. On the next ready snapshot resumeHuddle asks to go on with huddle.join: if the snapshot still lists this device in the room, every peer connection stays; if not, it closes its peers and dials again once let in. A refused rejoin, or huddle.moved from the server, ends the call and sets huddleEnded with the reason, which useHuddleEndedNotice shows once.",
         "WorkspaceClient combines Api, FileCache and a Zustand store. The store holds authenticated identity, users, channels, memberships, read cursors, loaded history, drafts, pending sends, app replies, forms and huddle state.",
         "The WebSocket hello includes the session token, protocol version and last observed event sequence. Ready snapshots and replay events rebuild the replica; reconnect delay grows up to 30 seconds. Authentication, forced-password and protocol refusals stop ordinary reconnect loops.",
+        "onIncomingMessage, onMessageDeleted and onReminderDue run through tellApp, which reports a hook's failure to the console and lets the event apply. Before, a hook that threw (Android's Chrome throws from a page's new Notification) stopped the event and was taken for a bad message from the server, which closed the socket, so every message that should have notified cost a reconnect.",
         "History requests carry identity and snapshot watermarks so late HTTP pages can be reconciled with socket events. Identical loads share work; superseded, revoked or evicted history requests are aborted. A timeline holds at most 300 messages and inactive history is bounded by a 20-entry cache limit.",
         "send creates a random request nonce and an optimistic PendingMessage, uploads files, posts the message and reconciles the response or socket echo by nonce. The outbox accepts up to 50 waiting sends per account. A known server refusal waits for deliberate Retry; an uncertain outcome can retry the same nonce.",
         "Restored outbox entries contain attachment descriptions rather than File objects. Missing attachment bytes and sends older than the retry window remain visibly failed instead of silently sending incomplete or stale content. destroy releases sockets, timers, media, previews and cached files.",
@@ -55,6 +56,7 @@
         "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving.",
         "memberChanges holds, per conversation, the seq of the latest member.joined or member.left, so views that ask for a channel's members (the header's faces, the Members panel) ask again (UX-23).",
         "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred.",
+        "setCallViews keeps how tall the call draws everyone's camera and share and hands it to the session, and to one started later, since the call's view can be up before the session is (E13b).",
         "workspaceSettings says the server lets its owner and admins rename the workspace and choose who may join (ReadySnapshot.workspaceSettings, UX-60), and accessPolicy holds who may join, from the snapshot and then the workspace.accessPolicy event. renameWorkspace and setAccessPolicy show what the server kept as soon as it answers, rather than when the event arrives. An older server sends neither, which reads as not offered.",
         "The store holds workspaceIcon, from the ready snapshot's flag, and iconVersion, which the workspace.icon event replaces; a server without the flag gives no version. setWorkspaceIcon and removeWorkspaceIcon show the server's answer at once (UX-60).",
         "forwards says the server forwards a message (ReadySnapshot.forwards, E1). send takes a forward card and leaves it out for an older server, which would post the comment alone, so a forward with no words of its own sends nothing there. An edit or deletion refreshes forward cards in every loaded timeline, thread and thread root, since an original can live in another conversation. The two refusals of a forward, message_not_found and forward_unavailable, have their own failure text.",
@@ -175,10 +177,13 @@
         "Microphone recovery asks again for the chosen microphone, falling back to the system default after loss, replaces audio tracks for peers, and exposes micLost with device-change retry when no microphone is available.",
         "setMicrophone and setCamera change devices mid-call: the new device opens (asked for exactly) before the old one stops, so one that will not start rejects and leaves the call as it was. Once open it reaches every peer through replaceTrack on the fixed slot, with no renegotiation, keeping the mute choice. A counter per kind drops an older choice that finishes after a newer one. A camera that reports busy is retried with the current one closed, since a virtual camera built on the webcam (NVIDIA Broadcast over a USB camera, as tested) cannot start while the webcam is held; if it still will not start the previous camera is reopened, and failing that the camera is turned off and announced.",
         "N04 keeps the latest mute intent separate from a particular MediaStreamTrack. Adopting a delayed or replacement microphone applies the current choice, and captured streams arriving after destruction are stopped.",
-        "Remote speaking levels come from synchronization-source audio metadata; only the local microphone needs a Web Audio analyser. Samples run every 120 ms with a 500 ms hold, and publish to the UI only when speaking state changes.",
+        "Remote speaking levels come from synchronization-source audio metadata; only the local microphone needs a Web Audio analyser. Samples run every 120 ms with a 500 ms hold, and publish to the UI only when speaking state changes. Someone who said they are muted is left out, since they send nothing and the browser goes on reporting their last packet for seconds.",
         "A screen is shared at the ScreenShareQuality asked for, 720p or 1080p (the cap, since a mesh encodes once per viewer) at 15, 30 or 60 frames a second, 1080p at 15 by default. It is hinted as detail, keeping text sharp and dropping frames when bandwidth runs short, except at 60, which is asked for motion.",
         "A share asks for its sound too where the browser can leave this call's own sound out of it (restrictOwnAudio, Chromium 141 and later: canShareScreenSound), with echo cancellation, noise suppression and gain off, which suit a voice and spoil music. The sound is kept only when its track says the call was left out, or it is another tab's; otherwise it is stopped and the share goes on without it, since sending everyone their own voices back is worse than no sound. It goes in a fourth slot of its own, so muting the microphone leaves it playing, it can end alone while the picture goes on, and it stops with the share.",
         "A client from before the fourth slot takes any track on it for the person's microphone, so the offerer adds it receive-only. The media signal's screenSound, said true or false, tells the other side this one has the slot. The first time the offerer has sound for someone who said so, it turns the slot both ways and offers again (openScreenSoundSlot); one opened while a setup was under way is offered once its answer arrives. The answerer's slot sends from the start. withStereoScreenSound marks each description from the other side so the fourth section's Opus is stereo at 96 kbps, since a browser describes mono at a voice's rate.",
+        "Each connection encodes the camera on its own, so what each of the others gets is limited twice. cameraEncoding sizes it by how many there are (E13): the picture as it comes to one other; 1.2 Mbit/s each to two; two thirds of its size at 20 or 15 frames a second for three to five; half at 15 for six or more. cameraEncodingFor adds how tall that person draws it (E13b), which each side says in the media signal's view, rounded up by viewHeight to 180, 270, 360, 540, 720, 1080, 1440 or 2160 lines, or 0 for not drawn. A small tile gets a picture no bigger than it, at 15 to 20 frames a second and 200 to 600 kbit/s; a tile not drawn gets nothing (active false), so that encoder stops. Each limit is the stricter of the two. screenEncodingFor sends the share no taller than it is drawn, and nothing where it is not. The scale is worked out from the track's own height, a camera cut to 16:9 first so an upright phone works.",
+        "sizeSenders applies both with setParameters whenever the roster or a view changes, a track starts, and once each setup is done, in place, with no new offer; a sender the browser will not change is tried again at the next change, and the call log says each size. setViews takes how tall this side draws everyone and tells each of them only when their rounded height changes. A client from before E13b never says how it draws, and gets the call's size and the share as it comes. Measured with scripts/measure-calls.mts.",
+        "A muted microphone sends nothing (sentMicrophone, E13b): the slot carries no track rather than a disabled one, which every connection would still encode as silence and every listener decode. Turning it on puts the microphone back on every connection with replaceTrack, without a new offer, and one swapped in while muted waits the same way.",
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
         "closePeers closes every peer connection and keeps the microphone and camera, for coming back after the server let this device's place go: the others closed their end, so each connection is made afresh.",
         "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call."
@@ -278,7 +283,7 @@
       "details": [
         "Platform describes acknowledged storage reads/writes and optional atomic initialization, outbox/draft/record merges and watchers. Optional discovery, hosting, backup and deep-link capabilities let one UI run in both shells.",
         "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly. trustAddress and changeSignIns map onto the trust and signIns ops, so an approved address or a sign-in change is one step for every tab.",
-        "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Downloads use a scoped URL through a hidden no-referrer iframe.",
+        "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Where the page may not make one (Android's Chrome throws Illegal constructor from new Notification), workerNotifications shows it through the service worker instead. Downloads use a scoped URL through a hidden no-referrer iframe.",
         "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation.",
         "HostingStatus.iconVersion and each hosted workspace's iconVersion say its icon's version, and hosting.icon reads one's icon as a data URL without starting it (UX-60)."
       ],
@@ -387,7 +392,8 @@
         "On a phone held upright the workspace keeps the bottom bar's height free (--bottom-bar, 56 px and the home indicator's inset) through :has(> .bottom-bar), so the bar never covers the composer or the last message, and a side panel stops above it. The drawer opens over it. Under data-keyboard (onScreenKeyboard.ts) the bar is hidden and its room given back, and the composer drops its home-indicator padding.",
         "Safe areas (UX-71): the page is drawn under a notch and home indicator (viewport-fit=cover), so in the phone layout the conversation keeps clear of the sides, its header of the top, the drawer of the top, left and bottom, a covering side panel of the top, and on a phone on its side the panel sheet of the top, right and bottom. Under data-visual-viewport #root takes --visual-height and moves by --visual-top, for a browser that does not shrink the page for the keyboard. On a touchscreen text fields write at 16 px, so iOS does not zoom in on them. On a short window the drawer's body grows to what it holds, so its footer comes after the list rather than over it.",
         ".bottom-sheet places Sheet along the bottom of a phone, clear of the home indicator, and makes the floating cards in it solid, since frosted over the dimmed page White's turned grey enough to fail contrast for red text.",
-        "The call takes the theme's colours, with two of its own: --call-ground (black in Onyx, White's deep grey) and --call-tile (Onyx's lifted, White's paper). .call-dark keeps a call in full screen dark in either theme, as a cinema is: Onyx's colour tokens, fills and shadows, declared on the call's own element; a tile's name pill takes it too, since it is dark over any picture. theme.test.ts checks every value there against Onyx's, since White's deeper red under Onyx's ink would not read."
+        "The call takes the theme's colours, with two of its own: --call-ground (black in Onyx, White's deep grey) and --call-tile (Onyx's lifted, White's paper). .call-dark keeps a call in full screen dark in either theme, as a cinema is: Onyx's colour tokens, fills and shadows, declared on the call's own element; a tile's name pill takes it too, since it is dark over any picture. theme.test.ts checks every value there against Onyx's, since White's deeper red under Onyx's ink would not read.",
+        ".mention-tag fills a mention in a message box with the accent; its shadow widens the fill without moving a letter, and a name wrapping across lines is a tag on each."
       ],
       "concepts": [
         "design tokens",
@@ -485,6 +491,17 @@
         "ringContent words a ring's notification (E10): <name> is calling, Huddle with you or with a group's names, or under Nothing about it, Incoming huddle."
       ],
       "concepts": ["notification privacy", "per-account choice", "watch ordering", "Q03"]
+    },
+    {
+      "path": "packages/ui/src/lib/workerNotifications.ts",
+      "plain": "Shows notifications on phones whose browser will not let the page show them itself, by asking the site's background worker to.",
+      "summary": "Shows a notification through the web client's service worker and answers its click.",
+      "details": [
+        "Android's Chrome grants notification permission but throws Illegal constructor from a page's new Notification; only ServiceWorkerRegistration.showNotification works. webPlatform's notify falls back to this when the constructor throws.",
+        "The first notification registers /notification-worker.js (apps/web/public) and waits for it to be ready; a refused registration, such as on a page served over plain HTTP, is tried again next time.",
+        "Each notification carries a random click id. The worker posts the id to every page of the site on a click and brings the one used last to the front; the page holding that id runs what it was given, opening the message. It keeps the last 50 click ids. With no page left, the worker opens the app."
+      ],
+      "concepts": ["service worker", "Android", "notification clicks"]
     },
     {
       "path": "packages/ui/src/lib/huddleEnded.ts",
@@ -762,7 +779,8 @@
         "huddleHasVideo checks local camera/share and every peer's camera/share stream.",
         "useHuddleView opens the call when video starts, and again when someone new starts sharing. When the video stops it goes back to the chat, unless the person opened the call themselves. Out of a huddle it is the chat.",
         "This small presentation rule keeps screen layout independent from the WebRTC transport implementation.",
-        "ringingLine names who a call's ring still rings, Ringing Maya…, for whoever is in the call; aloneLine is that, or then, for the caller alone in it, who declined or that nobody answered (E10)."
+        "ringingLine names who a call's ring still rings, Ringing Maya…, for whoever is in the call; aloneLine is that, or then, for the caller alone in it, who declined or that nobody answered (E10).",
+        "CAMERAS_HOLD (8) and CALL_HOLDS (16) are how many cameras and how many people a call holds up with (E13b): a camera costs everyone a decoder and its owner an encoder for each of them, a muted microphone nothing. bigCallLine is what a call past either tells everyone, that it can stutter and what helps, turning cameras off or muting when not talking."
       ],
       "concepts": ["call presentation", "media state"]
     },
@@ -1079,6 +1097,16 @@
       "concepts": ["mention identity", "readable editing", "canonical serialization"]
     },
     {
+      "path": "packages/ui/src/components/MentionTags.tsx",
+      "plain": "Makes a person or channel tagged in the message box look tagged, rather than like ordinary words starting with @.",
+      "summary": "Draws each mention in a message box as a tag behind its name.",
+      "details": [
+        "A textarea cannot style part of its text, so a layer behind the box holds the same text, invisible, with each mention segment of the box's MentionDocument wrapped in a .mention-tag span. The box is positioned above it with no background, so the tag shows through under the name.",
+        "The layer reads the box's padding and type from its computed style before each paint, so it lays text out as the box does (a touchscreen writes at 16 px), scrolls with the box, and has the same thin scrollbar, so a long message wraps at the same width. It is hidden from screen readers, which read the box, and absent while nothing is mentioned."
+      ],
+      "concepts": ["mentions", "composer", "textarea overlay"]
+    },
+    {
       "path": "packages/ui/src/lib/useMentionField.ts",
       "plain": "Makes the message box and the edit box show mentions as names, and lets Undo, Backspace and Delete treat each as one piece.",
       "summary": "Binds a textarea to readable mentions for both the composer and the message editor.",
@@ -1206,7 +1234,8 @@
         "A word typed after a colon is completed from every emoji by Slack's shortcodes, the closest and most used first, in this device's skin tone; a shortcode typed out in full, as :tada:, becomes its emoji when its closing colon is typed, except in code. The emoji arrive with the kit the workspace fetches as it opens.",
         "Since Q04 the preference caller keeps Enter a new line when the saved choice cannot be read. N03 covers normal preparation and persistence acknowledgements, not every power-loss or OS-termination case.",
         "Send later opens TimePopover with its own presets and words.",
-        "Where the server keeps polls, the round plus opens a menu, Upload a file or Create a poll; elsewhere it attaches a file as before, and guests see neither (E6). /poll, with any words after it as the question, opens the same PollDialog, loaded on first use, and once the poll is made the /poll is cleared. A guest's /poll is answered here that guests cannot make polls."
+        "Where the server keeps polls, the round plus opens a menu, Upload a file or Create a poll; elsewhere it attaches a file as before, and guests see neither (E6). /poll, with any words after it as the question, opens the same PollDialog, loaded on first use, and once the poll is made the /poll is cleared. A guest's /poll is answered here that guests cannot make polls.",
+        "Its box sits over MentionTags, so a mention chosen or restored from a draft reads as a tag; a name typed or pasted stays words."
       ],
       "concepts": [
         "draft ownership",
@@ -1329,7 +1358,8 @@
         "An edit draft has its own message-specific slot and stores both text and the message text it began from, including compatibility with older plain-text drafts.",
         "Save uses expectedText so a concurrent edit can be refused instead of being overwritten unnoticed. Formatting, preview, IME and code-block behavior match the composer.",
         "The box and the Current message shown on an edit conflict read mentions as names; the kept {text, base} and the saved text keep their tokens. MessageItem loads the editor on first use.",
-        "Its draft key and the reading of a kept edit come from lib/drafts.ts, which the Drafts list shares (E5)."
+        "Its draft key and the reading of a kept edit come from lib/drafts.ts, which the Drafts list shares (E5).",
+        "Its box sits over MentionTags too, so a message's mentions read as tags while it is edited."
       ],
       "concepts": ["edit draft", "compare before write", "input safety"]
     },
@@ -2017,7 +2047,7 @@
       "plain": "The button at the top of a conversation that starts a huddle, joins one in progress or shows you are in it.",
       "summary": "Header control that starts a huddle, joins the running one, or says you are in it.",
       "details": [
-        "Names the action by the room's state (Start a huddle, Join the huddle (n), In huddle) and joins through the same preference-aware path as other entry points."
+        "Names the action by the room's state (Start a huddle, Join the huddle (n), In huddle) and joins through the same preference-aware path as other entry points. The In huddle dot is still: an animation that never ends had the whole call drawn sixty times a second for as long as it lasted (E13b)."
       ],
       "concepts": ["huddle entry point"]
     },
@@ -2067,7 +2097,8 @@
         "The list of who is there (Everyone in the huddle) gives each of the others a PersonVolume row, and someone sharing a screen with its sound a second row for that sound. Someone muted for you is said to be, ahead of talking, with a crossed speaker on their face. The bar hands everyone's volume to HuddleAudio.",
         "HuddleButton starts or joins through the shared call-preference store and provides meaningful error state. N04 makes this header path agree with Getting started about mute initialization.",
         "Once a peer's connection has a diagnosed trouble, the bar says Can't connect to them and offers Why? See the call log.",
-        "Its line says Ringing <names>… while the caller is alone, then who declined or No answer, and adds · Ringing <names>… beside those who are there (E10)."
+        "Its line says Ringing <names>… while the caller is alone, then who declined or No answer, and adds · Ringing <names>… beside those who are there (E10).",
+        "A call past CAMERAS_HOLD cameras or CALL_HOLDS people tells everyone once, in a notice that goes by itself (BigCallNotice, a heads-up Toast, E13b), and again only after it shrinks and grows. The bar holds it because it stays mounted for the whole huddle, behind the call too."
       ],
       "concepts": ["call affordance", "speaking indicator", "join preferences", "N04"]
     },
@@ -2133,7 +2164,8 @@
         "It takes the conversation's column in the theme's colours (black in Onyx; White's grey with a white tile for each person) and goes dark in full screen in either theme (.call-dark): beside the chat on a wide window (the chat prop, with Chat in its header), over it otherwise. The header says where the call is and who is on the main view, with a LIVE badge for a share, and has Grid view, Chat and Hide call. The bottom bar holds HuddleControls, with Everyone else (the row under a spotlight) and Full screen beside them, or up in the header below 600 px wide.",
         "Full screen (the button, or a double-click on the main view) shows the main view out to the screen's edges. The header and the controls float over it and step aside after 3 s without movement; keyboard focus keeps them, the focus a click leaves does not. Everyone else starts hidden there. Escape leaves full screen, since the desktop app does not on its own.",
         "Another person's tile, in the gallery or the main view, has a volume button beside Pin. Its PersonVolume opens inside the tile rather than as a popover, because popovers portal to the page beneath a fullscreen element. A tile says when its person is muted for you. A shared screen that sends its sound has a volume button too, for that sound alone, and its tile says it is with sound, with a speaker, or that its sound is muted for you. Your own share's panel says everyone can see and hear it.",
-        "Its header says who the call's ring still rings, and alone, for the caller, who declined or that nobody answered, after the conversation's name (E10)."
+        "Its header says who the call's ring still rings, and alone, for the caller, who declined or that nobody answered, after the conversation's name (E10).",
+        "Each tile tells the stage how tall it draws someone else's camera or share (ReportDrawn), with the camera off too, and useCallViews gathers them once per render, in device pixels, for WorkspaceClient.setCallViews: nothing while the document is hidden, and nothing once the call closes (E13b). Names and buttons over a video are not blurred, since a blur over a video is drawn again at every one of its frames."
       ],
       "concepts": [
         "adaptive video grid",
@@ -2408,7 +2440,7 @@
       "plain": "The small notices that say whether something worked, where failures stay until you dismiss them and may offer Retry or Undo.",
       "summary": "Reports operation outcomes without interrupting current input.",
       "details": [
-        "Success notices clear after a reading interval, while failures remain for acknowledgement and can offer an operation-specific retry or undo.",
+        "Success notices and heads-ups clear after a reading interval, while failures remain for acknowledgement and can offer an operation-specific retry or undo. A heads-up (kind info) has a ringed i and is read out politely, as a success is (E13b).",
         "A bounded stack pauses countdowns during hover/focus and preserves a nearby focus destination when a notice is removed. Notices never make the workspace inert.",
         "A notice rises in out of a slight blur. One dismissed by pointer or by its timer fades as its row folds away, so the notices after it slide up; one closed from the keyboard goes at once, so focus can move to its neighbour."
       ],

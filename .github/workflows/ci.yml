@@ -1,13 +1,17 @@
 name: Checks
-# The account has 2,000 free minutes a month and a budget of nothing beyond
-# them, so each check runs once for the code it checks. A pull request's run
-# checks the result of merging it, so main is not checked again after the
-# merge; a branch is rebased before merging when main has moved since its run.
-# Ordinary documentation changes start nothing: run `pnpm format` locally.
-# The integration contract document is read by tests, so it starts Checks.
-# The packaged Windows app and the container image have workflows of their
-# own, desktop.yml and container.yml, which start only when what they check
-# changes.
+# A pull request's run checks the result of merging it, so main is not checked
+# again after the merge; a branch is rebased before merging when main has moved
+# since its run. Ordinary documentation changes start nothing: run
+# `pnpm format` locally. The integration contract document is read by tests,
+# so it starts Checks. The packaged Windows app and the container image have
+# workflows of their own, desktop.yml and container.yml, which start only when
+# what they check changes.
+#
+# The work is split into jobs that run side by side, so a run takes about as
+# long as its longest job rather than all of them in a row: the quick checks,
+# the long unit-test suites in three parts and the browser tests in four. The
+# repository is public, so standard runners' minutes are free; each extra job
+# costs its setup, about half a minute, and no wait.
 on:
   pull_request:
     paths:
@@ -23,7 +27,9 @@ concurrency:
 permissions:
   contents: read
 jobs:
-  web-and-server:
+  # Formatting, every typecheck, the three builds and what guards them, and
+  # the unit tests that take seconds.
+  checks:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -61,17 +67,23 @@ jobs:
       - name: Test the release manifest
         run: node --test scripts/release-manifest.test.mjs
       # Turbo compares each task's input hash; the archive only transports
-      # its local cache. PR caches are reusable by later runs of the same PR.
+      # its local cache. Each job keeps an archive of its own, and starts from
+      # its own last one, or any job's. PR caches are reusable by later runs
+      # of the same PR.
       - name: Restore task cache
         id: task-cache
         uses: actions/cache/restore@v4
         with:
           path: .turbo/cache
-          key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-${{ github.sha }}
+          key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-${{ github.sha }}
           restore-keys: |
+            turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-
       - run: pnpm typecheck --concurrency=2
-      - run: pnpm test --concurrency=2
+      # The server's and ui's suites take minutes, so they run in the unit
+      # job below, beside this one.
+      - name: Unit tests of protocol, client-core and desktop
+        run: pnpm exec turbo run test --filter=@slackoss/protocol --filter=@slackoss/client-core --filter=@slackoss/desktop --concurrency=2
         env:
           VITEST_MAX_THREADS: "2"
           VITEST_MAX_FORKS: "2"
@@ -93,26 +105,6 @@ jobs:
         with:
           path: .turbo/cache
           key: ${{ steps.task-cache.outputs.cache-primary-key }}
-      # Chromium comes from a cache caches.yml fills on main, and is only
-      # downloaded when the lockfile has moved on without it. Restoring alone
-      # leaves no cache behind that only this pull request could use.
-      - uses: actions/cache/restore@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:e2e
-      # The main screens, in both themes on a desktop window and a phone,
-      # against pictures taken on Linux, and axe on each (UX-15). A change to
-      # how they look takes new pictures: see visual-baselines.yml.
-      - run: pnpm test:visual
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: browser-test-results
-          path: test-results/
-          # A day to look at the failure, or less if a later run deletes it.
-          retention-days: 1
       # The clean-up job below deletes what this finds. If the lookup fails, a
       # later run finds the same artifacts. A release run's release-* artifacts
       # carry its files between its jobs and expire in a day; they are left
@@ -127,15 +119,128 @@ jobs:
           ids=$(gh api "repos/$GITHUB_REPOSITORY/actions/artifacts?per_page=100" --jq \
             "[.artifacts[] | select(.workflow_run.id != $GITHUB_RUN_ID and (.expired | not) and (.name | startswith(\"release-\") | not)) | .id] | join(\" \")")
           echo "ids=$ids" >> "$GITHUB_OUTPUT"
+
+  # The two suites that take minutes: the server's, and ui's in two halves.
+  # Turbo runs only the one test task (--only), so the shard flag reaches
+  # Vitest alone and not the builds it would otherwise run first; ui's and the
+  # server's dependencies have no builds. Each half caches separately.
+  unit:
+    name: unit (${{ matrix.part }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: server
+            key: server
+            run: pnpm exec turbo run test --filter=@slackoss/server --only
+          - part: ui 1 of 2
+            key: ui-1
+            run: pnpm exec turbo run test --filter=@slackoss/ui --only -- --shard=1/2
+          - part: ui 2 of 2
+            key: ui-2
+            run: pnpm exec turbo run test --filter=@slackoss/ui --only -- --shard=2/2
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - name: Restore task cache
+        id: task-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-unit-${{ matrix.key }}-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-unit-${{ matrix.key }}-
+      - run: ${{ matrix.run }}
+        env:
+          VITEST_MAX_THREADS: "2"
+          VITEST_MAX_FORKS: "2"
+      - name: Save successful task cache
+        if: steps.task-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .turbo/cache
+          key: ${{ steps.task-cache.outputs.cache-primary-key }}
+
+  # The browser suite in three parts, and the visual check beside them. Each
+  # builds the server and the client it serves, from the task cache when the
+  # checks job of an earlier run built the same source.
+  browser:
+    name: browser (${{ matrix.part }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: e2e 1 of 3
+            key: e2e-1
+            run: pnpm test:e2e --shard=1/3
+          - part: e2e 2 of 3
+            key: e2e-2
+            run: pnpm test:e2e --shard=2/3
+          - part: e2e 3 of 3
+            key: e2e-3
+            run: pnpm test:e2e --shard=3/3
+          # The main screens, in both themes on a desktop window and a phone,
+          # against pictures taken on Linux, and axe on each (UX-15). A change
+          # to how they look takes new pictures: see visual-baselines.yml.
+          - part: visual
+            key: visual
+            run: pnpm test:visual
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        id: node
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - name: Restore task cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .turbo/cache
+          key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-${{ github.sha }}
+          restore-keys: |
+            turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-
+            turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-
+      - run: pnpm exec turbo run build --filter=slackoss-server
+      # Chromium comes from a cache caches.yml fills on main, and is only
+      # downloaded when the lockfile has moved on without it. Restoring alone
+      # leaves no cache behind that only this pull request could use.
+      - uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: ${{ matrix.run }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-test-results-${{ matrix.key }}
+          path: test-results/
+          # A day to look at the failure, or less if a later run deletes it.
+          retention-days: 1
+
   # Actions storage is counted for every hour an artifact exists, so each run
   # deletes what earlier runs left. Any job that starts counts as at least a
   # minute of CI time, so this one starts only when there is something to
   # delete. A pull request from a fork gets a token that cannot delete, so its
   # runs leave the deleting to a later one.
   clean-up:
-    needs: [web-and-server]
+    needs: [checks]
     if: >-
-      ${{ !cancelled() && needs.web-and-server.outputs.leftovers != '' &&
+      ${{ !cancelled() && needs.checks.outputs.leftovers != '' &&
       !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
     permissions:
@@ -146,7 +251,7 @@ jobs:
       - name: Delete artifacts that earlier runs left
         env:
           GH_TOKEN: ${{ github.token }}
-          IDS: ${{ needs.web-and-server.outputs.leftovers }}
+          IDS: ${{ needs.checks.outputs.leftovers }}
         run: |
           for id in $IDS; do
             if gh api --method DELETE "repos/$GITHUB_REPOSITORY/actions/artifacts/$id"; then

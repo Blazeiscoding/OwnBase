@@ -48,6 +48,8 @@ const paths = {
   forward: "m15 17 5-5-5-5M4 18v-2a4 4 0 0 1 4-4h12",
   /** Triangle with an exclamation mark, for failure states. */
   alert: "M12 3 2.5 20h19zM12 10v4M12 17.5h.01",
+  /** A ringed i, for a heads-up that is neither good news nor a failure. */
+  info: "M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0M12 16v-4.5M12 8h.01",
   /** Three dots, each a ring so small that a stroke of 2 fills it. */
   dots: {
     top: "M11 5a1 1 0 1 0 2 0 1 1 0 1 0-2 0",

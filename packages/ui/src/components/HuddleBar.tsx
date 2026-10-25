@@ -8,7 +8,9 @@ import { Popover } from "./Popover.js";
 import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
-import { aloneLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
+import { aloneLine, bigCallLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
+import { useOptionalToast } from "./Toast.js";
+import type { HuddleState } from "@slackoss/client-core";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
@@ -164,6 +166,23 @@ function HuddlePeople({ people }: { people: Person[] }) {
  * controls, and only the call's sound plays from here, in the same place, so
  * moving between the two never cuts it.
  */
+/**
+ * Tells everyone in a call that has grown past what it holds up with, in a
+ * notice that goes by itself, as it gets that big: again only once it has
+ * shrunk and grown again, since the line it says changes only then. Here
+ * because the bar stays mounted for the whole huddle, behind the call as well.
+ */
+function BigCallNotice({ huddle }: { huddle: HuddleState }) {
+  const toast = useOptionalToast();
+  const cameras = huddle.peers.filter((p) => p.cameraStream).length + (huddle.cameraOn ? 1 : 0);
+  // You and everyone else.
+  const big = bigCallLine(huddle.peers.length + 1, cameras);
+  useEffect(() => {
+    if (big) toast?.({ message: big, kind: "info" });
+  }, [big, toast]);
+  return null;
+}
+
 export function HuddleBar({
   view = "chat",
   onViewChange,
@@ -238,7 +257,6 @@ export function HuddleBar({
         : `With ${namesList(huddle.peers.map((p) => users[p.userId]?.displayName ?? "someone"))}${
             connecting ? " · Connecting…" : ""
           }${sharing}${ringing ? ` · ${ringing}` : ""}`;
-
   const calling = view === "call";
   return (
     <div
@@ -248,6 +266,7 @@ export function HuddleBar({
       className="huddle-live mx-4 mb-2 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5"
     >
       <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
+      <BigCallNotice huddle={huddle} />
       {!calling && (
         <>
           {/* The minimum width is what sends the controls to a line of their own on a phone. */}

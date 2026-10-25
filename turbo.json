@@ -39,8 +39,11 @@
         "$TURBO_ROOT$/apps/desktop/src/main/index.ts",
         "$TURBO_ROOT$/apps/desktop/src/renderer/index.html",
         "$TURBO_ROOT$/apps/desktop/src/renderer/public/tandem.svg",
+        "$TURBO_ROOT$/apps/desktop/src/renderer/public/first-paint.js",
         "$TURBO_ROOT$/apps/web/index.html",
-        "$TURBO_ROOT$/apps/web/public/tandem.svg"
+        "$TURBO_ROOT$/apps/web/public/tandem.svg",
+        "$TURBO_ROOT$/apps/web/public/first-paint.js",
+        "$TURBO_ROOT$/apps/web/public/notification-worker.js"
       ]
     },
     "dev": {

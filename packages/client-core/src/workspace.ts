@@ -30,7 +30,13 @@ import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
 import { quoteChanges, requote } from "./replies.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
-import type { CallLogLine, HuddleSession, HuddleState, ScreenShareQuality } from "./huddle.js";
+import type {
+  CallLogLine,
+  CallView,
+  HuddleSession,
+  HuddleState,
+  ScreenShareQuality,
+} from "./huddle.js";
 import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
 
 class HuddleJoinRefusedError extends Error {}
@@ -831,6 +837,20 @@ export class WorkspaceClient {
   onReminderDue: ((reminder: Reminder, message: Message) => void) | null = null;
 
   /**
+   * Tells the app through one of the hooks above. What the app does with it
+   * can fail on its own (Android's Chrome throws from a page's `new
+   * Notification`), and that must neither stop the event being applied nor
+   * be taken for a bad message from the server, which drops the connection.
+   */
+  private tellApp<A extends unknown[]>(hook: ((...args: A) => void) | null, ...args: A): void {
+    try {
+      hook?.(...args);
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  /**
    * The server's seq when this connection opened. Everything at or below it
    * already happened; everything above it is arriving as it is sent.
    */
@@ -1386,7 +1406,7 @@ export class WorkspaceClient {
           if (appended) patch.timelines = appended;
         }
         if (message.userId !== s.self?.id) {
-          this.onIncomingMessage?.(message, { live: seq > this.connectedAtSeq });
+          this.tellApp(this.onIncomingMessage, message, { live: seq > this.connectedAtSeq });
         }
         // Clear the sender's typing indicator immediately.
         const chTyping = s.typing[message.channelId];
@@ -1460,7 +1480,7 @@ export class WorkspaceClient {
       }
       case "message.deleted": {
         changed(event.channelId);
-        this.onMessageDeleted?.(event.messageId);
+        this.tellApp(this.onMessageDeleted, event.messageId);
         // Its poll went with it.
         if (s.pollChoices?.[event.messageId]) {
           const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
@@ -1895,7 +1915,7 @@ export class WorkspaceClient {
       });
       // Told once as it comes due; the same reminder told again is not news.
       if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
-        this.onReminderDue?.(event.reminder, event.message);
+        this.tellApp(this.onReminderDue, event.reminder, event.message);
     } else if (event.type === "reminder.removed") {
       if (!s.reminders?.[event.messageId]) return;
       const reminders = { ...s.reminders };
@@ -3478,6 +3498,8 @@ export class WorkspaceClient {
   // ---------- huddles ----------
 
   private session: HuddleSession | null = null;
+  /** How tall the call draws everyone's pictures; see `setCallViews`. */
+  private callViews: ReadonlyMap<ID, CallView> = new Map();
   private huddleAttempt = 0;
   private huddleAdmitted = false;
   /** Whether the session was let into its huddle, so a returning socket asks to go on with it. */
@@ -3563,6 +3585,7 @@ export class WorkspaceClient {
         },
       },
     );
+    session.setViews(this.callViews);
     this.session = session;
     this.lastCallLog = session.log;
     try {
@@ -3788,6 +3811,16 @@ export class WorkspaceClient {
 
   async toggleCamera(): Promise<void> {
     await this.session?.toggleCamera();
+  }
+
+  /**
+   * How tall the call draws each other person's camera and share, in device
+   * pixels; anyone left out is not drawn. Kept for a session started later,
+   * since the call's view can be up before it (`HuddleSession.setViews`).
+   */
+  setCallViews(views: ReadonlyMap<ID, CallView>): void {
+    this.callViews = views;
+    this.session?.setViews(views);
   }
 
   /** Changes the huddle's microphone, or its processing, while in one. */

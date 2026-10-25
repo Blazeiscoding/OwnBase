@@ -412,7 +412,7 @@
       "summary": "Checks socket payloads at the server boundary before Gateway trusts them.",
       "details": [
         "A discriminated union admits hello, ping, typing, huddle join/leave and signaling with bounded IDs, tokens and cursors.",
-        "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes. Media state takes an optional screenSound flag, which older clients leave out.",
+        "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes. Media state takes an optional screenSound flag and an optional view (how tall the camera and the share are drawn, whole numbers from 0 to 4320), which older clients leave out.",
         "Protocol TypeScript types alone cannot validate a remote caller; this Zod schema provides runtime enforcement without importing browser DOM types.",
         "Validates huddle.report: counts, states and enums only, so a report cannot carry an address or arbitrary text.",
         "Validates idle: whether the device has gone idle, a boolean (E9).",
@@ -568,6 +568,7 @@
       "details": [
         "Offer, answer, ICE and explicit camera/screen/muted/screenSound messages are plain serializable objects usable by both server and browser.",
         "screenSound is said, true or false, only by a client with a fourth slot for a share's sound, and tells the other side it may send there. A client from before that slot never says it, and is sent nothing on it, since it would take any fourth track for the person's microphone.",
+        "view, in a media signal, says how tall its sender draws the camera and the share of the one it goes to, rounded to a few heights, and 0 for not drawn (E13b); that side then sends no bigger, or nothing. A server from before it strips the field, and the call is sized by its size alone.",
         "Explicit media flags distinguish an active camera from a silent negotiated slot; a receiver track's muted flag alone is not evidence that frames exist.",
         "shouldInitiateOffer uses user-ID ordering so two peers discovering each other do not both offer simultaneously.",
         "HuddleState lists live participants. The protocol carries handshake/control state rather than audio or video bytes.",
