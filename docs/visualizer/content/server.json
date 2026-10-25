@@ -39,6 +39,18 @@
       "concepts": ["backup", "checksum", "WAL snapshot", "path lock"]
     },
     {
+      "path": "packages/server/src/backupSchedule.ts",
+      "plain": "Lets the server back itself up on a timer into dated folders, keeping the newest few, so a host does not have to remember to.",
+      "summary": "Schedules verified backups, prunes old ones and reports how they are going.",
+      "details": [
+        "BackupSchedule arms the next backup from the newest dated folder already there, so restarts do not take extra copies and an overdue one runs a minute after start. One runs at a time; a failure is retried within the hour and counted until a backup works.",
+        "Only folders named backup-YYYY-MM-DDTHH-MM-SSZ are listed or pruned, so a shared directory loses nothing else. Pruning happens only after a new backup has been verified.",
+        "backupInChildProcess runs the CLI's own backup command in a child process, because VACUUM INTO and the integrity check hold the event loop (about 1.6 s for 300 MB). Stopping the server kills the child; the next capture removes its staging.",
+        "server.ts holds attachment removals while a copy runs, so a blob the snapshot names is still there when it is copied, and an isolated copy never schedules backups, which would prune the original's."
+      ],
+      "concepts": ["scheduled backup", "retention of copies", "child process", "P3"]
+    },
+    {
       "path": "packages/server/src/blockKit.ts",
       "plain": "Turns the text, buttons and forms that Slack-style apps send into what Tandem can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into Tandem's text, buttons and modal fields.",
@@ -877,6 +889,16 @@
           "description": "The server copies its database as it stands, including the most recent saves, and lists the uploaded files the backup needs. If a file is deleted while the backup runs, the backup fails. To be sure a backup is complete, take it while the server is stopped.",
           "files": ["packages/server/src/backup.ts"],
           "detail": "VACUUM INTO reads committed SQLite/WAL state; snapshot file inventory identifies required blobs. Missing concurrent-deleted blobs fail capture, so stopped-server capture is the way to guarantee completeness."
+        },
+        {
+          "title": "Or let the server back itself up",
+          "description": "A host can ask the server to take a backup on a timer into a folder of dated copies, keeping the newest few. Each is the same checked backup. While one copies files, the server holds off removing deleted ones, so the copy is complete without stopping anything, and the copying happens in a separate process so chat does not wait.",
+          "files": [
+            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/server.ts",
+            "packages/server/src/main.ts"
+          ],
+          "detail": "--backup-dir/--backup-every-hours/--backup-keep run BackupSchedule; the CLI's runner is a child `backup` process. File deletion flushes return early while a scheduled copy runs, and resume after it. Status reports enabled, interval, keep, last success, failures and next time."
         },
         {
           "title": "Check the backup before keeping it",
