@@ -520,6 +520,7 @@ between two readings an hour apart matters more than any one number.
 | **Scheduled messages** queued           | Messages people scheduled                                                                                                             | —                                                                             | Nothing; they send when due                                                                                                                                                                                            |
 | **Scheduled messages** held for a retry | 0                                                                                                                                     | Above 0 for long                                                              | Each is waiting on something that may clear: an archived channel, a lost membership, a deactivated author. It is tried again a minute later, or as soon as that changes                                                |
 | **Scheduled messages** failed           | 0                                                                                                                                     | Above 0                                                                       | Terminal: the author sees it as **Not sent** under Scheduled and can reschedule it. Nothing retries it                                                                                                                 |
+| **Backups**                             | "not scheduled", or last done within the time between backups, with the next one due                                                  | A failure, or no backup for longer than the time between them                 | The server log says why: usually no room on the disk, or no permission to write to `--backup-dir`. Fix it and the next try goes ahead within the hour                                                                  |
 | **History removal**                     | "off", or last done within the hour                                                                                                   | "not run yet" for more than an hour, or failures since                        | Read the server log for `retention sweep failed`, which carries the error. Each failure is tried again the next hour, and the server keeps running                                                                     |
 | **Background work**                     | all running                                                                                                                           | Failing for more than a minute or two                                         | Read the server log for `background work failed`, which names the queue and carries the error. The server keeps serving and tries again each round; queued work waits rather than being lost                           |
 | **Connections**                         | About one to three sockets per person (tabs, devices)                                                                                 | Many more sockets than people, or both climbing without new members           | Clients reconnecting in a loop, often a proxy that drops WebSockets; see [Behind a reverse proxy](#behind-a-reverse-proxy)                                                                                             |
@@ -869,8 +870,41 @@ unless `--host` says otherwise. Sign in, read, search and open attachments as
 usual. What it holds back stays queued, so delete the copy when you are done
 rather than starting it normally, or the queue goes out from there.
 
+### Backups on a schedule
+
+The server can take backups by itself:
+
+```sh
+slackoss-server --data ./data --backup-dir ./backups --backup-every-hours 24 --backup-keep 7
+```
+
+Each one goes into a dated folder in `--backup-dir`, such as
+`backup-2026-10-25T03-00-00Z`, and is the same as one `backup` writes: verified
+before it is kept, checked with `verify-backup`, put back with `restore --from`.
+Once a new one is verified, the oldest past `--backup-keep` are removed. Only
+folders named that way are counted or removed, so anything else in the directory
+is left alone. `--backup-dir` must be outside `--data`. The defaults are every 24
+hours and keeping 7. The same settings can be given as `TANDEM_BACKUP_DIR`,
+`TANDEM_BACKUP_EVERY_HOURS` and `TANDEM_BACKUP_KEEP`.
+
+The next backup is due that long after the newest one already in the directory,
+so restarting the server does not take another, and a server that was stopped
+past the time takes one a minute after it starts. A backup that fails is tried
+again within the hour, and the status says how many have failed since the last
+one that worked. While a backup copies attachments the server removes none, so a
+file deleted during the copy is still there for it and the backup is complete
+without stopping the server. The removals wait in their queue and go when the
+copy ends.
+
+The copy and its checks run in a separate process, so chat does not wait on
+them. Stopping the server stops a backup that is running; the half-made copy is
+removed by the next one. An `--isolated` copy takes no backups, since it would
+otherwise write into the original's directory and remove the original's older
+backups.
+
 Store backups away from the host, encrypted. For Docker, run the same commands
-inside the container against the mounted volume.
+inside the container against the mounted volume, or set `TANDEM_BACKUP_DIR` to a
+second volume.
 
 Before upgrading, take a backup. Rebuild and restart with Compose; SQLite migrations
 run automatically. To roll back a schema change, restore the matching backup and

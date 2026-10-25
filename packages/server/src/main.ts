@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { ACCESS_POLICIES, DEFAULT_PORT, type AccessPolicy } from "@slackoss/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "./backup.js";
+import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js";
 import { listAccounts, recoverAccount } from "./recover.js";
 import { relayFromEnvironment } from "./relay.js";
 import { parseIceServers } from "./rtc.js";
@@ -44,6 +45,9 @@ const { values, positionals } = (() => {
         "storage-limit-mb": { type: "string" },
         "abandoned-upload-hours": { type: "string" },
         "retention-days": { type: "string" },
+        "backup-dir": { type: "string" },
+        "backup-every-hours": { type: "string" },
+        "backup-keep": { type: "string" },
         web: { type: "string" },
         "public-url": { type: "string" },
         "allow-private-hooks": { type: "boolean", default: false },
@@ -108,6 +112,18 @@ Usage: slackoss-server [options]
                     thing, once its newest reply is past the window too. Also
                     settable with TANDEM_RETENTION_DAYS
                     (the older GATHERLINE_ and SLACKOSS_ names still work).
+  --backup-dir <dir>
+                    Take a backup on a timer into a dated folder in <dir>,
+                    which must be outside --data. Each one is verified before
+                    it is kept and restores with restore --from. Attachments
+                    are not removed while one is copied, so it is complete.
+                    Off unless set. Also settable with TANDEM_BACKUP_DIR
+  --backup-every-hours <n>
+                    Hours between scheduled backups (default 24). Also
+                    settable with TANDEM_BACKUP_EVERY_HOURS
+  --backup-keep <n> How many scheduled backups to keep (default 7). Older
+                    ones in --backup-dir go; nothing else there is touched.
+                    Also settable with TANDEM_BACKUP_KEEP
   --web <dir>       Serve the browser client from this directory
   --public-url <u>  How others reach this server, e.g. https://chat.team.dev
                     (set it behind a reverse proxy; used in URLs given to apps)
@@ -371,6 +387,7 @@ const abandonedUploadHours = numericOption(
 let port: number;
 let retentionDays: number;
 let publicUrl: string | undefined;
+let scheduledBackups: ScheduledBackups | undefined;
 try {
   port = parsePort(values.port);
   // Whole days: 1.5 would otherwise be announced as 1.5 and applied as 2.
@@ -380,6 +397,7 @@ try {
     0,
   );
   publicUrl = values["public-url"] === undefined ? undefined : parsePublicUrl(values["public-url"]);
+  scheduledBackups = scheduledBackupsOption();
 } catch (err) {
   if (!(err instanceof ConfigError)) throw err;
   refuse(err.message);
@@ -389,6 +407,34 @@ if (abandonedUploadHours <= 0) {
   --abandoned-upload-hours must be greater than zero
 `);
   process.exit(1);
+}
+
+/**
+ * --backup-dir and its two companions. Taken in a child process, the copy and
+ * its checks never hold up chat.
+ */
+function scheduledBackupsOption(): ScheduledBackups | undefined {
+  const dir = values["backup-dir"] ?? envSetting("BACKUP_DIR");
+  const everyRaw = values["backup-every-hours"] ?? envSetting("BACKUP_EVERY_HOURS");
+  const keepRaw = values["backup-keep"] ?? envSetting("BACKUP_KEEP");
+  if (!dir) {
+    if (everyRaw !== undefined || keepRaw !== undefined)
+      throw new ConfigError(
+        "--backup-every-hours and --backup-keep need --backup-dir, the place to put the backups",
+      );
+    return undefined;
+  }
+  const everyHours = parseWholeNumber(everyRaw, "--backup-every-hours", 24);
+  const keep = parseWholeNumber(keepRaw, "--backup-keep", 7);
+  if (everyHours < 1) throw new ConfigError("--backup-every-hours must be at least 1");
+  if (keep < 1) throw new ConfigError("--backup-keep must be at least 1");
+  const dataDir = resolve(values.data);
+  return {
+    dir: resolve(dir),
+    everyMs: everyHours * 3600_000,
+    keep,
+    run: backupInChildProcess({ script: fileURLToPath(import.meta.url), dataDir }),
+  };
 }
 
 const accessPolicy = values["access-policy"];
@@ -405,6 +451,7 @@ const server = await createWorkspaceServer({
   maxStorageBytes: Math.round(storageLimitMb * 1024 * 1024),
   abandonedUploadTtlMs: Math.round(abandonedUploadHours * 3600_000),
   retentionDays,
+  scheduledBackups,
   port,
   host,
   workspaceName: values.name,
@@ -445,6 +492,13 @@ if (retentionDays > 0) {
   // Said out loud on every start. A setting that quietly discards history is
   // one somebody should be reminded they turned on.
   console.log(`  Retention: conversation older than ${retentionDays} days is discarded`);
+}
+if (scheduledBackups && !values.isolated) {
+  const status = server.backupStatus();
+  console.log(
+    `  Backups: every ${scheduledBackups.everyMs / 3600_000} h to ${scheduledBackups.dir}, keeping ${scheduledBackups.keep}`,
+  );
+  if (status?.nextAt) console.log(`  Next backup: ${new Date(status.nextAt).toISOString()}`);
 }
 for (const addr of loopbackOnly ? [] : lanAddresses()) {
   console.log(`  Network: http://${addr}:${server.port}  <- share this with your team`);

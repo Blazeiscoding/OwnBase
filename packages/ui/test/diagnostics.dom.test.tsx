@@ -222,6 +222,39 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     expect(diagnosticsReport({ ...base, workspace: busy })).not.toContain("Attachment removal");
   });
 
+  it("says how scheduled backups go, or that there are none", () => {
+    const report = (backups: WorkspaceStatus["backups"]) =>
+      diagnosticsReport({ ...base, workspace: { ...busy, backups } });
+    const scheduled = {
+      enabled: true as const,
+      everyMs: 24 * 3600_000,
+      keep: 7,
+      lastSuccessAt: Date.parse("2026-09-26T03:00:00Z"),
+      failures: 0,
+      nextAt: Date.parse("2026-09-27T03:00:00Z"),
+      running: false,
+    };
+    expect(report(scheduled)).toContain(
+      "Backups: every 24 h, keeping 7; last done 2026-09-26T03:00:00.000Z; next 2026-09-27T03:00:00.000Z",
+    );
+    expect(
+      report({
+        ...scheduled,
+        failures: 2,
+        lastSuccessAt: null,
+        nextAt: Date.parse("2026-09-26T13:00:00Z"),
+      }),
+    ).toContain(
+      "Backups: every 24 h, keeping 7; none yet; 2 failures since; next 2026-09-26T13:00:00.000Z",
+    );
+    expect(report({ ...scheduled, everyMs: 90 * 60_000, running: true })).toContain(
+      "Backups: every 1 h 30 min, keeping 7; one running now; next",
+    );
+    expect(report({ enabled: false })).toContain("Backups: not scheduled");
+    // A server from before them does not say, so neither does the report.
+    expect(report(undefined)).not.toContain("Backups");
+  });
+
   it("says when the status could not be read", () => {
     const report = diagnosticsReport({ ...base, workspace: { error: "timed out" } });
     expect(report.split("\n").slice(-2)).toEqual(["Workspace status", "Not available: timed out"]);
