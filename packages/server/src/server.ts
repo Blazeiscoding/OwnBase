@@ -1,5 +1,6 @@
-import { join } from "node:path";
-import { randomUUID } from "node:crypto";
+import { dirname, join, resolve } from "node:path";
+import { createHash, randomUUID } from "node:crypto";
+import { tmpdir } from "node:os";
 import { createWriteStream, existsSync, mkdirSync, statfsSync, statSync } from "node:fs";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { open, stat, unlink } from "node:fs/promises";
@@ -96,6 +97,8 @@ import {
   type ScheduledBackups,
 } from "./backupSchedule.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
+import { WorkspaceCopies, type CopyState } from "./workspaceCopy.js";
+import type { BackupManifest } from "./backup.js";
 import { Store } from "./store.js";
 import { StorageBudget } from "./storageBudget.js";
 import { Gateway } from "./gateway.js";
@@ -409,6 +412,19 @@ export interface ServerOptions {
    * and prune, the original's backups.
    */
   scheduledBackups?: ScheduledBackups;
+  /**
+   * Takes one backup into `out`, for scheduled backups and the owner's copies.
+   * In this process when omitted; the command line passes one that uses a
+   * child process, so the copy never holds up chat.
+   */
+  takeBackup?: (out: string, signal: AbortSignal) => Promise<BackupManifest>;
+  /**
+   * Where the owner's downloadable copies are made (P4). By default a
+   * `.copies` folder in the scheduled backups' directory when there is one,
+   * otherwise one for this workspace in the system's temporary folder. It
+   * needs room for a whole copy, and is emptied when the server starts.
+   */
+  copiesDir?: string;
   /**
    * Starts a copy for looking at, such as a backup restored to check it. The
    * copy holds the original's apps, their signing secrets and its queue of
@@ -1592,13 +1608,16 @@ async function startWorkspaceServer(
   let fileCleanup: Promise<void> | null = null;
   let fileCleanupNext: ReturnType<typeof setImmediate> | null = null;
   /**
-   * While a scheduled backup copies attachments, none is removed, so a blob
-   * its snapshot names is still there when the copy reaches it. Removals wait
-   * in their queue and go when it ends.
+   * While a backup copies attachments, scheduled or for the owner to
+   * download, none is removed, so a blob its snapshot names is still there
+   * when the copy reaches it. Removals wait in their queue and go when the
+   * last copy running ends.
    */
-  let backupCopying = false;
+  let backupsCopying = 0;
   /** Set once the server is listening; null when scheduled backups are off. */
   let backups: BackupSchedule | null = null;
+  /** The owner's downloadable copy; null for a workspace kept in memory. */
+  let copies: WorkspaceCopies | null = null;
   /**
    * Removes the blobs of committed deletions due by `now`, a page at a time
    * (REV-02). One that fails waits longer each time while the rest go on, so
@@ -1609,7 +1628,7 @@ async function startWorkspaceServer(
    */
   const flushFileDeletions = (now = Date.now()): Promise<void> => {
     if (fileCleanup) return fileCleanup;
-    if (backupCopying) return Promise.resolve();
+    if (backupsCopying > 0) return Promise.resolve();
     let more = false;
     fileCleanup = (async () => {
       const due = store.dueFileDeletions(now, FILE_CLEANUP_PAGE);
@@ -2035,6 +2054,7 @@ async function startWorkspaceServer(
       requiresClaim: userCount === 0 && !!claimCode() && !isLocalRequest(req),
       schedulingIdempotency: true,
       downloadTickets: true,
+      workspaceCopies: opts.dataDir !== ":memory:",
       ...(publicUrl ? { publicUrl } : {}),
       iconVersion: icon?.version ?? null,
     };
@@ -3559,6 +3579,152 @@ async function startWorkspaceServer(
       })),
     };
   });
+
+  // ---------- a copy for the owner to download (P4) ----------
+
+  /** The owner alone: a copy holds every conversation and every app's secrets. */
+  const requireOwner = (req: FastifyRequest): User => {
+    const me = requireUser(req);
+    if (me.role !== "owner")
+      throw new HttpError(403, "owner_only", "Only the workspace's owner can download a copy.");
+    return me;
+  };
+
+  /** Room left beyond a copy, so making one never fills the disk the workspace writes to. */
+  const COPY_HEADROOM_BYTES = 64 * 1024 * 1024;
+
+  /** Free space at `path`, or at the nearest folder above it that exists; null if unknown. */
+  const freeBytesAt = (path: string): number | null => {
+    for (let dir = resolve(path); ; dir = dirname(dir)) {
+      try {
+        const disk = statfsSync(dir);
+        return disk.bavail * disk.bsize;
+      } catch {
+        if (dirname(dir) === dir) return null;
+      }
+    }
+  };
+
+  const megabytes = (bytes: number) =>
+    `${Math.ceil(bytes / (1024 * 1024)).toLocaleString("en-US")} MB`;
+
+  /** Tickets to download the copy: like a file's, spent on first use and a minute long. */
+  const copyTickets = new CapabilityMap<{
+    copyId: string;
+    userId: ID;
+    sessionHash: string;
+    expiresAt: number;
+  }>(16);
+
+  app.get("/api/admin/copy", async (req, reply): Promise<{ copy: CopyState | null }> => {
+    requireOwner(req);
+    reply.header("cache-control", "no-store");
+    return { copy: copies?.state() ?? null };
+  });
+
+  app.post("/api/admin/copy", async (req, reply): Promise<{ copy: CopyState }> => {
+    const me = requireOwner(req);
+    reply.header("cache-control", "no-store");
+    if (!copies)
+      throw new HttpError(409, "copies_unavailable", "A workspace kept in memory has no copy.");
+    const current = copies.state();
+    if (current?.state === "making") return { copy: current };
+    // Checked first: a full disk stops every write, chat included.
+    const needed =
+      store.operationalCounts().databaseBytes + storage.usedBytes + COPY_HEADROOM_BYTES;
+    const free = freeBytesAt(copies.root);
+    if (free !== null && free < needed)
+      throw new HttpError(
+        507,
+        "not_enough_space",
+        `A copy needs about ${megabytes(needed)} free on the server, and it has ${megabytes(free)}.`,
+      );
+    const made = copies.make();
+    if (!made)
+      throw new HttpError(
+        409,
+        "copy_downloading",
+        "The copy is being downloaded. Make a new one once that has finished.",
+      );
+    store.recordAudit({
+      actorId: me.id,
+      action: "workspace.copy_made",
+      targetType: "workspace",
+      targetId: null,
+    });
+    return { copy: made };
+  });
+
+  app.post("/api/admin/copy/download-token", async (req, reply) => {
+    const me = requireOwner(req);
+    const current = copies?.state();
+    if (current?.state !== "ready")
+      throw new HttpError(404, "no_copy", "There is no copy ready to download.");
+    const { token, tokenHash } = newSessionToken();
+    const expiresAt = Date.now() + DOWNLOAD_TOKEN_TTL_MS;
+    copyTickets.set(tokenHash, {
+      copyId: current.id,
+      userId: me.id,
+      sessionHash: hashToken(bearerToken(req)!),
+      expiresAt,
+    });
+    reply.header("cache-control", "no-store");
+    return { token, expiresAt };
+  });
+
+  /**
+   * The copy as one zip. A ticket stands in for the header a download in the
+   * browser cannot carry, and whoever spends it must still be the owner,
+   * signed in with the session that asked for it.
+   */
+  app.get<{ Params: { id: string }; Querystring: { download?: string } }>(
+    "/api/admin/copy/:id",
+    async (req, reply) => {
+      reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
+      const ticket = req.query.download;
+      let ownerId: ID;
+      if (ticket !== undefined) {
+        if (typeof ticket !== "string" || !/^[a-f0-9]{64}$/.test(ticket))
+          throw new HttpError(404, "no_copy");
+        const hash = hashToken(ticket);
+        const spent = copyTickets.get(hash);
+        copyTickets.delete(hash);
+        const owner = spent ? store.getSessionUser(spent.sessionHash) : null;
+        if (
+          !spent ||
+          spent.copyId !== req.params.id ||
+          !owner ||
+          owner.id !== spent.userId ||
+          owner.role !== "owner" ||
+          store.mustChangePassword(owner.id)
+        )
+          throw new HttpError(404, "no_copy");
+        ownerId = owner.id;
+      } else {
+        ownerId = requireOwner(req).id;
+      }
+      const zip = copies?.open(req.params.id);
+      if (!zip) throw new HttpError(404, "no_copy", "That copy is gone. Make a new one.");
+      store.recordAudit({
+        actorId: ownerId,
+        action: "workspace.copy_downloaded",
+        targetType: "workspace",
+        targetId: null,
+        details: { bytes: zip.length },
+      });
+      const day = new Date().toISOString().slice(0, 10);
+      const name = `${workspaceName()} ${day}.zip`;
+      return reply
+        .header("content-type", "application/zip")
+        .header("x-content-type-options", "nosniff")
+        .header("content-length", String(zip.length))
+        .header(
+          "content-disposition",
+          `attachment; filename="workspace-${day}.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,
+        )
+        .send(zip.stream);
+    },
+  );
 
   /**
    * For the owner and admins: what happened in huddles lately (see
@@ -5893,27 +6059,50 @@ async function startWorkspaceServer(
     5_000,
   );
 
+  /**
+   * Takes a backup with removals held. A page of removals already under way
+   * is left to finish: its rows went in the transaction that queued them, so
+   * the snapshot taken after this cannot name its blobs.
+   */
+  const holdingRemovals =
+    (take: (out: string, signal: AbortSignal) => Promise<BackupManifest>) =>
+    async (out: string, signal: AbortSignal) => {
+      backupsCopying++;
+      try {
+        return await take(out, signal);
+      } finally {
+        backupsCopying--;
+        inBackground("attachment cleanup", flushFileDeletions);
+      }
+    };
   const takeBackup =
-    scheduled?.run ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
+    opts.takeBackup ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
   backups = scheduled
     ? new BackupSchedule({
         ...scheduled,
-        run: async (out, signal) => {
-          // A page of removals already under way is left to finish: its rows
-          // went in the transaction that queued them, so the snapshot taken
-          // after this cannot name its blobs.
-          backupCopying = true;
-          try {
-            return await takeBackup(out, signal);
-          } finally {
-            backupCopying = false;
-            inBackground("attachment cleanup", flushFileDeletions);
-          }
-        },
+        run: holdingRemovals(scheduled.run ?? takeBackup),
         log: app.log,
       })
     : null;
   await backups?.start();
+  if (opts.dataDir !== ":memory:") {
+    copies = new WorkspaceCopies({
+      root:
+        opts.copiesDir ??
+        (scheduled
+          ? join(scheduled.dir, ".copies")
+          : join(
+              tmpdir(),
+              "tandem-copies",
+              createHash("sha256").update(resolve(opts.dataDir)).digest("hex").slice(0, 16),
+            )),
+      take: holdingRemovals(takeBackup),
+      log: app.log,
+    });
+    await copies.start().catch((err: unknown) => {
+      app.log.error({ err }, "copies left from before could not be removed");
+    });
+  }
 
   /**
    * An exception thrown from a timer is an uncaught exception, which ends the
@@ -6135,7 +6324,7 @@ async function startWorkspaceServer(
         }
         if (!stopped.backups) {
           // Before the drain: removals held for a backup go once it has ended.
-          await backups?.stop();
+          await Promise.all([backups?.stop(), copies?.stop()]);
           stopped.backups = true;
         }
         if (!stopped.drained) {

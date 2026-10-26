@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { WORKSPACE_NAME_MAX, type AccessPolicy } from "@slackoss/protocol";
+import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@slackoss/protocol";
 import { ApiError } from "@slackoss/client-core";
-import { useClient, useWorkspace } from "../context.js";
+import { useClient, usePlatform, useWorkspace } from "../context.js";
+import { formatBytes, formatTime } from "../lib/format.js";
 import { SavedContext, useSaved } from "../lib/savedNote.js";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
@@ -117,6 +118,7 @@ export function WorkspaceSettings({
             {icons && <IconSection />}
             <NameSection editable={editable} />
             <PreviewsSection />
+            <CopySection />
           </>
         )}
         {section === "joining" && <JoiningSection editable={editable} hostedHere={hostedHere} />}
@@ -404,6 +406,158 @@ function PreviewsSection() {
           </span>
         </span>
       </label>
+      {error && (
+        <p role="alert" className="mt-3 text-sm text-alert">
+          {error}
+        </p>
+      )}
+    </section>
+  );
+}
+
+/** How often a copy being made is asked after. */
+const COPY_POLL_MS = 2000;
+
+/**
+ * The owner's copy of the whole workspace (P4): made on the server when asked,
+ * then downloaded as one zip that `restore --from` puts back, here or on the
+ * owner's own server. Nothing for admins or members, or on a server that
+ * cannot make one.
+ */
+function CopySection() {
+  const client = useClient();
+  const platform = usePlatform();
+  const alive = useAlive();
+  const owner = useWorkspace((s) => s.self?.role === "owner");
+  const [supported, setSupported] = useState(false);
+  const [copy, setCopy] = useState<WorkspaceCopy | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [started, setStarted] = useState(false);
+
+  useEffect(() => {
+    if (!owner) return;
+    let stop = false;
+    void (async () => {
+      try {
+        if (!(await client.api.serverInfo()).workspaceCopies) return;
+        const { copy } = await client.api.workspaceCopy();
+        if (stop) return;
+        setSupported(true);
+        setCopy(copy);
+      } catch {
+        // Offered again next time the window opens; nothing here is urgent.
+      }
+    })();
+    return () => {
+      stop = true;
+    };
+  }, [client, owner]);
+
+  const making = copy?.state === "making";
+  useEffect(() => {
+    if (!making) return;
+    const timer = setInterval(() => {
+      client.api.workspaceCopy().then(
+        ({ copy }) => {
+          if (alive.current) setCopy(copy);
+        },
+        () => {},
+      );
+    }, COPY_POLL_MS);
+    return () => clearInterval(timer);
+  }, [client, making, alive]);
+
+  if (!owner || !supported) return null;
+
+  async function make() {
+    setBusy(true);
+    setError(null);
+    setStarted(false);
+    try {
+      const { copy } = await client.api.makeWorkspaceCopy();
+      if (alive.current) setCopy(copy);
+    } catch (err) {
+      if (!alive.current) return;
+      setError(
+        err instanceof ApiError &&
+          (err.code === "not_enough_space" || err.code === "copy_downloading") &&
+          err.message
+          ? err.message
+          : "The copy was not started. Check your connection and try again.",
+      );
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  async function download(ready: Extract<WorkspaceCopy, { state: "ready" }>) {
+    setBusy(true);
+    setError(null);
+    try {
+      const url = await client.api.workspaceCopyUrl(ready.id);
+      if (!platform.downloadFile) throw new ApiError(409, "download_upgrade_required");
+      await platform.downloadFile(url);
+      if (alive.current) setStarted(true);
+    } catch (err) {
+      if (!alive.current) return;
+      setError(
+        err instanceof ApiError && err.code === "no_copy"
+          ? "That copy is gone from the server. Make a new one."
+          : "The download did not start. Check your connection and try again.",
+      );
+    } finally {
+      if (alive.current) setBusy(false);
+    }
+  }
+
+  return (
+    <section aria-labelledby="workspace-copy-title" className="mt-8">
+      <h4 id="workspace-copy-title" className="mb-1.5 text-[13px] font-medium text-ink-dim">
+        Download a copy
+      </h4>
+      <p className="text-sm text-ink-dim">
+        Everything in this workspace as one zip file: messages, channels, people, files and
+        settings. It starts on your own server with <code>restore --from</code> and the file. It
+        also holds the secrets apps use and the sign-ins in use now, so keep it somewhere safe.
+      </p>
+      <div role="status" className="mt-3 text-sm text-ink">
+        {copy?.state === "making" && (
+          <p>
+            Making a copy. This can take a few minutes for a large workspace, and carries on if you
+            close this window.
+          </p>
+        )}
+        {copy?.state === "ready" && (
+          <p>
+            Ready: {formatBytes(copy.bytes)}, made at {formatTime(copy.startedAt)}. It stays on the
+            server until {formatTime(copy.expiresAt)}.{started && " Your download has started."}
+          </p>
+        )}
+        {copy?.state === "failed" && <p>The copy could not be made: {copy.error}</p>}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {copy?.state === "ready" && (
+          <button
+            type="button"
+            className={buttonClass("primary")}
+            disabled={busy}
+            onClick={() => void download(copy)}
+          >
+            Download
+          </button>
+        )}
+        {!making && (
+          <button
+            type="button"
+            className={buttonClass("secondary")}
+            disabled={busy}
+            onClick={() => void make()}
+          >
+            {copy ? "Make a new copy" : "Make a copy"}
+          </button>
+        )}
+      </div>
       {error && (
         <p role="alert" className="mt-3 text-sm text-alert">
           {error}

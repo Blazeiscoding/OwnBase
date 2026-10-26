@@ -35,6 +35,7 @@ import type {
   UpdateChannelBody,
   UpdateMeBody,
   User,
+  WorkspaceCopy,
   WorkspaceStatus,
   Webhook,
 } from "@slackoss/protocol";
@@ -1001,6 +1002,32 @@ export class Api {
 
   workspaceStatus(): Promise<WorkspaceStatus> {
     return this.request("GET", "/api/admin/status", undefined, { timeoutMs: 10_000 });
+  }
+
+  /** The copy of the workspace its owner can download, if one is being made or kept. */
+  workspaceCopy(): Promise<{ copy: WorkspaceCopy | null }> {
+    return this.request("GET", "/api/admin/copy", undefined, { timeoutMs: 10_000 });
+  }
+
+  /** Starts a copy for the owner to download, or gives the one being made. */
+  makeWorkspaceCopy(): Promise<{ copy: WorkspaceCopy }> {
+    return this.request("POST", "/api/admin/copy", undefined, { timeoutMs: 10_000 });
+  }
+
+  /**
+   * An address that downloads the ready copy once, within a minute: a
+   * navigation, so the browser streams a copy of any size straight to disk.
+   */
+  async workspaceCopyUrl(id: string): Promise<string> {
+    const result = await this.request<{ token: string; expiresAt: number }>(
+      "POST",
+      "/api/admin/copy/download-token",
+      undefined,
+      { timeoutMs: 10_000 },
+    );
+    if (typeof result.token !== "string" || !/^[a-f0-9]{64}$/.test(result.token))
+      throw new ApiError(502, "invalid_response");
+    return `${this.baseUrl}/api/admin/copy/${encodeURIComponent(id)}?download=${result.token}`;
   }
 
   /** A page of what administrators have changed, newest first. */

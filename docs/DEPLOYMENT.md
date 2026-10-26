@@ -902,6 +902,40 @@ removed by the next one. An `--isolated` copy takes no backups, since it would
 otherwise write into the original's directory and remove the original's older
 backups.
 
+### A copy for the owner to download
+
+The workspace's owner can download the whole workspace from **Workspace settings →
+General → Download a copy**, without access to the server. **Make a copy** takes a
+fresh backup, the same as `backup` makes, and **Download** saves it as one `.zip`
+named after the workspace and the day. Admins and members are not offered it. The
+copy stays on the server for an hour after it is ready, longer if a download is
+still running, and is removed after that, when a new one is made, and when the
+server stops.
+
+The zip holds the backup's own files, dated when it was taken, so it goes back the
+same way:
+
+```sh
+slackoss-server verify-backup --from "./My Workspace 2026-10-25.zip"
+slackoss-server restore --from "./My Workspace 2026-10-25.zip" --data ./data
+```
+
+Both unpack the zip into a folder beside it while they work and remove that folder
+afterwards, so that disk needs room for the workspace once more. A copy over 4 GB,
+or with more than 65,535 files, uses ZIP64, which Windows Explorer, macOS and
+`unzip` all read.
+
+The copy is made where scheduled backups go, in a `.copies` folder, or in the
+system's temporary folder when there are none; `copiesDir` changes it for an
+embedded server. That disk needs room for the whole workspace; the server checks
+before it starts and says how much it needs. No attachment is removed while the
+copy is made. The download link is good once, for a minute, and only for the
+owner signed in on the device that asked for it. Making and downloading a copy
+both go in the administrative record.
+
+The copy holds every message, file and account, the secrets apps use, and the
+sign-ins in use when it was made. Keep it as safe as the server.
+
 Store backups away from the host, encrypted. For Docker, run the same commands
 inside the container against the mounted volume, or set `TANDEM_BACKUP_DIR` to a
 second volume.
@@ -1264,6 +1298,7 @@ administrators under **People → Show recent changes**:
   permission to create them;
 - renaming the workspace and changing who may join it, from **Workspace
   settings**, or by the desktop app that hosts it, recorded as done by the host.
+- the owner making and downloading a copy of the workspace.
 
 Each entry says who made the change, to what, and when, and is written in the same
 transaction as the change, so neither exists without the other. A change that

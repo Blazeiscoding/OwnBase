@@ -111,6 +111,16 @@ describe("an entry, as an administrator would say it", () => {
     ).toBe("The host removed the workspace's icon");
   });
 
+  it("says who made and downloaded a copy of the workspace", () => {
+    const copy = { targetType: "workspace" as const, targetId: null };
+    expect(say(entry("workspace.copy_made", copy))).toBe(
+      "Alice made a copy of the workspace to download",
+    );
+    expect(say(entry("workspace.copy_downloaded", { ...copy, details: { bytes: 9 } }), "A")).toBe(
+      "You downloaded a copy of the workspace",
+    );
+  });
+
   it("says what was done about a reported message, and how many reported it", () => {
     expect(say(entry("report.resolved", { details: { resolution: "dismiss", reports: 1 } }))).toBe(
       "Alice dismissed a report about Bob's message",
@@ -135,6 +145,9 @@ describe("an entry, as an administrator would say it", () => {
       "workspace.renamed",
       "workspace.access_policy_changed",
       "workspace.icon_changed",
+      "workspace.link_previews_changed",
+      "workspace.copy_made",
+      "workspace.copy_downloaded",
       "app.created",
       "app.deleted",
       "app.token_replaced",

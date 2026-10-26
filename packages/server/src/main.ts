@@ -7,6 +7,7 @@ import { ACCESS_POLICIES, DEFAULT_PORT, type AccessPolicy } from "@slackoss/prot
 import { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "./backup.js";
 import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js";
+import { withBackupFolder } from "./workspaceCopy.js";
 import { listAccounts, recoverAccount } from "./recover.js";
 import { relayFromEnvironment } from "./relay.js";
 import { parseIceServers } from "./rtc.js";
@@ -75,8 +76,8 @@ if (values.help) {
 
 Usage: slackoss-server [options]
        slackoss-server backup  --data <dir> --out <dir>
-       slackoss-server restore --from <dir> --data <dir>
-       slackoss-server verify-backup --from <dir>
+       slackoss-server restore --from <dir or .zip> --data <dir>
+       slackoss-server verify-backup --from <dir or .zip>
        slackoss-server recover --data <dir> [--handle <handle>] [--make-owner]
 
   --data <dir>      Data directory (default ./data)
@@ -182,6 +183,9 @@ Backups
                   anything, restore it into a new directory and start that
                   with --isolated.
 
+  Both take a backup folder or a copy the owner downloaded from Workspace
+  settings, which is a zip of one; it is unpacked beside itself while used.
+
 Recovery
 
   recover         Get back into a workspace nobody can sign in to. Run it on
@@ -220,45 +224,47 @@ if (command === "backup") {
 
 if (command === "verify-backup" || command === "restore") {
   if (!values.from) {
-    console.error(`${command} needs --from <dir>, the backup directory`);
+    console.error(`${command} needs --from <dir or .zip>, the backup or a downloaded copy`);
     process.exit(1);
   }
   try {
-    if (command === "verify-backup") {
-      const manifest = await verifyBackup(resolve(values.from));
-      const when = new Date(manifest.createdAt).toISOString();
-      console.log(`
+    // A downloaded copy is a zip of a backup, unpacked beside it while it is used.
+    await withBackupFolder(resolve(values.from), async (from) => {
+      if (command === "verify-backup") {
+        const manifest = await verifyBackup(from);
+        const when = new Date(manifest.createdAt).toISOString();
+        console.log(`
   Backup of "${manifest.workspaceName}" is intact`);
-      console.log(`  Taken ${when} by server v${manifest.serverVersion}, schema v${manifest.schemaVersion}
+        console.log(`  Taken ${when} by server v${manifest.serverVersion}, schema v${manifest.schemaVersion}
 `);
-      const found = inventoryBackup(resolve(values.from));
-      const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
-      console.log("  Starting it would reach outside the backup:");
-      if (found.appAddresses.length === 0) console.log("    No app addresses.");
-      else {
-        console.log(`    ${count(found.appAddresses.length, "app address", "app addresses")}:`);
-        for (const { origin, uses } of found.appAddresses) {
-          console.log(`      ${origin} (${uses.join(", ")})`);
+        const found = inventoryBackup(from);
+        const count = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+        console.log("  Starting it would reach outside the backup:");
+        if (found.appAddresses.length === 0) console.log("    No app addresses.");
+        else {
+          console.log(`    ${count(found.appAddresses.length, "app address", "app addresses")}:`);
+          for (const { origin, uses } of found.appAddresses) {
+            console.log(`      ${origin} (${uses.join(", ")})`);
+          }
+          console.log("    Their signing secrets are in the backup, so a copy calls them");
+          console.log("    as this workspace.");
         }
-        console.log("    Their signing secrets are in the backup, so a copy calls them");
-        console.log("    as this workspace.");
-      }
-      const { waiting, earliestAt } = found.scheduled;
-      if (waiting > 0) {
+        const { waiting, earliestAt } = found.scheduled;
+        if (waiting > 0) {
+          console.log(
+            `    ${count(waiting, "scheduled message waits", "scheduled messages wait")} to be posted, the earliest at ${new Date(earliestAt!).toISOString()}.`,
+          );
+          console.log("    Any already due are posted as soon as it starts.");
+        }
+        if (found.undeliveredEvents > 0) {
+          console.log(
+            `    ${count(found.undeliveredEvents, "app event waits", "app events wait")} to be delivered.`,
+          );
+        }
         console.log(
-          `    ${count(waiting, "scheduled message waits", "scheduled messages wait")} to be posted, the earliest at ${new Date(earliestAt!).toISOString()}.`,
+          `    ${count(found.sessions, "sign-in", "sign-ins")} still valid, including any ended since it was taken.`,
         );
-        console.log("    Any already due are posted as soon as it starts.");
-      }
-      if (found.undeliveredEvents > 0) {
-        console.log(
-          `    ${count(found.undeliveredEvents, "app event waits", "app events wait")} to be delivered.`,
-        );
-      }
-      console.log(
-        `    ${count(found.sessions, "sign-in", "sign-ins")} still valid, including any ended since it was taken.`,
-      );
-      console.log(`
+        console.log(`
   Not in any backup, so set them again where it is restored: --public-url,
   --retention-days, --storage-limit-mb, --allow-private-hooks, --trust-proxy,
   TANDEM_ICE_SERVERS, and any proxy or certificate in front of the server.
@@ -267,16 +273,17 @@ if (command === "verify-backup" || command === "restore") {
   with --isolated. Its apps and scheduled messages wait until it is started
   without it.
 `);
-    } else {
-      const { manifest, supersededDir } = await restoreWorkspace({
-        backupDir: resolve(values.from),
-        dataDir: resolve(values.data),
-      });
-      console.log(`
+      } else {
+        const { manifest, supersededDir } = await restoreWorkspace({
+          backupDir: from,
+          dataDir: resolve(values.data),
+        });
+        console.log(`
   Restored "${manifest.workspaceName}" into ${resolve(values.data)}`);
-      if (supersededDir) console.log(`  The previous data directory is kept at ${supersededDir}`);
-      console.log("");
-    }
+        if (supersededDir) console.log(`  The previous data directory is kept at ${supersededDir}`);
+        console.log("");
+      }
+    });
   } catch (err) {
     console.error(`
   ${err instanceof Error ? err.message : String(err)}
@@ -409,10 +416,7 @@ if (abandonedUploadHours <= 0) {
   process.exit(1);
 }
 
-/**
- * --backup-dir and its two companions. Taken in a child process, the copy and
- * its checks never hold up chat.
- */
+/** --backup-dir and its two companions. */
 function scheduledBackupsOption(): ScheduledBackups | undefined {
   const dir = values["backup-dir"] ?? envSetting("BACKUP_DIR");
   const everyRaw = values["backup-every-hours"] ?? envSetting("BACKUP_EVERY_HOURS");
@@ -428,13 +432,7 @@ function scheduledBackupsOption(): ScheduledBackups | undefined {
   const keep = parseWholeNumber(keepRaw, "--backup-keep", 7);
   if (everyHours < 1) throw new ConfigError("--backup-every-hours must be at least 1");
   if (keep < 1) throw new ConfigError("--backup-keep must be at least 1");
-  const dataDir = resolve(values.data);
-  return {
-    dir: resolve(dir),
-    everyMs: everyHours * 3600_000,
-    keep,
-    run: backupInChildProcess({ script: fileURLToPath(import.meta.url), dataDir }),
-  };
+  return { dir: resolve(dir), everyMs: everyHours * 3600_000, keep };
 }
 
 const accessPolicy = values["access-policy"];
@@ -452,6 +450,12 @@ const server = await createWorkspaceServer({
   abandonedUploadTtlMs: Math.round(abandonedUploadHours * 3600_000),
   retentionDays,
   scheduledBackups,
+  // Scheduled backups and the owner's copies, in a child process, so the
+  // copy and its checks never hold up chat.
+  takeBackup: backupInChildProcess({
+    script: fileURLToPath(import.meta.url),
+    dataDir: resolve(values.data),
+  }),
   port,
   host,
   workspaceName: values.name,

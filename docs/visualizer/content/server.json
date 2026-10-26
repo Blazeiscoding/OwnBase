@@ -186,6 +186,18 @@
       "concepts": ["attachment metadata", "layout stability"]
     },
     {
+      "path": "packages/server/src/workspaceCopy.ts",
+      "plain": "Makes a fresh copy of the workspace for its owner to download, and unpacks a downloaded copy so it can be restored.",
+      "summary": "Owns the owner's downloadable copy and the zip form of a backup.",
+      "details": [
+        "WorkspaceCopies keeps one copy at a time: making, ready for an hour (longer while a download reads it) or failed with its reason. A new one is refused while the ready one is being downloaded, since Windows cannot delete open files.",
+        "backupZipEntries turns a verified backup folder into zip entries with their CRCs; the server serves them through a one-shot ticket bound to the owner's session and the copy's id.",
+        "unzipBackup takes only manifest.json, workspace.db and files/<id>, also one folder down (a hand-zipped backup folder), refuses duplicates and never writes into an existing folder.",
+        "withBackupFolder lets verify-backup and restore take a .zip: unpacked beside it, used, then removed."
+      ],
+      "concepts": ["data portability", "download ticket", "backup", "P4"]
+    },
+    {
       "path": "packages/server/src/workspaceIcon.ts",
       "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
       "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
@@ -197,6 +209,18 @@
         "checkIcon takes a noun, so the same rules refuse a profile picture in its own words (E9)."
       ],
       "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
+    },
+    {
+      "path": "packages/server/src/zip.ts",
+      "plain": "Packs a workspace copy into one zip file, and unpacks one, without any outside library.",
+      "summary": "Writes stored ZIP/ZIP64 archives with exact lengths and reads stored or deflated entries back.",
+      "details": [
+        "zipArchive lays out local headers, data and the central directory for entries whose size and CRC-32 are known first, so the length is exact (Content-Length, a progress bar) and no data descriptors are needed.",
+        "ZIP64 extra fields and end records are added only when a size, an offset or the entry count passes what classic ZIP holds (4 GiB, 65,535); a test streams a 4.3 GB entry through a virtual file to check them.",
+        "An entry that grows or shrinks while it streams stops the zip with an error. Names with .., a leading slash or backslashes are refused.",
+        "readZipDirectory finds the end record (and its ZIP64 locator) through a read function; extractZipEntry inflates deflated entries and checks size and CRC before keeping a file."
+      ],
+      "concepts": ["ZIP64", "streaming", "CRC-32", "no dependency", "P4"]
     },
     {
       "path": "packages/server/src/index.ts",
@@ -899,6 +923,17 @@
             "packages/server/src/main.ts"
           ],
           "detail": "--backup-dir/--backup-every-hours/--backup-keep run BackupSchedule; the CLI's runner is a child `backup` process. File deletion flushes return early while a scheduled copy runs, and resume after it. Status reports enabled, interval, keep, last success, failures and next time."
+        },
+        {
+          "title": "Or download a copy as the owner",
+          "description": "The owner can ask for a copy from Workspace settings without reaching the server. It is a fresh backup, checked like any other, sent as one zip file through a link that works once. The same zip restores the workspace here or on the owner's own server.",
+          "files": [
+            "packages/server/src/workspaceCopy.ts",
+            "packages/server/src/zip.ts",
+            "packages/server/src/server.ts",
+            "packages/ui/src/components/WorkspaceSettings.tsx"
+          ],
+          "detail": "POST /api/admin/copy (owner only, free-space check) runs takeBackup with removals held; GET polls; a ticket bound to session and copy id streams a stored ZIP/ZIP64 with exact Content-Length. restore and verify-backup accept the .zip via withBackupFolder."
         },
         {
           "title": "Check the backup before keeping it",

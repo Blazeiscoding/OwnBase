@@ -416,6 +416,8 @@ export type AuditAction =
   | "workspace.access_policy_changed"
   | "workspace.icon_changed"
   | "workspace.link_previews_changed"
+  | "workspace.copy_made"
+  | "workspace.copy_downloaded"
   | "app.created"
   | "app.deleted"
   | "app.token_replaced"
@@ -557,6 +559,8 @@ export interface ServerInfo {
   schedulingIdempotency?: boolean;
   /** Single-use, session-bound tickets for native file downloads. */
   downloadTickets?: boolean;
+  /** The owner can make and download a copy of the whole workspace. */
+  workspaceCopies?: boolean;
   /**
    * How others reach this workspace, when its host configured it. Links people
    * share are built on it, rather than on whatever address the sharer is using.
@@ -568,6 +572,15 @@ export interface ServerInfo {
    */
   iconVersion?: string | null;
 }
+
+/**
+ * The copy of the workspace its owner can download: being made, ready until
+ * `expiresAt` (its zip `bytes` long), or failed and why.
+ */
+export type WorkspaceCopy =
+  | { id: string; state: "making"; startedAt: number }
+  | { id: string; state: "ready"; startedAt: number; bytes: number; expiresAt: number }
+  | { id: string; state: "failed"; startedAt: number; error: string };
 
 export interface StorageUsage {
   usedBytes: number;
