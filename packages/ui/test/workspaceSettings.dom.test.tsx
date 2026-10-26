@@ -316,3 +316,103 @@ describe("a workspace whose server is older", () => {
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 });
+
+describe("a copy to download (P4)", () => {
+  const making = { id: "copy-1", state: "making" as const, startedAt: Date.now() };
+  const ready = {
+    id: "copy-1",
+    state: "ready" as const,
+    startedAt: Date.now(),
+    bytes: 3 * 1024 * 1024,
+    expiresAt: Date.now() + 3600_000,
+  };
+
+  /** Workspace settings for `role`, on a server that makes copies unless told otherwise. */
+  function copyPage(role: User["role"] = "owner", options: { copies?: boolean } = {}) {
+    const workspace = client(person("U_SAM", "Sam Rivera", role));
+    const info = vi
+      .spyOn(workspace.api, "serverInfo")
+      .mockResolvedValue({ workspaceCopies: options.copies ?? true } as never);
+    const current = vi.spyOn(workspace.api, "workspaceCopy").mockResolvedValue({ copy: null });
+    const make = vi.spyOn(workspace.api, "makeWorkspaceCopy").mockResolvedValue({ copy: making });
+    const url = vi
+      .spyOn(workspace.api, "workspaceCopyUrl")
+      .mockResolvedValue("http://127.0.0.1:9/api/admin/copy/copy-1?download=ticket");
+    const downloadFile = vi.fn(async () => {});
+    render(
+      <PlatformContext.Provider value={{ ...platform, downloadFile }}>
+        <ClientContext.Provider value={workspace}>
+          <ConfirmProvider>
+            <WorkspaceSettings onClose={() => {}} />
+          </ConfirmProvider>
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
+    );
+    const dialog = screen.getByRole("dialog", { name: "Workspace settings" });
+    return { dialog, info, current, make, url, downloadFile, user: userEvent.setup() };
+  }
+
+  it("makes a copy for the owner, says when it is ready, and hands the download over", async () => {
+    const { dialog, current, make, url, downloadFile, user } = copyPage();
+    const section = await within(dialog).findByRole("region", { name: "Download a copy" });
+    expect(section).toHaveTextContent("restore --from");
+    current.mockResolvedValue({ copy: ready });
+    await user.click(within(section).getByRole("button", { name: "Make a copy" }));
+    expect(make).toHaveBeenCalledOnce();
+    expect(within(section).getByRole("status")).toHaveTextContent("Making a copy.");
+    // Asked after every two seconds while it is made.
+    expect(
+      await within(section).findByText(/Ready: 3\.0 MB/, undefined, { timeout: 4_000 }),
+    ).toBeVisible();
+    await user.click(within(section).getByRole("button", { name: "Download" }));
+    expect(url).toHaveBeenCalledWith("copy-1");
+    expect(downloadFile).toHaveBeenCalledWith(
+      "http://127.0.0.1:9/api/admin/copy/copy-1?download=ticket",
+    );
+    expect(within(section).getByRole("status")).toHaveTextContent("Your download has started.");
+    expect(within(section).getByRole("button", { name: "Make a new copy" })).toBeEnabled();
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+  });
+
+  it("says what the server said when there is no room for a copy", async () => {
+    const { dialog, make, user } = copyPage();
+    make.mockRejectedValueOnce(
+      new ApiError(
+        507,
+        "not_enough_space",
+        "A copy needs about 900 MB free on the server, and it has 12 MB.",
+      ),
+    );
+    const section = await within(dialog).findByRole("region", { name: "Download a copy" });
+    await user.click(within(section).getByRole("button", { name: "Make a copy" }));
+    expect(await within(section).findByRole("alert")).toHaveTextContent(
+      "A copy needs about 900 MB free on the server, and it has 12 MB.",
+    );
+  });
+
+  it("says a copy that failed failed, and offers another", async () => {
+    const { dialog, current } = copyPage();
+    current.mockResolvedValue({
+      copy: { id: "copy-1", state: "failed", startedAt: 0, error: "No room left on the disk." },
+    });
+    const section = await within(dialog).findByRole("region", { name: "Download a copy" });
+    await waitFor(() =>
+      expect(within(section).getByRole("status")).toHaveTextContent(
+        "The copy could not be made: No room left on the disk.",
+      ),
+    );
+    expect(within(section).getByRole("button", { name: "Make a new copy" })).toBeVisible();
+  });
+
+  it("is not offered to an admin, or on a server that cannot make one", async () => {
+    const admin = copyPage("admin");
+    await screen.findByRole("region", { name: "Link previews" }).catch(() => {});
+    expect(admin.info).not.toHaveBeenCalled();
+    expect(within(admin.dialog).queryByRole("region", { name: "Download a copy" })).toBeNull();
+    cleanup();
+    const older = copyPage("owner", { copies: false });
+    await waitFor(() => expect(older.info).toHaveBeenCalled());
+    expect(older.current).not.toHaveBeenCalled();
+    expect(within(older.dialog).queryByRole("region", { name: "Download a copy" })).toBeNull();
+  });
+});

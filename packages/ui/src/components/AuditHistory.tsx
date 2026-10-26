@@ -72,6 +72,10 @@ export function describeAuditEntry(
       return d.to === false
         ? `${actor} turned off link previews`
         : `${actor} turned on link previews`;
+    case "workspace.copy_made":
+      return `${actor} made a copy of the workspace to download`;
+    case "workspace.copy_downloaded":
+      return `${actor} downloaded a copy of the workspace`;
     case "app.created":
       return `${actor} created the app ${app}`;
     case "app.deleted":
