@@ -82,7 +82,7 @@ export function NotificationBanner({
         <Icon name="bell" size={15} />
       </span>
       <span className="min-w-0 flex-1 text-ink-dim">
-        Turn on notifications to hear about mentions while Tandem is in the background.
+        Turn on notifications to hear about mentions while OwnBase is in the background.
       </span>
       <span className="ml-auto flex shrink-0 items-center gap-1">
         <button

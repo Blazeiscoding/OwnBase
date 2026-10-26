@@ -18,7 +18,7 @@ import { unzipBackup } from "../src/workspaceCopy.js";
 let root: string;
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "tandem-zip-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-zip-"));
 });
 
 afterEach(() => {

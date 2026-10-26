@@ -426,7 +426,7 @@ const until = async (what: string, ms: number, ok: () => Promise<boolean>) => {
   throw new Error(`${what} did not happen within ${ms / 1000} s`);
 };
 
-const dir = realpathSync(mkdtempSync(join(tmpdir(), "tandem-calls-")));
+const dir = realpathSync(mkdtempSync(join(tmpdir(), "ownbase-calls-")));
 let server: WorkspaceServer | undefined;
 const browsers: Browser[] = [];
 try {

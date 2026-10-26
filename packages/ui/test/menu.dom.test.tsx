@@ -220,7 +220,7 @@ describe("a menu whose trigger has a hint", () => {
 
     await user.keyboard("{Enter}");
     // A real press, whose mousedown would move focus on its own if let.
-    await user.click(screen.getByRole("menu").closest<HTMLElement>("[data-tandem-modal]")!);
+    await user.click(screen.getByRole("menu").closest<HTMLElement>("[data-ownbase-modal]")!);
     expect(screen.queryByRole("menu")).not.toBeInTheDocument();
     expect(trigger).toHaveFocus();
     expect(calls).toEqual(["promote", "deactivate"]);

@@ -231,7 +231,7 @@ describe("the call relay in Manage hosting", () => {
 
     relay.set.mockRejectedValueOnce(
       new Error(
-        "Tandem cannot keep the relay's secret safe: this computer's credential protection is unavailable. Unlock your system key store and try again.",
+        "OwnBase cannot keep the relay's secret safe: this computer's credential protection is unavailable. Unlock your system key store and try again.",
       ),
     );
     await user.type(token, "another-token");

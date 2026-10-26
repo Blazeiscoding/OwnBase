@@ -1,5 +1,5 @@
 // Fills a new, empty workspace with people and conversation, through the same
-// public API the apps use, so trying Tandem starts with something to look
+// public API the apps use, so trying OwnBase starts with something to look
 // at: channels with topics, a thread, reactions, a mention, a pinned
 // checklist, an image, statuses and a direct message.
 //
@@ -93,7 +93,7 @@ async function api(method, path, { token, body, form } = {}) {
   try {
     data = text ? JSON.parse(text) : {};
   } catch {
-    fail(`${base} did not answer ${path} as a Tandem workspace would.`);
+    fail(`${base} did not answer ${path} as an OwnBase workspace would.`);
   }
   if (!response.ok) throw new ApiError(response.status, data.error, data.message);
   return data;
@@ -240,7 +240,7 @@ async function seed(info) {
   const welcome = await post(
     maya,
     general,
-    "Welcome to Tandem, everyone! 👋 Announcements go here, day-to-day work in #design and #engineering, and everything else in #random.",
+    "Welcome to OwnBase, everyone! 👋 Announcements go here, day-to-day work in #design and #engineering, and everything else in #random.",
   );
   await post(sam, general, "Hi all! Happy to be here.");
   await post(priya, general, "Hello! I'll share the new sign-in screen in #design this week.");
@@ -330,9 +330,9 @@ let info;
 try {
   info = await api("GET", "/api/server-info");
 } catch (error) {
-  fail(`${base} did not answer as a Tandem workspace (${error.message}).`);
+  fail(`${base} did not answer as an OwnBase workspace (${error.message}).`);
 }
-if (info.app !== "slackoss") fail(`${base} is not a Tandem workspace.`);
+if (info.app !== "slackoss") fail(`${base} is not an OwnBase workspace.`);
 if (info.userCount > 0) {
   const accounts = info.userCount === 1 ? "an account" : `${info.userCount} accounts`;
   fail(

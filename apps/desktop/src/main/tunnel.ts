@@ -16,7 +16,10 @@ export function findCloudflared(
   platform: NodeJS.Platform = process.platform,
 ): string | null {
   const configured =
-    env.TANDEM_CLOUDFLARED ?? env.GATHERLINE_CLOUDFLARED ?? env.SLACKOSS_CLOUDFLARED;
+    env.OWNBASE_CLOUDFLARED ??
+    env.TANDEM_CLOUDFLARED ??
+    env.GATHERLINE_CLOUDFLARED ??
+    env.SLACKOSS_CLOUDFLARED;
   if (configured) return exists(configured) ? configured : null;
   const windows = platform === "win32";
   const file = windows ? "cloudflared.exe" : "cloudflared";
@@ -150,7 +153,7 @@ export async function probeHealth(
   let response: Response;
   try {
     const address = new URL(url);
-    address.searchParams.set("_tandem", randomUUID());
+    address.searchParams.set("_ownbase", randomUUID());
     response = await fetch(address, {
       signal: AbortSignal.any([signal, AbortSignal.timeout(5_000)]),
       cache: "no-store",
@@ -175,7 +178,7 @@ export async function probeHealth(
   }
 }
 
-export async function tandemIsReachable(
+export async function ownBaseIsReachable(
   url: string,
   signal: AbortSignal,
   instanceId?: string,
@@ -239,8 +242,13 @@ export function readNamedTunnelConfig(
   env: NodeJS.ProcessEnv = process.env,
   exists: (path: string) => boolean = existsSync,
 ): { publicUrl: string; tokenFile: string } | { error: string } | null {
-  const publicUrl = env.TANDEM_TUNNEL_URL ?? env.GATHERLINE_TUNNEL_URL ?? env.SLACKOSS_TUNNEL_URL;
+  const publicUrl =
+    env.OWNBASE_TUNNEL_URL ??
+    env.TANDEM_TUNNEL_URL ??
+    env.GATHERLINE_TUNNEL_URL ??
+    env.SLACKOSS_TUNNEL_URL;
   const tokenFile =
+    env.OWNBASE_TUNNEL_TOKEN_FILE ??
     env.TANDEM_TUNNEL_TOKEN_FILE ??
     env.GATHERLINE_TUNNEL_TOKEN_FILE ??
     env.SLACKOSS_TUNNEL_TOKEN_FILE;
@@ -248,14 +256,14 @@ export function readNamedTunnelConfig(
   try {
     if (!publicUrl || !tokenFile)
       throw new Error(
-        "Set both TANDEM_TUNNEL_URL and TANDEM_TUNNEL_TOKEN_FILE to publish a stable address.",
+        "Set both OWNBASE_TUNNEL_URL and OWNBASE_TUNNEL_TOKEN_FILE to publish a stable address.",
       );
     const config = validateNamedTunnelConfig(publicUrl, tokenFile);
     // The file is never read here. Only its presence is checked, so a missing
     // one is corrected before opening rather than reported as a tunnel failure.
     if (!exists(config.tokenFile))
       throw new Error(
-        "The Cloudflare tunnel token file is not where TANDEM_TUNNEL_TOKEN_FILE points.",
+        "The Cloudflare tunnel token file is not where OWNBASE_TUNNEL_TOKEN_FILE points.",
       );
     return config;
   } catch (error) {
@@ -265,8 +273,8 @@ export function readNamedTunnelConfig(
 
 /** How a workspace reaches the internet at an address that does not change. */
 export type PublicAddressConfig =
-  /** Tandem runs Cloudflare's connector for it. */
-  | { carrier: "tandem"; publicUrl: string; tokenFile: string }
+  /** OwnBase runs Cloudflare's connector for it. */
+  | { carrier: "ownbase"; publicUrl: string; tokenFile: string }
   /** Something else already carries it here: a funnel, a proxy, a tunnel run by hand. */
   | { carrier: "elsewhere"; publicUrl: string }
   | { error: string }
@@ -286,7 +294,10 @@ export function resolvePublicAddress(
   const carried =
     configured !== undefined && configured !== null && configured !== ""
       ? configured
-      : (env.TANDEM_PUBLIC_URL ?? env.GATHERLINE_PUBLIC_URL ?? env.SLACKOSS_PUBLIC_URL);
+      : (env.OWNBASE_PUBLIC_URL ??
+        env.TANDEM_PUBLIC_URL ??
+        env.GATHERLINE_PUBLIC_URL ??
+        env.SLACKOSS_PUBLIC_URL);
   if (carried) {
     try {
       return { carrier: "elsewhere", publicUrl: validatePublicAddress(carried) };
@@ -296,7 +307,7 @@ export function resolvePublicAddress(
   }
   const named = readNamedTunnelConfig(env, exists);
   if (!named || "error" in named) return named;
-  return { carrier: "tandem", ...named };
+  return { carrier: "ownbase", ...named };
 }
 
 function wait(ms: number, signal: AbortSignal): Promise<void> {
@@ -329,7 +340,7 @@ interface TunnelOptions {
   /** Confirms that the public hostname reaches this running server, not another workspace. */
   instanceId?: string;
   launch?: (command: string, args: string[]) => ChildProcess;
-  /** Replaced in tests; the default checks Tandem's health endpoint through Cloudflare. */
+  /** Replaced in tests; the default checks OwnBase's health endpoint through Cloudflare. */
   healthProbe?: (url: string, signal: AbortSignal, instanceId?: string) => Promise<boolean>;
 }
 
@@ -365,7 +376,7 @@ function validateInstanceId(instanceId: unknown): void {
 
 /**
  * Publishes an address something else already carries to this workspace: a
- * Tailscale Funnel, a reverse proxy, a tunnel started by hand. Tandem runs
+ * Tailscale Funnel, a reverse proxy, a tunnel started by hand. OwnBase runs
  * no connector here, so there is no process to watch. It watches the address
  * instead, and gives it up once it stops answering as this workspace.
  */
@@ -387,7 +398,7 @@ export async function openConfiguredAddress(options: {
   validateInstanceId(options.instanceId);
   if (options.signal?.aborted) throw new Error("Opening to all was cancelled.");
 
-  const probe = options.healthProbe ?? tandemIsReachable;
+  const probe = options.healthProbe ?? ownBaseIsReachable;
   const health = `${address}/api/health`;
   // A blip on the way to Cloudflare or Tailscale must not invalidate everyone's
   // links, so an open address is given up only after several checks in a row.
@@ -473,7 +484,7 @@ function openTunnel(
   // what the desktop button does.
   let configDir: string;
   try {
-    configDir = mkdtempSync(join(tmpdir(), "tandem-cloudflared-"));
+    configDir = mkdtempSync(join(tmpdir(), "ownbase-cloudflared-"));
   } catch {
     return Promise.reject(new Error("Could not create a temporary Cloudflare configuration."));
   }
@@ -573,7 +584,7 @@ function openTunnel(
       }
       cleanupConfig();
       if (!didExit && child.pid !== undefined)
-        throw new Error("cloudflared did not stop after Tandem closed the public link.");
+        throw new Error("cloudflared did not stop after OwnBase closed the public link.");
     })();
     terminating = attempt.catch((error: unknown) => {
       terminating = null;
@@ -586,7 +597,7 @@ function openTunnel(
 
   return new Promise<Tunnel>((resolve, reject) => {
     let probeStarted = false;
-    const healthProbe = options.healthProbe ?? tandemIsReachable;
+    const healthProbe = options.healthProbe ?? ownBaseIsReachable;
     const onAbort = () => fail("Opening to all was cancelled.");
     const cleanupOpening = () => {
       clearTimeout(timer);

@@ -237,7 +237,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   });
 
   it("upgrades old content copies without changing live buttons or outstanding work", () => {
-    const directory = mkdtempSync(join(tmpdir(), "tandem-content-upgrade-"));
+    const directory = mkdtempSync(join(tmpdir(), "ownbase-content-upgrade-"));
     const path = join(directory, "workspace.db");
     let db: DatabaseSync | undefined;
     try {
@@ -371,7 +371,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       db?.close();
       if (
         dirname(resolve(directory)) !== resolve(tmpdir()) ||
-        !basename(directory).startsWith("tandem-content-upgrade-")
+        !basename(directory).startsWith("ownbase-content-upgrade-")
       )
         throw new Error("unexpected test cleanup directory");
       rmSync(directory, { recursive: true, force: true });

@@ -68,7 +68,7 @@ export async function unzipBackup(zipPath: string, out: string): Promise<void> {
  */
 export async function withBackupFolder<T>(from: string, use: (dir: string) => Promise<T>) {
   if ((await stat(from)).isDirectory()) return use(from);
-  const scratch = await mkdtemp(join(dirname(from), ".tandem-unzip-"));
+  const scratch = await mkdtemp(join(dirname(from), ".ownbase-unzip-"));
   try {
     const dir = join(scratch, "backup");
     await unzipBackup(from, dir);

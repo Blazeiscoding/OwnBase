@@ -54,7 +54,7 @@ describe("the diagnostics report", () => {
       },
     });
     expect(report.split("\n")).toEqual([
-      "Tandem diagnostics",
+      "OwnBase diagnostics",
       "Taken: 2026-09-26T12:00:00.000Z",
       "App: browser, protocol 1, build from source",
       "Server: v0.4.2, protocol 1, build from source",
@@ -486,8 +486,8 @@ describe("the diagnostics dialog", () => {
 
     expect(clicks).toHaveLength(1);
     const [{ href, download }] = clicks as [{ href: string; download: string }];
-    expect(download).toMatch(/^tandem-diagnostics-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\dZ\.txt$/);
-    const date = download.slice("tandem-diagnostics-".length).slice(0, 10);
+    expect(download).toMatch(/^ownbase-diagnostics-\d{4}-\d\d-\d\dT\d\d-\d\d-\d\dZ\.txt$/);
+    const date = download.slice("ownbase-diagnostics-".length).slice(0, 10);
     expect(report).toHaveTextContent(`Taken: ${date}`);
     const blob = blobs.get(href)!;
     expect(blob.type).toBe("text/plain;charset=utf-8");
@@ -501,7 +501,7 @@ describe("the diagnostics dialog", () => {
 describe("a saved report's name", () => {
   it("says when it was taken, and nothing else", () => {
     expect(diagnosticsFileName(new Date("2026-09-26T12:03:04.567Z"))).toBe(
-      "tandem-diagnostics-2026-09-26T12-03-04Z.txt",
+      "ownbase-diagnostics-2026-09-26T12-03-04Z.txt",
     );
   });
 });

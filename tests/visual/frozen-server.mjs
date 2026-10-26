@@ -1,5 +1,5 @@
 // Loaded with `node --import` before the server, for the visual check only.
-// The server's clock stands still at TANDEM_FROZEN_AT and its random bytes
+// The server's clock stands still at OWNBASE_FROZEN_AT and its random bytes
 // come from a fixed seed, so seeding the same workspace gives the same ids,
 // and with them the same avatar colours, and the same times on every run.
 // A clock that moved would put a different millisecond into each id.
@@ -11,8 +11,8 @@ import { createRequire, syncBuiltinESMExports } from "node:module";
 const require = createRequire(import.meta.url);
 const crypto = require("node:crypto");
 
-const frozenAt = Number(process.env.TANDEM_FROZEN_AT);
-if (!Number.isFinite(frozenAt)) throw new Error("Set TANDEM_FROZEN_AT to a time in milliseconds.");
+const frozenAt = Number(process.env.OWNBASE_FROZEN_AT);
+if (!Number.isFinite(frozenAt)) throw new Error("Set OWNBASE_FROZEN_AT to a time in milliseconds.");
 Date.now = () => frozenAt;
 
 // xorshift32: the same bytes, in the same order, every run.

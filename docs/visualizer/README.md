@@ -1,4 +1,4 @@
-# Tandem project atlas
+# OwnBase project atlas
 
 Open [PROJECT-VISUALIZER.html](../PROJECT-VISUALIZER.html) in a browser. It is one
 offline HTML file containing the inventory, reviewed runtime explanations,
@@ -33,7 +33,7 @@ changes together.
   tests, and **Connections** draws what it imports and what imports it. Click a
   line number to copy a link to that line. Arrow keys move through the tree.
 - **How it works** follows one everyday action, such as sending a message,
-  step by step. Its map shows which part of Tandem works in each step, and
+  step by step. Its map shows which part of OwnBase works in each step, and
   each step's **In the code** opens the technical version and its files.
 - **Improvements** opens on a board: every record as a dot in a row for its
   category, which layers the open findings reach into, and how much each
@@ -99,7 +99,7 @@ code. The generated HTML is intentionally excluded from Prettier because its
 embedded source and data are deterministic generator output.
 
 The page embeds the Latin subsets of Onest and Geist Mono from the web app's
-installed `@fontsource-variable` packages, so it matches Tandem offline.
+installed `@fontsource-variable` packages, so it matches OwnBase offline.
 Run `pnpm install` first; the generator stops if they are missing. Layer colours
 group the eleven areas into six layers so a colour can name one: the five hues
 and the neutral were checked for colour-vision separation on both themes, and

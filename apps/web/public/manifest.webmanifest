@@ -1,6 +1,6 @@
 {
-  "name": "Tandem",
-  "short_name": "Tandem",
+  "name": "OwnBase",
+  "short_name": "OwnBase",
   "description": "Your people, your place, your server. Open-source team chat.",
   "start_url": "./",
   "scope": "./",

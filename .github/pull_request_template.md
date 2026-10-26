@@ -1,6 +1,6 @@
 ## What changes
 
-<!-- What someone using Tandem will notice, then what changed underneath. -->
+<!-- What someone using OwnBase will notice, then what changed underneath. -->
 
 ## Checked
 

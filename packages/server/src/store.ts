@@ -4552,7 +4552,7 @@ export class Store {
 
   /**
    * Takes a message's words out of app events still waiting to be delivered,
-   * or that gave up. Those are copies Tandem still holds, and an edit or a
+   * or that gave up. Those are copies OwnBase still holds, and an edit or a
    * deletion is often someone taking back what they wrote. The events stay,
    * in order and under the same id: a receiver gets a message with no words,
    * then the edit or deletion that supersedes it, as a client replaying the

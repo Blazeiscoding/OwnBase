@@ -42,7 +42,7 @@ let dir: string;
 let settings: SettingsStorage;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "tandem-outbox-"));
+  dir = mkdtempSync(join(tmpdir(), "ownbase-outbox-"));
   settings = createSettingsStorage(join(dir, "settings.json"), keys);
 });
 

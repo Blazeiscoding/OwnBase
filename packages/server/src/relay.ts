@@ -170,7 +170,7 @@ export function withRelay(base: IceServer[], relay: IceServer[]): IceServer[] {
 
 /**
  * A Cloudflare relay from the environment: both its key ID and API token, or
- * neither. Any other relay goes in TANDEM_ICE_SERVERS.
+ * neither. Any other relay goes in OWNBASE_ICE_SERVERS.
  */
 export function relayFromEnvironment(
   setting: (name: string) => string | undefined,
@@ -181,7 +181,7 @@ export function relayFromEnvironment(
   const parsed = callRelaySchema.safeParse({ kind: "cloudflare", keyId, apiToken });
   if (!parsed.success)
     throw new Error(
-      "TANDEM_CLOUDFLARE_TURN_KEY_ID and TANDEM_CLOUDFLARE_TURN_API_TOKEN must both be set, as the TURN key's ID and its API token",
+      "OWNBASE_CLOUDFLARE_TURN_KEY_ID and OWNBASE_CLOUDFLARE_TURN_API_TOKEN must both be set, as the TURN key's ID and its API token",
     );
   return parsed.data;
 }

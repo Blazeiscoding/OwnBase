@@ -15,7 +15,7 @@ import {
  * top frame, showing the app's page. Another window loading the same
  * preload, or a frame inside the page, is refused before any work starts.
  */
-const PAGE = "file:///opt/Tandem/resources/app.asar/out/renderer/index.html";
+const PAGE = "file:///opt/OwnBase/resources/app.asar/out/renderer/index.html";
 const trusted = rendererUrlTrust(PAGE);
 
 function mainWindow(overrides: { destroyed?: boolean; contentsDestroyed?: boolean } = {}) {
@@ -48,7 +48,7 @@ describe("the app's own page", () => {
 
   it("is not a blank page, another file, another origin or nonsense", () => {
     expect(trusted("about:blank")).toBe(false);
-    expect(trusted("file:///opt/Tandem/resources/app.asar/out/renderer/other.html")).toBe(false);
+    expect(trusted("file:///opt/OwnBase/resources/app.asar/out/renderer/other.html")).toBe(false);
     expect(trusted("https://example.com/out/renderer/index.html")).toBe(false);
     expect(trusted("not a url")).toBe(false);
   });

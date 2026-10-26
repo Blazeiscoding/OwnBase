@@ -7,7 +7,7 @@ import { GATE_MARKER, writeGateReport } from "../src/main/releaseGate.js";
 /** What the installed app tells the release gates about its own profile (F05). */
 const dirs: string[] = [];
 const temp = () => {
-  const dir = mkdtempSync(join(tmpdir(), "tandem-gate-"));
+  const dir = mkdtempSync(join(tmpdir(), "ownbase-gate-"));
   dirs.push(dir);
   return dir;
 };

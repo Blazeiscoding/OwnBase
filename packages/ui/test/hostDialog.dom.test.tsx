@@ -25,7 +25,7 @@ const running: HostingStatus = {
   workspaceName: "Rocket Team",
   port: 8543,
   lanUrls: ["192.168.1.20:8543"],
-  dataDir: "C:\\Users\\sam\\AppData\\Roaming\\Tandem\\hosted\\rocket-team",
+  dataDir: "C:\\Users\\sam\\AppData\\Roaming\\OwnBase\\hosted\\rocket-team",
   backgroundAvailable: true,
 };
 
@@ -472,14 +472,14 @@ describe("hosting a workspace from the host dialog", () => {
     const { hosting } = fakeHosting(stopped, { workspaces: [], unreadable: [] });
     hosting.list!.mockRejectedValueOnce(
       new Error(
-        "Error invoking remote method 'hosting:list': Error: The hosted workspace list was saved by a newer version of Tandem. Update Tandem to open it; the list was not changed.",
+        "Error invoking remote method 'hosting:list': Error: The hosted workspace list was saved by a newer version of OwnBase. Update OwnBase to open it; the list was not changed.",
       ),
     );
     render(<Harness hosting={hosting} />);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/newer version of Tandem/);
-    expect(alert).toHaveTextContent(/Update Tandem/);
+    expect(alert).toHaveTextContent(/newer version of OwnBase/);
+    expect(alert).toHaveTextContent(/Update OwnBase/);
     expect(alert).not.toHaveTextContent(/settings file can be read/);
   });
 
@@ -998,17 +998,17 @@ describe("starting with the computer", () => {
     return { hosting, push: fake.push };
   }
 
-  it("starts the running workspace with Tandem, and opens Tandem at sign-in, when asked", async () => {
+  it("starts the running workspace with OwnBase, and opens OwnBase at sign-in, when asked", async () => {
     const user = userEvent.setup();
     const { hosting } = withLaunch({ ...running, folder: "team-a" });
     render(<Harness hosting={hosting} />);
     await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     const start = within(group).getByRole("checkbox", {
-      name: "Start hosting Rocket Team when Tandem opens",
+      name: "Start hosting Rocket Team when OwnBase opens",
     });
     const login = await within(group).findByRole("checkbox", {
-      name: "Open Tandem when you sign in to this computer",
+      name: "Open OwnBase when you sign in to this computer",
     });
     expect(start).not.toBeChecked();
     expect(login).not.toBeChecked();
@@ -1027,7 +1027,7 @@ describe("starting with the computer", () => {
     await waitFor(() => expect(start).not.toBeChecked());
   });
 
-  it("reopens a stable address with the workspace only once it starts with Tandem", async () => {
+  it("reopens a stable address with the workspace only once it starts with OwnBase", async () => {
     const user = userEvent.setup();
     const status = {
       ...running,
@@ -1047,7 +1047,7 @@ describe("starting with the computer", () => {
     await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     const reopen = within(group).getByRole("checkbox", {
-      name: /Also reopen https:\/\/chat\.example\.org when Rocket Team starts with Tandem/,
+      name: /Also reopen https:\/\/chat\.example\.org when Rocket Team starts with OwnBase/,
     });
     expect(reopen).toBeDisabled();
 
@@ -1074,7 +1074,7 @@ describe("starting with the computer", () => {
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     await waitFor(() => expect(hosting.openAtLogin.get).toHaveBeenCalled());
     expect(within(group).queryByRole("checkbox", { name: /sign in/ })).toBeNull();
-    expect(group).toHaveTextContent("Rocket Team starts once Tandem is opened.");
+    expect(group).toHaveTextContent("Rocket Team starts once OwnBase is opened.");
   });
 
   it("says why a choice could not be saved", async () => {
@@ -1082,17 +1082,17 @@ describe("starting with the computer", () => {
     const { hosting } = withLaunch({ ...running, folder: "team-a" });
     hosting.setStartOnLaunch.mockRejectedValueOnce(
       new Error(
-        "Tandem could not save that choice. Check that its settings folder is writable, then try again.",
+        "OwnBase could not save that choice. Check that its settings folder is writable, then try again.",
       ),
     );
     render(<Harness hosting={hosting} />);
     await showSection("Advanced");
     const start = await screen.findByRole("checkbox", {
-      name: "Start hosting Rocket Team when Tandem opens",
+      name: "Start hosting Rocket Team when OwnBase opens",
     });
     await user.click(start);
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Tandem could not save that choice. Check that its settings folder is writable, then try again.",
+      "OwnBase could not save that choice. Check that its settings folder is writable, then try again.",
     );
     // Nothing was saved, so the box goes back to what is so.
     expect(start).not.toBeChecked();
@@ -1103,20 +1103,20 @@ describe("starting with the computer", () => {
       {
         ...stopped,
         launchError:
-          "Tandem did not start hosting Rocket Team when it opened. Its folder is missing.",
+          "OwnBase did not start hosting Rocket Team when it opened. Its folder is missing.",
       },
       { workspaces: [{ ...teamA, startsOnLaunch: true }], unreadable: [] },
     );
     render(<Harness hosting={fake.hosting} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Tandem did not start hosting Rocket Team when it opened. Its folder is missing.",
+      "OwnBase did not start hosting Rocket Team when it opened. Its folder is missing.",
     );
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(list).toHaveTextContent("Port 8543 · Starts with Tandem");
+    expect(list).toHaveTextContent("Port 8543 · Starts with OwnBase");
   });
 });
 
-describe("what did not happen when Tandem opened, while hosting runs", () => {
+describe("what did not happen when OwnBase opened, while hosting runs", () => {
   const launched: HostingStatus = {
     ...running,
     folder: "team-a",
@@ -1291,23 +1291,23 @@ describe("starting with the computer, while nothing is running", () => {
     return hosting;
   }
 
-  it("takes a workspace that failed to start off starting with Tandem, and Tandem off sign-in", async () => {
+  it("takes a workspace that failed to start off starting with OwnBase, and OwnBase off sign-in", async () => {
     const user = userEvent.setup();
     const hosting = stoppedWith(
       true,
-      "Tandem did not start hosting Rocket Team when it opened. Its database is unreadable.",
+      "OwnBase did not start hosting Rocket Team when it opened. Its database is unreadable.",
       true,
     );
     render(<Harness hosting={hosting} />);
     const section = await screen.findByRole("region", { name: "When this computer starts" });
-    expect(section).toHaveTextContent("Rocket Team starts hosting when Tandem opens.");
+    expect(section).toHaveTextContent("Rocket Team starts hosting when OwnBase opens.");
     await user.click(
-      within(section).getByRole("button", { name: "Don’t start Rocket Team with Tandem" }),
+      within(section).getByRole("button", { name: "Don’t start Rocket Team with OwnBase" }),
     );
     expect(hosting.setStartOnLaunch).toHaveBeenCalledWith(null);
 
     const login = await within(section).findByRole("checkbox", {
-      name: "Open Tandem when you sign in to this computer",
+      name: "Open OwnBase when you sign in to this computer",
     });
     expect(login).toBeChecked();
     await user.click(login);
@@ -1322,13 +1322,13 @@ describe("starting with the computer, while nothing is running", () => {
     const user = userEvent.setup();
     const hosting = stoppedWith(
       false,
-      "Tandem did not start hosting when it opened, because it could not read which workspace to start.",
+      "OwnBase did not start hosting when it opened, because it could not read which workspace to start.",
       false,
     );
     render(<Harness hosting={hosting} />);
     const section = await screen.findByRole("region", { name: "When this computer starts" });
     await user.click(
-      within(section).getByRole("button", { name: "Start nothing when Tandem opens" }),
+      within(section).getByRole("button", { name: "Start nothing when OwnBase opens" }),
     );
     expect(hosting.setStartOnLaunch).toHaveBeenCalledWith(null);
   });
@@ -1432,7 +1432,7 @@ describe("who is connected, and which port", () => {
     const { hosting } = fakeHosting(stopped, { workspaces: [teamA], unreadable: [] });
     hosting.setPort!.mockRejectedValueOnce(
       new Error(
-        "Tandem could not save the new port. Check that its settings folder is writable, then try again.",
+        "OwnBase could not save the new port. Check that its settings folder is writable, then try again.",
       ),
     );
     render(<Harness hosting={hosting} onClose={onClose} />);
@@ -1449,7 +1449,7 @@ describe("who is connected, and which port", () => {
     await user.clear(field);
     await user.type(field, "9100{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Tandem could not save the new port. Check that its settings folder is writable, then try again.",
+      "OwnBase could not save the new port. Check that its settings folder is writable, then try again.",
     );
     expect(field).toHaveValue("9100");
   });
@@ -1723,13 +1723,13 @@ describe("a stable public address configured for the desktop app", () => {
     const { hosting } = fakeHosting({
       ...running,
       tunnelAvailable: true,
-      publicAddressError: "Set both TANDEM_TUNNEL_URL and TANDEM_TUNNEL_TOKEN_FILE.",
+      publicAddressError: "Set both OWNBASE_TUNNEL_URL and OWNBASE_TUNNEL_TOKEN_FILE.",
     });
     render(<Harness hosting={hosting} />);
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Set both TANDEM_TUNNEL_URL/);
+    expect(within(dialog).getByRole("alert")).toHaveTextContent(/Set both OWNBASE_TUNNEL_URL/);
     const open = within(dialog).getByRole("button", { name: "Open to all" });
     expect(open).toBeDisabled();
 
@@ -1914,7 +1914,7 @@ describe("earlier copies of a stopped workspace", () => {
     const restoreOver = vi.fn(async () => ({
       folder: "rocket-team",
       name: "Rocket Team",
-      setAside: "/home/sam/.config/Tandem/hosted/rocket-team.superseded-1",
+      setAside: "/home/sam/.config/OwnBase/hosted/rocket-team.superseded-1",
       inventory: null,
     }));
     const { hosting, backups } = withCopies(restoreOver);
@@ -1944,7 +1944,7 @@ describe("earlier copies of a stopped workspace", () => {
     expect(
       await screen.findByText((text) =>
         text.startsWith(
-          "Restored an earlier copy of Rocket Team. What it held before is kept in /home/sam/.config/Tandem/hosted/rocket-team.superseded-1.",
+          "Restored an earlier copy of Rocket Team. What it held before is kept in /home/sam/.config/OwnBase/hosted/rocket-team.superseded-1.",
         ),
       ),
     ).toHaveAttribute("role", "status");

@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "main": "./out/main/index.js",
-  "description": "Tandem — self-hosted team chat",
-  "author": "Tandem contributors",
+  "description": "OwnBase — self-hosted team chat",
+  "author": "OwnBase contributors",
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

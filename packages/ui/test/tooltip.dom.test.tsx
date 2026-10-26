@@ -122,7 +122,7 @@ describe("a tooltip", () => {
     const trigger = screen.getByRole("button", { name: "More settings" });
     expect(trigger).toHaveFocus();
     const tooltip = screen.getByRole("tooltip");
-    expect(tooltip.closest("[data-tandem-modal]")).not.toBeNull();
+    expect(tooltip.closest("[data-ownbase-modal]")).not.toBeNull();
 
     await user.keyboard("{Escape}");
     expect(screen.queryByRole("tooltip")).not.toBeInTheDocument();

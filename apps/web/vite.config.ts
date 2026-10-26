@@ -10,7 +10,7 @@ import { ARTIFACTS, buildIdentity } from "../../scripts/build-identity.mjs";
 // beside the build so tests can refuse a client older than the checkout.
 const identity = buildIdentity(ARTIFACTS.web.inputs);
 const stampBuild: Plugin = {
-  name: "tandem-build-identity",
+  name: "ownbase-build-identity",
   apply: "build",
   writeBundle(options) {
     writeFileSync(join(options.dir!, "build.json"), JSON.stringify(identity, null, 2) + "\n");
@@ -18,7 +18,7 @@ const stampBuild: Plugin = {
 };
 
 export default defineConfig({
-  define: { __TANDEM_BUILD__: JSON.stringify(identity) },
+  define: { __OWNBASE_BUILD__: JSON.stringify(identity) },
   // The call noise filter's model is bundled into its chunk as a data URL
   // (`?inline`), which Vite does for assets it knows; WebAssembly is not one.
   assetsInclude: ["**/*.wasm"],

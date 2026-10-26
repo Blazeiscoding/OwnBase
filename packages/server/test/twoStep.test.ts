@@ -106,7 +106,7 @@ describe("setting two-step sign-in up", () => {
     );
     const started = await call("/api/me/two-step", member.token, { password: "password123" });
     expect(started.data.uri).toMatch(
-      /^otpauth:\/\/totp\/Rocket%20Team%20on%20Tandem%3Amaya\?secret=[A-Z2-7]{32}&issuer=Rocket%20Team%20on%20Tandem/,
+      /^otpauth:\/\/totp\/Rocket%20Team%20on%20OwnBase%3Amaya\?secret=[A-Z2-7]{32}&issuer=Rocket%20Team%20on%20OwnBase/,
     );
     const secret = started.data.secret as string;
 

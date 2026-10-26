@@ -164,9 +164,9 @@ export class RegistryFormatError extends Error {
   constructor(kind: "newer" | "unsupported" | "invalid") {
     super(
       kind === "newer"
-        ? "The hosted workspace list was saved by a newer version of Tandem. Update Tandem to open it; the list was not changed."
+        ? "The hosted workspace list was saved by a newer version of OwnBase. Update OwnBase to open it; the list was not changed."
         : kind === "unsupported"
-          ? "The hosted workspace list has a version this Tandem cannot read. Use a compatible version; the list was not changed."
+          ? "The hosted workspace list has a version this OwnBase cannot read. Use a compatible version; the list was not changed."
           : "The hosted workspace list in settings is invalid. Restore or repair the settings file before hosting; the list was not changed.",
     );
     this.name = "RegistryFormatError";

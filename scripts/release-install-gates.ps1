@@ -1,6 +1,6 @@
 # The release gates a Windows installer passes before it is published (IMP-08):
 # it installs silently for the current user and says what version it
-# installed, the installed app starts and registers the tandem://,
+# installed, the installed app starts and registers the ownbase://, tandem://,
 # gatherline:// and slackoss:// links, installing over the previous release
 # keeps that release's data, and uninstalling removes the app but keeps the
 # person's data.
@@ -11,7 +11,7 @@
 # uninstalls the real app for the current user.
 #
 # The installed app is asked which profile it is using (F05): started with
-# TANDEM_RELEASE_GATE_REPORT, it writes its data folder, version, revision
+# OWNBASE_RELEASE_GATE_REPORT (TANDEM_ before), it writes its data folder, version, revision
 # and what it read there. An upgrade passes only when the new process is
 # using the previous release's folder and reads the marker left in it; a
 # folder that merely exists, or a registry entry, proves neither.
@@ -39,8 +39,8 @@ function Installed {
   $keys = Get-ChildItem "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall" -ErrorAction SilentlyContinue
   foreach ($key in $keys) {
     $entry = Get-ItemProperty $key.PSPath
-    # A previous release may still carry the Gatherline name.
-    if ($entry.DisplayName -like "Tandem*" -or $entry.DisplayName -like "Gatherline*") { return $entry }
+    # A previous release may still carry the Tandem or Gatherline name.
+    if ($entry.DisplayName -like "OwnBase*" -or $entry.DisplayName -like "Tandem*" -or $entry.DisplayName -like "Gatherline*") { return $entry }
   }
   return $null
 }
@@ -65,8 +65,8 @@ function Install([string] $Path, [string] $Expected) {
     Fail "installed version is $($entry.DisplayVersion), expected $Expected"
   }
   $folder = InstallDirectory $entry
-  $exe = @("Tandem.exe", "Gatherline.exe") | ForEach-Object { Join-Path $folder $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
-  if (-not $exe) { Fail "no Tandem.exe in $folder" }
+  $exe = @("OwnBase.exe", "Tandem.exe", "Gatherline.exe") | ForEach-Object { Join-Path $folder $_ } | Where-Object { Test-Path $_ } | Select-Object -First 1
+  if (-not $exe) { Fail "no OwnBase.exe in $folder" }
   Write-Host "Installed $($entry.DisplayVersion) at $folder"
   return $exe
 }
@@ -78,11 +78,18 @@ function Install([string] $Path, [string] $Expected) {
 # the new version's own report.
 function Launch([string] $Exe, [switch] $Legacy) {
   Write-Host "Starting $Exe"
-  $report = Join-Path ([System.IO.Path]::GetTempPath()) "tandem-release-gate-$PID.json"
+  $report = Join-Path ([System.IO.Path]::GetTempPath()) "ownbase-release-gate-$PID.json"
   Remove-Item $report -ErrorAction SilentlyContinue
+  # Under both names: a previous release called Tandem reads the older one.
+  $env:OWNBASE_RELEASE_GATE_REPORT = $report
   $env:TANDEM_RELEASE_GATE_REPORT = $report
-  try { $process = Start-Process -FilePath $Exe -PassThru } finally { Remove-Item Env:TANDEM_RELEASE_GATE_REPORT }
-  $candidates = @((Join-Path $env:APPDATA "@slackoss\desktop"), (Join-Path $env:APPDATA "Tandem"), (Join-Path $env:APPDATA "Gatherline"))
+  try { $process = Start-Process -FilePath $Exe -PassThru } finally {
+    Remove-Item Env:OWNBASE_RELEASE_GATE_REPORT
+    Remove-Item Env:TANDEM_RELEASE_GATE_REPORT
+  }
+  $candidates = @((Join-Path $env:APPDATA "@slackoss\desktop"), (Join-Path $env:APPDATA "OwnBase"), (Join-Path $env:APPDATA "Tandem"), (Join-Path $env:APPDATA "Gatherline"))
+  # Every release since Gatherline registers these two; this one adds its own and Tandem's.
+  $schemes = if ($Legacy) { @("gatherline", "slackoss") } else { @("ownbase", "tandem", "gatherline", "slackoss") }
   $said = $null
   $registered = $false
   for ($i = 0; $i -lt 60 -and -not ($said -and $registered); $i++) {
@@ -98,16 +105,16 @@ function Launch([string] $Exe, [switch] $Legacy) {
       if ($folder) { $said = [pscustomobject]@{ userData = $folder; legacy = $true } }
     }
     $registered = $true
-    foreach ($scheme in "tandem", "gatherline", "slackoss") {
+    foreach ($scheme in $schemes) {
       $command = (Get-ItemProperty "HKCU:\Software\Classes\$scheme\shell\open\command" -ErrorAction SilentlyContinue).'(default)'
       if (-not $command -or $command -notlike "*$Exe*") { $registered = $false }
     }
   }
-  Get-Process -Name "Tandem", "Gatherline" -ErrorAction SilentlyContinue | Stop-Process -Force
+  Get-Process -Name "OwnBase", "Tandem", "Gatherline" -ErrorAction SilentlyContinue | Stop-Process -Force
   Start-Sleep -Seconds 2
   Remove-Item $report -ErrorAction SilentlyContinue
-  if (-not $registered) { Fail "the app did not register tandem://, gatherline:// and slackoss:// to $Exe" }
-  if (-not $said) { Fail "the app did not say which data folder it uses (TANDEM_RELEASE_GATE_REPORT)" }
+  if (-not $registered) { Fail "the app did not register $(($schemes | ForEach-Object { "$($_)://" }) -join ', ') to $Exe" }
+  if (-not $said) { Fail "the app did not say which data folder it uses (OWNBASE_RELEASE_GATE_REPORT)" }
   if (-not (Test-Path (Join-Path $said.userData "Local State"))) { Fail "the app's data folder $($said.userData) holds no profile" }
   Write-Host "Links registered; data in $($said.userData)"
   return $said

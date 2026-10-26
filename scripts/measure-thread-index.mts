@@ -44,7 +44,7 @@ const percentile = (values: number[], p: number) => {
   return sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))]!;
 };
 
-const dir = mkdtempSync(join(tmpdir(), "tandem-thread-index-"));
+const dir = mkdtempSync(join(tmpdir(), "ownbase-thread-index-"));
 const server = await createWorkspaceServer({
   dataDir: dir,
   host: "127.0.0.1",

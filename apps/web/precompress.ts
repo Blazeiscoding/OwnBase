@@ -67,7 +67,7 @@ export async function precompressDirectory(dir: string): Promise<Precompressed[]
 export function precompress(): Plugin {
   let outDir = "";
   return {
-    name: "tandem-precompress",
+    name: "ownbase-precompress",
     apply: "build",
     configResolved(config) {
       outDir = resolve(config.root, config.build.outDir);

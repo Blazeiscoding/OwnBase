@@ -2,7 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 /** Stamped in by the build (IMP-08); not defined when the app runs from source. */
-declare const __TANDEM_BUILD__: { revision: string } | undefined;
+declare const __OWNBASE_BUILD__: { revision: string } | undefined;
 
 /** The file the installer gates leave in a profile for the next version to find. */
 export const GATE_MARKER = "release-gate-marker.txt";
@@ -21,7 +21,7 @@ export interface GateReport {
 
 /**
  * Writes the report the installer gates ask for with
- * `TANDEM_RELEASE_GATE_REPORT=<file>` (F05). An upgrade passes only when the
+ * `OWNBASE_RELEASE_GATE_REPORT=<file>` (F05). An upgrade passes only when the
  * process that started is using the previous release's profile and reads
  * what that release left there; a registry entry or a leftover folder proves
  * neither. Says only where the profile is, which build this is, and a
@@ -41,7 +41,7 @@ export async function writeGateReport(
   const report: GateReport = {
     userData: app.userData,
     version: app.version,
-    revision: typeof __TANDEM_BUILD__ === "undefined" ? null : __TANDEM_BUILD__.revision,
+    revision: typeof __OWNBASE_BUILD__ === "undefined" ? null : __OWNBASE_BUILD__.revision,
     marker,
     settingsReadable: await settingsReadable().catch(() => false),
   };

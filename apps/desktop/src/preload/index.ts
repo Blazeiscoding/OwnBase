@@ -58,7 +58,7 @@ export interface SlackossBridge {
   hostingSetRelay: (draft: unknown) => Promise<unknown>;
   hostingTestRelay: (draft: unknown) => Promise<unknown>;
   onHostingStatus: (cb: (status: unknown) => void) => () => void;
-  /** A tandem:// (or legacy slackoss://) link that launched the app, if any. */
+  /** A ownbase:// (or legacy slackoss://) link that launched the app, if any. */
   consumeDeepLink: () => Promise<string | null>;
   onDeepLink: (cb: (url: string) => void) => () => void;
   /** Shows the window again, restored and in front. */

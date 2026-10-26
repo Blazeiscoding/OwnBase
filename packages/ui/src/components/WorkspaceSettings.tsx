@@ -110,7 +110,7 @@ export function WorkspaceSettings({
             role="note"
             className="mb-4 rounded-lg border border-edge bg-raised p-3 text-sm text-ink-dim"
           >
-            This workspace's server runs an older version of Tandem, so its name and who can join
+            This workspace's server runs an older version of OwnBase, so its name and who can join
             are changed where it is hosted, not here.
           </p>
         )}

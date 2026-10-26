@@ -166,7 +166,7 @@ const OBSERVE = () => {
   requestAnimationFrame(frame);
 };
 
-const dir = realpathSync(mkdtempSync(join(tmpdir(), "tandem-client-")));
+const dir = realpathSync(mkdtempSync(join(tmpdir(), "ownbase-client-")));
 let server: WorkspaceServer | undefined;
 let browser: Browser | undefined;
 try {

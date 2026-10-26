@@ -5,10 +5,10 @@ import { defineConfig } from "@playwright/test";
  * taken on GitHub's Linux runners by the "Visual baselines" workflow, and
  * only Linux compares against them, since other systems draw fonts a little
  * differently. Elsewhere the same screens are walked and checked with axe,
- * and nothing is compared, unless TANDEM_VISUAL_SNAPSHOTS=1 asks for it, which
+ * and nothing is compared, unless OWNBASE_VISUAL_SNAPSHOTS=1 asks for it, which
  * compares against pictures in a folder for that system that git ignores.
  */
-const compare = process.platform === "linux" || process.env.TANDEM_VISUAL_SNAPSHOTS === "1";
+const compare = process.platform === "linux" || process.env.OWNBASE_VISUAL_SNAPSHOTS === "1";
 
 export default defineConfig({
   testDir: "./tests/visual",

@@ -17,7 +17,7 @@ function built(files = {}) {
   const dir = mkdtempSync(join(tmpdir(), "web-precompressed-"));
   const all = {
     "index.html": "<!doctype html><title>small</title>",
-    "tandem.svg": "<svg/>",
+    "ownbase.svg": "<svg/>",
     "assets/index-A1.js": script,
     "assets/index-A1.js.br": brotliCompressSync(script),
     "assets/index-A1.js.gz": gzipSync(script),

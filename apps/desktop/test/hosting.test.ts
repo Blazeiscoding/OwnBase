@@ -62,7 +62,7 @@ afterEach(() => {
 
 /** A profile folder of its own, removed after the test. */
 function profile(): string {
-  const root = mkdtempSync(join(tmpdir(), "tandem-hosting-"));
+  const root = mkdtempSync(join(tmpdir(), "ownbase-hosting-"));
   roots.push(root);
   return root;
 }
@@ -1527,7 +1527,7 @@ describe("the list of workspaces hosted on this computer", () => {
       }),
     ).toEqual([entry, { ...entry, id: null, folder: "adopted" }]);
     expect(() => parseRegistry({ version: 2, workspaces: [entry] })).toThrow(
-      /newer version of Tandem/,
+      /newer version of OwnBase/,
     );
     expect(() => parseRegistry(null)).toThrow(/invalid/);
     expect(() => parseRegistry({ version: 1, workspaces: "not a list" })).toThrow(/invalid/);
@@ -1547,18 +1547,18 @@ describe("the list of workspaces hosted on this computer", () => {
     h.settings.set("startOnLaunch", "old-team");
     const before = structuredClone([...h.settings]);
 
-    await expect(h.controller.list()).rejects.toThrow(/newer version of Tandem/);
+    await expect(h.controller.list()).rejects.toThrow(/newer version of OwnBase/);
     await expect(h.controller.start({ workspaceName: "New Team" })).rejects.toThrow(
-      /newer version of Tandem/,
+      /newer version of OwnBase/,
     );
     await expect(h.controller.rename({ folder: "old-team", name: "Renamed" })).rejects.toThrow(
-      /newer version of Tandem/,
+      /newer version of OwnBase/,
     );
     await expect(h.controller.restore({ backupDir: profile() })).rejects.toThrow(
-      /newer version of Tandem/,
+      /newer version of OwnBase/,
     );
     await expect(h.controller.startForLaunch()).resolves.toBeNull();
-    expect(h.controller.status().launchError).toMatch(/newer version of Tandem/);
+    expect(h.controller.status().launchError).toMatch(/newer version of OwnBase/);
     expect([...h.settings]).toEqual(before);
     expect(h.starts).toEqual([]);
     expect(readdirSync(h.dataRoot)).toEqual(["old-team"]);
@@ -1934,7 +1934,7 @@ describe("restoring a backup in the desktop app", () => {
           ],
         },
       ],
-      // Chosen to start with Tandem before its folder went missing.
+      // Chosen to start with OwnBase before its folder went missing.
       ["startOnLaunch", "rocket-team"],
     ]);
     const h = harness({ settings });
@@ -1973,7 +1973,7 @@ describe("restoring a backup in the desktop app", () => {
     expect(later.starts.at(-1)).not.toHaveProperty("isolated");
   });
 
-  it("does not start a held workspace with Tandem, even if an older version chose it", async () => {
+  it("does not start a held workspace with OwnBase, even if an older version chose it", async () => {
     const h = harness();
     await h.controller.start({ workspaceName: "Rocket Team" });
     await h.controller.stop();
@@ -2065,7 +2065,7 @@ describe("restoring a backup in the desktop app", () => {
     expect(h.starts).toEqual([]);
   });
 
-  /** The list of an earlier computer: Rocket Team, chosen to start with Tandem, its folder gone. */
+  /** The list of an earlier computer: Rocket Team, chosen to start with OwnBase, its folder gone. */
   function listedGone(id: string, extra: Record<string, unknown> = {}) {
     return new Map<string, unknown>([
       [
@@ -2095,7 +2095,7 @@ describe("restoring a backup in the desktop app", () => {
     const h = harness({ settings });
     h.saveFails = true;
     await expect(h.controller.restore({ backupDir: backup.dir })).rejects.toThrow(
-      "Tandem could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
+      "OwnBase could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
     );
     // Nothing is left looking restored and safe: the folder is still gone.
     expect(existsSync(join(h.dataRoot, "rocket-team"))).toBe(false);
@@ -2109,7 +2109,7 @@ describe("restoring a backup in the desktop app", () => {
     expect(await later.controller.startForLaunch()).toBeNull();
     expect(later.starts).toEqual([]);
 
-    // The hold saves, but taking it off starting with Tandem does not.
+    // The hold saves, but taking it off starting with OwnBase does not.
     h.saveFails = false;
     h.unwritableKeys.add("startOnLaunch");
     await expect(h.controller.restore({ backupDir: backup.dir })).rejects.toThrow(
@@ -2323,7 +2323,7 @@ describe("a stable public address configured for this computer", () => {
     // The connector is told which run to confirm, so the saved address cannot
     // publish a link to a workspace other than this one.
     expect(h.tunnelStarts.at(-1)).toMatchObject({ port: 8543, instanceId: "workspace-run-1" });
-    // A carrier Tandem does not own is not trusted to sanitize Cloudflare's
+    // A carrier OwnBase does not own is not trusted to sanitize Cloudflare's
     // client-address header before forwarding it from loopback.
     expect(h.proxyTrust).toEqual([]);
 
@@ -2336,7 +2336,7 @@ describe("a stable public address configured for this computer", () => {
     expect(h.controller.status().openToAllError).not.toMatch(/new link/);
   });
 
-  it("reopens a stable address when started with Tandem, only when asked, and invite-only", async () => {
+  it("reopens a stable address when started with OwnBase, only when asked, and invite-only", async () => {
     let address = configured;
     const first = harness({
       publicAccess: true,
@@ -2456,7 +2456,7 @@ describe("a stable public address configured for this computer", () => {
     expect(next.controller.status().launchError).toBeUndefined();
   });
 
-  /** A next launch of Rocket Team, chosen to start with Tandem and reopen its address. */
+  /** A next launch of Rocket Team, chosen to start with OwnBase and reopen its address. */
   async function reopeningLaunch() {
     const first = harness({
       publicAccess: true,
@@ -2612,7 +2612,7 @@ describe("a stable public address configured for this computer", () => {
   });
 
   it("refuses to open a link, and changes nothing, while its configuration is unusable", async () => {
-    const error = "Set both TANDEM_TUNNEL_URL and TANDEM_TUNNEL_TOKEN_FILE.";
+    const error = "Set both OWNBASE_TUNNEL_URL and OWNBASE_TUNNEL_TOKEN_FILE.";
     const h = harness({ publicAccess: true, publicAddress: () => ({ error }) });
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.controller.status()).toMatchObject({ publicAddressError: error });
@@ -2728,13 +2728,13 @@ describe("starting with the computer", () => {
     await h.controller.setStartOnLaunch(made.folder!);
     await h.controller.stop();
     h.beforeBind = () => {
-      throw new Error("The database is newer than this version of Tandem.");
+      throw new Error("The database is newer than this version of OwnBase.");
     };
     expect(await h.controller.startForLaunch()).toBeNull();
     expect(h.controller.status()).toMatchObject({
       running: false,
       launchError:
-        "Tandem did not start hosting Rocket Team when it opened. The database is newer than this version of Tandem.",
+        "OwnBase did not start hosting Rocket Team when it opened. The database is newer than this version of OwnBase.",
     });
     // The choice stands: it was the start that failed, not the choice.
     expect(h.settings.get("startOnLaunch")).toBe(made.folder);
@@ -3763,7 +3763,7 @@ describe("restoring an earlier copy over a workspace still on this computer", ()
     expect(h.starts).toEqual([]);
   });
 
-  it("takes a backup chosen in the system's dialog, and no longer starts with Tandem", async () => {
+  it("takes a backup chosen in the system's dialog, and no longer starts with OwnBase", async () => {
     const { h, folder, dataDir, id } = await scheduled();
     const chosen = await archive(dataDir, profile(), "copy");
     writeWorkspaceName(dataDir, "Rocket Team, later");
@@ -3820,7 +3820,7 @@ describe("restoring an earlier copy over a workspace still on this computer", ()
     h.saveFails = true;
     await expect(
       h.controller.restoreOver({ folder, backup: "rocket-team-2026-03-01T09-00-00" }),
-    ).rejects.toThrow("Tandem could not save its settings, so it did not restore the backup.");
+    ).rejects.toThrow("OwnBase could not save its settings, so it did not restore the backup.");
     expect(readWorkspace(dataDir)?.name).toBe("Rocket Team, later");
     expect(readdirSync(h.dataRoot)).toEqual([folder]);
     expect(registryOf(h)[0]!.restoredHold).toBeUndefined();

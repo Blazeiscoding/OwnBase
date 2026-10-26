@@ -157,7 +157,7 @@ function ToastStack({ shown, dismiss }: { shown: Shown[]; dismiss: (id: number) 
       ref={stack}
       // The modal layer makes every other child of the body inert. A notice is
       // not a competing dialog, and a failure is worth reading over one.
-      data-tandem-toasts=""
+      data-ownbase-toasts=""
       onFocusCapture={(event) => {
         const from = event.relatedTarget;
         if (from instanceof HTMLElement && !event.currentTarget.contains(from))

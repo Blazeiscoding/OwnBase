@@ -6,7 +6,11 @@
  * message naming the notification, and the page does what it was given to.
  */
 export const NOTIFICATION_WORKER = "/notification-worker.js";
-/** The message the worker sends a page when one of its notifications is clicked. */
+/**
+ * The message the worker sends a page when one of its notifications is
+ * clicked. Named when the app was called Tandem, and kept: a worker installed
+ * by an earlier version sends it until the browser updates the worker.
+ */
 export const NOTIFICATION_CLICK = "tandem:notification-click";
 /** Clicks a page still answers, oldest dropped first. */
 const KEPT_CLICKS = 50;

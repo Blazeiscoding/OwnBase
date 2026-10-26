@@ -3,7 +3,7 @@ import { normalizeServerUrl } from "@slackoss/client-core";
 export {
   DEEP_LINK_PROTOCOL,
   DEEP_LINK_PROTOCOLS,
-  TANDEM_DEEP_LINK_PROTOCOL,
+  OWNBASE_DEEP_LINK_PROTOCOL,
 } from "@slackoss/protocol";
 
 /** normalizeServerUrl, but null instead of throwing on junk input. */

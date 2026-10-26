@@ -1,6 +1,6 @@
 # Third-party notices
 
-Tandem is released under the MIT License (see [LICENSE](LICENSE)). It also
+OwnBase is released under the MIT License (see [LICENSE](LICENSE)). It also
 contains material from the projects below, each under its own license.
 
 ## Its Hover

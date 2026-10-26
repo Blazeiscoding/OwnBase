@@ -42,7 +42,7 @@ const SectionNameDialog = lazy(() =>
 );
 
 /** What a dragged conversation row carries. */
-const DRAG_TYPE = "application/x-tandem-conversation";
+const DRAG_TYPE = "application/x-ownbase-conversation";
 
 interface Props {
   activeChannelId: ID | null;
@@ -877,6 +877,7 @@ export function Sidebar(props: Props) {
  * that is unavailable, as in a private window, only means they reopen.
  */
 function useCollapsedSections(): [Set<string>, (section: string) => void] {
+  // Named when the app was called Tandem, and kept, so folded sections stay folded.
   const key = "tandem:collapsed-sections";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
@@ -927,7 +928,7 @@ function NavRow(props: {
 }
 
 /**
- * Discord's rail of servers, for Tandem's workspaces: this one, marked as on
+ * Discord's rail of servers, for OwnBase's workspaces: this one, marked as on
  * screen, then this device's other saved sign-ins, then a way to add one.
  * The same choices as the menu on the workspace's name, one click away.
  */

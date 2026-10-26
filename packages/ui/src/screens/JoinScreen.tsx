@@ -235,7 +235,7 @@ export function JoinScreen({
               <span className="drop-shadow-[0_6px_18px_color-mix(in_oklab,var(--color-copper)_45%,transparent)]">
                 <BrandMark size={30} />
               </span>
-              Tandem
+              OwnBase
             </div>
             {authing ? (
               <p className="text-[15px] text-ink-dim">

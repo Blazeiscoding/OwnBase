@@ -57,7 +57,7 @@ export async function startHostedServer(
     } catch (stopError) {
       throw new AggregateError(
         [error, stopError],
-        "The workspace could not finish starting, and then could not be stopped. Quit Tandem and open it again before starting this workspace.",
+        "The workspace could not finish starting, and then could not be stopped. Quit OwnBase and open it again before starting this workspace.",
       );
     }
     throw error;

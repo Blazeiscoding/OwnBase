@@ -103,7 +103,7 @@ const cases = [
     unchanged: [packageTask("web", "build")],
   },
   {
-    file: "apps/desktop/src/renderer/public/tandem.svg",
+    file: "apps/desktop/src/renderer/public/ownbase.svg",
     changed: [packageTask("desktop", "build"), packageTask("ui", "test")],
     unchanged: [packageTask("web", "build")],
   },
@@ -113,7 +113,7 @@ const cases = [
     unchanged: [packageTask("desktop", "build")],
   },
   {
-    file: "apps/web/public/tandem.svg",
+    file: "apps/web/public/ownbase.svg",
     changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },

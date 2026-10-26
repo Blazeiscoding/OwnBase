@@ -23,7 +23,7 @@ export function buttonClass(variant: ButtonVariant = "secondary", extra?: string
 }
 
 /**
- * Tandem's button. It keeps a native button's default type, so one in a
+ * OwnBase's button. It keeps a native button's default type, so one in a
  * form still submits it unless told `type="button"`.
  */
 export function Button({

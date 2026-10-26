@@ -169,7 +169,7 @@ describe("a workspace given a relay while it runs", () => {
   });
 
   it("gives calls started afterwards the relay, and keeps it when given one it refuses", async () => {
-    dataDir = mkdtempSync(join(tmpdir(), "tandem-relay-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-relay-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",

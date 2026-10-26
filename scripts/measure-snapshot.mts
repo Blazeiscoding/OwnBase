@@ -50,7 +50,7 @@ const summary = (values: number[]) =>
   `p50 ${percentile(values, 50).toFixed(2)} ms, p95 ${percentile(values, 95).toFixed(2)} ms`;
 const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} kB`;
 
-const dir = mkdtempSync(join(tmpdir(), "tandem-snapshot-"));
+const dir = mkdtempSync(join(tmpdir(), "ownbase-snapshot-"));
 const server = await createWorkspaceServer({
   dataDir: dir,
   host: "127.0.0.1",

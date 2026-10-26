@@ -51,7 +51,7 @@ export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
       usageHint: "[question]",
       // The app opens its poll window for this; only an older one sends it here.
       run: () => null,
-      inApp: "Polls are made in the poll window. Update Tandem to open it with /poll.",
+      inApp: "Polls are made in the poll window. Update OwnBase to open it with /poll.",
     },
   ],
 ]);

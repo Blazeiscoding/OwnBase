@@ -29,7 +29,7 @@ export function notificationContent(
   preview: NotificationPreview,
   message: { from: string; channelName?: string; body: string },
 ): { title: string; body: string } {
-  if (preview === "none") return { title: "New message", body: "Open Tandem to read it." };
+  if (preview === "none") return { title: "New message", body: "Open OwnBase to read it." };
   const title = `${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
   return { title, body: preview === "full" ? message.body : "New message" };
 }
@@ -42,7 +42,7 @@ export function reminderContent(
   preview: NotificationPreview,
   message: { from: string; channelName?: string; body: string },
 ): { title: string; body: string } {
-  if (preview === "none") return { title: "Reminder", body: "Open Tandem to see it." };
+  if (preview === "none") return { title: "Reminder", body: "Open OwnBase to see it." };
   const title = `Reminder: ${message.from}${message.channelName ? ` in #${message.channelName}` : ""}`;
   return { title, body: preview === "full" ? message.body : "About a message" };
 }
@@ -56,7 +56,7 @@ export function ringContent(
   preview: NotificationPreview,
   ring: { from: string; group?: string },
 ): { title: string; body: string } {
-  if (preview === "none") return { title: "Incoming huddle", body: "Open Tandem to answer it." };
+  if (preview === "none") return { title: "Incoming huddle", body: "Open OwnBase to answer it." };
   return {
     title: `${ring.from} is calling`,
     body: ring.group ? `Huddle with ${ring.group}` : "Huddle with you",
@@ -73,7 +73,7 @@ export function catchUpContent(
   missed: { count: number; conversations: number; channelName?: string; senders: string },
 ): { title: string; body: string } {
   const count = `${missed.count} new messages`;
-  if (preview === "none") return { title: count, body: "Open Tandem to read them." };
+  if (preview === "none") return { title: count, body: "Open OwnBase to read them." };
   const where =
     missed.conversations > 1
       ? ` in ${missed.conversations} conversations`

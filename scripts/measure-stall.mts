@@ -75,7 +75,7 @@ async function measure(label: string, work: () => unknown): Promise<void> {
   );
 }
 
-const dir = mkdtempSync(join(tmpdir(), "tandem-stall-"));
+const dir = mkdtempSync(join(tmpdir(), "ownbase-stall-"));
 const dataDir = join(dir, "workspace");
 const retentionDays = 30;
 let server: WorkspaceServer | undefined;

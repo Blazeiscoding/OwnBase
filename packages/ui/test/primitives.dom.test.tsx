@@ -420,7 +420,7 @@ describe("a sheet", () => {
     expect(sheet).toHaveAttribute("aria-modal", "true");
     const frame = sheet.querySelector(".bottom-sheet")!;
     expect(frame).toHaveClass("fixed", "animate-sheet-in");
-    expect(sheet.closest("[data-tandem-modal]")).toHaveClass("bg-black/40", "animate-fade-in");
+    expect(sheet.closest("[data-ownbase-modal]")).toHaveClass("bg-black/40", "animate-fade-in");
     expect(within(sheet).getByRole("button", { name: "Copy link" }).parentElement).toHaveClass(
       "surface-float",
       "rounded-2xl",
@@ -444,7 +444,7 @@ describe("a sheet", () => {
     expect(screen.getByRole("dialog", { name: "Share to" })).toBeInTheDocument();
 
     // A real press, whose mousedown would move focus on its own if let.
-    await user.click(screen.getByRole("dialog").closest<HTMLElement>("[data-tandem-modal]")!);
+    await user.click(screen.getByRole("dialog").closest<HTMLElement>("[data-ownbase-modal]")!);
     expect(screen.queryByRole("dialog")).toBeNull();
     expect(share).toHaveFocus();
   });
@@ -483,7 +483,7 @@ describe("a sheet", () => {
     expect(trigger).toHaveFocus();
 
     await user.keyboard("{Enter}");
-    await user.click(screen.getByRole("menu").closest<HTMLElement>("[data-tandem-modal]")!);
+    await user.click(screen.getByRole("menu").closest<HTMLElement>("[data-ownbase-modal]")!);
     expect(screen.queryByRole("menu")).toBeNull();
     expect(trigger).toHaveFocus();
     expect(onSelect).not.toHaveBeenCalled();

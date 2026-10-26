@@ -62,7 +62,7 @@ describe("which links get a preview", () => {
     expect(
       previewLinks(
         "`https://code.example/inline`\n```\nhttps://code.example/block\n```\n" +
-          "https://me:secret@private.example/ http://tandem.example/#/c/C1/m/M1 " +
+          "https://me:secret@private.example/ http://ownbase.example/#/c/C1/m/M1 " +
           "ftp://files.example/ https://kept.example/page?q=1#part",
       ),
     ).toEqual(["https://kept.example/page?q=1#part"]);

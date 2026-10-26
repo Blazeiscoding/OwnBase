@@ -228,7 +228,7 @@ describe("saying Saved", () => {
     await waitFor(() => expect(white).toBeEnabled());
     await user.click(white);
     expect(await within(settings).findByRole("alert")).toHaveTextContent(
-      "Could not save how Tandem looks on this device.",
+      "Could not save how OwnBase looks on this device.",
     );
     expect(within(settings).queryByText("Saved")).toBeNull();
   });

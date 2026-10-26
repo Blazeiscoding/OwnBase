@@ -54,11 +54,11 @@ jobs:
         run: |
           version=$(node -p "require('./package.json').version")
           mkdir -p release
-          tar -czf "release/tandem-server-$version.tar.gz" -C apps/server-cli/dist .
+          tar -czf "release/ownbase-server-$version.tar.gz" -C apps/server-cli/dist .
           cp apps/server-cli/dist/build.json release/server.build.json
           cp apps/server-cli/dist/web/build.json release/web.build.json
           # What this job tested, bound by SHA-256 here, where it was built.
-          node scripts/release-manifest.mjs bind release server "release/tandem-server-$version.tar.gz"
+          node scripts/release-manifest.mjs bind release server "release/ownbase-server-$version.tar.gz"
       - uses: actions/upload-artifact@v4
         with:
           name: release-server
@@ -190,7 +190,7 @@ jobs:
           prerelease=()
           if [[ "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft "${prerelease[@]}" \
-            --target "$GITHUB_SHA" --title "Tandem $TAG" --notes-file release/notes.md "${files[@]}"
+            --target "$GITHUB_SHA" --title "OwnBase $TAG" --notes-file release/notes.md "${files[@]}"
 
   # The installer is about 100 MB of a half-gigabyte storage allowance, and
   # ci.yml's clean-up leaves release-* alone, so this run deletes its own

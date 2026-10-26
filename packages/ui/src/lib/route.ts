@@ -72,7 +72,10 @@ export interface WorkspaceRoute {
 /** Channel and message ids never contain anything else. */
 const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
 
-/** The key this app's part of a history entry's state sits under. */
+/**
+ * The key this app's part of a history entry's state sits under. Named when
+ * the app was called Tandem, and kept, so earlier history entries still read.
+ */
 const KEY = "tandem";
 
 interface RouteState {

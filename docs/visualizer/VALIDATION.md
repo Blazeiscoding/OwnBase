@@ -53,7 +53,7 @@ A screen reader and printed output were not tried.
 
 ## Browser checks, 12 October 2026
 
-The atlas was redesigned again: Tandem's graphite theme, a wired map of every
+The atlas was redesigned again: OwnBase's graphite theme, a wired map of every
 file on Overview, journeys drawn small, and a board on Improvements. The same
 Playwright setup checked it, from the file, at 1440 × 900 and at 390 × 844 as a
 touch phone, in both themes.

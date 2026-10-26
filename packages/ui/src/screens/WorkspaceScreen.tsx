@@ -1291,7 +1291,7 @@ function WorkspaceInner({
         : status === "auth_failed"
           ? "signed out"
           : status === "protocol_mismatch"
-            ? "Server version incompatible — update Tandem"
+            ? "Server version incompatible — update OwnBase"
             : status === "password_change_required"
               ? "Choose a new password to carry on"
               : "offline";

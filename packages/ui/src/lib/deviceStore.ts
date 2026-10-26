@@ -146,6 +146,7 @@ export const JOURNAL_PREFIX = "slackoss-journal:";
 export const OWNER_KEY = "slackoss-device-owner";
 /** Invalidation only, without putting stored content in another transport. */
 export const CHANGE_KEY = "slackoss-device-changed";
+/** Named when the app was called Tandem, and kept: it holds what this device saved. */
 const DATABASE = "tandem-device";
 const VALUES = "values";
 /** For each key, the last change each tab made to it: `{ [tab]: [seq, at] }`. */

@@ -1,7 +1,7 @@
 {
   "name": "slackoss-server",
   "version": "0.1.0",
-  "description": "Self-hosted Tandem workspace server — run it on a VPS or your own PC",
+  "description": "Self-hosted OwnBase workspace server — run it on a VPS or your own PC",
   "license": "MIT",
   "type": "module",
   "bin": {

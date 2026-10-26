@@ -31,7 +31,7 @@ const protector: CredentialProtector = {
 };
 const folders: string[] = [];
 function settings() {
-  const folder = mkdtempSync(join(tmpdir(), "tandem-settings-drain-"));
+  const folder = mkdtempSync(join(tmpdir(), "ownbase-settings-drain-"));
   folders.push(folder);
   const path = join(folder, "settings.json");
   return { store: createSettingsStorage(path, protector), path };

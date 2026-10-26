@@ -65,7 +65,7 @@ function BothThemes() {
   return (
     <div className="h-full overflow-y-auto">
       <main className="mx-auto max-w-[1440px] px-4 pb-8 pt-6 sm:px-6">
-        <h1 className="text-2xl font-semibold tracking-tight">Tandem primitives gallery</h1>
+        <h1 className="text-2xl font-semibold tracking-tight">OwnBase primitives gallery</h1>
         <p className="mt-1 max-w-2xl text-sm text-ink-dim">
           Development only. Every shared control in its states, in both themes. Point at a control
           or Tab to it to see its hover and focus. One theme alone:{" "}
@@ -88,13 +88,13 @@ function BothThemes() {
 }
 
 interface FrameHeight {
-  tandemGallery: Theme;
+  ownBaseGallery: Theme;
   height: number;
 }
 
 function isFrameHeight(data: unknown): data is FrameHeight {
   const value = data as FrameHeight | null;
-  return typeof value?.tandemGallery === "string" && typeof value.height === "number";
+  return typeof value?.ownBaseGallery === "string" && typeof value.height === "number";
 }
 
 /** A theme's sheet, as tall as what is in it, so the page scrolls rather than the frame. */
@@ -103,7 +103,7 @@ function ThemeFrame({ theme }: { theme: Theme }) {
   useEffect(() => {
     const onMessage = (event: MessageEvent) => {
       if (event.origin !== window.location.origin || !isFrameHeight(event.data)) return;
-      if (event.data.tandemGallery === theme) setHeight(event.data.height);
+      if (event.data.ownBaseGallery === theme) setHeight(event.data.height);
     };
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
@@ -138,7 +138,7 @@ function ThemeSheet({ theme }: { theme: Theme }) {
     const element = content.current;
     if (!element || window.parent === window || typeof ResizeObserver === "undefined") return;
     const observer = new ResizeObserver(() => {
-      const message: FrameHeight = { tandemGallery: theme, height: element.offsetHeight };
+      const message: FrameHeight = { ownBaseGallery: theme, height: element.offsetHeight };
       window.parent.postMessage(message, window.location.origin);
     });
     observer.observe(element);
@@ -154,7 +154,7 @@ function ThemeSheet({ theme }: { theme: Theme }) {
             {!framed && (
               <header>
                 <h1 className="text-2xl font-semibold tracking-tight">
-                  Tandem primitives gallery: {THEME_NAMES[theme]}
+                  OwnBase primitives gallery: {THEME_NAMES[theme]}
                 </h1>
                 <p className="mt-1 text-sm text-ink-dim">
                   Development only. Point at a control or Tab to it to see its hover and focus.{" "}
@@ -301,7 +301,7 @@ function TextFields() {
           error="Use at least 8 characters for the password."
           defaultValue="short"
         />
-        <TextField label="Workspace address" defaultValue="tandem.example.com" disabled />
+        <TextField label="Workspace address" defaultValue="ownbase.example.com" disabled />
       </div>
       <Specimen name="small, in a row with its button" wide>
         <div className="flex w-full flex-wrap items-start gap-2">

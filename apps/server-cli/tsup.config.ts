@@ -22,7 +22,7 @@ export default defineConfig({
       "const require = __createRequire(import.meta.url);",
     ].join("\n"),
   },
-  define: { __TANDEM_BUILD__: JSON.stringify(identity) },
+  define: { __OWNBASE_BUILD__: JSON.stringify(identity) },
   clean: true,
   async onSuccess() {
     writeFileSync("dist/build.json", JSON.stringify(identity, null, 2) + "\n");

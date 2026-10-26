@@ -47,7 +47,7 @@ describe("recovering the window's page", () => {
 
 /** Where the page was, for recovery to return to (F08). */
 describe("the page's place across a recovery", () => {
-  const PAGE = "file:///opt/Tandem/resources/app.asar/out/renderer/index.html";
+  const PAGE = "file:///opt/OwnBase/resources/app.asar/out/renderer/index.html";
   const trusted = rendererUrlTrust(PAGE);
   const saved = {
     tandem: { server: "http://10.0.0.5:8543", channelId: "C1", threadRootId: null, view: "saved" },

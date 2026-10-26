@@ -9,7 +9,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import {
   findCloudflared,
-  tandemIsReachable,
+  ownBaseIsReachable,
   openConfiguredAddress,
   openNamedTunnel,
   openQuickTunnel,
@@ -35,7 +35,7 @@ function launchAs(mode: string, extra: Record<string, string> = {}) {
 }
 
 /** A token file the tests point at; its contents are never read by the app. */
-const workdir = mkdtempSync(join(tmpdir(), "tandem-named-tunnel-"));
+const workdir = mkdtempSync(join(tmpdir(), "ownbase-named-tunnel-"));
 const tokenFile = join(workdir, "tunnel-token.txt");
 writeFileSync(tokenFile, "eyJhIjoiSECRETtoken");
 afterAll(() => rmSync(workdir, { recursive: true, force: true }));
@@ -104,7 +104,7 @@ describe("finding cloudflared", () => {
       paths.includes(path);
 
   it("takes a path configured for the app, and nothing else when that is missing", () => {
-    const env = { TANDEM_CLOUDFLARED: "D:\\tools\\cloudflared.exe", PATH: "C:\\bin" };
+    const env = { OWNBASE_CLOUDFLARED: "D:\\tools\\cloudflared.exe", PATH: "C:\\bin" };
     expect(findCloudflared(env, present("D:\\tools\\cloudflared.exe"), "win32")).toBe(
       "D:\\tools\\cloudflared.exe",
     );
@@ -150,12 +150,12 @@ describe("checking the public workspace identity", () => {
     });
     try {
       const health = `${endpoint.url}/api/health`;
-      expect(await tandemIsReachable(health, new AbortController().signal, "another-run")).toBe(
+      expect(await ownBaseIsReachable(health, new AbortController().signal, "another-run")).toBe(
         false,
       );
-      expect(await tandemIsReachable(health, new AbortController().signal, "workspace-run-1")).toBe(
-        true,
-      );
+      expect(
+        await ownBaseIsReachable(health, new AbortController().signal, "workspace-run-1"),
+      ).toBe(true);
       expect(options).toHaveLength(2);
       for (const option of options) {
         expect(option.cache).toBe("no-store");
@@ -163,7 +163,7 @@ describe("checking the public workspace identity", () => {
         expect(option.headers).toEqual({ accept: "application/json" });
       }
       const nonces = requested.map((value) =>
-        new URL(value, endpoint.url).searchParams.get("_tandem"),
+        new URL(value, endpoint.url).searchParams.get("_ownbase"),
       );
       expect(nonces[0]).toMatch(/^[0-9a-f-]{36}$/);
       expect(nonces[1]).toMatch(/^[0-9a-f-]{36}$/);
@@ -185,7 +185,7 @@ describe("checking the public workspace identity", () => {
     });
     try {
       expect(
-        await tandemIsReachable(
+        await ownBaseIsReachable(
           `${endpoint.url}/api/health`,
           new AbortController().signal,
           "workspace-run-1",
@@ -211,12 +211,12 @@ describe("checking the public workspace identity", () => {
     });
     try {
       const health = `${endpoint.url}/api/health`;
-      expect(await tandemIsReachable(health, new AbortController().signal, "workspace-run-1")).toBe(
-        false,
-      );
-      expect(await tandemIsReachable(health, new AbortController().signal, "workspace-run-1")).toBe(
-        false,
-      );
+      expect(
+        await ownBaseIsReachable(health, new AbortController().signal, "workspace-run-1"),
+      ).toBe(false);
+      expect(
+        await ownBaseIsReachable(health, new AbortController().signal, "workspace-run-1"),
+      ).toBe(false);
     } finally {
       await endpoint.close();
     }
@@ -247,13 +247,13 @@ describe("checking the public workspace identity", () => {
     // Nothing is listening now. That says nothing about who owns the port, so
     // a caller must be able to stay quiet rather than name a program.
     expect(await probeHealth(health, signal(), "workspace-run-1")).toBe("no-answer");
-    expect(await tandemIsReachable(health, signal(), "workspace-run-1")).toBe(false);
+    expect(await ownBaseIsReachable(health, signal(), "workspace-run-1")).toBe(false);
   });
 });
 
 describe("opening a quick tunnel", () => {
   it("resolves with the address once a connection has registered, pointed at the workspace's port", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tandem-tunnel-"));
+    const dir = mkdtempSync(join(tmpdir(), "ownbase-tunnel-"));
     try {
       const argsFile = join(dir, "args.json");
       const tunnel = await openQuickTunnel({
@@ -267,7 +267,7 @@ describe("opening a quick tunnel", () => {
       const args = JSON.parse(readFileSync(argsFile, "utf8")) as string[];
       expect(args[0]).toBe("tunnel");
       expect(args[1]).toBe("--config");
-      expect(args[2]).toMatch(/tandem-cloudflared-.+[\\/]config\.yml$/);
+      expect(args[2]).toMatch(/ownbase-cloudflared-.+[\\/]config\.yml$/);
       expect(args.slice(3)).toEqual(["--no-autoupdate", "--url", "http://127.0.0.1:8543"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -280,7 +280,7 @@ describe("opening a quick tunnel", () => {
     expect(tunnel.url).toBe("https://fake-open-to-all.trycloudflare.com");
   });
 
-  it("does not expose the address until Tandem answers through Cloudflare", async () => {
+  it("does not expose the address until OwnBase answers through Cloudflare", async () => {
     let makeHealthy!: () => void;
     const ready = new Promise<void>((resolve) => {
       makeHealthy = resolve;
@@ -381,7 +381,7 @@ describe("a stable address configured for this app", () => {
       "https://chat.example.org#top",
       "https://chat.example.org ",
       "https://localhost",
-      "https://tandem",
+      "https://ownbase",
       "https://chat.example.local",
       "https://office.internal",
       "https://192.0.2.10",
@@ -407,7 +407,7 @@ describe("reading the configured stable address", () => {
 
   it("is absent until one of its settings is present", () => {
     expect(readNamedTunnelConfig({}, present())).toBeNull();
-    expect(readNamedTunnelConfig({ TANDEM_TUNNEL_URL: "" }, present())).toBeNull();
+    expect(readNamedTunnelConfig({ OWNBASE_TUNNEL_URL: "" }, present())).toBeNull();
   });
 
   it("takes both settings together, under any of its prefixes", () => {
@@ -415,8 +415,8 @@ describe("reading the configured stable address", () => {
     expect(
       readNamedTunnelConfig(
         {
-          TANDEM_TUNNEL_URL: "https://chat.example.org",
-          TANDEM_TUNNEL_TOKEN_FILE: tokenFile,
+          OWNBASE_TUNNEL_URL: "https://chat.example.org",
+          OWNBASE_TUNNEL_TOKEN_FILE: tokenFile,
         },
         present(tokenFile),
       ),
@@ -435,10 +435,10 @@ describe("reading the configured stable address", () => {
 
   it("explains a half-configured pair rather than quietly opening a temporary address", () => {
     expect(
-      readNamedTunnelConfig({ TANDEM_TUNNEL_URL: "https://chat.example.org" }, present()),
+      readNamedTunnelConfig({ OWNBASE_TUNNEL_URL: "https://chat.example.org" }, present()),
     ).toEqual({ error: expect.stringMatching(/Set both/) });
     expect(
-      readNamedTunnelConfig({ TANDEM_TUNNEL_TOKEN_FILE: tokenFile }, present(tokenFile)),
+      readNamedTunnelConfig({ OWNBASE_TUNNEL_TOKEN_FILE: tokenFile }, present(tokenFile)),
     ).toEqual({ error: expect.stringMatching(/Set both/) });
   });
 
@@ -446,8 +446,8 @@ describe("reading the configured stable address", () => {
     expect(
       readNamedTunnelConfig(
         {
-          TANDEM_TUNNEL_URL: "https://chat.example.org",
-          TANDEM_TUNNEL_TOKEN_FILE: tokenFile,
+          OWNBASE_TUNNEL_URL: "https://chat.example.org",
+          OWNBASE_TUNNEL_TOKEN_FILE: tokenFile,
         },
         present(),
       ),
@@ -455,8 +455,8 @@ describe("reading the configured stable address", () => {
     expect(
       readNamedTunnelConfig(
         {
-          TANDEM_TUNNEL_URL: "http://chat.example.org",
-          TANDEM_TUNNEL_TOKEN_FILE: tokenFile,
+          OWNBASE_TUNNEL_URL: "http://chat.example.org",
+          OWNBASE_TUNNEL_TOKEN_FILE: tokenFile,
         },
         present(tokenFile),
       ),
@@ -468,7 +468,7 @@ describe("opening a configured stable tunnel", () => {
   const publicUrl = "https://chat.example.org";
 
   it("runs the saved connector from its token file at the configured address", async () => {
-    const dir = mkdtempSync(join(tmpdir(), "tandem-tunnel-"));
+    const dir = mkdtempSync(join(tmpdir(), "ownbase-tunnel-"));
     try {
       const argsFile = join(dir, "args.json");
       const tunnel = await openNamedTunnel({
@@ -484,7 +484,7 @@ describe("opening a configured stable tunnel", () => {
       expect(tunnel.url).toBe(publicUrl);
       const args = JSON.parse(readFileSync(argsFile, "utf8")) as string[];
       expect(args[0]).toBe("tunnel");
-      expect(args[2]).toMatch(/tandem-cloudflared-.+[\\/]config\.yml$/);
+      expect(args[2]).toMatch(/ownbase-cloudflared-.+[\\/]config\.yml$/);
       // The token stays a file cloudflared reads; the app never handles it.
       expect(args.slice(3)).toEqual(["--no-autoupdate", "run", "--token-file", tokenFile]);
     } finally {
@@ -570,8 +570,8 @@ describe("choosing which stable address to publish", () => {
     (path: string) =>
       paths.includes(path);
   const named = {
-    TANDEM_TUNNEL_URL: "https://chat.example.org",
-    TANDEM_TUNNEL_TOKEN_FILE: tokenFile,
+    OWNBASE_TUNNEL_URL: "https://chat.example.org",
+    OWNBASE_TUNNEL_TOKEN_FILE: tokenFile,
   };
 
   it("is absent when nothing is configured anywhere", () => {
@@ -582,7 +582,7 @@ describe("choosing which stable address to publish", () => {
   it("takes a saved address over one left in the environment", () => {
     const saved = resolvePublicAddress(
       "  https://box.tail1234.ts.net  ",
-      { ...named, TANDEM_PUBLIC_URL: "https://stale.example.org" },
+      { ...named, OWNBASE_PUBLIC_URL: "https://stale.example.org" },
       present(tokenFile),
     );
     expect(saved).toEqual({ carrier: "elsewhere", publicUrl: "https://box.tail1234.ts.net" });
@@ -590,7 +590,7 @@ describe("choosing which stable address to publish", () => {
 
   it("takes an address from the environment when none is saved", () => {
     expect(
-      resolvePublicAddress(null, { TANDEM_PUBLIC_URL: "https://box.tail1234.ts.net" }, present()),
+      resolvePublicAddress(null, { OWNBASE_PUBLIC_URL: "https://box.tail1234.ts.net" }, present()),
     ).toEqual({ carrier: "elsewhere", publicUrl: "https://box.tail1234.ts.net" });
     for (const name of ["GATHERLINE_PUBLIC_URL", "SLACKOSS_PUBLIC_URL"])
       expect(
@@ -598,9 +598,9 @@ describe("choosing which stable address to publish", () => {
       ).toEqual({ carrier: "elsewhere", publicUrl: "https://box.tail1234.ts.net" });
   });
 
-  it("falls back to the tunnel Tandem runs itself", () => {
+  it("falls back to the tunnel OwnBase runs itself", () => {
     expect(resolvePublicAddress(null, named, present(tokenFile))).toEqual({
-      carrier: "tandem",
+      carrier: "ownbase",
       publicUrl: "https://chat.example.org",
       tokenFile,
     });

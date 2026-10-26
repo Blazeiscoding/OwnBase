@@ -111,7 +111,7 @@ describe("a dialog on its way out", () => {
     expect(copy).not.toBeNull();
     expect(copy).toHaveAttribute("aria-hidden", "true");
     expect(copy!.inert).toBe(true);
-    expect(copy!.hasAttribute("data-tandem-modal")).toBe(false);
+    expect(copy!.hasAttribute("data-ownbase-modal")).toBe(false);
     // Nothing in it can be found by id, name or role while it goes.
     expect(copy!.querySelector("[id], [name], [role]")).toBeNull();
     expect(copy!.querySelector("input")!.value).toBe("Maya");
@@ -126,7 +126,7 @@ describe("a dialog on its way out", () => {
 
   it("leaves nothing when it closes while still opening, or when less motion is asked for", () => {
     playing = (element) =>
-      element.hasAttribute("data-tandem-modal")
+      element.hasAttribute("data-ownbase-modal")
         ? [{ animationName: "pop-in", finished: Promise.resolve() }]
         : [];
     const opening = render(<Closable open>text</Closable>);

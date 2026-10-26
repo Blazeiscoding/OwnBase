@@ -8,7 +8,7 @@ import { ARTIFACTS, buildIdentity } from "../../scripts/build-identity.mjs";
 // Which source this build is (IMP-08): the hosted server and the window both
 // report it, and out/build.json goes into the package for tests to check.
 const identity = buildIdentity(ARTIFACTS.desktop.inputs);
-const define = { __TANDEM_BUILD__: JSON.stringify(identity) };
+const define = { __OWNBASE_BUILD__: JSON.stringify(identity) };
 
 export default defineConfig({
   main: {
@@ -19,7 +19,7 @@ export default defineConfig({
         exclude: ["@slackoss/server", "@slackoss/protocol", "@slackoss/client-core"],
       }),
       {
-        name: "tandem-build-identity",
+        name: "ownbase-build-identity",
         apply: "build",
         writeBundle() {
           const out = resolve(import.meta.dirname, "out");

@@ -48,10 +48,10 @@ export function incompatibleWorkspace(url: string, info: ServerInfo): string | n
     return `Something is answering at ${host(url)}, but it is not a workspace.`;
   }
   if (info.protocolVersion > PROTOCOL_VERSION) {
-    return `${info.workspaceName} runs a newer version of Tandem (server v${info.serverVersion}). Update this app to join it.`;
+    return `${info.workspaceName} runs a newer version of OwnBase (server v${info.serverVersion}). Update this app to join it.`;
   }
   if (info.protocolVersion < PROTOCOL_VERSION) {
-    return `${info.workspaceName} runs an older version of Tandem (server v${info.serverVersion}). Its host needs to update the server.`;
+    return `${info.workspaceName} runs an older version of OwnBase (server v${info.serverVersion}). Its host needs to update the server.`;
   }
   return null;
 }

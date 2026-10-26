@@ -1,5 +1,5 @@
 /*
- * The atlas wears Tandem's own look (packages/ui/src/theme.css): Onyx, a
+ * The atlas wears OwnBase's own look (packages/ui/src/theme.css): Onyx, a
  * graphite near-black, and White, following the device unless chosen. The
  * window is the darkest surface and holds the navigation. The page is a card
  * set into it with one rounded corner, as a conversation is in the app.
@@ -317,7 +317,7 @@ mark {
   gap: 11px;
   padding: 2px 8px;
 }
-/* Tandem's own mark, in its own colours on either theme. */
+/* OwnBase's own mark, in its own colours on either theme. */
 .brand-mark {
   width: 34px;
   height: 34px;

@@ -150,7 +150,7 @@ describe("a status that clears itself", () => {
   });
 
   it("clears as the server starts a status that ended while it was stopped", async () => {
-    const folder = mkdtempSync(join(tmpdir(), "tandem-status-"));
+    const folder = mkdtempSync(join(tmpdir(), "ownbase-status-"));
     folders.push(folder);
     const first = await start(folder);
     const owner = await first.register("owner");

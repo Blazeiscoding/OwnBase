@@ -141,7 +141,7 @@ function revision() {
   }
 }
 
-const dir = realpathSync(mkdtempSync(join(tmpdir(), "tandem-mixed-")));
+const dir = realpathSync(mkdtempSync(join(tmpdir(), "ownbase-mixed-")));
 let server: WorkspaceServer | undefined;
 /** Open sockets only: a closed one is let go, so the harness does not keep it. */
 const sockets = new Set<WebSocket>();
@@ -564,6 +564,6 @@ try {
   for (const ws of sockets) ws.close();
   await server?.stop().catch(() => {});
   // Only the folder this run made, under the system's temporary folder.
-  if (dir.startsWith(realpathSync(tmpdir()) + sep) && dir.includes("tandem-mixed-"))
+  if (dir.startsWith(realpathSync(tmpdir()) + sep) && dir.includes("ownbase-mixed-"))
     rmSync(dir, { recursive: true, force: true });
 }

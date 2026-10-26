@@ -15,7 +15,7 @@ describe("notification previews", () => {
       body: "New message",
     });
     const none = notificationContent("none", message);
-    expect(none).toEqual({ title: "New message", body: "Open Tandem to read it." });
+    expect(none).toEqual({ title: "New message", body: "Open OwnBase to read it." });
     expect(JSON.stringify(none)).not.toMatch(/Priya|design|Friday/);
   });
 
