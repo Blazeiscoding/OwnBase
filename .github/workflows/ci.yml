@@ -66,6 +66,8 @@ jobs:
         run: node --test scripts/build-identity.test.mjs
       - name: Test the release manifest
         run: node --test scripts/release-manifest.test.mjs
+      - name: Test the product name check
+        run: node --test scripts/check-product-name.test.mjs
       # Turbo compares each task's input hash; the archive only transports
       # its local cache. Each job keeps an archive of its own, and starts from
       # its own last one, or any job's. PR caches are reusable by later runs
@@ -99,6 +101,9 @@ jobs:
       # to that file, in the client and in the copy the CLI ships (REV-13).
       - run: node scripts/check-web-precompressed.mjs
       - run: node scripts/check-web-precompressed.mjs apps/server-cli/dist/web
+      # No earlier product name shows in the browser client, the desktop
+      # app's page, or the server and the client it ships (P2).
+      - run: node scripts/check-product-name.mjs apps/web/dist apps/desktop/out/renderer apps/server-cli/dist
       - name: Save successful task cache
         if: steps.task-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4

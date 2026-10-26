@@ -5,11 +5,11 @@ import { chromium } from "@playwright/test";
 import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
 
 const root = new URL("../", import.meta.url);
-const source = new URL("apps/web/public/tandem.svg", root);
+const source = new URL("apps/web/public/ownbase.svg", root);
 const destination = new URL("apps/desktop/build/", root);
 await mkdir(destination, { recursive: true });
 await mkdir(new URL("apps/desktop/src/renderer/public/", root), { recursive: true });
-await copyFile(source, new URL("apps/desktop/src/renderer/public/tandem.svg", root));
+await copyFile(source, new URL("apps/desktop/src/renderer/public/ownbase.svg", root));
 const browser = await chromium.launch();
 try {
   const page = await browser.newPage({
@@ -35,7 +35,7 @@ try {
   // its corner radius; a mark that fills the canvas is shrunk onto a grey plate.
   const svg = await readFile(source, "utf8");
   const macSvg = svg.replace('rx="12"', 'rx="9"');
-  if (macSvg === svg) throw new Error('tandem.svg no longer has rx="12"; update the macOS icon.');
+  if (macSvg === svg) throw new Error('ownbase.svg no longer has rx="12"; update the macOS icon.');
   const mac = await browser.newPage({ viewport: { width: 1024, height: 1024 } });
   await mac.setContent(
     `<style>body{margin:0;display:grid;place-items:center;width:1024px;height:1024px}svg{width:824px;height:824px;display:block}</style>${macSvg}`,

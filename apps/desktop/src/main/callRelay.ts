@@ -24,6 +24,7 @@ export type CallRelayDraft =
 
 /** How the relay is kept in the settings file: its secret encrypted by the OS. */
 interface StoredCallRelay {
+  /** The format's name from when the app was called Tandem, kept so saved keys still read. */
   kind: "tandem.call-relay";
   version: 1;
   relay: "cloudflare" | "custom";
@@ -97,7 +98,7 @@ function requireProtection(protector: CredentialProtector): void {
   }
   if (!available)
     throw new Error(
-      "Tandem cannot keep the relay's secret safe: this computer's credential protection is unavailable. Unlock your system key store and try again.",
+      "OwnBase cannot keep the relay's secret safe: this computer's credential protection is unavailable. Unlock your system key store and try again.",
     );
 }
 
@@ -109,7 +110,7 @@ export function encodeRelay(relay: CallRelay, protector: CredentialProtector): S
     ciphertext = protector.encryptString(secret);
   } catch {
     throw new Error(
-      "Tandem could not protect the relay's secret. Unlock your system key store and try again.",
+      "OwnBase could not protect the relay's secret. Unlock your system key store and try again.",
     );
   }
   return relay.kind === "cloudflare"
@@ -147,7 +148,7 @@ export function decodeRelay(value: unknown, protector: CredentialProtector): Cal
     secret = protector.decryptString(Buffer.from(stored.secret, "base64"));
   } catch {
     throw new Error(
-      "Tandem could not unlock the call relay's secret. Use the original system account, or set the relay again.",
+      "OwnBase could not unlock the call relay's secret. Use the original system account, or set the relay again.",
     );
   }
   const parsed = callRelaySchema.safeParse(

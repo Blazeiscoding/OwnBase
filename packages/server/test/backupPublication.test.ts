@@ -43,7 +43,7 @@ let root: string;
 let dataDir: string;
 let fileId: string;
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "tandem-backup-publication-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-backup-publication-"));
   dataDir = join(root, "workspace");
   const server = await createWorkspaceServer({ dataDir, host: "127.0.0.1", port: 0, mdns: false });
   try {

@@ -106,46 +106,46 @@ Usage: slackoss-server [options]
   --no-mdns         Do not advertise on the local network
   --storage-limit-mb <n>
                     Attachment storage cap in MiB; 0 is unlimited (default).
-                    Also settable with TANDEM_STORAGE_LIMIT_MB
-                    (the older GATHERLINE_ and SLACKOSS_ names still work).
+                    Also settable with OWNBASE_STORAGE_LIMIT_MB
+                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
   --abandoned-upload-hours <n>
                     How long an upload may sit unattached before it is freed
                     (default 24). Attachments a scheduled message still needs
                     are never swept, however old they are. Also settable with
-                    TANDEM_ABANDONED_UPLOAD_HOURS
-                    (the older GATHERLINE_ and SLACKOSS_ names still work).
+                    OWNBASE_ABANDONED_UPLOAD_HOURS
+                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
   --retention-days <n>
                     Discard conversation older than this many days; 0 keeps
                     everything (default). What it removes is removed from the
                     database, not hidden: getting it back means restoring a
                     backup taken before the sweep ran. A thread goes as one
                     thing, once its newest reply is past the window too. Also
-                    settable with TANDEM_RETENTION_DAYS
-                    (the older GATHERLINE_ and SLACKOSS_ names still work).
+                    settable with OWNBASE_RETENTION_DAYS
+                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
   --backup-dir <dir>
                     Take a backup on a timer into a dated folder in <dir>,
                     which must be outside --data. Each one is verified before
                     it is kept and restores with restore --from. Attachments
                     are not removed while one is copied, so it is complete.
-                    Off unless set. Also settable with TANDEM_BACKUP_DIR
+                    Off unless set. Also settable with OWNBASE_BACKUP_DIR
   --backup-every-hours <n>
                     Hours between scheduled backups (default 24). Also
-                    settable with TANDEM_BACKUP_EVERY_HOURS
+                    settable with OWNBASE_BACKUP_EVERY_HOURS
   --backup-keep <n> How many scheduled backups to keep (default 7). Older
                     ones in --backup-dir go; nothing else there is touched.
-                    Also settable with TANDEM_BACKUP_KEEP
+                    Also settable with OWNBASE_BACKUP_KEEP
   --member-notice <n>
                     For a workspace you host for others on a plan: past this
                     many members, the owner and admins are told it has more
                     than the plan includes. Nobody is locked out and people
                     keep joining. Apps, guests and deactivated accounts are not
                     counted. Off unless set. Also settable with
-                    TANDEM_MEMBER_NOTICE
+                    OWNBASE_MEMBER_NOTICE
   --plan-name <name>
                     The plan's name in that notice, such as Team. Also
-                    settable with TANDEM_PLAN_NAME
+                    settable with OWNBASE_PLAN_NAME
   --upgrade-url <u> Where the notice sends them to choose a bigger plan. Also
-                    settable with TANDEM_UPGRADE_URL
+                    settable with OWNBASE_UPGRADE_URL
   --web <dir>       Serve the browser client from this directory
   --public-url <u>  How others reach this server, e.g. https://chat.team.dev
                     (set it behind a reverse proxy; used in URLs given to apps)
@@ -162,8 +162,8 @@ Usage: slackoss-server [options]
                     there is one, so a whole office behind a single address
                     does not share one person's allowance. Turn this off only
                     on a network where everyone is already trusted. Also
-                    settable with TANDEM_RATE_LIMITS=off
-                    (the older GATHERLINE_ and SLACKOSS_ names still work).
+                    settable with OWNBASE_RATE_LIMITS=off
+                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
 
   --skip-upgrade-backup
                     Do not copy the workspace before upgrading it to a newer
@@ -288,7 +288,7 @@ if (command === "verify-backup" || command === "restore") {
         console.log(`
   Not in any backup, so set them again where it is restored: --public-url,
   --retention-days, --storage-limit-mb, --allow-private-hooks, --trust-proxy,
-  TANDEM_ICE_SERVERS, and any proxy or certificate in front of the server.
+  OWNBASE_ICE_SERVERS, and any proxy or certificate in front of the server.
 
   To look inside it first, restore it into a new directory and start that
   with --isolated. Its apps and scheduled messages wait until it is started
@@ -502,7 +502,7 @@ const server = await createWorkspaceServer({
   relay: relayFromEnvironment(envSetting),
 }).catch((err: unknown) => refuse(describeStartupError(err, { port, host })));
 
-console.log(`\n  Tandem server v${SERVER_VERSION} is running`);
+console.log(`\n  OwnBase server v${SERVER_VERSION} is running`);
 console.log(`  Data: ${resolve(values.data)}`);
 if (server.upgradeBackup) {
   console.log(`  Upgraded this workspace; the copy from before is at ${server.upgradeBackup}`);

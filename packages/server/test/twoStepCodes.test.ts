@@ -79,7 +79,7 @@ describe("two-step codes", () => {
   it("name the workspace and the handle for the app", () => {
     const uri = otpauthUri(RFC_SECRET, "Rocket Team", "maya");
     expect(uri).toBe(
-      `otpauth://totp/Rocket%20Team%20on%20Tandem%3Amaya?secret=${RFC_SECRET}&issuer=Rocket%20Team%20on%20Tandem&algorithm=SHA1&digits=6&period=30`,
+      `otpauth://totp/Rocket%20Team%20on%20OwnBase%3Amaya?secret=${RFC_SECRET}&issuer=Rocket%20Team%20on%20OwnBase&algorithm=SHA1&digits=6&period=30`,
     );
   });
 

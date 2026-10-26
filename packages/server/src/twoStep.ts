@@ -99,7 +99,7 @@ export function checkCode(
  * under, the workspace and the handle.
  */
 export function otpauthUri(secret: string, workspace: string, handle: string): string {
-  const issuer = `${workspace} on Tandem`;
+  const issuer = `${workspace} on OwnBase`;
   const label = encodeURIComponent(`${issuer}:${handle}`);
   const query = new URLSearchParams({
     secret,

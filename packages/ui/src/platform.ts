@@ -125,7 +125,7 @@ export interface HostedWorkspaces {
     running: boolean;
     /** Its folder is gone, so it cannot start. */
     missing: boolean;
-    /** Chosen to start when Tandem opens. Absent from apps that cannot. */
+    /** Chosen to start when OwnBase opens. Absent from apps that cannot. */
     startsOnLaunch?: boolean;
     /** Backed up by itself on a schedule. Absent from apps that cannot. */
     autoBackup?: AutoBackup | null;
@@ -169,7 +169,7 @@ export interface HostingStatus {
   publicAddressSetting?: string;
   /** Whether the environment set the address, so this app cannot change it. */
   publicAddressLocked?: boolean;
-  /** Whether Tandem runs the connector for it, rather than something else. */
+  /** Whether OwnBase runs the connector for it, rather than something else. */
   publicAddressManaged?: boolean;
   /** Safe setup instructions when the stable address configuration cannot be used. */
   publicAddressError?: string;
@@ -177,10 +177,10 @@ export interface HostingStatus {
   inviteOnly?: boolean;
   /** Who may join; absent from an app that predates guest access. */
   accessPolicy?: AccessPolicy;
-  /** The running workspace is the one chosen to start when Tandem opens. */
+  /** The running workspace is the one chosen to start when OwnBase opens. */
   startsOnLaunch?: boolean;
   /**
-   * What did not happen when Tandem opened: the workspace chosen to start
+   * What did not happen when OwnBase opened: the workspace chosen to start
    * with it did not start, or started without reopening its stable address.
    * Kept until that part recovers or the host dismisses it.
    */
@@ -196,7 +196,7 @@ export interface HostingStatus {
    * app is called, and only this computer can reach it.
    */
   isolated?: boolean;
-  /** The running workspace reopens its stable public address when it starts with Tandem. */
+  /** The running workspace reopens its stable public address when it starts with OwnBase. */
   reopensPublicOnLaunch?: boolean;
   /** The running workspace's icon version, or null when it has none. */
   iconVersion?: string | null;
@@ -313,7 +313,7 @@ export interface Platform {
   /** Subscribe to LAN server discovery. Returns unsubscribe. Desktop only. */
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;
   /**
-   * Links to join a workspace or open a message: tandem:// ones (the
+   * Links to join a workspace or open a message: ownbase:// ones (the
    * previous slackoss:// form still reads) in the desktop app, and the
    * address a browser was opened at.
    */
@@ -381,17 +381,17 @@ export interface Platform {
      */
     icon?: (folder: string) => Promise<string | null>;
     /**
-     * Chooses the workspace, by its folder, to start whenever Tandem
+     * Chooses the workspace, by its folder, to start whenever OwnBase
      * opens, or none. Rejects, saying why, a workspace not in the list.
      */
     setStartOnLaunch?: (folder: string | null) => Promise<void>;
     /**
      * Whether the running workspace also reopens its stable public address
-     * when it starts with Tandem. Rejects, saying why, without a stable
+     * when it starts with OwnBase. Rejects, saying why, without a stable
      * address or while nothing is running.
      */
     setReopenPublicOnLaunch?: (reopen: boolean) => Promise<boolean>;
-    /** Stops showing what did not happen when Tandem opened. */
+    /** Stops showing what did not happen when OwnBase opened. */
     dismissLaunchError?: () => Promise<void>;
     /**
      * Changes the port a stopped workspace starts on. Rejects, saying why,
@@ -414,7 +414,7 @@ export interface Platform {
      */
     retryBackups?: () => Promise<void>;
     /**
-     * Whether the OS opens Tandem when someone signs in to this computer.
+     * Whether the OS opens OwnBase when someone signs in to this computer.
      * `get` resolves to null where it cannot, such as a copy run from source.
      */
     openAtLogin?: {

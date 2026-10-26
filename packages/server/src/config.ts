@@ -14,12 +14,14 @@ import type { AccessPolicy, MemberNotice } from "@slackoss/protocol";
 export class ConfigError extends Error {}
 
 /**
- * Reads a setting from the environment under its Tandem name, falling
- * back to the previous GATHERLINE_ and then SLACKOSS_ names so existing
- * deployments keep working. Where more than one is set, the newest wins.
+ * Reads a setting from the environment under its OwnBase name, falling
+ * back to the previous TANDEM_, GATHERLINE_ and then SLACKOSS_ names so
+ * existing deployments keep working. Where more than one is set, the newest
+ * wins.
  */
 export function envSetting(name: string): string | undefined {
   return (
+    process.env[`OWNBASE_${name}`] ??
     process.env[`TANDEM_${name}`] ??
     process.env[`GATHERLINE_${name}`] ??
     process.env[`SLACKOSS_${name}`]

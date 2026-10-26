@@ -74,7 +74,7 @@ function appearance(saved: unknown, options: { failSave?: boolean; held?: boolea
 const root = () => document.documentElement.dataset;
 const kept = () => JSON.parse(localStorage.getItem(FIRST_PAINT_KEY) ?? "null") as unknown;
 
-describe("how Tandem looks on this device", () => {
+describe("how OwnBase looks on this device", () => {
   it("applies what was saved, and offers every theme and density", async () => {
     const { panel } = appearance({ theme: "light", density: "compact" });
     await waitFor(() => expect(root().theme).toBe("light"));
@@ -121,7 +121,7 @@ describe("how Tandem looks on this device", () => {
     await waitFor(() => expect(within(panel).getByRole("radio", { name: /^Onyx/ })).toBeEnabled());
     await user.click(within(panel).getByRole("radio", { name: /^White/ }));
     expect(await within(panel).findByRole("alert")).toHaveTextContent(
-      "Could not save how Tandem looks on this device.",
+      "Could not save how OwnBase looks on this device.",
     );
     expect(root().theme).toBe("dark");
     expect(within(panel).getByRole("radio", { name: /^Onyx/ })).toBeChecked();

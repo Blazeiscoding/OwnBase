@@ -62,7 +62,7 @@ function refusePolicyWrites(on: boolean) {
 }
 
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "tandem-hosted-server-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-hosted-server-"));
   dataDir = join(root, "workspace");
   created = [];
   host = {

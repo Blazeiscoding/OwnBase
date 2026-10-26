@@ -30,7 +30,7 @@ const SUMS = "SHA256SUMS";
 
 /** What each artifact publishes: one file of this kind, and nothing else. */
 export const PUBLISHED = {
-  server: { kind: "server archive", file: /^tandem-server-[^/]+\.tar\.gz$/ },
+  server: { kind: "server archive", file: /^ownbase-server-[^/]+\.tar\.gz$/ },
   desktop: { kind: "Windows installer", file: /Setup[^/]*\.exe$/ },
 };
 /** Hex SHA-256 of a file. */

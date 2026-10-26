@@ -124,7 +124,7 @@ async function ticket(token: string): Promise<string> {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "tandem-copy-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-copy-"));
   dataDir = join(root, "data");
   copiesDir = join(root, "copies");
 });
@@ -444,6 +444,6 @@ describe("the command line", () => {
     expect(restored.output).toContain('Restored "Copied"');
     expect(restored.code).toBe(0);
     // Unpacked beside the zip while it was used, and gone after.
-    expect(readdirSync(root).filter((name) => name.startsWith(".tandem-unzip-"))).toEqual([]);
+    expect(readdirSync(root).filter((name) => name.startsWith(".ownbase-unzip-"))).toEqual([]);
   }, 60_000);
 });

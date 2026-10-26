@@ -55,7 +55,7 @@ test("unknown events and missing or malformed bases retain installer coverage", 
 });
 
 test("the real Git diff detects packaging changes and falls back safely for missing history", () => {
-  const cwd = mkdtempSync(join(tmpdir(), "tandem-desktop-ci-"));
+  const cwd = mkdtempSync(join(tmpdir(), "ownbase-desktop-ci-"));
   const git = (...args) => execFileSync("git", args, { cwd, encoding: "utf8" }).trim();
   const commit = () => {
     git("add", ".");
@@ -87,7 +87,7 @@ test("the real Git diff detects packaging changes and falls back safely for miss
     );
   } finally {
     assert.equal(dirname(resolve(cwd)), resolve(tmpdir()));
-    assert.ok(basename(cwd).startsWith("tandem-desktop-ci-"));
+    assert.ok(basename(cwd).startsWith("ownbase-desktop-ci-"));
     rmSync(cwd, { recursive: true, force: true });
   }
 });

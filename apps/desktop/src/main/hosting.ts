@@ -50,7 +50,7 @@ export interface HostingSnapshot {
   publicAddressSetting?: string;
   /** Whether the environment set the address, so this app cannot change it. */
   publicAddressLocked?: boolean;
-  /** Whether Tandem runs the connector, rather than something else. */
+  /** Whether OwnBase runs the connector, rather than something else. */
   publicAddressManaged?: boolean;
   /** Why a configured stable address cannot be used, and what to correct. */
   publicAddressError?: string;
@@ -58,10 +58,10 @@ export interface HostingSnapshot {
   inviteOnly?: boolean;
   /** Who may join: invited accounts, any account, or guests too. */
   accessPolicy?: AccessPolicy;
-  /** The running workspace is the one chosen to start when Tandem opens. */
+  /** The running workspace is the one chosen to start when OwnBase opens. */
   startsOnLaunch?: boolean;
   /**
-   * What did not happen when Tandem opened: the workspace chosen to start
+   * What did not happen when OwnBase opened: the workspace chosen to start
    * with it did not start, or started on this network without reopening its
    * stable address. Kept, whatever else runs meanwhile, until that part
    * recovers or the host dismisses it.
@@ -78,7 +78,7 @@ export interface HostingSnapshot {
    * nothing queued is sent, no app is called, and only this computer reaches it.
    */
   isolated?: boolean;
-  /** The running workspace reopens its stable public address when it starts with Tandem. */
+  /** The running workspace reopens its stable public address when it starts with OwnBase. */
   reopensPublicOnLaunch?: boolean;
   /** The running workspace's icon version, or null when it has none. */
   iconVersion?: string | null;
@@ -89,7 +89,7 @@ export const START_ON_LAUNCH_KEY = "startOnLaunch";
 
 /**
  * The settings key for reopening a stable public address when the workspace
- * starts with Tandem: which workspace, and which address, so a changed
+ * starts with OwnBase: which workspace, and which address, so a changed
  * address or another workspace is never published by it.
  */
 export const REOPEN_PUBLIC_KEY = "reopenPublicOnLaunch";
@@ -122,7 +122,7 @@ export interface HostedWorkspaceSummary {
   running: boolean;
   /** Its folder is gone, so it cannot start. */
   missing: boolean;
-  /** Chosen to start when Tandem opens. */
+  /** Chosen to start when OwnBase opens. */
   startsOnLaunch: boolean;
   /** Backed up by itself on a schedule, and where. */
   autoBackup: AutoBackup | null;
@@ -586,7 +586,7 @@ export function createHostingController(options: HostingOptions) {
     if (launchFolder !== undefined) return launchFolder;
     const stored = await options.settings.get(START_ON_LAUNCH_KEY, { strict: true });
     if (stored !== null && (typeof stored !== "string" || !stored))
-      throw new Error("The workspace chosen to start with Tandem is not one it can read.");
+      throw new Error("The workspace chosen to start with OwnBase is not one it can read.");
     launchFolder = stored;
     return launchFolder;
   }
@@ -790,7 +790,7 @@ export function createHostingController(options: HostingOptions) {
       } catch (error) {
         if (error instanceof RegistryFormatError) throw error;
         throw new Error(
-          "Tandem could not read its list of hosted workspaces, so it will not start one. Check that its settings file can be read, then try again.",
+          "OwnBase could not read its list of hosted workspaces, so it will not start one. Check that its settings file can be read, then try again.",
         );
       }
       let entry: HostedWorkspace;
@@ -836,7 +836,7 @@ export function createHostingController(options: HostingOptions) {
           registry = list;
           await rm(dataDir, { recursive: true, force: true }).catch(() => {});
           throw new Error(
-            "Tandem could not add the workspace to its settings, so it did not create it. Check that its settings folder is writable, then try again.",
+            "OwnBase could not add the workspace to its settings, so it did not create it. Check that its settings folder is writable, then try again.",
           );
         }
       }
@@ -903,7 +903,7 @@ export function createHostingController(options: HostingOptions) {
           server = null;
           if (tries === 3)
             throw new Error(
-              `Tandem could not find a free port for looking inside ${entry.name}. Try again.`,
+              `OwnBase could not find a free port for looking inside ${entry.name}. Try again.`,
             );
           server = await options.startServer({ ...serverOptions, port: 0 });
         }
@@ -1204,7 +1204,7 @@ export function createHostingController(options: HostingOptions) {
       const dataDir = join(options.dataRoot, entry.folder);
       const unsaved = () =>
         new Error(
-          "Tandem could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
+          "OwnBase could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
         );
       // Listed and held before anything is restored, as a new workspace is
       // listed before it starts, so a restored one can always be found and
@@ -1366,7 +1366,7 @@ export function createHostingController(options: HostingOptions) {
       await roomToRestore(manifest);
       const unsaved = () =>
         new Error(
-          "Tandem could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
+          "OwnBase could not save its settings, so it did not restore the backup. Check that its settings folder is writable, then try again.",
         );
       // Held before anything is restored, as `restore` holds a copy, so the
       // copy never starts by itself as though nothing had happened.
@@ -1499,7 +1499,7 @@ export function createHostingController(options: HostingOptions) {
       } catch {
         updateEntry(entry.folder, { autoBackup: previous });
         throw new Error(
-          "Tandem could not save the backup schedule. Check that its settings folder is writable, then try again.",
+          "OwnBase could not save the backup schedule. Check that its settings folder is writable, then try again.",
         );
       }
       changed();
@@ -1715,7 +1715,7 @@ export function createHostingController(options: HostingOptions) {
       } catch {
         updateEntry(entry.folder, { port: entry.port, portChosen: entry.portChosen });
         throw new Error(
-          "Tandem could not save the new port. Check that its settings folder is writable, then try again.",
+          "OwnBase could not save the new port. Check that its settings folder is writable, then try again.",
         );
       }
       changed();
@@ -1724,24 +1724,24 @@ export function createHostingController(options: HostingOptions) {
   }
 
   /**
-   * Chooses the workspace to start whenever Tandem opens, by its folder,
+   * Chooses the workspace to start whenever OwnBase opens, by its folder,
    * or none. Only a workspace in the list can be chosen, and only one at a time.
    */
   function setStartOnLaunch(value: unknown): Promise<string | null> {
     if (value !== null && typeof value !== "string")
-      return Promise.reject(new Error("Choose a workspace to start when Tandem opens."));
+      return Promise.reject(new Error("Choose a workspace to start when OwnBase opens."));
     return serialized(async () => {
       const chosen =
         value === null ? undefined : (await loadRegistry()).find((e) => e.folder === value);
       if (value !== null && !chosen)
         throw new Error("That workspace is not in the list hosted on this computer.");
       if (chosen?.restoredHold !== undefined)
-        throw new Error(`Put ${chosen.name} back in use before choosing it to start with Tandem.`);
+        throw new Error(`Put ${chosen.name} back in use before choosing it to start with OwnBase.`);
       try {
         await options.settings.set(START_ON_LAUNCH_KEY, value);
       } catch {
         throw new Error(
-          "Tandem could not save that choice. Check that its settings folder is writable, then try again.",
+          "OwnBase could not save that choice. Check that its settings folder is writable, then try again.",
         );
       }
       launchFolder = value;
@@ -1766,7 +1766,7 @@ export function createHostingController(options: HostingOptions) {
         part: "hosting",
         folder: null,
         message:
-          "Tandem did not start hosting when it opened, because it could not read which workspace to start. Check that its settings file can be read, then choose the workspace again under When this computer starts.",
+          "OwnBase did not start hosting when it opened, because it could not read which workspace to start. Check that its settings file can be read, then choose the workspace again under When this computer starts.",
       };
       changed();
       return null;
@@ -1781,8 +1781,8 @@ export function createHostingController(options: HostingOptions) {
         folder,
         message:
           error instanceof RegistryFormatError
-            ? `Tandem did not start hosting when it opened. ${error.message}`
-            : "Tandem did not start hosting when it opened, because it could not read its list of hosted workspaces.",
+            ? `OwnBase did not start hosting when it opened. ${error.message}`
+            : "OwnBase did not start hosting when it opened, because it could not read its list of hosted workspaces.",
       };
       changed();
       return null;
@@ -1796,7 +1796,7 @@ export function createHostingController(options: HostingOptions) {
       launchError = {
         part: "hosting",
         folder,
-        message: `Tandem did not start hosting ${entry.name} when it opened, because it was restored from a backup and has not been put back in use.`,
+        message: `OwnBase did not start hosting ${entry.name} when it opened, because it was restored from a backup and has not been put back in use.`,
       };
       changed();
       return null;
@@ -1808,7 +1808,7 @@ export function createHostingController(options: HostingOptions) {
       launchError = {
         part: "hosting",
         folder,
-        message: `Tandem did not start hosting ${entry.name} when it opened. ${
+        message: `OwnBase did not start hosting ${entry.name} when it opened. ${
           error instanceof Error ? error.message : ""
         }`.trim(),
       };
@@ -1833,13 +1833,13 @@ export function createHostingController(options: HostingOptions) {
   }
 
   /**
-   * Publishes the stable address again after starting with Tandem, when
+   * Publishes the stable address again after starting with OwnBase, when
    * the host asked for that for this workspace and this address. Open to all
    * checks that the address reaches this running workspace before publishing,
    * and asks for an invite unless told otherwise, so nothing is weakened. A
    * failure is kept to be shown; hosting on the network carries on.
    *
-   * Only the run that started with Tandem is published. One stopped
+   * Only the run that started with OwnBase is published. One stopped
    * meanwhile, or replaced by another workspace or another start of this
    * one, is left alone.
    */
@@ -1858,7 +1858,7 @@ export function createHostingController(options: HostingOptions) {
       launchError = {
         part: "public-address",
         folder,
-        message: `${name} started, but ${wanted.address} was not reopened, because the stable address Tandem is set up with has changed${current.url ? ` to ${current.url}` : ""}. Open it to all again, then choose to reopen it.`,
+        message: `${name} started, but ${wanted.address} was not reopened, because the stable address OwnBase is set up with has changed${current.url ? ` to ${current.url}` : ""}. Open it to all again, then choose to reopen it.`,
       };
       changed();
       return started;
@@ -1882,7 +1882,7 @@ export function createHostingController(options: HostingOptions) {
 
   /**
    * Chooses whether the running workspace reopens its stable public address
-   * when it starts with Tandem. Only a stable address can be chosen: a
+   * when it starts with OwnBase. Only a stable address can be chosen: a
    * temporary one is different every time, so reopening it would publish an
    * address nobody was given.
    */
@@ -1900,7 +1900,7 @@ export function createHostingController(options: HostingOptions) {
         const address = publicAddress();
         if (!address.url || address.error)
           throw new Error(
-            "Only a stable address can be reopened when Tandem starts. Set one up first; a temporary address changes every time.",
+            "Only a stable address can be reopened when OwnBase starts. Set one up first; a temporary address changes every time.",
           );
       }
       const next = value ? { folder: workspace!.folder, address: publicAddress().url! } : null;
@@ -1908,7 +1908,7 @@ export function createHostingController(options: HostingOptions) {
         await options.settings.set(REOPEN_PUBLIC_KEY, next);
       } catch {
         throw new Error(
-          "Tandem could not save that choice. Check that its settings folder is writable, then try again.",
+          "OwnBase could not save that choice. Check that its settings folder is writable, then try again.",
         );
       }
       reopenPublic = next;
@@ -1920,7 +1920,7 @@ export function createHostingController(options: HostingOptions) {
   }
 
   /**
-   * The host has read what did not happen when Tandem opened and does not
+   * The host has read what did not happen when OwnBase opened and does not
    * need it said again. Whatever is running carries on as it is.
    */
   function dismissLaunchError(): HostingSnapshot {
@@ -2097,7 +2097,7 @@ export function createHostingController(options: HostingOptions) {
       phase = "running";
       stopFailed = true;
       warning =
-        "The workspace could not finish stopping. Use Quit Tandem to review recovery options.";
+        "The workspace could not finish stopping. Use Quit OwnBase to review recovery options.";
       changed();
       throw error;
     }
@@ -2116,7 +2116,7 @@ export function createHostingController(options: HostingOptions) {
   }
 
   const STILL_BUSY =
-    "Tandem is still finishing other work, such as a backup, so the workspace was not stopped. Stop it again once that work ends.";
+    "OwnBase is still finishing other work, such as a backup, so the workspace was not stopped. Stop it again once that work ends.";
 
   /**
    * Stops the workspace when the queue reaches it. Whatever is already
@@ -2283,7 +2283,7 @@ export function createHostingController(options: HostingOptions) {
         throw new Error("Opening to all was cancelled.");
       }
       try {
-        // Only a connector Tandem starts is known to replace Cloudflare's
+        // Only a connector OwnBase starts is known to replace Cloudflare's
         // client-address header. A generic local proxy may pass a forged one.
         if (!carriedElsewhere) target.setTrustLoopbackProxy?.(true);
         target.setPublicUrl(opened.url);

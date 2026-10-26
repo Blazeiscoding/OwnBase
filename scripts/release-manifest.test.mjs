@@ -43,8 +43,8 @@ function tarGz(entries) {
   return gzipSync(Buffer.concat([...blocks, Buffer.alloc(1024)]));
 }
 
-const INSTALLER = "Tandem Setup 0.2.0.exe";
-const ARCHIVE = "tandem-server-0.2.0.tar.gz";
+const INSTALLER = "OwnBase Setup 0.2.0.exe";
+const ARCHIVE = "ownbase-server-0.2.0.tar.gz";
 
 /**
  * A release directory as the jobs stage it: identities for the server and
@@ -220,8 +220,8 @@ test("refuses a file no tested build staged, a changed or swapped one, or a seco
   }
   dir = release();
   try {
-    writeFileSync(join(dir, "Tandem Setup 0.1.0.exe"), "older");
-    bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, "Tandem Setup 0.1.0.exe")]);
+    writeFileSync(join(dir, "OwnBase Setup 0.1.0.exe"), "older");
+    bindAssets(dir, "desktop", [join(dir, INSTALLER), join(dir, "OwnBase Setup 0.1.0.exe")]);
     assert.throws(prepare(dir), /exactly one Windows installer/);
   } finally {
     rmSync(dir, { recursive: true, force: true });

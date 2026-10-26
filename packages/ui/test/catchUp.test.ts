@@ -120,6 +120,6 @@ describe("what a catch-up summary says", () => {
       channelName: "design",
       senders: "Sam and Ana",
     });
-    expect(content).toEqual({ title: "7 new messages", body: "Open Tandem to read them." });
+    expect(content).toEqual({ title: "7 new messages", body: "Open OwnBase to read them." });
   });
 });

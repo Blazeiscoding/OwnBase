@@ -86,7 +86,7 @@ export function appRecipients<W extends Recipient>(
 }
 
 /** What a refused request is told; it names no channel and echoes no input. */
-export const REFUSED = "This request did not come from the Tandem window.";
+export const REFUSED = "This request did not come from the OwnBase window.";
 
 /**
  * Wraps a handler so it runs only for the trusted window, refusing anything

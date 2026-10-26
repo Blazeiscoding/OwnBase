@@ -253,7 +253,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
       <p className="py-16 text-center text-sm text-ink-dim">
         {tab === "windows"
           ? "There is no window to share. Open the one you want, or share a screen."
-          : "This computer offered no screen to share. If your system asks whether Tandem may record the screen, allow it, then try again."}
+          : "This computer offered no screen to share. If your system asks whether OwnBase may record the screen, allow it, then try again."}
       </p>
     );
   } else {

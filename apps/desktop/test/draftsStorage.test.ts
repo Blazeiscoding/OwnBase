@@ -25,7 +25,7 @@ let dir: string;
 let settings: SettingsStorage;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "tandem-drafts-"));
+  dir = mkdtempSync(join(tmpdir(), "ownbase-drafts-"));
   settings = createSettingsStorage(join(dir, "settings.json"), keys);
 });
 

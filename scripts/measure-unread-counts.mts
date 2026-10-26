@@ -51,7 +51,7 @@ const percentile = (values: number[], p: number) => {
 const summary = (values: number[]) =>
   `p50 ${percentile(values, 50).toFixed(1)} ms, p95 ${percentile(values, 95).toFixed(1)} ms (n=${values.length})`;
 
-const dir = mkdtempSync(join(tmpdir(), "tandem-unread-counts-"));
+const dir = mkdtempSync(join(tmpdir(), "ownbase-unread-counts-"));
 const server = await createWorkspaceServer({
   dataDir: dir,
   host: "127.0.0.1",

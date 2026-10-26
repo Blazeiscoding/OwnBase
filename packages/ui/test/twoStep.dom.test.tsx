@@ -76,7 +76,7 @@ function security(enabled = false, recoveryCodesLeft = 0) {
     status: vi.spyOn(client.api, "twoStep").mockResolvedValue({ enabled, recoveryCodesLeft }),
     start: vi.spyOn(client.api, "startTwoStep").mockResolvedValue({
       secret: SECRET,
-      uri: `otpauth://totp/Rocket%20Team%20on%20Tandem%3Asam?secret=${SECRET}`,
+      uri: `otpauth://totp/Rocket%20Team%20on%20OwnBase%3Asam?secret=${SECRET}`,
     }),
     enable: vi.spyOn(client.api, "enableTwoStep").mockResolvedValue({ recoveryCodes: CODES }),
     codes: vi.spyOn(client.api, "newRecoveryCodes").mockResolvedValue({ recoveryCodes: CODES }),
@@ -112,7 +112,7 @@ describe("setting two-step sign-in up", () => {
     ).toBeVisible();
     // The key in fours, for typing into the app by hand.
     expect(section().getByText("JBSW Y3DP EHPK 3PXP JBSW Y3DP EHPK 3PXP")).toBeVisible();
-    expect(section().getByText(/under “Rocket Team on Tandem”/)).toBeVisible();
+    expect(section().getByText(/under “Rocket Team on OwnBase”/)).toBeVisible();
     const code = section().getByLabelText("Code from the app");
     expect(code).toHaveFocus();
     expect(code).toHaveAttribute("autocomplete", "one-time-code");

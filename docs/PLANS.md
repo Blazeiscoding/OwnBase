@@ -1,6 +1,6 @@
 # Plans
 
-A proposal for how Tandem pays for itself. Nothing here is built or on sale yet.
+A proposal for how OwnBase pays for itself. Nothing here is built or on sale yet.
 
 |                     | Self-hosted                   | Team                                                                        | Enterprise                                                            |
 | ------------------- | ----------------------------- | --------------------------------------------------------------------------- | --------------------------------------------------------------------- |
@@ -36,7 +36,7 @@ Limits keep one workspace from costing more than it pays:
 The workspace is one folder. The owner can download it and move to their own
 server at any time, which keeps the "Your server" promise.
 
-Setting Tandem up once on a customer's own server is a separate, paid add-on.
+Setting OwnBase up once on a customer's own server is a separate, paid add-on.
 
 ## Enterprise
 
@@ -65,7 +65,7 @@ choice open.
 
 ## Order of work
 
-1. Clear the name. Tandem has not been trademark-cleared.
+1. Clear the name. OwnBase has not been trademark-cleared.
 2. Terms of service, a privacy policy and a data processing agreement for Team,
    since we will hold customers' messages. GDPR applies to anyone in the EU.
 3. Billing through a merchant of record such as Paddle or Lemon Squeezy, which

@@ -1,5 +1,5 @@
 /*
- * Tandem's look, after the best of Discord's 2025 refresh: one graphite app
+ * OwnBase's look, after the best of Discord's 2025 refresh: one graphite app
  * background that holds the rail of workspaces and the channel list, the
  * conversation as an inset pane with a rounded corner, a floating panel for
  * you at the foot of the sidebar, icons that turn from circles to rounded
@@ -59,7 +59,7 @@
  * the icons repeat equal to Onyx's.
  *
  * The colours are generated in OKLCH by scripts/generate-palette.mjs from a
- * few inputs: one graphite hue for surfaces and inks, Tandem's orange, a hue
+ * few inputs: one graphite hue for surfaces and inks, OwnBase's orange, a hue
  * for each other meaning, and where each colour sits on the lightness scale.
  * Change those and run it; the test fails on a colour here edited by hand.
  */

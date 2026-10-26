@@ -3,6 +3,7 @@
  * at sign-in; macOS passes none and says instead that it opened the app at
  * login. Kept apart from Electron so the rules can be tested without it.
  */
+import { win32 } from "node:path";
 
 /** Passed by Windows at sign-in, so the app can stay in the tray. */
 export const HIDDEN_ARG = "--hidden";
@@ -34,6 +35,54 @@ export function loginItemProblem(
 ): string | null {
   if (!wanted || settings.openAtLogin) return null;
   if (platform === "darwin" && settings.status === "requires-approval")
-    return "macOS is waiting for your approval. Allow Tandem in System Settings, General, Login Items, then turn this on again.";
-  return "The system did not add Tandem to the apps that open when you sign in. Try again, or add it in the system's own settings.";
+    return "macOS is waiting for your approval. Allow OwnBase in System Settings, General, Login Items, then turn this on again.";
+  return "The system did not add OwnBase to the apps that open when you sign in. Try again, or add it in the system's own settings.";
+}
+
+/** The executables this app had under its earlier names, on Windows. */
+export const EARLIER_EXECUTABLES = ["Tandem.exe", "Gatherline.exe"] as const;
+
+/** A sign-in entry Windows keeps for an executable, as Electron reports it. */
+export interface LaunchItem {
+  name: string;
+  path: string;
+  args: string[];
+  scope: "user" | "machine";
+  enabled: boolean;
+}
+
+/**
+ * Carries "open at sign-in" over from an earlier name (P2). Windows keeps the
+ * entry under the old app's name and its old executable, which the update
+ * removed, so the app would neither start at sign-in nor know it had been
+ * asked to. Each such entry for this folder is removed, and if one was on,
+ * this app's own takes its place. Says whether it put one in.
+ */
+export function carryEarlierLoginItem(
+  platform: NodeJS.Platform,
+  execPath: string,
+  login: {
+    get: (options: { path: string; args: string[] }) => { launchItems?: LaunchItem[] };
+    set: (settings: {
+      openAtLogin: boolean;
+      name?: string;
+      path?: string;
+      args?: string[];
+    }) => void;
+  },
+): boolean {
+  if (platform !== "win32") return false;
+  const folder = win32.dirname(execPath);
+  let carried = false;
+  for (const earlier of EARLIER_EXECUTABLES) {
+    const path = win32.join(folder, earlier);
+    for (const item of login.get({ path, args: [HIDDEN_ARG] }).launchItems ?? []) {
+      // One the machine's administrator set up is theirs to change.
+      if (item.scope !== "user") continue;
+      login.set({ openAtLogin: false, name: item.name, path, args: item.args });
+      carried ||= item.enabled;
+    }
+  }
+  if (carried) login.set({ openAtLogin: true, ...loginItemOptions(platform) });
+  return carried;
 }

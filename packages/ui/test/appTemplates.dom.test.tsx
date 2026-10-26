@@ -183,8 +183,8 @@ describe("Apps and integrations' templates", () => {
     await user.click(within(panel).getByRole("button", { name: "Create webhook" }));
     const url = `http://127.0.0.1:9${HOOK_PATH}`;
     expect(await within(panel).findByText(url)).toBeVisible();
-    expect(panel).toHaveTextContent("Save it in the repository’s secrets as TANDEM_WEBHOOK_URL.");
-    expect(within(panel).getByText(/secrets\.TANDEM_WEBHOOK_URL/)).toBeVisible();
+    expect(panel).toHaveTextContent("Save it in the repository’s secrets as OWNBASE_WEBHOOK_URL.");
+    expect(within(panel).getByText(/secrets\.OWNBASE_WEBHOOK_URL/)).toBeVisible();
 
     // Away and back, once the list has the webhook: the URL is still there,
     // because the choice is shared.
@@ -250,7 +250,7 @@ describe("Apps and integrations' templates", () => {
     expect(within(panel).queryByLabelText("New app name")).toBeNull();
 
     // The example has the app's signing secret, dotted out on screen but copied whole.
-    const example = within(panel).getByText(/Answers \/deploy for Tandem/);
+    const example = within(panel).getByText(/Answers \/deploy for OwnBase/);
     expect(example).not.toHaveTextContent(SECRET);
     await user.click(within(panel).getByRole("button", { name: "Copy" }));
     expect(await navigator.clipboard.readText()).toContain(`const signingSecret = "${SECRET}";`);

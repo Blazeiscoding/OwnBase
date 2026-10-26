@@ -47,7 +47,7 @@ const writeRaw = (value: unknown) =>
   writeFileSync(file, typeof value === "string" ? value : JSON.stringify(value));
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "tandem-settings-"));
+  dir = mkdtempSync(join(tmpdir(), "ownbase-settings-"));
   file = join(dir, "settings.json");
 });
 

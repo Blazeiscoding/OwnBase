@@ -43,7 +43,7 @@ function Many({ count, kind = "error" }: { count: number; kind?: ToastRequest["k
 }
 
 function stack() {
-  return document.querySelector<HTMLElement>("[data-tandem-toasts]")!;
+  return document.querySelector<HTMLElement>("[data-ownbase-toasts]")!;
 }
 
 function noticeFor(text: string) {

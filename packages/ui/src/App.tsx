@@ -119,6 +119,8 @@ export function App({ platform }: { platform: Platform }) {
   const serversTurn = useCallback(<T,>(turn: () => Promise<T>): Promise<T> => {
     const locks = typeof navigator === "undefined" ? undefined : navigator.locks;
     const taken = serverTurns.current.then(() =>
+      // Named when the app was called Tandem, and kept: a tab not yet reloaded
+      // after an update takes its turn under the same lock.
       locks ? (locks.request("tandem:saved-sign-ins", turn) as Promise<T>) : turn(),
     );
     serverTurns.current = taken.then(

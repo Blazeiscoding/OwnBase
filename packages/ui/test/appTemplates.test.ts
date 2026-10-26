@@ -52,7 +52,7 @@ function signed(body: string, secret = SECRET, timestamp = Math.floor(Date.now()
 
 /** Starts the example as someone would after pasting it into a file. */
 async function startExample(code: string): Promise<string> {
-  folder = mkdtempSync(join(tmpdir(), "tandem-command-example-"));
+  folder = mkdtempSync(join(tmpdir(), "ownbase-command-example-"));
   const file = join(folder, "deploy.mjs");
   writeFileSync(file, code);
   const port = await freePort();
@@ -104,7 +104,7 @@ describe("the slash command example", () => {
 
   it("names the command and the file, and says where the secret goes until there is one", () => {
     const code = commandExample("standup", null);
-    expect(code).toContain("Answers /standup for Tandem");
+    expect(code).toContain("Answers /standup for OwnBase");
     expect(code).toContain("node standup.mjs");
     expect(code).toContain(`const signingSecret = "paste the app's signing secret here";`);
     // With no command typed yet, it still reads as a whole example.

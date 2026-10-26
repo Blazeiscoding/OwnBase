@@ -66,7 +66,7 @@ describe("which files are cached for good", () => {
   it("asks about the page and anything not under assets/ every time", () => {
     expect(webCacheControl(root, join(root, "index.html"))).toBe(REVALIDATED_CACHE);
     expect(webCacheControl(root, join(root, "index.html.br"))).toBe(REVALIDATED_CACHE);
-    expect(webCacheControl(root, join(root, "tandem.svg"))).toBe(REVALIDATED_CACHE);
+    expect(webCacheControl(root, join(root, "ownbase.svg"))).toBe(REVALIDATED_CACHE);
     expect(webCacheControl(root, join(root, "assets"))).toBe(REVALIDATED_CACHE);
     expect(webCacheControl(root, join(root, "..", "assets", "x.js"))).toBe(REVALIDATED_CACHE);
   });

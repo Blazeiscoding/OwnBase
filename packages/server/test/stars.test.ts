@@ -211,7 +211,7 @@ describe("a starred conversation", () => {
 describe("upgrading a workspace to stars (v40)", () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "tandem-stars-"));
+    dir = mkdtempSync(join(tmpdir(), "ownbase-stars-"));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

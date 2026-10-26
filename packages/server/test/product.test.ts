@@ -238,7 +238,7 @@ describe("self-hosted product", () => {
       ),
     ).toHaveLength(1);
     expect(() => parseIceServers('[{"urls":"https://invalid","credential":"secret"}]')).toThrow(
-      "TANDEM_ICE_SERVERS",
+      "OWNBASE_ICE_SERVERS",
     );
   });
   it("upgrades a workspace that predates message buttons", async () => {

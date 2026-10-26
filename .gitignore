@@ -20,7 +20,7 @@ data/
 *.db-shm
 
 # Plans, audits and research notes stay on the machine that wrote them. On
-# GitHub, docs/ holds the project atlas and how Tandem is run and extended.
+# GitHub, docs/ holds the project atlas and how OwnBase is run and extended.
 /docs/*
 !/docs/visualizer/
 !/docs/PROJECT-VISUALIZER.html

@@ -40,7 +40,7 @@ const summary = (values: number[]) => ({
 });
 
 async function start(isolated: boolean) {
-  const dataDir = mkdtempSync(join(tmpdir(), "tandem-publication-"));
+  const dataDir = mkdtempSync(join(tmpdir(), "ownbase-publication-"));
   const server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",

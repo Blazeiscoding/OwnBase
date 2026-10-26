@@ -46,7 +46,7 @@ function account(section: AccountSection) {
   const api = {
     sessions: vi.spyOn(client.api, "listSessions").mockResolvedValue({
       sessions: [
-        session("S1", true, "Tandem desktop"),
+        session("S1", true, "OwnBase desktop"),
         session("S2", false, "Mozilla/5.0 (iPhone)"),
       ],
     }),
@@ -150,7 +150,7 @@ describe("signing out", () => {
     expect(dialog.getByRole("region", { name: "Confirm sign out" })).toHaveTextContent(
       "Sign out your other devices?",
     );
-    api.sessions.mockResolvedValue({ sessions: [session("S1", true, "Tandem desktop")] });
+    api.sessions.mockResolvedValue({ sessions: [session("S1", true, "OwnBase desktop")] });
     await user.click(dialog.getByRole("button", { name: "Confirm sign out" }));
     expect(api.revokeOthers).toHaveBeenCalledOnce();
     await waitFor(() =>

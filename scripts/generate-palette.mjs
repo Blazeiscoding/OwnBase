@@ -1,9 +1,9 @@
 // node scripts/generate-palette.mjs
 //
-// Tandem's palette, generated in OKLCH from the inputs below (UX-11). Each
+// OwnBase's palette, generated in OKLCH from the inputs below (UX-11). Each
 // colour is a point on one scale: a lightness from 0 (black) to 1 (white), a
 // chroma (how much colour) and a hue. Surfaces and inks share one graphite
-// hue; the accent is Tandem's own orange, kept on purpose; online, alert, the
+// hue; the accent is OwnBase's own orange, kept on purpose; online, alert, the
 // highlight and the background washes each have a hue of their own. Where a
 // colour falls outside what a screen shows (sRGB), its chroma is lowered until
 // it fits, keeping its lightness and hue, and it is written as hex.
@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 export const INPUTS = {
-  /** chaicode.com's orange: Tandem's accent, kept on purpose. */
+  /** chaicode.com's orange: OwnBase's accent, kept on purpose. */
   accent: "#f97316",
   /** Surfaces and inks: one graphite hue, this much colour at middle lightness, less toward black and white. */
   neutral: { hue: 282, chroma: 0.014 },
@@ -368,11 +368,11 @@ export const OUTPUTS = {
     return setHexes(text, [deep, deep]);
   },
   // The mark; scripts/generate-icons.mjs draws the app icons from it.
-  "apps/web/public/tandem.svg": (text) => {
+  "apps/web/public/ownbase.svg": (text) => {
     const t = palette().darkTokens;
     return setHexes(text, [t["--color-copper"], t["--color-ground"]]);
   },
-  "apps/desktop/src/renderer/public/tandem.svg": (text) => {
+  "apps/desktop/src/renderer/public/ownbase.svg": (text) => {
     const t = palette().darkTokens;
     return setHexes(text, [t["--color-copper"], t["--color-ground"]]);
   },

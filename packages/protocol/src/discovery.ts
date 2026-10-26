@@ -52,18 +52,20 @@ export function isLinkableAddress(host: string): boolean {
   return !/^\[?fe[89ab][0-9a-f]:/i.test(host);
 }
 
-/** Deep-link format: tandem://join?host=1.2.3.4:8543&code=INVITE */
-export const TANDEM_DEEP_LINK_PROTOCOL = "tandem";
+/** Deep-link format: ownbase://join?host=1.2.3.4:8543&code=INVITE */
+export const OWNBASE_DEEP_LINK_PROTOCOL = "ownbase";
 
 /**
  * Previous deep-link schemes, still accepted everywhere links are read and
  * still registered with the OS so old invites keep opening the app.
  */
+export const TANDEM_DEEP_LINK_PROTOCOL = "tandem";
 export const GATHERLINE_DEEP_LINK_PROTOCOL = "gatherline";
 export const DEEP_LINK_PROTOCOL = "slackoss";
 
 /** Every deep-link scheme the app reads, primary first. */
 export const DEEP_LINK_PROTOCOLS = [
+  OWNBASE_DEEP_LINK_PROTOCOL,
   TANDEM_DEEP_LINK_PROTOCOL,
   GATHERLINE_DEEP_LINK_PROTOCOL,
   DEEP_LINK_PROTOCOL,

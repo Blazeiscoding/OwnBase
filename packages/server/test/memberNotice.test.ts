@@ -220,7 +220,7 @@ describe("the command line", () => {
     for (const dir of dataDirs.splice(0)) rmSync(dir, { recursive: true, force: true });
   });
   const serverArgs = () => {
-    const dataDir = mkdtempSync(join(tmpdir(), "tandem-notice-"));
+    const dataDir = mkdtempSync(join(tmpdir(), "ownbase-notice-"));
     dataDirs.push(dataDir);
     return ["--data", dataDir, "--port", "0", "--host", "127.0.0.1", "--no-mdns"];
   };
@@ -236,7 +236,7 @@ describe("the command line", () => {
       [["--member-notice", "50", "--plan-name", "Team"], {}, "the Team plan includes 50"],
       [
         [],
-        { TANDEM_MEMBER_NOTICE: "200", TANDEM_UPGRADE_URL: "https://example.com" },
+        { OWNBASE_MEMBER_NOTICE: "200", OWNBASE_UPGRADE_URL: "https://example.com" },
         "the plan includes 200",
       ],
     ] as const) {

@@ -28,7 +28,7 @@ export const CI_TEST_MESSAGE = {
  * is the whole of a webhook's authority, so it does not belong in a workflow
  * file that anyone who can read the repository can read.
  */
-export const CI_SECRET = "TANDEM_WEBHOOK_URL";
+export const CI_SECRET = "OWNBASE_WEBHOOK_URL";
 
 /** The name a template gives the app it makes, which the admin can change first. */
 export function suggestedAppName(template: AppTemplate, command: string): string {
@@ -62,7 +62,7 @@ export function curlExample(url: string): string {
  */
 export function ciExample(): string {
   return [
-    "- name: Post the result to Tandem",
+    "- name: Post the result to OwnBase",
     "  if: always()",
     "  shell: bash",
     "  env:",
@@ -84,7 +84,7 @@ export function commandExample(command: string, signingSecret: string | null): s
   const name = command || "deploy";
   const secret = signingSecret ?? "paste the app's signing secret here";
   return [
-    `// Answers /${name} for Tandem. It needs Node.js 18 or later and nothing else:`,
+    `// Answers /${name} for OwnBase. It needs Node.js 18 or later and nothing else:`,
     `// save it as ${name}.mjs, run \`node ${name}.mjs\`, and give the command the`,
     "// address it answers on as its request URL.",
     'import { createServer } from "node:http";',

@@ -36,7 +36,7 @@ async function upload(channelId: string, text: string) {
 
 beforeEach(async () => {
   // Attachments are kept on disk, so this workspace needs a folder.
-  dataDir = mkdtempSync(join(tmpdir(), "tandem-files-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-files-"));
   server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",
@@ -66,7 +66,7 @@ afterEach(async () => {
   client?.destroy();
   await server?.stop();
   const owned = resolve(dataDir);
-  if (dirname(owned) !== resolve(tmpdir()) || !basename(owned).startsWith("tandem-files-"))
+  if (dirname(owned) !== resolve(tmpdir()) || !basename(owned).startsWith("ownbase-files-"))
     throw new Error("Refused cleanup outside the owned attachment fixture");
   rmSync(owned, { recursive: true, force: true });
   vi.restoreAllMocks();

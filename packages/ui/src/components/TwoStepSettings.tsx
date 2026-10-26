@@ -274,7 +274,7 @@ export function TwoStepSettings() {
               <p>
                 Scan this with an authenticator app, such as Google Authenticator, Microsoft
                 Authenticator or 1Password. It shows the code under &ldquo;{workspaceName} on
-                Tandem&rdquo;.
+                OwnBase&rdquo;.
               </p>
               <p className="mt-3">Cannot scan it? Enter this key in the app instead:</p>
               <p className="mt-1 select-all break-all font-mono text-[13px] text-ink">
@@ -372,7 +372,7 @@ export function TwoStepSettings() {
               className={buttonClass("secondary")}
               onClick={() =>
                 saveCodes(
-                  `Recovery codes for @${self.handle} in ${workspaceName} on Tandem.\nEach one signs you in once, in place of a code from your authenticator app.\n\n${codesText}\n`,
+                  `Recovery codes for @${self.handle} in ${workspaceName} on OwnBase.\nEach one signs you in once, in place of a code from your authenticator app.\n\n${codesText}\n`,
                 )
               }
             >
@@ -397,7 +397,7 @@ function saveCodes(text: string) {
   const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
   const a = document.createElement("a");
   a.href = url;
-  a.download = "tandem-recovery-codes.txt";
+  a.download = "ownbase-recovery-codes.txt";
   a.click();
   // Long enough for the download to have read it, in every browser.
   setTimeout(() => URL.revokeObjectURL(url), 30_000);

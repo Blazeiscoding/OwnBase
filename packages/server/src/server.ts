@@ -2291,7 +2291,7 @@ async function startWorkspaceServer(
         throw new HttpError(
           401,
           "two_step_required",
-          "This account asks for a code from an authenticator app. Update Tandem to sign in with it.",
+          "This account asks for a code from an authenticator app. Update OwnBase to sign in with it.",
         );
       const challenge = secretToken();
       const now = Date.now();
@@ -6102,7 +6102,7 @@ async function startWorkspaceServer(
           ? join(scheduled.dir, ".copies")
           : join(
               tmpdir(),
-              "tandem-copies",
+              "ownbase-copies",
               createHash("sha256").update(resolve(opts.dataDir)).digest("hex").slice(0, 16),
             )),
       take: holdingRemovals(takeBackup),

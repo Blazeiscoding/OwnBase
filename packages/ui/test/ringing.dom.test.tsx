@@ -181,7 +181,7 @@ describe("a ring someone gets", () => {
     expect(notify).toHaveBeenCalledTimes(1);
     expect(ringContent("none", { from: "Maya Chen" })).toEqual({
       title: "Incoming huddle",
-      body: "Open Tandem to answer it.",
+      body: "Open OwnBase to answer it.",
     });
   });
 
@@ -191,7 +191,7 @@ describe("a ring someone gets", () => {
     shown(<IncomingCall onOpen={vi.fn()} preview="none" tag="sam" />);
     expect(notify).toHaveBeenCalledWith(
       "Incoming huddle",
-      "Open Tandem to answer it.",
+      "Open OwnBase to answer it.",
       expect.any(Function),
       { tag: "sam ring C_DM" },
     );

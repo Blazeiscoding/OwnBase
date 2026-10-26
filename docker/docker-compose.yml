@@ -18,10 +18,10 @@ services:
     environment:
       # The previous name is still read, but only when the new one is not set:
       # passing both would hand the server a default that hides it.
-      TANDEM_ICE_SERVERS: ${TANDEM_ICE_SERVERS:-${GATHERLINE_ICE_SERVERS:-${SLACKOSS_ICE_SERVERS:-[]}}}
+      OWNBASE_ICE_SERVERS: ${OWNBASE_ICE_SERVERS:-${TANDEM_ICE_SERVERS:-${GATHERLINE_ICE_SERVERS:-${SLACKOSS_ICE_SERVERS:-[]}}}}
       # A Cloudflare TURN relay for calls between networks: both, or neither.
-      TANDEM_CLOUDFLARE_TURN_KEY_ID: ${TANDEM_CLOUDFLARE_TURN_KEY_ID:-}
-      TANDEM_CLOUDFLARE_TURN_API_TOKEN: ${TANDEM_CLOUDFLARE_TURN_API_TOKEN:-}
+      OWNBASE_CLOUDFLARE_TURN_KEY_ID: ${OWNBASE_CLOUDFLARE_TURN_KEY_ID:-${TANDEM_CLOUDFLARE_TURN_KEY_ID:-}}
+      OWNBASE_CLOUDFLARE_TURN_API_TOKEN: ${OWNBASE_CLOUDFLARE_TURN_API_TOKEN:-${TANDEM_CLOUDFLARE_TURN_API_TOKEN:-}}
 
 volumes:
   slackoss-data:

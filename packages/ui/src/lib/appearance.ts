@@ -33,6 +33,7 @@ const stores = new WeakMap<Platform, ReturnType<typeof createAppearance>>();
  * does not show the other one first. The choice itself stays in the
  * platform's storage; the copy follows it.
  */
+/** Named when the app was called Tandem, and kept, so a saved choice still reads. */
 export const FIRST_PAINT_KEY = "tandem:appearance";
 
 function firstPaintCopy(): { theme: Theme; density: Density } | null {
@@ -87,7 +88,7 @@ function createAppearance(platform: Platform) {
         store.setState({
           theme: before.theme,
           density: before.density,
-          error: "Could not save how Tandem looks on this device. Please try again.",
+          error: "Could not save how OwnBase looks on this device. Please try again.",
         });
         return false;
       }
@@ -114,7 +115,7 @@ function createAppearance(platform: Platform) {
   return store;
 }
 
-/** How Tandem looks on this device, across workspaces. */
+/** How OwnBase looks on this device, across workspaces. */
 export function useAppearance() {
   const platform = usePlatform();
   let store = stores.get(platform);

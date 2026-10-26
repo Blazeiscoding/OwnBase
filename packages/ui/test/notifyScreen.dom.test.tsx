@@ -138,7 +138,7 @@ describe("notifying about a message in the conversation on screen", () => {
       arrive(reply());
       expect(notify).toHaveBeenCalledTimes(1);
       const [title, body] = notify.mock.calls[0]!;
-      expect([title, body]).toEqual(["New message", "Open Tandem to read it."]);
+      expect([title, body]).toEqual(["New message", "Open OwnBase to read it."]);
       expect(`${title} ${body}`).not.toMatch(/Alex|general|look at this/);
     });
 
@@ -196,7 +196,7 @@ describe("notifying about a message in the conversation on screen", () => {
       settle();
       expect(notify.mock.calls[0]!.slice(0, 2)).toEqual([
         "2 new messages",
-        "Open Tandem to read them.",
+        "Open OwnBase to read them.",
       ]);
     });
 

@@ -234,7 +234,7 @@ test("HTML contains one parseable application script and preserves literal templ
 
 test("freshness survives commit/capture metadata changes but rejects changed source", () => {
   const temporaryRoot = realpathSync(tmpdir());
-  const fixture = mkdtempSync(resolve(temporaryRoot, "tandem-visualizer-check-"));
+  const fixture = mkdtempSync(resolve(temporaryRoot, "ownbase-visualizer-check-"));
   const write = (path, contents) => {
     const destination = resolve(fixture, path);
     mkdirSync(dirname(destination), { recursive: true });
@@ -311,7 +311,7 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
       "remote",
       "add",
       "origin",
-      "https://example.invalid/tandem-visualizer-fixture.git",
+      "https://example.invalid/ownbase-visualizer-fixture.git",
     );
     git(fixture, "-c", "core.autocrlf=false", "add", "packages/server/src/index.ts");
     commit("Initial synthetic source");
@@ -356,7 +356,7 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
     assert.ok(
       !isAbsolute(withinTemporaryRoot) &&
         !withinTemporaryRoot.startsWith("..") &&
-        withinTemporaryRoot.startsWith("tandem-visualizer-check-"),
+        withinTemporaryRoot.startsWith("ownbase-visualizer-check-"),
     );
     rmSync(target, { recursive: true, force: true });
   }

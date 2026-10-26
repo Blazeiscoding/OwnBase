@@ -54,7 +54,7 @@ let data = "";
 
 /** A demo workspace on a frozen server of its own, and Maya's sign-in to it. */
 async function demo(): Promise<Demo> {
-  data = mkdtempSync(join(tmpdir(), "tandem-visual-"));
+  data = mkdtempSync(join(tmpdir(), "ownbase-visual-"));
   const port = PORT;
   expect(await portFree(port), `port ${port} is taken; stop what holds it`).toBe(true);
   const base = `http://127.0.0.1:${port}`;
@@ -70,7 +70,7 @@ async function demo(): Promise<Demo> {
     {
       windowsHide: true,
       stdio: "ignore",
-      env: { ...process.env, TANDEM_FROZEN_AT: String(FROZEN_AT) },
+      env: { ...process.env, OWNBASE_FROZEN_AT: String(FROZEN_AT) },
     },
   );
   await expect
@@ -226,7 +226,7 @@ for (const theme of ["onyx", "white"] as const) {
     await shot("sign-in");
 
     await signIn(page, workspace, `#/c/${workspace.channels.general}`);
-    await expect(page.getByText("Welcome to Tandem, everyone!")).toBeVisible();
+    await expect(page.getByText("Welcome to OwnBase, everyone!")).toBeVisible();
     await shot("general");
 
     // Unread, with a mention of Maya below the New line.

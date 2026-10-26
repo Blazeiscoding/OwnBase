@@ -1,15 +1,15 @@
-# Tandem
+# OwnBase
 
 Your people. Your place. Your server.
 
-Tandem is open-source team chat that you host. Run the server on a VPS, or choose
+OwnBase is open-source team chat that you host. Run the server on a VPS, or choose
 **Host a workspace on this computer** in the desktop app and serve your team from
 your own PC, the way you would open a Minecraft world to LAN. Teammates on the
 same Wi-Fi see the workspace in the app's Join screen. Anyone else connects by
 `ip:port` or an invite link. Every message, file and account lives in one folder
 on the host's machine. Keep backups of that folder.
 
-Tandem is early-stage and independently developed, under the
+OwnBase is early-stage and independently developed, under the
 [MIT license](LICENSE). It is not affiliated with Slack or Salesforce.
 
 - [Deployment and backups](docs/DEPLOYMENT.md)
@@ -18,10 +18,12 @@ Tandem is early-stage and independently developed, under the
   the code
 - [Contributing](CONTRIBUTING.md) and [security](SECURITY.md)
 
-The project used to be called SlackOSS. The product and the desktop app are now
-named Tandem, and that name has not been trademark-cleared. The `@slackoss/*`
-package names, the application ID, the data locations and the Docker volume keep
-their old names. `SLACKOSS_*` settings and `slackoss://` links still work. An
+The project used to be called SlackOSS, then Gatherline, then Tandem. The product
+and the desktop app are now named OwnBase, and that name has not been
+trademark-cleared. The `@slackoss/*` package names, the application ID, the data
+locations and the Docker volume keep their old names. `TANDEM_*`, `GATHERLINE_*`
+and `SLACKOSS_*` settings and `tandem://`, `gatherline://` and `slackoss://` links
+still work. An
 existing workspace needs no migration.
 
 ## Try it
@@ -37,7 +39,7 @@ node apps/server-cli/dist/slackoss-server.js --data ./demo-data --name "Demo Tea
 ```
 
 **In the desktop app.** On Windows, run `pnpm build:win`, install
-`apps/desktop/release/Tandem Setup 0.1.0.exe`, and choose
+`apps/desktop/release/OwnBase Setup 0.1.0.exe`, and choose
 **Host a workspace on this computer**. On a Mac, `pnpm build:mac` builds a DMG.
 CI does not test the Mac build.
 
@@ -77,8 +79,8 @@ Then open `http://localhost:8543`, sign in as `maya`, and try:
 - **Direct connect.** Type `192.168.1.42:8543` or `chat.yourteam.dev`.
 - **Invite link.** `http://host:8543/#/join/<code>` opens the workspace in any
   browser with the invite code filled in. The desktop app has its own form of the
-  same link, `tandem://join?host=...&code=...`, and older `slackoss://` links
-  still open.
+  same link, `ownbase://join?host=...&code=...`, and older `tandem://` and `slackoss://`
+  links still open.
 - **No app.** The server serves a full browser client at `http://host:8543/`.
 
 The first account created on a fresh server becomes its owner. The owner and
@@ -96,14 +98,14 @@ to a VPS later without changing it.
 
 To share that workspace outside your network without changing router settings,
 install Cloudflare's `cloudflared`, create the owner account, then open
-**Manage hosting → Open to all**. Tandem starts a temporary Cloudflare Quick
+**Manage hosting → Open to all**. OwnBase starts a temporary Cloudflare Quick
 Tunnel and shows an HTTPS address. Leave **Require an invite link to create an
 account** selected, which is the default. Then use **Workspace → Invite people**
 to copy a browser invite link, and send it to the people you want to join.
 
 The host opens the tunnel before sending the link. A visitor's click reaches the
 tunnel that is already running. It does not start one on the visitor's computer.
-Keep Tandem running until everyone is finished. Closing the public link, stopping
+Keep OwnBase running until everyone is finished. Closing the public link, stopping
 hosting, or quitting invalidates the temporary address. See the
 [Cloudflare Tunnel setup and commands](docs/DEPLOYMENT.md#temporary-internet-sharing-with-cloudflare-tunnel).
 
@@ -111,15 +113,15 @@ For an address that does not change, put one you already have under **Your own
 address** in Manage hosting. A Tailscale Funnel, a reverse proxy, or any tunnel
 of your own works, as long as it forwards HTTP and WebSockets to the port shown
 there. **Open to all** verifies that the address reaches this workspace and uses
-it in new links. Tandem does not start or stop that outside connector, so
+it in new links. OwnBase does not start or stop that outside connector, so
 **Close public link** does not take the address off the internet. Stop the
 Funnel, proxy or tunnel yourself, or stop hosting. Existing invite links keep the
 same address, but their codes still expire or run out of uses as usual. See
 [Use an address you already have](docs/DEPLOYMENT.md#use-an-address-you-already-have).
 
-If you own a domain on Cloudflare, Tandem can run a remotely managed Cloudflare
+If you own a domain on Cloudflare, OwnBase can run a remotely managed Cloudflare
 connector for you instead. See
-[A stable address Tandem runs for you](docs/DEPLOYMENT.md#a-stable-address-tandem-runs-for-you).
+[A stable address OwnBase runs for you](docs/DEPLOYMENT.md#a-stable-address-ownbase-runs-for-you).
 
 ### Standalone, on a VPS or a spare machine
 
@@ -180,9 +182,9 @@ Search hits, pins and saved items open the channel scrolled to that message,
 with the surrounding history loaded around it. Every message has a link,
 `http://host:8543/#/c/<channel>/m/<message>`. It opens the message in a browser,
 waits through signing in if it has to, and opens in place when clicked inside a
-message. `tandem://` links open the desktop app directly, so an invite link lands
-on the join screen with the code filled in. Older `slackoss://` links open the
-same way.
+message. `ownbase://` links open the desktop app directly, so an invite link lands
+on the join screen with the code filled in. Older `tandem://` and `slackoss://`
+links open the same way.
 
 ### Scheduled messages
 
@@ -202,7 +204,7 @@ Each camera is sent no bigger than the others draw it, and not at all to someone
 who is not looking at the call, and a muted microphone sends nothing: twelve
 people with two cameras on cost each of them about a third of a core. A call
 with more than eight cameras on, or more than sixteen people, says once that it
-may stutter. Larger meetings need an SFU, which Tandem does not have.
+may stutter. Larger meetings need an SFU, which OwnBase does not have.
 See [How many people a call holds](docs/DEPLOYMENT.md#how-many-people-a-call-holds).
 By default no STUN or TURN server is configured, and calls connect on the LAN
 only. See
@@ -269,7 +271,7 @@ Apps can also respond to what people do:
   `response_url` accepts late replies for 30 minutes and five uses, so a slow
   job can answer when it finishes. `/shrug` and `/me` are built in.
 - **Event subscriptions.** Point a URL at the workspace and matching events
-  arrive as `{type: "event_callback", event: {...}}`, with Tandem's own event
+  arrive as `{type: "event_callback", event: {...}}`, with OwnBase's own event
   alongside Slack's shape. The URL has to echo a `url_verification` challenge
   before the server accepts it. An app receives events only from channels its
   bot has been added to. It is never sent its own bot's actions, which is the
@@ -348,7 +350,7 @@ foot of the sidebar, and people have profile cards. Menus are split by what they
 concern, the workspace's name or your own.
 
 There are two graphite themes, Onyx and White, and the app starts on whichever
-the device prefers. Chaicode orange is Tandem's own accent, kept on purpose, for
+the device prefers. Chaicode orange is OwnBase's own accent, kept on purpose, for
 the one primary action in a view, and red badges mark what names you. Both
 themes are generated in OKLCH from a few inputs in
 `scripts/generate-palette.mjs`: one graphite hue for surfaces and text, the

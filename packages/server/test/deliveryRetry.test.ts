@@ -33,7 +33,7 @@ async function open(dir: string) {
 }
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "tandem-retry-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-retry-"));
   await open(dataDir);
   const owner = await fetch(`http://127.0.0.1:${server.port}/api/auth/register`, {
     method: "POST",

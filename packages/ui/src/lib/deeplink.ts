@@ -1,7 +1,7 @@
 import type { HostingStatus } from "../platform.js";
 import {
   DEEP_LINK_PROTOCOLS,
-  TANDEM_DEEP_LINK_PROTOCOL,
+  OWNBASE_DEEP_LINK_PROTOCOL,
   normalizeServerUrlSafe,
 } from "./deeplinkHelpers.js";
 
@@ -19,7 +19,7 @@ const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
 
 /**
  * Parses the links the app hands out, in either form:
- * tandem://join?host=…&code=… and tandem://message?host=…&channel=…&id=…
+ * ownbase://join?host=…&code=… and ownbase://message?host=…&channel=…&id=…
  * for the desktop app (the previous gatherline:// and slackoss:// forms still read), and
  * <server>/#/join/<code> and <server>/#/c/<channel>/m/<message> for a browser.
  * Returns null for anything malformed rather than throwing.
@@ -35,7 +35,7 @@ export function parseDeepLink(raw: string): DeepLink | null {
   if (!(DEEP_LINK_PROTOCOLS as readonly string[]).includes(url.protocol.replace(/:$/, "")))
     return null;
 
-  // tandem://join?… parses "join" as the host, not the pathname.
+  // ownbase://join?… parses "join" as the host, not the pathname.
   const action = (url.hostname || url.pathname.replace(/^\/+/, "")).toLowerCase();
   const host = url.searchParams.get("host");
   if (!host) return null;
@@ -98,14 +98,14 @@ export function browserLink(serverUrl: string, target: LinkTarget): string {
     : `${serverUrl}/#/c/${e(target.channelId)}/m/${e(target.messageId)}`;
 }
 
-/** A link that opens the desktop app. Written in the Tandem form. */
+/** A link that opens the desktop app. Written in the OwnBase form. */
 export function desktopLink(serverUrl: string, target: LinkTarget): string {
   const e = encodeURIComponent;
   // ":" and "/" are allowed in a query, and leaving them makes the link readable.
   const host = e(serverAddress(serverUrl)).replaceAll("%3A", ":").replaceAll("%2F", "/");
   return target.kind === "join"
-    ? `${TANDEM_DEEP_LINK_PROTOCOL}://join?host=${host}&code=${e(target.code)}`
-    : `${TANDEM_DEEP_LINK_PROTOCOL}://message?host=${host}&channel=${e(target.channelId)}&id=${e(target.messageId)}`;
+    ? `${OWNBASE_DEEP_LINK_PROTOCOL}://join?host=${host}&code=${e(target.code)}`
+    : `${OWNBASE_DEEP_LINK_PROTOCOL}://message?host=${host}&channel=${e(target.channelId)}&id=${e(target.messageId)}`;
 }
 
 export interface ShareableServer {

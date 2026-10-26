@@ -1,5 +1,5 @@
 appId: dev.slackoss.desktop
-productName: Tandem
+productName: OwnBase
 directories:
   output: release
 files:
@@ -36,8 +36,9 @@ linux:
     - deb
   category: Network
 protocols:
-  - name: Tandem
+  - name: OwnBase
     schemes:
+      - ownbase
       - tandem
       - gatherline
       - slackoss

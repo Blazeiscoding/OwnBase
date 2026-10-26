@@ -70,7 +70,12 @@ import { mergeDraftsSetting } from "./draftsStorage.js";
 import { createHostingController } from "./hosting.js";
 import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
-import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
+import {
+  carryEarlierLoginItem,
+  loginItemOptions,
+  loginItemProblem,
+  openedAtLogin,
+} from "./loginItem.js";
 import { windowColours } from "./windowTheme.js";
 import {
   findCloudflared,
@@ -84,15 +89,16 @@ import {
 } from "./tunnel.js";
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
-/** Tandem name first, previous GATHERLINE_ and SLACKOSS_ names still read. */
+/** OwnBase name first, previous TANDEM_, GATHERLINE_ and SLACKOSS_ names still read. */
 const appEnv = (name: string): string | undefined =>
+  process.env[`OWNBASE_${name}`] ??
   process.env[`TANDEM_${name}`] ??
   process.env[`GATHERLINE_${name}`] ??
   process.env[`SLACKOSS_${name}`];
 const isTest = appEnv("TEST") === "1";
 // Branding must not move existing settings, credentials, or hosted databases.
 const legacyUserData = app.getPath("userData");
-app.setName("Tandem");
+app.setName("OwnBase");
 app.setPath("userData", appEnv("USER_DATA_DIR") ?? legacyUserData);
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
@@ -150,7 +156,7 @@ if ((isDev || isTest) && appEnv("TEST_MEDIA") === "1") {
   app.commandLine.appendSwitch("use-fake-ui-for-media-stream");
 }
 
-// ---------- tandem:// deep links (gatherline:// and slackoss:// still open) ----------
+// ---------- ownbase:// deep links (gatherline:// and slackoss:// still open) ----------
 
 /** Held until a window exists to receive it (cold start via a link). */
 let pendingDeepLink: string | null = null;
@@ -291,7 +297,7 @@ async function prepareLocalWrites(win: BrowserWindow | null, forQuit: boolean): 
       const choice = await dialog.showMessageBox({
         type: "warning",
         title: "Local work could not finish saving",
-        message: "Keep Tandem open to protect your final words?",
+        message: "Keep OwnBase open to protect your final words?",
         detail:
           "Some drafts or queued messages could not finish saving. Retry saving, or keep the window open to copy your words. Leaving without saving may lose that unfinished work.",
         buttons: [
@@ -550,7 +556,7 @@ function publicAddressStatus(): {
     ...(setting && fromEnvironment ? { locked: true } : {}),
     ...(config && "error" in config ? { error: config.error } : {}),
     ...(config && !("error" in config)
-      ? { url: config.publicUrl, ...(config.carrier === "tandem" ? { managed: true } : {}) }
+      ? { url: config.publicUrl, ...(config.carrier === "ownbase" ? { managed: true } : {}) }
       : {}),
   };
 }
@@ -627,7 +633,7 @@ const hosting = createHostingController({
       // Filesystem errors can contain the Windows account name and profile
       // path. Give the renderer a useful message without leaking either.
       throw new Error(
-        "Tandem could not save the public address. Check that its settings folder is writable, then try again.",
+        "OwnBase could not save the public address. Check that its settings folder is writable, then try again.",
       );
     }
     savedPublicAddress = address;
@@ -675,7 +681,7 @@ handle("hosting:setPort", (_e, request: unknown) => hosting.setPort(request));
 handle(
   "hosting:setAutoBackup",
   async (event, folder: unknown, schedule: unknown, chooseFolder: unknown) => {
-    if (quitting) throw new Error("Tandem is shutting down.");
+    if (quitting) throw new Error("OwnBase is shutting down.");
     if (schedule === null) return hosting.setAutoBackup({ folder, schedule: null });
     const { everyDays, keep } = (schedule ?? {}) as Record<string, unknown>;
     let destination: string | undefined;
@@ -736,7 +742,7 @@ handle("hosting:setOpenAtLogin", (_e, open: unknown) => {
   if (typeof open !== "boolean")
     throw new Error("Say whether to open at sign-in with true or false.");
   if (!loginItemAvailable)
-    throw new Error("Opening at sign-in needs Tandem installed on Windows or macOS.");
+    throw new Error("Opening at sign-in needs OwnBase installed on Windows or macOS.");
   if (isTest) {
     testOpenAtLogin = open;
     return openAtLogin();
@@ -773,7 +779,7 @@ function followNetworkChanges(): void {
   }, 10_000).unref();
 }
 handle("hosting:restore", async (event) => {
-  if (quitting) throw new Error("Tandem is shutting down.");
+  if (quitting) throw new Error("OwnBase is shutting down.");
   const owner = BrowserWindow.fromWebContents(event.sender);
   const options = {
     title: "Choose the folder of a backup to restore",
@@ -788,7 +794,7 @@ handle("hosting:restore", async (event) => {
 });
 handle("hosting:backups", (_e, folder: unknown) => hosting.listBackups(folder));
 handle("hosting:restoreOver", async (event, folder: unknown, backup: unknown) => {
-  if (quitting) throw new Error("Tandem is shutting down.");
+  if (quitting) throw new Error("OwnBase is shutting down.");
   if (backup !== null) return hosting.restoreOver({ folder, backup });
   const owner = BrowserWindow.fromWebContents(event.sender);
   const options = {
@@ -803,7 +809,7 @@ handle("hosting:restoreOver", async (event, folder: unknown, backup: unknown) =>
   return hosting.restoreOver({ folder, backupDir: choice.filePaths[0] });
 });
 handle("hosting:backup", async (event, folder: unknown) => {
-  if (quitting) throw new Error("Tandem is shutting down.");
+  if (quitting) throw new Error("OwnBase is shutting down.");
   const owner = BrowserWindow.fromWebContents(event.sender);
   const options = {
     title: "Choose where to save the backup",
@@ -818,14 +824,14 @@ handle("hosting:backup", async (event, folder: unknown) => {
   return hosting.backup({ folder, destination: choice.filePaths[0] });
 });
 handle("hosting:start", async (_e, opts: unknown) => {
-  if (quitting) throw new Error("Tandem is shutting down. Try again after reopening it.");
+  if (quitting) throw new Error("OwnBase is shutting down. Try again after reopening it.");
   if (trayStopPending) throw new Error("Wait for hosting to stop before starting a workspace.");
   await hosting.start(opts);
   return hostingStatus();
 });
 handle("hosting:stop", () => hosting.stop());
 handle("hosting:openToAll", async (_e, opts: unknown) => {
-  if (quitting) throw new Error("Tandem is shutting down.");
+  if (quitting) throw new Error("OwnBase is shutting down.");
   await hosting.openToAll(opts);
   return hostingStatus();
 });
@@ -875,7 +881,7 @@ handle("hosting:setRelay", async (_e, draft: unknown) => {
   } catch {
     // Filesystem errors can name the Windows account; say what to do instead.
     throw new Error(
-      "Tandem could not save the relay. Check that its settings folder is writable, then try again.",
+      "OwnBase could not save the relay. Check that its settings folder is writable, then try again.",
     );
   }
   callRelay = Promise.resolve(relay);
@@ -921,7 +927,7 @@ async function confirmStopAndQuit(): Promise<boolean> {
   const choice = await dialog.showMessageBox({
     type: "question",
     title: "Stop hosting and quit?",
-    message: "Quit Tandem and stop the hosted workspace?",
+    message: "Quit OwnBase and stop the hosted workspace?",
     detail:
       "Teammates will be disconnected until you start hosting again. Stored messages and files stay on this computer.",
     buttons: ["Cancel", "Stop hosting and quit"],
@@ -964,16 +970,16 @@ function updateTray(): void {
               status.connected !== undefined ? ` · ${status.connected} connected` : ""
             }`
           : "Not hosting";
-  // Hosting can be running while part of starting with Tandem failed, or
+  // Hosting can be running while part of starting with OwnBase failed, or
   // a scheduled backup keep failing; the tray is often all there is to see at
   // sign-in, so it says so too.
   const backups = backupTrayItems(hosting.backupAttention());
   const attention = status.launchError || backups.length ? " · needs attention" : "";
-  tray.setToolTip(`Tandem — ${label}${attention}`.slice(0, 127));
+  tray.setToolTip(`OwnBase — ${label}${attention}`.slice(0, 127));
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: "Open Tandem",
+        label: "Open OwnBase",
         click: () => {
           showMainWindow();
         },
@@ -985,7 +991,7 @@ function updateTray(): void {
               label:
                 status.launchErrorPart === "public-address"
                   ? "Public address not reopened: see why…"
-                  : "Did not start with Tandem: see why…",
+                  : "Did not start with OwnBase: see why…",
               click: () => {
                 showMainWindow();
               },
@@ -1009,10 +1015,10 @@ function updateTray(): void {
       },
       { type: "separator" },
       {
-        label: status.phase === "stopped" ? "Quit Tandem" : "Stop hosting and quit",
+        label: status.phase === "stopped" ? "Quit OwnBase" : "Stop hosting and quit",
         enabled: !quitting && !trayStopPending,
         // The label already says hosting stops, so it does not ask again.
-        click: () => quitTandem(true),
+        click: () => quitOwnBase(true),
       },
     ]),
   );
@@ -1181,10 +1187,10 @@ function createWindow(): void {
     }
     const { response } = await dialog.showMessageBox(win, {
       type: "error",
-      title: "Tandem",
-      message: "Tandem's window keeps stopping.",
+      title: "OwnBase",
+      message: "OwnBase's window keeps stopping.",
       detail: `${what} A hosted workspace keeps running, and messages saved on this computer come back with the window. If it stops again where you were, open it from the start.`,
-      buttons: ["Try again", "Open from the start", "Quit Tandem"],
+      buttons: ["Try again", "Open from the start", "Quit OwnBase"],
       defaultId: 0,
       cancelId: 0,
     });
@@ -1206,12 +1212,12 @@ function createWindow(): void {
   };
   win.webContents.on("render-process-gone", (_event, details) => {
     if (details.reason === "clean-exit") return;
-    console.error(`Tandem: the window's page stopped (${details.reason}).`);
+    console.error(`OwnBase: the window's page stopped (${details.reason}).`);
     void recover("The window stopped unexpectedly.", false);
   });
   win.webContents.on("did-fail-load", (_event, code, description, _url, isMainFrame) => {
     if (!isRendererLoadFailure(code, isMainFrame)) return;
-    console.error(`Tandem: the window could not load (${description}).`);
+    console.error(`OwnBase: the window could not load (${description}).`);
     void recover(`The window could not load (${description}).`, true);
   });
 
@@ -1259,11 +1265,19 @@ void app.whenReady().then(async () => {
   setTimeout(() => void hosting.runDueBackups(), 60_000).unref();
   setInterval(() => void hosting.runDueBackups(), 15 * 60_000).unref();
   // Opened by the OS at sign-in, with a workspace hosting and a tray to reach
-  // it by, Tandem stays out of the way, unless part of what it was asked
+  // it by, OwnBase stays out of the way, unless part of what it was asked
   // to do at sign-in did not happen: hosting on this network while the public
   // address failed to reopen is a failure nobody would otherwise see. Without
   // a sign-in the window opens, and hosting starts meanwhile: it enters
   // "starting" long before the window asks.
+  if (loginItemAvailable && !isTest) {
+    // An update from the Tandem name left its sign-in entry pointing at
+    // Tandem.exe, which is gone; this app's own takes its place.
+    carryEarlierLoginItem(process.platform, process.execPath, {
+      get: (options) => app.getLoginItemSettings(options),
+      set: (settings) => app.setLoginItemSettings(settings),
+    });
+  }
   const loginSettings = loginItemAvailable && !isTest ? app.getLoginItemSettings() : {};
   if (openedAtLogin(process.platform, process.argv, loginSettings)) {
     const hosted = await hosting.startForLaunch().catch(() => null);
@@ -1289,14 +1303,14 @@ app.on("window-all-closed", () => {
 app.on("before-quit", (event) => {
   if (quitReady || !primaryInstance) return;
   event.preventDefault();
-  quitTandem(false);
+  quitOwnBase(false);
 });
 
 /**
  * Stops hosting, saves local work and quits. `stopConfirmed` skips asking
  * first, for a choice that already said it stops hosting.
  */
-function quitTandem(stopConfirmed: boolean): void {
+function quitOwnBase(stopConfirmed: boolean): void {
   if (quitTask || trayStopPending) return;
   quitting = true;
   updateTray();
@@ -1322,7 +1336,7 @@ function quitTandem(stopConfirmed: boolean): void {
       const choice = await dialog.showMessageBox({
         type: "error",
         title: "The workspace could not finish stopping",
-        message: "Keep Tandem open, or quit without waiting for the remaining work?",
+        message: "Keep OwnBase open, or quit without waiting for the remaining work?",
         detail:
           "Shutdown failed. Quitting anyway ends the process immediately and may lose unfinished changes. Existing workspace data is not deleted.",
         buttons: ["Keep open", "Quit anyway"],

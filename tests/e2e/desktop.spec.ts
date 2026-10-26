@@ -55,7 +55,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   // the app into plain Node: launch then fails with "bad option".
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const app = await electron.launch({
-    executablePath: resolve("apps/desktop/release/win-unpacked/Tandem.exe"),
+    executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
     env: {
       ...inherited,
       SLACKOSS_TEST: "1",
@@ -66,9 +66,9 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   launched = { app, data };
 
   const page = await app.firstWindow();
-  expect(await app.evaluate(({ app }) => app.getName())).toBe("Tandem");
+  expect(await app.evaluate(({ app }) => app.getName())).toBe("OwnBase");
   expect(await app.evaluate(({ app }) => app.getPath("userData"))).toBe(data);
-  await expect(page).toHaveTitle("Tandem");
+  await expect(page).toHaveTitle("OwnBase");
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
@@ -118,7 +118,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   expect(await page.evaluate(() => Notification.permission)).toBe("granted");
   await expect(page.getByRole("region", { name: "Notifications" })).toHaveCount(0);
   await expect.poll(trayMenu).toEqual([
-    { label: "Open Tandem", enabled: true },
+    { label: "Open OwnBase", enabled: true },
     { label: `Hosting Desktop Test · port ${status.port} · 1 connected`, enabled: false },
     { label: "Stop hosting", enabled: true },
     { label: "Stop hosting and quit", enabled: true },
@@ -285,10 +285,10 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
     )
     .toBe("down");
   await expect.poll(trayMenu).toEqual([
-    { label: "Open Tandem", enabled: true },
+    { label: "Open OwnBase", enabled: true },
     { label: "Not hosting", enabled: false },
     { label: "Stop hosting", enabled: false },
-    { label: "Quit Tandem", enabled: true },
+    { label: "Quit OwnBase", enabled: true },
   ]);
   expect(await app.evaluate(() => (globalThis as any).messageBoxes)).toEqual([]);
   expect(errors).toEqual([]);
@@ -310,7 +310,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     SLACKOSS_TEST_MEDIA: "1",
     SLACKOSS_USER_DATA_DIR: data,
   };
-  const executablePath = resolve("apps/desktop/release/win-unpacked/Tandem.exe");
+  const executablePath = resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
   let app = await electron.launch({ executablePath, env });
   const killTree = () => {
     const pid = app.process().pid;
@@ -486,7 +486,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
   }
 });
 
-test("a workspace chosen to start with Tandem starts when it opens, and at sign-in waits in the tray", async () => {
+test("a workspace chosen to start with OwnBase starts when it opens, and at sign-in waits in the tray", async () => {
   const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-launch-"));
   const scheduledBackups = mkdtempSync(join(tmpdir(), "slackoss-desktop-scheduled-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
@@ -496,7 +496,7 @@ test("a workspace chosen to start with Tandem starts when it opens, and at sign-
     SLACKOSS_TEST_MEDIA: "1",
     SLACKOSS_USER_DATA_DIR: data,
   };
-  const executablePath = resolve("apps/desktop/release/win-unpacked/Tandem.exe");
+  const executablePath = resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
   let app = await electron.launch({ executablePath, env });
   const killTree = () => {
     const pid = app.process().pid;
@@ -540,12 +540,12 @@ test("a workspace chosen to start with Tandem starts when it opens, and at sign-
     await live.getByRole("tab", { name: "Advanced", exact: true }).click();
     const choices = live.getByRole("group", { name: "When this computer starts" });
     const withApp = choices.getByRole("checkbox", {
-      name: "Start hosting Launch Test when Tandem opens",
+      name: "Start hosting Launch Test when OwnBase opens",
     });
     await withApp.check();
     await expect(withApp).toBeChecked();
     const atSignIn = choices.getByRole("checkbox", {
-      name: "Open Tandem when you sign in to this computer",
+      name: "Open OwnBase when you sign in to this computer",
     });
     await atSignIn.check();
     await expect(atSignIn).toBeChecked();
@@ -648,7 +648,7 @@ test("a window whose page crashes comes back by itself, and hosting carries on (
   const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-crash-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const app = await electron.launch({
-    executablePath: resolve("apps/desktop/release/win-unpacked/Tandem.exe"),
+    executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
     env: {
       ...inherited,
       SLACKOSS_TEST: "1",
@@ -728,7 +728,7 @@ async function launchApp(prefix: string) {
     SLACKOSS_USER_DATA_DIR: data,
   };
   const app = await electron.launch({
-    executablePath: resolve("apps/desktop/release/win-unpacked/Tandem.exe"),
+    executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
     env,
   });
   launched = { app, data };
@@ -800,7 +800,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     ).toContain(marker);
 
     app = await electron.launch({
-      executablePath: resolve("apps/desktop/release/win-unpacked/Tandem.exe"),
+      executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
       env: first.env,
     });
     launched = { app, data: first.data };
@@ -844,9 +844,9 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
     };
   });
   expect(refused).toEqual({
-    read: expect.stringMatching(/did not come from the Tandem window/),
-    write: expect.stringMatching(/did not come from the Tandem window/),
-    hosting: expect.stringMatching(/did not come from the Tandem window/),
+    read: expect.stringMatching(/did not come from the OwnBase window/),
+    write: expect.stringMatching(/did not come from the OwnBase window/),
+    hosting: expect.stringMatching(/did not come from the OwnBase window/),
   });
 
   // It listens for what the app's own window changes, and hears none of it.
@@ -949,7 +949,7 @@ test("a window that keeps crashing comes back where it was, Try again included (
   }
   // Three came back by themselves; the fourth asked, and Try again kept the place.
   expect(await app.evaluate(() => (globalThis as any).placeTest.asked)).toEqual([
-    ["Try again", "Open from the start", "Quit Tandem"],
+    ["Try again", "Open from the start", "Quit OwnBase"],
   ]);
   await app.evaluate(async ({ BrowserWindow }) => {
     await BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(

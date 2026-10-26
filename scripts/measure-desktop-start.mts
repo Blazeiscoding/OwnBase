@@ -52,7 +52,7 @@ type Sample = {
 };
 
 async function round(executable: string): Promise<Sample> {
-  const data = mkdtempSync(join(tmpdir(), "tandem-start-"));
+  const data = mkdtempSync(join(tmpdir(), "ownbase-start-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const began = performance.now();
   const app = await electron.launch({

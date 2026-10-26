@@ -1158,7 +1158,7 @@ test("scrolls back through a long channel without unbounded growth or losing its
   }
 });
 
-test("Tandem keeps a capped live timeline pinned and supports keyboard and narrow-window chat", async ({
+test("OwnBase keeps a capped live timeline pinned and supports keyboard and narrow-window chat", async ({
   page,
 }, info) => {
   const errors: string[] = [];
@@ -1169,8 +1169,8 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
     if (m.text().includes("Content Security Policy")) errors.push(m.text());
   });
   await page.goto(base);
-  await expect(page).toHaveTitle("Tandem");
-  await page.screenshot({ path: info.outputPath("tandem-welcome.png") });
+  await expect(page).toHaveTitle("OwnBase");
+  await page.screenshot({ path: info.outputPath("ownbase-welcome.png") });
   await register(page, "smoothness");
   const token = await savedToken(page);
   const auth = { authorization: `Bearer ${token}`, "content-type": "application/json" };
@@ -1276,7 +1276,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(membersTooltip).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(membersToggle).toHaveAttribute("aria-pressed", "false");
-  await page.screenshot({ path: info.outputPath("tandem-conversation.png") });
+  await page.screenshot({ path: info.outputPath("ownbase-conversation.png") });
   const latestArticle = page.getByRole("article").last();
   await latestArticle.hover();
   const reply = page.getByRole("button", { name: "Reply in thread", exact: true }).last();
@@ -1554,7 +1554,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(
     page.getByText("A calmer space for our next big idea.", { exact: true }),
   ).toBeInViewport();
-  await page.screenshot({ path: info.outputPath("tandem-workspace.png") });
+  await page.screenshot({ path: info.outputPath("ownbase-workspace.png") });
   const timings = await page.evaluate(() =>
     ((window as any).inputFrames as number[]).sort((a, b) => a - b),
   );
@@ -1694,7 +1694,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   const previewBox = await preview.boundingBox();
   expect(previewBox!.x + previewBox!.width).toBeLessThanOrEqual(390);
   expect(await history.evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
-  await page.screenshot({ path: info.outputPath("tandem-narrow.png") });
+  await page.screenshot({ path: info.outputPath("ownbase-narrow.png") });
 
   // A phone on its side is wide enough for the sidebar but too short for it:
   // it becomes the same drawer, and the header gives some height back.
@@ -1704,7 +1704,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
   await expect(composerField).toBeInViewport();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
   await expect(page.getByRole("navigation")).toBeVisible();
-  await page.screenshot({ path: info.outputPath("tandem-short-landscape.png") });
+  await page.screenshot({ path: info.outputPath("ownbase-short-landscape.png") });
   // The drawer scrolls as one column, so its channels come into view with it.
   const channelRow = page
     .getByRole("navigation")
@@ -1715,7 +1715,7 @@ test("Tandem keeps a capped live timeline pinned and supports keyboard and narro
     row.closest("nav")!.scrollBy(0, row.getBoundingClientRect().bottom - innerHeight + 40),
   );
   await expect(channelRow).toBeInViewport();
-  await page.screenshot({ path: info.outputPath("tandem-short-landscape-scrolled.png") });
+  await page.screenshot({ path: info.outputPath("ownbase-short-landscape-scrolled.png") });
   await channelRow.click();
   await expect(page.getByRole("navigation")).not.toBeVisible();
   await page.getByRole("button", { name: "Open navigation", exact: true }).click();
@@ -2534,7 +2534,7 @@ test("Apps starts from templates: a webhook posts a test message, and the copied
     permissions: ["clipboard-read", "clipboard-write"],
   });
   const page = await context.newPage();
-  const folder = mkdtempSync(join(tmpdir(), "tandem-command-example-"));
+  const folder = mkdtempSync(join(tmpdir(), "ownbase-command-example-"));
   let service: ChildProcess | undefined;
   try {
     await signIn(page, "alice");
@@ -2758,7 +2758,7 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
     const inviteLink = `${origin}/#/join/${code}`;
     await expect(dialog.getByText(inviteLink, { exact: true })).toBeVisible();
     await expect(
-      dialog.getByText(`tandem://join?host=127.0.0.1:${port}&code=${code}`, { exact: true }),
+      dialog.getByText(`ownbase://join?host=127.0.0.1:${port}&code=${code}`, { exact: true }),
     ).toBeVisible();
     await expect(dialog.getByText(/reaches only this computer/)).toBeVisible();
     await dialog.getByRole("button", { name: "Copy link", exact: true }).click();
@@ -2776,7 +2776,7 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
     await dialog.getByRole("button", { name: "Copy desktop link", exact: true }).click();
     await expect(dialog.getByRole("button", { name: "Copied", exact: true })).toBeVisible();
     expect(await hostPage.evaluate(() => navigator.clipboard.readText())).toBe(
-      `tandem://join?host=127.0.0.1:${port}&code=${code}`,
+      `ownbase://join?host=127.0.0.1:${port}&code=${code}`,
     );
     await hostPage.evaluate(() =>
       (window as unknown as { restoreClipboard: () => void }).restoreClipboard(),
@@ -3117,7 +3117,7 @@ test("the demo seed fills a new workspace with something to try, and leaves one 
     await page.getByLabel("Password", { exact: true }).fill("password123");
     await page.getByLabel("Password", { exact: true }).press("Enter");
     const sidebar = page.getByRole("navigation");
-    await expect(page.getByText(/^Welcome to Tandem, everyone!/)).toBeVisible();
+    await expect(page.getByText(/^Welcome to OwnBase, everyone!/)).toBeVisible();
     // Read as who reacted, not only as an emoji and a number.
     await expect(page.getByRole("button", { name: /^🎉 3 reactions, from .+/ })).toBeVisible();
 
@@ -5343,7 +5343,7 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
   browser,
 }) => {
   // A picture wider than it is tall, as a logo often is: the browser cuts it square.
-  const folder = mkdtempSync(join(tmpdir(), "tandem-icon-"));
+  const folder = mkdtempSync(join(tmpdir(), "ownbase-icon-"));
   const picture = join(folder, "logo.png");
   writeFileSync(picture, solidPng(120, 80));
   const info = async () =>
@@ -5411,7 +5411,7 @@ test("a picture, a time zone and away set in one browser reach the other as they
   browser,
 }) => {
   // A picture taller than it is wide, as a phone takes one: the browser cuts it square.
-  const folder = mkdtempSync(join(tmpdir(), "tandem-avatar-"));
+  const folder = mkdtempSync(join(tmpdir(), "ownbase-avatar-"));
   const picture = join(folder, "me.png");
   writeFileSync(picture, solidPng(90, 120));
   // Each browser in a zone of its own, as two people a world apart.

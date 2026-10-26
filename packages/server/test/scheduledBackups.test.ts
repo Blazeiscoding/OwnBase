@@ -88,7 +88,7 @@ function gate() {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "tandem-scheduled-backups-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-scheduled-backups-"));
   dataDir = join(root, "data");
   backupDir = join(root, "backups");
 });

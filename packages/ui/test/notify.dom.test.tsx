@@ -68,7 +68,7 @@ describe("the notification banner", () => {
     const user = userEvent.setup();
     render(<NotificationBanner storage={deviceStorage().storage} />);
     const region = await screen.findByRole("region", { name: "Notifications" });
-    expect(region).toHaveTextContent(/mentions while Tandem is in the background/);
+    expect(region).toHaveTextContent(/mentions while OwnBase is in the background/);
     expect(await accessibilityProblems(region)).toEqual([]);
 
     await user.click(screen.getByRole("button", { name: "Turn on" }));
