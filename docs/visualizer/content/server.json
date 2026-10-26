@@ -637,6 +637,17 @@
       "concepts": ["authorization", "delegated managers", "shared policy"]
     },
     {
+      "path": "packages/protocol/src/plan.ts",
+      "plain": "Says how many members a workspace's plan includes, and counts the members, the same way on the server and in the app.",
+      "summary": "The MemberNotice shape the server sends its owner and admins, and planMembers, the count it is compared with (P5).",
+      "details": [
+        "MemberNotice carries the plan's member count and, when the host gave them, its name and an upgrade address; the ready snapshot holds it for the owner and admins only.",
+        "planMembers counts people who can sign in: apps, guests (who last a day) and deactivated accounts are left out.",
+        "It is a notice, never a limit: nothing on the server refuses a join or a sign-in because of it."
+      ],
+      "concepts": ["plans", "shared policy", "P5"]
+    },
+    {
       "path": "packages/protocol/src/rest.ts",
       "plain": "Checks the shape and size of everything the app sends the server, such as names, passwords, messages and scheduled sends.",
       "summary": "Validates the shared HTTP request bodies and paging/search parameters.",
