@@ -10,6 +10,7 @@ import {
   type Friendship,
   type HuddleRing,
   type ID,
+  type MemberNotice,
   type Message,
   type ModalView,
   type Presence,
@@ -512,6 +513,11 @@ export interface WorkspaceState {
    * account is one, on a server that takes reports.
    */
   openReports: number | null;
+  /**
+   * How many members the plan includes (P5); null unless this account is the
+   * owner or an admin, on a server whose host set it.
+   */
+  memberNotice: MemberNotice | null;
   status: ConnectionStatus;
   workspaceName: string;
   /** Authenticated storage identity; null when an older server does not expose it. */
@@ -685,6 +691,7 @@ const initialState: WorkspaceState = {
   friends: [],
   blocked: null,
   openReports: null,
+  memberNotice: null,
   status: "connecting",
   workspaceName: "",
   workspaceId: null,
@@ -1177,6 +1184,7 @@ export class WorkspaceClient {
       friends: snap.friends ?? [],
       blocked: snap.blocked ?? null,
       openReports: snap.openReports ?? null,
+      memberNotice: snap.memberNotice ?? null,
       lastSeq: reset || prev.lastSeq === 0 ? snap.seq : (snap.replayFrom ?? prev.lastSeq),
       // Keep loaded timelines — replayed events patch them incrementally.
       timelines: prev.timelines,

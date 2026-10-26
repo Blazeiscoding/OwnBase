@@ -8,7 +8,7 @@
  * to send its replies, and nothing fails until an app tries.
  */
 
-import type { AccessPolicy } from "@slackoss/protocol";
+import type { AccessPolicy, MemberNotice } from "@slackoss/protocol";
 
 /** A setting that cannot be used, with a message meant for the person who set it. */
 export class ConfigError extends Error {}
@@ -65,6 +65,57 @@ export function parsePublicUrl(raw: string, flag = "--public-url"): string {
     throw new ConfigError(`${flag} must not contain a query or a #fragment`);
   }
   return url.href.replace(/\/+$/, "");
+}
+
+/** The longest plan name: it sits inside a sentence. */
+const PLAN_NAME_MAX = 40;
+
+/**
+ * --member-notice and its two companions (P5): how many members the plan
+ * includes, the plan's name and where to choose a bigger one. A name or an
+ * address means nothing without the number, so either alone is refused.
+ */
+export function parseMemberNotice(raw: {
+  members: string | undefined;
+  planName: string | undefined;
+  upgradeUrl: string | undefined;
+}): MemberNotice | undefined {
+  if (raw.members === undefined) {
+    if (raw.planName !== undefined || raw.upgradeUrl !== undefined)
+      throw new ConfigError(
+        "--plan-name and --upgrade-url need --member-notice, the number of members the plan includes",
+      );
+    return undefined;
+  }
+  const members = parseWholeNumber(raw.members, "--member-notice", 0);
+  if (members < 1) throw new ConfigError("--member-notice must be at least 1");
+  const notice: MemberNotice = { members };
+  if (raw.planName !== undefined) {
+    const name = raw.planName.trim();
+    if (!name || name.length > PLAN_NAME_MAX || /[\p{Cc}\p{Cf}]/u.test(name))
+      throw new ConfigError(
+        `--plan-name needs the plan's name, such as Team, up to ${PLAN_NAME_MAX} characters, not "${raw.planName}"`,
+      );
+    notice.planName = name;
+  }
+  if (raw.upgradeUrl !== undefined) {
+    let url: URL;
+    try {
+      url = new URL(raw.upgradeUrl);
+    } catch {
+      throw new ConfigError(
+        `--upgrade-url needs a full address such as https://example.com/plans, not "${raw.upgradeUrl}"`,
+      );
+    }
+    if (url.protocol !== "https:" && url.protocol !== "http:")
+      throw new ConfigError(
+        `--upgrade-url must start with https:// or http://, not "${url.protocol}//"`,
+      );
+    if (url.username || url.password)
+      throw new ConfigError("--upgrade-url must not contain a username or password");
+    notice.upgradeUrl = url.href;
+  }
+  return notice;
 }
 
 /** A count of whole units, such as days, where a fraction would be silently rounded. */

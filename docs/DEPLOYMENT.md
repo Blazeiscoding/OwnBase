@@ -1398,6 +1398,29 @@ without an invite: it keeps the same identity, messages and channels. An
 administrator can deactivate a guest, but cannot make one a member or reset its
 password.
 
+## A plan's members
+
+For a workspace you host for others on a plan, `--member-notice <n>` says how many
+members the plan includes. Once the workspace has more, its owner and
+administrators see a line under the conversation's header saying so, and
+**Workspace settings → General → Plan** says the same for as long as it is true.
+`--plan-name` names the plan in it ("the Team plan"), and `--upgrade-url` adds a
+**See plans** link that opens in the browser. Without them the line says "its
+plan" and links nowhere.
+
+```sh
+slackoss-server --data ./data --member-notice 50 --plan-name Team \
+  --upgrade-url "https://example.com/plans?workspace=acme"
+```
+
+It is a notice, never a limit: nobody is locked out, and people keep joining and
+signing in past it. Members and guests are not told. People with an account who
+can sign in are counted; apps, guests and deactivated accounts are not. **Not
+now** puts the line away on that device for two weeks; the Plan section stays.
+The settings are also `TANDEM_MEMBER_NOTICE`, `TANDEM_PLAN_NAME` and
+`TANDEM_UPGRADE_URL`. The server prints the plan's members when it starts, and a
+name or an address without `--member-notice` is refused.
+
 ## Current boundaries
 
 Friends and accounts do not federate across servers. Account settings offers password
