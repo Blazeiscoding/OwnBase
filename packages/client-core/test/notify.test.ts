@@ -59,6 +59,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     friends: [],
     blocked: [],
     openReports: null,
+    memberNotice: null,
     status: "online",
     workspaceName: "W",
     workspaceId: null,

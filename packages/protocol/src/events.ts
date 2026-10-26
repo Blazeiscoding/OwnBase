@@ -12,6 +12,7 @@ import type {
   SidebarSection,
 } from "./entities.js";
 import type { CallReport, HuddleRing, HuddleSignal } from "./huddle.js";
+import type { MemberNotice } from "./plan.js";
 
 /**
  * Durable workspace events. Every mutation appends one to the event log and
@@ -306,6 +307,11 @@ export interface ReadySnapshot {
   blocked?: ID[];
   /** How many reported messages wait for an admin (E12). Given to the owner and admins only. */
   openReports?: number;
+  /**
+   * How many members the plan includes, when the host set it (P5). Given to
+   * the owner and admins only, who are offered a bigger plan past it.
+   */
+  memberNotice?: MemberNotice;
 }
 
 /** Everything the server can push over the socket. */

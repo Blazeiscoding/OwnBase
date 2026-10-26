@@ -3,6 +3,7 @@ import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@slac
 import { ApiError } from "@slackoss/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
+import { memberNoticeText, UpgradeLink, usePlanMembers } from "./MemberNotice.js";
 import { SavedContext, useSaved } from "../lib/savedNote.js";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
@@ -118,6 +119,7 @@ export function WorkspaceSettings({
             {icons && <IconSection />}
             <NameSection editable={editable} />
             <PreviewsSection />
+            <PlanSection />
             <CopySection />
           </>
         )}
@@ -411,6 +413,38 @@ function PreviewsSection() {
           {error}
         </p>
       )}
+    </section>
+  );
+}
+
+/**
+ * How many members the plan includes and how many there are (P5), when the
+ * host set a plan. It stays here while the banner is put away.
+ */
+function PlanSection() {
+  const plan = usePlanMembers();
+  if (!plan) return null;
+  const { notice, members } = plan;
+  const name = notice.planName ? `The ${notice.planName} plan` : "This workspace's plan";
+  return (
+    <section aria-labelledby="workspace-plan-title" className="mt-8">
+      <h4 id="workspace-plan-title" className="mb-1.5 text-[13px] font-medium text-ink-dim">
+        Plan
+      </h4>
+      <p className="text-sm text-ink">
+        {members > notice.members
+          ? `${memberNoticeText(notice, members)} Nobody is locked out, and people can keep joining.`
+          : `${name} includes ${notice.members} members. This workspace has ${members}.`}
+        {notice.upgradeUrl && (
+          <>
+            {" "}
+            <UpgradeLink
+              href={notice.upgradeUrl}
+              className="font-medium underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
+            />
+          </>
+        )}
+      </p>
     </section>
   );
 }

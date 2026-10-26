@@ -3,7 +3,12 @@ import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { ACCESS_POLICIES, DEFAULT_PORT, type AccessPolicy } from "@slackoss/protocol";
+import {
+  ACCESS_POLICIES,
+  DEFAULT_PORT,
+  type AccessPolicy,
+  type MemberNotice,
+} from "@slackoss/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "./backup.js";
 import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js";
@@ -16,6 +21,7 @@ import {
   describeStartupError,
   envSetting,
   keptSettingsNotes,
+  parseMemberNotice,
   parsePort,
   parsePublicUrl,
   parseWholeNumber,
@@ -49,6 +55,9 @@ const { values, positionals } = (() => {
         "backup-dir": { type: "string" },
         "backup-every-hours": { type: "string" },
         "backup-keep": { type: "string" },
+        "member-notice": { type: "string" },
+        "plan-name": { type: "string" },
+        "upgrade-url": { type: "string" },
         web: { type: "string" },
         "public-url": { type: "string" },
         "allow-private-hooks": { type: "boolean", default: false },
@@ -125,6 +134,18 @@ Usage: slackoss-server [options]
   --backup-keep <n> How many scheduled backups to keep (default 7). Older
                     ones in --backup-dir go; nothing else there is touched.
                     Also settable with TANDEM_BACKUP_KEEP
+  --member-notice <n>
+                    For a workspace you host for others on a plan: past this
+                    many members, the owner and admins are told it has more
+                    than the plan includes. Nobody is locked out and people
+                    keep joining. Apps, guests and deactivated accounts are not
+                    counted. Off unless set. Also settable with
+                    TANDEM_MEMBER_NOTICE
+  --plan-name <name>
+                    The plan's name in that notice, such as Team. Also
+                    settable with TANDEM_PLAN_NAME
+  --upgrade-url <u> Where the notice sends them to choose a bigger plan. Also
+                    settable with TANDEM_UPGRADE_URL
   --web <dir>       Serve the browser client from this directory
   --public-url <u>  How others reach this server, e.g. https://chat.team.dev
                     (set it behind a reverse proxy; used in URLs given to apps)
@@ -395,6 +416,7 @@ let port: number;
 let retentionDays: number;
 let publicUrl: string | undefined;
 let scheduledBackups: ScheduledBackups | undefined;
+let memberNotice: MemberNotice | undefined;
 try {
   port = parsePort(values.port);
   // Whole days: 1.5 would otherwise be announced as 1.5 and applied as 2.
@@ -405,6 +427,11 @@ try {
   );
   publicUrl = values["public-url"] === undefined ? undefined : parsePublicUrl(values["public-url"]);
   scheduledBackups = scheduledBackupsOption();
+  memberNotice = parseMemberNotice({
+    members: values["member-notice"] ?? envSetting("MEMBER_NOTICE"),
+    planName: values["plan-name"] ?? envSetting("PLAN_NAME"),
+    upgradeUrl: values["upgrade-url"] ?? envSetting("UPGRADE_URL"),
+  });
 } catch (err) {
   if (!(err instanceof ConfigError)) throw err;
   refuse(err.message);
@@ -450,6 +477,7 @@ const server = await createWorkspaceServer({
   abandonedUploadTtlMs: Math.round(abandonedUploadHours * 3600_000),
   retentionDays,
   scheduledBackups,
+  memberNotice,
   // Scheduled backups and the owner's copies, in a child process, so the
   // copy and its checks never hold up chat.
   takeBackup: backupInChildProcess({
@@ -503,6 +531,12 @@ if (scheduledBackups && !values.isolated) {
     `  Backups: every ${scheduledBackups.everyMs / 3600_000} h to ${scheduledBackups.dir}, keeping ${scheduledBackups.keep}`,
   );
   if (status?.nextAt) console.log(`  Next backup: ${new Date(status.nextAt).toISOString()}`);
+}
+if (memberNotice) {
+  const plan = memberNotice.planName ? `the ${memberNotice.planName} plan` : "the plan";
+  console.log(
+    `  Members: ${plan} includes ${memberNotice.members}; past that, the owner and admins are told`,
+  );
 }
 for (const addr of loopbackOnly ? [] : lanAddresses()) {
   console.log(`  Network: http://${addr}:${server.port}  <- share this with your team`);

@@ -50,6 +50,7 @@ import { shortcutLabel } from "../lib/shortcuts.js";
 import type { AccountSection } from "../components/AccountDialog.js";
 import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction } from "../components/Banner.js";
+import { MemberNoticeBanner } from "../components/MemberNotice.js";
 import {
   ConversationMenu,
   ConversationSearch,
@@ -1483,7 +1484,8 @@ function WorkspaceInner({
           )}
           {/* One banner at a time, the most pressing (UX-25): a message that could
               not be opened, then what the app could not save, then the ask to
-              turn on notifications, then a message on its way. */}
+              turn on notifications, then a message on its way, then a
+              workspace with more members than its plan includes (P5). */}
           {navigationError ? (
             <Banner
               tone="alert"
@@ -1506,6 +1508,7 @@ function WorkspaceInner({
                 </ErrorBoundary>
               )}
               {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
+              {!navigating && !asking && <MemberNoticeBanner />}
             </>
           )}
 

@@ -8,6 +8,7 @@ import {
   type EventEnvelope,
   type HuddleRing,
   type ID,
+  type MemberNotice,
   type Presence,
   type ReadySnapshot,
   type ServerToClient,
@@ -94,6 +95,8 @@ export class Gateway {
       iconVersion: () => string | null;
       /** Whether new messages get link previews now (E2). */
       linkPreviews: () => boolean;
+      /** How many members the plan includes, when the host set it (P5). */
+      memberNotice?: () => MemberNotice | null;
     },
     /** Shared with the HTTP side, so one caller has one allowance overall. */
     private limiter: RateLimiter | null = null,
@@ -410,7 +413,7 @@ export class Gateway {
           friends: this.store.listFriends(user.id),
           blocked: this.store.blockedIds(user.id),
           ...(user.role === "owner" || user.role === "admin"
-            ? { openReports: this.store.openReportCount() }
+            ? { openReports: this.store.openReportCount(), ...this.memberNoticeFor() }
             : {}),
         };
         const missed =
@@ -588,6 +591,12 @@ export class Gateway {
       ),
     );
     this.presenceChanged();
+  }
+
+  /** The plan's member notice for a snapshot, when the host set one. */
+  private memberNoticeFor(): { memberNotice?: MemberNotice } {
+    const notice = this.workspace.memberNotice?.();
+    return notice ? { memberNotice: notice } : {};
   }
 
   // ---------- huddles ----------

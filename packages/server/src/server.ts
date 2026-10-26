@@ -79,6 +79,7 @@ import {
   updateMeBody,
   type EventEnvelope,
   type ID,
+  type MemberNotice,
   type MessageAction,
   type Message,
   type ModalView,
@@ -425,6 +426,13 @@ export interface ServerOptions {
    * needs room for a whole copy, and is emptied when the server starts.
    */
   copiesDir?: string;
+  /**
+   * How many members the workspace's plan includes, for a workspace someone
+   * hosts for others (P5). Past it the owner and admins are offered a bigger
+   * plan, named and linked when the host gives `planName` and `upgradeUrl`.
+   * Nobody is locked out and joining carries on. Omitted, nothing is said.
+   */
+  memberNotice?: MemberNotice;
   /**
    * Starts a copy for looking at, such as a backup restored to check it. The
    * copy holds the original's apps, their signing secrets and its queue of
@@ -864,6 +872,7 @@ async function startWorkspaceServer(
       accessPolicy,
       iconVersion: () => icon?.version ?? null,
       linkPreviews: linkPreviewsOn,
+      memberNotice: () => opts.memberNotice ?? null,
     },
     limiter,
     (req) =>

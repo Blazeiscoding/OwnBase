@@ -2033,6 +2033,17 @@
       "concepts": ["notification permission", "gesture ownership", "respectful prompting", "UX-25"]
     },
     {
+      "path": "packages/ui/src/components/MemberNotice.tsx",
+      "plain": "Tells the owner and admins when the workspace has more members than its plan includes, with a link to a bigger plan.",
+      "summary": "The member notice banner and the hook and sentence Workspace settings shares with it (P5).",
+      "details": [
+        "usePlanMembers gives the plan's notice and the live member count, only to the owner and admins, so someone joining shows it at once.",
+        "MemberNoticeBanner is a status in the one banner place, after the ask to turn on notifications and a message being opened; Not now puts it away on this device for two weeks, per workspace.",
+        "The sentence names the plan when the host gave a name, and See plans opens the host's address in the browser; Workspace settings > General > Plan says the same while it is true."
+      ],
+      "concepts": ["plans", "banner place", "P5"]
+    },
+    {
       "path": "packages/ui/src/components/MessageAnnouncer.tsx",
       "plain": "Reads out new messages to screen reader users without moving focus, grouping bursts so they are not flooded.",
       "summary": "Politely announces new visible messages without flooding a screen reader.",
