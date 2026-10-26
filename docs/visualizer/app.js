@@ -307,7 +307,7 @@
   // with tests left out. A dotted wire happens at runtime, where no import says
   // so. Each wire names the side it leaves by and the side it arrives at.
   const mapNodes = [
-    { area: "web", name: "Web version", role: "Opens Tandem in any web browser" },
+    { area: "web", name: "Web version", role: "Opens OwnBase in any web browser" },
     { area: "desktop", name: "Desktop app", role: "The app for your computer. It can also host" },
     { area: "ui", name: "Screens", role: "Everything you see and click" },
     {
@@ -416,7 +416,7 @@
       </article>`;
     };
     const support = files.filter((file) => supportAreas.includes(file.area));
-    return `<figure class="atlas-map" id="atlas-map" aria-label="How Tandem's areas connect, with a dot for every file">
+    return `<figure class="atlas-map" id="atlas-map" aria-label="How OwnBase's areas connect, with a dot for every file">
       <div class="map-grid" id="map-grid">
         <svg class="map-wires" id="map-wires" aria-hidden="true"></svg>
         ${mapNodes.map(node).join("")}
@@ -432,7 +432,7 @@
         <span><i class="d k-test"></i>Test that checks the code</span>
         <span><i class="d k-other"></i>Settings, docs and images</span>
         <span class="legend-wire"><i class="wire-sample"></i>A number counts the files in one part that use another, tests left out</span>
-        <span class="legend-wire"><i class="wire-sample runtime"></i>Connects while Tandem runs</span>
+        <span class="legend-wire"><i class="wire-sample runtime"></i>Connects while OwnBase runs</span>
       </figcaption>
     </figure>`;
   }
@@ -638,7 +638,7 @@
           .join("")}</div>
       </section>
       <section class="section" aria-labelledby="start-title">
-        <div class="section-head"><h2 id="start-title">Follow one action through Tandem</h2><p>${flows.length} everyday actions. Each line shows which parts of Tandem do the work, step by step.</p></div>
+        <div class="section-head"><h2 id="start-title">Follow one action through OwnBase</h2><p>${flows.length} everyday actions. Each line shows which parts of OwnBase do the work, step by step.</p></div>
         <div class="routes">${Object.entries(flowGroups)
           .map(
             ([area, title]) =>
@@ -1254,7 +1254,7 @@
           .join(""),
       )
       .join("");
-    return `<figure class="handoff"><figcaption><strong>Who does each step</strong><span>Which parts of Tandem work in each step. The line follows the part doing most of the work, and small dots are parts that help.</span></figcaption><div class="handoff-scroll"><svg viewBox="0 0 ${width} ${height}" style="max-width: ${width}px" role="group" aria-label="${escape(flow.steps.map((step, index) => `Step ${index + 1} ${step.title}: ${[...perStep[index].keys()].map((id) => layerById(id).title).join(" and ")}`).join(". "))}"><defs>${defs}</defs>${rows}${heads}${wires}${dots}</svg></div></figure>`;
+    return `<figure class="handoff"><figcaption><strong>Who does each step</strong><span>Which parts of OwnBase work in each step. The line follows the part doing most of the work, and small dots are parts that help.</span></figcaption><div class="handoff-scroll"><svg viewBox="0 0 ${width} ${height}" style="max-width: ${width}px" role="group" aria-label="${escape(flow.steps.map((step, index) => `Step ${index + 1} ${step.title}: ${[...perStep[index].keys()].map((id) => layerById(id).title).join(" and ")}`).join(". "))}"><defs>${defs}</defs>${rows}${heads}${wires}${dots}</svg></div></figure>`;
   }
   function flowsPage(params) {
     const flow = flows.find((item) => item.id === params.get("id")) ?? flows[0];
@@ -1365,7 +1365,7 @@
         <div class="dot-tip record-tip" id="record-tip" hidden></div>
       </figure>
       <figure class="board-panel board-reach" aria-labelledby="board-reach">
-        <figcaption><h2 id="board-reach">Where the open problems are</h2><p>How many open problems involve each part of Tandem. One problem can involve several.</p></figcaption>
+        <figcaption><h2 id="board-reach">Where the open problems are</h2><p>How many open problems involve each part of OwnBase. One problem can involve several.</p></figcaption>
         <ul class="reach-list">${reach
           .map(
             ({ layer, count }) =>
@@ -1544,7 +1544,7 @@
   function evidencePage() {
     const date = new Date(meta.revisionDate);
     return `<div class="page narrow">
-      ${pageHead("What this atlas can and cannot tell you", "It is a snapshot of the code with explanations. It does not run Tandem, so it cannot prove the tests pass or that old numbers still hold.")}
+      ${pageHead("What this atlas can and cannot tell you", "It is a snapshot of the code with explanations. It does not run OwnBase, so it cannot prove the tests pass or that old numbers still hold.")}
       ${guide.validation.length ? `<div class="validation">${guide.validation.map((record) => `<article><strong>${escape(record.value)}</strong><h3>${escape(record.label)}</h3><p>${escape(record.detail)}</p>${fileRef(record.path)}</article>`).join("")}</div>` : ""}
       <section class="section"><div class="section-head"><h2>Before you quote a number</h2></div><ul class="limits-list">${guide.limits.map((limit) => `<li>${escape(limit.text)}</li>`).join("")}</ul>${inCode(`<ul>${guide.limits.map((limit) => `<li>${escape(limit.detail)}</li>`).join("")}</ul>`, "", false, "The precise wording, for developers")}</section>
       <section class="section"><div class="section-head"><h2>Words you may meet in the code sections</h2></div><dl class="glossary">${guide.glossary.map((item) => `<div><dt>${escape(item.term)}</dt><dd>${escape(item.meaning)}</dd></div>`).join("")}</dl></section>
@@ -1576,7 +1576,7 @@
     crumbs(view, params);
     setNav(false);
     const path = params.get("path");
-    document.title = `${view === "files" && path ? base(path) : views[view].label} · Tandem atlas`;
+    document.title = `${view === "files" && path ? base(path) : views[view].label} · OwnBase atlas`;
     if (view === "files" && params.get("layer")) {
       state.layer = layers.some((layer) => layer.id === params.get("layer"))
         ? params.get("layer")

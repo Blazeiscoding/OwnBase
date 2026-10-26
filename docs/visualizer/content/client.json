@@ -691,7 +691,7 @@
       "plain": "Reads and builds links that invite people or open a message, and picks the best address to share.",
       "summary": "Parses and builds join/message links and chooses an address suitable for sharing.",
       "details": [
-        "Supports Tandem desktop schemes, legacy schemes and browser fragment forms. Browser invite codes sit in the fragment, which is not sent as the HTTP request target or Referer fragment.",
+        "Supports OwnBase desktop schemes, legacy schemes and browser fragment forms. Browser invite codes sit in the fragment, which is not sent as the HTTP request target or Referer fragment.",
         "shareableServer prefers a live temporary address owned by this desktop, then a published server address, usable LAN addresses or the connected non-loopback address. It marks links that reach only the current computer as localOnly.",
         "Address formatting preserves the destination when shortening display text; LAN ranking favors ordinary home/office interfaces over common virtual-network addresses."
       ],
@@ -699,7 +699,7 @@
     },
     {
       "path": "packages/ui/src/lib/deeplinkHelpers.ts",
-      "plain": "Small shared pieces for links, such as Tandem's link prefixes and a check that quietly drops a badly typed address.",
+      "plain": "Small shared pieces for links, such as OwnBase's link prefixes and a check that quietly drops a badly typed address.",
       "summary": "Shares deep-link scheme constants and safe address normalization.",
       "details": [
         "Re-exports current and accepted legacy schemes from protocol.",
@@ -851,7 +851,7 @@
       "plain": "The three ways Apps and integrations offers to start, an incoming webhook, a slash command and posting CI results, and the examples each one gives to copy.",
       "summary": "Template names, test messages and copyable examples for Apps and integrations (UX-63).",
       "details": [
-        "curlExample posts WEBHOOK_EXAMPLE, the same message Send test message posts. ciExample is a GitHub Actions step that reads the webhook URL from the TANDEM_WEBHOOK_URL repository secret and builds its JSON with jq from environment variables, so a quote in a branch name cannot break it.",
+        "curlExample posts WEBHOOK_EXAMPLE, the same message Send test message posts. ciExample is a GitHub Actions step that reads the webhook URL from the OWNBASE_WEBHOOK_URL repository secret and builds its JSON with jq from environment variables, so a quote in a branch name cannot break it.",
         "commandExample is a Node service with nothing to install that checks the request's signature and timestamp as INTEGRATIONS.md describes and answers privately. appTemplates.test.ts runs it against signed, unsigned and stale requests.",
         "commandName stores a command as the server does (no slash, lower case); suggestedAppName names the app a template makes."
       ],
@@ -2131,7 +2131,7 @@
       "plain": "The desktop app's screen picker, like Discord's: tabs for windows and screens, a live picture of each, the resolution and frame rate to share at, and whether your computer's sound goes too.",
       "summary": "Picks a window or screen to share, and how sharp and smooth, in the app rather than a system dialog.",
       "details": [
-        "Windows come first and none is chosen for you, since the window on top is usually Tandem itself and one chosen for you could be one nobody was meant to see; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
+        "Windows come first and none is chosen for you, since the window on top is usually OwnBase itself and one chosen for you could be one nobody was meant to see; the Screens tab starts on the first screen, and a list with no window opens on it. Tiles are radio buttons in a radiogroup; a double click or Enter shares at once.",
         "The last list shows at once where there has been one (platform.screenShare.sources with quick), then a fresh one, then again every 3 s while open, so pictures move and windows come and go; a chosen window that closes leaves Share asking for another. Only a first fresh list that fails with nothing shown says so, with Try again.",
         "Share is never off for want of a choice. Pressed with nothing chosen, an alert beside the list says what is needed and focus goes to the first tile, without choosing it: choose a window, that window has closed, the list is still being found, or (with no window listed) open one or share a screen, with focus on the Screens tab. When the list failed, focus goes to Try again. The words follow the list as it changes, and choosing a tile or another tab takes them away. A window that closed between choosing and sharing is said there too.",
         "Share names the choice to the main process, then asks the huddle for a screen at the quality chosen (720p or 1080p; 15, 30 or 60 fps, kept on the device as screen-share-quality). A refusal from the system is said in the footer, and the dialog stays open; chosen here, even a plain refusal says sharing could not start.",
@@ -2534,7 +2534,7 @@
     },
     {
       "path": "packages/ui/src/gallery/Gallery.tsx",
-      "plain": "A page for people building Tandem that shows every shared control in its states, in the dark and the light theme. Only the development version has it.",
+      "plain": "A page for people building OwnBase that shows every shared control in its states, in the dark and the light theme. Only the development version has it.",
       "summary": "Development-only gallery of the UI primitives in Onyx and White, the reference for review.",
       "details": [
         "apps/web/src/main.tsx imports it, through the package's ./gallery export, only when import.meta.env.DEV is true and the address is #/gallery, #/gallery/onyx or #/gallery/white. A build replaces that condition with false and drops the import, so neither the web build nor the desktop renderer contains it.",
@@ -2548,7 +2548,7 @@
     {
       "id": "client-message-send",
       "title": "Sending a message",
-      "summary": "Different parts of Tandem look after what you type, the copy saved on your device and the message on the server. Sending passes the message along with a one-time code and waits for a confirmation, rather than just emptying the message box.",
+      "summary": "Different parts of OwnBase look after what you type, the copy saved on your device and the message on the server. Sending passes the message along with a one-time code and waits for a confirmation, rather than just emptying the message box.",
       "steps": [
         {
           "title": "Type and keep a draft",
@@ -2650,8 +2650,8 @@
     },
     {
       "id": "client-multi-tab-storage",
-      "title": "Using Tandem in two windows at once",
-      "summary": "When two windows save at once, Tandem merges each change in on its own, so neither window wipes out the other's drafts or deletions. The parts of the app that use these saves must still handle late answers themselves.",
+      "title": "Using OwnBase in two windows at once",
+      "summary": "When two windows save at once, OwnBase merges each change in on its own, so neither window wipes out the other's drafts or deletions. The parts of the app that use these saves must still handle late answers themselves.",
       "steps": [
         {
           "title": "Pick one place to save",
@@ -2812,7 +2812,7 @@
       "steps": [
         {
           "title": "Read the link",
-          "description": "The desktop app or the browser hands over a Tandem link it recognises. Tandem then picks a saved sign-in, reuses the workspace already open, or keeps the target message in mind while you join.",
+          "description": "The desktop app or the browser hands over an OwnBase link it recognises. OwnBase then picks a saved sign-in, reuses the workspace already open, or keeps the target message in mind while you join.",
           "files": [
             "packages/ui/src/platform.ts",
             "packages/ui/src/lib/deeplink.ts",
@@ -2822,7 +2822,7 @@
         },
         {
           "title": "Sign in and identify the workspace",
-          "description": "The join screen checks that the server works with this version of Tandem and signs you in, then the app engine receives the workspace. Switching workspaces fully shuts down the previous one, so no old connection or call keeps running behind the new screen.",
+          "description": "The join screen checks that the server works with this version of OwnBase and signs you in, then the app engine receives the workspace. Switching workspaces fully shuts down the previous one, so no old connection or call keeps running behind the new screen.",
           "files": [
             "packages/ui/src/screens/JoinScreen.tsx",
             "packages/ui/src/App.tsx",

@@ -1,6 +1,6 @@
 {
-  "title": "Every file in Tandem, and how they connect",
-  "intro": "Tandem is a team chat app that you run yourself, a bit like a private Slack. People open it in a web browser or in the desktop app, and one computer runs the server that keeps the team's messages and files. On the map below, each dot is one file of code and each line is one part of Tandem relying on another.",
+  "title": "Every file in OwnBase, and how they connect",
+  "intro": "OwnBase is a team chat app that you run yourself, a bit like a private Slack. People open it in a web browser or in the desktop app, and one computer runs the server that keeps the team's messages and files. On the map below, each dot is one file of code and each line is one part of OwnBase relying on another.",
   "areas": [
     {
       "id": "ui",
@@ -39,7 +39,7 @@
     },
     {
       "id": "web",
-      "title": "Opening Tandem in a browser",
+      "title": "Opening OwnBase in a browser",
       "summary": "Packs the screens so they open in any web browser. The server sends them compressed, and each browser remembers its own sign-ins.",
       "entry": "apps/web/src/main.tsx",
       "color": "blue"
@@ -54,21 +54,21 @@
     {
       "id": "tooling",
       "title": "Building and checking",
-      "summary": "Scripts that build Tandem, check each build matches its code, run the tests, measure speed and stop a release when something is wrong.",
+      "summary": "Scripts that build OwnBase, check each build matches its code, run the tests, measure speed and stop a release when something is wrong.",
       "entry": "scripts/build-identity.mjs",
       "color": "mint"
     },
     {
       "id": "docs",
       "title": "Guides for hosts",
-      "summary": "How to host Tandem and keep backups, how the automatic checks run, and how other apps can connect to a workspace.",
+      "summary": "How to host OwnBase and keep backups, how the automatic checks run, and how other apps can connect to a workspace.",
       "entry": "docs/DEPLOYMENT.md",
       "color": "blue"
     },
     {
       "id": "root",
       "title": "Project settings",
-      "summary": "The outside code Tandem uses, settings every package shares, how to contribute and the commands that run the whole project.",
+      "summary": "The outside code OwnBase uses, settings every package shares, how to contribute and the commands that run the whole project.",
       "entry": "package.json",
       "color": "purple"
     },

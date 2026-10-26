@@ -20,7 +20,7 @@
       "details": [
         "codeFor is RFC 4226's truncation of an HMAC-SHA1 over a thirty-second time step, six digits long; a test checks the codes RFC 6238 publishes. base32 and fromBase32 carry the twenty-byte key as authenticator apps take it, as RFC 4648 writes it.",
         "checkCode takes a code for now or one step either side, for a clock a little out, and returns the step it answered. A step at or before the last one accepted is refused, so each code works once even inside its window. Codes are compared with timingSafeEqual.",
-        "otpauthUri is what the app scans: the key, the issuer \"<workspace> on Tandem\" and the handle, with spaces written as %20.",
+        "otpauthUri is what the app scans: the key, the issuer \"<workspace> on OwnBase\" and the handle, with spaces written as %20.",
         "newRecoveryCodes makes ten codes like k7mq-3hxv from letters and digits nobody misreads (no 0, o, 1, l or i). normalRecoveryCode makes a typed one comparable, so case, spaces and the dash do not matter. The server keeps only their SHA-256 hashes."
       ],
       "concepts": ["two-step sign-in", "TOTP", "RFC 6238", "recovery codes", "E11"]
@@ -52,8 +52,8 @@
     },
     {
       "path": "packages/server/src/blockKit.ts",
-      "plain": "Turns the text, buttons and forms that Slack-style apps send into what Tandem can show, leaving out what it cannot.",
-      "summary": "Converts supported Slack Block Kit payloads into Tandem's text, buttons and modal fields.",
+      "plain": "Turns the text, buttons and forms that Slack-style apps send into what OwnBase can show, leaving out what it cannot.",
+      "summary": "Converts supported Slack Block Kit payloads into OwnBase's text, buttons and modal fields.",
       "details": [
         "Headers, sections, context and dividers flatten into the existing mrkdwn renderer. Explicit nonempty text wins over blocks, matching the expected fallback behavior.",
         "Only buttons from actions blocks become MessageAction records; labels, values and count are bounded, styles normalized and link URLs restricted to HTTP(S).",
@@ -91,7 +91,7 @@
       "plain": "Checks the host's startup settings, such as the port and public address, and says clearly what to fix when one is wrong.",
       "summary": "Rejects unusable startup settings with actionable messages.",
       "details": [
-        "Environment settings prefer TANDEM_, then GATHERLINE_, then SLACKOSS_ names, retaining compatibility with earlier deployments.",
+        "Environment settings prefer OWNBASE_, then GATHERLINE_, then SLACKOSS_ names, retaining compatibility with earlier deployments.",
         "Port parsing requires a whole number from 0 to 65535; zero requests an available port. Count settings require safe nonnegative integers rather than silently rounded fractions.",
         "Public URLs must use HTTP(S) without credentials, query or fragment because these addresses are handed to apps and shared as links.",
         "Common bind failures are translated into suggestions such as choosing another port or a valid local interface.",
@@ -379,7 +379,7 @@
       "plain": "Sets up a relay, from Cloudflare or elsewhere, that carries huddle audio and video when two networks will not connect directly.",
       "summary": "A TURN relay for calls between networks that will not connect directly: Cloudflare's, or any other.",
       "details": [
-        "callRelaySchema accepts a Cloudflare TURN key (ID and API token) or another relay's turn:/turns: addresses, username and password. relayFromEnvironment reads a Cloudflare key from TANDEM_CLOUDFLARE_TURN_KEY_ID and TANDEM_CLOUDFLARE_TURN_API_TOKEN, both or neither.",
+        "callRelaySchema accepts a Cloudflare TURN key (ID and API token) or another relay's turn:/turns: addresses, username and password. relayFromEnvironment reads a Cloudflare key from OWNBASE_CLOUDFLARE_TURN_KEY_ID and OWNBASE_CLOUDFLARE_TURN_API_TOKEN, both or neither.",
         "cloudflareIceServers asks Cloudflare's credential endpoint for a password that lasts a day, leaves out port 53 (browsers block it), and turns refusals into words a host can act on without repeating the token.",
         "createRelaySource reuses one Cloudflare password for an hour and one request for everyone joining at once; after a refusal calls go without a relay for 30 seconds before it asks again, and error() says why. withRelay adds the relay after the workspace's own servers, leaving out an address already given."
       ],
@@ -387,7 +387,7 @@
     },
     {
       "path": "packages/server/src/securityHeaders.ts",
-      "plain": "Sets the safety rules a browser follows on Tandem's pages, such as running only Tandem's own code.",
+      "plain": "Sets the safety rules a browser follows on OwnBase's pages, such as running only OwnBase's own code.",
       "summary": "Defines browser and desktop content policies that fit a multi-workspace chat client.",
       "details": [
         "Scripts are restricted to self; object embedding and framing are denied. Blob/data image and worker sources support previews and compiled assets.",
@@ -524,13 +524,13 @@
     },
     {
       "path": "packages/protocol/src/discovery.ts",
-      "plain": "The shared rules for finding a workspace on the local network and for building invite links that open in Tandem.",
+      "plain": "The shared rules for finding a workspace on the local network and for building invite links that open in OwnBase.",
       "summary": "Shares LAN discovery and invitation-link addressing conventions.",
       "details": [
         "Defines the mDNS service type, default port and TXT fields including the per-start instance ID used by health verification.",
         "The icon TXT field names the workspace icon's version; isIconVersion takes it only in the form a server makes (16 hex digits), since anyone on the network can announce anything.",
         "hostWithPort brackets IPv6 literals correctly; isLinkableAddress excludes zone-specific and link-local addresses that ordinary browser URLs cannot use.",
-        "Tandem is the primary deep-link scheme; Gatherline and SlackOSS schemes remain accepted so old invitations keep opening."
+        "OwnBase is the primary deep-link scheme; Gatherline and SlackOSS schemes remain accepted so old invitations keep opening."
       ],
       "concepts": ["shared protocol", "LAN discovery", "IPv6", "compatibility"]
     },
@@ -804,7 +804,7 @@
       "summary": "Short-lived permissions tie each button press and form to the right app and person, and to what they may see right now. Extra checks handle a form sent twice at once and replies that arrive late.",
       "steps": [
         {
-          "title": "Show only buttons Tandem supports",
+          "title": "Show only buttons OwnBase supports",
           "description": "Apps lay out their messages the way Slack apps do. The server keeps only text, buttons that open a web link and buttons that tell the app they were pressed, all within size limits. The message a button sits on decides which app and conversation the press belongs to.",
           "files": [
             "packages/server/src/blockKit.ts",
@@ -826,7 +826,7 @@
         },
         {
           "title": "Open the form for the right person",
-          "description": "The app uses its permission once to open a form. The server first checks that the app, its bot, the person and the channel are all still allowed. It then sends the form, with only the kinds of fields Tandem supports, to that person alone.",
+          "description": "The app uses its permission once to open a form. The server first checks that the app, its bot, the person and the channel are all still allowed. It then sends the form, with only the kinds of fields OwnBase supports, to that person alone.",
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/blockKit.ts",

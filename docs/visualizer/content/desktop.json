@@ -8,7 +8,7 @@
       "summary": "Owns Electron startup and connects native capabilities to the shared application.",
       "details": [
         "storage:initialize, storage:mergeOutbox, storage:mergeDrafts, storage:mergeRecord and storage:trustAddress each make their change in one turn of the settings queue every window shares, so a window's change cannot erase another's; storage:trustAddress runs addTrustedAddress from client-core.",
-        "Keeps the existing user-data location while applying Tandem branding and reads legacy environment names, so renaming does not abandon settings or hosted databases.",
+        "Keeps the existing user-data location while applying OwnBase branding and reads legacy environment names, so renaming does not abandon settings or hosted databases.",
         "Enforces one primary instance, routes cold/warm deep links, creates a sandboxed window and tray, and registers IPC through the trusted-window guard.",
         "Discovery lists each announcement on up, txt-update and srv-update (a workspace announcing again under the same name, as when its icon changes) and drops it on down; it passes on an icon version only when isIconVersion accepts it.",
         "Owns discovery, the embedded server adapter, native dialogs/downloads/media, settings, worker jobs, network/wake refresh, renderer recovery and coordinated quit.",
@@ -39,7 +39,7 @@
       "plain": "Starts and stops a workspace the desktop app hosts, runs its backups and restores, and opens or closes its public link.",
       "summary": "Serializes the lifecycle of the locally hosted workspace and its public connector.",
       "details": [
-        "listBackups finds a workspace's own backups in its schedule's folder (ownBackups, which pruneBackups shares), newest first, each checked by verifyBackup so a damaged one is listed as such. restoreOver puts one of them, or a backup folder chosen in the system's dialog, over a stopped workspace still on this computer (O01): only a copy of the same workspace id, with room for it, held (restoredHold) before anything is restored and taken off start-with-Tandem; the server's restore moves the present folder aside as <folder>.superseded-<time>, which the result names, and puts it back if the restore fails.",
+        "listBackups finds a workspace's own backups in its schedule's folder (ownBackups, which pruneBackups shares), newest first, each checked by verifyBackup so a damaged one is listed as such. restoreOver puts one of them, or a backup folder chosen in the system's dialog, over a stopped workspace still on this computer (O01): only a copy of the same workspace id, with room for it, held (restoredHold) before anything is restored and taken off start-with-OwnBase; the server's restore moves the present folder aside as <folder>.superseded-<time>, which the result names, and puts it back if the restore fails.",
         "A controller owns start/stop phases, a running server handle, registry changes, port selection, address publication and status snapshots.",
         "It queues backup/restore operations, verifies workspace identity, persists automatic-backup attempts and backoff, and preserves restored-copy isolation until explicit activation.",
         "N12 retains failed-cleanup resources and prevents reopening until cleanup succeeds; bounded cleanup is retryable.",
@@ -129,7 +129,7 @@
     },
     {
       "path": "apps/desktop/src/main/ipcBoundary.ts",
-      "plain": "Lets only Tandem's own window use the desktop app's powers, like saving settings or hosting, and receive private updates.",
+      "plain": "Lets only OwnBase's own window use the desktop app's powers, like saving settings or hosting, and receive private updates.",
       "summary": "Checks who may invoke native handlers and receive sensitive native events.",
       "details": [
         "A request must come from the current app window's live top frame, with matching process/routing identity and the expected renderer origin/path.",
@@ -187,9 +187,10 @@
       "summary": "Expresses platform-specific launch-at-login behavior without importing Electron.",
       "details": [
         "Windows registration carries --hidden so sign-in can start in the tray; macOS uses its wasOpenedAtLogin indication.",
-        "Reports OS refusal and macOS approval requirements in actionable words. The main process limits registration to installed supported platforms and stubs it in test mode."
+        "Reports OS refusal and macOS approval requirements in actionable words. The main process limits registration to installed supported platforms and stubs it in test mode.",
+        "carryEarlierLoginItem (P2) finds sign-in entries Windows still keeps for Tandem.exe or Gatherline.exe in the app's folder, under the old app's name, removes them, and puts this app's own in when one was on. The machine's entries and other folders are left alone."
       ],
-      "concepts": ["OS integration", "pure policy", "tray startup"]
+      "concepts": ["OS integration", "pure policy", "tray startup", "renames"]
     },
     {
       "path": "apps/desktop/src/main/screenShare.ts",
@@ -302,8 +303,8 @@
       "concepts": ["first paint", "appearance", "trusted document"]
     },
     {
-      "path": "apps/desktop/src/renderer/public/tandem.svg",
-      "plain": "Tandem's logo as shown inside the desktop app.",
+      "path": "apps/desktop/src/renderer/public/ownbase.svg",
+      "plain": "OwnBase's logo as shown inside the desktop app.",
       "summary": "Provides the desktop renderer's application brand artwork.",
       "details": [
         "A repository-native SVG asset copied by the renderer build; binary/source identities and branding tests ensure the intended artwork ships."
@@ -321,7 +322,7 @@
     },
     {
       "path": "apps/desktop/build/icon.ico",
-      "plain": "The icon Windows shows for the Tandem program and in the tray.",
+      "plain": "The icon Windows shows for the OwnBase program and in the tray.",
       "summary": "Provides the Windows executable and tray icon.",
       "details": [
         "Referenced by the Windows target and shipped beside other tray assets; changes must trigger installer-aware packaging coverage."
@@ -334,14 +335,14 @@
       "summary": "Builds distinct main, preload and renderer bundles with source identity.",
       "details": [
         "Bundles workspace TypeScript packages into main while retaining real runtime dependencies as externals; emits preload as CommonJS for Electron.",
-        "Applies React/Tailwind to renderer assets and embeds __TANDEM_BUILD__ into relevant bundles.",
+        "Applies React/Tailwind to renderer assets and embeds __OWNBASE_BUILD__ into relevant bundles.",
         "Writes out/build.json so tests and package inspection can compare source inputs rather than trusting an old executable's location."
       ],
       "concepts": ["bundling", "artifact identity", "runtime closure"]
     },
     {
       "path": "apps/desktop/electron-builder.yml",
-      "plain": "Settings for packaging the Windows, Mac and Linux installers, what goes inside, and which links open Tandem.",
+      "plain": "Settings for packaging the Windows, Mac and Linux installers, what goes inside, and which links open OwnBase.",
       "summary": "Defines clean desktop package contents, native targets and protocol registration.",
       "details": [
         "Packages only built output, the manifest and required dependencies into ASAR; excludes dependency .ts/.cts/.mts source files that Node does not load there.",
@@ -400,8 +401,8 @@
       "concepts": ["HTML", "browser entry"]
     },
     {
-      "path": "apps/web/public/tandem.svg",
-      "plain": "The Tandem logo the web version shows in the browser.",
+      "path": "apps/web/public/ownbase.svg",
+      "plain": "The OwnBase logo the web version shows in the browser.",
       "summary": "Supplies browser branding as a static SVG.",
       "details": [
         "Vite copies the public asset into the hosted client; browser and desktop branding remain tested against their respective shells."
@@ -423,7 +424,7 @@
       "plain": "Settings for building the web version, stamping it with the exact code it came from and squeezing its files.",
       "summary": "Builds browser React/Tailwind assets and stamps their identity.",
       "details": [
-        "Defines __TANDEM_BUILD__, writes dist/build.json and runs the precompression plugin after bundle generation.",
+        "Defines __OWNBASE_BUILD__, writes dist/build.json and runs the precompression plugin after bundle generation.",
         "Hashed production assets support immutable caching; identity and sidecar guards prevent stale output from masquerading as current code."
       ],
       "concepts": ["Vite", "build identity", "precompression"]
@@ -572,7 +573,7 @@
       "plain": "Works out every colour of both themes from a few choices, and writes them into the stylesheet and the files that repeat them.",
       "summary": "Generates the Onyx and White palettes in OKLCH and writes them, as hex, wherever the app uses them (UX-11).",
       "details": [
-        "INPUTS holds Tandem's orange (#f97316, kept as the accent on purpose), one graphite hue and chroma for surfaces and inks, a hue for online, alert, the highlight and the background washes, and where each colour sits on the lightness scale in each theme. A neutral's chroma falls off toward black and white (4L(1-L)); a colour outside sRGB keeps its lightness and hue and loses chroma until it fits.",
+        "INPUTS holds OwnBase's orange (#f97316, kept as the accent on purpose), one graphite hue and chroma for surfaces and inks, a hue for online, alert, the highlight and the background washes, and where each colour sits on the lightness scale in each theme. A neutral's chroma falls off toward black and white (4L(1-L)); a colour outside sRGB keeps its lightness and hue and loses chroma until it fits.",
         "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, glows, gradients, washes, the theme picker's swatches and the mention red, and the .call-dark block of Onyx's tokens and fills that a call in full screen takes), and by position the hex colours in the desktop window's colours (windowTheme.ts), both pages and their first-paint.js, appearance.ts's bar colours, the manifest and the mark. Running it twice changes nothing.",
         "theme.test.ts fails when a file differs from what OUTPUTS writes, and checks contrast for every ink on every surface, the gradient ends and the mention red. scripts/generate-icons.mjs then draws the app icons from the mark."
       ],
@@ -580,7 +581,7 @@
     },
     {
       "path": "scripts/generate-icons.mjs",
-      "plain": "Makes the desktop app's icon pictures from Tandem's logo.",
+      "plain": "Makes the desktop app's icon pictures from OwnBase's logo.",
       "summary": "Produces the native PNG/ICO branding resources used by desktop packaging.",
       "details": ["Keeps icon generation reproducible and separate from app runtime execution."],
       "concepts": ["tooling", "asset generation"]
@@ -734,7 +735,7 @@
     },
     {
       "path": "apps/desktop/test/ipcBoundary.test.ts",
-      "plain": "Tests that only Tandem's own window can use the desktop app's powers or receive private updates.",
+      "plain": "Tests that only OwnBase's own window can use the desktop app's powers or receive private updates.",
       "summary": "Tests native sender and event-recipient authorization.",
       "details": [
         "Covers wrong/navigated/subframe/destroyed windows, trusted page matching and setting key validation."
@@ -915,7 +916,7 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "plain": "Builds, tests and prepares a Tandem release on GitHub, with a practice run that publishes nothing.",
+      "plain": "Builds, tests and prepares an OwnBase release on GitHub, with a practice run that publishes nothing.",
       "summary": "Prepares tested release artifacts and optional publication.",
       "details": [
         "Coordinates build/content/install gates and checksum manifests; separates dry-run validation from an actual release."
@@ -1017,7 +1018,7 @@
       "plain": "Settings for the check that compares pictures of the main screens with how they looked before.",
       "summary": "Configures the visual check in tests/visual (UX-15).",
       "details": [
-        "Pictures live in tests/visual/__screenshots__/<system>/ and only Linux compares by default, since fonts are drawn differently elsewhere; TANDEM_VISUAL_SNAPSHOTS=1 compares on another system against a folder git ignores. Up to 0.2% of a picture's pixels may differ. One worker, as the spec's frozen server listens on one fixed port."
+        "Pictures live in tests/visual/__screenshots__/<system>/ and only Linux compares by default, since fonts are drawn differently elsewhere; OWNBASE_VISUAL_SNAPSHOTS=1 compares on another system against a folder git ignores. Up to 0.2% of a picture's pixels may differ. One worker, as the spec's frozen server listens on one fixed port."
       ],
       "concepts": ["configuration", "build/deployment", "visual regression"]
     },
@@ -1057,7 +1058,7 @@
       "steps": [
         {
           "title": "Start once and find your saved data",
-          "description": "The desktop app reads its settings, including ones saved under Tandem's older names, and keeps using the same data folder as before. If Tandem is already running, a second launch hands over to it. A Tandem link that opened the app waits until a trusted window is ready to receive it.",
+          "description": "The desktop app reads its settings, including ones saved under OwnBase's older names, and keeps using the same data folder as before. If OwnBase is already running, a second launch hands over to it. An OwnBase link that opened the app waits until a trusted window is ready to receive it.",
           "files": [
             "apps/desktop/src/main/index.ts",
             "apps/desktop/src/main/settings.ts",
@@ -1186,7 +1187,7 @@
     },
     {
       "id": "artifact-pipeline",
-      "title": "Building and releasing Tandem",
+      "title": "Building and releasing OwnBase",
       "summary": "One set of source files becomes the web version, the server on its own, the desktop app and a Docker package. Checks confirm that each output is up to date and carries only what it should.",
       "steps": [
         {
