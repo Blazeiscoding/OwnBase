@@ -15,6 +15,7 @@ import {
   type ModalView,
   type Presence,
   type ReadySnapshot,
+  type ServerNotice,
   type ForwardReference,
   type ReplyReference,
   type SendMessageBody,
@@ -518,6 +519,11 @@ export interface WorkspaceState {
    * owner or an admin, on a server whose host set it.
    */
   memberNotice: MemberNotice | null;
+  /**
+   * What the server's extensions tell the owner and admins now (P6), such as
+   * a license running out. Empty for everyone else.
+   */
+  serverNotices: ServerNotice[];
   status: ConnectionStatus;
   workspaceName: string;
   /** Authenticated storage identity; null when an older server does not expose it. */
@@ -692,6 +698,7 @@ const initialState: WorkspaceState = {
   blocked: null,
   openReports: null,
   memberNotice: null,
+  serverNotices: [],
   status: "connecting",
   workspaceName: "",
   workspaceId: null,
@@ -1185,6 +1192,7 @@ export class WorkspaceClient {
       blocked: snap.blocked ?? null,
       openReports: snap.openReports ?? null,
       memberNotice: snap.memberNotice ?? null,
+      serverNotices: snap.notices ?? [],
       lastSeq: reset || prev.lastSeq === 0 ? snap.seq : (snap.replayFrom ?? prev.lastSeq),
       // Keep loaded timelines — replayed events patch them incrementally.
       timelines: prev.timelines,

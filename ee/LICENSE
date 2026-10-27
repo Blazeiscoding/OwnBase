@@ -1,0 +1,59 @@
+OwnBase Enterprise License
+
+DRAFT FOR LEGAL REVIEW. This text has not been checked by a lawyer and is
+not yet in force. "[Licensor]" stands for the legal entity that will sell
+OwnBase subscriptions, to be named once it exists. Until this draft is
+replaced by a reviewed text, no one may rely on it.
+
+Copyright (c) 2026 [Licensor]
+
+1. What this license covers
+
+This license covers the files in the "ee/" directory of the OwnBase
+repository and any changes made to them (together, "the Software").
+Everything outside "ee/" is licensed separately, under the MIT license in
+the LICENSE file at the root of the repository, unless a file says
+otherwise.
+
+2. Developing and testing
+
+You may copy, change and run the Software to develop and test it, and to
+develop and test your own use of OwnBase, without a subscription or a
+license key.
+
+3. Production use
+
+You may use the Software in production only if you, and any organisation
+you act for, have a valid OwnBase Enterprise subscription and license key
+for at least the number of members you use it with, and keep to the
+subscription terms agreed with [Licensor]. "Production" means any use other
+than the developing and testing allowed in section 2.
+
+4. Changes
+
+You may change the Software and publish your changes as patches. [Licensor]
+and its licensors keep all right, title and interest in the Software and
+in changes to it. Changed Software may be used in production only as
+section 3 allows.
+
+5. What is not allowed
+
+Except as this license allows, you may not copy, merge, publish,
+distribute, sublicense or sell the Software. You may not remove, disable,
+change or get around the license key checks, or the notices they show, or
+make the Software's features work without a valid license key.
+
+6. Other people's components
+
+Components by others that are part of the Software stay under their own
+licenses.
+
+7. No warranty, no liability
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING
+FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
+DEALINGS IN THE SOFTWARE.

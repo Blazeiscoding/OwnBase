@@ -1,6 +1,8 @@
 packages:
   - packages/*
   - apps/*
+  # Source-available, under ee/LICENSE rather than MIT (P6).
+  - ee
 
 onlyBuiltDependencies:
   - electron

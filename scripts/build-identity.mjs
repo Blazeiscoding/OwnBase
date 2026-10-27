@@ -73,7 +73,7 @@ export const ARTIFACTS = {
   },
   server: {
     manifest: "apps/server-cli/dist/build.json",
-    inputs: ["apps/server-cli", "packages/server", "packages/protocol"],
+    inputs: ["apps/server-cli", "ee", "packages/server", "packages/protocol"],
     rebuild: "pnpm --filter slackoss-server build",
   },
   desktop: {

@@ -9,6 +9,7 @@ import type {
   User,
   ThreadFollow,
   Reminder,
+  ServerNotice,
   SidebarSection,
 } from "./entities.js";
 import type { CallReport, HuddleRing, HuddleSignal } from "./huddle.js";
@@ -312,6 +313,11 @@ export interface ReadySnapshot {
    * the owner and admins only, who are offered a bigger plan past it.
    */
   memberNotice?: MemberNotice;
+  /**
+   * What the server's extensions tell the owner and admins now, such as a
+   * license running out (P6). Given to them only; absent when there is none.
+   */
+  notices?: ServerNotice[];
 }
 
 /** Everything the server can push over the socket. */

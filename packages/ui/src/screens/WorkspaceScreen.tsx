@@ -51,6 +51,7 @@ import type { AccountSection } from "../components/AccountDialog.js";
 import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction } from "../components/Banner.js";
 import { MemberNoticeBanner } from "../components/MemberNotice.js";
+import { ServerNoticeBanner } from "../components/ServerNotice.js";
 import {
   ConversationMenu,
   ConversationSearch,
@@ -532,6 +533,8 @@ function WorkspaceInner({
   const [navigationError, setNavigationError] = useState<string | null>(null);
   /** The notifications ask is on show, so a hint waits behind it. */
   const [asking, setAsking] = useState(false);
+  /** A server notice is on show, so the member notice after it waits (P6). */
+  const [noticeShowing, setNoticeShowing] = useState(false);
   const [navigating, setNavigating] = useState(false);
   useEffect(
     () => () => {
@@ -1484,8 +1487,9 @@ function WorkspaceInner({
           )}
           {/* One banner at a time, the most pressing (UX-25): a message that could
               not be opened, then what the app could not save, then the ask to
-              turn on notifications, then a message on its way, then a
-              workspace with more members than its plan includes (P5). */}
+              turn on notifications, then a message on its way, then what
+              the server's extensions say (P6), then a workspace with more
+              members than its plan includes (P5). */}
           {navigationError ? (
             <Banner
               tone="alert"
@@ -1508,7 +1512,8 @@ function WorkspaceInner({
                 </ErrorBoundary>
               )}
               {navigating && !asking && <Banner tone="status">Opening message…</Banner>}
-              {!navigating && !asking && <MemberNoticeBanner />}
+              {!navigating && !asking && <ServerNoticeBanner onShowing={setNoticeShowing} />}
+              {!navigating && !asking && !noticeShowing && <MemberNoticeBanner />}
             </>
           )}
 

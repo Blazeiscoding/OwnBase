@@ -1427,6 +1427,28 @@ The settings are also `OWNBASE_MEMBER_NOTICE`, `OWNBASE_PLAN_NAME` and
 `OWNBASE_UPGRADE_URL`. The server prints the plan's members when it starts, and a
 name or an address without `--member-notice` is refused.
 
+## An Enterprise license
+
+The server is the free edition until it is given an Enterprise license, the file
+OwnBase sends:
+
+```sh
+slackoss-server --data ./data --license ./acme.license
+```
+
+`OWNBASE_LICENSE_FILE` names the file from the environment, and `OWNBASE_LICENSE`
+holds the license itself, for a secret store; give one of them. The server checks it
+offline when it starts. A license that is not one, was changed, or cannot be read
+stops the server with the reason. One that has ended keeps its features for 14 days,
+and the owner and administrators see a line under the conversation's header saying
+until when; then the features turn off. Within 30 days of the end, and when the
+workspace has more members than the license covers, they are told too. Chat, sign-in
+and joining never depend on a license. Diagnostics shows where the license stands,
+and `GET /api/admin/license` answers the same for the owner and administrators.
+
+The Enterprise code is in `ee/`, source-available under its own license; the rest of
+the server is MIT. See [ee/README.md](../ee/README.md).
+
 ## Current boundaries
 
 Friends and accounts do not federate across servers. Account settings offers password

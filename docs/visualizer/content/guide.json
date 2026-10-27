@@ -52,6 +52,13 @@
       "color": "orange"
     },
     {
+      "id": "ee",
+      "title": "The Enterprise edition",
+      "summary": "Features for larger organisations, source-available under their own license and switched on by a license key the server checks itself. Without a key the server is the free edition, and chat never depends on one.",
+      "entry": "ee/src/enterprise.ts",
+      "color": "orange"
+    },
+    {
       "id": "tooling",
       "title": "Building and checking",
       "summary": "Scripts that build OwnBase, check each build matches its code, run the tests, measure speed and stop a release when something is wrong.",

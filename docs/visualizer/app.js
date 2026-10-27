@@ -13,7 +13,7 @@
     { id: "interface", title: "Screens", areas: ["ui", "web"] },
     { id: "client", title: "App engine", areas: ["client-core"] },
     { id: "contract", title: "Shared rules", areas: ["protocol"] },
-    { id: "server", title: "Server", areas: ["server", "server-cli"] },
+    { id: "server", title: "Server", areas: ["server", "server-cli", "ee"] },
     { id: "desktop", title: "Desktop app", areas: ["desktop"] },
     { id: "support", title: "Tools and docs", areas: ["tooling", "docs", "root", "visualizer"] },
   ];

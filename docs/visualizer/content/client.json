@@ -2044,6 +2044,16 @@
       "concepts": ["plans", "banner place", "P5"]
     },
     {
+      "path": "packages/ui/src/components/ServerNotice.tsx",
+      "plain": "Shows the owner and admins what the server needs them to know, such as an Enterprise license running out.",
+      "summary": "ServerNoticeBanner: the snapshot's server notices, one at a time, in the banner place (P6).",
+      "details": [
+        "Only the owner and admins see them. An alert, such as a license that has ended, can be dismissed until the app opens again; a status can be put away for two weeks on this device.",
+        "It comes after the ask to turn on notifications and before the plan's member notice, which waits while it shows."
+      ],
+      "concepts": ["banner place", "notices", "P6"]
+    },
+    {
       "path": "packages/ui/src/components/MessageAnnouncer.tsx",
       "plain": "Reads out new messages to screen reader users without moving focus, grouping bursts so they are not flooded.",
       "summary": "Politely announces new visible messages without flooding a screen reader.",

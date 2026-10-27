@@ -58,6 +58,7 @@ function areaFor(path) {
   if (path.startsWith("docs/")) return "docs";
   if (path.startsWith("packages/")) return path.split("/")[1];
   if (path.startsWith("apps/")) return path.split("/")[1];
+  if (path.startsWith("ee/")) return "ee";
   if (
     path.startsWith("scripts/") ||
     path.startsWith("tests/") ||
@@ -71,8 +72,8 @@ function kindFor(path) {
   if (/\.(png|ico|jpg|jpeg|webp|gif)$/i.test(path)) return "asset";
   if (/\.(test|spec)\./.test(path) || /\/test\//.test(path) || path.startsWith("tests/"))
     return "test";
-  if (/\.(md|txt|log)$/.test(path) || path === "LICENSE") return "documentation";
-  if (path.startsWith("scripts/")) return "tooling";
+  if (/\.(md|txt|log)$/.test(path) || /(^|\/)LICENSE$/.test(path)) return "documentation";
+  if (path.startsWith("scripts/") || path.startsWith("ee/scripts/")) return "tooling";
   if (
     /\.(json|ya?ml)$/.test(path) ||
     /(^|\/)(Dockerfile|\.[^/]+)$/.test(path) ||
@@ -347,7 +348,7 @@ for (const item of [...optimizations, ...flows]) {
 }
 const runtime = files.filter(
   (file) =>
-    /^(packages|apps)\/.+\/src\//.test(file.path) &&
+    /^((packages|apps)\/.+|ee)\/src\//.test(file.path) &&
     /\.(tsx?|mts|js|css|html|svg|json)$/.test(file.path),
 );
 const missing = runtime.filter((file) => !file.curated).map((file) => file.path);

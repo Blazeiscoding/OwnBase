@@ -13,6 +13,7 @@ import { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "./backup.js";
 import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js";
 import { withBackupFolder } from "./workspaceCopy.js";
+import { commandLineExtensions, type ServerExtension } from "./extensions.js";
 import { listAccounts, recoverAccount } from "./recover.js";
 import { relayFromEnvironment } from "./relay.js";
 import { parseIceServers } from "./rtc.js";
@@ -35,11 +36,20 @@ function refuse(message: string, code = 1): never {
   process.exit(code);
 }
 
+/**
+ * Flags the build's extensions read (P6), beside the server's own. Their
+ * values are read by name, so the server's own keep their types.
+ */
+const extensionOptions = Object.fromEntries(
+  commandLineExtensions().flatMap((extension) => Object.entries(extension.options)),
+);
+
 const { values, positionals } = (() => {
   try {
     return parseArgs({
       allowPositionals: true,
       options: {
+        ...(extensionOptions as Record<never, never>),
         data: { type: "string", default: "./data" },
         out: { type: "string" },
         from: { type: "string" },
@@ -217,7 +227,9 @@ Recovery
                   workspace to that account, which is the way back from an
                   owner who has left. This needs the workspace file, so it
                   gives away nothing that reading the file did not already.
-`);
+${commandLineExtensions()
+  .map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`)
+  .join("")}`);
   process.exit(0);
 }
 
@@ -417,6 +429,7 @@ let retentionDays: number;
 let publicUrl: string | undefined;
 let scheduledBackups: ScheduledBackups | undefined;
 let memberNotice: MemberNotice | undefined;
+const extensions: ServerExtension[] = [];
 try {
   port = parsePort(values.port);
   // Whole days: 1.5 would otherwise be announced as 1.5 and applied as 2.
@@ -432,6 +445,11 @@ try {
     planName: values["plan-name"] ?? envSetting("PLAN_NAME"),
     upgradeUrl: values["upgrade-url"] ?? envSetting("UPGRADE_URL"),
   });
+  for (const extension of commandLineExtensions()) {
+    extensions.push(
+      await extension.create(values as Record<string, string | boolean | undefined>, envSetting),
+    );
+  }
 } catch (err) {
   if (!(err instanceof ConfigError)) throw err;
   refuse(err.message);
@@ -478,6 +496,7 @@ const server = await createWorkspaceServer({
   retentionDays,
   scheduledBackups,
   memberNotice,
+  extensions,
   // Scheduled backups and the owner's copies, in a child process, so the
   // copy and its checks never hold up chat.
   takeBackup: backupInChildProcess({
@@ -531,6 +550,10 @@ if (scheduledBackups && !values.isolated) {
     `  Backups: every ${scheduledBackups.everyMs / 3600_000} h to ${scheduledBackups.dir}, keeping ${scheduledBackups.keep}`,
   );
   if (status?.nextAt) console.log(`  Next backup: ${new Date(status.nextAt).toISOString()}`);
+}
+for (const extension of extensions) {
+  const status = extension.status?.();
+  if (status) console.log(`  ${status.summary}`);
 }
 if (memberNotice) {
   const plan = memberNotice.planName ? `the ${memberNotice.planName} plan` : "the plan";

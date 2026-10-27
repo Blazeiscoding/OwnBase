@@ -648,6 +648,66 @@
       "concepts": ["plans", "shared policy", "P5"]
     },
     {
+      "path": "packages/server/src/extensions.ts",
+      "plain": "Lets parts that live outside the server, such as the Enterprise edition, plug into it without the server ever depending on them.",
+      "summary": "The ServerExtension point and the command line's extension registry (P6).",
+      "details": [
+        "A ServerExtension registers routes after the server's own (with requireUser, requireAdmin, requireOwner and memberCount from the server), adds a line to the workspace status, gives the owner and admins a notice in their snapshot, and is stopped with the server.",
+        "A CommandLineExtension names its flags and help; main.ts merges them into parseArgs and --help and makes the extension from them, so a setting it cannot use is refused with a ConfigError like the server's own.",
+        "The MIT code never imports an extension: a build's entry (ee/src/main.ts) adds one with addCommandLineExtension before importing main.ts."
+      ],
+      "concepts": ["extension point", "open core", "P6"]
+    },
+    {
+      "path": "ee/src/license.ts",
+      "plain": "Checks an Enterprise license on the server itself, offline, and says whether it is good, in its 14 days of grace, or over.",
+      "summary": "Reads OWNBASE-LICENSE-1 lines: Ed25519 signatures against trusted public keys, then the claims and where they stand in time.",
+      "details": [
+        "A license is claims (id, licensee, plan, members, features, issuedAt, expiresAt) in base64url JSON, signed with Ed25519 over the prefix and claims; node:crypto alone checks it.",
+        "readLicense never throws: anything that is not a license, was changed, or was signed by a key the build does not trust is invalid with a reason in words.",
+        "An ended license is in grace for 14 days, features still on (featuresOn), then expired; one dated more than a day ahead of the server's clock is refused."
+      ],
+      "concepts": ["license keys", "Ed25519", "offline", "P6"]
+    },
+    {
+      "path": "ee/src/keys.ts",
+      "plain": "Lists the public keys whose licenses this build accepts. The private keys are kept elsewhere, never here.",
+      "summary": "TRUSTED_LICENSE_KEYS, base64url raw Ed25519 public keys, empty until the first key is made.",
+      "details": [
+        "With no key listed no license is accepted, and the server runs as the free edition.",
+        "A key that has issued licenses stays listed while they run, so a new key can be added without breaking old licenses."
+      ],
+      "concepts": ["license keys", "P6"]
+    },
+    {
+      "path": "ee/src/enterprise.ts",
+      "plain": "Puts the Enterprise edition in a running server: the license's state, what the owner and admins are told, and which features are on.",
+      "summary": "The enterprise ServerExtension and its --license command-line part.",
+      "details": [
+        "enterprise() works out where the license stands each time it is asked, so one ending while the server runs ends on time; has(feature) is what Enterprise features will ask.",
+        "It adds GET /api/admin/license for the owner and admins, a workspace status line, and one notice at a time: ended, in grace, ending within 30 days, or more members than it covers.",
+        "enterpriseCommandLine reads --license, OWNBASE_LICENSE_FILE or OWNBASE_LICENSE; a license that is not one stops the server at the door, an ended one does not."
+      ],
+      "concepts": ["open core", "license keys", "notices", "P6"]
+    },
+    {
+      "path": "ee/src/main.ts",
+      "plain": "Starts the server with the Enterprise edition in it; the server bundle is built from this file.",
+      "summary": "The command line's entry for builds with ee/: adds the Enterprise extension, then imports the server's main.ts.",
+      "details": [
+        "The registry is filled before main.ts is evaluated, since main.ts reads it as it parses the flags.",
+        "Backups taken in a child process run this same file, which reaches the backup command before any license is read."
+      ],
+      "concepts": ["open core", "P6"]
+    },
+    {
+      "path": "ee/src/index.ts",
+      "plain": "The front door of the Enterprise edition, for code that uses its license checks.",
+      "summary": "Re-exports enterprise, the license reader and the trusted keys.",
+      "details": ["Nothing outside ee/ imports it; ee/test/boundary.test.ts checks that."],
+      "concepts": ["open core", "P6"]
+    },
+    {
       "path": "packages/protocol/src/rest.ts",
       "plain": "Checks the shape and size of everything the app sends the server, such as names, passwords, messages and scheduled sends.",
       "summary": "Validates the shared HTTP request bodies and paging/search parameters.",

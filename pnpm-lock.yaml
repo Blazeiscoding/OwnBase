@@ -111,6 +111,9 @@ importers:
 
   apps/server-cli:
     devDependencies:
+      '@slackoss/ee':
+        specifier: workspace:*
+        version: link:../../ee
       '@slackoss/server':
         specifier: workspace:*
         version: link:../../packages/server
@@ -169,6 +172,34 @@ importers:
       vite:
         specifier: ^7.1.0
         version: 7.3.6(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.23.13)
+
+  ee:
+    dependencies:
+      '@slackoss/protocol':
+        specifier: workspace:*
+        version: link:../packages/protocol
+      '@slackoss/server':
+        specifier: workspace:*
+        version: link:../packages/server
+    devDependencies:
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.3
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      tsx:
+        specifier: ^4.20.0
+        version: 4.23.13
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(tsx@4.23.13)
+      ws:
+        specifier: ^8.18.3
+        version: 8.21.3
 
   packages/client-core:
     dependencies:
