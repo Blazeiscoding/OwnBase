@@ -33,7 +33,7 @@ import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.j
 type Session =
   | { view: "loading" }
   | { view: "restore_failed" }
-  | { view: "join"; autoProbe?: string; inviteCode?: string }
+  | { view: "join"; autoProbe?: string; inviteCode?: string; claimCode?: string }
   | {
       view: "workspace";
       id: number;
@@ -293,7 +293,9 @@ export function App({ platform }: { platform: Platform }) {
           setSession({
             view: "join",
             autoProbe: link.serverUrl,
-            inviteCode: link.code ?? undefined,
+            ...(link.kind === "claim"
+              ? { claimCode: link.code }
+              : { inviteCode: link.code ?? undefined }),
           });
         }
       } catch {
@@ -504,6 +506,7 @@ export function App({ platform }: { platform: Platform }) {
                     savedIcons={savedIcons}
                     autoProbe={session.autoProbe}
                     inviteCode={session.inviteCode}
+                    claimCode={session.claimCode}
                     onConnected={(server, how) => {
                       const pending = pendingTarget.current;
                       pendingTarget.current = null;

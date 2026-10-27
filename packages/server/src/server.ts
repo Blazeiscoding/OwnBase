@@ -436,6 +436,12 @@ export interface ServerOptions {
    */
   memberNotice?: MemberNotice;
   /**
+   * The code that claims a workspace nobody owns yet, when the host gives
+   * it (OWNBASE_CLAIM_CODE, P7) rather than letting the server make one.
+   * Ignored once someone owns the workspace.
+   */
+  claimCode?: string;
+  /**
    * Parts of the server from outside this package, such as the Enterprise
    * features in ee/ (P6), registered after the server's own routes. See
    * `ServerExtension`. None by default, and the server is complete without.
@@ -744,10 +750,13 @@ async function startWorkspaceServer(
    * A workspace with no owner is up for grabs. Until one exists, the account
    * that becomes owner must come either from the machine running the server or
    * from someone holding the code it printed at startup — otherwise the first
-   * stranger to find it on the network owns it.
+   * stranger to find it on the network owns it. A host that hands out the
+   * link to claim it gives the code instead (P7), and the one it gives last
+   * is the one in force.
    */
-  if (store.userCount() === 0 && !store.getMeta("claim_code")) {
-    store.setMeta("claim_code", secretToken());
+  if (store.userCount() === 0) {
+    if (opts.claimCode) store.setMeta("claim_code", opts.claimCode);
+    else if (!store.getMeta("claim_code")) store.setMeta("claim_code", secretToken());
   }
   const claimCode = () => store.getMeta("claim_code") || null;
   /** Whatever the client called itself. Shown back to its owner, never trusted. */

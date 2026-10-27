@@ -4,6 +4,8 @@ import { DEEP_LINK_PROTOCOL, normalizeServerUrlSafe } from "./deeplinkHelpers.js
 /** What a link asks the app to do. */
 export type DeepLink =
   | { kind: "join"; serverUrl: string; code: string | null }
+  /** A workspace nobody owns yet, and the code that claims it (P7). */
+  | { kind: "claim"; serverUrl: string; code: string }
   | { kind: "message"; serverUrl: string; channelId: string; messageId: string };
 
 /** Where a link leads, before the server it belongs to is attached. */
@@ -17,7 +19,8 @@ const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
  * Parses the links the app hands out, in either form:
  * ownbase://join?host=…&code=… and ownbase://message?host=…&channel=…&id=…
  * for the desktop app, and
- * <server>/#/join/<code> and <server>/#/c/<channel>/m/<message> for a browser.
+ * <server>/#/join/<code> and <server>/#/c/<channel>/m/<message> for a browser,
+ * where <server>/#/claim/<code> also claims a workspace nobody owns yet.
  * Returns null for anything malformed rather than throwing.
  */
 export function parseDeepLink(raw: string): DeepLink | null {
@@ -61,6 +64,9 @@ function parseBrowserLink(url: URL): DeepLink | null {
   const parts = url.hash.replace(/^#\/?/, "").split("/");
   if (parts.length === 2 && parts[0] === "join" && TOKEN.test(parts[1]!)) {
     return { kind: "join", serverUrl, code: parts[1]! };
+  }
+  if (parts.length === 2 && parts[0] === "claim" && TOKEN.test(parts[1]!)) {
+    return { kind: "claim", serverUrl, code: parts[1]! };
   }
   if (
     parts.length === 4 &&

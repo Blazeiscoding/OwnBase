@@ -693,7 +693,8 @@
       "details": [
         "Supports OwnBase desktop schemes, legacy schemes and browser fragment forms. Browser invite codes sit in the fragment, which is not sent as the HTTP request target or Referer fragment.",
         "shareableServer prefers a live temporary address owned by this desktop, then a published server address, usable LAN addresses or the connected non-loopback address. It marks links that reach only the current computer as localOnly.",
-        "Address formatting preserves the destination when shortening display text; LAN ranking favors ordinary home/office interfaces over common virtual-network addresses."
+        "Address formatting preserves the destination when shortening display text; LAN ranking favors ordinary home/office interfaces over common virtual-network addresses.",
+        "<server>/#/claim/<code> claims a workspace nobody owns yet (P7): it opens creating the account with the claim code filled in, and brings nothing to a workspace someone owns."
       ],
       "concepts": ["deep links", "shareable address", "fragment privacy", "LAN"]
     },

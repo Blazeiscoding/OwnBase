@@ -3,6 +3,8 @@ packages:
   - apps/*
   # Source-available, under ee/LICENSE rather than MIT (P6).
   - ee
+  # The hosting control plane (P7), under ee/LICENSE too.
+  - ee/cloud
 
 onlyBuiltDependencies:
   - electron

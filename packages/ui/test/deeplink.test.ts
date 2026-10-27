@@ -71,14 +71,22 @@ describe("parseDeepLink", () => {
     });
   });
 
+  it("reads a link to claim a workspace nobody owns yet", () => {
+    expect(parseDeepLink("https://acme.ownbase.chat/#/claim/claim-0123456789abcdef")).toEqual({
+      kind: "claim",
+      serverUrl: "https://acme.ownbase.chat",
+      code: "claim-0123456789abcdef",
+    });
+    expect(parseDeepLink("https://acme.ownbase.chat/#/claim/")).toBeNull();
+    expect(parseDeepLink("https://acme.ownbase.chat/#/claim/a/b")).toBeNull();
+    expect(parseDeepLink("https://acme.ownbase.chat/#/claim/AB%2FCD")).toBeNull();
+  });
+
   it("rejects anything malformed rather than throwing", () => {
     expect(parseDeepLink("not a url")).toBeNull();
     expect(parseDeepLink("https://example.com/join?host=x")).toBeNull();
     expect(parseDeepLink("ownbase://join")).toBeNull();
-    expect(parseDeepLink("ownbase://join")).toBeNull();
     expect(parseDeepLink("ownbase://message?host=h&channel=C1")).toBeNull();
-    expect(parseDeepLink("ownbase://message?host=h&channel=C1")).toBeNull();
-    expect(parseDeepLink("ownbase://explode?host=h")).toBeNull();
     expect(parseDeepLink("ownbase://explode?host=h")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/#/join/")).toBeNull();

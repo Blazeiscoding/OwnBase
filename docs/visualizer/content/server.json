@@ -95,7 +95,8 @@
         "Port parsing requires a whole number from 0 to 65535; zero requests an available port. Count settings require safe nonnegative integers rather than silently rounded fractions.",
         "Public URLs must use HTTP(S) without credentials, query or fragment because these addresses are handed to apps and shared as links.",
         "Common bind failures are translated into suggestions such as choosing another port or a valid local interface.",
-        "keptSettingsNotes says, a line for each, which of --name, --access-policy and --invite-only an owned workspace did not take, and that owners and admins change them in Workspace settings."
+        "keptSettingsNotes says, a line for each, which of --name, --access-policy and --invite-only an owned workspace did not take, and that owners and admins change them in Workspace settings.",
+        "parseClaimCode reads OWNBASE_CLAIM_CODE, the code a host gives for claiming a new workspace (P7): 16 to 64 letters, digits, hyphens or underscores, so a link carries it unchanged."
       ],
       "concepts": ["configuration", "input validation", "compatibility"]
     },
@@ -706,6 +707,69 @@
       "summary": "Re-exports enterprise, the license reader and the trusted keys.",
       "details": ["Nothing outside ee/ imports it; ee/test/boundary.test.ts checks that."],
       "concepts": ["open core", "P6"]
+    },
+    {
+      "path": "ee/cloud/src/main.ts",
+      "plain": "Starts OwnBase's hosting: the control plane that runs a server for each hosted workspace and tells Caddy about them.",
+      "summary": "The ownbase-cloud command line, built into one file beside ownbase-server.js.",
+      "details": [
+        "Reads --data, --domain, --listen, --server, --ports, --caddy-admin, --tls and --upgrade-url, and the operator's token from OWNBASE_CLOUD_TOKEN or OWNBASE_CLOUD_TOKEN_FILE (32 characters or more); a setting it cannot use stops it at the door.",
+        "Listens on loopback by default, starts every active workspace, and tells Caddy the whole config again every five minutes in case Caddy restarted without its last one.",
+        "On SIGINT or SIGTERM it stops each workspace's server itself before going."
+      ],
+      "concepts": ["hosting", "control plane", "P7"]
+    },
+    {
+      "path": "ee/cloud/src/controlPlane.ts",
+      "plain": "Creates, pauses, restarts, copies and deletes hosted workspaces, and answers the operator's requests to do so.",
+      "summary": "ControlPlane: the registry, the supervisor and Caddy behind an operator API.",
+      "details": [
+        "Each workspace runs ownbase-server on its own loopback port with --public-url https://<slug>.<domain>, --trust-proxy, its plan's --storage-limit-mb and --member-notice, daily backups, and OWNBASE_CLAIM_CODE; only the system's settings and the call relay's are passed on from the control plane's environment.",
+        "POST /api/workspaces answers with the owner's claim link, <url>/#/claim/<code>, until someone has claimed the workspace; a workspace that does not start is taken back out, folder and all.",
+        "Suspending stops the server and shows a paused page at the address; export stops it, runs backup and verify-backup into exports/, and starts it again; delete exports first, then removes the folder and keeps the address taken.",
+        "Changes go one at a time. GET /caddy/ask, which needs no token, says whether a name is a workspace's, so Caddy only gets certificates for those."
+      ],
+      "concepts": ["hosting", "control plane", "operator API", "P7"]
+    },
+    {
+      "path": "ee/cloud/src/supervisor.ts",
+      "plain": "Keeps each hosted workspace's server running, and starts it again if it stops on its own.",
+      "summary": "Supervisor: one child process per workspace, restarts with growing waits.",
+      "details": [
+        "start waits for /api/health to answer (30 s at most), and gives up as soon as the server is stopped instead.",
+        "A server that stops on its own is started again after 1, 2, 5, 10, 30 and then 60 seconds; one that ran for a minute starts the waits over. Its output and each stop go to the workspace's server.log.",
+        "stop asks with SIGTERM and kills after 10 seconds; a stopped server is never started again by a waiting timer."
+      ],
+      "concepts": ["process supervision", "backoff", "P7"]
+    },
+    {
+      "path": "ee/cloud/src/caddy.ts",
+      "plain": "Writes Caddy's configuration for the hosted workspaces, and hands it to Caddy.",
+      "summary": "caddyConfig and loadCaddyConfig: the whole config, through Caddy's admin API.",
+      "details": [
+        "Each active workspace's address goes to its server on 127.0.0.1; a suspended one's answers 503 with a page saying it is paused; a deleted one is gone.",
+        "Certificates are issued on demand, with the http permission module asking the control plane's /caddy/ask; the issuer is ACME, or Caddy's internal one for a test machine.",
+        "The config is loaded whole with POST /load each time, so Caddy never drifts from the registry."
+      ],
+      "concepts": ["reverse proxy", "on-demand TLS", "P7"]
+    },
+    {
+      "path": "ee/cloud/src/registry.ts",
+      "plain": "Remembers which workspaces are hosted, on which plan, port and address, and in what state.",
+      "summary": "Registry (node:sqlite), the plans, and the rules for a workspace's address.",
+      "details": [
+        "Team includes 50 members and 25 GB, Business 200 members and 100 GB; the server is told both.",
+        "An address is 3 to 32 lowercase letters, digits and single hyphens, and not one OwnBase keeps for itself, such as www or admin.",
+        "A deleted workspace keeps its row, so its address never leads to someone else; its port is free again. Claim codes are 24 random bytes in base64url."
+      ],
+      "concepts": ["persistence", "hosting", "P7"]
+    },
+    {
+      "path": "ee/cloud/src/index.ts",
+      "plain": "The control plane's parts, for its tests and for code that drives it.",
+      "summary": "Re-exports the control plane, registry, supervisor and Caddy config.",
+      "details": ["Nothing outside ee/ imports it; the MIT code knows nothing of hosting."],
+      "concepts": ["hosting", "P7"]
     },
     {
       "path": "packages/protocol/src/rest.ts",

@@ -1440,6 +1440,149 @@ and `GET /api/admin/license` answers the same for the owner and administrators.
 The Enterprise code is in `ee/`, source-available under its own license; the rest of
 the server is MIT. See [ee/README.md](../ee/README.md).
 
+## Hosting workspaces for others
+
+`ownbase-cloud` is the control plane for hosting many workspaces on one machine,
+the way OwnBase's Team plan is hosted. It keeps a list of workspaces, runs one
+`ownbase-server` per workspace on a loopback port, and puts Caddy in front: each
+workspace gets its own address, `https://<name>.example.com`, with a certificate
+Caddy fetches the first time someone opens it. An operator API creates, pauses,
+restarts, copies and deletes workspaces. It is in `ee/cloud`, under the same
+license as the rest of `ee/`.
+
+You need a Linux machine you can reach from the internet (these steps use Ubuntu
+24.04), a domain, and ports 80 and 443 open to it. Point a wildcard DNS record,
+`*.example.com`, at the machine (an `A` record, and `AAAA` for IPv6).
+
+**1. Node 24 and Caddy.** Caddy comes from its own package repository. Its
+`caddy-api` service keeps the configuration the control plane loads through
+Caddy's admin API, including across restarts, so use it instead of the usual
+`caddy` service:
+
+```sh
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo bash -
+sudo apt-get install -y nodejs debian-keyring debian-archive-keyring apt-transport-https
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' \
+  | sudo gpg --dearmor -o /usr/share/keyrings/caddy-stable-archive-keyring.gpg
+curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/debian.deb.txt' \
+  | sudo tee /etc/apt/sources.list.d/caddy-stable.list
+sudo apt-get update && sudo apt-get install -y caddy
+sudo systemctl disable --now caddy
+sudo systemctl enable --now caddy-api
+```
+
+Caddy's admin API listens on `localhost:2019` only. Keep it that way: anyone who
+reaches it can change what Caddy serves.
+
+**2. The files.** Build the browser client, the server and the control plane,
+and copy them to the machine. The server finds `web/` beside it.
+
+```sh
+pnpm --filter @ownbase/web build
+pnpm --filter ownbase-server build
+pnpm --filter @ownbase/cloud build
+# then, on the machine:
+sudo mkdir -p /opt/ownbase /etc/ownbase
+sudo cp ownbase-server.js ownbase-cloud.js /opt/ownbase/   # from apps/server-cli/dist and ee/cloud/dist
+sudo cp -r web /opt/ownbase/                               # from apps/server-cli/dist/web
+sudo useradd --system --home-dir /var/lib/ownbase --create-home ownbase
+openssl rand -hex 32 | sudo tee /etc/ownbase/cloud-token > /dev/null
+sudo chown ownbase /etc/ownbase/cloud-token && sudo chmod 600 /etc/ownbase/cloud-token
+```
+
+**3. The service.** Save this as `/etc/systemd/system/ownbase-cloud.service`,
+with your domain and addresses:
+
+```ini
+[Unit]
+Description=OwnBase hosting control plane
+After=network-online.target caddy-api.service
+Wants=network-online.target
+
+[Service]
+User=ownbase
+Group=ownbase
+Environment=OWNBASE_CLOUD_TOKEN_FILE=/etc/ownbase/cloud-token
+EnvironmentFile=-/etc/ownbase/relay.env
+ExecStart=/usr/bin/node /opt/ownbase/ownbase-cloud.js --data /var/lib/ownbase \
+  --domain example.com --email ops@example.com --upgrade-url https://example.com/plans
+# Only the control plane is asked to stop; it stops each workspace's server
+# itself, rather than having them all stopped at once and started again.
+KillMode=mixed
+TimeoutStopSec=60
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now ownbase-cloud
+journalctl -u ownbase-cloud -f
+```
+
+**4. A workspace.** The operator API listens on `127.0.0.1:8100`, so call it from
+the machine (or through an SSH tunnel). Every request carries the token:
+
+```sh
+TOKEN=$(sudo cat /etc/ownbase/cloud-token)
+curl -s -X POST http://127.0.0.1:8100/api/workspaces \
+  -H "authorization: Bearer $TOKEN" -H "content-type: application/json" \
+  -d '{"slug":"acme","name":"Acme","ownerEmail":"ada@acme.example","plan":"team"}'
+```
+
+The answer includes `claimLink`, such as
+`https://acme.example.com/#/claim/<code>`. Send it to the owner: it opens creating
+their account with the workspace's claim code filled in, and that account owns the
+workspace. Nobody else can create the first account. The link shows in the
+workspace's details until someone has claimed it.
+
+| Request                               | What it does                                                                          |
+| ------------------------------------- | ------------------------------------------------------------------------------------- |
+| `GET /api/workspaces`                 | Every workspace, its state and its server's                                           |
+| `GET /api/workspaces/<slug>`          | One workspace, with `claimLink` while nobody owns it                                  |
+| `POST /api/workspaces`                | Creates one: `slug`, `name`, `ownerEmail`, `plan` (`team` or `business`)              |
+| `POST /api/workspaces/<slug>/suspend` | Stops its server; its address shows a page saying it is paused                        |
+| `POST /api/workspaces/<slug>/resume`  | Starts it again, as it was                                                            |
+| `POST /api/workspaces/<slug>/export`  | A checked backup in `exports/`; the workspace is stopped for the few seconds it takes |
+| `DELETE /api/workspaces/<slug>`       | Exports it, then deletes its folder. Its address is never given out again             |
+
+A workspace's address is 3 to 32 lowercase letters, digits and single hyphens.
+Team includes 50 members and 25 GB of files, Business 200 members and 100 GB; past
+the members, the owner is told (see [A plan's members](#a-plans-members)) and
+nobody is locked out. Each workspace backs itself up daily into its own
+`backups/`, keeping 7.
+
+Everything lives in `/var/lib/ownbase`: `control.db` (the list), `workspaces/<slug>/`
+(`data/`, `backups/` and the server's `server.log`) and `exports/`. A workspace's
+server that stops on its own is started again after 1, 2, 5, 10, 30, then 60
+seconds; one that has run for a minute starts the waits over. Caddy only gets a
+certificate for an address the control plane says is a workspace's, so nobody can
+make it fetch certificates for names you do not host.
+
+**Calls between networks.** Each workspace's server takes the call relay from the
+control plane's environment, in `/etc/ownbase/relay.env`. Either Cloudflare's
+TURN service:
+
+```sh
+OWNBASE_CLOUDFLARE_TURN_KEY_ID=...
+OWNBASE_CLOUDFLARE_TURN_API_TOKEN=...
+```
+
+or your own coturn (`sudo apt-get install -y coturn`) with a user and quotas in
+`/etc/turnserver.conf`, given to the servers as
+`OWNBASE_ICE_SERVERS=[{"urls":"turn:turn.example.com:3478","username":"ownbase","credential":"..."}]`.
+Those credentials are visible to the workspaces' members, so set coturn's quotas
+(`user-quota`, `total-quota`) and open UDP and TCP 3478 and its relay ports. See
+[Voice and huddles](#voice-and-huddles).
+
+**Trying it on one machine.** `--tls internal` makes Caddy use its own
+certificates instead, which nothing trusts unless told to. With
+`curl -k --resolve acme.example.com:443:127.0.0.1 https://acme.example.com/` the
+whole path answers without DNS.
+
 ## Current boundaries
 
 Friends and accounts do not federate across servers. Account settings offers password
