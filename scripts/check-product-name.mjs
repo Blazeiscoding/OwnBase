@@ -5,8 +5,7 @@
 //
 // OwnBase was called SlackOSS, then Gatherline, then Tandem. Nobody runs a
 // build from before, so nothing reads those names any more: not settings,
-// links, storage keys or package names. The one place one may appear is a
-// link to the GitHub repository, until the repository is renamed.
+// links, storage keys, package names, or the GitHub repository's.
 import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
@@ -14,8 +13,6 @@ import { fileURLToPath } from "node:url";
 
 /** Names the product had before, in any case and inside longer names too. */
 export const EARLIER_NAMES = /slackoss|gatherline|tandem/gi;
-/** Where an earlier name is still right: the repository, until it is renamed. */
-const ALLOWED = [/github\.com\/Blazeiscoding\/[A-Za-z]+/g];
 const TEXT = /\.(?:m?js|html|css|json|webmanifest|svg|txt)$/;
 /**
  * Tracked files that name the earlier names on purpose: this check and its
@@ -31,10 +28,9 @@ const NAMES_THEM = new Set([
 function namesIn(text, where) {
   const found = [];
   text.split("\n").forEach((line, i) => {
-    const rest = ALLOWED.reduce((kept, allowed) => kept.replace(allowed, ""), line);
-    for (const match of rest.matchAll(EARLIER_NAMES)) {
+    for (const match of line.matchAll(EARLIER_NAMES)) {
       const at = match.index ?? 0;
-      const around = rest.slice(Math.max(0, at - 40), at + 40).trim();
+      const around = line.slice(Math.max(0, at - 40), at + 40).trim();
       found.push(`${where}:${i + 1}: ${around}`);
     }
   });

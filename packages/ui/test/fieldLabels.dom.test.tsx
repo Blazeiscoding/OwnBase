@@ -201,7 +201,7 @@ describe("account and administration dialogs", () => {
     const contract = within(dialog).getByRole("link", { name: "The integration contract" });
     expect(contract).toHaveAttribute(
       "href",
-      "https://github.com/Blazeiscoding/Tandem/blob/main/docs/INTEGRATIONS.md",
+      "https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md",
     );
     expect(within(dialog).getByLabelText("App name")).toBeVisible();
     // Each of an app's forms is a group named for what it adds, so its fields
