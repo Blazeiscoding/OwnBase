@@ -201,6 +201,34 @@ importers:
         specifier: ^8.18.3
         version: 8.21.3
 
+  ee/cloud:
+    dependencies:
+      fastify:
+        specifier: ^5.12.5
+        version: 5.12.5
+      zod:
+        specifier: ^4.1.5
+        version: 4.5.4
+    devDependencies:
+      '@ownbase/ee':
+        specifier: workspace:*
+        version: link:..
+      '@types/node':
+        specifier: ^24.3.0
+        version: 24.13.3
+      tsup:
+        specifier: ^8.5.0
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.26)(tsx@4.23.13)(typescript@5.9.3)
+      tsx:
+        specifier: ^4.20.0
+        version: 4.23.13
+      typescript:
+        specifier: ^5.9.2
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(jsdom@30.0.1(@noble/hashes@2.4.0))(lightningcss@1.32.0)(tsx@4.23.13)
+
   packages/client-core:
     dependencies:
       '@ownbase/protocol':

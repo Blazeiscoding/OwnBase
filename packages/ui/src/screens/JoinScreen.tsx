@@ -1308,8 +1308,9 @@ function AuthCard(props: {
                       className={`${fieldCls} font-mono`}
                     />
                     <p id="workspace-claim-help" className="mt-1 text-xs text-ink-dim">
-                      Enter the code shown when the host started this workspace to create its owner
-                      account.
+                      {props.presetClaimCode && claimCode === props.presetClaimCode
+                        ? "Filled in from your link. It makes this account the workspace's owner."
+                        : "Enter the code shown when the host started this workspace to create its owner account."}
                     </p>
                   </div>
                 )}

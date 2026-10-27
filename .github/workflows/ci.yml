@@ -88,7 +88,7 @@ jobs:
       # The server's and ui's suites take minutes, so they run in the unit
       # job below, beside this one.
       - name: Unit tests of protocol, client-core, desktop and ee
-        run: pnpm exec turbo run test --filter=@ownbase/protocol --filter=@ownbase/client-core --filter=@ownbase/desktop --filter=@ownbase/ee --concurrency=2
+        run: pnpm exec turbo run test --filter=@ownbase/protocol --filter=@ownbase/client-core --filter=@ownbase/desktop --filter=@ownbase/ee --filter=@ownbase/cloud --concurrency=2
         env:
           VITEST_MAX_THREADS: "2"
           VITEST_MAX_FORKS: "2"

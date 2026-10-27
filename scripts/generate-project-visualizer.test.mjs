@@ -125,7 +125,7 @@ test("runtime explanations and all guide/evidence references are complete", () =
   const entries = catalogs.flatMap((catalog) => catalog.entries);
   assert.equal(new Set(entries.map((entry) => entry.path)).size, entries.length);
   const runtime = data.files.filter((file) =>
-    /^(?:(?:packages|apps)\/.+|ee)\/src\//.test(file.path),
+    /^(?:(?:packages|apps)\/.+|ee|ee\/cloud)\/src\//.test(file.path),
   );
   assert.ok(runtime.length > 0);
   assert.equal(data.meta.runtimeCount, runtime.length);

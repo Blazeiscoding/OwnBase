@@ -348,7 +348,7 @@ for (const item of [...optimizations, ...flows]) {
 }
 const runtime = files.filter(
   (file) =>
-    /^((packages|apps)\/.+|ee)\/src\//.test(file.path) &&
+    /^((packages|apps)\/.+|ee|ee\/cloud)\/src\//.test(file.path) &&
     /\.(tsx?|mts|js|css|html|svg|json)$/.test(file.path),
 );
 const missing = runtime.filter((file) => !file.curated).map((file) => file.path);

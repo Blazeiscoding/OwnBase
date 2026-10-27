@@ -1,0 +1,31 @@
+{
+  "name": "@ownbase/cloud",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OwnBase's hosting control plane: a server process per workspace behind Caddy",
+  "license": "SEE LICENSE IN ../LICENSE",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "bin": {
+    "ownbase-cloud": "./dist/ownbase-cloud.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "fastify": "^5.12.5",
+    "zod": "^4.1.5"
+  },
+  "devDependencies": {
+    "@ownbase/ee": "workspace:*",
+    "@types/node": "^24.3.0",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.0"
+  }
+}

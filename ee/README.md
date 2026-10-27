@@ -45,3 +45,17 @@ node ee/scripts/license.mjs inspect acme.license
 ```
 
 Until a public key is in `src/keys.ts`, this build accepts no license.
+
+## Hosting workspaces: `cloud/`
+
+[`cloud/`](cloud) is `ownbase-cloud`, the control plane for hosting many workspaces on
+one machine, as OwnBase's Team plan is hosted: a list of workspaces, one
+`ownbase-server` each on a loopback port, Caddy in front with a certificate per
+address, and an operator API to create, pause, restart, copy and delete them. It is
+its own package (`@ownbase/cloud`), under the same license. How to set one up is in
+[DEPLOYMENT.md](../docs/DEPLOYMENT.md#hosting-workspaces-for-others).
+
+```sh
+pnpm --filter @ownbase/cloud build   # ee/cloud/dist/ownbase-cloud.js
+pnpm --filter @ownbase/cloud test    # with real servers, and a stand-in for Caddy
+```

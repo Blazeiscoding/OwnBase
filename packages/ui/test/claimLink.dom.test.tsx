@@ -51,6 +51,9 @@ describe("a link to claim a workspace", () => {
     await screen.findByRole("heading", { name: "Acme" });
     const code = screen.getByLabelText("Workspace claim code");
     expect(code).toHaveValue("claim-0123456789abcdef");
+    expect(code).toHaveAccessibleDescription(
+      "Filled in from your link. It makes this account the workspace's owner.",
+    );
     expect(await accessibilityProblems()).toEqual([]);
 
     const user = userEvent.setup();
