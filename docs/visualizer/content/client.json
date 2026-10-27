@@ -611,7 +611,7 @@
       "details": [
         "A shared store validates system/dark/light and comfortable/compact values and supplies existing defaults for absent or obsolete settings.",
         "A choice appears immediately and rolls back on save failure with a message. useApplyAppearance writes document data attributes consumed by theme.css so all screens follow the same choice.",
-        "Once the choice is read, and on each change, useApplyAppearance keeps a copy in localStorage (FIRST_PAINT_KEY, ownbase:appearance) that each app's first-paint.js puts on the document from <head>, so a page whose chosen theme is not the device's is not painted in the other one first. The store starts from that copy, so it does not switch the page to system while the platform's storage is read.",
+        "Once the choice is read, and on each change, useApplyAppearance keeps a copy in localStorage (FIRST_PAINT_KEY, ownbase-first-paint) that each app's first-paint.js puts on the document from <head>, so a page whose chosen theme is not the device's is not painted in the other one first. The store starts from that copy, so it does not switch the page to system while the platform's storage is read.",
         "It also sets the theme-color meta to the theme's deep colour, following the device for system, so a phone's or an installed app's bars match. scripts/generate-palette.mjs writes those two colours."
       ],
       "concepts": ["appearance preference", "optimistic UI", "design tokens", "first paint"]
