@@ -576,6 +576,70 @@ export interface ServerInfo {
    * when it has none. Absent from servers before workspace icons.
    */
   iconVersion?: string | null;
+  /**
+   * Ways to sign in besides a password, from the server's extensions (P9),
+   * and who may still use a password: everyone, or only the owner, kept as
+   * the way back in. Absent when there is nothing but passwords.
+   */
+  signIn?: { methods: SignInMethod[]; passwords: "everyone" | "owner_only" };
+}
+
+/** A way to sign in besides a password, such as a company's single sign-on (P9). */
+export interface SignInMethod {
+  id: string;
+  /** Who signs people in, such as "Okta": its button says "Sign in with Okta". */
+  name: string;
+  /**
+   * Where the browser goes to begin, a path on this server, with
+   * `client=web` or `client=desktop` (the desktop app opens it in the
+   * system's browser) and `challenge`, the base64url SHA-256 of a secret the
+   * client keeps. The way back brings a one-time code, `<server>/#/sso/<code>`
+   * or `ownbase://sso?host=<server>&code=<code>`, which `redeem` turns into a
+   * session for that secret alone.
+   */
+  start: string;
+  /** POST `{ code, verifier }` here for `{ token, user }`. */
+  redeem: string;
+  /**
+   * For a signed-in person to link this way to their account: GET says
+   * whether it is linked (`SignInConnection`), POST answers `{ url }`, a path
+   * on this server to open in a browser, and DELETE unlinks.
+   */
+  connect?: string;
+}
+
+/** What GET on a sign-in method's `connect` says for the signed-in person. */
+export interface SignInConnection {
+  connected: boolean;
+  /** Who they are there, such as an email address, when linked. */
+  as?: string;
+}
+
+/**
+ * A panel an extension adds to Workspace settings for the owner (P9): its
+ * fields, and the path its values are saved to with PUT, as `{ [key]: value }`.
+ */
+export interface SettingsPanel {
+  id: string;
+  title: string;
+  description: string;
+  fields: SettingsField[];
+  save: string;
+  /** Why it cannot be used now, such as a license without the feature. */
+  problem?: string;
+  /** Whether what it sets up is working, in a line. */
+  status?: string;
+}
+
+export interface SettingsField {
+  key: string;
+  label: string;
+  kind: "text" | "url" | "secret" | "toggle";
+  help?: string;
+  /** Text or a toggle's state. A secret's is never sent: "" with `isSet`. */
+  value: string | boolean;
+  isSet?: boolean;
+  placeholder?: string;
 }
 
 /**

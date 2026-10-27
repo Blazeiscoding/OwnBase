@@ -2072,8 +2072,24 @@ async function startWorkspaceServer(
     authJobs++;
   };
 
+  /** Whether passwords are kept for the owner alone, an extension signing in everyone else (P9). */
+  const singleSignOnRequired = () =>
+    extensions.some((extension) => extension.requiresSingleSignOn?.() === true);
+  const ssoRequired = (what: string) =>
+    new HttpError(403, "sso_required", `This workspace ${what} through its single sign-on.`);
+
+  /** Ways to sign in the extensions offer, and who may still use a password (P9). */
+  const signInInfo = (): ServerInfo["signIn"] => {
+    const methods = extensions.flatMap((extension) => extension.signInMethods?.() ?? []);
+    const ownerOnly = singleSignOnRequired();
+    return methods.length || ownerOnly
+      ? { methods, passwords: ownerOnly ? "owner_only" : "everyone" }
+      : undefined;
+  };
+
   app.get("/api/server-info", async (req): Promise<ServerInfo> => {
     const userCount = store.userCount();
+    const signIn = signInInfo();
     return {
       app: "ownbase",
       protocolVersion: PROTOCOL_VERSION,
@@ -2089,6 +2105,7 @@ async function startWorkspaceServer(
       workspaceCopies: opts.dataDir !== ":memory:",
       ...(publicUrl ? { publicUrl } : {}),
       iconVersion: icon?.version ?? null,
+      ...(signIn ? { signIn } : {}),
     };
   });
 
@@ -2159,6 +2176,9 @@ async function startWorkspaceServer(
           );
         }
       }
+
+      // A workspace that makes accounts through its single sign-on (P9).
+      if (!isFirstUser && singleSignOnRequired()) throw ssoRequired("makes new accounts");
 
       if (!isFirstUser && inviteOnly()) {
         if (!body.inviteCode || !store.consumeInvite(body.inviteCode)) {
@@ -2263,6 +2283,7 @@ async function startWorkspaceServer(
         throw new HttpError(409, "credentials_changed");
       if (inviteOnly())
         throw new HttpError(403, "invite_required", "This workspace needs an invite to join.");
+      if (singleSignOnRequired()) throw ssoRequired("makes new accounts");
       if (store.getUserAuthByHandle(body.handle)) throw new HttpError(409, "handle_taken");
       const user = store.convertGuest(me.id, body.handle, credentials.hash, credentials.salt);
       const revoked = store.revokeSessions(me.id);
@@ -2306,6 +2327,9 @@ async function startWorkspaceServer(
     ) {
       throw new HttpError(401, "invalid_credentials");
     }
+    // Asked only once the password is right, so it says nothing of who has an
+    // account. The owner always may: the way back in (P9).
+    if (latest.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");
     // An account with two-step sign-in has a second step to pass first (E11).
     // What its handle has spent stays spent until then, so a right password
     // does not buy more guesses at the code.
@@ -2403,6 +2427,8 @@ async function startWorkspaceServer(
       );
     }
     twoStepChallenges.delete(key);
+    // Required since the first step (P9).
+    if (auth.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");
     authSucceeded(auth.handle);
     const { token, tokenHash } = newSessionToken();
     store.createSession(tokenHash, auth.id, deviceName(req));
@@ -5865,21 +5891,79 @@ async function startWorkspaceServer(
 
   // ---------- extensions (P6) ----------
 
+  const ownerOnly = (req: FastifyRequest) => {
+    const me = requireUser(req);
+    if (me.role !== "owner")
+      throw new HttpError(403, "owner_only", "Only the workspace's owner can do this.");
+    return me;
+  };
+
+  /** A member made by an extension, such as single sign-on's first sign-in (P9). */
+  const createMember = async (input: { handle: string; displayName: string }) => {
+    // Nobody knows it: the account signs in the extension's way.
+    const credentials = await hashPassword(secretToken());
+    return mutate((emit) => {
+      if (store.userCount() === 0)
+        throw new HttpError(409, "workspace_unclaimed", "The workspace has no owner yet.");
+      if (store.getUserAuthByHandle(input.handle)) throw new HttpError(409, "handle_taken");
+      const user = store.createUser({
+        handle: input.handle,
+        displayName: input.displayName,
+        passwordHash: credentials.hash,
+        salt: credentials.salt,
+        role: "member",
+      });
+      emit({ type: "user.joined", user }, null);
+      joinPublicChannels(user.id, emit);
+      return user;
+    });
+  };
+
   for (const extension of extensions) {
+    const prefix = `extension:${extension.name}:`;
     await extension.register?.({
       app,
       requireUser,
       requireAdmin,
-      requireOwner: (req) => {
-        const me = requireUser(req);
-        if (me.role !== "owner")
-          throw new HttpError(403, "owner_only", "Only the workspace's owner can do this.");
-        return me;
-      },
+      requireOwner: ownerOnly,
       memberCount: () => planMembers(store.listUsers()),
       log: app.log.child({ extension: extension.name }),
+      storage: {
+        get: (key) => store.getMeta(prefix + key),
+        set: (key, value) => store.setMeta(prefix + key, value),
+        delete: (key) => store.deleteMeta(prefix + key),
+        list: (start) =>
+          store
+            .listMeta(prefix + start)
+            .map(({ key, value }) => ({ key: key.slice(prefix.length), value })),
+      },
+      users: {
+        get: (id) => store.getUser(id),
+        byHandle: (handle) => {
+          const auth = store.getUserAuthByHandle(handle.toLowerCase());
+          if (!auth) return null;
+          const { passwordHash: _p, salt: _s, ...user } = auth;
+          return user;
+        },
+        create: createMember,
+      },
+      startSession: (userId, req) => {
+        const user = store.getUser(userId);
+        if (!user || user.deactivated) throw new HttpError(401, "invalid_credentials");
+        const { token, tokenHash } = newSessionToken();
+        store.createSession(tokenHash, user.id, deviceName(req));
+        return { token, user };
+      },
+      publicUrl: () => publicUrl,
     });
   }
+
+  // The panels the extensions add to Workspace settings, for the owner (P9).
+  app.get("/api/admin/extension-settings", async (req, reply) => {
+    ownerOnly(req);
+    reply.header("cache-control", "no-store");
+    return { panels: extensions.flatMap((extension) => extension.settingsPanels?.() ?? []) };
+  });
 
   // ---------- start ----------
 

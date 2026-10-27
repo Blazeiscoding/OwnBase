@@ -33,7 +33,14 @@ import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.j
 type Session =
   | { view: "loading" }
   | { view: "restore_failed" }
-  | { view: "join"; autoProbe?: string; inviteCode?: string; claimCode?: string }
+  | {
+      view: "join";
+      autoProbe?: string;
+      inviteCode?: string;
+      claimCode?: string;
+      /** Back from the workspace's single sign-on, with the code that signs in (P9). */
+      ssoCode?: string;
+    }
   | {
       view: "workspace";
       id: number;
@@ -263,6 +270,12 @@ export function App({ platform }: { platform: Platform }) {
         savedServersRef.current = list;
         setSavedServers(list);
         const known = list.find((s) => s.url === link.serverUrl);
+        // A sign-in just made elsewhere, whatever this device held before.
+        if (link.kind === "sso") {
+          closeWorkspace();
+          setSession({ view: "join", autoProbe: link.serverUrl, ssoCode: link.code });
+          return;
+        }
         if (link.kind === "message") {
           // Already looking at this workspace: just move, don't reconnect.
           if (openServerUrl.current === link.serverUrl) {
@@ -507,6 +520,7 @@ export function App({ platform }: { platform: Platform }) {
                     autoProbe={session.autoProbe}
                     inviteCode={session.inviteCode}
                     claimCode={session.claimCode}
+                    ssoCode={session.ssoCode}
                     onConnected={(server, how) => {
                       const pending = pendingTarget.current;
                       pendingTarget.current = null;

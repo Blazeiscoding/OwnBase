@@ -82,6 +82,24 @@ describe("parseDeepLink", () => {
     expect(parseDeepLink("https://acme.ownbase.chat/#/claim/AB%2FCD")).toBeNull();
   });
 
+  it("reads the way back from single sign-on, in a browser and to the desktop app", () => {
+    const code = "Q2xhaW1lZC1ieS10aGUtc2VydmVyLW9uY2Utb25seQ_-";
+    expect(parseDeepLink(`https://acme.ownbase.chat/#/sso/${code}`)).toEqual({
+      kind: "sso",
+      serverUrl: "https://acme.ownbase.chat",
+      code,
+    });
+    expect(parseDeepLink(`ownbase://sso?host=https://acme.ownbase.chat&code=${code}`)).toEqual({
+      kind: "sso",
+      serverUrl: "https://acme.ownbase.chat",
+      code,
+    });
+    expect(parseDeepLink("ownbase://sso?host=https://acme.ownbase.chat")).toBeNull();
+    expect(parseDeepLink("ownbase://sso?host=https://acme.ownbase.chat&code=a%2Fb")).toBeNull();
+    expect(parseDeepLink("https://acme.ownbase.chat/#/sso/")).toBeNull();
+    expect(parseDeepLink("https://acme.ownbase.chat/#/sso/a/b")).toBeNull();
+  });
+
   it("rejects anything malformed rather than throwing", () => {
     expect(parseDeepLink("not a url")).toBeNull();
     expect(parseDeepLink("https://example.com/join?host=x")).toBeNull();

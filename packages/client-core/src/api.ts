@@ -18,6 +18,8 @@ import type {
   ScheduledMessage,
   ScheduleMessageBody,
   ServerInfo,
+  SettingsPanel,
+  SignInConnection,
   StorageUsage,
   SessionInfo,
   SlashCommand,
@@ -81,6 +83,15 @@ export interface SignedIn {
  * (E11), the challenge its second step answers before `expiresAt`.
  */
 export type LoginResult = SignedIn | { twoStep: { challenge: string; expiresAt: number } };
+
+/**
+ * A path the server gave for one of its own routes. Anything else is refused
+ * before this client sends it a session.
+ */
+export function serverPath(path: string): string {
+  if (!/^\/api\/[A-Za-z0-9/_-]*$/.test(path)) throw new ApiError(502, "invalid_response");
+  return path;
+}
 
 /** Typed REST client for one workspace server. */
 export class Api {
@@ -198,6 +209,38 @@ export class Api {
     body: { challenge: string } & ({ code: string } | { recoveryCode: string }),
   ): Promise<SignedIn & { recoveryCodesLeft: number }> {
     return this.request("POST", "/api/auth/two-step", body);
+  }
+
+  /**
+   * Signs in with the one-time code a way of signing in besides a password
+   * came back with (P9), and the secret this client began it with.
+   */
+  redeemSignIn(path: string, body: { code: string; verifier: string }): Promise<SignedIn> {
+    return this.request("POST", serverPath(path), body, { timeoutMs: 20_000 });
+  }
+
+  /** Whether the signed-in person has linked their account to a way of signing in (P9). */
+  signInConnection(path: string): Promise<SignInConnection> {
+    return this.request("GET", serverPath(path), undefined, { timeoutMs: 10_000 });
+  }
+
+  /** Where to link it: a path on this server, opened in a browser (P9). */
+  connectSignIn(path: string): Promise<{ url: string }> {
+    return this.request("POST", serverPath(path), undefined, { timeoutMs: 10_000 });
+  }
+
+  disconnectSignIn(path: string): Promise<SignInConnection> {
+    return this.request("DELETE", serverPath(path), undefined, { timeoutMs: 10_000 });
+  }
+
+  /** The panels the server's extensions add to Workspace settings, for the owner (P9). */
+  extensionSettings(): Promise<{ panels: SettingsPanel[] }> {
+    return this.request("GET", "/api/admin/extension-settings", undefined, { timeoutMs: 10_000 });
+  }
+
+  /** Saves a panel's values where it says, as `{ [key]: value }`. */
+  saveExtensionSettings(path: string, values: Record<string, string | boolean>): Promise<unknown> {
+    return this.request("PUT", serverPath(path), values, { timeoutMs: 20_000 });
   }
 
   /** Joins with a display name alone, where the workspace allows guests. */

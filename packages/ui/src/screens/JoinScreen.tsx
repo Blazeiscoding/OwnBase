@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { hostWithPort, type ServerInfo } from "@ownbase/protocol";
+import { hostWithPort, type ServerInfo, type SignInMethod } from "@ownbase/protocol";
 import { Api, ApiError, normalizeServerUrl } from "@ownbase/client-core";
 import type {
   DiscoveredServer,
@@ -18,6 +18,7 @@ import { buttonClass } from "../components/Button.js";
 import { inputClass } from "../components/TextField.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
+import { beginSingleSignOn, redeemSingleSignOn } from "../lib/singleSignOn.js";
 
 /** How a sign-in came about, where it matters to what opens next. */
 export interface Connected {
@@ -36,6 +37,8 @@ interface Props {
   inviteCode?: string;
   /** Prefilled from a link to claim a workspace nobody owns yet (P7). */
   claimCode?: string;
+  /** Back from the workspace's single sign-on: the code that signs in (P9). */
+  ssoCode?: string;
   onConnected: (server: SavedServer, how?: Connected) => void;
   onForget: (url: string) => void;
   onHostClick?: () => void;
@@ -71,6 +74,7 @@ export function JoinScreen({
   autoProbe,
   inviteCode,
   claimCode,
+  ssoCode,
   onConnected,
   onForget,
   onHostClick,
@@ -147,7 +151,8 @@ export function JoinScreen({
     // again only if they no longer work — reopening your own hosted workspace
     // should not mean typing the password each time.
     const saved = savedServers.find((s) => s.url === normalizeSafe(autoProbe));
-    if (saved) void openSaved(saved);
+    // A sign-in just made with single sign-on is used, not the one saved before.
+    if (saved && !ssoCode) void openSaved(saved);
     else void probe(autoProbe);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoProbe]);
@@ -264,6 +269,8 @@ export function JoinScreen({
               savedHandle={savedServers.find((s) => s.url === stage.url)?.handle}
               presetInviteCode={inviteCode}
               presetClaimCode={claimCode}
+              presetSsoCode={ssoCode}
+              platform={platform}
               onBack={() => setStage({ view: "browse" })}
               onConnected={onConnected}
             />
@@ -742,6 +749,8 @@ function AuthCard(props: {
   savedHandle?: string;
   presetInviteCode?: string;
   presetClaimCode?: string;
+  presetSsoCode?: string;
+  platform: Pick<Platform, "kind">;
   onBack: () => void;
   onConnected: (server: SavedServer, how?: Connected) => void;
 }) {
@@ -811,8 +820,55 @@ function AuthCard(props: {
     null,
   );
   const id = useId();
+  const { platform } = props;
+  // Ways in besides a password (P9), and whether passwords are the owner's alone.
+  const ssoMethods = hasUsers ? (props.info.signIn?.methods ?? []) : [];
+  const ownerPasswordsOnly = props.info.signIn?.passwords === "owner_only";
+  /** The desktop app sent the person to their browser to sign in there. */
+  const [ssoAway, setSsoAway] = useState(false);
 
   useEffect(() => firstField.current?.focus(), []);
+
+  // Back from single sign-on with a code: it signs in with the secret this
+  // device began with, so a code someone else passed on signs nobody in.
+  useEffect(() => {
+    const code = props.presetSsoCode;
+    if (!code) return;
+    let gone = false;
+    setBusy(true);
+    redeemSingleSignOn(props.url, code).then(
+      (result) => {
+        if (gone) return;
+        props.onConnected({
+          url: props.url,
+          token: result.token,
+          workspaceName: props.info.workspaceName,
+          handle: result.user.handle,
+          lastUsedAt: Date.now(),
+        });
+      },
+      (err: unknown) => {
+        if (gone) return;
+        setError(err instanceof ApiError ? errorMessage(err, "login") : (err as Error).message);
+        setBusy(false);
+      },
+    );
+    return () => {
+      gone = true;
+    };
+    // The code arrives once, with the card; nothing else here changes what it does.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [props.presetSsoCode, props.url]);
+
+  async function signInWith(method: SignInMethod) {
+    setError(null);
+    try {
+      await beginSingleSignOn(platform, props.url, method);
+      if (platform.kind === "desktop") setSsoAway(true);
+    } catch (err) {
+      setError((err as Error).message);
+    }
+  }
   const tabs = useTabs({
     label: "Account",
     tabs: modes,
@@ -1151,6 +1207,45 @@ function AuthCard(props: {
             </p>
           )}
 
+          {ssoMethods.length > 0 && (
+            <div className="mb-5">
+              <div className="space-y-2">
+                {ssoMethods.map((method) => (
+                  <button
+                    key={method.id}
+                    type="button"
+                    disabled={busy}
+                    className={buttonClass("secondary", "h-10 w-full rounded-xl")}
+                    onClick={() => void signInWith(method)}
+                  >
+                    <Icon name="lock" size={14} />
+                    Sign in with {method.name}
+                  </button>
+                ))}
+              </div>
+              {(ssoAway || (props.presetSsoCode && busy)) && (
+                <p role="status" className="mt-2 text-[13px] text-ink-dim">
+                  {props.presetSsoCode && busy
+                    ? "Signing you in…"
+                    : "Finish signing in in your browser. OwnBase opens again when you are done."}
+                </p>
+              )}
+              {ownerPasswordsOnly && (
+                <p className="mt-2 text-[13px] text-ink-faint">
+                  Passwords here sign in only the workspace's owner.
+                </p>
+              )}
+              <div
+                aria-hidden="true"
+                className="mt-5 flex items-center gap-3 text-[12px] text-ink-faint"
+              >
+                <span className="h-px flex-1 bg-edge" />
+                or
+                <span className="h-px flex-1 bg-edge" />
+              </div>
+            </div>
+          )}
+
           {hasUsers && (
             <div
               {...tabs.listProps}
@@ -1373,6 +1468,10 @@ function errorMessage(err: unknown, mode: Mode): string {
         return "This workspace needs an invite code to join.";
       case "claim_required":
         return "Enter the workspace claim code shown on the host. The code you entered was not accepted.";
+      case "sso_required":
+        return mode === "register"
+          ? "New accounts here are made through the workspace's single sign-on. Use its button above."
+          : "This workspace signs people in with its single sign-on. Use its button above.";
       case "invalid_request":
         return mode === "guest"
           ? "Enter a display name of up to 80 characters."

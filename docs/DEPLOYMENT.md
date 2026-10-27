@@ -1440,6 +1440,30 @@ and `GET /api/admin/license` answers the same for the owner and administrators.
 The Enterprise code is in `ee/`, source-available under its own license; the rest of
 the server is MIT. See [ee/README.md](../ee/README.md).
 
+### Single sign-on
+
+A license with `sso` lets the owner sign people in through the company's OpenID
+Connect provider, such as Okta, Microsoft Entra ID, Google Workspace or Keycloak. The
+server needs its public address, since the provider sends people back to it:
+
+```sh
+ownbase-server --data ./data --license ./acme.license --public-url https://chat.acme.com
+```
+
+At the provider, register a web application with the sign-in redirect address
+`https://chat.acme.com/api/sso/callback`. Then, in Workspace settings under Sign-in,
+give its issuer, client ID and client secret; OwnBase reads the rest from the issuer's
+`/.well-known/openid-configuration` and checks it before saving. For Entra ID, use the
+tenant's own issuer (`https://login.microsoftonline.com/<tenant id>/v2.0`), not the
+shared one.
+
+The sign-in screen then has a "Sign in with" button. People who have an account link
+it once in Account settings, under Security. The owner can let the provider make
+accounts for people new to the workspace, only for verified addresses at the domains
+given when any are, and can require single sign-on, after which passwords sign in the
+owner alone.
+The desktop app signs in through the system's browser and comes back to itself.
+
 ## Hosting workspaces for others
 
 `ownbase-cloud` is the control plane for hosting many workspaces on one machine,
