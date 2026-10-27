@@ -23,7 +23,7 @@ function folder(files) {
 const built = (files = {}) =>
   folder({
     "index.html": "<!doctype html><title>OwnBase</title>",
-    "assets/index-A1.js": 'const key="ownbase:appearance";document.title="OwnBase";\n',
+    "assets/index-A1.js": 'const key="ownbase-first-paint";document.title="OwnBase";\n',
     "assets/photo-C3.png": Buffer.from("Tandem in a picture is not text"),
     ...files,
   });

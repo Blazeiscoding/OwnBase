@@ -13,7 +13,7 @@
   var theme = "system";
   var density = "comfortable";
   try {
-    var saved = JSON.parse(localStorage.getItem("ownbase:appearance") || "null");
+    var saved = JSON.parse(localStorage.getItem("ownbase-first-paint") || "null");
     if (saved && (saved.theme === "dark" || saved.theme === "light")) theme = saved.theme;
     if (saved && saved.density === "compact") density = "compact";
   } catch (error) {

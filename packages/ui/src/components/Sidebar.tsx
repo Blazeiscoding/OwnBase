@@ -872,12 +872,15 @@ export function Sidebar(props: Props) {
   );
 }
 
+/** Where useCollapsedSections keeps them, outside the device store's "ownbase:" names. */
+export const COLLAPSED_SECTIONS_KEY = "ownbase-collapsed-sections";
+
 /**
  * Which sidebar categories are folded away, kept on this device. Storage
  * that is unavailable, as in a private window, only means they reopen.
  */
 function useCollapsedSections(): [Set<string>, (section: string) => void] {
-  const key = "ownbase:collapsed-sections";
+  const key = COLLAPSED_SECTIONS_KEY;
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);

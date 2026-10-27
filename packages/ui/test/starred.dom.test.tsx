@@ -285,7 +285,7 @@ describe("the Starred section", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     // The open one and the unread one stay in view.
     expect(section("Starred")).toEqual(["general", "zeta"]);
-    expect(JSON.parse(localStorage.getItem("ownbase:collapsed-sections")!)).toContain("starred");
+    expect(JSON.parse(localStorage.getItem("ownbase-collapsed-sections")!)).toContain("starred");
 
     // Drawn again, as after a reload, it is still folded.
     cleanup();

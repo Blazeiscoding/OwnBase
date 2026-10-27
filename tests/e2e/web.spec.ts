@@ -304,10 +304,11 @@ async function expectApart(a: Locator, b: Locator) {
  */
 async function deviceValues(page: Page) {
   return page.evaluate(async () => {
+    const prefix = "ownbase:";
     const legacy: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const name = localStorage.key(i)!;
-      if (name.startsWith("ownbase:")) legacy[name.slice(9)] = localStorage.getItem(name)!;
+      if (name.startsWith(prefix)) legacy[name.slice(prefix.length)] = localStorage.getItem(name)!;
     }
     const indexed = await new Promise<Record<string, string> | null>((resolve) => {
       const open = indexedDB.open("ownbase-device");
