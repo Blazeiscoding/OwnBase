@@ -72,7 +72,7 @@ afterEach(() => {
   hooks.remove = null;
   rmSync(root, { recursive: true, force: true });
 });
-const operations = () => readdirSync(root).filter((name) => name.startsWith(".gatherline-backup-"));
+const operations = () => readdirSync(root).filter((name) => name.startsWith(".ownbase-backup-"));
 
 describe("publishing a verified backup", () => {
   it("keeps the destination unpublished until its attachments have been copied and verified", async () => {
@@ -133,7 +133,7 @@ describe("publishing a verified backup", () => {
       throw new Error("ENOSPC: copying attachment");
     };
     hooks.remove = (path) => {
-      if (path.includes(".gatherline-backup-")) throw new Error("EACCES: staging is locked");
+      if (path.includes(".ownbase-backup-")) throw new Error("EACCES: staging is locked");
     };
     const failure = await backupWorkspace({ dataDir, out }).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(AggregateError);
@@ -143,7 +143,7 @@ describe("publishing a verified backup", () => {
     ]);
     expect(existsSync(out)).toBe(false);
     expect(operations()).toHaveLength(1);
-    const unknown = join(root, `.gatherline-backup-${randomUUID()}`);
+    const unknown = join(root, `.ownbase-backup-${randomUUID()}`);
     mkdirSync(unknown);
     writeFileSync(join(unknown, "mine.txt"), "keep");
     hooks.copy = null;
@@ -156,13 +156,13 @@ describe("publishing a verified backup", () => {
 
   it("skips a live operation and cleans interrupted staging after its owner releases it", async () => {
     const id = randomUUID();
-    const operation = join(root, `.gatherline-backup-${id}`);
+    const operation = join(root, `.ownbase-backup-${id}`);
     mkdirSync(join(operation, "capture"), { recursive: true });
     writeFileSync(join(operation, "capture", "workspace.db"), "interrupted snapshot");
     writeFileSync(
       join(operation, "operation.json"),
       JSON.stringify({
-        kind: "gatherline.backup-capture",
+        kind: "ownbase.backup-capture",
         version: 1,
         id,
         dataDir: realpathSync(dataDir),
@@ -185,13 +185,13 @@ describe("publishing a verified backup", () => {
 
   it("restores an empty destination removed by an interrupted publication and completes the next retry", async () => {
     const id = randomUUID();
-    const operation = join(root, `.gatherline-backup-${id}`);
+    const operation = join(root, `.ownbase-backup-${id}`);
     const out = join(root, "interrupted");
     mkdirSync(join(operation, "capture"), { recursive: true });
     writeFileSync(
       join(operation, "operation.json"),
       JSON.stringify({
-        kind: "gatherline.backup-capture",
+        kind: "ownbase.backup-capture",
         version: 1,
         id,
         dataDir: realpathSync(dataDir),

@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { AuditEntry, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { AuditEntry, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { AuditHistory } from "../src/components/AuditHistory.js";
 import { accessibilityProblems } from "./accessibility.js";

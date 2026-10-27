@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
-import type { AuditEntry, ID, User } from "@slackoss/protocol";
+import type { AuditEntry, ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, formatTime } from "../lib/format.js";
 import { ListStatus } from "./ListStatus.js";

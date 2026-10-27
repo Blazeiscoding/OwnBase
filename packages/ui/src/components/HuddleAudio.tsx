@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { HuddlePeer } from "@slackoss/client-core";
+import type { HuddlePeer } from "@ownbase/client-core";
 import { useSpeaker } from "../lib/mediaDevices.js";
 import { gainOf, screenSoundKey, type PersonVolume } from "../lib/callVolumes.js";
 

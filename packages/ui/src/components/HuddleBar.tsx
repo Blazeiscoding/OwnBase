@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ID, User } from "@slackoss/protocol";
+import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
@@ -10,7 +10,7 @@ import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
 import { aloneLine, bigCallLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
 import { useOptionalToast } from "./Toast.js";
-import type { HuddleState } from "@slackoss/client-core";
+import type { HuddleState } from "@ownbase/client-core";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";

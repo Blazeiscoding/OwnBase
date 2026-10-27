@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ID, User } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import type { ID, User } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";

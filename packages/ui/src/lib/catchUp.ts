@@ -1,4 +1,4 @@
-import type { ID, Message } from "@slackoss/protocol";
+import type { ID, Message } from "@ownbase/protocol";
 
 /** At most one catch-up summary per workspace this often (IMP-03). */
 export const CATCH_UP_INTERVAL_MS = 2 * 60_000;

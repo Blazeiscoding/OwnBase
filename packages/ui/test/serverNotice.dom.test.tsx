@@ -1,8 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, MemberNotice, ServerNotice, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, MemberNotice, ServerNotice, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { SERVER_NOTICE_SNOOZE_MS } from "../src/components/ServerNotice.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";

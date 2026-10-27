@@ -1,4 +1,4 @@
-import type { NoiseFilter } from "@slackoss/client-core";
+import type { NoiseFilter } from "@ownbase/client-core";
 
 /**
  * Strong noise suppression for calls and the microphone check. The model and

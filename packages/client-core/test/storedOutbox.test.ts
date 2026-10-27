@@ -12,7 +12,7 @@ import {
   type StoredOutbox,
   type StoredOutboxEntry,
 } from "../src/index.js";
-import { SEND_RETRY_WINDOW_MS } from "@slackoss/protocol";
+import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 
 /**
  * The outbox every window on one account writes. Each writes only its own

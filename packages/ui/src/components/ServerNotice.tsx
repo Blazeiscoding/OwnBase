@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { ServerNotice } from "@slackoss/protocol";
+import type { ServerNotice } from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Banner, BannerAction } from "./Banner.js";
 

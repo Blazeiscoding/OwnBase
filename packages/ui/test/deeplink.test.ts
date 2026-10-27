@@ -18,20 +18,20 @@ describe("parseDeepLink", () => {
     });
   });
 
-  it.each(["tandem", "gatherline", "slackoss"])("still reads the previous %s:// form", (scheme) => {
-    expect(parseDeepLink(`${scheme}://join?host=192.168.1.5:8543&code=ABCD1234`)).toEqual({
-      kind: "join",
+  it("reads a message link", () => {
+    expect(parseDeepLink("ownbase://message?host=192.168.1.5:8543&channel=C123&id=M456")).toEqual({
+      kind: "message",
       serverUrl: "http://192.168.1.5:8543",
-      code: "ABCD1234",
+      channelId: "C123",
+      messageId: "M456",
     });
-    expect(parseDeepLink(`${scheme}://message?host=192.168.1.5:8543&channel=C123&id=M456`)).toEqual(
-      {
-        kind: "message",
-        serverUrl: "http://192.168.1.5:8543",
-        channelId: "C123",
-        messageId: "M456",
-      },
-    );
+  });
+
+  it("refuses the same link under another app's scheme", () => {
+    expect(parseDeepLink("otherapp://join?host=192.168.1.5:8543&code=ABCD1234")).toBeNull();
+    expect(
+      parseDeepLink("otherapp://message?host=192.168.1.5:8543&channel=C123&id=M456"),
+    ).toBeNull();
   });
 
   it("reads a join link without a code", () => {
@@ -75,11 +75,11 @@ describe("parseDeepLink", () => {
     expect(parseDeepLink("not a url")).toBeNull();
     expect(parseDeepLink("https://example.com/join?host=x")).toBeNull();
     expect(parseDeepLink("ownbase://join")).toBeNull();
-    expect(parseDeepLink("slackoss://join")).toBeNull();
+    expect(parseDeepLink("ownbase://join")).toBeNull();
     expect(parseDeepLink("ownbase://message?host=h&channel=C1")).toBeNull();
-    expect(parseDeepLink("slackoss://message?host=h&channel=C1")).toBeNull();
+    expect(parseDeepLink("ownbase://message?host=h&channel=C1")).toBeNull();
     expect(parseDeepLink("ownbase://explode?host=h")).toBeNull();
-    expect(parseDeepLink("slackoss://explode?host=h")).toBeNull();
+    expect(parseDeepLink("ownbase://explode?host=h")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/#/join/")).toBeNull();
     expect(parseDeepLink("https://chat.team.dev/#/join/AB%2FCD")).toBeNull();

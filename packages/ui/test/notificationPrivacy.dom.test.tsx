@@ -17,7 +17,7 @@ import {
  */
 type Previews = ReturnType<typeof useNotificationPreviews>;
 const views = new Map<string, Previews>();
-const KEY = "slackoss:notification-previews";
+const KEY = "ownbase:notification-previews";
 const accountA = previewAccount("http://127.0.0.1:9", "U1");
 const accountB = previewAccount("http://127.0.0.1:9", "U2");
 

@@ -234,7 +234,7 @@ function installServiceWorker() {
   });
   const relayClick = (click: string) =>
     container.dispatchEvent(
-      new MessageEvent("message", { data: { type: "tandem:notification-click", click } }),
+      new MessageEvent("message", { data: { type: "ownbase:notification-click", click } }),
     );
   return { shown, register, relayClick };
 }

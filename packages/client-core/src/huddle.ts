@@ -7,7 +7,7 @@ import {
   type CandidateKind,
   type HuddleSignal,
   type ID,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { CALL_CAUSES, type CallLogLine } from "./callLog.js";
 import {
   cameraConstraints,

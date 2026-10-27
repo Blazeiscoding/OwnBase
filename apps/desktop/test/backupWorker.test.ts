@@ -14,7 +14,7 @@ describe("the backup worker", () => {
       resolve(dirname(fileURLToPath(import.meta.url)), "../src/main/backupWorker.ts"),
       "utf8",
     );
-    const workspaceImports = [...source.matchAll(/from\s+"(@slackoss\/[^"]+)"/g)].map((m) => m[1]);
-    expect(workspaceImports).toEqual(["@slackoss/server/backup"]);
+    const workspaceImports = [...source.matchAll(/from\s+"(@ownbase\/[^"]+)"/g)].map((m) => m[1]);
+    expect(workspaceImports).toEqual(["@ownbase/server/backup"]);
   });
 });

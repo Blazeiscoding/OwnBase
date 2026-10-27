@@ -9,8 +9,8 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
-import type { CallView, HuddleState } from "@slackoss/client-core";
-import type { ID, User } from "@slackoss/protocol";
+import type { CallView, HuddleState } from "@ownbase/client-core";
+import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { avatarColor, channelTitle } from "../lib/format.js";
 import { aloneLine, ringingLine } from "../lib/huddleView.js";

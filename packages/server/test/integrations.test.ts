@@ -12,7 +12,7 @@ import {
   type EventSubscription,
   type ServerToClient,
   type User,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 import { isPrivateAddress } from "../src/outbound.js";
 
@@ -154,7 +154,7 @@ async function newApp(
 }
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-integrations-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-integrations-"));
   stub = new StubApp();
   await stub.start();
   server = await createWorkspaceServer({
@@ -217,7 +217,7 @@ describe("the SSRF guard", () => {
   });
 
   it("refuses a private endpoint unless the host opted in", async () => {
-    const guardedDir = mkdtempSync(join(tmpdir(), "slackoss-guarded-"));
+    const guardedDir = mkdtempSync(join(tmpdir(), "ownbase-guarded-"));
     const guarded = await createWorkspaceServer({
       dataDir: guardedDir,
       port: 0,
@@ -326,7 +326,7 @@ describe("slash commands", () => {
       .update(`v0:${ts}:${sent.body}`)
       .digest("hex")}`;
     expect(sent.headers["x-slack-signature"]).toBe(expected);
-    expect(sent.headers["x-slackoss-signature"]).toBe(expected);
+    expect(sent.headers["x-ownbase-signature"]).toBe(expected);
 
     const ephemeral = (await a.next(
       (m) => m.type === "ephemeral" && m.event.type === "ephemeral.message",
@@ -559,17 +559,17 @@ describe("outgoing event subscriptions", () => {
     const payload = JSON.parse(delivered.body) as {
       type: string;
       event: { type: string; text: string; channel: string; user: string; ts: string };
-      slackoss: { type: string; seq: number };
+      ownbase: { type: string; seq: number };
     };
     expect(payload.type).toBe("event_callback");
     expect(payload.event.type).toBe("message");
     expect(payload.event.text).toBe("hello robot");
     expect(payload.event.channel).toBe(channelId);
     expect(payload.event.user).toBe(alice.id);
-    expect(payload.slackoss.type).toBe("message.created");
+    expect(payload.ownbase.type).toBe("message.created");
 
-    const ts = delivered.headers["x-slackoss-request-timestamp"]!;
-    expect(delivered.headers["x-slackoss-signature"]).toBe(
+    const ts = delivered.headers["x-ownbase-request-timestamp"]!;
+    expect(delivered.headers["x-ownbase-signature"]).toBe(
       `v0=${createHmac("sha256", created.signingSecret).update(`v0:${ts}:${delivered.body}`).digest("hex")}`,
     );
 
@@ -795,8 +795,8 @@ describe("durable event delivery", () => {
     expect(new Set(ids).size).toBe(1);
     expect(new Set(attempts.map((r) => r.body)).size).toBe(1);
     for (const attempt of attempts) {
-      const ts = attempt.headers["x-slackoss-request-timestamp"]!;
-      expect(attempt.headers["x-slackoss-signature"]).toBe(
+      const ts = attempt.headers["x-ownbase-request-timestamp"]!;
+      expect(attempt.headers["x-ownbase-signature"]).toBe(
         `v0=${createHmac("sha256", bot.signingSecret).update(`v0:${ts}:${attempt.body}`).digest("hex")}`,
       );
     }
@@ -989,8 +989,8 @@ describe("durable event delivery", () => {
       }
       const delivered = stub.received
         .filter((r) => r.url === "/queue-edit")
-        .map((r) => JSON.parse(r.body) as { slackoss: { type: string }; event: any });
-      expect(delivered.map((b) => b.slackoss.type)).toEqual(["message.created", "message.updated"]);
+        .map((r) => JSON.parse(r.body) as { ownbase: { type: string }; event: any });
+      expect(delivered.map((b) => b.ownbase.type)).toEqual(["message.created", "message.updated"]);
       expect(delivered[0]!.event.text).toBe("");
       expect(delivered[1]!.event.message.text).toBe("what I meant to say");
       await api(`/api/apps/${bot.id}`, { token: aliceToken, method: "DELETE" });
@@ -1026,7 +1026,7 @@ describe("durable event delivery", () => {
   });
 
   it("resumes an unfinished delivery after a restart", async () => {
-    const restartDir = mkdtempSync(join(tmpdir(), "slackoss-delivery-restart-"));
+    const restartDir = mkdtempSync(join(tmpdir(), "ownbase-delivery-restart-"));
     let current = await createWorkspaceServer({
       dataDir: restartDir,
       port: 0,

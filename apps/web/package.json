@@ -1,5 +1,5 @@
 {
-  "name": "@slackoss/web",
+  "name": "@ownbase/web",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -11,8 +11,8 @@
   "dependencies": {
     "@fontsource-variable/geist-mono": "^5.3.0",
     "@fontsource-variable/onest": "^5.3.1",
-    "@slackoss/client-core": "workspace:*",
-    "@slackoss/ui": "workspace:*",
+    "@ownbase/client-core": "workspace:*",
+    "@ownbase/ui": "workspace:*",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },

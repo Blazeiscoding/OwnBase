@@ -30,7 +30,7 @@ data/
 !/docs/PLANS.md
 
 # A slideshow kept on the machine that made it.
-/tandem-codebase-tour.html
+/*-codebase-tour.html
 
 # License signing keys and other private keys never belong in the repository (P6).
 *.pem

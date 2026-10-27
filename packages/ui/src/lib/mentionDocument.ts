@@ -1,4 +1,4 @@
-import { broadcastLabel, type Channel, type ID, type User } from "@slackoss/protocol";
+import { broadcastLabel, type Channel, type ID, type User } from "@ownbase/protocol";
 
 /**
  * What a message box shows in place of the mention syntax it stores.

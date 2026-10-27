@@ -4,7 +4,7 @@ import {
   type ID,
   type ReplyReference,
   type User,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";

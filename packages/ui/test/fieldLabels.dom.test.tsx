@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, WorkspaceClient } from "@slackoss/client-core";
-import type { ServerInfo, User } from "@slackoss/protocol";
+import { Api, WorkspaceClient } from "@ownbase/client-core";
+import type { ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { AppsDialog } from "../src/components/AppsDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
@@ -12,7 +12,7 @@ import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const info: ServerInfo = {
-  app: "slackoss",
+  app: "ownbase",
   protocolVersion: 1,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",

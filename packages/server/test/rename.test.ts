@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 
 /**
@@ -25,7 +25,7 @@ describe("renaming a workspace while it runs", () => {
   });
 
   async function start(workspaceName?: string) {
-    dataDir ??= mkdtempSync(join(tmpdir(), "slackoss-rename-"));
+    dataDir ??= mkdtempSync(join(tmpdir(), "ownbase-rename-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",

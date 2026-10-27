@@ -1,4 +1,4 @@
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import type { Api } from "./api.js";
 
 /** The message a file is attached to, and its conversation. */

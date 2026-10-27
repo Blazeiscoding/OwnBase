@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { CallLogEntry, Message, ServerInfo, User, WorkspaceStatus } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { CallLogEntry, Message, ServerInfo, User, WorkspaceStatus } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { DiagnosticsDialog } from "../src/components/DiagnosticsDialog.js";
 import { diagnosticsFileName, diagnosticsReport } from "../src/lib/diagnostics.js";
@@ -44,7 +44,7 @@ describe("the diagnostics report", () => {
     const report = diagnosticsReport({
       ...base,
       server: {
-        app: "slackoss",
+        app: "ownbase",
         protocolVersion: 1,
         serverVersion: "0.4.2",
         workspaceName: "Rocket Team",
@@ -75,7 +75,7 @@ describe("the diagnostics report", () => {
       ...base,
       appBuild: { revision: "0123456789abcdef0123456789abcdef01234567", dirty: false },
       server: {
-        app: "slackoss",
+        app: "ownbase",
         protocolVersion: 1,
         serverVersion: "0.4.2",
         build: { revision: "fedcba9876543210fedcba9876543210fedcba98", dirty: true },
@@ -301,7 +301,7 @@ describe("the diagnostics dialog", () => {
       } as never,
     });
     vi.spyOn(client.api, "serverInfo").mockResolvedValue({
-      app: "slackoss",
+      app: "ownbase",
       protocolVersion: 1,
       serverVersion: "0.4.2",
       workspaceName: "Rocket Team",
@@ -343,7 +343,7 @@ describe("the diagnostics dialog", () => {
   });
 
   const info: ServerInfo = {
-    app: "slackoss",
+    app: "ownbase",
     protocolVersion: 1,
     serverVersion: "0.4.2",
     workspaceName: "Rocket Team",

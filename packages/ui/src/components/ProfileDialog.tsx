@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { ApiError } from "@slackoss/client-core";
-import { currentZoneName, type ID } from "@slackoss/protocol";
+import { ApiError } from "@ownbase/client-core";
+import { currentZoneName, type ID } from "@ownbase/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { readerTimeZone, theirTime, useMinute, zoneLabel } from "../lib/localTime.js";
 import { useClient, useWorkspace } from "../context.js";

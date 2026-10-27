@@ -68,6 +68,9 @@ jobs:
         run: node --test scripts/release-manifest.test.mjs
       - name: Test the product name check
         run: node --test scripts/check-product-name.test.mjs
+      # No earlier product name anywhere in the repository (P2b).
+      - name: Check the product name
+        run: node scripts/check-product-name.mjs --repo
       # Turbo compares each task's input hash; the archive only transports
       # its local cache. Each job keeps an archive of its own, and starts from
       # its own last one, or any job's. PR caches are reusable by later runs
@@ -85,7 +88,7 @@ jobs:
       # The server's and ui's suites take minutes, so they run in the unit
       # job below, beside this one.
       - name: Unit tests of protocol, client-core, desktop and ee
-        run: pnpm exec turbo run test --filter=@slackoss/protocol --filter=@slackoss/client-core --filter=@slackoss/desktop --filter=@slackoss/ee --concurrency=2
+        run: pnpm exec turbo run test --filter=@ownbase/protocol --filter=@ownbase/client-core --filter=@ownbase/desktop --filter=@ownbase/ee --concurrency=2
         env:
           VITEST_MAX_THREADS: "2"
           VITEST_MAX_FORKS: "2"
@@ -101,8 +104,8 @@ jobs:
       # to that file, in the client and in the copy the CLI ships (REV-13).
       - run: node scripts/check-web-precompressed.mjs
       - run: node scripts/check-web-precompressed.mjs apps/server-cli/dist/web
-      # No earlier product name shows in the browser client, the desktop
-      # app's page, or the server and the client it ships (P2).
+      # Nor in the browser client, the desktop app's page, or the server
+      # and the client it ships, dependencies included (P2).
       - run: node scripts/check-product-name.mjs apps/web/dist apps/desktop/out/renderer apps/server-cli/dist
       - name: Save successful task cache
         if: steps.task-cache.outputs.cache-hit != 'true'
@@ -138,13 +141,13 @@ jobs:
         include:
           - part: server
             key: server
-            run: pnpm exec turbo run test --filter=@slackoss/server --only
+            run: pnpm exec turbo run test --filter=@ownbase/server --only
           - part: ui 1 of 2
             key: ui-1
-            run: pnpm exec turbo run test --filter=@slackoss/ui --only -- --shard=1/2
+            run: pnpm exec turbo run test --filter=@ownbase/ui --only -- --shard=1/2
           - part: ui 2 of 2
             key: ui-2
-            run: pnpm exec turbo run test --filter=@slackoss/ui --only -- --shard=2/2
+            run: pnpm exec turbo run test --filter=@ownbase/ui --only -- --shard=2/2
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -219,7 +222,7 @@ jobs:
           restore-keys: |
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-
-      - run: pnpm exec turbo run build --filter=slackoss-server
+      - run: pnpm exec turbo run build --filter=ownbase-server
       # Chromium comes from a cache caches.yml fills on main, and is only
       # downloaded when the lockfile has moved on without it. Restoring alone
       # leaves no cache behind that only this pull request could use.

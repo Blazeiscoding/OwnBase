@@ -1,5 +1,5 @@
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
-import type { ExtensionStatus, ServerNotice, User } from "@slackoss/protocol";
+import type { ExtensionStatus, ServerNotice, User } from "@ownbase/protocol";
 
 /** Refuses a setting an extension cannot use, as the server's own are refused. */
 export { ConfigError } from "./config.js";

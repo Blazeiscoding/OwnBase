@@ -85,7 +85,7 @@ jobs:
             electron-${{ runner.os }}-${{ runner.arch }}-
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck:automation
-      - run: pnpm --filter @slackoss/desktop package --win
+      - run: pnpm --filter @ownbase/desktop package --win
       - run: node scripts/check-web-bundle.mjs apps/desktop/out/renderer
       - run: node scripts/check-desktop-archive.mjs apps/desktop/release/win-unpacked/resources/app.asar
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/win-unpacked/resources/web

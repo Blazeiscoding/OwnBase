@@ -22,7 +22,7 @@
  * revisions' runs show whether they found the same. Run with the server
  * package's tsx:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-search.mts [--messages=200000]
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-search.mts [--messages=200000]
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";

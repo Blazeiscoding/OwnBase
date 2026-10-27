@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { readableText } from "@slackoss/client-core";
+import { readableText } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { listDrafts, type DraftEntry, type DraftPlace } from "../lib/drafts.js";
 import { channelTitle, formatFull, formatWhen } from "../lib/format.js";

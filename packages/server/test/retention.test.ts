@@ -82,7 +82,7 @@ function backdate(days: number) {
 }
 
 beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-retention-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-retention-"));
 });
 
 afterEach(async () => {
@@ -346,7 +346,7 @@ describe("a retention window", () => {
       JSON.stringify({
         type: "event_callback",
         event: { type: "message", text: secret, ts: message.id },
-        slackoss: { type: "message.created", seq: 1 },
+        ownbase: { type: "message.created", seq: 1 },
       }),
       Date.now() + 3600_000,
       message.id,

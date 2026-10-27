@@ -5,7 +5,7 @@ import {
   type Message,
   type ReplyReference,
   type WorkspaceEvent,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 
 /** What a reply to `message` shows of it, as the server would quote it. */
 export function quoteOf(message: Message, ping: boolean): ReplyReference {

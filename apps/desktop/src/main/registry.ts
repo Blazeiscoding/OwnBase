@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { readdir, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { holdWorkspace } from "@slackoss/server/ownership";
-import { ICON_META_KEYS, readStoredIcon } from "@slackoss/server/workspaceIcon";
+import { holdWorkspace } from "@ownbase/server/ownership";
+import { ICON_META_KEYS, readStoredIcon } from "@ownbase/server/workspaceIcon";
 
 /**
  * A workspace this computer hosts, as the settings file remembers it. The

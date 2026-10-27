@@ -1,4 +1,4 @@
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import { useWorkspace } from "../context.js";
 import { theirTime, useMinute } from "../lib/localTime.js";
 

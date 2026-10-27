@@ -50,7 +50,7 @@ jobs:
           context: .
           file: docker/Dockerfile
           build-args: GITHUB_SHA=${{ github.sha }}
-          tags: slackoss:local
+          tags: ownbase:local
           load: true
           cache-from: type=gha,scope=container-image
           cache-to: type=gha,scope=container-image,mode=max

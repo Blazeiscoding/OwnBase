@@ -1,5 +1,10 @@
-appId: dev.slackoss.desktop
+appId: dev.ownbase.desktop
 productName: OwnBase
+# The installed app's own name. A one-click Windows install folder is named
+# after it, %LOCALAPPDATA%\Programs\OwnBase; the workspace package's name
+# would give "@ownbasedesktop".
+extraMetadata:
+  name: OwnBase
 directories:
   output: release
 files:
@@ -39,6 +44,3 @@ protocols:
   - name: OwnBase
     schemes:
       - ownbase
-      - tandem
-      - gatherline
-      - slackoss

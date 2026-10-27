@@ -174,32 +174,32 @@ test("workspace subpaths and literal dynamic imports connect to actual local imp
   };
   expectImport(
     "apps/desktop/src/main/backupWorker.ts",
-    "@slackoss/server/backup",
+    "@ownbase/server/backup",
     "packages/server/src/backup.ts",
   );
   expectImport(
     "apps/desktop/src/main/registry.ts",
-    "@slackoss/server/ownership",
+    "@ownbase/server/ownership",
     "packages/server/src/ownership.ts",
   );
   expectImport(
     "apps/desktop/src/main/draftsStorage.ts",
-    "@slackoss/client-core/drafts",
+    "@ownbase/client-core/drafts",
     "packages/client-core/src/drafts.ts",
   );
   expectImport(
     "apps/desktop/src/main/outboxStorage.ts",
-    "@slackoss/client-core/outbox",
+    "@ownbase/client-core/outbox",
     "packages/client-core/src/outbox.ts",
   );
   expectImport(
     "apps/desktop/src/main/index.ts",
-    "@slackoss/client-core/records",
+    "@ownbase/client-core/records",
     "packages/client-core/src/records.ts",
   );
   expectImport(
     "packages/ui/src/components/Composer.tsx",
-    "@slackoss/protocol/rest",
+    "@ownbase/protocol/rest",
     "packages/protocol/src/rest.ts",
     true,
   );

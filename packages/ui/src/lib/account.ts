@@ -1,4 +1,4 @@
-import { ApiError } from "@slackoss/client-core";
+import { ApiError } from "@ownbase/client-core";
 
 export function accountError(error: unknown): string {
   if (error instanceof ApiError) {

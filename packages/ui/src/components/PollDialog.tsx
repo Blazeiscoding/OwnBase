@@ -5,7 +5,7 @@ import {
   POLL_OPTIONS_MIN,
   POLL_QUESTION_MAX,
   type ID,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { useClient } from "../context.js";
 import { buttonClass } from "./Button.js";
 import { Dialog, DialogScroll } from "./Dialog.js";

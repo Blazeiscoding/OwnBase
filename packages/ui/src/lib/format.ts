@@ -1,4 +1,4 @@
-import type { Channel, ID, User } from "@slackoss/protocol";
+import type { Channel, ID, User } from "@ownbase/protocol";
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

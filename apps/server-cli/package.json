@@ -1,11 +1,11 @@
 {
-  "name": "slackoss-server",
+  "name": "ownbase-server",
   "version": "0.1.0",
   "description": "Self-hosted OwnBase workspace server — run it on a VPS or your own PC",
   "license": "MIT AND LicenseRef-OwnBase-Enterprise",
   "type": "module",
   "bin": {
-    "slackoss-server": "./dist/slackoss-server.js"
+    "ownbase-server": "./dist/ownbase-server.js"
   },
   "files": [
     "dist"
@@ -13,13 +13,13 @@
   "scripts": {
     "build": "tsup && node scripts/postbuild.mjs",
     "typecheck": "tsc -p tsconfig.json",
-    "start": "node dist/slackoss-server.js"
+    "start": "node dist/ownbase-server.js"
   },
   "dependencies": {},
   "devDependencies": {
-    "@slackoss/ee": "workspace:*",
-    "@slackoss/server": "workspace:*",
-    "@slackoss/web": "workspace:*",
+    "@ownbase/ee": "workspace:*",
+    "@ownbase/server": "workspace:*",
+    "@ownbase/web": "workspace:*",
     "@types/node": "^24.3.0",
     "tsup": "^8.5.0",
     "typescript": "^5.9.2"

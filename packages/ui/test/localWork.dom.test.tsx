@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient } from "@slackoss/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { Composer } from "../src/components/Composer.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";

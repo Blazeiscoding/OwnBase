@@ -87,8 +87,8 @@ describe("the browser client served by the workspace server", () => {
   let base: string;
 
   beforeAll(async () => {
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-web-data-"));
-    webDir = mkdtempSync(join(tmpdir(), "slackoss-web-dist-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-web-data-"));
+    webDir = mkdtempSync(join(tmpdir(), "ownbase-web-dist-"));
     mkdirSync(join(webDir, "assets"));
     writeFileSync(join(webDir, "index.html"), page);
     writeFileSync(join(webDir, ENTRY), entry);

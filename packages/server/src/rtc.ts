@@ -18,8 +18,6 @@ export function parseIceServers(value: string | undefined) {
   try {
     return iceServersSchema.parse(JSON.parse(value ?? "[]"));
   } catch {
-    throw new Error(
-      "OWNBASE_ICE_SERVERS (previously TANDEM_ICE_SERVERS, GATHERLINE_ICE_SERVERS or SLACKOSS_ICE_SERVERS) must be a JSON array of STUN/TURN configurations",
-    );
+    throw new Error("OWNBASE_ICE_SERVERS must be a JSON array of STUN/TURN configurations");
   }
 }

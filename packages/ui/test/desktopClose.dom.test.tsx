@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { beforeEach, describe, expect, it } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";

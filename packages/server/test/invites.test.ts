@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { Writable } from "node:stream";
-import type { Invite } from "@slackoss/protocol";
+import type { Invite } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 let server: WorkspaceServer;

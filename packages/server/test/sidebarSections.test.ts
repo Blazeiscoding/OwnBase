@@ -8,7 +8,7 @@ import {
   SIDEBAR_SECTIONS_MAX,
   type ServerToClient,
   type SidebarSection,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -103,7 +103,7 @@ const prefs = (channelId: string, patch: Record<string, unknown>, auth = owner.t
 const names = (sections: SidebarSection[]) => sections.map((s) => s.name);
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-sections-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-sections-"));
   await start();
   owner = await register("owner");
   peer = await register("peer");

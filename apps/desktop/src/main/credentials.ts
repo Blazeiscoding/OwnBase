@@ -14,11 +14,7 @@ export interface SavedCredentialServer {
 }
 
 export interface ProtectedServers {
-  /**
-   * The file format's name, from when the app was called Gatherline. Kept, so
-   * credentials saved by earlier versions still read.
-   */
-  kind: "gatherline.saved-servers";
+  kind: "ownbase.saved-servers";
   version: 1;
   ciphertext: string;
 }
@@ -58,7 +54,7 @@ export function validateProtectedServers(value: unknown): ProtectedServers {
   if (
     !isRecord(value) ||
     Object.keys(value).some((key) => !["kind", "version", "ciphertext"].includes(key)) ||
-    value.kind !== "gatherline.saved-servers" ||
+    value.kind !== "ownbase.saved-servers" ||
     value.version !== 1 ||
     typeof value.ciphertext !== "string" ||
     value.ciphertext.length === 0 ||
@@ -100,7 +96,7 @@ export function encodeSavedServers(
   if (!Buffer.isBuffer(ciphertext) || ciphertext.length === 0)
     throw new Error("Could not protect saved workspace credentials.");
   return {
-    kind: "gatherline.saved-servers",
+    kind: "ownbase.saved-servers",
     version: 1,
     ciphertext: ciphertext.toString("base64"),
   };

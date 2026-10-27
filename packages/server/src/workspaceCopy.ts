@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readdir, rm, stat } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Readable } from "node:stream";
-import type { WorkspaceCopy } from "@slackoss/protocol";
+import type { WorkspaceCopy } from "@ownbase/protocol";
 import type { BackupManifest } from "./backup.js";
 import { extractZipEntry, fileCrc32, readZipEntries, zipArchive, type ZipSource } from "./zip.js";
 

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import { FILE_TYPE_MATCH, parseSearchQuery } from "@slackoss/protocol";
+import { FILE_TYPE_MATCH, parseSearchQuery } from "@ownbase/protocol";
 import { openDb } from "../src/db.js";
 import { Store } from "../src/store.js";
 
@@ -25,7 +25,7 @@ let db: DatabaseSync;
 let store: Store;
 
 beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-search-plans-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-search-plans-"));
   db = openDb(join(directory, "workspace.db"));
   store = new Store(db);
   statics.SEARCH_FEW_MATCHES = 8;

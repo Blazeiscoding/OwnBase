@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient, type User } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, type User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -140,7 +140,7 @@ const me = async (auth = owner.token) =>
   ) as User;
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-profiles-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-profiles-"));
   await start();
   owner = await register("owner");
   peer = await register("peer");

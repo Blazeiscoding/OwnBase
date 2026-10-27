@@ -31,9 +31,9 @@
  * 40% of a core per person in a call of seven, which nobody's own computer
  * spends. CPU is split by process: the page (its own script, and WebRTC's
  * encoding, decoding and sending), drawing, sound, the camera and the network.
- * Needs `pnpm --filter @slackoss/web build` first.
+ * Needs `pnpm --filter @ownbase/web build` first.
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-calls.mts \
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-calls.mts \
  *     [--sizes=2,3,4,5,6] [--seconds=120] [--settle=20] [--every=5] \
  *     [--camera=on|off] [--cameras=<how many turn theirs on; everyone>] \
  *     [--talking=<how many join with their microphone on; everyone>] \
@@ -221,7 +221,7 @@ const PREPARE = (joinMuted: boolean) => {
     }
   };
   localStorage.setItem(
-    "slackoss:call-preferences",
+    "ownbase:call-preferences",
     JSON.stringify({ joinMuted, noiseFilter: false, devicesChecked: true }),
   );
 };

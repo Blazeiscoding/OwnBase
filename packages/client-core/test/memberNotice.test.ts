@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vitest";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
 
 /**

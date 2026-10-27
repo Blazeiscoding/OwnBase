@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { ReadySnapshot, ServerToClient, User } from "@slackoss/protocol";
+import type { ReadySnapshot, ServerToClient, User } from "@ownbase/protocol";
 import { WorkspaceClient } from "../src/index.js";
 
 /**

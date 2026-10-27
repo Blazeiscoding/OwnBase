@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -17,7 +17,7 @@ let base: string;
 const sockets: WebSocket[] = [];
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-snapshot-presence-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-snapshot-presence-"));
   server = await createWorkspaceServer({
     dataDir: directory,
     host: "127.0.0.1",

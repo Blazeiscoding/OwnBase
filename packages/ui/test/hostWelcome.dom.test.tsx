@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Invite, ServerInfo, User } from "@slackoss/protocol";
+import { Api, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Invite, ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { InviteDialog } from "../src/components/InviteDialog.js";
@@ -33,7 +33,7 @@ const person = (id: string, role: User["role"]): User => ({
 const owner = person("U_OWNER", "owner");
 
 const info: ServerInfo = {
-  app: "slackoss",
+  app: "ownbase",
   protocolVersion: 1,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",

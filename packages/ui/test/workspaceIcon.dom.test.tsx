@@ -9,8 +9,8 @@ import {
   within,
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ServerInfo, User } from "@slackoss/protocol";
+import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { HostDialog } from "../src/components/HostDialog.js";
@@ -372,7 +372,7 @@ describe("where the icon shows inside a workspace", () => {
 
 describe("where the icon shows before signing in", () => {
   const info: ServerInfo = {
-    app: "slackoss",
+    app: "ownbase",
     protocolVersion: 1,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",

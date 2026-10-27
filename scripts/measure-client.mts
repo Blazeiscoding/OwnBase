@@ -14,9 +14,9 @@
  * The fixture is checked before anything is timed (every picture is served,
  * the channel's first message is reachable) and errors are counted, never
  * timed. Desktop-main stalls and GPU memory need Electron and are left to a
- * local run (see the plan). Needs `pnpm --filter @slackoss/web build` first.
+ * local run (see the plan). Needs `pnpm --filter @ownbase/web build` first.
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-client.mts \
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-client.mts \
  *     [--seed=1] [--history=400] [--pictures=60] [--rounds=5] [--out=client.json]
  *
  * Set CHROMIUM to a browser executable to use one other than Playwright's own.

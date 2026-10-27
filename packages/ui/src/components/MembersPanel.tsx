@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ID, User } from "@slackoss/protocol";
+import type { ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { AvatarWithPresence } from "./Avatar.js";

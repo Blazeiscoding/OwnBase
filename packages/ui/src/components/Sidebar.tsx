@@ -6,10 +6,10 @@ import {
   type ChannelPrefs,
   type ID,
   type SidebarSection,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
-import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
+import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
 import { channelTitle } from "../lib/format.js";
 import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
@@ -877,8 +877,7 @@ export function Sidebar(props: Props) {
  * that is unavailable, as in a private window, only means they reopen.
  */
 function useCollapsedSections(): [Set<string>, (section: string) => void] {
-  // Named when the app was called Tandem, and kept, so folded sections stay folded.
-  const key = "tandem:collapsed-sections";
+  const key = "ownbase:collapsed-sections";
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);

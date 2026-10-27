@@ -23,7 +23,7 @@
  * across rounds and errors; plus how long the event loop went unserved and
  * memory before and after. Run with the server package's tsx:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-mixed.mts \
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-mixed.mts \
  *     [--seed=1] [--people=12] [--devices=2] [--history=20000] [--rounds=3] \
  *     [--seconds=8] [--expired=200] [--out=mixed.json]
  */

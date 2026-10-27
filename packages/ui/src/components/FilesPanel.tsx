@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { FileKind, FileMeta, ID, SharedFile } from "@slackoss/protocol";
+import type { FileKind, FileMeta, ID, SharedFile } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { usePagedList } from "../lib/pagedList.js";

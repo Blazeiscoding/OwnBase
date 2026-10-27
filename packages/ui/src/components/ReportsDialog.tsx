@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { readableText } from "@slackoss/client-core";
-import type { ReportedMessage, ReportResolution, User } from "@slackoss/protocol";
+import { readableText } from "@ownbase/client-core";
+import type { ReportedMessage, ReportResolution, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { REPORT_REASON_LABELS } from "../lib/blocking.js";

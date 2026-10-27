@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import { currentZoneName, type Channel, type User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import { currentZoneName, type Channel, type User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Avatar } from "../src/components/Avatar.js";
 import { ProfileDialog, ProfileForm } from "../src/components/ProfileDialog.js";

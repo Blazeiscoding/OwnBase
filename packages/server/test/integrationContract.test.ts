@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { WorkspaceEvent } from "@slackoss/protocol";
+import type { WorkspaceEvent } from "@ownbase/protocol";
 import { signatureHeaders, toSlackEvent } from "../src/integrations.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
@@ -174,7 +174,7 @@ describe("the signature example", () => {
     expect(marker, "INTEGRATIONS.md has no checked signature example").toBeGreaterThanOrEqual(0);
     const code = /```js\n([\s\S]*?)```/.exec(doc.slice(marker))![1]!;
     // Run exactly what the document tells people to copy.
-    dir = mkdtempSync(join(tmpdir(), "slackoss-contract-"));
+    dir = mkdtempSync(join(tmpdir(), "ownbase-contract-"));
     const file = join(dir, "verify.mjs");
     writeFileSync(file, code);
     ({ verifySlackRequest: verify } = (await import(pathToFileURL(file).href)) as {

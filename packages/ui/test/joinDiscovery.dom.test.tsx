@@ -1,13 +1,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api } from "@slackoss/client-core";
-import type { ServerInfo } from "@slackoss/protocol";
+import { Api } from "@ownbase/client-core";
+import type { ServerInfo } from "@ownbase/protocol";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
 import type { DiscoveredServer, HostingStatus, Platform } from "../src/platform.js";
 
 const info: ServerInfo = {
-  app: "slackoss",
+  app: "ownbase",
   protocolVersion: 1,
   serverVersion: "0.0.0-test",
   workspaceName: "Six Team",

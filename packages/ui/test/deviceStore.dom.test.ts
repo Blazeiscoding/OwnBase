@@ -190,7 +190,7 @@ describe("device storage in IndexedDB (F01)", () => {
 
   it("keeps what a database from an earlier client holds when it adds what it lacks", async () => {
     await new Promise<void>((resolve, reject) => {
-      const request = indexedDB.open("tandem-device", 1);
+      const request = indexedDB.open("ownbase-device", 1);
       request.onupgradeneeded = () => request.result.createObjectStore("values");
       request.onsuccess = () => {
         const db = request.result;

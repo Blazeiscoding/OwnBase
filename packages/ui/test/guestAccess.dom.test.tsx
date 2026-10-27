@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ServerInfo, User } from "@slackoss/protocol";
+import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { Composer } from "../src/components/Composer.js";
 import { Sidebar } from "../src/components/Sidebar.js";
@@ -15,7 +15,7 @@ import { accessibilityProblems } from "./accessibility.js";
  * offered: public channels, and nothing it would be refused.
  */
 const info: ServerInfo = {
-  app: "slackoss",
+  app: "ownbase",
   protocolVersion: 1,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",

@@ -14,8 +14,8 @@ import {
   suggestedAppName,
   type AppTemplate,
 } from "../lib/appTemplates.js";
-import type { App, Channel, EventSubscription, ID, SlashCommand } from "@slackoss/protocol";
-import { ApiError, type AppDetail } from "@slackoss/client-core";
+import type { App, Channel, EventSubscription, ID, SlashCommand } from "@ownbase/protocol";
+import { ApiError, type AppDetail } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls, TextField } from "./TextField.js";

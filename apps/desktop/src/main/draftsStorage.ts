@@ -1,4 +1,4 @@
-import { applyDraftChanges, isDraftChanges, type DraftChanges } from "@slackoss/client-core/drafts";
+import { applyDraftChanges, isDraftChanges, type DraftChanges } from "@ownbase/client-core/drafts";
 import type { SettingsStorage } from "./settings.js";
 
 /**

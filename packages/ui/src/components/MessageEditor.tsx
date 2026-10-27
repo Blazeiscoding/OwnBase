@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { Message } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import type { Message } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
   FormattingToolbar,

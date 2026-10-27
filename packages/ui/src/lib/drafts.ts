@@ -1,4 +1,4 @@
-import type { Channel, ID } from "@slackoss/protocol";
+import type { Channel, ID } from "@ownbase/protocol";
 
 /**
  * What one draft this device keeps is, as its key says: a conversation's

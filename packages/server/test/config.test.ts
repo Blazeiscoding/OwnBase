@@ -79,14 +79,8 @@ describe("a count of whole units", () => {
 });
 
 describe("settings from the environment", () => {
-  const NAMES = [
-    "OWNBASE_RETENTION_DAYS_TEST",
-    "TANDEM_RETENTION_DAYS_TEST",
-    "GATHERLINE_RETENTION_DAYS_TEST",
-    "SLACKOSS_RETENTION_DAYS_TEST",
-  ] as const;
   afterEach(() => {
-    for (const name of NAMES) delete process.env[name];
+    delete process.env.OWNBASE_RETENTION_DAYS_TEST;
   });
 
   it("reads the OwnBase name", () => {
@@ -94,34 +88,7 @@ describe("settings from the environment", () => {
     expect(envSetting("RETENTION_DAYS_TEST")).toBe("30");
   });
 
-  it("still reads the previous TANDEM_ name", () => {
-    process.env.TANDEM_RETENTION_DAYS_TEST = "30";
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("30");
-  });
-
-  it("still reads the GATHERLINE_ name before it", () => {
-    process.env.GATHERLINE_RETENTION_DAYS_TEST = "30";
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("30");
-  });
-
-  it("still reads the first SLACKOSS_ name", () => {
-    process.env.SLACKOSS_RETENTION_DAYS_TEST = "30";
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("30");
-  });
-
-  it("prefers the newest name, OwnBase, then Tandem, then Gatherline, when more than one is set", () => {
-    process.env.OWNBASE_RETENTION_DAYS_TEST = "30";
-    process.env.TANDEM_RETENTION_DAYS_TEST = "21";
-    process.env.GATHERLINE_RETENTION_DAYS_TEST = "14";
-    process.env.SLACKOSS_RETENTION_DAYS_TEST = "7";
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("30");
-    delete process.env.OWNBASE_RETENTION_DAYS_TEST;
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("21");
-    delete process.env.TANDEM_RETENTION_DAYS_TEST;
-    expect(envSetting("RETENTION_DAYS_TEST")).toBe("14");
-  });
-
-  it("is undefined when neither is set", () => {
+  it("is undefined when it is not set", () => {
     expect(envSetting("RETENTION_DAYS_TEST")).toBeUndefined();
   });
 });
@@ -161,7 +128,7 @@ describe("the server checks too, for callers other than the CLI", () => {
   });
 
   it("refuses a bad address or port before it creates anything", async () => {
-    dir = mkdtempSync(join(tmpdir(), "slackoss-config-"));
+    dir = mkdtempSync(join(tmpdir(), "ownbase-config-"));
     await expect(
       createWorkspaceServer({ dataDir: dir, port: 0, mdns: false, publicUrl: "not-a-url" }),
     ).rejects.toThrow(ConfigError);

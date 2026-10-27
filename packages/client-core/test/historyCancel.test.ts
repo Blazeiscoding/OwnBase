@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Channel, Message } from "@slackoss/protocol";
+import type { Channel, Message } from "@ownbase/protocol";
 import { ApiError, WorkspaceClient } from "../src/index.js";
 
 /**

@@ -45,7 +45,7 @@ async function start(extra: Partial<ServerOptions> = {}) {
 }
 
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-backup-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-backup-"));
   dataDir = join(root, "data");
   await start();
 });

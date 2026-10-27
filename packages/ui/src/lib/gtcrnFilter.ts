@@ -2,7 +2,7 @@
 import { GtcrnWorkletNode } from "@sapphi-red/web-noise-suppressor";
 import workletUrl from "@sapphi-red/web-noise-suppressor/gtcrnWorklet.js?url";
 import modelUrl from "@sapphi-red/web-noise-suppressor/gtcrn.wasm?inline";
-import type { FilteredMicrophone } from "@slackoss/client-core";
+import type { FilteredMicrophone } from "@ownbase/client-core";
 
 /**
  * GTCRN, a small speech-enhancement network (48k parameters), run on the

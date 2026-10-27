@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { listAccounts, recoverAccount } from "../src/recover.js";
 
@@ -63,7 +63,7 @@ async function connectFrames(token: string): Promise<ServerToClient[]> {
 }
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-recover-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-recover-"));
   await start();
   const owner = await api("/api/auth/register", undefined, "POST", {
     handle: "owner",
@@ -221,7 +221,7 @@ describe("host recovery", () => {
   it("refuses a handle that is not there, and a directory that is not a workspace", async () => {
     await stop();
     await expect(recoverAccount({ dataDir, handle: "nobody" })).rejects.toThrow(/No account/);
-    const empty = mkdtempSync(join(tmpdir(), "slackoss-empty-"));
+    const empty = mkdtempSync(join(tmpdir(), "ownbase-empty-"));
     try {
       expect(() => listAccounts(empty)).toThrow(/No workspace found/);
     } finally {

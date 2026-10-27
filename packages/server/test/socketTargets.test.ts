@@ -5,7 +5,7 @@ import { createConnection } from "node:net";
 import { createInterface } from "node:readline";
 import { pathToFileURL } from "node:url";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 
 const require = createRequire(import.meta.url);
 

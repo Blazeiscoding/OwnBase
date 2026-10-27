@@ -69,8 +69,8 @@ describe("which links get a preview", () => {
   });
 
   it("keeps brackets that belong to the address", () => {
-    expect(previewLinks("https://en.wikipedia.org/wiki/Tandem_(disambiguation).")).toEqual([
-      "https://en.wikipedia.org/wiki/Tandem_(disambiguation)",
+    expect(previewLinks("https://en.wikipedia.org/wiki/Mercury_(planet).")).toEqual([
+      "https://en.wikipedia.org/wiki/Mercury_(planet)",
     ]);
   });
 });

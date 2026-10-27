@@ -4,8 +4,8 @@
  * command line's registry, then runs the server's own main.ts, which reads
  * it. Without a license that is the free edition, flag for flag.
  */
-import { addCommandLineExtension } from "@slackoss/server/extensions";
+import { addCommandLineExtension } from "@ownbase/server/extensions";
 import { enterpriseCommandLine } from "./enterprise.js";
 
 addCommandLineExtension(enterpriseCommandLine);
-await import("@slackoss/server/main");
+await import("@ownbase/server/main");

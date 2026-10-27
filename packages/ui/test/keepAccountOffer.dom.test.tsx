@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, type PendingMessage } from "@slackoss/client-core";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient, type PendingMessage } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import type { Platform } from "../src/platform.js";

@@ -69,12 +69,12 @@ export const ARTIFACTS = {
   web: {
     manifest: "apps/web/dist/build.json",
     inputs: ["apps/web", "packages/ui", "packages/client-core", "packages/protocol"],
-    rebuild: "pnpm --filter @slackoss/web build",
+    rebuild: "pnpm --filter @ownbase/web build",
   },
   server: {
     manifest: "apps/server-cli/dist/build.json",
     inputs: ["apps/server-cli", "ee", "packages/server", "packages/protocol"],
-    rebuild: "pnpm --filter slackoss-server build",
+    rebuild: "pnpm --filter ownbase-server build",
   },
   desktop: {
     manifest: "apps/desktop/out/build.json",
@@ -85,7 +85,7 @@ export const ARTIFACTS = {
       "packages/protocol",
       "packages/server",
     ],
-    rebuild: "pnpm --filter @slackoss/desktop build",
+    rebuild: "pnpm --filter @ownbase/desktop build",
   },
 };
 

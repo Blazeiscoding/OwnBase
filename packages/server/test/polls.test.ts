@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type Message, type Poll, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type Message, type Poll, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { toSlackEvent } from "../src/integrations.js";
 
@@ -123,7 +123,7 @@ async function register(handle: string) {
 }
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-polls-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-polls-"));
   await start();
   owner = await register("owner");
   peer = await register("peer");

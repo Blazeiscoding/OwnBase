@@ -1,4 +1,4 @@
-import { callRelaySchema, type CallRelay } from "@slackoss/server";
+import { callRelaySchema, type CallRelay } from "@ownbase/server";
 import type { CredentialProtector } from "./credentials.js";
 
 /** The settings key for the TURN relay that calls hosted on this computer are given. */
@@ -24,8 +24,7 @@ export type CallRelayDraft =
 
 /** How the relay is kept in the settings file: its secret encrypted by the OS. */
 interface StoredCallRelay {
-  /** The format's name from when the app was called Tandem, kept so saved keys still read. */
-  kind: "tandem.call-relay";
+  kind: "ownbase.call-relay";
   version: 1;
   relay: "cloudflare" | "custom";
   keyId?: string;
@@ -115,14 +114,14 @@ export function encodeRelay(relay: CallRelay, protector: CredentialProtector): S
   }
   return relay.kind === "cloudflare"
     ? {
-        kind: "tandem.call-relay",
+        kind: "ownbase.call-relay",
         version: 1,
         relay: "cloudflare",
         keyId: relay.keyId,
         secret: ciphertext.toString("base64"),
       }
     : {
-        kind: "tandem.call-relay",
+        kind: "ownbase.call-relay",
         version: 1,
         relay: "custom",
         urls: relay.urls,
@@ -136,7 +135,7 @@ export function decodeRelay(value: unknown, protector: CredentialProtector): Cal
   if (value === null || value === undefined) return null;
   const stored = value as Partial<StoredCallRelay>;
   if (
-    stored.kind !== "tandem.call-relay" ||
+    stored.kind !== "ownbase.call-relay" ||
     stored.version !== 1 ||
     typeof stored.secret !== "string" ||
     !stored.secret

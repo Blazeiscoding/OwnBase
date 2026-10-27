@@ -16,7 +16,7 @@ export default defineConfig({
     plugins: [
       // Workspace packages are TS source — bundle them; real deps stay external.
       externalizeDepsPlugin({
-        exclude: ["@slackoss/server", "@slackoss/protocol", "@slackoss/client-core"],
+        exclude: ["@ownbase/server", "@ownbase/protocol", "@ownbase/client-core"],
       }),
       {
         name: "ownbase-build-identity",

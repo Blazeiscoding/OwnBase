@@ -1,12 +1,12 @@
-import { CALL_CAUSES, type CallLogLine, type HuddleState } from "@slackoss/client-core";
+import { CALL_CAUSES, type CallLogLine, type HuddleState } from "@ownbase/client-core";
 import type {
   BuildRevision,
   CallLogEntry,
   CandidateCounts,
   ServerInfo,
   WorkspaceStatus,
-} from "@slackoss/protocol";
-import { PROTOCOL_VERSION } from "@slackoss/protocol";
+} from "@ownbase/protocol";
+import { PROTOCOL_VERSION } from "@ownbase/protocol";
 import { formatBytes } from "./format.js";
 import { APP_BUILD, describeBuild } from "./build.js";
 

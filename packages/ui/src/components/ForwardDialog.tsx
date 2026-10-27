@@ -1,6 +1,6 @@
 import { useId, useRef, useState, type FormEvent } from "react";
-import type { Channel, ID } from "@slackoss/protocol";
-import { forwardOf, type ForwardSource } from "@slackoss/client-core";
+import type { Channel, ID } from "@ownbase/protocol";
+import { forwardOf, type ForwardSource } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { useListbox } from "../lib/useListbox.js";
 import { buttonClass } from "./Button.js";

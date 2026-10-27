@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import {
   readWorkspaceStorage,

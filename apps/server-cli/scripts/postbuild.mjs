@@ -7,7 +7,7 @@ import { dirname, join } from "node:path";
 import { builtinModules } from "node:module";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const bundle = join(here, "../dist/slackoss-server.js");
+const bundle = join(here, "../dist/ownbase-server.js");
 
 let src = readFileSync(bundle, "utf8");
 // Prefix-only builtins (sqlite, test, sea) are missing from builtinModules.
@@ -24,5 +24,5 @@ if (existsSync(webDist)) {
   cpSync(webDist, target, { recursive: true });
   console.log("bundled web client into dist/web");
 } else {
-  console.warn("apps/web/dist not found — build @slackoss/web first for the browser client");
+  console.warn("apps/web/dist not found — build @ownbase/web first for the browser client");
 }

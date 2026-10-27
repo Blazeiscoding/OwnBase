@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
 

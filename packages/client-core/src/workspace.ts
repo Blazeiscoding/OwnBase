@@ -25,7 +25,7 @@ import {
   type SidebarSection,
   type User,
   type WorkspaceEvent,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";

@@ -50,7 +50,7 @@ describe("the page's place across a recovery", () => {
   const PAGE = "file:///opt/OwnBase/resources/app.asar/out/renderer/index.html";
   const trusted = rendererUrlTrust(PAGE);
   const saved = {
-    tandem: { server: "http://10.0.0.5:8543", channelId: "C1", threadRootId: null, view: "saved" },
+    ownbase: { server: "http://10.0.0.5:8543", channelId: "C1", threadRootId: null, view: "saved" },
   };
 
   it("hands the last place back once, to the page a recovery loads", () => {

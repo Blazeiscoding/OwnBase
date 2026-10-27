@@ -2,8 +2,8 @@ import { cleanup, render, screen, waitFor, within } from "@testing-library/react
 import userEvent from "@testing-library/user-event";
 import { act } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, MemberNotice, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, MemberNotice, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { MEMBER_NOTICE_SNOOZE_MS } from "../src/components/MemberNotice.js";

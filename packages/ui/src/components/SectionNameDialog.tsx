@@ -1,5 +1,5 @@
 import { useId, useState, type FormEvent } from "react";
-import { SIDEBAR_SECTION_NAME_MAX } from "@slackoss/protocol";
+import { SIDEBAR_SECTION_NAME_MAX } from "@ownbase/protocol";
 import { buttonClass } from "./Button.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls } from "./TextField.js";

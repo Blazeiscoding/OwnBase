@@ -7,7 +7,7 @@ import {
   readStoredOutbox,
   unwrapStoredOutbox,
   type StoredOutboxEntry,
-} from "@slackoss/client-core/outbox";
+} from "@ownbase/client-core/outbox";
 import type { CredentialProtector } from "../src/main/credentials.js";
 import { mergeOutboxSetting } from "../src/main/outboxStorage.js";
 import { createSettingsStorage, type SettingsStorage } from "../src/main/settings.js";

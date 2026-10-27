@@ -1,4 +1,4 @@
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import { isAccountSection, type AccountSection } from "./accountSections.js";
 
 /** Side panels that are places of their own, as the address names them. */
@@ -72,11 +72,8 @@ export interface WorkspaceRoute {
 /** Channel and message ids never contain anything else. */
 const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
 
-/**
- * The key this app's part of a history entry's state sits under. Named when
- * the app was called Tandem, and kept, so earlier history entries still read.
- */
-const KEY = "tandem";
+/** The key this app's part of a history entry's state sits under. */
+const KEY = "ownbase";
 
 interface RouteState {
   server: string;

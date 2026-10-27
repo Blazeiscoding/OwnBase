@@ -8,10 +8,9 @@
 export const NOTIFICATION_WORKER = "/notification-worker.js";
 /**
  * The message the worker sends a page when one of its notifications is
- * clicked. Named when the app was called Tandem, and kept: a worker installed
- * by an earlier version sends it until the browser updates the worker.
+ * clicked.
  */
-export const NOTIFICATION_CLICK = "tandem:notification-click";
+export const NOTIFICATION_CLICK = "ownbase:notification-click";
 /** Clicks a page still answers, oldest dropped first. */
 const KEPT_CLICKS = 50;
 

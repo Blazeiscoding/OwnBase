@@ -1,4 +1,4 @@
-import type { CallLogEntry } from "@slackoss/protocol";
+import type { CallLogEntry } from "@ownbase/protocol";
 
 /** How many lines the host can look back over; older ones fall off. */
 export const CALL_LOG_LIMIT = 500;

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import type { Channel, ID } from "@slackoss/protocol";
+import type { Channel, ID } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";

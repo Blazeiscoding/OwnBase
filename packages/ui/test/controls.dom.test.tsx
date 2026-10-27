@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { cleanup, act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, type HuddleState } from "@slackoss/client-core";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
 import { HuddleBar } from "../src/components/HuddleBar.js";

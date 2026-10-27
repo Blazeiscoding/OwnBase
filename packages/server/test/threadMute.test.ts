@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient, type ThreadFollow } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, type ThreadFollow } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 let server: WorkspaceServer;

@@ -87,10 +87,10 @@ jobs:
         run: pnpm typecheck:automation
       - name: Package unpacked app
         if: steps.packaging.outputs.installer == 'false' || matrix.shard != 2
-        run: pnpm --filter @slackoss/desktop package --win --dir
+        run: pnpm --filter @ownbase/desktop package --win --dir
       - name: Package app and installer
         if: steps.packaging.outputs.installer == 'true' && matrix.shard == 2
-        run: pnpm --filter @slackoss/desktop package --win
+        run: pnpm --filter @ownbase/desktop package --win
       - run: node scripts/check-web-bundle.mjs apps/desktop/out/renderer
       # No workspace database, attachment, log or collected workspace source
       # may ship in the archive (REV-12); it also prints what the archive holds.

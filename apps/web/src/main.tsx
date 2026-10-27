@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
-import { App, webPlatform } from "@slackoss/ui";
+import { App, webPlatform } from "@ownbase/ui";
 import "./index.css";
 
 const root = createRoot(document.getElementById("root")!);
@@ -10,7 +10,7 @@ const root = createRoot(document.getElementById("root")!);
 // import.meta.env.DEV with false and drops this branch, the import with it,
 // so the gallery never reaches what the server serves.
 if (import.meta.env.DEV && /^#\/?gallery(\/|$)/.test(window.location.hash)) {
-  void import("@slackoss/ui/gallery").then(({ Gallery }) =>
+  void import("@ownbase/ui/gallery").then(({ Gallery }) =>
     root.render(
       <StrictMode>
         <Gallery />

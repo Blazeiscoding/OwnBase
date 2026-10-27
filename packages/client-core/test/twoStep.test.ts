@@ -3,7 +3,7 @@ import { createHmac } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, ApiError, type LoginResult } from "../src/index.js";
 
 /**
@@ -54,7 +54,7 @@ function challengeOf(result: LoginResult): string {
 }
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-client-two-step-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-client-two-step-"));
   server = await createWorkspaceServer({ dataDir, port: 0, mdns: false, rateLimits: false });
   base = `http://127.0.0.1:${server.port}`;
   const made = await new Api(base).register({

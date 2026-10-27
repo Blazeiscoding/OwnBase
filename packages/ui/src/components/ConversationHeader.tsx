@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import type { ID, Message, User } from "@slackoss/protocol";
-import { notificationBody, type WorkspaceClient } from "@slackoss/client-core";
+import type { ID, Message, User } from "@ownbase/protocol";
+import { notificationBody, type WorkspaceClient } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";

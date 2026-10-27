@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import { hostWithPort, type ServerInfo } from "@slackoss/protocol";
-import { Api, ApiError, normalizeServerUrl } from "@slackoss/client-core";
+import { hostWithPort, type ServerInfo } from "@ownbase/protocol";
+import { Api, ApiError, normalizeServerUrl } from "@ownbase/client-core";
 import type {
   DiscoveredServer,
   HostingStatus,

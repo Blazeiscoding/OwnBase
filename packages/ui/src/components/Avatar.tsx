@@ -1,5 +1,5 @@
 import { useContext, useEffect, useState } from "react";
-import type { User } from "@slackoss/protocol";
+import type { User } from "@ownbase/protocol";
 import { ClientContext } from "../context.js";
 import { avatarColor, initials } from "../lib/format.js";
 

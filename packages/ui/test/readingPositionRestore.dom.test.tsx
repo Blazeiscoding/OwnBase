@@ -1,7 +1,7 @@
 import { createRoot } from "react-dom/client";
 import { screen, waitFor } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { MessageTimeline } from "../src/components/MessageTimeline.js";
@@ -84,8 +84,8 @@ describe("returning to where a conversation was being read", () => {
     writeRoute(SERVER, { channelId: general.id, threadRootId: null }, "replace");
     window.history.replaceState(
       {
-        tandem: {
-          ...window.history.state.tandem,
+        ownbase: {
+          ...window.history.state.ownbase,
           scroll: { messageId: "M_8", offset: -15 },
         },
       },

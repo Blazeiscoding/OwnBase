@@ -1,6 +1,6 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { dueReminderCount, isMessageRead, notificationBody } from "@slackoss/client-core";
-import type { ID, Message } from "@slackoss/protocol";
+import { dueReminderCount, isMessageRead, notificationBody } from "@ownbase/client-core";
+import type { ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";

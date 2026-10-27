@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 
 /** How long a request waits for its message's row to appear. */
 export const EDIT_REQUEST_MS = 10_000;

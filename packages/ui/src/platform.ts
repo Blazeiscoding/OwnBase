@@ -3,8 +3,8 @@ import type {
   OutboxChanges,
   RecordChanges,
   StoredOutbox,
-} from "@slackoss/client-core";
-import type { AccessPolicy } from "@slackoss/protocol";
+} from "@ownbase/client-core";
+import type { AccessPolicy } from "@ownbase/protocol";
 import { deviceStore } from "./lib/deviceStore.js";
 import type { SignInChange } from "./lib/savedServers.js";
 import { parseDeepLink } from "./lib/deeplink.js";
@@ -314,7 +314,7 @@ export interface Platform {
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;
   /**
    * Links to join a workspace or open a message: ownbase:// ones (the
-   * previous slackoss:// form still reads) in the desktop app, and the
+   * previous ownbase:// form still reads) in the desktop app, and the
    * address a browser was opened at.
    */
   deepLinks?: {

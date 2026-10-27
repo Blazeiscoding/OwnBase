@@ -1,4 +1,4 @@
-import type { CallCause, ID } from "@slackoss/protocol";
+import type { CallCause, ID } from "@ownbase/protocol";
 
 /*
  * Apart from the call itself, which is loaded only when someone joins one, so

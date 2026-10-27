@@ -5,7 +5,7 @@ import {
   wantsNoiseFilter,
   type MicrophoneSettings,
   type MicrophoneTest,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import { useSpeaker } from "../lib/mediaDevices.js";
 import { noiseFilter } from "../lib/noiseFilter.js";
 import { buttonClass } from "./Button.js";

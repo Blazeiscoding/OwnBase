@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Avatar, PresenceDot } from "./Avatar.js";

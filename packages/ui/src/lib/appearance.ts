@@ -33,8 +33,7 @@ const stores = new WeakMap<Platform, ReturnType<typeof createAppearance>>();
  * does not show the other one first. The choice itself stays in the
  * platform's storage; the copy follows it.
  */
-/** Named when the app was called Tandem, and kept, so a saved choice still reads. */
-export const FIRST_PAINT_KEY = "tandem:appearance";
+export const FIRST_PAINT_KEY = "ownbase:appearance";
 
 function firstPaintCopy(): { theme: Theme; density: Density } | null {
   try {

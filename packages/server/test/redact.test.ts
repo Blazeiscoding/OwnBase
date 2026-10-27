@@ -128,7 +128,7 @@ describe("what actually reaches the log", () => {
       },
     });
 
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-redact-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-redact-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",

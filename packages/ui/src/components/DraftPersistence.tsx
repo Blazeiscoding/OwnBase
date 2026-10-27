@@ -7,7 +7,7 @@ import {
   type DraftChanges,
   type StoredOutbox,
   type StoredOutboxEntry,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import {

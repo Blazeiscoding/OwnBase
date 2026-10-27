@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, ApiError } from "@slackoss/client-core";
-import type { ServerInfo, User } from "@slackoss/protocol";
+import { Api, ApiError } from "@ownbase/client-core";
+import type { ServerInfo, User } from "@ownbase/protocol";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
 import { useLastHosted } from "../src/lib/hosting.js";
 import { hostedButStopped, resumeTarget } from "../src/lib/resume.js";
@@ -24,7 +24,7 @@ const saved: SavedServer = {
 };
 
 const info: ServerInfo = {
-  app: "slackoss",
+  app: "ownbase",
   protocolVersion: 1,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",

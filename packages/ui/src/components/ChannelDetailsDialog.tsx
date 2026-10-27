@@ -5,8 +5,8 @@ import {
   canSetChannelManager,
   type ID,
   type NotifyLevel,
-} from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+} from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Avatar } from "./Avatar.js";

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import { SEND_RETRY_WINDOW_MS } from "@slackoss/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 import { Api, ApiError, OUTBOX_LIMIT, WorkspaceClient } from "../src/index.js";
 
 let server: WorkspaceServer;

@@ -1,4 +1,4 @@
-import type { CallRelay, WorkspaceServer, createWorkspaceServer } from "@slackoss/server";
+import type { CallRelay, WorkspaceServer, createWorkspaceServer } from "@ownbase/server";
 import type { HostedServer } from "./hosting.js";
 
 /** What the app supplies to start a workspace's server. */

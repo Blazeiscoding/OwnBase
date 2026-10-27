@@ -1,4 +1,4 @@
-import { escapeMrkdwn, type User } from "@slackoss/protocol";
+import { escapeMrkdwn, type User } from "@ownbase/protocol";
 
 /**
  * Commands the server answers itself. They exist because a workspace with no

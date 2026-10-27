@@ -18,7 +18,7 @@ afterEach(async () => {
 });
 
 async function start(maxFileSize?: number) {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-product-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-product-"));
   server = await createWorkspaceServer({
     dataDir: directory,
     port: 0,

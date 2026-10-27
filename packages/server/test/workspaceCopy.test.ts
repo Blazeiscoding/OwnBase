@@ -15,7 +15,7 @@ import { join } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
-import type { WorkspaceCopy } from "@slackoss/protocol";
+import type { WorkspaceCopy } from "@ownbase/protocol";
 import { backupWorkspace, restoreWorkspace, verifyBackup } from "../src/backup.js";
 import { WorkspaceCopies, withBackupFolder } from "../src/workspaceCopy.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";

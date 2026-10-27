@@ -8,7 +8,7 @@ import {
   type DraftChanges,
   type OutboxChanges,
   type StoredOutbox,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import type { Platform } from "../platform.js";
 import { checkWorkspaceAddress } from "./workspaceAddressTrust.js";
 

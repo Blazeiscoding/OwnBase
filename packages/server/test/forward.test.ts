@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -77,7 +77,7 @@ const read = async (auth: string, channelId: string, id: string) =>
   );
 
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-forward-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-forward-"));
   server = await createWorkspaceServer({
     dataDir: root,
     host: "127.0.0.1",

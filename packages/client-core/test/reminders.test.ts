@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import type { Message, Reminder } from "@slackoss/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+import type { Message, Reminder } from "@ownbase/protocol";
 import { Api, WorkspaceClient } from "../src/index.js";
 
 /** Reminders (E4) as a client keeps them, against a real server. */

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { ActivityPanel } from "../src/components/ActivityPanel.js";
 import { SearchDialog } from "../src/components/SearchDialog.js";

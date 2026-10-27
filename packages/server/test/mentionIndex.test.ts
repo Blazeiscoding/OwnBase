@@ -213,7 +213,7 @@ describe("mentions read from who each message names", () => {
 describe("upgrading to the mentions index", () => {
   let dir: string;
   beforeEach(() => {
-    dir = mkdtempSync(join(tmpdir(), "slackoss-mention-index-"));
+    dir = mkdtempSync(join(tmpdir(), "ownbase-mention-index-"));
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 

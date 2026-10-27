@@ -1,6 +1,6 @@
 import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
-import type { WorkspaceState } from "@slackoss/client-core";
-import type { ID } from "@slackoss/protocol";
+import type { WorkspaceState } from "@ownbase/client-core";
+import type { ID } from "@ownbase/protocol";
 import { PlatformContext, useClient, useWorkspace } from "../context.js";
 import {
   readWorkspaceStorage,

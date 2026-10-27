@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "v
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import type { Message } from "@slackoss/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+import type { Message } from "@ownbase/protocol";
 import { Api, WorkspaceClient, previewImageKey, type WorkspaceState } from "../src/index.js";
 
 /**
@@ -60,7 +60,7 @@ const held = (client: WorkspaceClient, channelId: string, id: string): Message |
   client.state.timelines[channelId]?.items.find((m) => m.id === id);
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-previews-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-previews-"));
   server = await createWorkspaceServer({
     dataDir,
     port: 0,

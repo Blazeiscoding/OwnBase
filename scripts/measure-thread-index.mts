@@ -14,7 +14,7 @@
  * around) and the channel's newest page, a batch of inserts, and the size of
  * the database. Run with the server package's tsx:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-thread-index.mts [--messages=200000]
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-thread-index.mts [--messages=200000]
  */
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";

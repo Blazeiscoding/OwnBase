@@ -13,7 +13,7 @@ import {
   type ReadySnapshot,
   type ServerNotice,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import type { Store } from "./store.js";
 import { hashToken } from "./auth.js";
 import { socketMessage } from "./socketSchema.js";

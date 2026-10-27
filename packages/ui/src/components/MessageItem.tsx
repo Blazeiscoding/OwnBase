@@ -11,8 +11,8 @@ import {
 } from "react";
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
-import type { FileMeta, ID, Message } from "@slackoss/protocol";
-import { forwardSource, type ForwardSource } from "@slackoss/client-core";
+import type { FileMeta, ID, Message } from "@ownbase/protocol";
+import { forwardSource, type ForwardSource } from "@ownbase/client-core";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
 import { formatFull, formatTime } from "../lib/format.js";

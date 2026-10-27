@@ -38,7 +38,7 @@ import type {
   WorkspaceCopy,
   WorkspaceStatus,
   Webhook,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 
 /** One entry in the composer's `/` hint list. */
 export interface CommandHint {

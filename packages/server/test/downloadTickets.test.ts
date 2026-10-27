@@ -61,7 +61,7 @@ async function spend(fileId: string, ticket: string, method = "GET") {
 }
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-tickets-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-tickets-"));
   server = await createWorkspaceServer({
     dataDir: directory,
     host: "127.0.0.1",

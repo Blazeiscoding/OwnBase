@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type Message, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type Message, type ServerToClient } from "@ownbase/protocol";
 import { openDb, openDbAtVersion, SCHEMA_VERSION } from "../src/db.js";
 import { Store } from "../src/store.js";
 import { ulid } from "../src/ids.js";

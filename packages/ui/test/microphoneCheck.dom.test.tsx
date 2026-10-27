@@ -12,8 +12,8 @@ const opened = vi.hoisted(() => ({
   refusal: null as unknown,
 }));
 
-vi.mock("@slackoss/client-core", async (original) => ({
-  ...(await original<typeof import("@slackoss/client-core")>()),
+vi.mock("@ownbase/client-core", async (original) => ({
+  ...(await original<typeof import("@ownbase/client-core")>()),
   testMicrophone: vi.fn(async (onLevel: (level: number) => void) => {
     if (opened.refusal) throw opened.refusal;
     opened.onLevel = onLevel;

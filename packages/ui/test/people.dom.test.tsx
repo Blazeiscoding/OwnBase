@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { ServerToClient, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { ServerToClient, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { PeopleDialog } from "../src/components/PeopleDialog.js";
 import { accessibilityProblems } from "./accessibility.js";

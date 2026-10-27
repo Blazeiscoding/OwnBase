@@ -8,7 +8,7 @@ import {
   type ChannelPrefs,
   type ReadySnapshot,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { openDb, openDbAtVersion } from "../src/db.js";
 import { Store } from "../src/store.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";

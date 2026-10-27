@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { FileMeta, ID, ReplyReference } from "@slackoss/protocol";
-import type { PollDraft } from "@slackoss/client-core";
+import type { FileMeta, ID, ReplyReference } from "@ownbase/protocol";
+import type { PollDraft } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Composer } from "./Composer.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";

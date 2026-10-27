@@ -1,7 +1,7 @@
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { WorkspaceClient } from "@slackoss/client-core";
-import type { ID, Message } from "@slackoss/protocol";
+import type { WorkspaceClient } from "@ownbase/client-core";
+import type { ID, Message } from "@ownbase/protocol";
 
 /** A message the next send in one conversation answers, as Discord's Reply. */
 export interface ReplyTarget {

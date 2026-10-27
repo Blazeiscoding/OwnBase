@@ -1,5 +1,5 @@
 {
-  "name": "slackoss",
+  "name": "ownbase",
   "private": true,
   "version": "0.1.0",
   "packageManager": "pnpm@10.23.0",
@@ -9,8 +9,8 @@
   "scripts": {
     "dev": "turbo dev",
     "build": "turbo build",
-    "build:win": "pnpm --filter @slackoss/desktop package --win",
-    "build:mac": "pnpm --filter @slackoss/desktop package --mac",
+    "build:win": "pnpm --filter @ownbase/desktop package --win",
+    "build:mac": "pnpm --filter @ownbase/desktop package --mac",
     "typecheck": "turbo typecheck",
     "test": "turbo test",
     "test:e2e": "playwright test",

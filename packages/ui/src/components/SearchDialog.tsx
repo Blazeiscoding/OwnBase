@@ -7,9 +7,9 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { ApiError } from "@slackoss/client-core";
-import type { FileMeta, FileType, ID, Message } from "@slackoss/protocol";
-import { parseSearchQuery } from "@slackoss/protocol";
+import { ApiError } from "@ownbase/client-core";
+import type { FileMeta, FileType, ID, Message } from "@ownbase/protocol";
+import { parseSearchQuery } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
 import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";

@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { crc32, deflateSync } from "node:zlib";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import { holdWorkspace } from "@slackoss/server/ownership";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+import { holdWorkspace } from "@ownbase/server/ownership";
 import { startHostedServer, type HostedServerHost } from "../src/main/hostedServer.js";
 import { readWorkspaceIcon, readWorkspaceIconVersion } from "../src/main/registry.js";
 

@@ -2,7 +2,7 @@ import {
   WORKSPACE_ICON_MAX_BYTES,
   WORKSPACE_ICON_PIXELS,
   WORKSPACE_ICON_TYPES,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { squareCanvas } from "./workspaceIcon.js";
 
 /** Why a picture cannot become the workspace's icon, said to whoever chose it. */

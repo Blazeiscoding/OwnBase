@@ -14,7 +14,7 @@
  * `--herd` handshakes at once (100), as after a restart. Run with the server
  * package's tsx:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-snapshot.mts [--members=2000] [--channels=300]
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-snapshot.mts [--members=2000] [--channels=300]
  */
 import { mkdtempSync, rmSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";

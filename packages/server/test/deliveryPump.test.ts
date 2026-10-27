@@ -51,7 +51,7 @@ beforeEach(async () => {
   });
   await new Promise<void>((done) => endpoint.listen(0, "127.0.0.1", done));
   endpointUrl = `http://127.0.0.1:${(endpoint.address() as { port: number }).port}`;
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-delivery-pump-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-delivery-pump-"));
   server = await start();
   ownerId = server.store.createUser({
     handle: "owner",

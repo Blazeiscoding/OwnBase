@@ -1,8 +1,8 @@
 import { version as reactVersion } from "react";
 import { flushSync } from "react-dom";
 import { createRoot } from "react-dom/client";
-import { WorkspaceClient, type WorkspaceState } from "@slackoss/client-core";
-import type { Channel, ID, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient, type WorkspaceState } from "@ownbase/client-core";
+import type { Channel, ID, Message, User } from "@ownbase/protocol";
 import { it } from "vitest";
 import { ClientContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
@@ -14,7 +14,7 @@ import { ToastProvider } from "../src/components/Toast.js";
  * settle after one change to the replica. Skipped unless asked for, and meant
  * for React's production build, where `act` does not exist:
  *
- *   MEASURE_ROWS=1 NODE_ENV=production pnpm --filter @slackoss/ui exec vitest run test/measureRowRenders.dom.test.tsx
+ *   MEASURE_ROWS=1 NODE_ENV=production pnpm --filter @ownbase/ui exec vitest run test/measureRowRenders.dom.test.tsx
  *
  * jsdom does no layout or paint, so this compares React's work only.
  */

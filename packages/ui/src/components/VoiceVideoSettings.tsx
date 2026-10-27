@@ -5,7 +5,7 @@ import {
   captureFailure,
   type CaptureKind,
   type MediaDeviceOption,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { microphoneOf, useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices, useSpeaker } from "../lib/mediaDevices.js";

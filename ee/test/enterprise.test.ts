@@ -6,8 +6,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient, type User } from "@slackoss/protocol";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { PROTOCOL_VERSION, type ServerToClient, type User } from "@ownbase/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { enterprise, type Enterprise } from "../src/enterprise.js";
 import { LICENSE_PREFIX, type LicenseClaims } from "../src/license.js";
 

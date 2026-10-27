@@ -50,8 +50,8 @@ Releases come from `.github/workflows/release.yml`, on a `v1.2.3` tag or a
 manual run naming the tag. It builds the server and the Windows installer from
 that one commit and runs the unit, browser and desktop suites on them. On
 Windows it also installs the installer silently, starts the app, checks it
-registers `ownbase://`, `tandem://`, `gatherline://` and `slackoss://`, upgrades from the previous published
-release if there is one, and checks uninstalling keeps the person's data. The
+registers `ownbase://`, upgrades from the previous published release if there
+is one, and checks uninstalling keeps the person's data. The
 installed app is asked which data folder it is using
 (`OWNBASE_RELEASE_GATE_REPORT`), so an upgrade passes only when the new version
 runs in the previous release's folder and reads what that release left there.
@@ -147,11 +147,6 @@ page, and every copy button failed for people on a LAN until PR #53. When a
 feature uses one of these APIs, also test the page without it, as the invite
 journey does by removing `writeText`.
 
-A renamed setting has to fall back to its previous name everywhere it is passed
-along, not only where the code reads it. The Compose file once passed
-`TANDEM_ICE_SERVERS` with a default beside `SLACKOSS_ICE_SERVERS`, and that
-default hid a value still set under the old name.
-
 `pnpm test` runs every package at once, and the server tests allow five seconds
 each. On a busy machine, one still packaging the desktop app for instance, a
 handful of unrelated server tests can time out together. Rerun that package on
@@ -201,7 +196,7 @@ field with its label, hint and error, and `Kbd` for a key, beside `Modal`,
 takes its classes from `inputClass` in `TextField.tsx`. Move older code over
 when you touch it, not in one sweep. The gallery shows each part in its states
 in Onyx and in White, and is what a review compares against: run
-`pnpm --filter @slackoss/web dev` and open `http://localhost:5173/#/gallery`,
+`pnpm --filter @ownbase/web dev` and open `http://localhost:5173/#/gallery`,
 or `#/gallery/onyx` or `#/gallery/white` for one theme. Only the development
 server has it; a build leaves it out.
 
@@ -249,7 +244,7 @@ this computer only, and fill it with the demo:
 
 ```sh
 pnpm build
-node apps/server-cli/dist/slackoss-server.js --data <empty folder> --port 18600 --host 127.0.0.1 --no-mdns --web apps/web/dist
+node apps/server-cli/dist/ownbase-server.js --data <empty folder> --port 18600 --host 127.0.0.1 --no-mdns --web apps/web/dist
 node scripts/seed-demo.mjs http://127.0.0.1:18600
 ```
 
@@ -259,7 +254,7 @@ picture. When a change is meant to move them, add the `visual baselines` label
 to the pull request to take new pictures; docs/CI.md says how it works.
 
 The server reads `apps/web/dist` from disk, so after
-`pnpm --filter @slackoss/web build` a reload shows the change. Drive it with
+`pnpm --filter @ownbase/web build` a reload shows the change. Drive it with
 Playwright for screenshots and axe. A context needs `isMobile: true` and
 `hasTouch: true` before `(hover: none)` matches; a phone-sized window alone
 keeps hover. Injecting axe needs `bypassCSP: true`, because the server's content
@@ -278,7 +273,7 @@ times out. The spec kills the app's process tree on failure instead. On Windows
 that has to be the whole tree: Playwright starts the app through `cmd.exe`, the
 process it hands back is that shell, and killing it leaves the app running.
 
-Docker checks: `docker build -f docker/Dockerfile -t slackoss:local .`, then
+Docker checks: `docker build -f docker/Dockerfile -t ownbase:local .`, then
 `node tests/docker-smoke.mjs`. The smoke test starts an isolated container,
 tests restart persistence and 6,000 socket deliveries, and removes its test data.
 The image fetches its dependencies from the lockfile alone, before copying the

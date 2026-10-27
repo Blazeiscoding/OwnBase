@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { ModalField, ModalView } from "@slackoss/protocol";
+import type { ModalField, ModalView } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";

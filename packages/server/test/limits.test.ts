@@ -4,7 +4,7 @@ import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 import { APP_CALLS_IN_FLIGHT, DEFAULT_LIMITS, RateLimiter } from "../src/limits.js";
 
@@ -23,7 +23,7 @@ async function start(
   rateLimits?: Parameters<typeof createWorkspaceServer>[0]["rateLimits"],
   trustedClientProxy?: Parameters<typeof createWorkspaceServer>[0]["trustedClientProxy"],
 ) {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-limits-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-limits-"));
   server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",

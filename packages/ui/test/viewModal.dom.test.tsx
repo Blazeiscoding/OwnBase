@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { ModalView, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { ModalView, User } from "@ownbase/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ViewModal } from "../src/components/ViewModal.js";
 import { ClientContext } from "../src/context.js";

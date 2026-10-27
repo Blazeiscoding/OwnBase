@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { act, render, screen } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
 import { ClientContext } from "../src/context.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { useHuddleEndedNotice } from "../src/lib/huddleEnded.js";

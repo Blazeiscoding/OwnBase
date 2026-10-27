@@ -38,7 +38,7 @@ async function stop(server: WorkspaceServer) {
 }
 
 beforeEach(() => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-ownership-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-ownership-"));
   dataDir = join(root, "workspace");
 });
 

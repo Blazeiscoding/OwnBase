@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Api } from "@slackoss/client-core";
+import { Api } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 

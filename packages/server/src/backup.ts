@@ -141,13 +141,12 @@ function countRows(db: DatabaseSync): Record<string, number> {
   return counts;
 }
 
-// Names from when the app was called Gatherline, kept so a capture an earlier
-// version left behind is still found and finished.
-const CAPTURE_PREFIX = ".gatherline-backup-";
+// A capture in progress, so one an interrupted run left behind is found and finished.
+const CAPTURE_PREFIX = ".ownbase-backup-";
 const CAPTURE_RECORD = "operation.json";
 const captureSchema = z
   .object({
-    kind: z.literal("gatherline.backup-capture"),
+    kind: z.literal("ownbase.backup-capture"),
     version: z.literal(1),
     id: z.uuid(),
     dataDir: z.string(),
@@ -243,7 +242,7 @@ export async function backupWorkspace(opts: {
     await writeFile(
       join(operation, CAPTURE_RECORD),
       JSON.stringify({
-        kind: "gatherline.backup-capture",
+        kind: "ownbase.backup-capture",
         version: 1,
         id,
         dataDir: canonicalSource,

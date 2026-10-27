@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { applyDraftChanges, unwrapStoredDrafts } from "@slackoss/client-core/drafts";
+import { applyDraftChanges, unwrapStoredDrafts } from "@ownbase/client-core/drafts";
 import type { CredentialProtector } from "../src/main/credentials.js";
 import { mergeDraftsSetting } from "../src/main/draftsStorage.js";
 import { createSettingsStorage, type SettingsStorage } from "../src/main/settings.js";

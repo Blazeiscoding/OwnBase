@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { ApiError } from "@slackoss/client-core";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";

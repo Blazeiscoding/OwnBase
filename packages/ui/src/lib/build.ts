@@ -1,4 +1,4 @@
-import type { BuildRevision } from "@slackoss/protocol";
+import type { BuildRevision } from "@ownbase/protocol";
 
 /** Stamped in by the web and desktop builds (IMP-08); not defined in tests or dev. */
 declare const __OWNBASE_BUILD__:

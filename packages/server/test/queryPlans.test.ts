@@ -87,7 +87,7 @@ describe("reading a thread's pages", () => {
   });
 
   it("replaces the old index when a workspace is upgraded, keeping its messages", () => {
-    const dir = mkdtempSync(join(tmpdir(), "slackoss-query-plans-"));
+    const dir = mkdtempSync(join(tmpdir(), "ownbase-query-plans-"));
     try {
       const file = join(dir, "workspace.db");
       const older = openDbAtVersion(file, 27);
@@ -119,7 +119,7 @@ describe("reading a thread's pages", () => {
 
 describe("app events waiting to be delivered", () => {
   it("are labelled with the message they carry when a workspace is upgraded, and found by it", () => {
-    const dir = mkdtempSync(join(tmpdir(), "slackoss-query-plans-"));
+    const dir = mkdtempSync(join(tmpdir(), "ownbase-query-plans-"));
     try {
       const file = join(dir, "workspace.db");
       const older = openDbAtVersion(file, 28);
@@ -130,7 +130,7 @@ describe("app events waiting to be delivered", () => {
          VALUES (?, 'S1', ?, ?, 0, 0)`,
       );
       const body = (type: string, event: object) =>
-        JSON.stringify({ type: "event_callback", event, slackoss: { type, seq: 1 } });
+        JSON.stringify({ type: "event_callback", event, ownbase: { type, seq: 1 } });
       queue.run("D1", 1, body("message.created", { type: "message", text: "hi", ts: "M1" }));
       queue.run(
         "D2",

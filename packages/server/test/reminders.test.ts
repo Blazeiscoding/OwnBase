@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type Reminder, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type Reminder, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /** Reminders (E4): set, moved, come due on time and after a restart, and dropped. */
@@ -92,7 +92,7 @@ const listed = async (auth = owner.token) =>
   }[];
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-reminders-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-reminders-"));
   await start();
   const first = await fetch(`${base}/api/auth/register`, {
     method: "POST",

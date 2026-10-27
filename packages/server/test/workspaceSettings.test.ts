@@ -11,7 +11,7 @@ import {
   type AuditEntry,
   type ReadySnapshot,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { keptSettingsNotes } from "../src/config.js";
 import {
   createWorkspaceServer,
@@ -42,7 +42,7 @@ afterEach(async () => {
 async function start(
   opts: { workspaceName?: string; inviteOnly?: boolean; accessPolicy?: AccessPolicy } = {},
 ) {
-  dataDir ??= mkdtempSync(join(tmpdir(), "slackoss-workspace-settings-"));
+  dataDir ??= mkdtempSync(join(tmpdir(), "ownbase-workspace-settings-"));
   server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",

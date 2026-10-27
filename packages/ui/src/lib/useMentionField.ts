@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
-import type { Channel, ID, User } from "@slackoss/protocol";
+import type { Channel, ID, User } from "@ownbase/protocol";
 import {
   projectMentions,
   replaceShown,

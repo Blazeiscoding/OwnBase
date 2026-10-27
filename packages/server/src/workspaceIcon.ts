@@ -3,7 +3,7 @@ import {
   WORKSPACE_ICON_MAX_BYTES,
   WORKSPACE_ICON_TYPES,
   type WorkspaceIconType,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { imageSize } from "./imageSize.js";
 
 /**

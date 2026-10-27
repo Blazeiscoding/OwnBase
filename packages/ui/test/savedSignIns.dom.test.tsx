@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
 import { App } from "../src/App.js";
 import type { Platform, SavedServer } from "../src/platform.js";
 import { changeSavedServers, type SignInChange } from "../src/lib/savedServers.js";

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ScheduledMessage, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ScheduledMessage, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { ScheduledPanel } from "../src/components/ScheduledPanel.js";
 import { ClientContext } from "../src/context.js";

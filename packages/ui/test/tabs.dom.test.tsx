@@ -2,8 +2,8 @@ import { fireEvent, render, screen, waitFor, within } from "@testing-library/rea
 import userEvent from "@testing-library/user-event";
 import { useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { User } from "@ownbase/protocol";
 import { ActivityPanel } from "../src/components/ActivityPanel.js";
 import { FriendsDialog } from "../src/components/FriendsDialog.js";
 import { ClientContext } from "../src/context.js";

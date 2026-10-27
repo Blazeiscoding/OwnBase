@@ -8,7 +8,7 @@ import type {
   LastHosted,
   Platform,
 } from "../platform.js";
-import type { AccessPolicy } from "@slackoss/protocol";
+import type { AccessPolicy } from "@ownbase/protocol";
 import { useHostingStatus } from "../lib/hosting.js";
 import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { useCopy } from "../lib/useCopy.js";

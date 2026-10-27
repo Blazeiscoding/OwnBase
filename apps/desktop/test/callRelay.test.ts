@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { CallRelay } from "@slackoss/server";
+import type { CallRelay } from "@ownbase/server";
 import { decodeRelay, encodeRelay, resolveDraft, summarize } from "../src/main/callRelay.js";
 import type { CredentialProtector } from "../src/main/credentials.js";
 

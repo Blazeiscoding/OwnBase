@@ -1,4 +1,4 @@
-import type { ID, Message, Poll } from "@slackoss/protocol";
+import type { ID, Message, Poll } from "@ownbase/protocol";
 
 /** A poll before it is sent: its choices and how it is answered (E6). */
 export interface PollDraft {

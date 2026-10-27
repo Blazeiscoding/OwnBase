@@ -70,14 +70,14 @@ let data = "";
 let claimCode = "";
 let base = "";
 test.beforeEach(async ({}, testInfo) => {
-  data = mkdtempSync(join(tmpdir(), "slackoss-e2e-"));
+  data = mkdtempSync(join(tmpdir(), "ownbase-e2e-"));
   const port = await freePort();
   base = `http://127.0.0.1:${port}`;
   claimCode = "";
   server = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       data,
       "--port",
@@ -219,7 +219,7 @@ async function signIn(page: Page, handle: string) {
 async function skipDeviceCheck(page: Page) {
   await page.addInitScript(() => {
     localStorage.setItem(
-      "slackoss:call-preferences",
+      "ownbase:call-preferences",
       JSON.stringify({ joinMuted: false, devicesChecked: true }),
     );
   });
@@ -307,10 +307,10 @@ async function deviceValues(page: Page) {
     const legacy: Record<string, string> = {};
     for (let i = 0; i < localStorage.length; i++) {
       const name = localStorage.key(i)!;
-      if (name.startsWith("slackoss:")) legacy[name.slice(9)] = localStorage.getItem(name)!;
+      if (name.startsWith("ownbase:")) legacy[name.slice(9)] = localStorage.getItem(name)!;
     }
     const indexed = await new Promise<Record<string, string> | null>((resolve) => {
-      const open = indexedDB.open("tandem-device");
+      const open = indexedDB.open("ownbase-device");
       open.onupgradeneeded = () => open.transaction!.abort();
       open.onerror = () => resolve(null);
       open.onsuccess = () => {
@@ -403,7 +403,7 @@ test(
         // suppression takes a tone out as noise. The browser's own leaves it
         // for the level meter to report. Taken in once, as a saved choice.
         localStorage.setItem(
-          "slackoss:call-preferences",
+          "ownbase:call-preferences",
           JSON.stringify({ joinMuted: false, noiseFilter: false, devicesChecked: true }),
         );
       });
@@ -851,7 +851,7 @@ test("each person's volume is yours alone: turned down, up past as sent, or mute
         // The fake microphone plays a tone, which strong noise suppression
         // takes out as noise; on the browser's own it is there to measure.
         localStorage.setItem(
-          "slackoss:call-preferences",
+          "ownbase:call-preferences",
           JSON.stringify({ joinMuted: false, noiseFilter: false, devicesChecked: true }),
         );
       });
@@ -948,7 +948,7 @@ test("a shared screen's sound is heard apart from the sharer's voice, with a vol
       // their screen's sound alone.
       await page.addInitScript(() => {
         localStorage.setItem(
-          "slackoss:call-preferences",
+          "ownbase:call-preferences",
           JSON.stringify({ joinMuted: true, noiseFilter: false, devicesChecked: true }),
         );
         // Chromium's fake picker shares a sound with the screen that says
@@ -1874,7 +1874,7 @@ test("the composer shows mentions as names while typing, and sends them as ids",
 });
 
 test("a send the composer let go of, and the drafts saved, outlast the browser being killed (F01)", async () => {
-  const profile = mkdtempSync(join(tmpdir(), "slackoss-profile-"));
+  const profile = mkdtempSync(join(tmpdir(), "ownbase-profile-"));
   let running: Awaited<ReturnType<typeof launchProfile>> | null = null;
   try {
     running = await launchProfile(profile);
@@ -2048,7 +2048,7 @@ test("database failure keeps saved work private and retries without an empty fal
   await page.evaluate((saved) => {
     // A legacy sign-in copy isolated the original privacy regression. It may
     // not authorize treating the unreadable canonical store as empty.
-    localStorage.setItem("slackoss:servers", JSON.stringify(saved));
+    localStorage.setItem("ownbase:servers", JSON.stringify(saved));
     sessionStorage.setItem("fixture-storage-refused", "yes");
   }, servers);
   await page.reload();
@@ -2057,7 +2057,7 @@ test("database failure keeps saved work private and retries without an empty fal
   ).toBeVisible();
   await expect(composer(page)).toHaveCount(0);
   expect(
-    await page.evaluate(() => localStorage.getItem("slackoss:notification-previews")),
+    await page.evaluate(() => localStorage.getItem("ownbase:notification-previews")),
   ).toBeNull();
   await page.evaluate(() => sessionStorage.removeItem("fixture-storage-refused"));
   await page.getByRole("button", { name: "Try again", exact: true }).click();
@@ -2665,11 +2665,11 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
   // lets the new person in.
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const inviteData = mkdtempSync(join(tmpdir(), "slackoss-e2e-invite-"));
+  const inviteData = mkdtempSync(join(tmpdir(), "ownbase-e2e-invite-"));
   const inviteServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       inviteData,
       "--port",
@@ -2733,7 +2733,7 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
     const hostPage = await host.newPage();
     await hostPage.goto(origin);
     await hostPage.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       {
         url: origin,
         token: registered.token,
@@ -3060,11 +3060,11 @@ test("the demo seed fills a new workspace with something to try, and leaves one 
   // has to let its people in with a code and stay inside the rationing.
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const demoData = mkdtempSync(join(tmpdir(), "slackoss-e2e-demo-"));
+  const demoData = mkdtempSync(join(tmpdir(), "ownbase-e2e-demo-"));
   const demoServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       demoData,
       "--port",
@@ -3166,11 +3166,11 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
   test.setTimeout(90_000);
   const port = 18546;
   const origin = `http://127.0.0.1:${port}`;
-  const routeData = mkdtempSync(join(tmpdir(), "slackoss-e2e-routes-"));
+  const routeData = mkdtempSync(join(tmpdir(), "ownbase-e2e-routes-"));
   const routeServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       routeData,
       "--port",
@@ -3243,7 +3243,7 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     const page = await context.newPage();
     await page.goto(origin);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       { url: origin, token: owner, workspaceName: "Route Team", handle: "hana", lastUsedAt: 1 },
     );
     await page.reload();
@@ -3371,7 +3371,7 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     const member = await memberContext.newPage();
     await member.goto(origin);
     await member.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       { url: origin, token: other, workspaceName: "Route Team", handle: "omar", lastUsedAt: 2 },
     );
     await member.goto(`${origin}/#/c/${general.id}/d/people`);
@@ -3474,7 +3474,7 @@ test("Back, Forward and a reload return to the conversation, thread and panel so
     expect(reading).not.toBeNull();
     // Noted as it scrolls, a moment later.
     await expect
-      .poll(() => page.evaluate(() => history.state?.tandem?.scroll?.messageId))
+      .poll(() => page.evaluate(() => history.state?.ownbase?.scroll?.messageId))
       .toBe(reading!.id);
 
     await nav.getByRole("button", { name: /^#\s*design\b/ }).click();
@@ -3506,11 +3506,11 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
   test.setTimeout(90_000);
   const port = 18547;
   const origin = `http://127.0.0.1:${port}`;
-  const touchData = mkdtempSync(join(tmpdir(), "slackoss-e2e-touch-"));
+  const touchData = mkdtempSync(join(tmpdir(), "ownbase-e2e-touch-"));
   const touchServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       touchData,
       "--port",
@@ -3561,7 +3561,7 @@ test("on a touchscreen each message offers its actions in a menu, and any emoji 
     const page = await context.newPage();
     await page.goto(origin);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       { url: origin, token, workspaceName: "Touch Team", handle: "hana", lastUsedAt: 1 },
     );
     await page.reload();
@@ -3687,7 +3687,7 @@ test("on a phone the bottom bar reaches Activity and a DM without the drawer, be
     const page = await context.newPage();
     await page.goto(base);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       {
         url: base,
         token: alice.token,
@@ -3820,7 +3820,7 @@ test("on a phone a tap on Send leaves the keyboard up for the next message", asy
     const page = await context.newPage();
     await page.goto(base);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       { url: base, token, workspaceName: "Product Test", handle: "alice", lastUsedAt: 1 },
     );
     await page.goto(`${base}/#/c/${general.id}`);
@@ -3873,11 +3873,11 @@ test("somebody with only a keyboard signs in, switches channel, replies, reacts,
   test.setTimeout(90_000);
   const port = 18548;
   const origin = `http://127.0.0.1:${port}`;
-  const keyboardData = mkdtempSync(join(tmpdir(), "slackoss-e2e-keyboard-"));
+  const keyboardData = mkdtempSync(join(tmpdir(), "ownbase-e2e-keyboard-"));
   const keyboardServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       keyboardData,
       "--port",
@@ -4058,11 +4058,11 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
   test.setTimeout(120_000);
   const port = 18549;
   const origin = `http://127.0.0.1:${port}`;
-  const layoutData = mkdtempSync(join(tmpdir(), "slackoss-e2e-layout-"));
+  const layoutData = mkdtempSync(join(tmpdir(), "ownbase-e2e-layout-"));
   const layoutServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       layoutData,
       "--port",
@@ -4134,7 +4134,7 @@ test("the layout holds at phone, tablet, laptop and short-window sizes", async (
       const page = await context.newPage();
       await page.goto(origin);
       await page.evaluate(
-        (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+        (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
         { url: origin, token, workspaceName: "Layout Team", handle: "hana", lastUsedAt: 1 },
       );
       await page.goto(`${origin}/#/c/${general.id}`);
@@ -4325,11 +4325,11 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
   test.setTimeout(90_000);
   const port = await freePort();
   const origin = `http://127.0.0.1:${port}`;
-  const guestData = mkdtempSync(join(tmpdir(), "slackoss-e2e-guest-"));
+  const guestData = mkdtempSync(join(tmpdir(), "ownbase-e2e-guest-"));
   const guestServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       guestData,
       "--port",
@@ -4506,11 +4506,11 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
   test.setTimeout(90_000);
   const port = 18550;
   const origin = `http://127.0.0.1:${port}`;
-  const readData = mkdtempSync(join(tmpdir(), "slackoss-e2e-thread-read-"));
+  const readData = mkdtempSync(join(tmpdir(), "ownbase-e2e-thread-read-"));
   const readServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       readData,
       "--port",
@@ -4581,7 +4581,7 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
     const page = await context.newPage();
     await page.goto(origin);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       { url: origin, token: hana.token, workspaceName: "Read Team", handle: "hana", lastUsedAt: 1 },
     );
     await page.goto(`${origin}/#/c/${design.id}`);
@@ -4763,7 +4763,7 @@ test("a long thread left partway opens again where it was left, its newer replie
     const page = await context.newPage();
     await page.goto(base);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       {
         url: base,
         token: reader.token,
@@ -5135,11 +5135,11 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
   test.setTimeout(90_000);
   const port = 18551;
   const origin = `http://127.0.0.1:${port}`;
-  const liveData = mkdtempSync(join(tmpdir(), "slackoss-e2e-live-panels-"));
+  const liveData = mkdtempSync(join(tmpdir(), "ownbase-e2e-live-panels-"));
   const liveServer = spawn(
     process.execPath,
     [
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       "--data",
       liveData,
       "--port",
@@ -5200,7 +5200,7 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
     const page = await context.newPage();
     await page.goto(origin);
     await page.evaluate(
-      (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+      (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
       { url: origin, token: hana.token, workspaceName: "Live Team", handle: "hana", lastUsedAt: 1 },
     );
     // Hana reads #design, so what arrives in #general stays unread.

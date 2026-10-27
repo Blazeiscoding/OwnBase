@@ -1,4 +1,4 @@
-import type { MessageAction, ModalField, ModalView } from "@slackoss/protocol";
+import type { MessageAction, ModalField, ModalView } from "@ownbase/protocol";
 
 /**
  * Slack Block Kit is what most existing integrations send. Rather than

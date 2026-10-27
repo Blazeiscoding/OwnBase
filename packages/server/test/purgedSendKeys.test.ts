@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { SEND_RETRY_WINDOW_MS } from "@slackoss/protocol";
+import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -83,7 +83,7 @@ function everythingStored(): string {
 }
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-purged-keys-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-purged-keys-"));
   await start();
 });
 

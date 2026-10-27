@@ -1,4 +1,4 @@
-import type { WorkspaceClient } from "@slackoss/client-core";
+import type { WorkspaceClient } from "@ownbase/client-core";
 
 /**
  * Whether a message just sent is kept on this device (F01, GL-02): in the

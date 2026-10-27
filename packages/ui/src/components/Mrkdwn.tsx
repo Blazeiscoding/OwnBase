@@ -1,6 +1,6 @@
 import { Fragment, useContext, type ReactNode } from "react";
-import { broadcastLabel, type ID, type User } from "@slackoss/protocol";
-import type { Channel } from "@slackoss/protocol";
+import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
+import type { Channel } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext } from "../context.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";

@@ -2,8 +2,8 @@ import "fake-indexeddb/auto";
 import { IDBFactory } from "fake-indexeddb";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, readStoredDrafts } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { WorkspaceClient, readStoredDrafts } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
@@ -76,7 +76,7 @@ async function restored(platform: Platform) {
   await waitFor(async () => expect(await platform.storage.get(draftsKey)).not.toBeNull());
   await settle();
   // Kept in IndexedDB, not where localStorage would keep it.
-  expect(localStorage.getItem(`slackoss:${draftsKey}`)).toBeNull();
+  expect(localStorage.getItem(`ownbase:${draftsKey}`)).toBeNull();
 }
 
 const journal = () =>

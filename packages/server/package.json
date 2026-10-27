@@ -1,5 +1,5 @@
 {
-  "name": "@slackoss/server",
+  "name": "@ownbase/server",
   "version": "0.1.0",
   "private": true,
   "type": "module",
@@ -20,7 +20,7 @@
     "@fastify/cors": "^11.0.1",
     "@fastify/multipart": "^10.1.1",
     "@fastify/static": "^10.1.3",
-    "@slackoss/protocol": "workspace:*",
+    "@ownbase/protocol": "workspace:*",
     "bonjour-service": "^1.3.0",
     "fastify": "^5.12.5",
     "ws": "^8.18.3",

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
-import { escapeMrkdwn, type Channel, type ID, type User } from "@slackoss/protocol";
+import { escapeMrkdwn, type Channel, type ID, type User } from "@ownbase/protocol";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
 
 const users: Record<ID, User> = {

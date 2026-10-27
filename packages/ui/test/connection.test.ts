@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { ApiError } from "@slackoss/client-core";
-import { PROTOCOL_VERSION, type ServerInfo } from "@slackoss/protocol";
+import { ApiError } from "@ownbase/client-core";
+import { PROTOCOL_VERSION, type ServerInfo } from "@ownbase/protocol";
 import { connectionFailure, incompatibleWorkspace } from "../src/lib/connection.js";
 
 const workspace = (patch: Partial<ServerInfo> = {}): ServerInfo => ({
-  app: "slackoss",
+  app: "ownbase",
   protocolVersion: PROTOCOL_VERSION,
   serverVersion: "0.1.0",
   workspaceName: "Rocket Team",
