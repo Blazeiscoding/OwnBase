@@ -522,6 +522,11 @@ export interface WorkspaceStatus {
    * Empty when all are running; absent from servers that predate it.
    */
   backgroundFailures?: { queue: string; since: number; failures: number }[];
+  /**
+   * Parts of the server outside its core, such as the Enterprise edition,
+   * and how each is (P6). Absent where there are none.
+   */
+  extensions?: ExtensionStatus[];
 }
 
 /** Unauthenticated probe of a server — what the Join screen shows. */
@@ -571,6 +576,30 @@ export interface ServerInfo {
    * when it has none. Absent from servers before workspace icons.
    */
   iconVersion?: string | null;
+}
+
+/**
+ * A part of the server outside its core, such as the Enterprise edition, as
+ * the workspace status reports it (P6).
+ */
+export interface ExtensionStatus {
+  name: string;
+  /** One line for the owner and admins. */
+  summary: string;
+  /** Fine, needs attention soon, or needs it now. */
+  health: "ok" | "warning" | "problem";
+}
+
+/**
+ * Something the server tells the owner and admins under the conversation's
+ * header, such as a license running out (P6). `id` stays the same while the
+ * notice says the same thing, so putting it away is remembered.
+ */
+export interface ServerNotice {
+  id: string;
+  tone: "status" | "alert";
+  text: string;
+  link?: { label: string; url: string };
 }
 
 /**

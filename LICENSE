@@ -1,3 +1,13 @@
+Copyright (c) 2026 OwnBase contributors
+
+OwnBase is licensed in two parts:
+
+- Everything in the "ee/" directory is under the OwnBase Enterprise License
+  in ee/LICENSE. It is source-available, not open source: it may be used in
+  production only with a valid license key.
+- Everything else, unless a file says otherwise, is under the MIT license
+  below.
+
 MIT License
 
 Copyright (c) 2026 OwnBase contributors

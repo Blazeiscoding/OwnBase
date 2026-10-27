@@ -250,5 +250,15 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
                 .join("; ")}`,
         ]
       : []),
+    // Parts of the server outside its core, such as the Enterprise edition (P6).
+    ...(status.extensions ?? []).map(
+      (extension) =>
+        extension.summary +
+        (extension.health === "problem"
+          ? " (needs attention)"
+          : extension.health === "warning"
+            ? " (needs attention soon)"
+            : ""),
+    ),
   ];
 }

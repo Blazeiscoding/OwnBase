@@ -6,6 +6,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./backup": "./src/backup.ts",
+    "./extensions": "./src/extensions.ts",
+    "./main": "./src/main.ts",
     "./ownership": "./src/ownership.ts",
     "./workspaceIcon": "./src/workspaceIcon.ts"
   },

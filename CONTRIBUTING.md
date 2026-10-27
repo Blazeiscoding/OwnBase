@@ -292,6 +292,18 @@ control with a member who should not see the affected resource. For performance
 changes, include the workload, hardware, and measurement; do not claim universal
 latency or memory guarantees from a local test.
 
-This project uses the MIT license, matching the existing server package license.
-Contributions are accepted under that license. OwnBase is an independent project,
-not affiliated with Slack or Salesforce.
+## Licenses and the contributor agreement
+
+Everything outside `ee/` is under the MIT license. `ee/` is the Enterprise edition,
+source-available under [its own license](ee/LICENSE): it may be read, changed and run
+for development and testing, and needs a license key in production. The MIT code
+never imports from `ee/`; Enterprise features plug in through the server's
+extension point (`packages/server/src/extensions.ts`), and `ee/test/boundary.test.ts`
+fails if anything else crosses the line.
+
+Contributions to either part need the [contributor license agreement](CLA.md), so
+the project can release them under the MIT license, the Enterprise license, or a
+later version of either. The CLA Assistant asks for it on your first pull request.
+Both texts are drafts for legal review.
+
+OwnBase is an independent project, not affiliated with Slack or Salesforce.

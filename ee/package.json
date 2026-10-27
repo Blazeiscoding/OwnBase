@@ -1,0 +1,28 @@
+{
+  "name": "@slackoss/ee",
+  "version": "0.1.0",
+  "private": true,
+  "description": "OwnBase Enterprise edition: source-available, licensed separately from the MIT core",
+  "license": "SEE LICENSE IN LICENSE",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./main": "./src/main.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@slackoss/protocol": "workspace:*",
+    "@slackoss/server": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^24.3.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.0",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.0",
+    "ws": "^8.18.3"
+  }
+}

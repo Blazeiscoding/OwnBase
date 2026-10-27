@@ -10,6 +10,7 @@ let server: WorkspaceServer;
 let base: string;
 const tokens: Record<string, string> = {};
 const notice = { members: 1, planName: "Team", upgradeUrl: "https://example.com/plans" };
+const serverNotice = { id: "probe:1", tone: "alert" as const, text: "The probe needs you." };
 
 function until(client: WorkspaceClient, predicate: (s: WorkspaceState) => boolean) {
   return new Promise<WorkspaceState>((resolve, reject) => {
@@ -43,6 +44,8 @@ beforeAll(async () => {
     mdns: false,
     rateLimits: false,
     memberNotice: notice,
+    // What an extension, such as ee/'s, tells the owner and admins (P6).
+    extensions: [{ name: "probe", notice: () => serverNotice }],
   });
   base = `http://127.0.0.1:${server.port}`;
   for (const handle of ["owner", "sam"]) {
@@ -60,5 +63,10 @@ describe("the member notice on the client", () => {
   it("is kept for the owner from the snapshot, and is null for a member", async () => {
     expect((await online("owner")).state.memberNotice).toEqual(notice);
     expect((await online("sam")).state.memberNotice).toBeNull();
+  });
+
+  it("keeps the server's notices for the owner, and none for a member", async () => {
+    expect((await online("owner")).state.serverNotices).toEqual([serverNotice]);
+    expect((await online("sam")).state.serverNotices).toEqual([]);
   });
 });

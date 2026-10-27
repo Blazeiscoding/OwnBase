@@ -84,8 +84,8 @@ jobs:
       - run: pnpm typecheck --concurrency=2
       # The server's and ui's suites take minutes, so they run in the unit
       # job below, beside this one.
-      - name: Unit tests of protocol, client-core and desktop
-        run: pnpm exec turbo run test --filter=@slackoss/protocol --filter=@slackoss/client-core --filter=@slackoss/desktop --concurrency=2
+      - name: Unit tests of protocol, client-core, desktop and ee
+        run: pnpm exec turbo run test --filter=@slackoss/protocol --filter=@slackoss/client-core --filter=@slackoss/desktop --filter=@slackoss/ee --concurrency=2
         env:
           VITEST_MAX_THREADS: "2"
           VITEST_MAX_FORKS: "2"

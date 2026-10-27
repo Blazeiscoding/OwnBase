@@ -10,7 +10,9 @@ same Wi-Fi see the workspace in the app's Join screen. Anyone else connects by
 on the host's machine. Keep backups of that folder.
 
 OwnBase is early-stage and independently developed, under the
-[MIT license](LICENSE). It is not affiliated with Slack or Salesforce.
+[MIT license](LICENSE), except the Enterprise edition in [`ee/`](ee/README.md),
+which is source-available under its own license. It is not affiliated with Slack or
+Salesforce.
 
 - [Deployment and backups](docs/DEPLOYMENT.md)
 - [Integration API contract](docs/INTEGRATIONS.md)

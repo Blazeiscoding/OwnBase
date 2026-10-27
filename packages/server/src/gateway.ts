@@ -11,6 +11,7 @@ import {
   type MemberNotice,
   type Presence,
   type ReadySnapshot,
+  type ServerNotice,
   type ServerToClient,
 } from "@slackoss/protocol";
 import type { Store } from "./store.js";
@@ -97,6 +98,8 @@ export class Gateway {
       linkPreviews: () => boolean;
       /** How many members the plan includes, when the host set it (P5). */
       memberNotice?: () => MemberNotice | null;
+      /** What the server's extensions tell the owner and admins now (P6). */
+      notices?: () => ServerNotice[];
     },
     /** Shared with the HTTP side, so one caller has one allowance overall. */
     private limiter: RateLimiter | null = null,
@@ -413,7 +416,7 @@ export class Gateway {
           friends: this.store.listFriends(user.id),
           blocked: this.store.blockedIds(user.id),
           ...(user.role === "owner" || user.role === "admin"
-            ? { openReports: this.store.openReportCount(), ...this.memberNoticeFor() }
+            ? { openReports: this.store.openReportCount(), ...this.noticesFor() }
             : {}),
         };
         const missed =
@@ -593,10 +596,14 @@ export class Gateway {
     this.presenceChanged();
   }
 
-  /** The plan's member notice for a snapshot, when the host set one. */
-  private memberNoticeFor(): { memberNotice?: MemberNotice } {
+  /** The plan's member notice and the extensions' notices for a snapshot, when there are any. */
+  private noticesFor(): { memberNotice?: MemberNotice; notices?: ServerNotice[] } {
     const notice = this.workspace.memberNotice?.();
-    return notice ? { memberNotice: notice } : {};
+    const notices = this.workspace.notices?.() ?? [];
+    return {
+      ...(notice ? { memberNotice: notice } : {}),
+      ...(notices.length > 0 ? { notices } : {}),
+    };
   }
 
   // ---------- huddles ----------

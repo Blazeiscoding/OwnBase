@@ -200,6 +200,20 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     expect(report(undefined)).not.toContain("Background work");
   });
 
+  it("gives each of the server's extensions a line, saying when one needs attention (P6)", () => {
+    const report = (extensions: WorkspaceStatus["extensions"]) =>
+      diagnosticsReport({ ...base, workspace: { ...busy, extensions } });
+    const lines = report([
+      { name: "enterprise", summary: "No Enterprise license: the free edition", health: "ok" },
+      { name: "a", summary: "Enterprise license for Acme Ltd, 2 members", health: "warning" },
+      { name: "b", summary: "The Enterprise license for Acme Ltd ended", health: "problem" },
+    ]);
+    expect(lines).toContain("No Enterprise license: the free edition\n");
+    expect(lines).toContain("Enterprise license for Acme Ltd, 2 members (needs attention soon)");
+    expect(lines).toContain("The Enterprise license for Acme Ltd ended (needs attention)");
+    expect(report(undefined)).not.toContain("Enterprise");
+  });
+
   it("says how removing deleted attachments goes (REV-02)", () => {
     const report = diagnosticsReport({
       ...base,

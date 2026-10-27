@@ -80,6 +80,7 @@ import {
   type EventEnvelope,
   type ID,
   type MemberNotice,
+  planMembers,
   type MessageAction,
   type Message,
   type ModalView,
@@ -99,6 +100,7 @@ import {
 } from "./backupSchedule.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
 import { WorkspaceCopies, type CopyState } from "./workspaceCopy.js";
+import type { ServerExtension } from "./extensions.js";
 import type { BackupManifest } from "./backup.js";
 import { Store } from "./store.js";
 import { StorageBudget } from "./storageBudget.js";
@@ -434,6 +436,12 @@ export interface ServerOptions {
    */
   memberNotice?: MemberNotice;
   /**
+   * Parts of the server from outside this package, such as the Enterprise
+   * features in ee/ (P6), registered after the server's own routes. See
+   * `ServerExtension`. None by default, and the server is complete without.
+   */
+  extensions?: ServerExtension[];
+  /**
    * Starts a copy for looking at, such as a backup restored to check it. The
    * copy holds the original's apps, their signing secrets and its queue of
    * scheduled messages, so an ordinary start would post those messages a
@@ -615,6 +623,7 @@ async function startWorkspaceServer(
   ownership: { hold: WorkspaceHold | null },
 ): Promise<WorkspaceServer> {
   const instanceId = randomUUID();
+  const extensions = opts.extensions ?? [];
   if (
     opts.maxStorageBytes !== undefined &&
     (!Number.isSafeInteger(opts.maxStorageBytes) || opts.maxStorageBytes < 0)
@@ -873,6 +882,11 @@ async function startWorkspaceServer(
       iconVersion: () => icon?.version ?? null,
       linkPreviews: linkPreviewsOn,
       memberNotice: () => opts.memberNotice ?? null,
+      notices: () =>
+        extensions.flatMap((extension) => {
+          const notice = extension.notice?.();
+          return notice ? [notice] : [];
+        }),
     },
     limiter,
     (req) =>
@@ -3586,6 +3600,13 @@ async function startWorkspaceServer(
         queue,
         ...failing,
       })),
+      ...(extensions.length > 0
+        ? {
+            extensions: extensions.flatMap((extension) =>
+              extension.status ? [extension.status()] : [],
+            ),
+          }
+        : {}),
     };
   });
 
@@ -5833,6 +5854,24 @@ async function startWorkspaceServer(
     return { messages, nextCursor: matches.length > q.limit ? messages.at(-1)!.id : null };
   });
 
+  // ---------- extensions (P6) ----------
+
+  for (const extension of extensions) {
+    await extension.register?.({
+      app,
+      requireUser,
+      requireAdmin,
+      requireOwner: (req) => {
+        const me = requireUser(req);
+        if (me.role !== "owner")
+          throw new HttpError(403, "owner_only", "Only the workspace's owner can do this.");
+        return me;
+      },
+      memberCount: () => planMembers(store.listUsers()),
+      log: app.log.child({ extension: extension.name }),
+    });
+  }
+
   // ---------- start ----------
 
   const port = opts.port ?? 8543;
@@ -6235,6 +6274,7 @@ async function startWorkspaceServer(
     started: false,
     gateway: false,
     http: false,
+    extensions: false,
     backups: false,
     drained: false,
     database: false,
@@ -6330,6 +6370,10 @@ async function startWorkspaceServer(
         if (!stopped.http) {
           await app.close();
           stopped.http = true;
+        }
+        if (!stopped.extensions) {
+          for (const extension of extensions) await extension.stop?.();
+          stopped.extensions = true;
         }
         if (!stopped.backups) {
           // Before the drain: removals held for a backup go once it has ended.
