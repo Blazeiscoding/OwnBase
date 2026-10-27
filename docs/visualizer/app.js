@@ -60,7 +60,7 @@
   const store = {
     get(key, fallback) {
       try {
-        const value = localStorage.getItem(`tandem-atlas:${key}`);
+        const value = localStorage.getItem(`ownbase-atlas:${key}`);
         return value === null ? fallback : JSON.parse(value);
       } catch {
         return fallback;
@@ -68,7 +68,7 @@
     },
     set(key, value) {
       try {
-        localStorage.setItem(`tandem-atlas:${key}`, JSON.stringify(value));
+        localStorage.setItem(`ownbase-atlas:${key}`, JSON.stringify(value));
       } catch {
         /* Private windows can refuse storage; the atlas works without it. */
       }
