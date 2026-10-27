@@ -1,6 +1,6 @@
 import { useId } from "react";
-import type { Channel, ID, Message, User } from "@slackoss/protocol";
-import { shownPoll, type PollDraft } from "@slackoss/client-core";
+import type { Channel, ID, Message, User } from "@ownbase/protocol";
+import { shownPoll, type PollDraft } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { useConfirm } from "./Confirm.js";

@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
-import { ACCESS_POLICIES, type AccessPolicy } from "@slackoss/protocol";
+import { ACCESS_POLICIES, type AccessPolicy } from "@ownbase/protocol";
 import { TunnelCleanupError, type Tunnel } from "./tunnel.js";
 import {
   REGISTRY_KEY,

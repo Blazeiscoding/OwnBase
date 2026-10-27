@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { MessageEditor } from "../src/components/MessageEditor.js";

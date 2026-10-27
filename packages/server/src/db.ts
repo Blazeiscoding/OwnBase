@@ -439,7 +439,7 @@ const MIGRATIONS: string[] = [
   // this carry the message in their body, which is where the id comes from.
   `
   ALTER TABLE event_deliveries ADD COLUMN message_id TEXT;
-  UPDATE event_deliveries SET message_id = CASE json_extract(body, '$.slackoss.type')
+  UPDATE event_deliveries SET message_id = CASE json_extract(body, '$.ownbase.type')
       WHEN 'message.created' THEN json_extract(body, '$.event.ts')
       WHEN 'message.updated' THEN json_extract(body, '$.event.ts')
       WHEN 'message.deleted' THEN json_extract(body, '$.event.deleted_ts')

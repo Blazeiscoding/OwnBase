@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import type { ID, Message } from "@slackoss/protocol";
+import type { ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";

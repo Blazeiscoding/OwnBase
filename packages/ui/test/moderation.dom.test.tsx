@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, HuddleRing, Message, ReportedMessage, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, HuddleRing, Message, ReportedMessage, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { MessageItem } from "../src/components/MessageItem.js";

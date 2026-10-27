@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Sidebar, type OtherWorkspace } from "../src/components/Sidebar.js";
 import { statusUntil } from "../src/lib/status.js";

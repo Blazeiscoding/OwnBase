@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ForwardReference, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ForwardReference, Message, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";
 import { ForwardCard } from "../src/components/ForwardCard.js";

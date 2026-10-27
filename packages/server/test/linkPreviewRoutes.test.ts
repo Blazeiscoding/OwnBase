@@ -8,7 +8,7 @@ import {
   type Message,
   type ReadySnapshot,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { toSlackEvent } from "../src/integrations.js";
 import type { FetchedPreview } from "../src/linkPreview.js";
@@ -145,7 +145,7 @@ async function listen(token: string) {
 }
 
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-previews-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-previews-"));
   fetched = [];
   await start();
   owner = await register("owner");

@@ -1,4 +1,4 @@
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import type { ReadingPosition } from "./route.js";
 
 /** How many threads' places are kept; the one read longest ago goes first. */

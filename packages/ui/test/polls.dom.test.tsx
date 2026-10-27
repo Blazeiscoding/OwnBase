@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, Poll, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, Poll, User } from "@ownbase/protocol";
 import {
   ClientContext,
   OpenMessageContext,

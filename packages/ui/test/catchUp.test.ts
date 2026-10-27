@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Message } from "@slackoss/protocol";
+import type { Message } from "@ownbase/protocol";
 import { CatchUpSummary, namesList } from "../src/lib/catchUp.js";
 import { catchUpContent } from "../src/lib/notificationPreview.js";
 

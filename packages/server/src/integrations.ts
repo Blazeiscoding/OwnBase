@@ -1,5 +1,5 @@
 import { createHmac } from "node:crypto";
-import type { ID, WorkspaceEvent } from "@slackoss/protocol";
+import type { ID, WorkspaceEvent } from "@ownbase/protocol";
 
 /**
  * Signs an outbound request the way Slack does: HMAC-SHA256 over
@@ -18,8 +18,8 @@ export function signatureHeaders(
   const ts = String(Math.floor(now / 1000));
   const signature = `v0=${createHmac("sha256", secret).update(`v0:${ts}:${body}`).digest("hex")}`;
   return {
-    "x-slackoss-request-timestamp": ts,
-    "x-slackoss-signature": signature,
+    "x-ownbase-request-timestamp": ts,
+    "x-ownbase-signature": signature,
     "x-slack-request-timestamp": ts,
     "x-slack-signature": signature,
   };

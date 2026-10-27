@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { User } from "@ownbase/protocol";
 import { accessibilityProblems } from "./accessibility.js";
 
 const heard = vi.hoisted(() => ({
@@ -11,8 +11,8 @@ const heard = vi.hoisted(() => ({
   stop: vi.fn(),
 }));
 
-vi.mock("@slackoss/client-core", async (original) => ({
-  ...(await original<typeof import("@slackoss/client-core")>()),
+vi.mock("@ownbase/client-core", async (original) => ({
+  ...(await original<typeof import("@ownbase/client-core")>()),
   testMicrophone: vi.fn(async (onLevel: (level: number) => void, settings: unknown) => {
     heard.onLevel = onLevel;
     heard.settings.push(settings);

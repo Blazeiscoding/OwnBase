@@ -9,7 +9,7 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import type { ID, Message } from "@slackoss/protocol";
+import type { ID, Message } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { BlockedComposer } from "../components/Blocking.js";
 import {
@@ -19,7 +19,7 @@ import {
   isMessageOnScreen,
   isMessageRead,
   notificationBody,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import { channelTitle } from "../lib/format.js";

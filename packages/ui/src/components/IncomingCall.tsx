@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
-import type { HuddleRing, ID } from "@slackoss/protocol";
+import type { HuddleRing, ID } from "@ownbase/protocol";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";

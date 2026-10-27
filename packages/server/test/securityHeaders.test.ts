@@ -75,7 +75,7 @@ describe("what the server actually sends", () => {
   let base: string;
 
   beforeAll(async () => {
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-headers-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-headers-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",

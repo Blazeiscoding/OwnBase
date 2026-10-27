@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { ServerInfo, ServerToClient, User } from "@slackoss/protocol";
+import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { ServerInfo, ServerToClient, User } from "@ownbase/protocol";
 import { AccountDialog } from "../src/components/AccountDialog.js";
 import { PeopleDialog } from "../src/components/PeopleDialog.js";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
@@ -226,7 +226,7 @@ describe("two-step sign-in once on", () => {
 
 describe("signing in with two-step sign-in", () => {
   const info: ServerInfo = {
-    app: "slackoss",
+    app: "ownbase",
     protocolVersion: 1,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",

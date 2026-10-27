@@ -1,7 +1,7 @@
 import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { FileMeta, Message, ServerToClient } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { FileMeta, Message, ServerToClient } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Lightbox } from "../src/components/Attachments.js";
 

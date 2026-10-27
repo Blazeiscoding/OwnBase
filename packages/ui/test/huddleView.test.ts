@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { User } from "@slackoss/protocol";
+import type { User } from "@ownbase/protocol";
 import { bigCallLine, CALL_HOLDS, CAMERAS_HOLD, huddleNames } from "../src/lib/huddleView.js";
 
 const person = (id: string, displayName: string) => ({ id, displayName }) as User;

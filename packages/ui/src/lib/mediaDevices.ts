@@ -3,7 +3,7 @@ import {
   listMediaDevices,
   type MediaDeviceLists,
   type WorkspaceClient,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import { microphoneOf, type CallDevices } from "./callPreferences.js";
 
 const NONE: MediaDeviceLists = {

@@ -80,7 +80,7 @@ test("a fresh build passes; a missing, unreadable or older one names what to reb
   try {
     assert.match(
       check(["web"], root)[0],
-      /no build\.json: build it with `pnpm --filter @slackoss\/web build`/,
+      /no build\.json: build it with `pnpm --filter @ownbase\/web build`/,
     );
     mkdirSync(join(root, "apps/web/dist"), { recursive: true });
     writeBuildIdentity("web", join(root, "apps/web/dist"), root);
@@ -88,7 +88,7 @@ test("a fresh build passes; a missing, unreadable or older one names what to reb
     put("packages/client-core/src/index.ts", "export const edited = true;\n");
     const [problem] = check(["web"], root);
     assert.match(problem, /apps\/web\/dist\/build\.json was built from other source/);
-    assert.match(problem, /rebuild it with `pnpm --filter @slackoss\/web build`/);
+    assert.match(problem, /rebuild it with `pnpm --filter @ownbase\/web build`/);
     assert.match(staleness("web", "{not json", root), /unreadable build\.json/);
   } finally {
     rmSync(root, { recursive: true, force: true });

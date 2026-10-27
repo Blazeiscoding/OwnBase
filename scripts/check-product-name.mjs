@@ -1,53 +1,96 @@
-// Fails when a built client or server still shows one of the product's
-// earlier names (P2): node scripts/check-product-name.mjs [dir ...], by
-// default the browser client. Built code drops comments, so what is left
-// there is what a person can see, or code that would show it. Names kept on
-// purpose, such as storage keys from before, are lowercase and pass.
+// Fails when one of the product's earlier names is still there (P2, P2b):
+//
+//   node scripts/check-product-name.mjs [dir ...]   built output, by default the browser client
+//   node scripts/check-product-name.mjs --repo      every text file git tracks
+//
+// OwnBase was called SlackOSS, then Gatherline, then Tandem. Nobody runs a
+// build from before, so nothing reads those names any more: not settings,
+// links, storage keys or package names. The one place one may appear is a
+// link to the GitHub repository, until the repository is renamed.
+import { execFileSync } from "node:child_process";
 import { readdirSync, readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** Names the product had before, as a person read them. */
-export const EARLIER_NAMES = /\b(?:Tandem|Gatherline)\b/g;
+/** Names the product had before, in any case and inside longer names too. */
+export const EARLIER_NAMES = /slackoss|gatherline|tandem/gi;
 /** Where an earlier name is still right: the repository, until it is renamed. */
-const ALLOWED = [/github\.com\/Blazeiscoding\/Tandem\b/g];
+const ALLOWED = [/github\.com\/Blazeiscoding\/[A-Za-z]+/g];
 const TEXT = /\.(?:m?js|html|css|json|webmanifest|svg|txt)$/;
+/**
+ * Tracked files that name the earlier names on purpose: this check and its
+ * test, and the atlas, which embeds them.
+ */
+const NAMES_THEM = new Set([
+  "scripts/check-product-name.mjs",
+  "scripts/check-product-name.test.mjs",
+  "docs/PROJECT-VISUALIZER.html",
+]);
 
-/** Every earlier name in `dir`'s text files, as `file:line: text`. */
+/** Each earlier name in `text`, as `<where>:<line>: <around it>`. */
+function namesIn(text, where) {
+  const found = [];
+  text.split("\n").forEach((line, i) => {
+    const rest = ALLOWED.reduce((kept, allowed) => kept.replace(allowed, ""), line);
+    for (const match of rest.matchAll(EARLIER_NAMES)) {
+      const at = match.index ?? 0;
+      const around = rest.slice(Math.max(0, at - 40), at + 40).trim();
+      found.push(`${where}:${i + 1}: ${around}`);
+    }
+  });
+  return found;
+}
+
+/** Every earlier name in `dir`'s text files. */
 export function findEarlierNames(dir) {
   const found = [];
   const walk = (folder) => {
     for (const entry of readdirSync(folder, { withFileTypes: true })) {
       const path = join(folder, entry.name);
       if (entry.isDirectory()) walk(path);
-      else if (TEXT.test(entry.name)) {
-        const lines = readFileSync(path, "utf8").split("\n");
-        lines.forEach((line, i) => {
-          const rest = ALLOWED.reduce((text, allowed) => text.replace(allowed, ""), line);
-          for (const match of rest.matchAll(EARLIER_NAMES)) {
-            const at = match.index ?? 0;
-            const around = rest.slice(Math.max(0, at - 40), at + 40).trim();
-            found.push(`${relative(dir, path).replaceAll("\\", "/")}:${i + 1}: ${around}`);
-          }
-        });
-      }
+      else if (TEXT.test(entry.name))
+        found.push(
+          ...namesIn(readFileSync(path, "utf8"), relative(dir, path).replaceAll("\\", "/")),
+        );
     }
   };
   walk(dir);
   return found;
 }
 
+/** Every earlier name in the text files git tracks in `repo`, binary files aside. */
+export function findEarlierNamesInRepo(repo) {
+  const files = execFileSync("git", ["ls-files", "-z"], { cwd: repo, encoding: "utf8" })
+    .split("\0")
+    .filter((file) => file && !NAMES_THEM.has(file));
+  const found = [];
+  for (const file of files) {
+    let body;
+    try {
+      body = readFileSync(join(repo, file));
+    } catch {
+      continue; // deleted, not yet staged
+    }
+    if (body.subarray(0, 8000).includes(0)) continue;
+    found.push(...namesIn(body.toString("utf8"), file));
+  }
+  return found;
+}
+
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const dirs = process.argv.slice(2);
+  const args = process.argv.slice(2);
+  const checks =
+    args[0] === "--repo"
+      ? [["the repository", findEarlierNamesInRepo(args[1] ?? ".")]]
+      : (args.length ? args : ["apps/web/dist"]).map((dir) => [dir, findEarlierNames(dir)]);
   let failed = false;
-  for (const dir of dirs.length ? dirs : ["apps/web/dist"]) {
-    const found = findEarlierNames(dir);
+  for (const [where, found] of checks) {
     if (found.length === 0) {
-      console.log(`${dir}: no earlier product name`);
+      console.log(`${where}: no earlier product name`);
       continue;
     }
     failed = true;
-    console.error(`${dir} still shows an earlier product name:`);
+    console.error(`${where} still has an earlier product name:`);
     for (const line of found) console.error(`  ${line}`);
   }
   if (failed) process.exit(1);

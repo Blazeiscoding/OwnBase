@@ -73,7 +73,7 @@ describe("saved sign-ins in the settings file", () => {
     expect(onDisk()).not.toContain(TOKEN);
     const stored = JSON.parse(onDisk()).servers;
     expect(Object.keys(stored).sort()).toEqual(["ciphertext", "kind", "version"]);
-    expect(stored).toMatchObject({ kind: "gatherline.saved-servers", version: 1 });
+    expect(stored).toMatchObject({ kind: "ownbase.saved-servers", version: 1 });
     expect(await settings.get("servers")).toEqual([server]);
   });
 

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
-import type { User } from "@slackoss/protocol";
+import type { User } from "@ownbase/protocol";
 import { openDb } from "../src/db.js";
 import { Store } from "../src/store.js";
 
@@ -17,7 +17,7 @@ let db: DatabaseSync;
 let store: Store;
 
 beforeEach(() => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-snapshot-channels-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-snapshot-channels-"));
   db = openDb(join(directory, "workspace.db"));
   store = new Store(db);
 });

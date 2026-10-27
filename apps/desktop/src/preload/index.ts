@@ -1,7 +1,7 @@
 import { contextBridge, ipcRenderer } from "electron";
 import { screenSoundSupported } from "../main/screenShare.js";
 
-export interface SlackossBridge {
+export interface OwnBaseBridge {
   downloadFile: (url: string) => Promise<void>;
   storageGet: (key: string, options?: { strict?: boolean }) => Promise<unknown>;
   storageSet: (key: string, value: unknown) => Promise<void>;
@@ -58,7 +58,7 @@ export interface SlackossBridge {
   hostingSetRelay: (draft: unknown) => Promise<unknown>;
   hostingTestRelay: (draft: unknown) => Promise<unknown>;
   onHostingStatus: (cb: (status: unknown) => void) => () => void;
-  /** A ownbase:// (or legacy slackoss://) link that launched the app, if any. */
+  /** An ownbase:// link that launched the app, if any. */
   consumeDeepLink: () => Promise<string | null>;
   onDeepLink: (cb: (url: string) => void) => () => void;
   /** Shows the window again, restored and in front. */
@@ -77,7 +77,7 @@ export interface SlackossBridge {
   screenSound: boolean;
 }
 
-const bridge: SlackossBridge = {
+const bridge: OwnBaseBridge = {
   downloadFile: (url) => ipcRenderer.invoke("file:download", url),
   storageGet: (key, options) => ipcRenderer.invoke("storage:get", key, options),
   storageSet: (key, value) => ipcRenderer.invoke("storage:set", key, value),
@@ -165,4 +165,4 @@ const bridge: SlackossBridge = {
   screenSound: screenSoundSupported(process.platform, process.getSystemVersion()),
 };
 
-contextBridge.exposeInMainWorld("slackoss", bridge);
+contextBridge.exposeInMainWorld("ownbase", bridge);

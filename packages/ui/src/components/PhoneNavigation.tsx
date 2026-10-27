@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
-import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
+import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { useOnScreenKeyboard } from "../lib/onScreenKeyboard.js";

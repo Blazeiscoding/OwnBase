@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -22,7 +22,7 @@ let base: string;
 const sockets: WebSocket[] = [];
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-retention-refresh-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-retention-refresh-"));
   server = await createWorkspaceServer({
     dataDir: directory,
     host: "127.0.0.1",

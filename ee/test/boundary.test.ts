@@ -30,7 +30,7 @@ describe("the line between the MIT core and ee/", () => {
         const name = relative(repo, file).replaceAll("\\", "/");
         if (COMPOSED.has(name)) continue;
         const text = readFileSync(file, "utf8");
-        if (/@slackoss\/ee\b|["'`](?:\.\.\/)+ee\//.test(text)) crossing.push(name);
+        if (/@ownbase\/ee\b|["'`](?:\.\.\/)+ee\//.test(text)) crossing.push(name);
       }
     }
     expect(crossing).toEqual([]);
@@ -38,6 +38,6 @@ describe("the line between the MIT core and ee/", () => {
 
   it("is where the bundle is built from", () => {
     const tsup = readFileSync(join(repo, "apps/server-cli/tsup.config.ts"), "utf8");
-    expect(tsup).toContain('"slackoss-server": "../../ee/src/main.ts"');
+    expect(tsup).toContain('"ownbase-server": "../../ee/src/main.ts"');
   });
 });

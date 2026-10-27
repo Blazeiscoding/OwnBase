@@ -164,7 +164,7 @@ describe("device storage ownership and recovery (N02)", () => {
 
   it("reports an actual blocked upgrade, then recovers its private value without a reload", async () => {
     const held = await new Promise<IDBDatabase>((resolve, reject) => {
-      const request = indexedDB.open("tandem-device", 1);
+      const request = indexedDB.open("ownbase-device", 1);
       request.onupgradeneeded = () => request.result.createObjectStore("values");
       request.onerror = () => reject(request.error);
       request.onsuccess = () => resolve(request.result);

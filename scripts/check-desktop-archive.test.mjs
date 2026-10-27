@@ -22,10 +22,10 @@ const clean = {
 };
 /** What the deep investigation found in a local archive (REV-12), one of each. */
 const forbidden = {
-  "node_modules/@slackoss/server/src/server.ts": "source",
-  "node_modules/@slackoss/server/data/workspace.db": "db",
-  "node_modules/@slackoss/server/data/workspace.db-wal": "wal",
-  "node_modules/@slackoss/server/data/workspace.db-shm": "shm",
+  "node_modules/@ownbase/server/src/server.ts": "source",
+  "node_modules/@ownbase/server/data/workspace.db": "db",
+  "node_modules/@ownbase/server/data/workspace.db-wal": "wal",
+  "node_modules/@ownbase/server/data/workspace.db-shm": "shm",
   "node_modules/other/data/files/01K00000000000000000000000": "attachment",
   "node_modules/other/.turbo/turbo-test.log": "log",
   "node_modules/other/debug.log": "log",

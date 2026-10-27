@@ -10,7 +10,7 @@ import {
   type ReadySnapshot,
   type ServerToClient,
   type User,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/index.js";
 
 let server: WorkspaceServer;
@@ -19,7 +19,7 @@ let dataDir: string;
 
 beforeAll(async () => {
   // A real directory (not :memory:) so file uploads are exercised too.
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-test-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-test-"));
   server = await createWorkspaceServer({
     dataDir,
     port: 0,

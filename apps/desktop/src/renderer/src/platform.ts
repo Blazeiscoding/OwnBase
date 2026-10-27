@@ -3,8 +3,8 @@ import type {
   OutboxChanges,
   RecordChanges,
   StoredOutbox,
-} from "@slackoss/client-core";
-import type { AccessPolicy } from "@slackoss/protocol";
+} from "@ownbase/client-core";
+import type { AccessPolicy } from "@ownbase/protocol";
 import type {
   AutoBackup,
   CallRelayDraft,
@@ -18,9 +18,9 @@ import type {
   Platform,
   RestoreInventory,
   ShareableSource,
-} from "@slackoss/ui";
+} from "@ownbase/ui";
 
-interface SlackossBridge {
+interface OwnBaseBridge {
   downloadFile: (url: string) => Promise<void>;
   storageGet: (key: string, options?: { strict?: boolean }) => Promise<unknown>;
   storageSet: (key: string, value: unknown) => Promise<void>;
@@ -105,7 +105,7 @@ interface SlackossBridge {
 
 declare global {
   interface Window {
-    slackoss: SlackossBridge;
+    ownbase: OwnBaseBridge;
   }
 }
 
@@ -145,7 +145,7 @@ function windowsTag(tag: string): string {
 }
 
 export function electronPlatform(): Platform {
-  const bridge = window.slackoss;
+  const bridge = window.ownbase;
   const preparing = {
     capture: new Set<() => void | Promise<void>>(),
     persist: new Set<() => void | Promise<void>>(),
@@ -276,7 +276,7 @@ export function electronPlatform(): Platform {
  * moment, since reading position changes as someone scrolls.
  */
 export async function followPlace(
-  bridge: Pick<SlackossBridge, "rememberPlace" | "takePlace">,
+  bridge: Pick<OwnBaseBridge, "rememberPlace" | "takePlace">,
   delayMs = 250,
 ): Promise<void> {
   // A recovered page starts from the entry it had; the app checks that entry

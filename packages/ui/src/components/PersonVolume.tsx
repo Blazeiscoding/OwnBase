@@ -1,5 +1,5 @@
 import { useId } from "react";
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 import {
   AS_SENT,
   DEFAULT_VOLUME,

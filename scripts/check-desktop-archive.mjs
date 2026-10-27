@@ -19,7 +19,7 @@ import { pathToFileURL } from "node:url";
 /** What must never ship, and why, tested against archive paths with `/` separators. */
 export const FORBIDDEN = [
   {
-    pattern: /(^|\/)node_modules\/@slackoss\//,
+    pattern: /(^|\/)node_modules\/@ownbase\//,
     why: "a workspace package collected as a dependency; its code is bundled into out/",
   },
   { pattern: /\.(db|sqlite3?)(-wal|-shm|-journal)?$/i, why: "a database or its log" },

@@ -1,5 +1,5 @@
-import type { ChannelPrefs, ID, SidebarSection } from "@slackoss/protocol";
-import type { WorkspaceClient, WorkspaceState } from "@slackoss/client-core";
+import type { ChannelPrefs, ID, SidebarSection } from "@ownbase/protocol";
+import type { WorkspaceClient, WorkspaceState } from "@ownbase/client-core";
 import type { MenuItem } from "../components/Menu.js";
 import type { ToastRequest } from "../components/Toast.js";
 

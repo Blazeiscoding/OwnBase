@@ -1,4 +1,4 @@
-import { addTrustedAddress, applyDraftChanges, applyOutboxChanges } from "@slackoss/client-core";
+import { addTrustedAddress, applyDraftChanges, applyOutboxChanges } from "@ownbase/client-core";
 import type { Platform } from "../src/platform.js";
 
 /**

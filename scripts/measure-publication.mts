@@ -14,7 +14,7 @@
  * the server package's tsx; the same script runs against an earlier commit
  * checked out elsewhere, to compare:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-publication.mts [--rounds=25] [--only=deletion|posting]
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-publication.mts [--rounds=25] [--only=deletion|posting]
  */
 import { randomUUID } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";

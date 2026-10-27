@@ -2,8 +2,8 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vites
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import type { Message } from "@slackoss/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+import type { Message } from "@ownbase/protocol";
 import {
   Api,
   WorkspaceClient,
@@ -60,7 +60,7 @@ const held = (client: WorkspaceClient, channelId: string, id: string) =>
   client.state.timelines[channelId]?.items.find((m) => m.id === id);
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-replies-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-replies-"));
   server = await createWorkspaceServer({ dataDir, port: 0, mdns: false, rateLimits: false });
   base = `http://127.0.0.1:${server.port}`;
   const api = new Api(base);

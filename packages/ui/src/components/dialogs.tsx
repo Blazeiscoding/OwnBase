@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError } from "@slackoss/client-core";
-import type { Channel, ID } from "@slackoss/protocol";
+import { ApiError } from "@ownbase/client-core";
+import type { Channel, ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog, DialogScroll } from "./Dialog.js";

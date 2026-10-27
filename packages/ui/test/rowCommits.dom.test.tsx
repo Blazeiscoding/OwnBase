@@ -1,7 +1,7 @@
 import { Profiler, type ProfilerOnRenderCallback } from "react";
 import { act, fireEvent, render, screen, within } from "@testing-library/react";
-import { WorkspaceClient, type WorkspaceState } from "@slackoss/client-core";
-import type { Channel, ID, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient, type WorkspaceState } from "@ownbase/client-core";
+import type { Channel, ID, Message, User } from "@ownbase/protocol";
 import { describe, expect, it } from "vitest";
 import { ClientContext } from "../src/context.js";
 import { MessageItem } from "../src/components/MessageItem.js";

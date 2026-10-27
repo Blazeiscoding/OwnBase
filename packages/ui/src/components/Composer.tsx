@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ID, User, ScheduleMessageBody } from "@slackoss/protocol";
-import { ApiError, OUTBOX_LIMIT, quoteOf } from "@slackoss/client-core";
+import type { ID, User, ScheduleMessageBody } from "@ownbase/protocol";
+import { ApiError, OUTBOX_LIMIT, quoteOf } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { formatBytes } from "../lib/format.js";
@@ -185,7 +185,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         const parsed =
           value == null
             ? null
-            : (await import("@slackoss/protocol/rest")).scheduleMessageBody.safeParse(value);
+            : (await import("@ownbase/protocol/rest")).scheduleMessageBody.safeParse(value);
         if (!active) return;
         if (
           parsed &&

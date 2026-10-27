@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished } from "vites
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient } from "../src/index.js";
 
 /** The file browser's client side (E7): the server says it lists files, and a page is asked for. */
@@ -13,7 +13,7 @@ let token: string;
 let userId: string;
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-client-files-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-client-files-"));
   server = await createWorkspaceServer({ dataDir, port: 0, mdns: false, rateLimits: false });
   base = `http://127.0.0.1:${server.port}`;
   const made = await new Api(base).register({

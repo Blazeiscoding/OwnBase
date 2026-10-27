@@ -1,9 +1,5 @@
 import type { HostingStatus } from "../platform.js";
-import {
-  DEEP_LINK_PROTOCOLS,
-  OWNBASE_DEEP_LINK_PROTOCOL,
-  normalizeServerUrlSafe,
-} from "./deeplinkHelpers.js";
+import { DEEP_LINK_PROTOCOL, normalizeServerUrlSafe } from "./deeplinkHelpers.js";
 
 /** What a link asks the app to do. */
 export type DeepLink =
@@ -20,7 +16,7 @@ const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;
 /**
  * Parses the links the app hands out, in either form:
  * ownbase://join?host=…&code=… and ownbase://message?host=…&channel=…&id=…
- * for the desktop app (the previous gatherline:// and slackoss:// forms still read), and
+ * for the desktop app, and
  * <server>/#/join/<code> and <server>/#/c/<channel>/m/<message> for a browser.
  * Returns null for anything malformed rather than throwing.
  */
@@ -32,8 +28,7 @@ export function parseDeepLink(raw: string): DeepLink | null {
     return null;
   }
   if (url.protocol === "http:" || url.protocol === "https:") return parseBrowserLink(url);
-  if (!(DEEP_LINK_PROTOCOLS as readonly string[]).includes(url.protocol.replace(/:$/, "")))
-    return null;
+  if (url.protocol !== `${DEEP_LINK_PROTOCOL}:`) return null;
 
   // ownbase://join?… parses "join" as the host, not the pathname.
   const action = (url.hostname || url.pathname.replace(/^\/+/, "")).toLowerCase();
@@ -104,8 +99,8 @@ export function desktopLink(serverUrl: string, target: LinkTarget): string {
   // ":" and "/" are allowed in a query, and leaving them makes the link readable.
   const host = e(serverAddress(serverUrl)).replaceAll("%3A", ":").replaceAll("%2F", "/");
   return target.kind === "join"
-    ? `${OWNBASE_DEEP_LINK_PROTOCOL}://join?host=${host}&code=${e(target.code)}`
-    : `${OWNBASE_DEEP_LINK_PROTOCOL}://message?host=${host}&channel=${e(target.channelId)}&id=${e(target.messageId)}`;
+    ? `${DEEP_LINK_PROTOCOL}://join?host=${host}&code=${e(target.code)}`
+    : `${DEEP_LINK_PROTOCOL}://message?host=${host}&channel=${e(target.channelId)}&id=${e(target.messageId)}`;
 }
 
 export interface ShareableServer {

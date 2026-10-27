@@ -187,10 +187,9 @@
       "summary": "Expresses platform-specific launch-at-login behavior without importing Electron.",
       "details": [
         "Windows registration carries --hidden so sign-in can start in the tray; macOS uses its wasOpenedAtLogin indication.",
-        "Reports OS refusal and macOS approval requirements in actionable words. The main process limits registration to installed supported platforms and stubs it in test mode.",
-        "carryEarlierLoginItem (P2) finds sign-in entries Windows still keeps for Tandem.exe or Gatherline.exe in the app's folder, under the old app's name, removes them, and puts this app's own in when one was on. The machine's entries and other folders are left alone."
+        "Reports OS refusal and macOS approval requirements in actionable words. The main process limits registration to installed supported platforms and stubs it in test mode."
       ],
-      "concepts": ["OS integration", "pure policy", "tray startup", "renames"]
+      "concepts": ["OS integration", "pure policy", "tray startup"]
     },
     {
       "path": "apps/desktop/src/main/screenShare.ts",
@@ -296,7 +295,7 @@
       "plain": "A few lines run before the desktop app's page is first drawn, so it opens in the theme you chose instead of flashing the other one.",
       "summary": "Applies the stored theme and density to the document before first paint.",
       "details": [
-        "Reads tandem:appearance from localStorage, the copy appearance.ts keeps, and sets data-theme and data-density on the root element; with nothing readable it leaves the theme on system, as theme.css does.",
+        "Reads ownbase-first-paint from localStorage, the copy appearance.ts keeps, and sets data-theme and data-density on the root element; with nothing readable it leaves the theme on system, as theme.css does.",
         "Sets the theme-color meta to the light or dark bar colour, following the device when the theme is system.",
         "A classic script from the app's own origin, which the CSP allows, wrapped so it never throws whatever is stored. It is the same file as apps/web/public/first-paint.js, which firstPaint.dom.test.ts checks."
       ],
@@ -377,7 +376,7 @@
       "details": [
         "Mounts App with webPlatform under React StrictMode and imports shared styling.",
         "Notification permission is requested after sign-in from a deliberate banner interaction, preserving the browser's user-gesture requirement.",
-        "In development only, #/gallery (or #/gallery/onyx, #/gallery/white) renders the primitives gallery from @slackoss/ui/gallery instead of the app. The branch is guarded by import.meta.env.DEV, which a build replaces with false, so the gallery's import is dropped and nothing of it ships."
+        "In development only, #/gallery (or #/gallery/onyx, #/gallery/white) renders the primitives gallery from @ownbase/ui/gallery instead of the app. The branch is guarded by import.meta.env.DEV, which a build replaces with false, so the gallery's import is dropped and nothing of it ships."
       ],
       "concepts": ["React entry", "web platform", "permission timing", "development gallery"]
     },

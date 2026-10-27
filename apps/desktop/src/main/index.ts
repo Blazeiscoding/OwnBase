@@ -19,24 +19,24 @@ import { networkInterfaces } from "node:os";
 import { pathToFileURL } from "node:url";
 import { Bonjour, type Service } from "bonjour-service";
 import {
-  DEEP_LINK_PROTOCOLS,
+  DEEP_LINK_PROTOCOL,
   DEFAULT_PORT,
   MDNS_SERVICE_TYPE,
   isIconVersion,
   isLinkableAddress,
   type DiscoveryTxt,
-} from "@slackoss/protocol";
-import type { OutboxChanges } from "@slackoss/client-core/outbox";
-import type { DraftChanges } from "@slackoss/client-core/drafts";
-import { applyRecordChanges, isRecordChanges } from "@slackoss/client-core/records";
-import { addTrustedAddress } from "@slackoss/client-core/trustedAddresses";
+} from "@ownbase/protocol";
+import type { OutboxChanges } from "@ownbase/client-core/outbox";
+import type { DraftChanges } from "@ownbase/client-core/drafts";
+import { applyRecordChanges, isRecordChanges } from "@ownbase/client-core/records";
+import { addTrustedAddress } from "@ownbase/client-core/trustedAddresses";
 import {
   cloudflareIceServers,
   createWorkspaceServer,
   isTurn,
   type CallRelay,
   type WorkspaceServer,
-} from "@slackoss/server";
+} from "@ownbase/server";
 import createBackupWorker from "./backupWorker?nodeWorker";
 import type { BackupJob, BackupReply } from "./backupWorker.js";
 import { createSettingsStorage } from "./settings.js";
@@ -70,12 +70,7 @@ import { mergeDraftsSetting } from "./draftsStorage.js";
 import { createHostingController } from "./hosting.js";
 import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
-import {
-  carryEarlierLoginItem,
-  loginItemOptions,
-  loginItemProblem,
-  openedAtLogin,
-} from "./loginItem.js";
+import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { windowColours } from "./windowTheme.js";
 import {
   findCloudflared,
@@ -89,17 +84,13 @@ import {
 } from "./tunnel.js";
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
-/** OwnBase name first, previous TANDEM_, GATHERLINE_ and SLACKOSS_ names still read. */
-const appEnv = (name: string): string | undefined =>
-  process.env[`OWNBASE_${name}`] ??
-  process.env[`TANDEM_${name}`] ??
-  process.env[`GATHERLINE_${name}`] ??
-  process.env[`SLACKOSS_${name}`];
+/** A setting from the environment, as OWNBASE_<name>. */
+const appEnv = (name: string): string | undefined => process.env[`OWNBASE_${name}`];
 const isTest = appEnv("TEST") === "1";
-// Branding must not move existing settings, credentials, or hosted databases.
-const legacyUserData = app.getPath("userData");
 app.setName("OwnBase");
-app.setPath("userData", appEnv("USER_DATA_DIR") ?? legacyUserData);
+// Settings, credentials and hosted databases live in %APPDATA%\OwnBase (and
+// the same under ~/Library/Application Support and ~/.config).
+app.setPath("userData", appEnv("USER_DATA_DIR") ?? join(app.getPath("appData"), "OwnBase"));
 let mainWindow: BrowserWindow | null = null;
 let tray: Tray | null = null;
 /** The app's own page, as the main window loads it. */
@@ -156,7 +147,7 @@ if ((isDev || isTest) && appEnv("TEST_MEDIA") === "1") {
   app.commandLine.appendSwitch("use-fake-ui-for-media-stream");
 }
 
-// ---------- ownbase:// deep links (gatherline:// and slackoss:// still open) ----------
+// ---------- ownbase:// deep links ----------
 
 /** Held until a window exists to receive it (cold start via a link). */
 let pendingDeepLink: string | null = null;
@@ -171,7 +162,7 @@ function deliverDeepLink(url: string): void {
 }
 
 function deepLinkFromArgv(argv: string[]): string | null {
-  return argv.find((a) => DEEP_LINK_PROTOCOLS.some((p) => a.startsWith(`${p}://`))) ?? null;
+  return argv.find((a) => a.startsWith(`${DEEP_LINK_PROTOCOL}://`)) ?? null;
 }
 
 // A second launch must hand its link to the running instance, not open a
@@ -196,15 +187,11 @@ app.on("open-url", (event, url) => {
 if (!isTest && isDev && process.platform === "win32") {
   // In dev the executable is electron.exe, so the protocol must point at it
   // plus this project's entry, or Windows would launch a bare Electron.
-  for (const protocol of DEEP_LINK_PROTOCOLS) {
-    app.setAsDefaultProtocolClient(protocol, process.execPath, [
-      join(import.meta.dirname, "../.."),
-    ]);
-  }
+  app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL, process.execPath, [
+    join(import.meta.dirname, "../.."),
+  ]);
 } else if (!isTest) {
-  for (const protocol of DEEP_LINK_PROTOCOLS) {
-    app.setAsDefaultProtocolClient(protocol);
-  }
+  app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
 }
 
 // A notification clicked while the window is minimized, or closed to the tray
@@ -1270,14 +1257,6 @@ void app.whenReady().then(async () => {
   // address failed to reopen is a failure nobody would otherwise see. Without
   // a sign-in the window opens, and hosting starts meanwhile: it enters
   // "starting" long before the window asks.
-  if (loginItemAvailable && !isTest) {
-    // An update from the Tandem name left its sign-in entry pointing at
-    // Tandem.exe, which is gone; this app's own takes its place.
-    carryEarlierLoginItem(process.platform, process.execPath, {
-      get: (options) => app.getLoginItemSettings(options),
-      set: (settings) => app.setLoginItemSettings(settings),
-    });
-  }
   const loginSettings = loginItemAvailable && !isTest ? app.getLoginItemSettings() : {};
   if (openedAtLogin(process.platform, process.argv, loginSettings)) {
     const hosted = await hosting.startForLaunch().catch(() => null);

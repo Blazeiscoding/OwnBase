@@ -3,7 +3,7 @@ import {
   captureFailure,
   SCREEN_SHARE_QUALITY,
   type ScreenShareQuality,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import { useClient, usePlatform } from "../context.js";
 import type { ShareableSource } from "../platform.js";
 import { useTabs } from "../lib/useTabs.js";

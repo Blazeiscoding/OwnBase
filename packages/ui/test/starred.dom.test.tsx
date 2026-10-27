@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ChannelPrefs, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ChannelPrefs, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConversationMenu } from "../src/components/ConversationHeader.js";
@@ -285,7 +285,7 @@ describe("the Starred section", () => {
     expect(toggle).toHaveAttribute("aria-expanded", "false");
     // The open one and the unread one stay in view.
     expect(section("Starred")).toEqual(["general", "zeta"]);
-    expect(JSON.parse(localStorage.getItem("tandem:collapsed-sections")!)).toContain("starred");
+    expect(JSON.parse(localStorage.getItem("ownbase-collapsed-sections")!)).toContain("starred");
 
     // Drawn again, as after a reload, it is still folded.
     cleanup();

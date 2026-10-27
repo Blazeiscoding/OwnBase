@@ -1,4 +1,4 @@
-import { broadcastLabel, broadcastsIn, type ID, type Message } from "@slackoss/protocol";
+import { broadcastLabel, broadcastsIn, type ID, type Message } from "@ownbase/protocol";
 import type { WorkspaceState } from "./workspace.js";
 
 export type NotifyDecision =

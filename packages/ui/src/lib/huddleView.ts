@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { HuddleState } from "@slackoss/client-core";
-import type { HuddleRing, ID, User } from "@slackoss/protocol";
+import type { HuddleState } from "@ownbase/client-core";
+import type { HuddleRing, ID, User } from "@ownbase/protocol";
 import { useWorkspace } from "../context.js";
 import { namesList } from "./catchUp.js";
 

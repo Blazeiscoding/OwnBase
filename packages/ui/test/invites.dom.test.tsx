@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { render } from "@testing-library/react";
 import { encode } from "uqr";
-import type { Invite } from "@slackoss/protocol";
+import type { Invite } from "@ownbase/protocol";
 import {
   describeExpiry,
   describeUses,

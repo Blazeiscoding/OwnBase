@@ -12,7 +12,7 @@ const identity = buildIdentity(ARTIFACTS.server.inputs);
  * edition too; without a license it runs as the free one.
  */
 export default defineConfig({
-  entry: { "slackoss-server": "../../ee/src/main.ts" },
+  entry: { "ownbase-server": "../../ee/src/main.ts" },
   format: "esm",
   platform: "node",
   target: "node24",

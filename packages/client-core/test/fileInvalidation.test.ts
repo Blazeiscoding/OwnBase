@@ -3,7 +3,7 @@ import { resolveObjectURL } from "node:buffer";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient } from "../src/index.js";
 import { FileCache } from "../src/fileCache.js";
 

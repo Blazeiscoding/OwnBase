@@ -17,7 +17,7 @@ let dataDir: string;
 let server: WorkspaceServer | null;
 
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-stop-retry-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-stop-retry-"));
   dataDir = join(root, "workspace");
   server = await createWorkspaceServer({ dataDir, host: "127.0.0.1", port: 0, mdns: false });
 });

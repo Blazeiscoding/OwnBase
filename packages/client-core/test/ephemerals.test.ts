@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import type { ServerToClient } from "@slackoss/protocol";
+import type { ServerToClient } from "@ownbase/protocol";
 import { WorkspaceClient } from "../src/index.js";
 import {
   EPHEMERAL_CUT_NOTE,

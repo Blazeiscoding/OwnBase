@@ -15,11 +15,7 @@ export function findCloudflared(
   exists: (path: string) => boolean = existsSync,
   platform: NodeJS.Platform = process.platform,
 ): string | null {
-  const configured =
-    env.OWNBASE_CLOUDFLARED ??
-    env.TANDEM_CLOUDFLARED ??
-    env.GATHERLINE_CLOUDFLARED ??
-    env.SLACKOSS_CLOUDFLARED;
+  const configured = env.OWNBASE_CLOUDFLARED;
   if (configured) return exists(configured) ? configured : null;
   const windows = platform === "win32";
   const file = windows ? "cloudflared.exe" : "cloudflared";
@@ -242,16 +238,8 @@ export function readNamedTunnelConfig(
   env: NodeJS.ProcessEnv = process.env,
   exists: (path: string) => boolean = existsSync,
 ): { publicUrl: string; tokenFile: string } | { error: string } | null {
-  const publicUrl =
-    env.OWNBASE_TUNNEL_URL ??
-    env.TANDEM_TUNNEL_URL ??
-    env.GATHERLINE_TUNNEL_URL ??
-    env.SLACKOSS_TUNNEL_URL;
-  const tokenFile =
-    env.OWNBASE_TUNNEL_TOKEN_FILE ??
-    env.TANDEM_TUNNEL_TOKEN_FILE ??
-    env.GATHERLINE_TUNNEL_TOKEN_FILE ??
-    env.SLACKOSS_TUNNEL_TOKEN_FILE;
+  const publicUrl = env.OWNBASE_TUNNEL_URL;
+  const tokenFile = env.OWNBASE_TUNNEL_TOKEN_FILE;
   if (!publicUrl && !tokenFile) return null;
   try {
     if (!publicUrl || !tokenFile)
@@ -294,10 +282,7 @@ export function resolvePublicAddress(
   const carried =
     configured !== undefined && configured !== null && configured !== ""
       ? configured
-      : (env.OWNBASE_PUBLIC_URL ??
-        env.TANDEM_PUBLIC_URL ??
-        env.GATHERLINE_PUBLIC_URL ??
-        env.SLACKOSS_PUBLIC_URL);
+      : env.OWNBASE_PUBLIC_URL;
   if (carried) {
     try {
       return { carrier: "elsewhere", publicUrl: validatePublicAddress(carried) };

@@ -2,7 +2,7 @@ import {
   applyOutboxChanges,
   type OutboxChanges,
   type StoredOutbox,
-} from "@slackoss/client-core/outbox";
+} from "@ownbase/client-core/outbox";
 import type { SettingsStorage } from "./settings.js";
 
 /**

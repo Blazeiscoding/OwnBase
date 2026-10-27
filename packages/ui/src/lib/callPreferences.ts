@@ -1,6 +1,6 @@
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { MicrophoneSettings, WorkspaceClient } from "@slackoss/client-core";
+import type { MicrophoneSettings, WorkspaceClient } from "@ownbase/client-core";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
 import { noiseFilter } from "./noiseFilter.js";

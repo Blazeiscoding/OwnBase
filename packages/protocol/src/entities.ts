@@ -540,7 +540,7 @@ export interface BuildRevision {
 }
 
 export interface ServerInfo {
-  app: "slackoss";
+  app: "ownbase";
   protocolVersion: number;
   serverVersion: string;
   /** What this server was built from; absent when it runs from source. */

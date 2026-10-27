@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Message } from "@slackoss/protocol";
+import type { Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Icon } from "./Icon.js";
 import { buttonClass } from "./Button.js";

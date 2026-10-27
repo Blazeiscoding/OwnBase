@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "v
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
 
 /**
@@ -47,7 +47,7 @@ async function online() {
 const names = (s: WorkspaceState) => (s.sidebarSections ?? []).map((section) => section.name);
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-client-sections-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-client-sections-"));
   server = await createWorkspaceServer({ dataDir, port: 0, mdns: false, rateLimits: false });
   base = `http://127.0.0.1:${server.port}`;
   token = (

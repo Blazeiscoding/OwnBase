@@ -1,5 +1,5 @@
 import { Bonjour } from "bonjour-service";
-import { MDNS_SERVICE_TYPE, PROTOCOL_VERSION, type DiscoveryTxt } from "@slackoss/protocol";
+import { MDNS_SERVICE_TYPE, PROTOCOL_VERSION, type DiscoveryTxt } from "@ownbase/protocol";
 import { SERVER_VERSION } from "./version.js";
 
 export interface MdnsHandle {
@@ -15,7 +15,7 @@ export function advertise(opts: {
 }): MdnsHandle {
   const bonjour = new Bonjour();
   const service = bonjour.publish({
-    name: `${opts.name} (SlackOSS)`,
+    name: `${opts.name} (OwnBase)`,
     type: MDNS_SERVICE_TYPE,
     port: opts.port,
     txt: discoveryTxt(opts),

@@ -1,6 +1,6 @@
 import { useMemo, useRef } from "react";
-import type { WorkspaceState } from "@slackoss/client-core";
-import type { Channel, ID, Message, User } from "@slackoss/protocol";
+import type { WorkspaceState } from "@ownbase/client-core";
+import type { Channel, ID, Message, User } from "@ownbase/protocol";
 import { useWorkspace } from "../context.js";
 import { parseDeepLink } from "./deeplink.js";
 

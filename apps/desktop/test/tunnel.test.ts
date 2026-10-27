@@ -410,7 +410,7 @@ describe("reading the configured stable address", () => {
     expect(readNamedTunnelConfig({ OWNBASE_TUNNEL_URL: "" }, present())).toBeNull();
   });
 
-  it("takes both settings together, under any of its prefixes", () => {
+  it("takes both settings together", () => {
     const expected = { publicUrl: "https://chat.example.org", tokenFile };
     expect(
       readNamedTunnelConfig(
@@ -421,16 +421,6 @@ describe("reading the configured stable address", () => {
         present(tokenFile),
       ),
     ).toEqual(expected);
-    for (const prefix of ["GATHERLINE", "SLACKOSS"])
-      expect(
-        readNamedTunnelConfig(
-          {
-            [`${prefix}_TUNNEL_URL`]: "https://chat.example.org",
-            [`${prefix}_TUNNEL_TOKEN_FILE`]: tokenFile,
-          },
-          present(tokenFile),
-        ),
-      ).toEqual(expected);
   });
 
   it("explains a half-configured pair rather than quietly opening a temporary address", () => {
@@ -592,10 +582,6 @@ describe("choosing which stable address to publish", () => {
     expect(
       resolvePublicAddress(null, { OWNBASE_PUBLIC_URL: "https://box.tail1234.ts.net" }, present()),
     ).toEqual({ carrier: "elsewhere", publicUrl: "https://box.tail1234.ts.net" });
-    for (const name of ["GATHERLINE_PUBLIC_URL", "SLACKOSS_PUBLIC_URL"])
-      expect(
-        resolvePublicAddress(null, { [name]: "https://box.tail1234.ts.net" }, present()),
-      ).toEqual({ carrier: "elsewhere", publicUrl: "https://box.tail1234.ts.net" });
   });
 
   it("falls back to the tunnel OwnBase runs itself", () => {

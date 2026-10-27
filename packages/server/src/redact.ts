@@ -82,7 +82,7 @@ export const LOGGER_OPTIONS = {
     paths: [
       "req.headers.authorization",
       "req.headers.cookie",
-      'req.headers["x-slackoss-signature"]',
+      'req.headers["x-ownbase-signature"]',
       "res.headers[set-cookie]",
     ],
     remove: true,

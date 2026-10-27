@@ -63,7 +63,7 @@ async function demo(): Promise<Demo> {
     [
       "--import",
       "./tests/visual/frozen-server.mjs",
-      "apps/server-cli/dist/slackoss-server.js",
+      "apps/server-cli/dist/ownbase-server.js",
       ...["--data", data, "--port", String(port), "--host", "127.0.0.1"],
       ...["--no-mdns", "--no-rate-limits", "--name", "Rocket Team"],
     ],
@@ -151,7 +151,7 @@ async function open(browser: Browser, theme: Theme, width: Width): Promise<Page>
 /** Signs Maya in on this page's device, then opens `hash`. */
 async function signIn(page: Page, demo: Demo, hash: string) {
   await page.evaluate(
-    (server) => localStorage.setItem("slackoss:servers", JSON.stringify([server])),
+    (server) => localStorage.setItem("ownbase:servers", JSON.stringify([server])),
     {
       url: demo.base,
       token: demo.token,

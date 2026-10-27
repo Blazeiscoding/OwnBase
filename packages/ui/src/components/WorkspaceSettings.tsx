@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
 import { memberNoticeText, UpgradeLink, usePlanMembers } from "./MemberNotice.js";

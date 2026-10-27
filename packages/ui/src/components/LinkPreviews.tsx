@@ -1,5 +1,5 @@
-import type { LinkPreview, Message } from "@slackoss/protocol";
-import { previewImageKey } from "@slackoss/client-core";
+import type { LinkPreview, Message } from "@ownbase/protocol";
+import { previewImageKey } from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { useFileResource } from "./Attachments.js";
 import { Icon } from "./Icon.js";

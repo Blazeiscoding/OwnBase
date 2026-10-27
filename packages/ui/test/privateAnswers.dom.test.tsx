@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ServerToClient, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ServerToClient, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { MessageTimeline } from "../src/components/MessageTimeline.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";

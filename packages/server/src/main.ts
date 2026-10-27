@@ -8,7 +8,7 @@ import {
   DEFAULT_PORT,
   type AccessPolicy,
   type MemberNotice,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "./backup.js";
 import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js";
@@ -84,20 +84,20 @@ const { values, positionals } = (() => {
     // An unknown or malformed flag. Node's own message says which one.
     return refuse(
       `${(err as Error).message}
-  Run slackoss-server --help to see the options.`,
+  Run ownbase-server --help to see the options.`,
       2,
     );
   }
 })();
 
 if (values.help) {
-  console.log(`slackoss-server v${SERVER_VERSION}
+  console.log(`ownbase-server v${SERVER_VERSION}
 
-Usage: slackoss-server [options]
-       slackoss-server backup  --data <dir> --out <dir>
-       slackoss-server restore --from <dir or .zip> --data <dir>
-       slackoss-server verify-backup --from <dir or .zip>
-       slackoss-server recover --data <dir> [--handle <handle>] [--make-owner]
+Usage: ownbase-server [options]
+       ownbase-server backup  --data <dir> --out <dir>
+       ownbase-server restore --from <dir or .zip> --data <dir>
+       ownbase-server verify-backup --from <dir or .zip>
+       ownbase-server recover --data <dir> [--handle <handle>] [--make-owner]
 
   --data <dir>      Data directory (default ./data)
   --port <port>     Port to listen on (default ${DEFAULT_PORT})
@@ -116,22 +116,19 @@ Usage: slackoss-server [options]
   --no-mdns         Do not advertise on the local network
   --storage-limit-mb <n>
                     Attachment storage cap in MiB; 0 is unlimited (default).
-                    Also settable with OWNBASE_STORAGE_LIMIT_MB
-                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
+                    Also settable with OWNBASE_STORAGE_LIMIT_MB.
   --abandoned-upload-hours <n>
                     How long an upload may sit unattached before it is freed
                     (default 24). Attachments a scheduled message still needs
                     are never swept, however old they are. Also settable with
-                    OWNBASE_ABANDONED_UPLOAD_HOURS
-                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
+                    OWNBASE_ABANDONED_UPLOAD_HOURS.
   --retention-days <n>
                     Discard conversation older than this many days; 0 keeps
                     everything (default). What it removes is removed from the
                     database, not hidden: getting it back means restoring a
                     backup taken before the sweep ran. A thread goes as one
                     thing, once its newest reply is past the window too. Also
-                    settable with OWNBASE_RETENTION_DAYS
-                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
+                    settable with OWNBASE_RETENTION_DAYS.
   --backup-dir <dir>
                     Take a backup on a timer into a dated folder in <dir>,
                     which must be outside --data. Each one is verified before
@@ -172,8 +169,7 @@ Usage: slackoss-server [options]
                     there is one, so a whole office behind a single address
                     does not share one person's allowance. Turn this off only
                     on a network where everyone is already trusted. Also
-                    settable with OWNBASE_RATE_LIMITS=off
-                    (the older TANDEM_, GATHERLINE_ and SLACKOSS_ names still work).
+                    settable with OWNBASE_RATE_LIMITS=off.
 
   --skip-upgrade-backup
                     Do not copy the workspace before upgrading it to a newer

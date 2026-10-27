@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
-import type { WorkspaceClient } from "@slackoss/client-core";
+import type { WorkspaceClient } from "@ownbase/client-core";
 import type { Platform } from "../platform.js";
 import {
   checkWorkspaceAddress,

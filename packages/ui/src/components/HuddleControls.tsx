@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { canChooseSpeaker, captureFailure, type MediaDeviceOption } from "@slackoss/client-core";
+import { canChooseSpeaker, captureFailure, type MediaDeviceOption } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices } from "../lib/mediaDevices.js";

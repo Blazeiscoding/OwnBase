@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { planMembers, type MemberNotice } from "@slackoss/protocol";
+import { planMembers, type MemberNotice } from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Banner, BannerAction } from "./Banner.js";
 

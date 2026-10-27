@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type { SessionInfo, StorageUsage } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { accountError, deviceLabel } from "../lib/account.js";

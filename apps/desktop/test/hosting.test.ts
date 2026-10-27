@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi, type Mock } from "vitest";
-import type { AccessPolicy } from "@slackoss/protocol";
+import type { AccessPolicy } from "@ownbase/protocol";
 import {
   existsSync,
   mkdirSync,
@@ -35,7 +35,7 @@ import {
   restoreWorkspace,
   verifyBackup,
   type WorkspaceServer,
-} from "@slackoss/server";
+} from "@ownbase/server";
 
 interface StartRequest {
   workspaceName?: string;

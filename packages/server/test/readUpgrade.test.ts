@@ -14,7 +14,7 @@ let dir: string;
 let file: string;
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "slackoss-read-upgrade-"));
+  dir = mkdtempSync(join(tmpdir(), "ownbase-read-upgrade-"));
   file = join(dir, "workspace.db");
 });
 

@@ -40,8 +40,8 @@ import type {
   EventEnvelope,
   MessageReport,
   ReportReason,
-} from "@slackoss/protocol";
-import { FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@slackoss/protocol";
+} from "@ownbase/protocol";
+import { FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@ownbase/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
 import { previewLinks, type FetchedPreview } from "./linkPreview.js";
 
@@ -4563,7 +4563,7 @@ export class Store {
     const update = this.db.prepare("UPDATE event_deliveries SET body = ? WHERE id = ?");
     for (const row of rows) {
       let body: {
-        slackoss?: { type?: string };
+        ownbase?: { type?: string };
         event?: { text?: string; message?: { text?: string } };
       };
       try {
@@ -4571,7 +4571,7 @@ export class Store {
       } catch {
         continue;
       }
-      const type = body.slackoss?.type;
+      const type = body.ownbase?.type;
       if (type === "message.created" && body.event) body.event.text = "";
       else if (type === "message.updated" && body.event?.message) body.event.message.text = "";
       else continue;

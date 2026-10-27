@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import type { FileMeta, ID } from "@slackoss/protocol";
-import { ApiError, type LocalAttachment } from "@slackoss/client-core";
+import type { FileMeta, ID } from "@ownbase/protocol";
+import { ApiError, type LocalAttachment } from "@ownbase/client-core";
 import { useClient, usePlatform } from "../context.js";
 import { formatBytes } from "../lib/format.js";
 import { Icon, type IconName } from "./Icon.js";

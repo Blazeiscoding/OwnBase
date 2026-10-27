@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, isMessageRead, unreadThreadCount } from "../src/index.js";
 
 let server: WorkspaceServer;

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { ClientContext, PlatformContext } from "../src/context.js";

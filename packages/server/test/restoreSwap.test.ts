@@ -95,7 +95,7 @@ const leftovers = () =>
 // The backup holds one account. The workspace gains a second afterwards, so
 // the two can be told apart wherever they end up.
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-restore-swap-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-restore-swap-"));
   dataDir = join(root, "workspace");
   backupDir = join(root, "backup");
   const first = await createWorkspaceServer({ dataDir, host: "127.0.0.1", port: 0, mdns: false });

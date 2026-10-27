@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient, type User } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient, type User } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**

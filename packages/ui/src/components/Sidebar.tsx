@@ -6,10 +6,10 @@ import {
   type ChannelPrefs,
   type ID,
   type SidebarSection,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
-import { dueReminderCount, unreadThreadCount } from "@slackoss/client-core";
+import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
 import { channelTitle } from "../lib/format.js";
 import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
@@ -872,13 +872,15 @@ export function Sidebar(props: Props) {
   );
 }
 
+/** Where useCollapsedSections keeps them, outside the device store's "ownbase:" names. */
+export const COLLAPSED_SECTIONS_KEY = "ownbase-collapsed-sections";
+
 /**
  * Which sidebar categories are folded away, kept on this device. Storage
  * that is unavailable, as in a private window, only means they reopen.
  */
 function useCollapsedSections(): [Set<string>, (section: string) => void] {
-  // Named when the app was called Tandem, and kept, so folded sections stay folded.
-  const key = "tandem:collapsed-sections";
+  const key = COLLAPSED_SECTIONS_KEY;
   const [collapsed, setCollapsed] = useState<Set<string>>(() => {
     try {
       return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { AuditAction, AuditEntry, ID, User } from "@slackoss/protocol";
+import type { AuditAction, AuditEntry, ID, User } from "@ownbase/protocol";
 import { describeAuditEntry } from "../src/components/AuditHistory.js";
 
 const person = (id: ID, displayName: string): User => ({

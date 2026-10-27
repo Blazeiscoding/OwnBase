@@ -6,7 +6,7 @@ import {
   inventoryBackup,
   restoreWorkspace,
   verifyBackup,
-} from "@slackoss/server/backup";
+} from "@ownbase/server/backup";
 
 /**
  * Backing up, checking and restoring a workspace, off the main thread. Each

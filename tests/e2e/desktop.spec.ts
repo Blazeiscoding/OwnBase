@@ -50,7 +50,7 @@ async function dismissWelcome(page: Page) {
 }
 
 test("packaged Windows app boots with sandbox, hosts a workspace, serves the web client, and keeps hosting only while asked to", async ({}, info) => {
-  const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-"));
+  const data = mkdtempSync(join(tmpdir(), "ownbase-desktop-"));
   // A terminal inside an Electron-based tool can pass this down, and it turns
   // the app into plain Node: launch then fails with "bad option".
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
@@ -58,9 +58,9 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
     executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
     env: {
       ...inherited,
-      SLACKOSS_TEST: "1",
-      SLACKOSS_TEST_MEDIA: "1",
-      SLACKOSS_USER_DATA_DIR: data,
+      OWNBASE_TEST: "1",
+      OWNBASE_TEST_MEDIA: "1",
+      OWNBASE_USER_DATA_DIR: data,
     },
   });
   launched = { app, data };
@@ -72,7 +72,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => typeof (window as any).slackoss.hostingStart)).toBe("function");
+  expect(await page.evaluate(() => typeof (window as any).ownbase.hostingStart)).toBe("function");
   // What the window was really created with. Electron has this method but
   // leaves it out of its types, so the one property read is named here.
   type CreatedWith = { getLastWebPreferences(): { sandbox?: boolean } };
@@ -112,7 +112,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await page.getByRole("button", { name: "Join workspace", exact: true }).click();
   await expect(page.locator("textarea")).toBeVisible();
   await dismissWelcome(page);
-  const status = await page.evaluate(() => (window as any).slackoss.hostingStatus());
+  const status = await page.evaluate(() => (window as any).ownbase.hostingStatus());
   // The app grants its own notifications, so it has nothing to ask about;
   // refused, every notification it tried to show failed without a word.
   expect(await page.evaluate(() => Notification.permission)).toBe("granted");
@@ -164,7 +164,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await expect(live.getByText(String(status.port), { exact: true })).toBeVisible();
 
   // Back it up while it runs, into a folder chosen in the system's own dialog.
-  const backups = mkdtempSync(join(tmpdir(), "slackoss-desktop-backup-"));
+  const backups = mkdtempSync(join(tmpdir(), "ownbase-desktop-backup-"));
   try {
     await app.evaluate(({ dialog }, folder) => {
       dialog.showOpenDialog = (async () => ({
@@ -302,13 +302,13 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
 });
 
 test("restarting offers to host the last workspace again instead of reconnecting", async () => {
-  const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-resume-"));
+  const data = mkdtempSync(join(tmpdir(), "ownbase-desktop-resume-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const env = {
     ...inherited,
-    SLACKOSS_TEST: "1",
-    SLACKOSS_TEST_MEDIA: "1",
-    SLACKOSS_USER_DATA_DIR: data,
+    OWNBASE_TEST: "1",
+    OWNBASE_TEST_MEDIA: "1",
+    OWNBASE_USER_DATA_DIR: data,
   };
   const executablePath = resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
   let app = await electron.launch({ executablePath, env });
@@ -354,7 +354,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // The saved sign-in still works, so the workspace opens with no password asked.
     await expect(page.locator("textarea")).toBeVisible();
     await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
-    const resumed = await page.evaluate(() => (window as any).slackoss.hostingStatus());
+    const resumed = await page.evaluate(() => (window as any).ownbase.hostingStatus());
     expect(resumed).toMatchObject({ running: true });
 
     // A name that differs only by punctuation is a separate workspace. Earlier
@@ -365,7 +365,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // still reconnecting to Resume Test, could reach it, be refused, and sign
     // out, depending only on when its next try fell.
     const other = await page.evaluate(async () => {
-      const bridge = (window as any).slackoss;
+      const bridge = (window as any).ownbase;
       await bridge.hostingStop();
       return bridge.hostingStart({ workspaceName: "Resume-Test", port: 0 });
     });
@@ -374,7 +374,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     expect(await named(other.port)).toBe("Resume-Test");
 
     // Back the new one up while it runs, through the system's folder dialog.
-    const backups = mkdtempSync(join(tmpdir(), "slackoss-desktop-restore-"));
+    const backups = mkdtempSync(join(tmpdir(), "ownbase-desktop-restore-"));
     const pick = (folder: string) =>
       app.evaluate(({ dialog }, chosen) => {
         dialog.showOpenDialog = (async () => ({
@@ -384,12 +384,12 @@ test("restarting offers to host the last workspace again instead of reconnecting
       }, folder);
     await pick(backups);
     const backedUp = await page.evaluate(
-      (folder) => (window as any).slackoss.hostingBackup(folder),
+      (folder) => (window as any).ownbase.hostingBackup(folder),
       other.folder,
     );
     expect(backedUp.path).toContain("resume-test-");
     const listed = await page.evaluate(async () => {
-      const bridge = (window as any).slackoss;
+      const bridge = (window as any).ownbase;
       await bridge.hostingStop();
       return bridge.hostingList();
     });
@@ -398,7 +398,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
       "Resume Test",
     ]);
     const back = await page.evaluate(
-      (folder) => (window as any).slackoss.hostingStart({ folder }),
+      (folder) => (window as any).ownbase.hostingStart({ folder }),
       resumed.folder,
     );
     expect(back.port).toBe(resumed.port);
@@ -408,13 +408,13 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // place in the list, without starting.
     rmSync(join(data, "hosted", other.folder), { recursive: true, force: true });
     await pick(backedUp.path);
-    expect(await page.evaluate(() => (window as any).slackoss.hostingRestore())).toEqual({
+    expect(await page.evaluate(() => (window as any).ownbase.hostingRestore())).toEqual({
       folder: other.folder,
       name: "Resume-Test",
       // What the backup would set off once put back in use, for the host to see first.
       inventory: expect.objectContaining({ sessions: expect.any(Number) }),
     });
-    const afterRestore = await page.evaluate(() => (window as any).slackoss.hostingList());
+    const afterRestore = await page.evaluate(() => (window as any).ownbase.hostingList());
     expect(
       afterRestore.workspaces.find((w: { folder: string }) => w.folder === other.folder),
     ).toMatchObject({ missing: false, running: false, restored: true });
@@ -425,11 +425,11 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // folder stays where it is.
     expect(
       await page.evaluate(
-        (folder) => (window as any).slackoss.hostingRename(folder, " Resume Renamed "),
+        (folder) => (window as any).ownbase.hostingRename(folder, " Resume Renamed "),
         other.folder,
       ),
     ).toEqual({ folder: other.folder, name: "Resume Renamed" });
-    const afterRename = await page.evaluate(() => (window as any).slackoss.hostingList());
+    const afterRename = await page.evaluate(() => (window as any).ownbase.hostingList());
     expect(
       afterRename.workspaces.find((w: { folder: string }) => w.folder === other.folder),
     ).toMatchObject({ name: "Resume Renamed", missing: false });
@@ -442,11 +442,11 @@ test("restarting offers to host the last workspace again instead of reconnecting
       }) as typeof shell.openPath;
     });
     await page.evaluate(
-      (folder) => (window as any).slackoss.hostingOpenFolder(folder),
+      (folder) => (window as any).ownbase.hostingOpenFolder(folder),
       other.folder,
     );
     await expect(
-      page.evaluate(() => (window as any).slackoss.hostingOpenFolder("../..")),
+      page.evaluate(() => (window as any).ownbase.hostingOpenFolder("../..")),
     ).rejects.toThrow(/not in the list/);
     expect(await app.evaluate(() => (globalThis as any).opened)).toEqual([
       join(data, "hosted", other.folder),
@@ -487,14 +487,14 @@ test("restarting offers to host the last workspace again instead of reconnecting
 });
 
 test("a workspace chosen to start with OwnBase starts when it opens, and at sign-in waits in the tray", async () => {
-  const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-launch-"));
-  const scheduledBackups = mkdtempSync(join(tmpdir(), "slackoss-desktop-scheduled-"));
+  const data = mkdtempSync(join(tmpdir(), "ownbase-desktop-launch-"));
+  const scheduledBackups = mkdtempSync(join(tmpdir(), "ownbase-desktop-scheduled-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const env = {
     ...inherited,
-    SLACKOSS_TEST: "1",
-    SLACKOSS_TEST_MEDIA: "1",
-    SLACKOSS_USER_DATA_DIR: data,
+    OWNBASE_TEST: "1",
+    OWNBASE_TEST_MEDIA: "1",
+    OWNBASE_USER_DATA_DIR: data,
   };
   const executablePath = resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
   let app = await electron.launch({ executablePath, env });
@@ -530,7 +530,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     await page.getByRole("button", { name: "Join workspace", exact: true }).click();
     await expect(page.locator("textarea")).toBeVisible();
     await dismissWelcome(page);
-    const hosted = await page.evaluate(() => (window as any).slackoss.hostingStatus());
+    const hosted = await page.evaluate(() => (window as any).ownbase.hostingStatus());
 
     // Both choices, made in the host dialog.
     await page.getByRole("button", { name: "Manage hosting", exact: true }).click();
@@ -549,7 +549,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     });
     await atSignIn.check();
     await expect(atSignIn).toBeChecked();
-    expect(await page.evaluate(() => (window as any).slackoss.hostingOpenAtLogin())).toBe(true);
+    expect(await page.evaluate(() => (window as any).ownbase.hostingOpenAtLogin())).toBe(true);
 
     // Backed up by itself into a folder the system asked for: the first
     // backup is made at once.
@@ -578,7 +578,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     await expect
       .poll(() =>
         page.evaluate(async (folder) => {
-          const listed = await (window as any).slackoss.hostingList();
+          const listed = await (window as any).ownbase.hostingList();
           return listed.workspaces.find(
             (workspace: { folder: string }) => workspace.folder === folder,
           );
@@ -603,7 +603,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
       .poll(
         () =>
           page.evaluate(async () =>
-            ((await (window as any).slackoss.lanSnapshot()) as { name: string }[]).some(
+            ((await (window as any).ownbase.lanSnapshot()) as { name: string }[]).some(
               (server) => server.name === "Launch Test",
             ),
           ),
@@ -624,8 +624,8 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     page = await app.firstWindow();
     await expect.poll(() => named(hosted.port).catch(() => null)).toBe("Launch Test");
     await expect(page.locator("textarea")).toBeVisible();
-    await page.evaluate(() => (window as any).slackoss.hostingSetStartOnLaunch(null));
-    const list = await page.evaluate(() => (window as any).slackoss.hostingList());
+    await page.evaluate(() => (window as any).ownbase.hostingSetStartOnLaunch(null));
+    const list = await page.evaluate(() => (window as any).ownbase.hostingList());
     expect(list.workspaces[0]).toMatchObject({ name: "Launch Test", startsOnLaunch: false });
     await quitHosting();
   } finally {
@@ -645,22 +645,22 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
 });
 
 test("a window whose page crashes comes back by itself, and hosting carries on (REV-09)", async () => {
-  const data = mkdtempSync(join(tmpdir(), "slackoss-desktop-crash-"));
+  const data = mkdtempSync(join(tmpdir(), "ownbase-desktop-crash-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const app = await electron.launch({
     executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
     env: {
       ...inherited,
-      SLACKOSS_TEST: "1",
-      SLACKOSS_TEST_MEDIA: "1",
-      SLACKOSS_USER_DATA_DIR: data,
+      OWNBASE_TEST: "1",
+      OWNBASE_TEST_MEDIA: "1",
+      OWNBASE_USER_DATA_DIR: data,
     },
   });
   launched = { app, data };
   const page = await app.firstWindow();
   await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
   const hosted = await page.evaluate(() =>
-    (window as any).slackoss.hostingStart({ workspaceName: "Crash-Test", port: 0 }),
+    (window as any).ownbase.hostingStart({ workspaceName: "Crash-Test", port: 0 }),
   );
   expect(hosted.running).toBe(true);
   const health = () =>
@@ -712,7 +712,7 @@ test("a window whose page crashes comes back by itself, and hosting carries on (
   await app.evaluate(async ({ BrowserWindow }) => {
     // Stop hosting from the window, so the test's close is not asked to.
     await BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(
-      "window.slackoss.hostingStop()",
+      "window.ownbase.hostingStop()",
     );
   });
 });
@@ -723,9 +723,9 @@ async function launchApp(prefix: string) {
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const env = {
     ...inherited,
-    SLACKOSS_TEST: "1",
-    SLACKOSS_TEST_MEDIA: "1",
-    SLACKOSS_USER_DATA_DIR: data,
+    OWNBASE_TEST: "1",
+    OWNBASE_TEST_MEDIA: "1",
+    OWNBASE_USER_DATA_DIR: data,
   };
   const app = await electron.launch({
     executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
@@ -739,7 +739,7 @@ async function launchApp(prefix: string) {
 
 for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] as const) {
   test(`the last visible composer edit survives ${closing} and profile restart (N03)`, async () => {
-    const first = await launchApp("slackoss-desktop-final-draft-");
+    const first = await launchApp("ownbase-desktop-final-draft-");
     let app = first.app;
     let page = first.page;
     // The tray's menu is rebuilt as hosting starts; the last one is kept to click.
@@ -777,7 +777,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
       }) as unknown as typeof dialog.showMessageBox;
     }, closing);
     if (closing === "stopped-hosting window close")
-      await page.evaluate(() => (window as any).slackoss.hostingStop());
+      await page.evaluate(() => (window as any).ownbase.hostingStop());
     const marker = `the last keystroke before ${closing}`;
     // Neither the 250 ms composer debounce nor the 600 ms storage debounce is
     // awaited: the native close must capture and save the actual visible text.
@@ -808,12 +808,12 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Start hosting Final Draft Test" }).click();
     await expect(page.locator("textarea")).toHaveValue(marker);
-    await page.evaluate(() => (window as any).slackoss.hostingStop());
+    await page.evaluate(() => (window as any).ownbase.hostingStop());
   });
 }
 
 test("a window that loads the app's preload elsewhere is refused, and told nothing (REV-14, F09)", async () => {
-  const { app, page } = await launchApp("slackoss-desktop-foreign-");
+  const { app, page } = await launchApp("ownbase-desktop-foreign-");
   // A second window with the app's own preload, showing another page: how a
   // stray or opened window would look to the main process.
   await app.evaluate(async ({ app, BrowserWindow }) => {
@@ -836,7 +836,7 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
         () => "accepted",
         (error: Error) => error.message,
       );
-    const bridge = (window as any).slackoss;
+    const bridge = (window as any).ownbase;
     return {
       read: await outcome(() => bridge.storageGet("servers")),
       write: await outcome(() => bridge.storageSet("foreign", "written")),
@@ -853,13 +853,13 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
   await foreign.evaluate(() => {
     const heard: unknown[] = [];
     (window as any).heard = heard;
-    const bridge = (window as any).slackoss;
+    const bridge = (window as any).ownbase;
     bridge.onDraftsChanged((key: string, stored: unknown) => heard.push({ key, stored }));
     bridge.onOutboxChanged((key: string, stored: unknown) => heard.push({ key, stored }));
     bridge.onRecordChanged((key: string, stored: unknown) => heard.push({ key, stored }));
   });
   const stored = await page.evaluate(async () => {
-    const bridge = (window as any).slackoss;
+    const bridge = (window as any).ownbase;
     const drafts = await bridge.storageMergeDrafts(
       "drafts:foreign-test",
       { put: { C1: "a private draft" }, remove: [] },
@@ -897,7 +897,7 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
 });
 
 test("a window that keeps crashing comes back where it was, Try again included (F08)", async () => {
-  const { app, page } = await launchApp("slackoss-desktop-place-");
+  const { app, page } = await launchApp("ownbase-desktop-place-");
   await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
   await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Place Test");
   await page.getByRole("button", { name: "Start hosting", exact: true }).click();
@@ -953,7 +953,7 @@ test("a window that keeps crashing comes back where it was, Try again included (
   ]);
   await app.evaluate(async ({ BrowserWindow }) => {
     await BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(
-      "window.slackoss.hostingStop()",
+      "window.ownbase.hostingStop()",
     );
   });
 });

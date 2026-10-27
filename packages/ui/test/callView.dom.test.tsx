@@ -1,8 +1,8 @@
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient, type HuddlePeer, type HuddleState } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { WorkspaceClient, type HuddlePeer, type HuddleState } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";

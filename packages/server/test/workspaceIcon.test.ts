@@ -11,7 +11,7 @@ import {
   type AuditEntry,
   type ReadySnapshot,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import {
   createWorkspaceServer,
   type ServerOptions,
@@ -136,7 +136,7 @@ const SVG = Buffer.from(
 );
 
 async function start(opts: Partial<ServerOptions> = {}) {
-  dataDir ??= mkdtempSync(join(tmpdir(), "slackoss-workspace-icon-"));
+  dataDir ??= mkdtempSync(join(tmpdir(), "ownbase-workspace-icon-"));
   server = await createWorkspaceServer({
     dataDir,
     host: "127.0.0.1",

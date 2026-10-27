@@ -1,6 +1,6 @@
 import { memo, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import type { FileMeta, ID } from "@slackoss/protocol";
-import type { EphemeralMessage, PendingMessage } from "@slackoss/client-core";
+import type { FileMeta, ID } from "@ownbase/protocol";
+import type { EphemeralMessage, PendingMessage } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, sameDay } from "../lib/format.js";
 import { MessageItem } from "./MessageItem.js";

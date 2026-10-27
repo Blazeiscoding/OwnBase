@@ -14,7 +14,7 @@ flag for flag.
 ## Running with a license
 
 ```sh
-slackoss-server --data ./data --license ./acme.license
+ownbase-server --data ./data --license ./acme.license
 ```
 
 The license can also be named by `OWNBASE_LICENSE_FILE`, or given whole in

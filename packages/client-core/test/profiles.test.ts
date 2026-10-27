@@ -3,8 +3,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
-import { currentZoneName } from "@slackoss/protocol";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { currentZoneName } from "@ownbase/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
 
 /**
@@ -77,7 +77,7 @@ function png(size = 8): Blob {
 }
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-client-profiles-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-client-profiles-"));
   server = await createWorkspaceServer({ dataDir, port: 0, mdns: false, rateLimits: false });
   base = `http://127.0.0.1:${server.port}`;
   const api = new Api(base);

@@ -1,4 +1,4 @@
-import { parseSearchQuery, type FileType, type ID, type User } from "@slackoss/protocol";
+import { parseSearchQuery, type FileType, type ID, type User } from "@ownbase/protocol";
 
 /**
  * Search's filters as chips (UX-51). A filter is held as the modifier it adds

@@ -69,7 +69,7 @@ const deliverNow = (id: string) => {
 };
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-scheduled-files-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-scheduled-files-"));
   await start();
 });
 

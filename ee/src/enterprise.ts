@@ -1,11 +1,11 @@
 import { readFileSync } from "node:fs";
 import type { KeyObject } from "node:crypto";
-import type { ExtensionStatus, ServerNotice } from "@slackoss/protocol";
+import type { ExtensionStatus, ServerNotice } from "@ownbase/protocol";
 import {
   ConfigError,
   type CommandLineExtension,
   type ServerExtension,
-} from "@slackoss/server/extensions";
+} from "@ownbase/server/extensions";
 import { trustedLicenseKeys } from "./keys.js";
 import { featuresOn, readLicense, type LicenseClaims, type LicenseState } from "./license.js";
 

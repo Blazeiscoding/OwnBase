@@ -91,7 +91,7 @@
       "plain": "Checks the host's startup settings, such as the port and public address, and says clearly what to fix when one is wrong.",
       "summary": "Rejects unusable startup settings with actionable messages.",
       "details": [
-        "Environment settings prefer OWNBASE_, then GATHERLINE_, then SLACKOSS_ names, retaining compatibility with earlier deployments.",
+        "Environment settings are read as OWNBASE_<name>, and only under that name.",
         "Port parsing requires a whole number from 0 to 65535; zero requests an available port. Count settings require safe nonnegative integers rather than silently rounded fractions.",
         "Public URLs must use HTTP(S) without credentials, query or fragment because these addresses are handed to apps and shared as links.",
         "Common bind failures are translated into suggestions such as choosing another port or a valid local interface.",
@@ -238,7 +238,7 @@
       "plain": "Signs what the server sends to outside apps and rewrites workspace events in the form Slack apps expect.",
       "summary": "Signs outbound callbacks and adapts durable native events to Slack's event shape.",
       "details": [
-        "HMAC-SHA256 signs v0:timestamp:body and emits both SlackOSS and Slack header names, allowing existing receiver verification libraries to work.",
+        "HMAC-SHA256 signs v0:timestamp:body and emits both OwnBase and Slack header names, allowing existing receiver verification libraries to work.",
         "Message, reaction, pin, membership, channel and user events map to supported Slack Events API payloads; unsupported native events return null.",
         "eventActorId identifies the account behind applicable events so the dispatcher can avoid feeding a bot its own actions and creating reply loops.",
         "Receiver code still needs to enforce timestamp freshness and deduplication; signing alone does not eliminate replay or repeated delivery.",
@@ -530,9 +530,9 @@
         "Defines the mDNS service type, default port and TXT fields including the per-start instance ID used by health verification.",
         "The icon TXT field names the workspace icon's version; isIconVersion takes it only in the form a server makes (16 hex digits), since anyone on the network can announce anything.",
         "hostWithPort brackets IPv6 literals correctly; isLinkableAddress excludes zone-specific and link-local addresses that ordinary browser URLs cannot use.",
-        "OwnBase is the primary deep-link scheme; Gatherline and SlackOSS schemes remain accepted so old invitations keep opening."
+        "ownbase:// is the one deep-link scheme the desktop app registers and reads."
       ],
-      "concepts": ["shared protocol", "LAN discovery", "IPv6", "compatibility"]
+      "concepts": ["shared protocol", "LAN discovery", "IPv6"]
     },
     {
       "path": "packages/protocol/src/entities.ts",

@@ -16,7 +16,7 @@ let base: string;
 let author: string;
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-edit-conflict-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-edit-conflict-"));
   server = await createWorkspaceServer({
     dataDir: directory,
     host: "127.0.0.1",

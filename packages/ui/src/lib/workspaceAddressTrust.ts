@@ -2,7 +2,7 @@ import {
   normalizeWorkspaceAddress,
   readTrustedAddresses,
   type StoredTrustedAddresses,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import type { Platform } from "../platform.js";
 
 export interface WorkspaceAddressAccess {

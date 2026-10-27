@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
-import type { ClientToServer, ServerToClient } from "@slackoss/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
+import type { ClientToServer, ServerToClient } from "@ownbase/protocol";
 import { Api, WorkspaceClient } from "../src/index.js";
 import { HuddleSession } from "../src/huddle.js";
 

@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import { useStore } from "zustand";
-import type { WorkspaceClient, WorkspaceState } from "@slackoss/client-core";
-import type { ID } from "@slackoss/protocol";
+import type { WorkspaceClient, WorkspaceState } from "@ownbase/client-core";
+import type { ID } from "@ownbase/protocol";
 import type { Platform } from "./platform.js";
 
 export const PlatformContext = createContext<Platform | null>(null);

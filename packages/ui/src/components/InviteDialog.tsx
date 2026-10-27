@@ -1,6 +1,6 @@
 import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { ApiError } from "@slackoss/client-core";
-import type { Invite, InviteStatus } from "@slackoss/protocol";
+import { ApiError } from "@ownbase/client-core";
+import type { Invite, InviteStatus } from "@ownbase/protocol";
 import { useCopy } from "../lib/useCopy.js";
 import { browserLink, desktopLink, serverAddress } from "../lib/deeplink.js";
 import {

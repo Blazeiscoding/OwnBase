@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { notificationBody } from "@slackoss/client-core";
-import type { ID, ReminderItem } from "@slackoss/protocol";
+import { notificationBody } from "@ownbase/client-core";
+import type { ID, ReminderItem } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { formatReminderTime, formatScheduleShort, reminderPresets } from "../lib/schedule.js";

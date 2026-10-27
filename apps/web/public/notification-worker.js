@@ -20,7 +20,7 @@ self.addEventListener("notificationclick", function (event) {
       // Each page hears it, and only the one that showed it answers. The page
       // used last comes first.
       for (var i = 0; i < pages.length; i++) {
-        pages[i].postMessage({ type: "tandem:notification-click", click: data.click });
+        pages[i].postMessage({ type: "ownbase:notification-click", click: data.click });
       }
       return pages[0].focus();
     }),

@@ -2,7 +2,7 @@ import {
   SEND_RETRY_WINDOW_MS,
   type ForwardReference,
   type ReplyReference,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import type { StoredPending } from "./workspace.js";
 import type { PollDraft } from "./polls.js";
 

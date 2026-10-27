@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { GettingStarted } from "../src/components/GettingStarted.js";
 import type { Platform } from "../src/platform.js";

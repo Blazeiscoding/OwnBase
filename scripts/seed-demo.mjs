@@ -332,7 +332,7 @@ try {
 } catch (error) {
   fail(`${base} did not answer as an OwnBase workspace (${error.message}).`);
 }
-if (info.app !== "slackoss") fail(`${base} is not an OwnBase workspace.`);
+if (info.app !== "ownbase") fail(`${base} is not an OwnBase workspace.`);
 if (info.userCount > 0) {
   const accounts = info.userCount === 1 ? "an account" : `${info.userCount} accounts`;
   fail(

@@ -1,4 +1,4 @@
-import type { Channel, User } from "@slackoss/protocol";
+import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it } from "vitest";
 import {
   projectMentions,

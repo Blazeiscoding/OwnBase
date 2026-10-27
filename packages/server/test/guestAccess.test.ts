@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import {
   createWorkspaceServer,
   GUEST_ROUTES,

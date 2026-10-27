@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "v
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, ApiError, WorkspaceClient } from "../src/index.js";
 import type { WorkspaceState } from "../src/index.js";
 
@@ -49,7 +49,7 @@ async function online() {
 const failed = (s: WorkspaceState) => s.pending.find((p) => p.failed);
 
 beforeAll(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-outbox-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-outbox-"));
   server = await createWorkspaceServer({
     dataDir,
     port: 0,

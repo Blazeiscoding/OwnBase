@@ -174,7 +174,7 @@ function exchange(
         method,
         headers: {
           ...(payload ? { "content-length": String(payload.byteLength) } : {}),
-          "user-agent": "SlackOSS",
+          "user-agent": "OwnBase",
           ...headers,
           ...opts.headers,
         },

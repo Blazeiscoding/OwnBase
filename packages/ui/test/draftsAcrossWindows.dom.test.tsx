@@ -1,7 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, readStoredDrafts } from "@slackoss/client-core";
-import type { Channel, User } from "@slackoss/protocol";
+import { WorkspaceClient, readStoredDrafts } from "@ownbase/client-core";
+import type { Channel, User } from "@ownbase/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
@@ -224,7 +224,7 @@ describe("drafts in two windows of the desktop app", () => {
 });
 
 describe("drafts in two browser tabs", () => {
-  const name = (client: WorkspaceClient) => `slackoss:${draftsKey(client)}`;
+  const name = (client: WorkspaceClient) => `ownbase:${draftsKey(client)}`;
   const stored = (client: WorkspaceClient) =>
     readStoredDrafts(JSON.parse(localStorage.getItem(name(client)) ?? "null"));
 
@@ -244,7 +244,7 @@ describe("drafts in two browser tabs", () => {
 
   it("take on a draft another tab changed, and one it cleared", async () => {
     localStorage.setItem(
-      "slackoss:drafts:http://127.0.0.1:9:U_SAM",
+      "ownbase:drafts:http://127.0.0.1:9:U_SAM",
       JSON.stringify({ [design.id]: "before", [launch.id]: "to be sent" }),
     );
     const client = signedIn();

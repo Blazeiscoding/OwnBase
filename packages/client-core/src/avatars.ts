@@ -1,4 +1,4 @@
-import type { ID } from "@slackoss/protocol";
+import type { ID } from "@ownbase/protocol";
 
 /**
  * Profile pictures (E9). The server serves one only to someone signed in, and

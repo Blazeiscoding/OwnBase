@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { electronPlatform, followPlace } from "../src/renderer/src/platform.js";
 
-type Bridge = Window["slackoss"];
+type Bridge = Window["ownbase"];
 
 /**
  * The renderer reads its bridge off `window` when the platform is built, so a
@@ -10,7 +10,7 @@ type Bridge = Window["slackoss"];
 function platformRejecting(reason: unknown) {
   const failing = () => Promise.reject(reason);
   (globalThis as { window?: unknown }).window = {
-    slackoss: {
+    ownbase: {
       hostingOpenToAll: failing,
       hostingSetPublicAddress: failing,
     } as unknown as Bridge,
@@ -35,7 +35,7 @@ describe("handing over final local work before close", () => {
     let prepare!: (id: number) => void;
     const prepared = vi.fn(async (_id: number, _saved: boolean) => {});
     (globalThis as { window?: unknown }).window = {
-      slackoss: {
+      ownbase: {
         onPrepareClose: (listener: (id: number) => void) => {
           prepare = listener;
           return () => {};
@@ -128,7 +128,7 @@ describe("what the renderer shows when the main process refuses", () => {
   it("names the workspace to rename or open by its folder, and repeats why it would not", async () => {
     const renames: [string, string][] = [];
     (globalThis as { window?: unknown }).window = {
-      slackoss: {
+      ownbase: {
         hostingRename: async (folder: string, name: string) => {
           renames.push([folder, name]);
           if (!name.trim())
@@ -177,7 +177,7 @@ describe("the outbox every window shares", () => {
     const calls: unknown[][] = [];
     let notify: (key: string, stored: unknown) => void = () => {};
     (globalThis as { window?: unknown }).window = {
-      slackoss: {
+      ownbase: {
         storageMergeOutbox: async (...args: unknown[]) => {
           calls.push(args);
           return merged;
@@ -211,7 +211,7 @@ describe("the drafts every window shares", () => {
     const calls: unknown[][] = [];
     let notify: (key: string, stored: unknown) => void = () => {};
     (globalThis as { window?: unknown }).window = {
-      slackoss: {
+      ownbase: {
         storageMergeDrafts: async (...args: unknown[]) => {
           calls.push(args);
           return merged;
@@ -266,17 +266,17 @@ describe("following the page's place", () => {
   it("starts a recovered page from its entry, then reports each change once it settles", async () => {
     vi.useFakeTimers();
     const { history, location, listeners } = page();
-    const recovered = { tandem: { server: "http://a", channelId: "C1", view: "saved" } };
+    const recovered = { ownbase: { server: "http://a", channelId: "C1", view: "saved" } };
     const rememberPlace = vi.fn(async () => {});
     await followPlace({ rememberPlace, takePlace: async () => recovered });
     expect(history.state).toEqual(recovered);
 
     history.pushState(
-      { tandem: { server: "http://a", channelId: "C2" } },
+      { ownbase: { server: "http://a", channelId: "C2" } },
       "",
       "file:///app/index.html#/c/C2",
     );
-    history.replaceState({ tandem: { server: "http://a", channelId: "C2", scroll: 1 } }, "");
+    history.replaceState({ ownbase: { server: "http://a", channelId: "C2", scroll: 1 } }, "");
     await vi.advanceTimersByTimeAsync(300);
     expect(rememberPlace).toHaveBeenLastCalledWith(location.href, history.state);
     const calls = rememberPlace.mock.calls.length;
@@ -287,12 +287,12 @@ describe("following the page's place", () => {
   });
 
   it("leaves an entry the page already has, and carries on when the main process refuses", async () => {
-    const { history } = page({ tandem: { server: "http://a", channelId: "C9" } });
+    const { history } = page({ ownbase: { server: "http://a", channelId: "C9" } });
     await followPlace({
       rememberPlace: async () => {},
-      takePlace: async () => ({ tandem: { server: "http://a", channelId: "C1" } }),
+      takePlace: async () => ({ ownbase: { server: "http://a", channelId: "C1" } }),
     });
-    expect(history.state).toEqual({ tandem: { server: "http://a", channelId: "C9" } });
+    expect(history.state).toEqual({ ownbase: { server: "http://a", channelId: "C9" } });
     page();
     await expect(
       followPlace({
@@ -311,7 +311,7 @@ describe("notifications", () => {
   /** What the renderer asks Electron to show, one entry per notification. */
   function shown() {
     const made: Array<{ title: string; body?: string; tag?: string }> = [];
-    (globalThis as { window?: unknown }).window = { slackoss: {} as Bridge };
+    (globalThis as { window?: unknown }).window = { ownbase: {} as Bridge };
     (globalThis as { Notification?: unknown }).Notification = class {
       constructor(title: string, options?: NotificationOptions) {
         made.push({ title, body: options?.body, tag: options?.tag });

@@ -3,7 +3,7 @@ import { createServer, type Server } from "node:http";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { AuditEntry } from "@slackoss/protocol";
+import type { AuditEntry } from "@ownbase/protocol";
 import { hashToken } from "../src/auth.js";
 import { recoverAccount } from "../src/recover.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
@@ -77,7 +77,7 @@ beforeAll(async () => {
 afterAll(() => new Promise<void>((r) => endpoint.close(() => r())));
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-audit-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-audit-"));
   await start();
   owner = await register("owner");
   member = await register("member");

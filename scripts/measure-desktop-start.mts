@@ -57,7 +57,7 @@ async function round(executable: string): Promise<Sample> {
   const began = performance.now();
   const app = await electron.launch({
     executablePath: executable,
-    env: { ...inherited, SLACKOSS_TEST: "1", SLACKOSS_USER_DATA_DIR: data },
+    env: { ...inherited, OWNBASE_TEST: "1", OWNBASE_USER_DATA_DIR: data },
   });
   try {
     const page = await app.firstWindow();

@@ -3,7 +3,7 @@ import {
   unwrapStoredDrafts,
   unwrapStoredOutbox,
   type StoredOutboxEntry,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import type { Platform } from "../src/platform.js";
 import {
   mergeWorkspaceDrafts,

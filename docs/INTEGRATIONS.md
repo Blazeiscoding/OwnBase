@@ -55,8 +55,8 @@ signature  = "v0=" + hex(HMAC-SHA256(signing secret, basestring))
 ```
 
 The signature is sent as `X-Slack-Signature` with its timestamp in
-`X-Slack-Request-Timestamp`, and repeated as `X-SlackOSS-Signature` and
-`X-SlackOSS-Request-Timestamp`. A verifier written for Slack, including Bolt's,
+`X-Slack-Request-Timestamp`, and repeated as `X-OwnBase-Signature` and
+`X-OwnBase-Request-Timestamp`. A verifier written for Slack, including Bolt's,
 works unchanged. Verify against the raw body, compare in constant time, and
 reject a timestamp more than five minutes from your clock so a captured request
 cannot be replayed:
@@ -278,11 +278,11 @@ Each event then arrives as:
   "event_time": 1789291228,
   "team_id": "01M2D12P7QFB85N50CZ4MHTV46",
   "event": { "type": "message", "channel": "…", "user": "…", "text": "…", "ts": "…" },
-  "slackoss": { "type": "message.created", "seq": 1234 }
+  "ownbase": { "type": "message.created", "seq": 1234 }
 }
 ```
 
-`slackoss` carries this server's own event name and its position in the
+`ownbase` carries this server's own event name and its position in the
 workspace's event log. There is no `api_app_id`, `authorizations`,
 `event_context` or verification `token`.
 
@@ -315,7 +315,7 @@ How it is delivered:
 - a retry is a replay of history. Its events go out oldest first among
   themselves, each taking a place in the queue as one frees up, but events
   already waiting when the retry was asked for are not held back for it. So a
-  replayed event can arrive after newer ones: order by `slackoss.seq` (or
+  replayed event can arrive after newer ones: order by `ownbase.seq` (or
   `event_id`) if your app needs the original order.
 
 What an edit or a deletion does to an event not yet delivered: a message's

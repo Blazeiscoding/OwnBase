@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, ChannelPrefs, SidebarSection, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, ChannelPrefs, SidebarSection, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";

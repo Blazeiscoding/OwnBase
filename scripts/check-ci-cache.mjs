@@ -8,7 +8,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const fixture = mkdtempSync(join(tmpdir(), "slackoss-ci-cache-"));
+const fixture = mkdtempSync(join(tmpdir(), "ownbase-ci-cache-"));
 const turbo = join(root, "node_modules/turbo/bin/turbo");
 
 function run(command, args, cwd = fixture, env = {}) {
@@ -40,11 +40,11 @@ function hashes(tasks = ["build", "typecheck", "test"], env = {}) {
   );
 }
 
-const packageTask = (name, task) => `@slackoss/${name}#${task}`;
+const packageTask = (name, task) => `@ownbase/${name}#${task}`;
 const builds = [
   packageTask("web", "build"),
   packageTask("desktop", "build"),
-  "slackoss-server#build",
+  "ownbase-server#build",
 ];
 
 // Each case checks observable task hashes rather than merely matching config.
@@ -59,7 +59,7 @@ const cases = [
       ...["protocol", "server", "client-core", "ui", "desktop", "web"].map((p) =>
         packageTask(p, "typecheck"),
       ),
-      "slackoss-server#typecheck",
+      "ownbase-server#typecheck",
     ],
   },
   {
@@ -109,23 +109,23 @@ const cases = [
   },
   {
     file: "apps/web/index.html",
-    changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
+    changed: [packageTask("web", "build"), "ownbase-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },
   {
     file: "apps/web/public/ownbase.svg",
-    changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
+    changed: [packageTask("web", "build"), "ownbase-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },
   // Scripts the pages run that ui's tests read and run themselves.
   {
     file: "apps/web/public/first-paint.js",
-    changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
+    changed: [packageTask("web", "build"), "ownbase-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },
   {
     file: "apps/web/public/notification-worker.js",
-    changed: [packageTask("web", "build"), "slackoss-server#build", packageTask("ui", "test")],
+    changed: [packageTask("web", "build"), "ownbase-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },
   {
@@ -245,6 +245,6 @@ try {
 } finally {
   // Only remove the operation-owned child of the temp directory.
   assert.equal(dirname(resolve(fixture)), resolve(tmpdir()));
-  assert(basename(fixture).startsWith("slackoss-ci-cache-"));
+  assert(basename(fixture).startsWith("ownbase-ci-cache-"));
   rmSync(fixture, { recursive: true, force: true });
 }

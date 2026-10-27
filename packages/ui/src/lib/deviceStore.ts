@@ -12,7 +12,7 @@ import {
   type DraftChanges,
   type OutboxChanges,
   type RecordChanges,
-} from "@slackoss/client-core";
+} from "@ownbase/client-core";
 import {
   changeSavedServers,
   isSignInChange,
@@ -139,21 +139,21 @@ function applyToText(raw: string | null, op: StoreOp): { next: string; result: u
 }
 
 /** Where each value lived before IndexedDB, and still does without it. */
-export const LEGACY_PREFIX = "slackoss:";
+export const LEGACY_PREFIX = "ownbase:";
 /** Changes written down before they are made. */
-export const JOURNAL_PREFIX = "slackoss-journal:";
+export const JOURNAL_PREFIX = "ownbase-journal:";
 /** Backend ownership survives reloads and capability changes. */
-export const OWNER_KEY = "slackoss-device-owner";
+export const OWNER_KEY = "ownbase-device-owner";
 /** Invalidation only, without putting stored content in another transport. */
-export const CHANGE_KEY = "slackoss-device-changed";
-/** Named when the app was called Tandem, and kept: it holds what this device saved. */
-const DATABASE = "tandem-device";
+export const CHANGE_KEY = "ownbase-device-changed";
+/** The IndexedDB database holding what this device saved. */
+const DATABASE = "ownbase-device";
 const VALUES = "values";
 /** For each key, the last change each tab made to it: `{ [tab]: [seq, at] }`. */
 const MADE = "made";
 /** How long a tab's last change to a key is remembered once it has made no other. */
 const MADE_KEPT_MS = 30 * 24 * 60 * 60 * 1000;
-const CHANNEL = "tandem-device";
+const CHANNEL = "ownbase-device";
 
 /** A stored value from its text; unreadable text is no value, which a merge replaces. */
 function parsed(raw: string | null): unknown {

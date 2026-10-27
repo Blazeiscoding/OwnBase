@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, ServerInfo, User } from "@slackoss/protocol";
+import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -83,7 +83,7 @@ function samsClient() {
 
 describe("signing in, when it does not work", () => {
   const info: ServerInfo = {
-    app: "slackoss",
+    app: "ownbase",
     protocolVersion: 1,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",

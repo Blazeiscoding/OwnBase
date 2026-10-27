@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, SharedFile, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, SharedFile, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { FilesPanel } from "../src/components/FilesPanel.js";

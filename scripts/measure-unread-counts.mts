@@ -17,7 +17,7 @@
  * database. Run with the server
  * package's tsx:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-unread-counts.mts [--messages=200000] [--members=50]
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-unread-counts.mts [--messages=200000] [--members=50]
  *
  * On a server with the mentions index (schema v31), the seed fills it as the
  * server would; on an older one there is nothing to fill.

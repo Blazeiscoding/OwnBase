@@ -17,12 +17,12 @@
       "dependsOn": ["^build"],
       "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"]
     },
-    "@slackoss/desktop#test": {
+    "@ownbase/desktop#test": {
       "dependsOn": ["^build"],
       "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"],
       "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/tests/fixtures/**"]
     },
-    "@slackoss/server#test": {
+    "@ownbase/server#test": {
       "dependsOn": ["^build"],
       "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"],
       "inputs": [
@@ -31,7 +31,7 @@
         "$TURBO_ROOT$/apps/desktop/src/renderer/index.html"
       ]
     },
-    "@slackoss/ui#test": {
+    "@ownbase/ui#test": {
       "dependsOn": ["^build"],
       "env": ["VITEST_MAX_THREADS", "VITEST_MAX_FORKS"],
       "inputs": [

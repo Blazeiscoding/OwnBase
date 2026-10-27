@@ -97,7 +97,7 @@ describe("claiming a workspace that has no owner", () => {
   });
 
   async function start() {
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-claim-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-claim-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",
@@ -173,7 +173,7 @@ describe("the url handed to an app", () => {
     opts: { publicUrl?: string; trustProxy?: boolean },
     headers: Record<string, string>,
   ) {
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-origin-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-origin-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",
@@ -295,7 +295,7 @@ describe("the url handed to an app", () => {
   });
 
   it("tells clients the configured address, so the links people share carry it", async () => {
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-origin-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-origin-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",

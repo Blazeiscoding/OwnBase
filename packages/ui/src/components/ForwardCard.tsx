@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import type { Channel, FileMeta, ForwardReference, ID, User } from "@slackoss/protocol";
+import type { Channel, FileMeta, ForwardReference, ID, User } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { channelTitle, formatFull, formatTime } from "../lib/format.js";
 import { MessageAttachments } from "./Attachments.js";

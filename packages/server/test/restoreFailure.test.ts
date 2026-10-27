@@ -36,7 +36,7 @@ let backupDir: string;
 const fingerprint = (path: string) => createHash("sha256").update(readFileSync(path)).digest("hex");
 
 beforeEach(async () => {
-  root = mkdtempSync(join(tmpdir(), "slackoss-restore-failure-"));
+  root = mkdtempSync(join(tmpdir(), "ownbase-restore-failure-"));
   dataDir = join(root, "workspace");
   backupDir = join(root, "backup");
   const server = await createWorkspaceServer({ dataDir, host: "127.0.0.1", port: 0, mdns: false });

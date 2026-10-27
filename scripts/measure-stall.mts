@@ -12,7 +12,7 @@
  * to succeed, and the fixture is checked before anything is timed, so a number
  * here is never the cost of an error page. Run with the server package's tsx:
  *
- *   pnpm --filter @slackoss/server exec tsx ../../scripts/measure-stall.mts
+ *   pnpm --filter @ownbase/server exec tsx ../../scripts/measure-stall.mts
  */
 import { mkdtempSync, rmSync, statSync } from "node:fs";
 import { cpus, tmpdir, totalmem } from "node:os";

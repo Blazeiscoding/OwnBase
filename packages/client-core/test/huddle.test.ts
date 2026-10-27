@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { HuddleSignal, ID } from "@slackoss/protocol";
-import type { CallReport } from "@slackoss/protocol";
+import type { HuddleSignal, ID } from "@ownbase/protocol";
+import type { CallReport } from "@ownbase/protocol";
 import {
   cameraEncoding,
   cameraEncodingFor,

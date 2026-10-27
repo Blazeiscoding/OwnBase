@@ -1,4 +1,4 @@
-import type { Channel, ID, ReportReason } from "@slackoss/protocol";
+import type { Channel, ID, ReportReason } from "@ownbase/protocol";
 
 /**
  * Whom a one-to-one DM is with, when this account blocked them (E12): that

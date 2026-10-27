@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { Api, ApiError } from "@slackoss/client-core";
-import type { ServerInfo, User } from "@slackoss/protocol";
+import { Api, ApiError } from "@ownbase/client-core";
+import type { ServerInfo, User } from "@ownbase/protocol";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
 
@@ -105,7 +105,7 @@ describe("a password someone was made to replace", () => {
   it("opens nothing when the screen is gone before the new one is saved", async () => {
     const user = userEvent.setup();
     const info: ServerInfo = {
-      app: "slackoss",
+      app: "ownbase",
       protocolVersion: 1,
       serverVersion: "0.0.0-test",
       workspaceName: "Rocket Team",

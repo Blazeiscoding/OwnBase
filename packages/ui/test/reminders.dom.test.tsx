@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, Reminder, ReminderItem, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, Reminder, ReminderItem, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { ActivityPanel } from "../src/components/ActivityPanel.js";
 import { MessageItem } from "../src/components/MessageItem.js";

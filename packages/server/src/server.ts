@@ -90,7 +90,7 @@ import {
   type WorkspaceEvent,
   type WorkspaceStatus,
   type CallLogEntry,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { openDb, SCHEMA_VERSION } from "./db.js";
 import { backupWorkspace, separateDirectories } from "./backup.js";
 import {
@@ -1153,7 +1153,7 @@ async function startWorkspaceServer(
         event: payload,
         // Our own event beside Slack's shape, so a native app need not
         // reverse-engineer the mapping.
-        slackoss: { type: envelope.event.type, seq: envelope.seq },
+        ownbase: { type: envelope.event.type, seq: envelope.seq },
       }));
 
     for (const { subscription, app: owner } of subs) {
@@ -2066,7 +2066,7 @@ async function startWorkspaceServer(
   app.get("/api/server-info", async (req): Promise<ServerInfo> => {
     const userCount = store.userCount();
     return {
-      app: "slackoss",
+      app: "ownbase",
       protocolVersion: PROTOCOL_VERSION,
       serverVersion: SERVER_VERSION,
       ...(SERVER_BUILD ? { build: SERVER_BUILD } : {}),

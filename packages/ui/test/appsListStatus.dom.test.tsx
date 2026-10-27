@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, type AppDetail } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import { WorkspaceClient, type AppDetail } from "@ownbase/client-core";
+import type { User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { AppsDialog } from "../src/components/AppsDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";

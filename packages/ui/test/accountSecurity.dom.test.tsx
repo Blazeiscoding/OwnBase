@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@slackoss/client-core";
-import type { SessionInfo, User } from "@slackoss/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { SessionInfo, User } from "@ownbase/protocol";
 import { AccountDialog } from "../src/components/AccountDialog.js";
 import type { AccountSection } from "../src/lib/accountSections.js";
 import { ClientContext, PlatformContext } from "../src/context.js";

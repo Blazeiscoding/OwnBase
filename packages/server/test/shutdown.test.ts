@@ -124,7 +124,7 @@ async function owner(base: string) {
 }
 
 beforeEach(async () => {
-  directory = mkdtempSync(join(tmpdir(), "slackoss-shutdown-"));
+  directory = mkdtempSync(join(tmpdir(), "ownbase-shutdown-"));
   app = new SlowApp();
   await app.start();
 });

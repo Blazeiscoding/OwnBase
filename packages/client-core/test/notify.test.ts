@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import {
   decideNotification,
   decideReminderNotification,

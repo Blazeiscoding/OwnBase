@@ -5,7 +5,7 @@ import {
   type HuddleRing,
   type Message,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**

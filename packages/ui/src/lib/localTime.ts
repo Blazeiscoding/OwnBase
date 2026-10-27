@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { currentZoneName, type User } from "@slackoss/protocol";
+import { currentZoneName, type User } from "@ownbase/protocol";
 
 /**
  * Someone's local time (E9): the time in their zone, as this reader writes

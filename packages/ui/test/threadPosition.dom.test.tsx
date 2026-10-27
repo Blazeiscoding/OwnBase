@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ThreadPanel } from "../src/components/ThreadPanel.js";

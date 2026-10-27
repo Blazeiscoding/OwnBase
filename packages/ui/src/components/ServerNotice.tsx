@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import type { ServerNotice } from "@slackoss/protocol";
+import { useEffect, useLayoutEffect, useState } from "react";
+import type { ServerNotice } from "@ownbase/protocol";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Banner, BannerAction } from "./Banner.js";
 
@@ -53,9 +53,11 @@ export function ServerNoticeBanner({
     snoozed === null
       ? null
       : (notices.find((n) => !snoozed.has(n.id) && !dismissed.has(n.id)) ?? null);
-  const showing = notice !== null;
-  useEffect(() => onShowing?.(showing), [onShowing, showing]);
-  useEffect(() => () => onShowing?.(false), [onShowing]);
+  // Until storage answers, a notice that may yet show holds the place too, so
+  // what waits for it does not show first and give way. Told before paint.
+  const showing = snoozed === null ? notices.length > 0 : notice !== null;
+  useLayoutEffect(() => onShowing?.(showing), [onShowing, showing]);
+  useLayoutEffect(() => () => onShowing?.(false), [onShowing]);
   if (!notice) return null;
 
   function putAway(current: ServerNotice) {

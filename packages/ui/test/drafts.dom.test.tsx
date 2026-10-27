@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, ScheduledMessage, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, ScheduledMessage, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
 import { DraftsPanel } from "../src/components/DraftsPanel.js";

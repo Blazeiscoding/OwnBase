@@ -1,5 +1,5 @@
-import { PROTOCOL_VERSION, type ServerInfo } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import { PROTOCOL_VERSION, type ServerInfo } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 
 /** An address without its scheme, for reading aloud in a sentence. */
 export const host = (url: string) => url.replace(/^https?:\/\//, "");
@@ -44,7 +44,7 @@ export function connectionFailure(opts: {
  * has to change. Told apart from unreachability because retrying never helps.
  */
 export function incompatibleWorkspace(url: string, info: ServerInfo): string | null {
-  if (info.app !== "slackoss") {
+  if (info.app !== "ownbase") {
     return `Something is answering at ${host(url)}, but it is not a workspace.`;
   }
   if (info.protocolVersion > PROTOCOL_VERSION) {

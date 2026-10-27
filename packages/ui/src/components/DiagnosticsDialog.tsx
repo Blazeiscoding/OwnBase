@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import type { CallLogEntry, ServerInfo, WorkspaceStatus } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import type { CallLogEntry, ServerInfo, WorkspaceStatus } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { CALL_LOG_HEADING, diagnosticsFileName, diagnosticsReport } from "../lib/diagnostics.js";
 import { useCopy } from "../lib/useCopy.js";

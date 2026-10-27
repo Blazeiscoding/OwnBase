@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILE_TYPES, parseSearchQuery, type User } from "@slackoss/protocol";
+import { FILE_TYPES, parseSearchQuery, type User } from "@ownbase/protocol";
 import {
   DATE_PRESETS,
   FILE_TYPE_LABELS,

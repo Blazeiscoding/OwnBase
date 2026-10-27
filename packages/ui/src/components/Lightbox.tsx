@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import type { FileMeta } from "@slackoss/protocol";
+import type { FileMeta } from "@ownbase/protocol";
 import { formatBytes } from "../lib/format.js";
 import { saveUrl, useFileResource } from "./Attachments.js";
 import { Modal } from "./Modal.js";

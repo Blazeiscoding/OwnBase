@@ -1,8 +1,8 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, MemberNotice, ServerNotice, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, MemberNotice, ServerNotice, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { SERVER_NOTICE_SNOOZE_MS } from "../src/components/ServerNotice.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
@@ -64,7 +64,12 @@ afterEach(() => {
 function workspace(
   role: User["role"],
   notices: ServerNotice[],
-  opts: { saved?: Record<string, unknown>; memberNotice?: MemberNotice } = {},
+  opts: {
+    saved?: Record<string, unknown>;
+    memberNotice?: MemberNotice;
+    /** Held until it settles: what storage says about server notices. */
+    noticesRead?: Promise<void>;
+  } = {},
 ) {
   vi.stubGlobal("matchMedia", () => ({
     matches: false,
@@ -96,7 +101,10 @@ function workspace(
   const platform: Platform = {
     kind: "web",
     storage: {
-      get: async <T,>(key: string) => (saved.has(key) ? (saved.get(key) as T) : null),
+      get: async <T,>(key: string) => {
+        if (key.startsWith("serverNoticeSnoozedAt:")) await opts.noticesRead;
+        return saved.has(key) ? (saved.get(key) as T) : null;
+      },
       set: async (key: string, value: unknown) => {
         saved.set(key, value);
       },
@@ -181,5 +189,23 @@ describe("a server notice", () => {
     expect(screen.queryByText(/more than the 2 its plan includes/)).toBeNull();
     await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(await screen.findByText(/more than the 2 its plan includes/)).toBeVisible();
+  });
+
+  it("keeps the member notice back while finding out whether its own was put away", async () => {
+    let answer!: () => void;
+    const noticesRead = new Promise<void>((resolve) => (answer = resolve));
+    workspace("owner", [ending], {
+      memberNotice: { members: 2 },
+      saved: { [`serverNoticeSnoozedAt:W_EE:${ending.id}`]: NOW - 1000 },
+      noticesRead,
+    });
+    await screen.findByRole("button", { name: /^Members/ });
+    // Storage has not answered: the member notice is not shown, then taken back.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(screen.queryByText(/more than the 2 its plan includes/)).toBeNull();
+    answer();
+    // It was put away, so the member notice has the place.
+    expect(await screen.findByText(/more than the 2 its plan includes/)).toBeVisible();
+    expect(screen.queryByText(ending.text)).toBeNull();
   });
 });

@@ -94,7 +94,7 @@ function corruptHistory(path: string) {
 }
 
 beforeEach(() => {
-  dir = mkdtempSync(join(tmpdir(), "slackoss-upgrade-"));
+  dir = mkdtempSync(join(tmpdir(), "ownbase-upgrade-"));
   file = join(dir, "workspace.db");
 });
 

@@ -20,13 +20,7 @@ Salesforce.
   the code
 - [Contributing](CONTRIBUTING.md) and [security](SECURITY.md)
 
-The project used to be called SlackOSS, then Gatherline, then Tandem. The product
-and the desktop app are now named OwnBase, and that name has not been
-trademark-cleared. The `@slackoss/*` package names, the application ID, the data
-locations and the Docker volume keep their old names. `TANDEM_*`, `GATHERLINE_*`
-and `SLACKOSS_*` settings and `tandem://`, `gatherline://` and `slackoss://` links
-still work. An
-existing workspace needs no migration.
+The name OwnBase has not been trademark-cleared yet.
 
 ## Try it
 
@@ -37,7 +31,7 @@ clone. The first two need Node 24+, pnpm 10 and one `pnpm install`.
 
 ```sh
 pnpm build
-node apps/server-cli/dist/slackoss-server.js --data ./demo-data --name "Demo Team"
+node apps/server-cli/dist/ownbase-server.js --data ./demo-data --name "Demo Team"
 ```
 
 **In the desktop app.** On Windows, run `pnpm build:win`, install
@@ -81,8 +75,7 @@ Then open `http://localhost:8543`, sign in as `maya`, and try:
 - **Direct connect.** Type `192.168.1.42:8543` or `chat.yourteam.dev`.
 - **Invite link.** `http://host:8543/#/join/<code>` opens the workspace in any
   browser with the invite code filled in. The desktop app has its own form of the
-  same link, `ownbase://join?host=...&code=...`, and older `tandem://` and `slackoss://`
-  links still open.
+  same link, `ownbase://join?host=...&code=...`.
 - **No app.** The server serves a full browser client at `http://host:8543/`.
 
 The first account created on a fresh server becomes its owner. The owner and
@@ -128,7 +121,7 @@ connector for you instead. See
 ### Standalone, on a VPS or a spare machine
 
 ```sh
-node slackoss-server.js --data ./data --name "My Team" --invite-only
+node ownbase-server.js --data ./data --name "My Team" --invite-only
 ```
 
 `pnpm build` writes that file to `apps/server-cli/dist/`, with the browser client
@@ -150,7 +143,7 @@ and admins change in Workspace settings. `--help` lists the rest, along with the
 docker compose -f docker/docker-compose.yml up -d
 ```
 
-Data persists in the `slackoss-data` volume. On the public internet, put Caddy
+Data persists in the `ownbase-data` volume. On the public internet, put Caddy
 or another reverse proxy in front for HTTPS. For hosting from home, port-forward
 or use Tailscale.
 
@@ -185,8 +178,7 @@ with the surrounding history loaded around it. Every message has a link,
 `http://host:8543/#/c/<channel>/m/<message>`. It opens the message in a browser,
 waits through signing in if it has to, and opens in place when clicked inside a
 message. `ownbase://` links open the desktop app directly, so an invite link lands
-on the join screen with the code filled in. Older `tandem://` and `slackoss://`
-links open the same way.
+on the join screen with the code filled in.
 
 ### Scheduled messages
 
@@ -308,7 +300,7 @@ Apps can also respond to what people do:
 
 The server signs everything it sends an app the way Slack does, with
 `v0=HMAC-SHA256(v0:timestamp:body)` under the app's signing secret. The
-signature goes out as both `x-slack-signature` and `x-slackoss-signature`, so a
+signature goes out as both `x-slack-signature` and `x-ownbase-signature`, so a
 verifier written for Slack works unchanged.
 
 ### Outbound requests
@@ -372,8 +364,8 @@ A pnpm monorepo on Node 24+ and pnpm 10:
 
 ```sh
 pnpm install
-pnpm --filter @slackoss/server dev      # workspace server on :8543
-pnpm --filter @slackoss/desktop dev     # Electron app
+pnpm --filter @ownbase/server dev      # workspace server on :8543
+pnpm --filter @ownbase/desktop dev     # Electron app
 pnpm test                               # unit tests in every package
 pnpm typecheck
 ```

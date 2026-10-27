@@ -1,6 +1,6 @@
 import { useId, useRef, useState } from "react";
-import { ApiError } from "@slackoss/client-core";
-import { REPORT_NOTE_MAX, type Message, type ReportReason } from "@slackoss/protocol";
+import { ApiError } from "@ownbase/client-core";
+import { REPORT_NOTE_MAX, type Message, type ReportReason } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
 import { inputCls } from "./TextField.js";

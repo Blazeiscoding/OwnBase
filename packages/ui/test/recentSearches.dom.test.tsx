@@ -1,6 +1,6 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { User } from "@ownbase/protocol";
 import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { ClientContext, PlatformContext } from "../src/context.js";

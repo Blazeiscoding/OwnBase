@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Invite, ServerInfo, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Invite, ServerInfo, User } from "@ownbase/protocol";
 import { ClientContext, OpenMessageContext } from "../src/context.js";
 import { InviteDialog } from "../src/components/InviteDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
@@ -75,7 +75,7 @@ async function inviteWith(options: {
   const client = new WorkspaceClient(options.baseUrl, "test-token-not-a-credential");
   client.store.setState({ self: owner, users: { U_SAM: owner }, status: "online" });
   const info: ServerInfo = {
-    app: "slackoss",
+    app: "ownbase",
     protocolVersion: 1,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",
@@ -393,7 +393,7 @@ describe("a link to a message, written in a message", () => {
       status: "online",
     });
     vi.spyOn(client.api, "serverInfo").mockResolvedValue({
-      app: "slackoss",
+      app: "ownbase",
       protocolVersion: 1,
       serverVersion: "0.0.0-test",
       workspaceName: "Rocket Team",

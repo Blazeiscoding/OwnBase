@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
-import type { Channel, Message, ThreadFollow, User } from "@slackoss/protocol";
+import { WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, ThreadFollow, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { SavedPanel, ThreadsPanel } from "../src/components/MessageListPanel.js";
 

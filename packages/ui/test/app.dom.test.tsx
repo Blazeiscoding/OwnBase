@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient } from "@slackoss/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
 import { App } from "../src/App.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
 
@@ -70,7 +70,7 @@ describe("following links from one workspace to another", () => {
     // A link back to a message in the first one opens that workspace again,
     // rather than taking it for the one still on screen. The previous
     // scheme still reads.
-    await follow("slackoss://message?host=127.0.0.1:9&channel=C_DESIGN&id=M_PLAN");
+    await follow("ownbase://message?host=127.0.0.1:9&channel=C_DESIGN&id=M_PLAN");
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(2));
   });
 });

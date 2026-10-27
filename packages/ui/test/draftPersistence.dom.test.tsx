@@ -6,8 +6,8 @@ import {
   WorkspaceClient,
   outboxRevision,
   readStoredOutbox,
-} from "@slackoss/client-core";
-import { SEND_RETRY_WINDOW_MS, type Channel, type Message, type User } from "@slackoss/protocol";
+} from "@ownbase/client-core";
+import { SEND_RETRY_WINDOW_MS, type Channel, type Message, type User } from "@ownbase/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
@@ -365,7 +365,7 @@ describe("queued messages shared by every window open on the account", () => {
     second.sendMessage.mockImplementation(networkDown);
     mount(first.client, webPlatform());
     mount(second.client, webPlatform());
-    const name = `slackoss:outbox:${first.client.baseUrl}:${sam.id}`;
+    const name = `ownbase:outbox:${first.client.baseUrl}:${sam.id}`;
     await waitFor(() => expect(localStorage.getItem(name)).not.toBeNull());
 
     first.client.send(design.id, "from the first tab");
@@ -389,7 +389,7 @@ describe("queued messages shared by every window open on the account", () => {
     const { client, sendMessage } = signedIn();
     sendMessage.mockImplementation(networkDown);
     mount(client, webPlatform());
-    const name = `slackoss:outbox:${client.baseUrl}:${sam.id}`;
+    const name = `ownbase:outbox:${client.baseUrl}:${sam.id}`;
     await waitFor(() => expect(localStorage.getItem(name)).not.toBeNull());
     client.send(design.id, "from this tab");
     await settle();
@@ -408,7 +408,7 @@ describe("queued messages shared by every window open on the account", () => {
   it("take on a refusal and a removal another tab wrote, and send neither again", async () => {
     const { client, sendMessage } = signedIn();
     sendMessage.mockImplementation(never);
-    const name = `slackoss:outbox:${client.baseUrl}:${sam.id}`;
+    const name = `ownbase:outbox:${client.baseUrl}:${sam.id}`;
     localStorage.setItem(
       name,
       JSON.stringify([queued("refused", "to be refused"), queued("sent", "to be sent")]),
@@ -489,7 +489,7 @@ describe("queued messages shared by every window open on the account", () => {
     it("let go of a send taken out elsewhere since, and never write it back", async () => {
       const { client, sendMessage } = signedIn();
       sendMessage.mockImplementation(never);
-      const name = `slackoss:outbox:${client.baseUrl}:${sam.id}`;
+      const name = `ownbase:outbox:${client.baseUrl}:${sam.id}`;
       localStorage.setItem(name, JSON.stringify([queued("long-gone", "delivered by another tab")]));
       mount(client, webPlatform());
       await waitFor(() => expect(client.state.pending).toHaveLength(1));
@@ -512,7 +512,7 @@ describe("queued messages shared by every window open on the account", () => {
     it("put back a send another tab's write left out, even one waiting since before the floor", async () => {
       const { client, sendMessage } = signedIn();
       sendMessage.mockImplementation(never);
-      const name = `slackoss:outbox:${client.baseUrl}:${sam.id}`;
+      const name = `ownbase:outbox:${client.baseUrl}:${sam.id}`;
       const floor = oldFloor();
       localStorage.setItem(
         name,
@@ -537,7 +537,7 @@ describe("queued messages shared by every window open on the account", () => {
       const { client, sendMessage } = signedIn();
       sendMessage.mockImplementation(never);
       mount(client, webPlatform());
-      const name = `slackoss:outbox:${client.baseUrl}:${sam.id}`;
+      const name = `ownbase:outbox:${client.baseUrl}:${sam.id}`;
       await waitFor(() => expect(localStorage.getItem(name)).not.toBeNull());
 
       // Unheard by this tab, another's write left a floor above the revision

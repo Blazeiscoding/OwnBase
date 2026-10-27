@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import type { StorageUsage } from "@slackoss/protocol";
+import type { StorageUsage } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 let server: WorkspaceServer | undefined;
@@ -70,7 +70,7 @@ async function usage(): Promise<StorageUsage> {
 const blobsOnDisk = () => readdirSync(join(dataDir, "files"));
 
 beforeEach(() => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-storage-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-storage-"));
 });
 
 afterEach(async () => {

@@ -13,7 +13,7 @@ import type {
   RestoreInventory,
 } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
-import type { AccessPolicy } from "@slackoss/protocol";
+import type { AccessPolicy } from "@ownbase/protocol";
 
 type Hosting = NonNullable<Platform["hosting"]>;
 

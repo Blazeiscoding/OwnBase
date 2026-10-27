@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, type HuddleState } from "@slackoss/client-core";
-import type { User } from "@slackoss/protocol";
+import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
+import type { User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { VoiceVideoSettings } from "../src/components/VoiceVideoSettings.js";
 import { HuddleControls } from "../src/components/HuddleControls.js";

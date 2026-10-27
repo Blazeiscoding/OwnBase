@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ID, ScheduledMessage } from "@slackoss/protocol";
-import { ApiError } from "@slackoss/client-core";
+import type { ID, ScheduledMessage } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { formatScheduleTime, localDateTime } from "../lib/schedule.js";

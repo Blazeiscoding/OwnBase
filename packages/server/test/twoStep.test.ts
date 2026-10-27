@@ -82,7 +82,7 @@ const later = (steps: number) => {
 
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ["Date"], now });
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-two-step-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-two-step-"));
   await start();
   owner = await register("owner");
   member = await register("maya");

@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import assert from "node:assert/strict";
 import { setTimeout as delay } from "node:timers/promises";
 
-const name = `slackoss-test-${randomUUID()}`;
+const name = `ownbase-test-${randomUUID()}`;
 const volume = `${name}-data`;
 const docker = (...args) =>
   execFileSync("docker", args, { encoding: "utf8", windowsHide: true }).trim();
@@ -47,13 +47,8 @@ try {
     const env = { ...process.env, ...settings };
     for (const key of [
       "OWNBASE_ICE_SERVERS",
-      "TANDEM_ICE_SERVERS",
-      "GATHERLINE_ICE_SERVERS",
-      "SLACKOSS_ICE_SERVERS",
       "OWNBASE_CLOUDFLARE_TURN_KEY_ID",
       "OWNBASE_CLOUDFLARE_TURN_API_TOKEN",
-      "TANDEM_CLOUDFLARE_TURN_KEY_ID",
-      "TANDEM_CLOUDFLARE_TURN_API_TOKEN",
     ])
       if (!(key in settings)) delete env[key];
     const config = execFileSync(
@@ -61,45 +56,20 @@ try {
       ["compose", "-f", composeFile, "--env-file", envFile, "config", "--format", "json"],
       { encoding: "utf8", windowsHide: true, env },
     );
-    return JSON.parse(config).services.slackoss.environment;
+    return JSON.parse(config).services.ownbase.environment;
   };
   const stun = (host) => JSON.stringify([{ urls: `stun:${host}:3478` }]);
   const noRelay = { OWNBASE_CLOUDFLARE_TURN_KEY_ID: "", OWNBASE_CLOUDFLARE_TURN_API_TOKEN: "" };
   assert.deepEqual(composed({}), { OWNBASE_ICE_SERVERS: "[]", ...noRelay });
-  assert.deepEqual(composed({ SLACKOSS_ICE_SERVERS: stun("old.example.org") }), {
-    OWNBASE_ICE_SERVERS: stun("old.example.org"),
+  assert.deepEqual(composed({ OWNBASE_ICE_SERVERS: stun("new.example.org") }), {
+    OWNBASE_ICE_SERVERS: stun("new.example.org"),
     ...noRelay,
   });
-  assert.deepEqual(
-    composed({
-      SLACKOSS_ICE_SERVERS: stun("old.example.org"),
-      GATHERLINE_ICE_SERVERS: stun("newer.example.org"),
-    }),
-    { OWNBASE_ICE_SERVERS: stun("newer.example.org"), ...noRelay },
-  );
-  assert.deepEqual(
-    composed({
-      SLACKOSS_ICE_SERVERS: stun("old.example.org"),
-      GATHERLINE_ICE_SERVERS: stun("newer.example.org"),
-      OWNBASE_ICE_SERVERS: stun("new.example.org"),
-    }),
-    { OWNBASE_ICE_SERVERS: stun("new.example.org"), ...noRelay },
-  );
   const relay = {
     OWNBASE_CLOUDFLARE_TURN_KEY_ID: "turn-key-id",
     OWNBASE_CLOUDFLARE_TURN_API_TOKEN: "turn-key-token",
   };
   assert.deepEqual(composed(relay), { OWNBASE_ICE_SERVERS: "[]", ...relay });
-  // Set under the Tandem names, before OwnBase, they still arrive under the new ones.
-  assert.deepEqual(
-    composed({
-      GATHERLINE_ICE_SERVERS: stun("newer.example.org"),
-      TANDEM_ICE_SERVERS: stun("tandem.example.org"),
-      TANDEM_CLOUDFLARE_TURN_KEY_ID: "turn-key-id",
-      TANDEM_CLOUDFLARE_TURN_API_TOKEN: "turn-key-token",
-    }),
-    { OWNBASE_ICE_SERVERS: stun("tandem.example.org"), ...relay },
-  );
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }
@@ -124,7 +94,7 @@ try {
     "127.0.0.1::8543",
     "-v",
     `${volume}:/data`,
-    "slackoss:local",
+    "ownbase:local",
     "--name",
     "Docker Smoke",
     "--invite-only",

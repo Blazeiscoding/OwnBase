@@ -1,4 +1,4 @@
-import type { ID, Invite } from "@slackoss/protocol";
+import type { ID, Invite } from "@ownbase/protocol";
 
 const HOUR = 3600_000;
 const DAY = 24 * HOUR;

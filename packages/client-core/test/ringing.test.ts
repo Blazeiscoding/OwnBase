@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, describe, expect, it, onTestFinished, vi } from "vitest";
-import { PROTOCOL_VERSION } from "@slackoss/protocol";
-import { createWorkspaceServer, type WorkspaceServer } from "@slackoss/server";
+import { PROTOCOL_VERSION } from "@ownbase/protocol";
+import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, type HuddleState, type WorkspaceState } from "../src/index.js";
 
 /**

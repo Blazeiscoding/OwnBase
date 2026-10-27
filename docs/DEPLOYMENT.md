@@ -1,11 +1,5 @@
 # Hosting OwnBase
 
-OwnBase was called Tandem, and before that Gatherline and SlackOSS. Every
-`OWNBASE_` setting below is also read under its `TANDEM_`, `GATHERLINE_` and
-`SLACKOSS_` names, the newest first, and `tandem://`, `gatherline://` and
-`slackoss://` links still open the app, so nothing set up under an earlier name
-needs changing.
-
 ## Windows and LAN
 
 Build an installer with `pnpm build:win`.
@@ -28,13 +22,13 @@ Tailscale, a VPS, or a public IP with port forwarding are alternatives. An IP
 address alone does not bypass NAT, CGNAT, or firewalls. LAN discovery does not
 cross routers.
 
-Each hosted workspace has its own folder under the app's user-data folder, in
-`hosted/w-<random id>/`. The folder is fixed when the workspace is created and
+Each hosted workspace has its own folder under the app's user-data folder
+(`%APPDATA%\OwnBase` on Windows, `~/Library/Application Support/OwnBase` on
+macOS, `~/.config/OwnBase` on Linux), in `hosted/w-<random id>/`. The folder is fixed when the workspace is created and
 does not follow its name, so two workspaces may share a name and renaming one
 moves nothing; folders made by earlier versions, named after the workspace, are
 adopted as they are. **Manage hosting** shows the running workspace's data folder.
-Advanced deployments can set `OWNBASE_USER_DATA_DIR` (the earlier names
-still work) to choose the desktop profile location.
+Advanced deployments can set `OWNBASE_USER_DATA_DIR` to choose the desktop profile location.
 
 ### Closing the window, and quitting
 
@@ -43,7 +37,7 @@ does not stop it. The window goes to the system tray, whose icon offers **Open
 OwnBase**, what is hosted and on which port, **Stop hosting** and **Stop
 hosting and quit**. Neither asks first, since each already says that hosting
 stops. Launching OwnBase again, or opening an `ownbase://`
-(or older `tandem://`) link,
+link,
 also brings the window back. On a desktop with no tray, closing minimizes the
 window instead. With nothing hosted, closing the last window quits on Windows and
 Linux; macOS keeps the app in the dock as usual.
@@ -179,7 +173,7 @@ cloudflared --version
 ```
 
 If `cloudflared` is elsewhere, set `OWNBASE_CLOUDFLARED` to its full path
-before starting OwnBase. The previous `TANDEM_CLOUDFLARED` name also works.
+before starting OwnBase.
 
 ### Open and share the desktop workspace
 
@@ -330,7 +324,7 @@ it never receives Tailscale account credentials.
 #### Setting it outside the app
 
 `OWNBASE_PUBLIC_URL` sets the same address from the environment, for a
-service or a scripted install. `TANDEM_PUBLIC_URL` works too. An address set
+service or a scripted install. An address set
 that way is shown in **Manage hosting** but cannot be edited there, since the
 app does not own it. A saved address takes precedence over both, so an old
 variable in a shell cannot quietly replace one somebody typed into the app.
@@ -399,8 +393,7 @@ and no path, query, credentials, or fragment. Loopback and private-network
 suffixes (`.local`, `.internal`, `.home`, `.lan`, `localhost`) and bare IP
 addresses are refused, and so is a trailing dot. An accented hostname is
 accepted and stored in its punycode form. A non-standard HTTPS port is allowed,
-for the alternate ports Cloudflare proxies. `TANDEM_TUNNEL_URL` and
-`TANDEM_TUNNEL_TOKEN_FILE` work as well. Setting only one of the pair, naming
+for the alternate ports Cloudflare proxies. Setting only one of the pair, naming
 a token file that is not there, or giving an address that cannot be published
 is reported in **Manage hosting** and leaves **Open to all** unavailable, rather
 than quietly opening a temporary address nobody was given. Environment variables
@@ -428,7 +421,7 @@ owner account before exposing it:
 ```sh
 pnpm install
 pnpm build
-node apps/server-cli/dist/slackoss-server.js --data ./data --name "My Team" --host 127.0.0.1 --invite-only
+node apps/server-cli/dist/ownbase-server.js --data ./data --name "My Team" --host 127.0.0.1 --invite-only
 ```
 
 Open `http://127.0.0.1:8543`, create the owner, then stop the server with
@@ -444,14 +437,14 @@ address. On macOS or Linux:
 
 ```sh
 export OWNBASE_ICE_SERVERS='[{"urls":"stun:stun.cloudflare.com:3478"}]'
-node apps/server-cli/dist/slackoss-server.js --data ./data --name "My Team" --host 127.0.0.1 --invite-only --public-url https://YOUR-RANDOM-NAME.trycloudflare.com
+node apps/server-cli/dist/ownbase-server.js --data ./data --name "My Team" --host 127.0.0.1 --invite-only --public-url https://YOUR-RANDOM-NAME.trycloudflare.com
 ```
 
 Or in PowerShell:
 
 ```powershell
 $env:OWNBASE_ICE_SERVERS='[{"urls":"stun:stun.cloudflare.com:3478"}]'
-node apps/server-cli/dist/slackoss-server.js --data ./data --name "My Team" --host 127.0.0.1 --invite-only --public-url https://YOUR-RANDOM-NAME.trycloudflare.com
+node apps/server-cli/dist/ownbase-server.js --data ./data --name "My Team" --host 127.0.0.1 --invite-only --public-url https://YOUR-RANDOM-NAME.trycloudflare.com
 ```
 
 Sign in through the public address, open **Workspace → Invite people**, and send
@@ -555,8 +548,8 @@ chat.example.org {
 
 By default no third-party ICE server is contacted. LAN peers connect directly.
 For people on different networks, provide your own STUN/TURN configuration through
-`OWNBASE_ICE_SERVERS` (previously `TANDEM_ICE_SERVERS`). Compose reads it
-from the environment or `docker/.env`, under any of its names:
+`OWNBASE_ICE_SERVERS`. Compose reads it
+from the environment or `docker/.env`:
 
 ```dotenv
 OWNBASE_ICE_SERVERS=[{"urls":"stun:turn.example.org:3478"},{"urls":"turn:turn.example.org:3478","username":"workspace","credential":"replace-with-a-strong-secret"}]
@@ -742,19 +735,19 @@ theirs on) and `--browser=shell` (Playwright's headless shell, which draws in
 software) change what it measures:
 
 ```sh
-pnpm --filter @slackoss/web build
-pnpm --filter @slackoss/server exec tsx ../../scripts/measure-calls.mts --out=calls.json
+pnpm --filter @ownbase/web build
+pnpm --filter @ownbase/server exec tsx ../../scripts/measure-calls.mts --out=calls.json
 ```
 
 ## Attachment storage
 
 Attachments are unlimited unless you say otherwise, which on a small disk means
 one enthusiastic upload can fill it. Cap the workspace with `--storage-limit-mb`,
-or `OWNBASE_STORAGE_LIMIT_MB` (`TANDEM_STORAGE_LIMIT_MB` still works) for
+or `OWNBASE_STORAGE_LIMIT_MB` for
 Compose:
 
 ```sh
-slackoss-server --data ./data --storage-limit-mb 20000
+ownbase-server --data ./data --storage-limit-mb 20000
 ```
 
 The cap covers every stored attachment plus uploads still arriving, so
@@ -768,8 +761,8 @@ per-file maximum. `0` means unlimited, which is the default.
 
 An attachment chosen and then thought better of would otherwise hold its bytes
 forever. Uploads never attached to a message are freed after 24 hours, tunable
-with `--abandoned-upload-hours` or `OWNBASE_ABANDONED_UPLOAD_HOURS`
-(`TANDEM_ABANDONED_UPLOAD_HOURS` still works). Files a
+with `--abandoned-upload-hours` or `OWNBASE_ABANDONED_UPLOAD_HOURS`.
+Files a
 scheduled message is still waiting to send are never swept, however old they
 are. The window has to outlast the gap between choosing a file and sending it,
 including a client that goes offline in between: an outbox entry that has been
@@ -806,9 +799,9 @@ interrupted.
 Use the built-in commands rather than copying files by hand:
 
 ```sh
-slackoss-server backup  --data ./data --out ./backups/2026-09-06
-slackoss-server verify-backup --from ./backups/2026-09-06
-slackoss-server restore --from ./backups/2026-09-06 --data ./data
+ownbase-server backup  --data ./data --out ./backups/2026-09-06
+ownbase-server verify-backup --from ./backups/2026-09-06
+ownbase-server restore --from ./backups/2026-09-06 --data ./data
 ```
 
 `backup` writes a consistent database snapshot (including anything still in the
@@ -862,8 +855,8 @@ To check that a backup really holds what you need, restore it into a new
 directory and start that copy with `--isolated`:
 
 ```sh
-slackoss-server restore --from ./backups/2026-09-06 --data ./restore-check
-slackoss-server --data ./restore-check --isolated --port 8600
+ownbase-server restore --from ./backups/2026-09-06 --data ./restore-check
+ownbase-server --data ./restore-check --isolated --port 8600
 ```
 
 The copy holds the original's apps, their signing secrets and its queue of
@@ -881,7 +874,7 @@ rather than starting it normally, or the queue goes out from there.
 The server can take backups by itself:
 
 ```sh
-slackoss-server --data ./data --backup-dir ./backups --backup-every-hours 24 --backup-keep 7
+ownbase-server --data ./data --backup-dir ./backups --backup-every-hours 24 --backup-keep 7
 ```
 
 Each one goes into a dated folder in `--backup-dir`, such as
@@ -922,8 +915,8 @@ The zip holds the backup's own files, dated when it was taken, so it goes back t
 same way:
 
 ```sh
-slackoss-server verify-backup --from "./My Workspace 2026-10-25.zip"
-slackoss-server restore --from "./My Workspace 2026-10-25.zip" --data ./data
+ownbase-server verify-backup --from "./My Workspace 2026-10-25.zip"
+ownbase-server restore --from "./My Workspace 2026-10-25.zip" --data ./data
 ```
 
 Both unpack the zip into a folder beside it while they work and remove that folder
@@ -1034,12 +1027,11 @@ sessions and stops it signing in, and what it wrote stays where it is.
 ### Keeping less history
 
 ```sh
-slackoss-server --data ./data --retention-days 365
+ownbase-server --data ./data --retention-days 365
 ```
 
 Off by default: a workspace that quietly started discarding history would be
-worse than one that grows. Also settable with `OWNBASE_RETENTION_DAYS`
-(`TANDEM_RETENTION_DAYS` still works). The
+worse than one that grows. Also settable with `OWNBASE_RETENTION_DAYS`. The
 server prints the window on every start, because a setting that deletes things
 is one to be reminded of.
 
@@ -1225,8 +1217,7 @@ The allowances are held in memory, so a restart grants one fresh burst. Buckets
 are dropped once they refill, which keeps the bookkeeping proportional to who is
 active rather than to everyone who has ever connected.
 
-`--no-rate-limits`, or `OWNBASE_RATE_LIMITS=off` (`TANDEM_RATE_LIMITS=off`
-still works), turns all of this off. That is reasonable on a network where
+`--no-rate-limits`, or `OWNBASE_RATE_LIMITS=off`, turns all of this off. That is reasonable on a network where
 everyone is already trusted and unreasonable anywhere reachable from outside it.
 Bulk imports and seeding scripts are the usual reason to want it; prefer running
 those against a server started with the flag rather than raising the limits for
@@ -1294,7 +1285,7 @@ administrators under **People → Show recent changes**:
 - changing someone's role, deactivating or reactivating them, and resetting their
   password;
 - handing the workspace to a new owner;
-- recovering an account with `slackoss-server recover`, recorded as done by the host
+- recovering an account with `ownbase-server recover`, recorded as done by the host
   rather than by anyone signed in;
 - creating and deleting apps, replacing their bot token or signing secret, and
   changing where their buttons and forms go;
@@ -1415,7 +1406,7 @@ administrators see a line under the conversation's header saying so, and
 plan" and links nowhere.
 
 ```sh
-slackoss-server --data ./data --member-notice 50 --plan-name Team \
+ownbase-server --data ./data --member-notice 50 --plan-name Team \
   --upgrade-url "https://example.com/plans?workspace=acme"
 ```
 
@@ -1433,7 +1424,7 @@ The server is the free edition until it is given an Enterprise license, the file
 OwnBase sends:
 
 ```sh
-slackoss-server --data ./data --license ./acme.license
+ownbase-server --data ./data --license ./acme.license
 ```
 
 `OWNBASE_LICENSE_FILE` names the file from the environment, and `OWNBASE_LICENSE`

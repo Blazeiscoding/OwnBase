@@ -5,7 +5,7 @@ import {
   type CallLogEntry,
   type CallReport,
   type ServerToClient,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { CALL_LOG_LIMIT, CallLog } from "../src/callLog.js";
 

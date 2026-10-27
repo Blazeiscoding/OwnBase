@@ -21,7 +21,7 @@ describe("a workspace opened to all while it runs", () => {
   });
 
   async function start() {
-    dataDir = mkdtempSync(join(tmpdir(), "slackoss-open-"));
+    dataDir = mkdtempSync(join(tmpdir(), "ownbase-open-"));
     server = await createWorkspaceServer({
       dataDir,
       host: "127.0.0.1",

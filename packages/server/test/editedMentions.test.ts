@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type Message, type ServerToClient } from "@slackoss/protocol";
+import { PROTOCOL_VERSION, type Message, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 type Person = { token: string; user: { id: string } };

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
-import { WorkspaceClient } from "@slackoss/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
 import { HuddleButton } from "../src/components/HuddleBar.js";

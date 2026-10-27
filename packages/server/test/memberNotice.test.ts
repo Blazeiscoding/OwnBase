@@ -11,7 +11,7 @@ import {
   type MemberNotice,
   type ServerToClient,
   type User,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { ConfigError, parseMemberNotice } from "../src/config.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 

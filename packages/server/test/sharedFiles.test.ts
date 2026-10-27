@@ -8,7 +8,7 @@ import {
   fileKind,
   type ServerToClient,
   type SharedFile,
-} from "@slackoss/protocol";
+} from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -100,7 +100,7 @@ const names = async (query: Record<string, string> = {}, auth = owner.token) =>
   (await listed(query, auth)).files.map((f) => f.file.name);
 
 beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "slackoss-files-"));
+  dataDir = mkdtempSync(join(tmpdir(), "ownbase-files-"));
   await start();
   owner = await register("owner");
   peer = await register("peer");

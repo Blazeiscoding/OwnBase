@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import type { WorkspaceClient } from "@slackoss/client-core";
+import type { WorkspaceClient } from "@ownbase/client-core";
 
 /** How long a device goes untouched before it says it is idle (E9). */
 export const IDLE_AFTER_MS = 10 * 60_000;
