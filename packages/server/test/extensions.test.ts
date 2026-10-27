@@ -6,8 +6,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient, type User } from "@ownbase/protocol";
-import type { ServerExtension } from "../src/extensions.js";
+import type { ExtensionContext, ServerExtension } from "../src/extensions.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
+import { codeFor, stepAt } from "../src/twoStep.js";
 
 /**
  * The server's extension point (P6): whatever is handed over is registered
@@ -147,6 +148,176 @@ describe("an extension", () => {
     const status = (await call("/api/admin/status", owner.token, undefined, "GET")).data;
     expect("extensions" in status).toBe(false);
     expect("notices" in (await ready(owner.token))).toBe(false);
+  });
+});
+
+/**
+ * An extension that signs people in its own way (P9): its context, kept for
+ * the test to use, and a switch for requiring it.
+ */
+function signer(name = "signer") {
+  const held: { context?: ExtensionContext; required: boolean } = { required: false };
+  const extension: ServerExtension = {
+    name,
+    register(context) {
+      held.context = context;
+    },
+    signInMethods: () => [
+      { id: name, name: "Acme ID", start: `/api/${name}/start`, redeem: `/api/${name}/redeem` },
+    ],
+    requiresSingleSignOn: () => held.required,
+    settingsPanels: () => [
+      {
+        id: name,
+        title: "Acme ID",
+        description: "Sign in with Acme ID.",
+        save: `/api/${name}/settings`,
+        fields: [{ key: "on", label: "On", kind: "toggle", value: held.required }],
+      },
+    ],
+  };
+  return { extension, held };
+}
+
+describe("an extension that signs people in (P9)", () => {
+  const login = (handle: string, extra: object = {}) =>
+    call("/api/auth/login", undefined, { handle, password: "password123", ...extra });
+
+  it("is offered on the sign-in screen, and passwords stay for everyone until it is required", async () => {
+    await start();
+    expect(
+      (await call("/api/server-info", undefined, undefined, "GET")).data.signIn,
+    ).toBeUndefined();
+    await server!.stop();
+
+    const { extension, held } = signer();
+    await start([extension]);
+    const { owner, member } = await people();
+    const info = async () => (await call("/api/server-info", undefined, undefined, "GET")).data;
+    expect((await info()).signIn).toEqual({
+      methods: [
+        { id: "signer", name: "Acme ID", start: "/api/signer/start", redeem: "/api/signer/redeem" },
+      ],
+      passwords: "everyone",
+    });
+    expect((await login("member")).status).toBe(200);
+
+    held.required = true;
+    expect((await info()).signIn.passwords).toBe("owner_only");
+    expect(await login("member")).toMatchObject({ status: 403, data: { error: "sso_required" } });
+    // The owner's way back in.
+    expect((await login("owner")).status).toBe(200);
+    // A wrong password is only that: nothing said about who signs in how.
+    expect(
+      (await call("/api/auth/login", undefined, { handle: "member", password: "not-it-at-all" }))
+        .data.error,
+    ).toBe("invalid_credentials");
+    expect(
+      await call("/api/auth/register", undefined, {
+        handle: "newcomer",
+        displayName: "Newcomer",
+        password: "password123",
+      }),
+    ).toMatchObject({ status: 403, data: { error: "sso_required" } });
+    // A guest keeping their identity as an account would make one with a password.
+    server!.setAccessPolicy("guest_allowed");
+    const guest = (await call("/api/auth/guest", undefined, { displayName: "Visitor" })).data;
+    expect(
+      await call("/api/auth/guest/account", guest.token, {
+        handle: "visitor",
+        password: "password123",
+      }),
+    ).toMatchObject({ status: 403, data: { error: "sso_required" } });
+    expect(member.user.role).toBe("member");
+    expect(owner.user.role).toBe("owner");
+  });
+
+  it("stops a two-step sign-in begun before it was required", async () => {
+    const { extension, held } = signer();
+    await start([extension]);
+    const { member } = await people();
+    const started = await call("/api/me/two-step", member.token, { password: "password123" });
+    const secret = started.data.secret as string;
+    const step = stepAt(Date.now());
+    await call("/api/me/two-step/enable", member.token, { code: codeFor(secret, step) });
+    const first = await login("member", { twoStep: true });
+    expect(first.data.twoStep.challenge).toEqual(expect.any(String));
+    held.required = true;
+    const finished = await call("/api/auth/two-step", undefined, {
+      challenge: first.data.twoStep.challenge,
+      code: codeFor(secret, step + 1),
+    });
+    expect(finished).toMatchObject({ status: 403, data: { error: "sso_required" } });
+  });
+
+  it("keeps what it stores apart from other extensions' and the server's", async () => {
+    const one = signer("one");
+    const two = signer("two");
+    await start([one.extension, two.extension]);
+    const a = one.held.context!.storage;
+    const b = two.held.context!.storage;
+    a.set("sso:settings", "first");
+    a.set("sso:user:1", "x");
+    a.set("other", "y");
+    b.set("sso:settings", "second");
+    expect(a.get("sso:settings")).toBe("first");
+    expect(b.get("sso:settings")).toBe("second");
+    expect(a.list("sso:")).toEqual([
+      { key: "sso:settings", value: "first" },
+      { key: "sso:user:1", value: "x" },
+    ]);
+    // Keys that look like a pattern are only text.
+    expect(a.list("%")).toEqual([]);
+    a.delete("sso:settings");
+    expect(a.get("sso:settings")).toBeNull();
+    expect(b.get("sso:settings")).toBe("second");
+    // The server's own are out of reach.
+    expect(a.get("claim_code")).toBeNull();
+  });
+
+  it("makes members nobody knows a password for, and signs people in as a password would", async () => {
+    const { extension, held } = signer();
+    await start([extension]);
+    const users = held.context!.users;
+    await expect(users.create({ handle: "early", displayName: "Early" })).rejects.toMatchObject({
+      code: "workspace_unclaimed",
+    });
+    const { owner, member } = await people();
+    const made = await users.create({ handle: "sam", displayName: "Sam Rivera" });
+    expect(made).toMatchObject({ handle: "sam", displayName: "Sam Rivera", role: "member" });
+    await expect(users.create({ handle: "member", displayName: "Again" })).rejects.toMatchObject({
+      code: "handle_taken",
+    });
+    expect(users.byHandle("SAM")?.id).toBe(made.id);
+    expect(users.byHandle("nobody")).toBeNull();
+    expect(users.get(made.id)?.handle).toBe("sam");
+    expect(users.byHandle("sam")).not.toHaveProperty("passwordHash");
+    // Joined to the public channels, as anyone joining is.
+    const channels = (await call("/api/channels", owner.token, undefined, "GET")).data.channels;
+    const general = channels.find((c: { name: string }) => c.name === "general");
+    expect(server!.store.isMember(general.id, made.id)).toBe(true);
+
+    const fake = { headers: { "user-agent": "Acme ID test" } } as unknown as Parameters<
+      ExtensionContext["startSession"]
+    >[1];
+    const session = held.context!.startSession(made.id, fake);
+    expect(session.user.id).toBe(made.id);
+    expect((await call("/api/me", session.token, undefined, "GET")).data.user.handle).toBe("sam");
+    await call(`/api/admin/users/${member.user.id}`, owner.token, { deactivated: true }, "PATCH");
+    expect(() => held.context!.startSession(member.user.id, fake)).toThrow();
+    expect(() => held.context!.startSession("no-such-person", fake)).toThrow();
+  });
+
+  it("shows its settings panels to the owner alone", async () => {
+    await start([signer().extension]);
+    const { owner, admin, member } = await people();
+    const panels = (who: Account) =>
+      call("/api/admin/extension-settings", who.token, undefined, "GET");
+    expect((await panels(owner)).data.panels).toEqual([
+      expect.objectContaining({ id: "signer", title: "Acme ID", save: "/api/signer/settings" }),
+    ]);
+    expect((await panels(admin)).status).toBe(403);
+    expect((await panels(member)).status).toBe(403);
   });
 });
 

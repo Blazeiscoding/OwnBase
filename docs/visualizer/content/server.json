@@ -655,9 +655,11 @@
       "details": [
         "A ServerExtension registers routes after the server's own (with requireUser, requireAdmin, requireOwner and memberCount from the server), adds a line to the workspace status, gives the owner and admins a notice in their snapshot, and is stopped with the server.",
         "A CommandLineExtension names its flags and help; main.ts merges them into parseArgs and --help and makes the extension from them, so a setting it cannot use is refused with a ConfigError like the server's own.",
-        "The MIT code never imports an extension: a build's entry (ee/src/main.ts) adds one with addCommandLineExtension before importing main.ts."
+        "The MIT code never imports an extension: a build's entry (ee/src/main.ts) adds one with addCommandLineExtension before importing main.ts.",
+        "Signing in (P9): signInMethods() goes into server-info as signIn {methods, passwords}, requiresSingleSignOn() makes the login, register, guest-account and two-step routes refuse everyone but the owner with sso_required (asked only once the password is right), and settingsPanels() is what GET /api/admin/extension-settings shows the owner.",
+        "The context also gives storage (meta keys under extension:<name>:, listed by prefix with substr, not LIKE), users (get, byHandle, create a member nobody knows a password for, joined to the public channels), startSession and publicUrl."
       ],
-      "concepts": ["extension point", "open core", "P6"]
+      "concepts": ["extension point", "open core", "P6", "P9"]
     },
     {
       "path": "ee/src/license.ts",
@@ -687,9 +689,33 @@
       "details": [
         "enterprise() works out where the license stands each time it is asked, so one ending while the server runs ends on time; has(feature) is what Enterprise features will ask.",
         "It adds GET /api/admin/license for the owner and admins, a workspace status line, and one notice at a time: ended, in grace, ending within 30 days, or more members than it covers.",
-        "enterpriseCommandLine reads --license, OWNBASE_LICENSE_FILE or OWNBASE_LICENSE; a license that is not one stops the server at the door, an ended one does not."
+        "enterpriseCommandLine reads --license, OWNBASE_LICENSE_FILE or OWNBASE_LICENSE; a license that is not one stops the server at the door, an ended one does not.",
+        "It carries single sign-on (sso.ts), on while the license has the sso feature: its routes, sign-in methods, the require-SSO rule and the owner's panel."
       ],
       "concepts": ["open core", "license keys", "notices", "P6"]
+    },
+    {
+      "path": "ee/src/oidc.ts",
+      "plain": "Talks to a company's sign-in service the OpenID Connect way, and checks that what it sends back is really from it, for this workspace, and still current.",
+      "summary": "A small OpenID Connect client: discovery, PKCE, token exchange, ID token checks (P9).",
+      "details": [
+        "discover() reads <issuer>/.well-known/openid-configuration, wants the issuer it names to be the one asked for, and https everywhere except loopback, where tests and local providers run; it picks client_secret_basic unless only client_secret_post is offered.",
+        "authorizationUrl() asks for openid email profile with state, nonce and an S256 code challenge; exchangeCode() posts the code and verifier and wants an id_token back.",
+        "verifyIdToken() checks the signature with node:crypto against the provider's published keys (RS, PS and ES algorithms, never none or HS), then iss, aud and azp, exp and iat with a minute of clock skew, the nonce and sub. KeySet reads the keys when first needed and again, at most once a minute, for a key id not seen before."
+      ],
+      "concepts": ["single sign-on", "OpenID Connect", "PKCE", "P9"]
+    },
+    {
+      "path": "ee/src/sso.ts",
+      "plain": "Single sign-on for the Enterprise edition: the owner sets it up, people link their company account or get one, and the sign-in screen gets its button.",
+      "summary": "The single sign-on routes, links between accounts, and the owner's settings (P9).",
+      "details": [
+        "GET /api/sso/start sends the browser to the provider with a state kept in memory for 10 minutes and bound to the browser by an HttpOnly cookie; a sign-in carries the client's challenge, a link to an account a one-time ticket from POST /api/sso/connect.",
+        "GET /api/sso/callback uses the state once, wants the same browser, checks the ID token, then links the account, finds the one linked, or makes one where the owner allows it (verified addresses at the domains given). It hands back a two-minute one-time code: <public>/#/sso/<code> in a browser, an ownbase://sso link on a page for the desktop app. POST /api/sso/redeem turns it into a session only with the verifier whose SHA-256 the start had.",
+        "Links are kept in the extension's storage as sso:identity:<hash of issuer and subject> and sso:user:<id>, so changing the issuer leaves old links unused. Accounts have no email, so nothing links by one.",
+        "Without the license feature, people already linked still sign in, but nothing new is set up, linked or made, and passwords come back. The settings never send the client secret."
+      ],
+      "concepts": ["single sign-on", "account linking", "license keys", "P9"]
     },
     {
       "path": "ee/src/main.ts",

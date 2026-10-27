@@ -27,6 +27,33 @@ them off. Chat never depends on a license.
 `GET /api/admin/license` tells the owner and admins where the license stands, and
 the workspace status (Diagnostics) has a line for it.
 
+## Single sign-on
+
+With a license that has `sso`, the owner sets up OpenID Connect in Workspace settings,
+under Sign-in ([`src/sso.ts`](src/sso.ts), [`src/oidc.ts`](src/oidc.ts)). The server
+needs its public address (`--public-url`), since the provider sends people back to
+`<public address>/api/sso/callback`: register OwnBase there as a web application with
+that redirect address, then give the issuer, client ID and secret. Okta, Microsoft
+Entra ID (with the tenant's own issuer), Google Workspace and Keycloak all work this
+way.
+
+Accounts here have no email address, so nobody is matched on one. A person links
+their provider account in Account settings, under Security, while signed in. The
+owner can also let the provider make accounts for people new to the workspace, for
+verified addresses at the domains given, and can require single sign-on: passwords
+then sign in the owner alone, so the owner can always get back in.
+
+The sign-in is the authorization code flow with PKCE, a state bound to the browser by
+a cookie, and a nonce. The ID token's signature is checked against the provider's
+published keys with `node:crypto` (RS, PS and ES algorithms; never `none` or a shared
+secret), with its issuer, audience, expiry and nonce. The browser comes back to the app
+with a one-time code, never a session, and the app redeems it with a secret only it
+holds. The desktop app signs in through the system's browser and comes back through an
+`ownbase://sso` link.
+
+When a license ends, people already linked still sign in this way, since chat never
+locks anyone out, and passwords work for everyone again.
+
 ## Keys and licenses
 
 Licenses are Ed25519-signed lines of text. Only the private key can make one, so it

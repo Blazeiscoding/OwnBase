@@ -1,5 +1,11 @@
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
-import type { ExtensionStatus, ServerNotice, User } from "@ownbase/protocol";
+import type {
+  ExtensionStatus,
+  ServerNotice,
+  SettingsPanel,
+  SignInMethod,
+  User,
+} from "@ownbase/protocol";
 
 /** Refuses a setting an extension cannot use, as the server's own are refused. */
 export { ConfigError } from "./config.js";
@@ -23,6 +29,28 @@ export interface ServerExtension {
   notice?(): ServerNotice | null;
   /** Ends what it started, as the server stops. */
   stop?(): void | Promise<void>;
+  /** Ways to sign in besides a password, on the sign-in screen (P9). */
+  signInMethods?(): SignInMethod[];
+  /**
+   * Whether everyone but the owner signs in the extension's way now. A
+   * password then signs in the owner alone, the way back in if the other way
+   * breaks, and makes no new account: both are refused with `sso_required`.
+   */
+  requiresSingleSignOn?(): boolean;
+  /** Panels the owner sees in Workspace settings, saved through the extension's own routes. */
+  settingsPanels?(): SettingsPanel[];
+}
+
+/**
+ * What an extension keeps, in the workspace's own database: text under keys
+ * of its own, kept apart from other extensions' and the server's.
+ */
+export interface ExtensionStorage {
+  get(key: string): string | null;
+  set(key: string, value: string): void;
+  delete(key: string): void;
+  /** Every key starting with `prefix`, with its value. */
+  list(prefix: string): { key: string; value: string }[];
 }
 
 /** What an extension may use of the server it is part of. */
@@ -38,6 +66,21 @@ export interface ExtensionContext {
   /** People who can sign in now, as a plan counts them (`planMembers`). */
   memberCount(): number;
   log: FastifyBaseLogger;
+  storage: ExtensionStorage;
+  users: {
+    get(id: string): User | null;
+    byHandle(handle: string): User | null;
+    /**
+     * A new member, with no password anyone knows, joined to the public
+     * channels as anyone joining is. Refused while nobody owns the workspace,
+     * and for a handle taken.
+     */
+    create(input: { handle: string; displayName: string }): Promise<User>;
+  };
+  /** Signs `userId` in, as a password would: a new session, and its token. */
+  startSession(userId: string, req: FastifyRequest): { token: string; user: User };
+  /** How others reach this server, when it was told (--public-url). */
+  publicUrl(): string | undefined;
 }
 
 /** A command-line flag an extension reads, as `node:util` parseArgs takes it. */

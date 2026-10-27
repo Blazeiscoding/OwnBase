@@ -407,6 +407,13 @@ export class Store {
     this.db.prepare("DELETE FROM meta WHERE key = ?").run(key);
   }
 
+  /** Every meta key starting with `prefix`, in key order. */
+  listMeta(prefix: string): { key: string; value: string }[] {
+    return this.db
+      .prepare("SELECT key, value FROM meta WHERE substr(key, 1, ?) = ? ORDER BY key")
+      .all(prefix.length, prefix) as { key: string; value: string }[];
+  }
+
   // ---------- users ----------
 
   userCount(): number {

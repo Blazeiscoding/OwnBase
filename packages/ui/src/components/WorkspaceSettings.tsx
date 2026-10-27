@@ -11,6 +11,7 @@ import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
 import { Icon } from "./Icon.js";
 import { SettingsWindow } from "./SettingsWindow.js";
+import { ExtensionPanels, useExtensionPanels } from "./ExtensionPanels.js";
 import { TextField } from "./TextField.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 
@@ -18,6 +19,8 @@ import { WorkspaceIcon } from "./WorkspaceIcon.js";
 const SECTIONS = [
   { id: "general", label: "General" },
   { id: "joining", label: "Who can join" },
+  // Only where the server's extensions add settings, for the owner (P9).
+  { id: "signin", label: "Sign-in" },
 ] as const;
 type Section = (typeof SECTIONS)[number]["id"];
 
@@ -76,6 +79,9 @@ export function WorkspaceSettings({
   // A server from before workspace icons keeps none, so none is offered.
   const icons = useWorkspace((s) => s.workspaceIcon);
   const [section, setSection] = useState<Section>("general");
+  const owner = useWorkspace((s) => s.self?.role === "owner");
+  const extensions = useExtensionPanels(owner);
+  const sections = extensions.panels.length ? SECTIONS : SECTIONS.filter((s) => s.id !== "signin");
   const panel = useRef<HTMLDivElement>(null);
   const [saved, setSaved] = useState(false);
   const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -97,7 +103,7 @@ export function WorkspaceSettings({
       <SettingsWindow
         title="Workspace settings"
         about={name}
-        sections={SECTIONS}
+        sections={sections}
         section={section}
         onChoose={choose}
         tabsId={tabsId}
@@ -124,6 +130,9 @@ export function WorkspaceSettings({
           </>
         )}
         {section === "joining" && <JoiningSection editable={editable} hostedHere={hostedHere} />}
+        {section === "signin" && (
+          <ExtensionPanels panels={extensions.panels} onSaved={extensions.reload} />
+        )}
       </SettingsWindow>
     </SavedContext.Provider>
   );

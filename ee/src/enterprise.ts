@@ -8,6 +8,7 @@ import {
 } from "@ownbase/server/extensions";
 import { trustedLicenseKeys } from "./keys.js";
 import { featuresOn, readLicense, type LicenseClaims, type LicenseState } from "./license.js";
+import { singleSignOn } from "./sso.js";
 
 /** Within this long of its end, the owner is told an active license is ending. */
 export const ENDING_SOON_MS = 30 * 24 * 60 * 60 * 1000;
@@ -122,11 +123,18 @@ export function enterprise(opts: {
   license: string | null;
   trusted?: KeyObject[];
   now?: () => number;
+  /** What single sign-on reaches its provider with; tests give their own. */
+  fetch?: typeof fetch;
 }): Enterprise {
   const now = opts.now ?? Date.now;
   const trusted = opts.trusted ?? trustedLicenseKeys();
   const license = () => readLicense(opts.license, trusted, now());
   let members = () => 0;
+  const sso = singleSignOn({
+    licensed: () => featuresOn(license()).has("sso"),
+    now,
+    ...(opts.fetch ? { fetch: opts.fetch } : {}),
+  });
   return {
     name: "enterprise",
     license,
@@ -154,9 +162,13 @@ export function enterprise(opts: {
           memberCount: members(),
         };
       });
+      sso.register(context);
     },
     status: () => words(license(), members(), now()).status,
     notice: () => words(license(), members(), now()).notice,
+    signInMethods: sso.signInMethods,
+    requiresSingleSignOn: sso.requiresSingleSignOn,
+    settingsPanels: sso.settingsPanels,
   };
 }
 
