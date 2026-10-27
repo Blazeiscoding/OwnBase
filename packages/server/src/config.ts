@@ -18,6 +18,22 @@ export function envSetting(name: string): string | undefined {
   return process.env[`OWNBASE_${name}`];
 }
 
+/**
+ * OWNBASE_CLAIM_CODE (P7): the code that claims a workspace nobody owns yet,
+ * for a host that sends the link to claim it, as OwnBase's hosting does. Only
+ * from the environment, since anyone on the machine can read a command line.
+ * Long and plain, so it carries in a link unchanged.
+ */
+export function parseClaimCode(raw: string | undefined): string | undefined {
+  if (raw === undefined) return undefined;
+  const code = raw.trim();
+  if (!/^[A-Za-z0-9_-]{16,64}$/.test(code))
+    throw new ConfigError(
+      "OWNBASE_CLAIM_CODE must be 16 to 64 letters, digits, hyphens or underscores",
+    );
+  return code;
+}
+
 /** A TCP port: a whole number from 0 (any free port) to 65535. */
 export function parsePort(raw: string | number, flag = "--port"): number {
   const text = String(raw).trim();

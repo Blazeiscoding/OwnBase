@@ -6,6 +6,7 @@ import {
   ConfigError,
   describeStartupError,
   envSetting,
+  parseClaimCode,
   parsePort,
   parsePublicUrl,
   parseWholeNumber,
@@ -75,6 +76,26 @@ describe("a count of whole units", () => {
     for (const bad of ["-1", "abc", "", "1e3", "99999999999999999999"]) {
       expect(() => parseWholeNumber(bad, "--retention-days", 0), bad).toThrow(ConfigError);
     }
+  });
+});
+
+describe("a claim code from the host", () => {
+  it("takes a long, plain code, trimmed, and nothing when none is set", () => {
+    expect(parseClaimCode(undefined)).toBeUndefined();
+    expect(parseClaimCode(" abcdefghijklmnop_-0123 ")).toBe("abcdefghijklmnop_-0123");
+    expect(parseClaimCode("a".repeat(64))).toBe("a".repeat(64));
+  });
+
+  it("refuses one too short, too long, or that would not carry in a link", () => {
+    for (const bad of [
+      "",
+      "short",
+      "a".repeat(15),
+      "a".repeat(65),
+      "has spaces in it ok",
+      "a/b?c=d&e#0123456",
+    ])
+      expect(() => parseClaimCode(bad), bad).toThrow(ConfigError);
   });
 });
 

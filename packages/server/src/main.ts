@@ -22,6 +22,7 @@ import {
   describeStartupError,
   envSetting,
   keptSettingsNotes,
+  parseClaimCode,
   parseMemberNotice,
   parsePort,
   parsePublicUrl,
@@ -113,6 +114,9 @@ Usage: ownbase-server [options]
                     a new workspace's rule, until it has an owner. After that
                     the workspace keeps its own, which owners and admins
                     change in Workspace settings
+                    The code that claims a new workspace is made here and
+                    printed below, or given in OWNBASE_CLAIM_CODE by a host
+                    that sends the link to claim it
   --no-mdns         Do not advertise on the local network
   --storage-limit-mb <n>
                     Attachment storage cap in MiB; 0 is unlimited (default).
@@ -425,6 +429,7 @@ let retentionDays: number;
 let publicUrl: string | undefined;
 let scheduledBackups: ScheduledBackups | undefined;
 let memberNotice: MemberNotice | undefined;
+let claimCode: string | undefined;
 const extensions: ServerExtension[] = [];
 try {
   port = parsePort(values.port);
@@ -441,6 +446,7 @@ try {
     planName: values["plan-name"] ?? envSetting("PLAN_NAME"),
     upgradeUrl: values["upgrade-url"] ?? envSetting("UPGRADE_URL"),
   });
+  claimCode = parseClaimCode(envSetting("CLAIM_CODE"));
   for (const extension of commandLineExtensions()) {
     extensions.push(
       await extension.create(values as Record<string, string | boolean | undefined>, envSetting),
@@ -492,6 +498,7 @@ const server = await createWorkspaceServer({
   retentionDays,
   scheduledBackups,
   memberNotice,
+  claimCode,
   extensions,
   // Scheduled backups and the owner's copies, in a child process, so the
   // copy and its checks never hold up chat.

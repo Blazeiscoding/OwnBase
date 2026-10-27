@@ -34,6 +34,8 @@ interface Props {
   autoProbe?: string;
   /** Prefilled from an invite link. */
   inviteCode?: string;
+  /** Prefilled from a link to claim a workspace nobody owns yet (P7). */
+  claimCode?: string;
   onConnected: (server: SavedServer, how?: Connected) => void;
   onForget: (url: string) => void;
   onHostClick?: () => void;
@@ -68,6 +70,7 @@ export function JoinScreen({
   savedIcons,
   autoProbe,
   inviteCode,
+  claimCode,
   onConnected,
   onForget,
   onHostClick,
@@ -260,6 +263,7 @@ export function JoinScreen({
               info={stage.info}
               savedHandle={savedServers.find((s) => s.url === stage.url)?.handle}
               presetInviteCode={inviteCode}
+              presetClaimCode={claimCode}
               onBack={() => setStage({ view: "browse" })}
               onConnected={onConnected}
             />
@@ -737,6 +741,7 @@ function AuthCard(props: {
   info: ServerInfo;
   savedHandle?: string;
   presetInviteCode?: string;
+  presetClaimCode?: string;
   onBack: () => void;
   onConnected: (server: SavedServer, how?: Connected) => void;
 }) {
@@ -762,7 +767,9 @@ function AuthCard(props: {
   const [displayName, setDisplayName] = useState("");
   const [password, setPassword] = useState("");
   const [inviteCode, setInviteCode] = useState(props.presetInviteCode ?? "");
-  const [claimCode, setClaimCode] = useState("");
+  // A claim link brings its code: kept for an empty workspace only, where
+  // it is asked for, and shown so the person sees what they are using.
+  const [claimCode, setClaimCode] = useState(isFirstUser ? (props.presetClaimCode ?? "") : "");
   const [requiresClaim, setRequiresClaim] = useState(!!props.info.requiresClaim);
   const [error, setError] = useState<string | null>(null);
   // A form that was refused shakes its head. Each new refusal shakes it again:
