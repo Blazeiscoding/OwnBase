@@ -40,7 +40,7 @@ function repository(files) {
 test("passes a build that shows only the current name", () => {
   const dir = built({
     "assets/apps-B2.js":
-      'const guide="https://github.com/Blazeiscoding/Tandem/blob/main/docs/INTEGRATIONS.md";\n',
+      'const guide="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md";\n',
   });
   try {
     assert.deepEqual(findEarlierNames(dir), []);
@@ -76,6 +76,7 @@ test("finds an earlier name a person would read, or code would, where it is", ()
 test("finds an earlier name in any tracked text file, in any case", () => {
   const dir = repository({
     "README.md": "# OwnBase\n\nSee https://github.com/Blazeiscoding/Tandem for the code.\n",
+    "CONTRIBUTING.md": "See https://github.com/Blazeiscoding/OwnBase/issues.\n",
     "packages/server/src/config.ts": "const old = process.env.TANDEM_PORT;\n",
     "packages/ui/package.json": '{ "name": "@slackoss/ui" }\n',
     "docs/guide.md": "Links open as gatherline://join.\n",
@@ -83,6 +84,7 @@ test("finds an earlier name in any tracked text file, in any case", () => {
   });
   try {
     assert.deepEqual(findEarlierNamesInRepo(dir).sort(), [
+      "README.md:3: See https://github.com/Blazeiscoding/Tandem for the code.",
       "docs/guide.md:1: Links open as gatherline://join.",
       "packages/server/src/config.ts:1: const old = process.env.TANDEM_PORT;",
       'packages/ui/package.json:1: { "name": "@slackoss/ui" }',

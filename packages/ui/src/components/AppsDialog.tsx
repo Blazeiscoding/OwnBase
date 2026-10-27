@@ -29,7 +29,7 @@ import { useOptionalToast } from "./Toast.js";
 
 /** What an integration can rely on from this server, and where it differs from Slack. */
 const INTEGRATION_CONTRACT_URL =
-  "https://github.com/Blazeiscoding/Tandem/blob/main/docs/INTEGRATIONS.md";
+  "https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md";
 
 /** A secret with a copy button. Bot tokens are shown once; others can be re-read. */
 function SecretRow({

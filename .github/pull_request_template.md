@@ -10,7 +10,7 @@
 - [ ] New runtime files have an atlas entry, and `pnpm visualizer:build` was run
 
 If something on screen changes, check these too.
-[CONTRIBUTING.md](https://github.com/Blazeiscoding/Tandem/blob/main/CONTRIBUTING.md) says how.
+[CONTRIBUTING.md](https://github.com/Blazeiscoding/OwnBase/blob/main/CONTRIBUTING.md) says how.
 
 - [ ] It opens in the right place: a side panel to read beside the conversation, a dialog for a short task, the settings window for settings
 - [ ] It works from the keyboard, Escape closes it, and focus goes back to what opened it
