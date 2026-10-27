@@ -694,9 +694,20 @@
         "Supports OwnBase desktop schemes, legacy schemes and browser fragment forms. Browser invite codes sit in the fragment, which is not sent as the HTTP request target or Referer fragment.",
         "shareableServer prefers a live temporary address owned by this desktop, then a published server address, usable LAN addresses or the connected non-loopback address. It marks links that reach only the current computer as localOnly.",
         "Address formatting preserves the destination when shortening display text; LAN ranking favors ordinary home/office interfaces over common virtual-network addresses.",
-        "<server>/#/claim/<code> claims a workspace nobody owns yet (P7): it opens creating the account with the claim code filled in, and brings nothing to a workspace someone owns."
+        "<server>/#/claim/<code> claims a workspace nobody owns yet (P7): it opens creating the account with the claim code filled in, and brings nothing to a workspace someone owns.",
+        "<server>/#/sso/<code> and ownbase://sso?host=…&code=… come back from a workspace's single sign-on (P9); App opens the sign-in card with the code, even for a workspace this device already has a sign-in for."
       ],
       "concepts": ["deep links", "shareable address", "fragment privacy", "LAN"]
+    },
+    {
+      "path": "packages/ui/src/lib/singleSignOn.ts",
+      "plain": "Starts signing in with a workspace's single sign-on, and finishes it when the browser or the system's browser comes back with a code.",
+      "summary": "The client's half of single sign-on: a secret kept for the way back (P9).",
+      "details": [
+        "beginSingleSignOn() keeps a random verifier in sessionStorage and sends its SHA-256 with the start, in the same tab on the web and in the system's browser (window.open) on the desktop. It needs WebCrypto, so plain http pages cannot.",
+        "redeemSingleSignOn() takes the verifier once and redeems the code with it, once per code, so StrictMode's second effect asks nothing more. A code with no verifier here, from another workspace, or older than 15 minutes signs nobody in."
+      ],
+      "concepts": ["single sign-on", "PKCE", "P9"]
     },
     {
       "path": "packages/ui/src/lib/deeplinkHelpers.ts",
@@ -1857,6 +1868,16 @@
       "concepts": ["two-step sign-in", "authenticator app", "recovery codes", "E11"]
     },
     {
+      "path": "packages/ui/src/components/LinkedSignIns.tsx",
+      "plain": "The part of Account settings, under Security, where someone links their company sign-in to their account, or unlinks it.",
+      "summary": "Linking an account to the workspace's single sign-on (P9).",
+      "details": [
+        "It shows for each sign-in method with a connect path in server-info, says whether this account is linked and as whom, and offers Link or Unlink. Guests and workspaces without single sign-on see nothing.",
+        "Link asks the server for a one-time path and opens it in a new tab or the system's browser, so this window stays signed in; it asks again when the window has focus back. Only a path on the workspace's own server is opened."
+      ],
+      "concepts": ["single sign-on", "account linking", "P9"]
+    },
+    {
       "path": "packages/ui/src/components/WorkspaceSettings.tsx",
       "plain": "Workspace settings, where the workspace's owner and admins rename it and choose who may join, with a quiet \"Saved\" when a choice is kept.",
       "summary": "A settings window for the workspace's own name and join policy, for its owner and admins (UX-60).",
@@ -1871,6 +1892,16 @@
         "General ends with Link previews (E2): one checkbox, saved the moment it changes through WorkspaceClient.setLinkPreviews, with a plain note that the server reads pages so no device contacts the site, that private addresses are never read, and that turning it off keeps previews already shown. A server without previews leaves it out."
       ],
       "concepts": ["workspace settings", "join policy", "check on send", "UX-60"]
+    },
+    {
+      "path": "packages/ui/src/components/ExtensionPanels.tsx",
+      "plain": "Draws the settings that the server's add-ons, such as single sign-on, put in Workspace settings, and saves them.",
+      "summary": "Generic settings panels from the server's extensions (P9).",
+      "details": [
+        "useExtensionPanels() reads GET /api/admin/extension-settings for the owner; Workspace settings adds its Sign-in section only when there is a panel. An older server has no such route and shows nothing.",
+        "Each panel is a form of text, url, secret and toggle fields with its problem and status lines; Save sends every field to the panel's own path, except a secret left empty, which keeps the one saved, then reads the panels again."
+      ],
+      "concepts": ["extension point", "settings", "P9"]
     },
     {
       "path": "packages/ui/src/components/SettingsWindow.tsx",
