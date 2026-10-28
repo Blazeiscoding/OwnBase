@@ -17,6 +17,10 @@ services:
       - ALL
     environment:
       OWNBASE_ICE_SERVERS: ${OWNBASE_ICE_SERVERS:-[]}
+      # Your own TURN relay sharing a secret with the server (coturn's
+      # use-auth-secret): both, or neither.
+      OWNBASE_TURN_URLS: ${OWNBASE_TURN_URLS:-}
+      OWNBASE_TURN_SECRET: ${OWNBASE_TURN_SECRET:-}
       # A Cloudflare TURN relay for calls between networks: both, or neither.
       OWNBASE_CLOUDFLARE_TURN_KEY_ID: ${OWNBASE_CLOUDFLARE_TURN_KEY_ID:-}
       OWNBASE_CLOUDFLARE_TURN_API_TOKEN: ${OWNBASE_CLOUDFLARE_TURN_API_TOKEN:-}

@@ -544,6 +544,331 @@ chat.example.org {
 }
 ```
 
+## A Linux server with systemd
+
+The server runs straight from Node, without Docker, as a systemd service. systemd
+starts it with the machine, starts it again if it stops, and keeps its log. These
+steps use Ubuntu 24.04. On another distribution with systemd, install Node 24 its
+way; the rest was only tried on Ubuntu.
+
+**1. Node 24.**
+
+```sh
+curl -fsSL https://deb.nodesource.com/setup_24.x | sudo bash -
+sudo apt-get install -y nodejs
+```
+
+**2. The server.** It is one file, `ownbase-server.js`, with the browser client in
+`web/` beside it. Build both in a copy of the repository, on any machine with
+Node 24 and pnpm, and pack them the way the release workflow does. The first line
+installs only what the server needs, as the Docker image does, and skips the
+desktop app's Electron download:
+
+```sh
+ELECTRON_SKIP_BINARY_DOWNLOAD=1 pnpm install --frozen-lockfile --filter "ownbase-server..."
+pnpm --filter @ownbase/web build && pnpm --filter ownbase-server build
+tar -czf ownbase-server.tar.gz -C apps/server-cli/dist .
+```
+
+Copy the archive to the machine, unpack it, and add a user for the server that
+cannot sign in:
+
+```sh
+sudo mkdir -p /opt/ownbase
+sudo tar -xzf ownbase-server.tar.gz -C /opt/ownbase
+sudo useradd --system --no-create-home --home-dir /var/lib/ownbase \
+  --shell /usr/sbin/nologin ownbase
+```
+
+The files in `/opt/ownbase` stay root's, so the server cannot change its own code.
+
+**3. Settings.** What the server reads from the environment goes in
+`/etc/ownbase/ownbase.env`, such as a call relay's secret (see
+[Your own relay with coturn](#your-own-relay-with-coturn)). systemd reads the
+file before it starts the server, so it can stay readable by root alone:
+
+```sh
+sudo install -d -m 755 /etc/ownbase
+sudo install -m 600 /dev/null /etc/ownbase/ownbase.env
+```
+
+**4. The service.** Save this as `/etc/systemd/system/ownbase.service`, with your
+own address in `--public-url`:
+
+```ini
+[Unit]
+Description=OwnBase workspace server
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=ownbase
+Group=ownbase
+EnvironmentFile=-/etc/ownbase/ownbase.env
+ExecStart=/usr/bin/node /opt/ownbase/ownbase-server.js \
+  --data /var/lib/ownbase/data --backup-dir /var/lib/ownbase/backups \
+  --name "My Workspace" --invite-only --no-mdns \
+  --host 127.0.0.1 --public-url https://chat.example.org --trust-proxy
+# Asked to stop, the server closes its database first. systemd waits this long.
+TimeoutStopSec=30
+Restart=on-failure
+RestartSec=5
+
+# /var/lib/ownbase, made for the ownbase user and closed to everyone else. It is
+# the only place the server can write.
+StateDirectory=ownbase
+StateDirectoryMode=0700
+WorkingDirectory=/var/lib/ownbase
+UMask=0077
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+PrivateUsers=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+# AF_NETLINK lists the machine's addresses, which the server prints on start.
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RemoveIPC=yes
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged
+SystemCallErrorNumber=EPERM
+# No MemoryDenyWriteExecute: Node turns JavaScript into machine code as it runs.
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The workspace lives in `/var/lib/ownbase/data` and the daily backups in
+`/var/lib/ownbase/backups` (see [Backups on a schedule](#backups-on-a-schedule)).
+The server listens on `127.0.0.1` only, for a reverse proxy on the same machine,
+so `--trust-proxy` is safe: nothing else can reach it to forge the proxy's
+headers. The Caddy configuration in [Docker and VPS](#docker-and-vps) works as it
+is. The lines after `UMask` take away what a chat server never needs: reading
+other users' files, changing the kernel's settings, gaining privileges, and the
+system calls ordinary services do not make. `systemd-analyze security ownbase`
+rates the result and lists each setting it checked.
+
+**5. Start it.**
+
+```sh
+sudo systemctl daemon-reload
+sudo systemctl enable --now ownbase
+curl -s --retry 10 --retry-connrefused http://127.0.0.1:8543/api/health
+```
+
+The server takes a second or two to start listening; `--retry-connrefused` waits
+for it.
+
+With `--public-url` set, creating the first account needs the claim code, which
+the server writes to its log when it starts:
+
+```sh
+sudo journalctl -u ownbase | grep "Claim code"
+```
+
+Open your address and create the first account with that code. That account owns
+the workspace.
+
+For a server only your own network uses, leave out `--host`, `--public-url`,
+`--trust-proxy` and `--no-mdns`. It then listens on every address, and the desktop
+app finds it in its list of servers on the network. From another machine, the
+first account still needs the claim code.
+
+**Day to day.**
+
+- `sudo journalctl -u ownbase -f` follows the log.
+- After changing the settings file, `sudo systemctl restart ownbase`. After
+  changing the unit, `sudo systemctl daemon-reload` first.
+- To update, unpack the new archive over `/opt/ownbase` and restart. Before the
+  new version changes the database's layout, it copies the workspace into
+  `data/pre-upgrade/` (see [Backups, restore, updates](#backups-restore-updates)).
+- Commands that change the workspace, such as `restore` and `recover`, run with the
+  service stopped and as the `ownbase` user, so the files stay its own:
+
+```sh
+sudo systemctl stop ownbase
+sudo -u ownbase node /opt/ownbase/ownbase-server.js recover --data /var/lib/ownbase/data
+sudo systemctl start ownbase
+```
+
+**Tried** on 2026-10-28 on a new GitHub Actions machine with Ubuntu 24.04. A
+script ran each block above as written, with the archive built from this version
+and Node 24.22.1 from NodeSource:
+
+- Step 5's health check answered within two seconds. The server ran as `ownbase`
+  with no capabilities and `NoNewPrivs` set. Inside the service, `/opt/ownbase`
+  was read-only even to root, and `/home` was hidden.
+- The first account needed the claim code from the journal; without it the
+  server answered 403. A message, an upload, and the owner's copy, which a child
+  process makes, all worked.
+- After `kill -9`, the server answered again 6 seconds later, with its data.
+- `systemctl stop` ended with status 0, and the database's `-wal` file, 580 KB
+  while it ran, was gone: the database closed cleanly.
+- `recover` as the `ownbase` user listed the accounts and left every file the
+  user's own.
+- `systemd-analyze security` rated the service 1.2, "OK".
+- Without the four flags, it listened on the machine's address, printed it, and
+  an mDNS lookup like the desktop app's found "My Workspace (OwnBase)".
+
+Not tried: starting at boot. The service is enabled.
+
+## A Windows server, as a service
+
+On Windows the server runs as a service through NSSM, a small program that runs
+another one as a service. Windows cannot run Node as a service by itself:
+`sc.exe create` with `node.exe` makes the service, but Node never tells Windows it
+has started. Windows waits, 30 seconds unless the machine is set to wait longer,
+then ends it with error 1053. NSSM starts Node, starts it again if it stops,
+writes what it prints to a log, and asks it to stop with Ctrl+C, so the server
+closes its database before it exits.
+
+Run these in PowerShell as Administrator. They put the program in
+`C:\Program Files\OwnBase` and the workspace in `C:\ProgramData\OwnBase`.
+
+**1. Node 24.** Install Node.js 24 from nodejs.org with the Windows Installer
+(`.msi`) and its default choices. It puts `node.exe` in `C:\Program Files\nodejs`.
+
+**2. The server and NSSM.** Build the archive as in step 2 of
+[A Linux server with systemd](#a-linux-server-with-systemd). The same archive runs
+on both. To build it in PowerShell, run `$env:ELECTRON_SKIP_BINARY_DOWNLOAD = 1`
+on a line of its own, then `pnpm install` without that prefix. Unpack the
+archive, and copy in the 64-bit `nssm.exe` from NSSM 2.24. nssm.cc is often
+unavailable, so the second download line takes the same file from the Internet
+Archive. NSSM is not signed, so either way the third line checks the file before
+it is used. nssm.cc publishes its SHA-1, `be7b3577c6e3a280e5106a9e9db5b3775931cefc`,
+and the SHA-256 there is of that same file.
+
+```powershell
+New-Item -ItemType Directory -Force "C:\Program Files\OwnBase\server" | Out-Null
+tar -xzf ownbase-server.tar.gz -C "C:\Program Files\OwnBase\server"
+try { Invoke-WebRequest https://nssm.cc/release/nssm-2.24.zip -OutFile nssm-2.24.zip }
+catch { Invoke-WebRequest https://web.archive.org/web/20250206084707id_/https://nssm.cc/release/nssm-2.24.zip -OutFile nssm-2.24.zip }
+if ((Get-FileHash nssm-2.24.zip).Hash -ne "727D1E42275C605E0F04ABA98095C38A8E1E46DEF453CDFFCE42869428AA6743") { throw "nssm-2.24.zip is not NSSM 2.24" }
+Expand-Archive nssm-2.24.zip -DestinationPath .
+Copy-Item nssm-2.24\win64\nssm.exe "C:\Program Files\OwnBase\"
+```
+
+nssm.cc also offers a later build, 2.24-101, made for programs that failed to
+start under 2.24 on Windows 10 1703. Use 2.24 all the same. On Windows Server 2025,
+2.24 did everything in this section, while 2.24-101 never started the server
+again after it was ended.
+
+**3. The service.** It starts in the program's folder, so the server's file is
+named without a path, and it runs as `NT SERVICE\OwnBase`, an account Windows
+makes for this one service, with no password and no rights of its own:
+
+```powershell
+$nssm = "C:\Program Files\OwnBase\nssm.exe"
+$data = "C:\ProgramData\OwnBase"
+& $nssm install OwnBase "C:\Program Files\nodejs\node.exe"
+& $nssm set OwnBase AppDirectory "C:\Program Files\OwnBase\server"
+& $nssm set OwnBase AppParameters "ownbase-server.js --data $data\data --backup-dir $data\backups --invite-only"
+& $nssm set OwnBase DisplayName "OwnBase workspace server"
+& $nssm set OwnBase Start SERVICE_AUTO_START
+& $nssm set OwnBase AppStdout "$data\logs\server.log"
+& $nssm set OwnBase AppStderr "$data\logs\server.log"
+& $nssm set OwnBase AppRotateFiles 1
+& $nssm set OwnBase AppRotateOnline 1
+& $nssm set OwnBase AppRotateBytes 10485760
+& $nssm set OwnBase AppRestartDelay 5000
+& $nssm set OwnBase AppStopMethodConsole 30000
+sc.exe config OwnBase obj= "NT SERVICE\OwnBase"
+```
+
+**4. The workspace's folder,** open to that account, SYSTEM and Administrators,
+and nobody else. Other people who sign in to the machine cannot read it:
+
+```powershell
+New-Item -ItemType Directory -Force "$data\data", "$data\backups", "$data\logs" | Out-Null
+icacls $data /inheritance:r /grant:r "*S-1-5-18:(OI)(CI)F" "*S-1-5-32-544:(OI)(CI)F" "NT SERVICE\OwnBase:(OI)(CI)M"
+```
+
+**5. Start it.**
+
+```powershell
+Start-Service OwnBase
+Invoke-RestMethod http://127.0.0.1:8543/api/health
+Select-String "Claim code" "$data\logs\server.log"
+```
+
+The first account made from this machine needs no claim code. From another
+machine it needs the one in the log. For other machines to reach the server,
+let them through the firewall:
+
+```powershell
+New-NetFirewallRule -DisplayName "OwnBase" -Direction Inbound -Action Allow -Protocol TCP -LocalPort 8543 -Program "C:\Program Files\nodejs\node.exe"
+```
+
+Settings the server reads from the environment, such as a call relay's, go in
+NSSM's `AppEnvironmentExtra`, one `NAME=value` each. The server reads them when
+it starts:
+
+```powershell
+& $nssm set OwnBase AppEnvironmentExtra "OWNBASE_TURN_URLS=turn:turn.example.org:3478" "OWNBASE_TURN_SECRET=the-shared-secret"
+Restart-Service OwnBase
+```
+
+NSSM keeps them in the service's registry key, which anyone who signs in to the
+machine can read. On a computer other people use, that includes the relay's
+secret. With it they could use your relay, though the denied addresses in
+[Your own relay with coturn](#your-own-relay-with-coturn) keep them out of your
+network.
+
+For people outside your network, put the server behind HTTPS and set
+`--public-url`, as in [Behind a reverse proxy](#behind-a-reverse-proxy).
+
+**Day to day.**
+
+- `Get-Content "$data\logs\server.log" -Wait -Tail 50` follows the log. NSSM starts
+  a new file past 10 MB and keeps the old ones beside it.
+- To update, `Stop-Service OwnBase`, unpack the new archive over the server's
+  folder, and `Start-Service OwnBase`.
+- Commands that change the workspace, such as `restore` and `recover`, run with the
+  service stopped, from an Administrator PowerShell:
+  `node "C:\Program Files\OwnBase\server\ownbase-server.js" recover --data C:\ProgramData\OwnBase\data`.
+- `& $nssm remove OwnBase confirm` removes the service and leaves the workspace.
+
+**Tried** on 2026-10-28 on a new GitHub Actions machine with Windows Server 2025.
+A script ran each block above as written in Windows PowerShell 5.1 as
+Administrator, with the archive built from this version:
+
+- `node-v24.22.1-x64.msi` installed without questions into
+  `C:\Program Files\nodejs`.
+- nssm.cc answered 503 in three of four runs. The Internet Archive's copy then
+  matched the hash.
+- The service ran `node.exe` as `NT SERVICE\OwnBase`. The folder's permissions
+  listed that account, SYSTEM and Administrators, and nobody else. The service's
+  registry key was readable by `BUILTIN\Users`.
+- The first `Start-Service` took 20 to 47 seconds across the runs, and step 5's
+  health check answered as soon as it returned. Later starts took a second or two.
+- The first account, made on that machine, needed no code. A message, an upload
+  and the owner's copy worked.
+- After `Stop-Process -Force` on `node.exe`, NSSM had the server answering again
+  in 6 seconds, with its data.
+- `Stop-Service` returned at once, and the database's `-wal` file, 770 KB while
+  the server ran, was gone: Ctrl+C reached Node and it closed the database.
+- Settings in `AppEnvironmentExtra` reached the server.
+- A service made for `node.exe` itself failed with error 1053 after 120 seconds,
+  that machine's setting, and Windows ended Node.
+- `nssm remove` left the workspace's folder.
+
+Not tried: the firewall rule from another machine, starting at boot, and NSSM's
+log rotation.
+
 ## Voice and huddles
 
 By default no third-party ICE server is contacted. LAN peers connect directly.
@@ -555,10 +880,11 @@ from the environment or `docker/.env`:
 OWNBASE_ICE_SERVERS=[{"urls":"stun:turn.example.org:3478"},{"urls":"turn:turn.example.org:3478","username":"workspace","credential":"replace-with-a-strong-secret"}]
 ```
 
-The authenticated `/api/rtc-config` endpoint supplies it to members. Static TURN
-credentials are visible to workspace members; use scoped credentials, quotas, and
-rotation on your relay. This repository does not deploy a TURN service for you.
-Allow the relay's listening and media ports according to its configuration.
+The authenticated `/api/rtc-config` endpoint supplies it to members. A TURN
+password written there is visible to every member and lasts until you change it.
+A relay of your own that shares a secret with the server avoids that (see
+[Your own relay with coturn](#your-own-relay-with-coturn)), and so does
+Cloudflare's.
 
 For Cloudflare's relay, give the server the TURN key instead, and it asks
 Cloudflare for a password that lasts a day whenever calls need one. Members only
@@ -570,6 +896,145 @@ OWNBASE_CLOUDFLARE_TURN_API_TOKEN=your-turn-key-api-token
 ```
 
 Set both or neither. They are given to calls after `OWNBASE_ICE_SERVERS`.
+
+### Your own relay with coturn
+
+coturn is the TURN server most self-hosted calls use. Give it and the OwnBase
+server the same secret, and the server signs each member a password from it as
+they join a call. The password names the member and lasts a day, so nobody holds
+one for good, and coturn counts its quotas per member. coturn checks a password
+when a connection through it starts, so a call already running carries on past
+the day. Someone who leaves the workspace can use their last password until it
+runs out.
+
+The relay can share a machine with the server or have one of its own. Either
+way it needs a public address and these ports open: 3478 over UDP and TCP, and
+49152 to 65535 over UDP for the calls it carries. On Ubuntu 24.04:
+
+```sh
+sudo apt-get install -y coturn
+openssl rand -hex 32
+```
+
+The second line makes the secret. Replace `/etc/turnserver.conf` with this,
+putting in the secret, the relay's name, and the machine's own address as
+`ip -4 addr` shows it:
+
+```ini
+listening-port=3478
+listening-ip=10.0.0.5
+relay-ip=10.0.0.5
+min-port=49152
+max-port=65535
+realm=turn.example.org
+server-name=turn.example.org
+
+use-auth-secret
+static-auth-secret=the-secret-from-openssl
+fingerprint
+stale-nonce=600
+no-cli
+no-software-attribute
+
+# Relayed connections each member may hold, and in all. In a call of 16, a
+# member holds up to 15 for each address in OWNBASE_TURN_URLS, and more on a
+# device with several networks.
+user-quota=100
+total-quota=2000
+
+# Nobody may relay into this machine's networks, or any other private one: a
+# relay that reaches them lets anyone with a password in.
+no-multicast-peers
+denied-peer-ip=0.0.0.0-0.255.255.255
+denied-peer-ip=10.0.0.0-10.255.255.255
+denied-peer-ip=100.64.0.0-100.127.255.255
+denied-peer-ip=127.0.0.0-127.255.255.255
+denied-peer-ip=169.254.0.0-169.254.255.255
+denied-peer-ip=172.16.0.0-172.31.255.255
+denied-peer-ip=192.0.0.0-192.0.0.255
+denied-peer-ip=192.0.2.0-192.0.2.255
+denied-peer-ip=192.88.99.0-192.88.99.255
+denied-peer-ip=192.168.0.0-192.168.255.255
+denied-peer-ip=198.18.0.0-198.19.255.255
+denied-peer-ip=198.51.100.0-198.51.100.255
+denied-peer-ip=203.0.113.0-203.0.113.255
+denied-peer-ip=240.0.0.0-255.255.255.255
+denied-peer-ip=::1
+denied-peer-ip=64:ff9b::-64:ff9b::ffff:ffff
+denied-peer-ip=::ffff:0.0.0.0-::ffff:255.255.255.255
+denied-peer-ip=100::-100::ffff:ffff:ffff:ffff
+denied-peer-ip=2001::-2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=2002::-2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fc00::-fdff:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+denied-peer-ip=fe80::-febf:ffff:ffff:ffff:ffff:ffff:ffff:ffff
+# Except the relay's own address, where two people who both need it meet.
+allowed-peer-ip=10.0.0.5
+```
+
+When the machine's own address is a private one behind NAT, as on most cloud
+servers, also tell coturn the public address that reaches it, public first:
+`external-ip=<public address>/10.0.0.5`. When the machine has its public address
+itself, use that in `listening-ip` and `relay-ip`, and leave out
+`allowed-peer-ip`.
+
+```sh
+sudo systemctl restart coturn
+sudo systemctl enable coturn
+```
+
+Then give OwnBase the relay's addresses, separated by commas, and the same
+secret. For the systemd service they go in `/etc/ownbase/ownbase.env`; for
+Compose, in `docker/.env`; for the Windows service, in NSSM's
+`AppEnvironmentExtra`:
+
+```dotenv
+OWNBASE_TURN_URLS=turn:turn.example.org:3478?transport=udp,turn:turn.example.org:3478?transport=tcp
+OWNBASE_TURN_SECRET=the-secret-from-openssl
+```
+
+Restart the server. It refuses to start with only one of the two, with a secret
+shorter than 16 characters, or with Cloudflare's key set as well. Members then
+get the relay after `OWNBASE_ICE_SERVERS`, and **Diagnostics** shows `relay`
+routes for a call that went through it (see
+[When a call will not connect](#when-a-call-will-not-connect)).
+
+To try the relay on its own, make a password by hand and give the address,
+username and password to the Trickle ICE page of the WebRTC samples
+(`https://webrtc.github.io/samples/src/content/peerconnection/trickle-ice/`).
+A `relay` line means coturn took the password:
+
+```sh
+user="$(( $(date +%s) + 3600 )):check"
+echo "$user"
+printf '%s' "$user" | openssl dgst -sha1 -hmac 'the-secret-from-openssl' -binary | base64
+```
+
+For networks that let only encrypted connections out, coturn can listen with TLS
+too: add `tls-listening-port=5349`, and `cert=` and `pkey=` naming a certificate
+for the relay's name that the `turnserver` user can read. Open TCP 5349, add
+`turns:turn.example.org:5349?transport=tcp` to `OWNBASE_TURN_URLS`, and restart
+coturn when the certificate is renewed.
+
+**Tried** on 2026-10-28 on the same Ubuntu 24.04 machine as
+[A Linux server with systemd](#a-linux-server-with-systemd), with coturn 4.6.1
+from Ubuntu, the configuration above with the machine's address, which had no
+NAT, and the two settings in `/etc/ownbase/ownbase.env`:
+
+- In Chrome, two connections allowed only relayed routes, each with a password
+  from `/api/rtc-config`, opened a data channel and passed a message. Both chose
+  relay to relay, so the `allowed-peer-ip` exception works.
+- A password signed with another secret, and a correctly signed one that had run
+  out a minute earlier, got `401 Unauthorized` and no relay address.
+- The username and password made by hand with the lines above got one.
+- coturn's own test client, `turnutils_uclient`, was refused with
+  `403 Forbidden IP` when it asked to relay to 127.0.0.1, to 172.17.0.1 (Docker's
+  network on that machine) and to 169.254.169.254, the address cloud machines
+  answer their metadata on.
+- With the TLS lines added and a self-signed certificate, `turnutils_uclient`
+  relayed between two allocations over port 5349 and lost nothing.
+
+Not tried: `external-ip` behind NAT, and a browser over TLS, which would need a
+certificate it trusts.
 
 ### When a call will not connect
 
@@ -1595,12 +2060,17 @@ OWNBASE_CLOUDFLARE_TURN_KEY_ID=...
 OWNBASE_CLOUDFLARE_TURN_API_TOKEN=...
 ```
 
-or your own coturn (`sudo apt-get install -y coturn`) with a user and quotas in
-`/etc/turnserver.conf`, given to the servers as
-`OWNBASE_ICE_SERVERS=[{"urls":"turn:turn.example.com:3478","username":"ownbase","credential":"..."}]`.
-Those credentials are visible to the workspaces' members, so set coturn's quotas
-(`user-quota`, `total-quota`) and open UDP and TCP 3478 and its relay ports. See
-[Voice and huddles](#voice-and-huddles).
+or your own coturn, set up as in
+[Your own relay with coturn](#your-own-relay-with-coturn), with its addresses and
+secret:
+
+```sh
+OWNBASE_TURN_URLS=turn:turn.example.com:3478?transport=udp,turn:turn.example.com:3478?transport=tcp
+OWNBASE_TURN_SECRET=...
+```
+
+Every workspace's server signs its own members' passwords with that secret, and
+coturn's quotas count each member apart.
 
 **Trying it on one machine.** `--tls internal` makes Caddy use its own
 certificates instead, which nothing trusts unless told to. With

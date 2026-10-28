@@ -25,8 +25,9 @@ Usage: ownbase-cloud --data <dir> --domain <domain> [options]
 
 The operator's token: OWNBASE_CLOUD_TOKEN, or OWNBASE_CLOUD_TOKEN_FILE naming
 a file that holds it, at least 32 characters. Workspace servers are given
-OWNBASE_ICE_SERVERS and OWNBASE_CLOUDFLARE_TURN_KEY_ID / _API_TOKEN from this
-process's environment, for calls between networks.
+OWNBASE_TURN_URLS / _SECRET, OWNBASE_CLOUDFLARE_TURN_KEY_ID / _API_TOKEN and
+OWNBASE_ICE_SERVERS from this process's environment, for calls between
+networks.
 `;
 
 function fail(message: string): never {
