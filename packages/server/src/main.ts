@@ -15,7 +15,7 @@ import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js
 import { withBackupFolder } from "./workspaceCopy.js";
 import { commandLineExtensions, type ServerExtension } from "./extensions.js";
 import { listAccounts, recoverAccount } from "./recover.js";
-import { relayFromEnvironment } from "./relay.js";
+import { relayFromEnvironment, type IceServer, type ServerRelay } from "./relay.js";
 import { parseIceServers } from "./rtc.js";
 import {
   ConfigError,
@@ -227,6 +227,16 @@ Recovery
                   workspace to that account, which is the way back from an
                   owner who has left. This needs the workspace file, so it
                   gives away nothing that reading the file did not already.
+
+Calls between networks
+
+  Calls go straight between people's devices. Where their networks will not
+  allow that, a TURN relay carries the call. Set one in the environment:
+  OWNBASE_TURN_URLS and OWNBASE_TURN_SECRET for your own (coturn with
+  use-auth-secret; each member is given a password that lasts a day), or
+  OWNBASE_CLOUDFLARE_TURN_KEY_ID and OWNBASE_CLOUDFLARE_TURN_API_TOKEN for
+  Cloudflare's. OWNBASE_ICE_SERVERS adds STUN servers, or a relay whose
+  password every member may see.
 ${commandLineExtensions()
   .map((extension) => `\n${extension.help.replace(/\n+$/, "")}\n`)
   .join("")}`);
@@ -300,7 +310,8 @@ if (command === "verify-backup" || command === "restore") {
         console.log(`
   Not in any backup, so set them again where it is restored: --public-url,
   --retention-days, --storage-limit-mb, --allow-private-hooks, --trust-proxy,
-  OWNBASE_ICE_SERVERS, and any proxy or certificate in front of the server.
+  OWNBASE_ICE_SERVERS, the call relay, and any proxy or certificate in front
+  of the server.
 
   To look inside it first, restore it into a new directory and start that
   with --isolated. Its apps and scheduled messages wait until it is started
@@ -430,6 +441,8 @@ let publicUrl: string | undefined;
 let scheduledBackups: ScheduledBackups | undefined;
 let memberNotice: MemberNotice | undefined;
 let claimCode: string | undefined;
+let iceServers: IceServer[];
+let relay: ServerRelay | null;
 const extensions: ServerExtension[] = [];
 try {
   port = parsePort(values.port);
@@ -447,6 +460,8 @@ try {
     upgradeUrl: values["upgrade-url"] ?? envSetting("UPGRADE_URL"),
   });
   claimCode = parseClaimCode(envSetting("CLAIM_CODE"));
+  iceServers = parseIceServers(envSetting("ICE_SERVERS"));
+  relay = relayFromEnvironment(envSetting);
   for (const extension of commandLineExtensions()) {
     extensions.push(
       await extension.create(values as Record<string, string | boolean | undefined>, envSetting),
@@ -520,8 +535,8 @@ const server = await createWorkspaceServer({
   backupBeforeUpgrade: !values["skip-upgrade-backup"],
   rateLimits: values["no-rate-limits"] || envSetting("RATE_LIMITS") === "off" ? false : undefined,
   logger: true,
-  iceServers: parseIceServers(envSetting("ICE_SERVERS")),
-  relay: relayFromEnvironment(envSetting),
+  iceServers,
+  relay,
 }).catch((err: unknown) => refuse(describeStartupError(err, { port, host })));
 
 console.log(`\n  OwnBase server v${SERVER_VERSION} is running`);

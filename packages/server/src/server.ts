@@ -112,7 +112,7 @@ import { blocksToActions, parseView, payloadToText } from "./blockKit.js";
 import { OutboundError, postToUrl } from "./outbound.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
 import { ConfigError, parsePort, parsePublicUrl } from "./config.js";
-import { callRelaySchema, createRelaySource, withRelay, type CallRelay } from "./relay.js";
+import { createRelaySource, serverRelaySchema, withRelay, type ServerRelay } from "./relay.js";
 import { iceServersSchema } from "./rtc.js";
 import {
   checkCode,
@@ -381,9 +381,10 @@ export interface ServerOptions {
   /**
    * A TURN relay for calls between networks that will not connect directly,
    * given to calls after `iceServers`. A Cloudflare relay's password is asked
-   * for when calls need one; its API token never leaves this server.
+   * for when calls need one; its API token never leaves this server. A shared
+   * secret signs each member a password of their own, and never leaves it either.
    */
-  relay?: CallRelay | null;
+  relay?: ServerRelay | null;
   /**
    * How much one caller may do. `false` turns rationing off, which is
    * reasonable on a LAN where everyone is already trusted and unreasonable
@@ -521,7 +522,7 @@ export interface WorkspaceServer {
   /** Replaces the STUN and TURN servers that calls started from now on are given. */
   setIceServers: (servers: NonNullable<ServerOptions["iceServers"]>) => void;
   /** Replaces the relay that calls started from now on are given, or removes it with null. */
-  setRelay: (relay: CallRelay | null) => void;
+  setRelay: (relay: ServerRelay | null) => void;
   /** Why the relay gave calls no password last time it was asked, until it does. */
   relayError: () => string | null;
   /** Whether an account after the first needs an invite code. */
@@ -658,8 +659,8 @@ async function startWorkspaceServer(
   let publicUrl =
     opts.publicUrl === undefined ? undefined : parsePublicUrl(opts.publicUrl, "publicUrl");
   let iceServers = opts.iceServers ?? [];
-  const relaySource = (relay: CallRelay | null) =>
-    createRelaySource(relay === null ? null : callRelaySchema.parse(relay), {
+  const relaySource = (relay: ServerRelay | null) =>
+    createRelaySource(relay === null ? null : serverRelaySchema.parse(relay), {
       // The reason only: the request carried the API token.
       onError: (error) =>
         app.log.warn({ reason: error.message }, "the call relay gave no password"),
@@ -2059,9 +2060,9 @@ async function startWorkspaceServer(
   });
 
   app.get("/api/rtc-config", async (req, reply) => {
-    requireUser(req);
+    const user = requireUser(req);
     reply.header("Cache-Control", "no-store");
-    return { iceServers: withRelay(iceServers, await relay.servers()) };
+    return { iceServers: withRelay(iceServers, await relay.servers(user.id)) };
   });
 
   // Bound simultaneous password derivations; each scrypt job uses substantial

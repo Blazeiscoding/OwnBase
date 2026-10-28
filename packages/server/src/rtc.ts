@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { ConfigError } from "./config.js";
 
 const iceUrl = z
   .string()
@@ -18,6 +19,6 @@ export function parseIceServers(value: string | undefined) {
   try {
     return iceServersSchema.parse(JSON.parse(value ?? "[]"));
   } catch {
-    throw new Error("OWNBASE_ICE_SERVERS must be a JSON array of STUN/TURN configurations");
+    throw new ConfigError("OWNBASE_ICE_SERVERS must be a JSON array of STUN/TURN configurations");
   }
 }

@@ -35,8 +35,9 @@ async function api(path, token, body, method = body ? "POST" : "GET") {
 }
 // Compose hands the server its ICE servers under their OwnBase name. A
 // value still set under the previous name has to arrive, rather than the
-// default being passed in its place. A Cloudflare TURN key is passed as set,
-// and empty, meaning no relay, when it is not.
+// default being passed in its place. A TURN relay's addresses and secret, and
+// a Cloudflare TURN key, are passed as set, and empty, meaning no relay, when
+// they are not.
 const composeFile = fileURLToPath(new URL("../docker/docker-compose.yml", import.meta.url));
 const scratch = mkdtempSync(join(tmpdir(), "ownbase-compose-"));
 try {
@@ -47,6 +48,8 @@ try {
     const env = { ...process.env, ...settings };
     for (const key of [
       "OWNBASE_ICE_SERVERS",
+      "OWNBASE_TURN_URLS",
+      "OWNBASE_TURN_SECRET",
       "OWNBASE_CLOUDFLARE_TURN_KEY_ID",
       "OWNBASE_CLOUDFLARE_TURN_API_TOKEN",
     ])
@@ -59,7 +62,12 @@ try {
     return JSON.parse(config).services.ownbase.environment;
   };
   const stun = (host) => JSON.stringify([{ urls: `stun:${host}:3478` }]);
-  const noRelay = { OWNBASE_CLOUDFLARE_TURN_KEY_ID: "", OWNBASE_CLOUDFLARE_TURN_API_TOKEN: "" };
+  const noRelay = {
+    OWNBASE_TURN_URLS: "",
+    OWNBASE_TURN_SECRET: "",
+    OWNBASE_CLOUDFLARE_TURN_KEY_ID: "",
+    OWNBASE_CLOUDFLARE_TURN_API_TOKEN: "",
+  };
   assert.deepEqual(composed({}), { OWNBASE_ICE_SERVERS: "[]", ...noRelay });
   assert.deepEqual(composed({ OWNBASE_ICE_SERVERS: stun("new.example.org") }), {
     OWNBASE_ICE_SERVERS: stun("new.example.org"),
@@ -69,7 +77,12 @@ try {
     OWNBASE_CLOUDFLARE_TURN_KEY_ID: "turn-key-id",
     OWNBASE_CLOUDFLARE_TURN_API_TOKEN: "turn-key-token",
   };
-  assert.deepEqual(composed(relay), { OWNBASE_ICE_SERVERS: "[]", ...relay });
+  assert.deepEqual(composed(relay), { OWNBASE_ICE_SERVERS: "[]", ...noRelay, ...relay });
+  const ownRelay = {
+    OWNBASE_TURN_URLS: "turn:turn.example.org:3478",
+    OWNBASE_TURN_SECRET: "a-secret-shared-with-coturn",
+  };
+  assert.deepEqual(composed(ownRelay), { OWNBASE_ICE_SERVERS: "[]", ...noRelay, ...ownRelay });
 } finally {
   rmSync(scratch, { recursive: true, force: true });
 }

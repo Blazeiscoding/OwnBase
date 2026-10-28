@@ -43,7 +43,13 @@ function startPlane() {
       issuer: "internal",
     },
     listen: { host: "127.0.0.1", port: 8100 },
-    env: { ...process.env, OWNBASE_CLOUD_TOKEN: TOKEN },
+    env: {
+      ...process.env,
+      OWNBASE_CLOUD_TOKEN: TOKEN,
+      // The relay each workspace's server is given for calls between networks.
+      OWNBASE_TURN_URLS: "turn:turn.ownbase.test:3478",
+      OWNBASE_TURN_SECRET: "the-shared-secret-16",
+    },
     caddyRetryMs: 200,
   });
   return plane;
@@ -193,6 +199,19 @@ describe("hosting workspaces", () => {
     expect(owner.status).toBe(201);
     expect(owner.body.user.role).toBe("owner");
     expect((await api("/api/workspaces/acme")).body.claimLink).toBeNull();
+
+    // Its server was given the relay, and signs the owner a password of their own.
+    const rtc = await fetch(`http://127.0.0.1:${acmePort}/api/rtc-config`, {
+      headers: { authorization: `Bearer ${owner.body.token}` },
+    });
+    const { iceServers } = (await rtc.json()) as { iceServers: any[] };
+    expect(iceServers).toEqual([
+      {
+        urls: ["turn:turn.ownbase.test:3478"],
+        username: expect.stringMatching(new RegExp(`^\\d+:${owner.body.user.id}$`)),
+        credential: expect.any(String),
+      },
+    ]);
   }, 60_000);
 
   it("refuses an address that is wrong, kept or taken", async () => {

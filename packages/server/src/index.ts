@@ -2,7 +2,7 @@ export { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 export type { ServerOptions, WorkspaceChange, WorkspaceServer } from "./server.js";
 export type { ExtensionContext, ExtensionStorage, ServerExtension } from "./extensions.js";
 export { callRelaySchema, cloudflareIceServers, isTurn, RelayError } from "./relay.js";
-export type { CallRelay, IceServer } from "./relay.js";
+export type { CallRelay, IceServer, ServerRelay } from "./relay.js";
 export { Store } from "./store.js";
 export { holdWorkspace, WorkspaceInUseError } from "./ownership.js";
 export type { WorkspaceHold, WorkspaceOwner } from "./ownership.js";
