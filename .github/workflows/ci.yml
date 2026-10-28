@@ -2,8 +2,9 @@ name: Checks
 # A pull request's run checks the result of merging it, so main is not checked
 # again after the merge; a branch is rebased before merging when main has moved
 # since its run. Ordinary documentation changes start nothing: run
-# `pnpm format` locally. The integration contract document is read by tests,
-# so it starts Checks. The packaged Windows app and the container image have
+# `pnpm format` locally. Nor does the landing page in apps/site, which no app
+# loads; Cloudflare Pages builds a preview of it instead. The integration
+# contract document is read by tests, so it starts Checks. The packaged Windows app and the container image have
 # workflows of their own, desktop.yml and container.yml, which start only when
 # what they check changes.
 #
@@ -17,6 +18,7 @@ on:
     paths:
       - "**"
       - "!docs/**"
+      - "!apps/site/**"
       - "!**/*.md"
       - "!LICENSE"
       - "docs/INTEGRATIONS.md"
