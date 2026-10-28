@@ -6,6 +6,7 @@ import {
   ipcMain,
   type IpcMainInvokeEvent,
   Menu,
+  MessageChannelMain,
   nativeImage,
   nativeTheme,
   powerMonitor,
@@ -13,6 +14,7 @@ import {
   shell,
   Tray,
 } from "electron";
+import { existsSync } from "node:fs";
 import { statfs } from "node:fs/promises";
 import { join } from "node:path";
 import { networkInterfaces } from "node:os";
@@ -65,6 +67,7 @@ import {
   findSource,
   screenSoundSupported,
 } from "./screenShare.js";
+import { SystemMicrophones, isEndpointId } from "./microphone.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
 import { createHostingController } from "./hosting.js";
@@ -140,7 +143,9 @@ handle("file:download", (_event, value: unknown) => {
   mainWindow.webContents.downloadURL(url.toString());
 });
 
-if ((isDev || isTest) && appEnv("TEST_MEDIA") === "1") {
+/** The browser's fake microphone and camera stand in for real ones, for tests. */
+const fakeMedia = (isDev || isTest) && appEnv("TEST_MEDIA") === "1";
+if (fakeMedia) {
   app.commandLine.appendSwitch("remote-debugging-port", "9222");
   // Fake mic/camera so huddles can be exercised without real hardware.
   app.commandLine.appendSwitch("use-fake-device-for-media-stream");
@@ -239,6 +244,34 @@ handle("screen:choose", async (_event, id: unknown, sound: unknown) => {
     ),
     sound === true && screenSound,
   );
+});
+
+// ---------- microphones opened as other apps open them (Windows) ----------
+
+// Chromium opens a microphone raw where it can, which leaves out the sound
+// effects set up in Windows; the page asks for one opened the ordinary way
+// when it wants none of the browser's own processing (see microphone.ts).
+// Not where fake devices stand in for real ones, nor with
+// OWNBASE_SYSTEM_MICROPHONE=0, which leaves every microphone to the browser.
+const microphoneHelper = (() => {
+  if (process.platform !== "win32" || fakeMedia || appEnv("SYSTEM_MICROPHONE") === "0") return null;
+  const path = app.isPackaged
+    ? join(process.resourcesPath, "native", "ownbase-microphone.exe")
+    : join(import.meta.dirname, "../../native/bin/ownbase-microphone.exe");
+  return existsSync(path) ? path : null;
+})();
+const microphones = new SystemMicrophones(microphoneHelper);
+handle("microphone:list", () => microphones.list());
+handle("microphone:open", async (event, id: unknown) => {
+  if (!isEndpointId(id)) throw new Error("Not a microphone.");
+  const { port1, port2 } = new MessageChannelMain();
+  const opened = await microphones.open(event.sender.id, id, port1);
+  // The page's end of the samples, which it hands to its audio worklet.
+  event.sender.postMessage("microphone:port", { session: opened.session }, [port2]);
+  return opened;
+});
+handle("microphone:close", (event, session: unknown) => {
+  if (typeof session === "number") microphones.close(event.sender.id, session);
 });
 
 // ---------- settings and OS-protected saved sign-ins ----------
@@ -1071,9 +1104,15 @@ function createWindow(): void {
   let closeAllowed = false;
   let windowCloseTask: Promise<void> | null = null;
   rendererReady = false;
+  // A page that goes lets go of the microphones it opened.
+  const contentsId = win.webContents.id;
   win.webContents.on("did-start-navigation", (_event, _url, isInPlace, isMainFrame) => {
-    if (isMainFrame && !isInPlace) rendererReady = false;
+    if (isMainFrame && !isInPlace) {
+      rendererReady = false;
+      microphones.closeOwner(contentsId);
+    }
   });
+  win.webContents.on("render-process-gone", () => microphones.closeOwner(contentsId));
   win.on("close", (event) => {
     if (quitReady || closeAllowed) return;
     if (quitting || hosting.status().phase !== "stopped") {
@@ -1100,6 +1139,7 @@ function createWindow(): void {
     void windowCloseTask.catch(() => {});
   });
   win.on("closed", () => {
+    microphones.closeOwner(contentsId);
     if (mainWindow === win) {
       mainWindow = null;
       rendererReady = false;
@@ -1278,6 +1318,8 @@ app.on("window-all-closed", () => {
   // A server with nothing on screen and no tray to reach it by would be invisible.
   else if (!quitting && !tray) showMainWindow();
 });
+
+app.on("will-quit", () => microphones.closeAll());
 
 app.on("before-quit", (event) => {
   if (quitReady || !primaryInstance) return;

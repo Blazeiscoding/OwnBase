@@ -23,6 +23,13 @@ extraResources:
     filter:
       - icon.ico
       - icon.png
+  # The Windows microphone helper (native/OwnBaseMicrophone.cs), run from
+  # outside the archive; scripts/build-microphone.mjs builds it, and leaves
+  # the folder empty elsewhere.
+  - from: native/bin
+    to: native
+    filter:
+      - ownbase-microphone.exe
 win:
   icon: build/icon.ico
   target:

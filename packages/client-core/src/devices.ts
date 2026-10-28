@@ -25,6 +25,49 @@ export function wantsNoiseFilter(settings: MicrophoneSettings = {}): boolean {
   return settings.noiseSuppression !== false && settings.noiseFilter !== false;
 }
 
+/**
+ * Whether the system can open the microphone for these settings rather than
+ * the browser: none of the browser's own processing is wanted, its noise
+ * suppression included unless the strong filter (`filtered`) takes its place.
+ */
+export function wantsSystemMicrophone(
+  settings: MicrophoneSettings = {},
+  filtered = false,
+): boolean {
+  return (
+    settings.echoCancellation === false &&
+    settings.autoGainControl === false &&
+    (settings.noiseSuppression === false || filtered)
+  );
+}
+
+/**
+ * A microphone the app opened itself rather than through the browser: the
+ * desktop app on Windows opens one the way other apps there do, so the
+ * sound effects set up in Windows reach it. The browser opens it raw, which
+ * leaves them out.
+ */
+export interface SystemMicrophone {
+  stream: MediaStream;
+  /** The device's name, as the system gives it. */
+  label: string;
+  /** Called once if the device goes, or stops sending sound. */
+  onEnded: (() => void) | null;
+  /** Lets the device go. Safe to call more than once. */
+  stop(): void;
+}
+
+/**
+ * Opens a microphone the way other apps on this computer do: the one the
+ * browser calls `deviceId`, or the system's default without one. Supplied by
+ * the app where it can. Resolves null where it cannot tell which device that
+ * is, and rejects with `NotFoundError` for one the browser does not list, as
+ * getUserMedia does.
+ */
+export type OpenSystemMicrophone = (
+  deviceId: string | undefined,
+) => Promise<SystemMicrophone | null>;
+
 /** A microphone with its background noise taken out, as it is sent. */
 export interface FilteredMicrophone {
   stream: MediaStream;
@@ -64,11 +107,11 @@ function isMissingDevice(err: unknown): boolean {
  * choice made just now does not come here, so a device that will not open
  * says so instead of quietly opening another.
  */
-export async function openSaved(
+export async function openSaved<T = MediaStream>(
   deviceId: string | undefined,
-  open: (deviceId: string | undefined) => Promise<MediaStream>,
+  open: (deviceId: string | undefined) => Promise<T>,
   onMissing?: () => void,
-): Promise<MediaStream> {
+): Promise<T> {
   if (!deviceId) return open(undefined);
   try {
     return await open(deviceId);

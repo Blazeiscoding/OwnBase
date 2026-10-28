@@ -3,6 +3,7 @@ import { GtcrnWorkletNode } from "@sapphi-red/web-noise-suppressor";
 import workletUrl from "@sapphi-red/web-noise-suppressor/gtcrnWorklet.js?url";
 import modelUrl from "@sapphi-red/web-noise-suppressor/gtcrn.wasm?inline";
 import type { FilteredMicrophone } from "@ownbase/client-core";
+import { AUDIO_START_MS, running } from "./audioRunning.js";
 
 /**
  * GTCRN, a small speech-enhancement network (48k parameters), run on the
@@ -12,8 +13,6 @@ import type { FilteredMicrophone } from "@ownbase/client-core";
  * delay.
  */
 
-/** How long to wait for the filter to start before falling back. */
-const START_TIMEOUT_MS = 3000;
 /** How long the microphone may be heard with nothing coming out before the filter counts as broken. */
 const SILENT_OUTPUT_MS = 1500;
 const POLL_MS = 50;
@@ -64,22 +63,13 @@ function started(input: AnalyserNode, output: AnalyserNode): Promise<void> {
       } else if (heard(input, samplesIn) && (heardFor += POLL_MS) >= SILENT_OUTPUT_MS) {
         clearInterval(timer);
         reject(new Error("the filter heard the microphone but gave out only silence"));
-      } else if (Date.now() - began >= START_TIMEOUT_MS) {
+      } else if (Date.now() - began >= AUDIO_START_MS) {
         clearInterval(timer);
         // Nothing came in to judge by; the filter is most likely fine.
         resolve();
       }
     }, POLL_MS);
   });
-}
-
-/** Resolves when the audio is running, or rejects rather than send silence. */
-async function running(context: AudioContext): Promise<void> {
-  await Promise.race([
-    context.resume(),
-    new Promise((resolve) => setTimeout(resolve, START_TIMEOUT_MS)),
-  ]);
-  if (context.state !== "running") throw new Error("the browser did not let the audio start");
 }
 
 /** The microphone with its background noise taken out, as a call sends it. */

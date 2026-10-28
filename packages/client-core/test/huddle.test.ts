@@ -1984,6 +1984,185 @@ describe("choosing the microphone and camera (Voice & video)", () => {
     });
   });
 
+  describe("the microphone opened as other apps open it (Windows)", () => {
+    /** None of the browser's processing: what the system path is for. */
+    const off = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
+    /** A microphone the system opened, as the desktop app hands one over. */
+    function systemMic(label = "Microphone (KREO KAST)") {
+      const sound = track("audio");
+      const mic = {
+        stream: stream(sound),
+        label,
+        onEnded: null as (() => void) | null,
+        stop: vi.fn(),
+      };
+      return { mic, sound };
+    }
+
+    const said = (session: HuddleSession) => session.log.map((line) => line.text);
+
+    it("sends it when none of the browser's processing is chosen, and says so", async () => {
+      const { mic, sound } = systemMic();
+      const systemMicrophone = vi.fn(async () => mic);
+      const { session, ask, pc } = await inCall(track("audio"), {
+        systemMicrophone,
+        microphone: { deviceId: "kast", ...off },
+      });
+      expect(systemMicrophone).toHaveBeenCalledWith("kast");
+      expect(ask).not.toHaveBeenCalled();
+      expect(pc.transceivers[0]!.sender.track).toBe(sound);
+      expect(said(session)).toContain(
+        "The microphone opened as other apps hear it, with the system's sound effects.",
+      );
+      expect(said(session)).toContain("Noise suppression: off.");
+      session.toggleMic();
+      expect(sound.enabled).toBe(false);
+      session.destroy();
+      expect(mic.stop).toHaveBeenCalled();
+    });
+
+    it("leaves the microphone to the browser while any of its processing is chosen", async () => {
+      for (const microphone of [
+        {},
+        { ...off, echoCancellation: true },
+        { ...off, autoGainControl: true },
+        { ...off, noiseSuppression: true, noiseFilter: false },
+        // Strong is chosen but the app has no filter, so the browser's own runs.
+        { ...off, noiseSuppression: true },
+      ]) {
+        const systemMicrophone = vi.fn(async () => systemMic().mic);
+        const { session, ask } = await inCall(track("audio"), { systemMicrophone, microphone });
+        expect(systemMicrophone).not.toHaveBeenCalled();
+        expect(ask).toHaveBeenCalledOnce();
+        session.destroy();
+        vi.restoreAllMocks();
+        FakePeerConnection.instances = [];
+      }
+    });
+
+    it("runs the strong filter on it, in place of the browser's suppression", async () => {
+      const { mic } = systemMic();
+      const cleaned = track("audio");
+      const noiseFilter = vi.fn(async () => ({ stream: stream(cleaned), stop: vi.fn() }));
+      const { session, ask, pc } = await inCall(track("audio"), {
+        systemMicrophone: async () => mic,
+        noiseFilter,
+        microphone: { echoCancellation: false, autoGainControl: false },
+      });
+      expect(ask).not.toHaveBeenCalled();
+      expect(noiseFilter).toHaveBeenCalledWith(mic.stream);
+      expect(pc.transceivers[0]!.sender.track).toBe(cleaned);
+      expect(said(session)).toContain("Noise suppression: strong.");
+      session.destroy();
+      expect(mic.stop).toHaveBeenCalled();
+    });
+
+    it("lets the browser open it when the system cannot, and says why", async () => {
+      for (const [opener, why] of [
+        [
+          async () => null,
+          "The system could not tell which microphone this is; the browser opens it.",
+        ],
+        [
+          async () => {
+            throw new Error("the microphone did not start in time");
+          },
+          "The system did not open the microphone (the microphone did not start in time); the browser does.",
+        ],
+      ] as const) {
+        const browser = track("audio");
+        const { session, ask, pc } = await inCall(browser, {
+          systemMicrophone: opener,
+          microphone: off,
+        });
+        expect(ask).toHaveBeenCalledOnce();
+        expect(ask.mock.calls[0]![0]).toMatchObject({ audio: off });
+        expect(pc.transceivers[0]!.sender.track).toBe(browser);
+        expect(said(session)).toContain(why);
+        session.destroy();
+        vi.restoreAllMocks();
+        FakePeerConnection.instances = [];
+      }
+    });
+
+    it("opens the system's default when the saved microphone is not connected", async () => {
+      const { mic } = systemMic("Microphone (Laptop)");
+      const systemMicrophone = vi
+        .fn<(deviceId: string | undefined) => Promise<typeof mic | null>>()
+        .mockRejectedValueOnce(new DOMException("gone", "NotFoundError"))
+        .mockResolvedValueOnce(mic);
+      const { session, ask } = await inCall(track("audio"), {
+        systemMicrophone,
+        microphone: { deviceId: "headset", ...off },
+      });
+      expect(systemMicrophone.mock.calls).toEqual([["headset"], [undefined]]);
+      expect(ask).not.toHaveBeenCalled();
+      expect(said(session)).toContain(
+        "The chosen microphone is not connected; using the system's default.",
+      );
+      session.destroy();
+    });
+
+    it("opens one again when it goes, still muted, and lets the old one go", async () => {
+      const first = systemMic();
+      const second = systemMic();
+      const systemMicrophone = vi
+        .fn<(deviceId: string | undefined) => Promise<typeof first.mic | null>>()
+        .mockResolvedValueOnce(first.mic)
+        .mockResolvedValueOnce(second.mic);
+      const { session, pc } = await inCall(track("audio"), {
+        systemMicrophone,
+        microphone: off,
+      });
+      session.toggleMic();
+      first.mic.onEnded!();
+      await vi.waitFor(() => expect(systemMicrophone).toHaveBeenCalledTimes(2));
+      await flush();
+      expect(first.mic.stop).toHaveBeenCalled();
+      // No longer listened to: the old one ending again changes nothing.
+      expect(first.mic.onEnded).toBeNull();
+      expect(pc.transceivers[0]!.sender.track).toBeNull();
+      session.toggleMic();
+      await flush();
+      expect(pc.transceivers[0]!.sender.track).toBe(second.sound);
+      session.destroy();
+      expect(second.mic.stop).toHaveBeenCalled();
+    });
+
+    it("is what a microphone test plays back, named as the system names it", async () => {
+      const { mic } = systemMic();
+      const ask = vi.spyOn(navigator.mediaDevices, "getUserMedia");
+      const test = await testMicrophone(
+        () => {},
+        off,
+        undefined,
+        async () => mic,
+      );
+      expect(ask).not.toHaveBeenCalled();
+      expect(test.stream).toBe(mic.stream);
+      expect(test).toMatchObject({ label: "Microphone (KREO KAST)", system: true });
+      test.stop();
+      expect(mic.stop).toHaveBeenCalled();
+    });
+
+    it("leaves a microphone test to the browser when the system cannot open it", async () => {
+      const opened = stream(track("audio"));
+      vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(opened);
+      const test = await testMicrophone(
+        () => {},
+        off,
+        undefined,
+        async () => {
+          throw new Error("no helper");
+        },
+      );
+      expect(test.stream).toBe(opened);
+      expect(test.system).toBe(false);
+      test.stop();
+    });
+  });
+
   it("tests the microphone being chosen, exactly, and hands back what it hears", async () => {
     const opened = stream(track("audio", "usb-mic"));
     const ask = vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(opened);

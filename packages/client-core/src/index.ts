@@ -21,6 +21,7 @@ export {
   listMediaDevices,
   microphoneConstraints,
   wantsNoiseFilter,
+  wantsSystemMicrophone,
 } from "./devices.js";
 export type {
   FilteredMicrophone,
@@ -28,6 +29,8 @@ export type {
   MediaDeviceOption,
   MicrophoneSettings,
   NoiseFilter,
+  OpenSystemMicrophone,
+  SystemMicrophone,
 } from "./devices.js";
 export { captureFailure } from "./capture.js";
 export type { CaptureKind } from "./capture.js";

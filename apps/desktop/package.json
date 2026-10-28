@@ -7,11 +7,11 @@
   "description": "OwnBase — self-hosted team chat",
   "author": "OwnBase contributors",
   "scripts": {
-    "dev": "electron-vite dev",
+    "dev": "node scripts/build-microphone.mjs && electron-vite dev",
     "build": "electron-vite build",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
-    "package": "pnpm --filter @ownbase/web build && electron-vite build && electron-builder --config electron-builder.yml"
+    "package": "pnpm --filter @ownbase/web build && node scripts/build-microphone.mjs && electron-vite build && electron-builder --config electron-builder.yml"
   },
   "dependencies": {
     "@fastify/cors": "^11.0.1",

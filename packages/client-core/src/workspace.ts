@@ -39,7 +39,7 @@ import type {
   HuddleState,
   ScreenShareQuality,
 } from "./huddle.js";
-import type { MicrophoneSettings, NoiseFilter } from "./devices.js";
+import type { MicrophoneSettings, NoiseFilter, OpenSystemMicrophone } from "./devices.js";
 
 class HuddleJoinRefusedError extends Error {}
 /** A rejoin given up because the socket dropped again; the next one asks afresh. */
@@ -3558,6 +3558,7 @@ export class WorkspaceClient {
       microphone?: MicrophoneSettings;
       cameraId?: string;
       noiseFilter?: NoiseFilter;
+      systemMicrophone?: OpenSystemMicrophone;
     } = {},
   ): Promise<void> {
     this.leaveHuddle();
@@ -3595,6 +3596,7 @@ export class WorkspaceClient {
         microphone: options.microphone,
         cameraId: options.cameraId,
         noiseFilter: options.noiseFilter,
+        systemMicrophone: options.systemMicrophone,
         onReport: (peer, report) => {
           if (this.huddleReports && this.session === session)
             this.sendSocket({ type: "huddle.report", channelId, peer, report });

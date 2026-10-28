@@ -15,9 +15,10 @@
         "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12).",
         "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker. screen:choose also carries the picker's Share sound, which the handler passes on only where screenSoundSupported and the page asked for audio.",
         "hosting:icon answers a listed hosted workspace's icon as a data URL, or null (UX-60).",
-        "Reads the renderer's appearance setting at startup and makes the window with windowColours' background and title bar overlay. storage:set of that setting, and nativeTheme's updated event, paint the window again, so a window in White is not framed in Onyx and its buttons are drawn on White."
+        "Reads the renderer's appearance setting at startup and makes the window with windowColours' background and title bar overlay. storage:set of that setting, and nativeTheme's updated event, paint the window again, so a window in White is not framed in Onyx and its buttons are drawn on White.",
+        "microphone:list, microphone:open and microphone:close reach SystemMicrophones (microphone.ts) behind the same trusted-window guard; open hands the page its end of a MessageChannelMain. A page that navigates, crashes or closes lets go of its microphones, and quitting ends every helper."
       ],
-      "concepts": ["Electron main", "process ownership", "IPC", "lifecycle"]
+      "concepts": ["Electron main", "process ownership", "IPC", "lifecycle", "system microphone"]
     },
     {
       "path": "apps/desktop/src/main/hostedServer.ts",
@@ -242,7 +243,8 @@
         "Commands use ipcRenderer.invoke and event subscriptions return disposal functions that remove their listeners.",
         "The main-side boundary still validates callers and payloads; a typed bridge alone is not authorization.",
         "hostingIcon asks the main process for a hosted workspace's icon (UX-60).",
-        "screenSound tells the picker whether a share can send its sound here, from the same screenSoundSupported the main process uses (screenShare.ts has no imports, so it bundles into the preload), and chooseScreen passes the choice with the source."
+        "screenSound tells the picker whether a share can send its sound here, from the same screenSoundSupported the main process uses (screenShare.ts has no imports, so it bundles into the preload), and chooseScreen passes the choice with the source.",
+        "On Windows, microphones, openMicrophone and closeMicrophone reach main/microphone.ts. A port cannot cross the context bridge, so each opened microphone's port is passed to the page as a window message, ownbase:microphone-port, with its session."
       ],
       "concepts": ["preload", "context isolation", "IPC contract", "teardown"]
     },
@@ -256,7 +258,8 @@
         "Owns close-preparation delivery and route checkpoint subscriptions; followPlace restores the remembered history before shared App mounts.",
         "hosting.icon passes a hosted workspace's icon through from hostingIcon (UX-60).",
         "screenShare.sound and choose's sound option carry the picker's Share sound to chooseScreen.",
-        "notify hands Electron windowsTag(tag), an 11-character cyrb53 fingerprint, rather than the tag itself. Windows drops a toast whose tag runs past 54 characters, without an error or a show event, and the screen's tags (the account's address and id, then what it is about) are longer, so until 2026-10-24 the app showed no notification on Windows at all."
+        "notify hands Electron windowsTag(tag), an 11-character cyrb53 fingerprint, rather than the tag itself. Windows drops a toast whose tag runs past 54 characters, without an error or a show event, and the screen's tags (the account's address and id, then what it is about) are longer, so until 2026-10-24 the app showed no notification on Windows at all.",
+        "systemMicrophone collects the ports the preload posts to the window, whether they arrive before or after the answer to opening, ignores messages from anywhere else, and lets a microphone go if its port has not come within five seconds."
       ],
       "concepts": ["platform adapter", "shared UI", "IPC", "route restore", "Windows notifications"]
     },
@@ -346,7 +349,8 @@
       "details": [
         "Packages only built output, the manifest and required dependencies into ASAR; excludes dependency .ts/.cts/.mts source files that Node does not load there.",
         "Copies built web assets for embedded hosting and app/tray icons as external resources.",
-        "Defines NSIS, DMG, AppImage/deb targets and current/legacy deep-link schemes; Windows uninstall deliberately preserves app data."
+        "Defines NSIS, DMG, AppImage/deb targets and current/legacy deep-link schemes; Windows uninstall deliberately preserves app data.",
+        "Ships native/bin/ownbase-microphone.exe, the Windows microphone helper, as a resource outside the archive, where it can be run; the package script builds it first and leaves the folder empty elsewhere."
       ],
       "concepts": ["ASAR", "F15", "installer", "deep links"]
     },
@@ -1047,6 +1051,18 @@
         "Keeps dependency/build/test output and local workspace data out of repository history."
       ],
       "concepts": ["configuration", "build/deployment"]
+    },
+    {
+      "path": "apps/desktop/src/main/microphone.ts",
+      "plain": "Opens your microphone on Windows the way other apps do, so sound effects set up in Windows, such as Equalizer APO, reach your calls.",
+      "summary": "Runs the Windows microphone helper, one process per open microphone, and streams its samples to the page over a MessagePort.",
+      "details": [
+        "Chromium 152 opens any Windows microphone that reports RawProcessingSupported with AUDCLNT_STREAMOPTIONS_RAW, with no switch left to turn that off, and Windows applies no stream effects (SFX) to raw streams. Effects set up in Windows, such as Equalizer APO's RNNoise and gate, or a maker's noise removal, therefore reached every other app but not OwnBase. Measured on a KREO KAST with Equalizer APO in its stream-effect slot, in a quiet room: a steady hiss at -61 dBFS through Chromium, -97 dBFS through the ordinary path.",
+        "native/OwnBaseMicrophone.cs is the helper: a shared-mode WASAPI capture with no client properties, so the stream is the default mode and every effect Windows has for it runs. `list` prints the active capture endpoints and the console default; `capture <id>` writes mono 32-bit float samples at the mix rate on stdout, says started, ended or error as JSON lines on stderr, and stops when stdin closes. It is compiled by the C# compiler that ships with Windows' .NET Framework 4 (scripts/build-microphone.mjs), so building and running it needs nothing installed.",
+        "SystemMicrophones spawns the helper per open: it resolves once the helper says started, with the rate and name, and otherwise rejects, saying why, within five seconds. Samples are cut to whole floats however the pipe splits them and posted to the main process's end of a MessageChannelMain; a device that goes, or a helper that stops by itself, is told to the page as { ended } a moment before the port closes. A window holds at most four; closing its port, navigating, crashing or closing the window ends its helpers, and quitting ends all of them.",
+        "index.ts turns it off under fake media (TEST_MEDIA) and with OWNBASE_SYSTEM_MICROPHONE=0, and outside Windows, so list then answers with no microphones and the page falls back to the browser."
+      ],
+      "concepts": ["WASAPI", "raw capture", "audio effects", "helper process", "MessagePort"]
     }
   ],
   "flows": [

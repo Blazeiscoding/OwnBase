@@ -10,8 +10,10 @@ export type {
   HostingStart,
   HostingStatus,
   LastHosted,
+  OpenedSystemMicrophone,
   Platform,
   RestoreInventory,
   SavedServer,
   ShareableSource,
+  SystemMicrophoneDevice,
 } from "./platform.js";
