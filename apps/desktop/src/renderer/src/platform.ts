@@ -15,9 +15,11 @@ import type {
   HostingStart,
   HostingStatus,
   LastHosted,
+  OpenedSystemMicrophone,
   Platform,
   RestoreInventory,
   ShareableSource,
+  SystemMicrophoneDevice,
 } from "@ownbase/ui";
 
 interface OwnBaseBridge {
@@ -101,6 +103,9 @@ interface OwnBaseBridge {
   screenSources: (quick: boolean) => Promise<ShareableSource[] | null>;
   chooseScreen: (id: string, sound: boolean) => Promise<void>;
   screenSound: boolean;
+  microphones?: () => Promise<{ defaultId: string | null; microphones: SystemMicrophoneDevice[] }>;
+  openMicrophone?: (id: string) => Promise<{ session: number; sampleRate: number; name: string }>;
+  closeMicrophone?: (session: number) => Promise<void>;
 }
 
 declare global {
@@ -142,6 +147,70 @@ function windowsTag(tag: string): string {
   h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507);
   h2 ^= Math.imul(h1 ^ (h1 >>> 13), 3266489909);
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
+}
+
+/** What the preload posts a microphone's port to this window as. */
+const MICROPHONE_PORT = "ownbase:microphone-port";
+/** How long an opened microphone's port may take to arrive. */
+const PORT_MS = 5000;
+
+/**
+ * Microphones the app opens itself on Windows (the main process's
+ * microphone.ts). Each one's sound arrives on a port of its own, posted to
+ * this window by the preload: before or after the answer to opening it,
+ * so ports are held here until they are asked for.
+ */
+export function systemMicrophone(
+  bridge: Pick<OwnBaseBridge, "microphones" | "openMicrophone" | "closeMicrophone">,
+  target: Window = window,
+): Platform["systemMicrophone"] {
+  const { microphones, openMicrophone, closeMicrophone } = bridge;
+  if (!microphones || !openMicrophone || !closeMicrophone) return undefined;
+  const arrived = new Map<number, MessagePort>();
+  const waiting = new Map<number, (port: MessagePort) => void>();
+  target.addEventListener("message", (event: MessageEvent) => {
+    if (event.source !== target) return;
+    const data = event.data as { type?: unknown; session?: unknown } | null;
+    const port = event.ports[0];
+    if (data?.type !== MICROPHONE_PORT || typeof data.session !== "number" || !port) return;
+    const take = waiting.get(data.session);
+    if (take) {
+      waiting.delete(data.session);
+      take(port);
+    } else {
+      arrived.set(data.session, port);
+    }
+  });
+  const portFor = (session: number) =>
+    new Promise<MessagePort>((resolve, reject) => {
+      const held = arrived.get(session);
+      if (held) {
+        arrived.delete(session);
+        resolve(held);
+        return;
+      }
+      const timer = setTimeout(() => {
+        waiting.delete(session);
+        reject(new Error("the microphone's sound did not arrive"));
+      }, PORT_MS);
+      waiting.set(session, (port) => {
+        clearTimeout(timer);
+        resolve(port);
+      });
+    });
+  return {
+    list: () => microphones(),
+    open: async (id): Promise<OpenedSystemMicrophone> => {
+      const { session, sampleRate, name } = await plainly(openMicrophone(id));
+      const close = () => void closeMicrophone(session).catch(() => {});
+      try {
+        return { port: await portFor(session), sampleRate, name, close };
+      } catch (err) {
+        close();
+        throw err;
+      }
+    },
+  };
 }
 
 export function electronPlatform(): Platform {
@@ -215,6 +284,7 @@ export function electronPlatform(): Platform {
       choose: (id, options) => plainly(bridge.chooseScreen(id, options?.sound === true)),
       sound: bridge.screenSound === true,
     },
+    systemMicrophone: systemMicrophone(bridge),
     discoverLan: (cb) => {
       void bridge.lanSnapshot().then(cb);
       return bridge.onLanServers(cb);

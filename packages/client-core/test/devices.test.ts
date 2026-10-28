@@ -5,6 +5,7 @@ import {
   microphoneConstraints,
   openSaved,
   wantsNoiseFilter,
+  wantsSystemMicrophone,
 } from "../src/devices.js";
 
 /** What Chromium's `enumerateDevices` gives on Windows, stand-ins for the default included. */
@@ -95,6 +96,26 @@ describe("how much noise to take out (Voice & video)", () => {
     expect(audio(true)).toBe(false);
     expect(audio(false)).toBe(true);
     expect(audio(false, { noiseSuppression: false })).toBe(false);
+  });
+});
+
+describe("when the system opens the microphone rather than the browser (Windows)", () => {
+  const off = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+
+  it("only with none of the browser's processing chosen", () => {
+    expect(wantsSystemMicrophone(off)).toBe(true);
+    // Each is on unless turned off, so nothing chosen is all of them.
+    expect(wantsSystemMicrophone()).toBe(false);
+    expect(wantsSystemMicrophone({ ...off, echoCancellation: undefined })).toBe(false);
+    expect(wantsSystemMicrophone({ ...off, autoGainControl: true })).toBe(false);
+    expect(wantsSystemMicrophone({ ...off, noiseSuppression: true })).toBe(false);
+  });
+
+  it("with the strong filter standing in for the browser's suppression", () => {
+    const strong = { echoCancellation: false, autoGainControl: false };
+    expect(wantsSystemMicrophone(strong, true)).toBe(true);
+    expect(wantsSystemMicrophone(strong, false)).toBe(false);
+    expect(wantsSystemMicrophone({ ...strong, echoCancellation: true }, true)).toBe(false);
   });
 });
 

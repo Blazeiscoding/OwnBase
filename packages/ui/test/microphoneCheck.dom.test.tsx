@@ -7,7 +7,7 @@ const opened = vi.hoisted(() => ({
   onLevel: null as ((level: number) => void) | null,
   stop: vi.fn(),
   /** What opening it gives instead of the usual microphone. */
-  result: null as { label: string; metered: boolean } | null,
+  result: null as { label: string; metered: boolean; system?: boolean } | null,
   /** What opening it throws instead, as the browser would. */
   refusal: null as unknown,
 }));
@@ -61,6 +61,20 @@ describe("testing the microphone", () => {
     expect(opened.stop).toHaveBeenCalledOnce();
     expect(screen.queryByRole("meter")).toBeNull();
     expect(screen.getByRole("button", { name: "Test microphone" })).toBeVisible();
+  });
+
+  it("says when it hears the microphone as other apps do, sound effects included", async () => {
+    const user = userEvent.setup();
+    const effects = /OwnBase hears it as other apps on this computer do/;
+    render(check());
+    await user.click(screen.getByRole("button", { name: "Test microphone" }));
+    await screen.findByText("USB Headset");
+    expect(screen.queryByText(effects)).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Stop test" }));
+
+    opened.result = { label: "Microphone (KREO KAST)", metered: true, system: true };
+    await user.click(screen.getByRole("button", { name: "Test microphone" }));
+    expect(await screen.findByText(effects)).toBeVisible();
   });
 
   it("says where to allow a blocked microphone", async () => {

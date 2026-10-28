@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useRef, useState } from "react";
 import {
   captureFailure,
   testMicrophone,
@@ -6,14 +6,23 @@ import {
   type MicrophoneSettings,
   type MicrophoneTest,
 } from "@ownbase/client-core";
+import { PlatformContext } from "../context.js";
 import { useSpeaker } from "../lib/mediaDevices.js";
 import { noiseFilter } from "../lib/noiseFilter.js";
+import { systemMicrophoneOpener } from "../lib/systemMicrophone.js";
 import { buttonClass } from "./Button.js";
 
 type Check =
   | { phase: "idle" }
   | { phase: "starting" }
-  | { phase: "listening"; label: string; metered: boolean; filtered: boolean; level: number }
+  | {
+      phase: "listening";
+      label: string;
+      metered: boolean;
+      filtered: boolean;
+      system: boolean;
+      level: number;
+    }
   | { phase: "failed"; message: string };
 
 /**
@@ -38,6 +47,8 @@ export function MicrophoneCheck({
   /** Listens at once rather than waiting to be asked. */
   autoStart?: boolean;
 }) {
+  // Read without insisting: the check also stands alone, as in the gallery.
+  const platform = useContext(PlatformContext);
   const [check, setCheck] = useState<Check>({ phase: "idle" });
   const [playback, setPlayback] = useState(false);
   const test = useRef<MicrophoneTest | null>(null);
@@ -72,6 +83,7 @@ export function MicrophoneCheck({
         },
         settings,
         noiseFilter,
+        systemMicrophoneOpener(platform),
       );
       if (!alive.current || attempt.current !== mine) {
         opened.stop();
@@ -84,6 +96,7 @@ export function MicrophoneCheck({
         label: opened.label,
         metered: opened.metered,
         filtered: opened.filtered,
+        system: opened.system,
         level: 0,
       });
       onOpened?.();
@@ -137,6 +150,12 @@ export function MicrophoneCheck({
               : " It opened, but this browser cannot show how loud it is."}{" "}
             Nothing is sent to anyone.
           </p>
+          {check.system && (
+            <p className="text-sm text-ink-dim">
+              OwnBase hears it as other apps on this computer do, with any sound effects set up in
+              Windows.
+            </p>
+          )}
           {wantsNoiseFilter(settings) && !check.filtered && (
             <p className="text-sm text-ink-dim">
               Strong noise suppression could not start here, so this is your browser's own. A huddle

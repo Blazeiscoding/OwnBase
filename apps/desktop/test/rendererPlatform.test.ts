@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { electronPlatform, followPlace } from "../src/renderer/src/platform.js";
+import { electronPlatform, followPlace, systemMicrophone } from "../src/renderer/src/platform.js";
 
 type Bridge = Window["ownbase"];
 
@@ -343,5 +343,76 @@ describe("notifications", () => {
     expect(made[0]!.tag).not.toBe(made[1]!.tag);
     expect(made[2]!.tag).toBe(made[0]!.tag);
     expect(made[3]!.tag).toBeUndefined();
+  });
+});
+
+describe("microphones the app opens itself (Windows)", () => {
+  /** A window as the preload posts ports to it. */
+  function windowWithPorts() {
+    const target = new EventTarget();
+    const post = (data: unknown, port: MessagePort, source: unknown = target) =>
+      target.dispatchEvent(Object.assign(new Event("message"), { data, source, ports: [port] }));
+    return { target: target as unknown as Window, post };
+  }
+
+  function bridge(session = 7) {
+    return {
+      microphones: vi.fn(async () => ({ defaultId: null, microphones: [] })),
+      openMicrophone: vi.fn(async () => ({ session, sampleRate: 48000, name: "Microphone (A)" })),
+      closeMicrophone: vi.fn(async () => {}),
+    };
+  }
+
+  it("is offered only where the bridge has it", () => {
+    expect(systemMicrophone({}, windowWithPorts().target)).toBeUndefined();
+  });
+
+  it("hands over the port whether it arrives before or after the answer", async () => {
+    const { target, post } = windowWithPorts();
+    const b = bridge();
+    const system = systemMicrophone(b, target)!;
+
+    const early = new MessageChannel().port1;
+    post({ type: "ownbase:microphone-port", session: 7 }, early);
+    await expect(system.open("{a}")).resolves.toMatchObject({ port: early, sampleRate: 48000 });
+
+    const late = new MessageChannel().port1;
+    const opening = system.open("{a}");
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    // Not this window's, and not this session's: both left alone.
+    post({ type: "ownbase:microphone-port", session: 7 }, new MessageChannel().port1, {});
+    post({ type: "ownbase:microphone-port", session: 8 }, new MessageChannel().port1);
+    post({ type: "ownbase:microphone-port", session: 7 }, late);
+    const opened = await opening;
+    expect(opened.port).toBe(late);
+
+    opened.close();
+    expect(b.closeMicrophone).toHaveBeenCalledWith(7);
+  });
+
+  it("lets the microphone go when its sound never arrives", async () => {
+    vi.useFakeTimers();
+    try {
+      const b = bridge();
+      const opening = systemMicrophone(b, windowWithPorts().target)!.open("{a}");
+      const failed = expect(opening).rejects.toThrow("did not arrive");
+      await vi.advanceTimersByTimeAsync(5000);
+      await failed;
+      expect(b.closeMicrophone).toHaveBeenCalledWith(7);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("says why it would not open, without the IPC channel's prefix", async () => {
+    const b = bridge();
+    b.openMicrophone.mockRejectedValue(
+      new Error(
+        "Error invoking remote method 'microphone:open': Error: Too many microphones are open.",
+      ),
+    );
+    expect(await messageFrom(systemMicrophone(b, windowWithPorts().target)!.open("{a}"))).toBe(
+      "Too many microphones are open.",
+    );
   });
 });

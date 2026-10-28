@@ -75,7 +75,18 @@ export interface OwnBaseBridge {
   chooseScreen: (id: string, sound: boolean) => Promise<void>;
   /** Whether a share can send the screen's sound here, as the main process decides it too. */
   screenSound: boolean;
+  /**
+   * Windows only: microphones the app opens itself, as other apps there do
+   * (main/microphone.ts). An opened one's sound comes to the page on a port,
+   * as a MICROPHONE_PORT window message.
+   */
+  microphones?: () => Promise<unknown>;
+  openMicrophone?: (id: string) => Promise<unknown>;
+  closeMicrophone?: (session: number) => Promise<void>;
 }
+
+/** What the page hears a microphone's port as; the renderer's platform names it too. */
+const MICROPHONE_PORT = "ownbase:microphone-port";
 
 const bridge: OwnBaseBridge = {
   downloadFile: (url) => ipcRenderer.invoke("file:download", url),
@@ -163,6 +174,21 @@ const bridge: OwnBaseBridge = {
   screenSources: (quick) => ipcRenderer.invoke("screen:sources", quick),
   chooseScreen: (id, sound) => ipcRenderer.invoke("screen:choose", id, sound),
   screenSound: screenSoundSupported(process.platform, process.getSystemVersion()),
+  ...(process.platform === "win32"
+    ? {
+        microphones: () => ipcRenderer.invoke("microphone:list"),
+        openMicrophone: (id: string) => ipcRenderer.invoke("microphone:open", id),
+        closeMicrophone: (session: number) => ipcRenderer.invoke("microphone:close", session),
+      }
+    : {}),
 };
+
+// A port cannot cross the context bridge, so this passes each microphone's
+// on to the page as a message to its own window, which nothing else hears.
+ipcRenderer.on("microphone:port", (event, data: { session?: unknown } | undefined) => {
+  const port = event.ports[0];
+  if (!port || typeof data?.session !== "number") return;
+  window.postMessage({ type: MICROPHONE_PORT, session: data.session }, "*", [port]);
+});
 
 contextBridge.exposeInMainWorld("ownbase", bridge);

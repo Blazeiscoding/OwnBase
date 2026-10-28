@@ -4,6 +4,7 @@ import type { MicrophoneSettings, WorkspaceClient } from "@ownbase/client-core";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
 import { noiseFilter } from "./noiseFilter.js";
+import { systemMicrophoneOpener } from "./systemMicrophone.js";
 
 /**
  * The devices a huddle uses and how it cleans up the microphone's sound,
@@ -202,6 +203,7 @@ function createPreferences(platform: Platform) {
         ...(Object.keys(microphone).length > 0 ? { microphone } : {}),
         ...(devices.cameraId ? { cameraId: devices.cameraId } : {}),
         noiseFilter,
+        systemMicrophone: systemMicrophoneOpener(platform),
       });
     },
     finishDeviceCheck: (choice) => {

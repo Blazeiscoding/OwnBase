@@ -67,6 +67,23 @@ export interface ShareableSource {
   icon: string;
 }
 
+/** A microphone as the system lists it, for the app to open itself. */
+export interface SystemMicrophoneDevice {
+  id: string;
+  name: string;
+}
+
+/** One the app opened itself; see `Platform.systemMicrophone`. */
+export interface OpenedSystemMicrophone {
+  /** Its sound: mono Float32Arrays at `sampleRate`, then `{ ended }` if the device goes. */
+  port: MessagePort;
+  sampleRate: number;
+  /** The device's name, as the system gives it. */
+  name: string;
+  /** Lets the device go. */
+  close: () => void;
+}
+
 /** What a restored backup brings with it once it is put back in use. */
 /** One backup of a hosted workspace in its backup folder. */
 export interface HostedBackup {
@@ -309,6 +326,18 @@ export interface Platform {
      * left out, so the picker offers it.
      */
     sound?: boolean;
+  };
+  /**
+   * Microphones the app opens itself, the way other apps on this computer
+   * open them, rather than through the browser. Desktop on Windows only,
+   * where the browser opens a microphone raw, which leaves out the sound
+   * effects set up in Windows.
+   */
+  systemMicrophone?: {
+    /** Every microphone the system has, and its default; none where the app cannot open them. */
+    list: () => Promise<{ defaultId: string | null; microphones: SystemMicrophoneDevice[] }>;
+    /** Opens one by the system's id for it. Rejects, saying why, when it will not start. */
+    open: (id: string) => Promise<OpenedSystemMicrophone>;
   };
   /** Subscribe to LAN server discovery. Returns unsubscribe. Desktop only. */
   discoverLan?: (cb: (servers: DiscoveredServer[]) => void) => () => void;

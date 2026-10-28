@@ -29,6 +29,9 @@ data/
 !/docs/INTEGRATIONS.md
 !/docs/PLANS.md
 
+# The Windows microphone helper, built from apps/desktop/native/OwnBaseMicrophone.cs.
+/apps/desktop/native/bin/
+
 # A slideshow kept on the machine that made it.
 /*-codebase-tour.html
 
