@@ -186,7 +186,8 @@
         "A muted microphone sends nothing (sentMicrophone, E13b): the slot carries no track rather than a disabled one, which every connection would still encode as silence and every listener decode. Turning it on puts the microphone back on every connection with replaceTrack, without a new offer, and one swapped in while muted waits the same way.",
         "Camera/screen prompts, peer signals and teardown have owned lifetimes. testMicrophone opens a local level meter without sending media anywhere and returns an explicit stop operation.",
         "closePeers closes every peer connection and keeps the microphone and camera, for coming back after the server let this device's place go: the others closed their end, so each connection is made afresh.",
-        "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call."
+        "Each call keeps a log of every step (call settings, setup sent and received, each route found by kind and protocol, ICE and connection states, failures that were silent before) with no address or SDP. A connection not up after 15 s, or failed, is diagnosed from the routes each side offered (signalling, no ICE servers, no public route here or there, needs a relay), shown as the peer's trouble, reported to the server, and retried up to twice with the call settings read afresh and an ICE restart from the offering side. The module is loaded only when someone joins a call.",
+        "With none of the browser's processing chosen and a systemMicrophone opener given, openMicrophone first opens the microphone as other apps on the computer do (openSystemMicrophone), so the sound effects set up in the system reach the call; the strong filter, when chosen, runs on that. An opener that cannot tell which device it is, or fails, leaves the browser to open it as before, and the call log says which happened. The feed's system microphone says itself when it goes (onEnded), which recovers the microphone as a device track ending does. testMicrophone does the same and reports system."
       ],
       "concepts": [
         "WebRTC mesh",
@@ -195,7 +196,8 @@
         "audio level sampling",
         "media cleanup",
         "N04",
-        "device switching"
+        "device switching",
+        "system microphone"
       ]
     },
     {
@@ -204,9 +206,15 @@
       "summary": "Says which microphone and camera to open, and lists the devices to choose from.",
       "details": [
         "microphoneConstraints and cameraConstraints are the one place a huddle's capture constraints are written. A saved device is asked for loosely, so one left unplugged falls back to the default instead of failing the join; a device chosen just now is asked for exactly, so a failure is reported rather than another device opening silently. Echo cancellation, noise suppression and automatic gain are on unless turned off; wantsNoiseFilter says whether Strong noise suppression applies (on unless it or suppression was turned off), and the browser's own suppression is then left off rather than run twice. NoiseFilter is the shape of the filter the app supplies. Cameras are asked for with resizeMode crop-and-scale: without it Chromium handed over a virtual camera's full 1080p, past the 1280 cap, which a mesh would send to everyone.",
-        "listMediaDevices drops Chromium's 'default' and 'communications' stand-ins, numbers devices whose names the browser keeps back before permission, and names what the system default currently is. canChooseSpeaker detects setSinkId."
+        "listMediaDevices drops Chromium's 'default' and 'communications' stand-ins, numbers devices whose names the browser keeps back before permission, and names what the system default currently is. canChooseSpeaker detects setSinkId.",
+        "wantsSystemMicrophone says when the system may open the microphone rather than the browser: echo cancellation and automatic volume off, and the browser's noise suppression off or replaced by the strong filter. SystemMicrophone and OpenSystemMicrophone are the shape of what the desktop app supplies for that on Windows, and openSaved takes any opener, so a saved microphone that is not connected falls back to the default there too."
       ],
-      "concepts": ["capture constraints", "device enumeration", "permission-gated labels"]
+      "concepts": [
+        "capture constraints",
+        "device enumeration",
+        "permission-gated labels",
+        "system microphone"
+      ]
     },
     {
       "path": "packages/client-core/src/capture.ts",
@@ -285,7 +293,8 @@
         "webPlatform maps those storage operations onto deviceStore. Strict reads preserve unreadability as an error; ordinary optional reads can return null on failure, which is why callers that must not mistake unreadable for absent, such as the composer preference since Q04, read strictly. trustAddress and changeSignIns map onto the trust and signIns ops, so an approved address or a sign-in change is one step for every tab.",
         "Browser notifications honor permission and a deduplication tag, while notification clicks refocus the window and run navigation. Where the page may not make one (Android's Chrome throws Illegal constructor from new Notification), workerNotifications shows it through the service worker instead. Downloads use a scoped URL through a hidden no-referrer iframe.",
         "Browser deep links are consumed from the URL fragment and removed after recognition. Desktop adapters can register capture and persist phases for normal close preparation.",
-        "HostingStatus.iconVersion and each hosted workspace's iconVersion say its icon's version, and hosting.icon reads one's icon as a data URL without starting it (UX-60)."
+        "HostingStatus.iconVersion and each hosted workspace's iconVersion say its icon's version, and hosting.icon reads one's icon as a data URL without starting it (UX-60).",
+        "systemMicrophone, desktop on Windows only, lists the system's microphones and opens one, handing back a MessagePort that carries its samples, its rate and name, and close."
       ],
       "concepts": ["platform adapter", "strict reads", "notifications", "downloads", "close phases"]
     },
@@ -521,7 +530,8 @@
         "Join waits while initialization or saving is pending, then checks whether the caller still wants this channel and whether the client remains usable. N04 fences old reads with a load version so a retry or acknowledged explicit choice wins.",
         "A confirmed absent record is handled as a first-use default; the conservative muted state applies while the record is unresolved or unreadable.",
         "The same record keeps the chosen microphone, camera and speaker ids and how the microphone is processed: echo cancellation, automatic volume, and noise suppression as Strong (noiseFilter), Standard or Off, Strong unless chosen otherwise. Only keys that were chosen are written; on load a field of the wrong type is dropped rather than making the whole record unreadable. joinHuddle passes the microphone and camera choices, and the strong noise filter, to the session.",
-        "The first join on a device with more than one microphone or camera and nothing chosen waits on a question (checkingDevices) that DeviceCheckDialog answers through finishDeviceCheck; the answer, or a choice made in settings, is kept as devicesChecked so it is asked once. The device listing is imported only by a join that may ask, which keeps client-core's device code out of the script every visit downloads, and the join checks again that it is still wanted once the listing and the answer are in."
+        "The first join on a device with more than one microphone or camera and nothing chosen waits on a question (checkingDevices) that DeviceCheckDialog answers through finishDeviceCheck; the answer, or a choice made in settings, is kept as devicesChecked so it is asked once. The device listing is imported only by a join that may ask, which keeps client-core's device code out of the script every visit downloads, and the join checks again that it is still wanted once the listing and the answer are in.",
+        "joinHuddle also passes systemMicrophoneOpener(platform), so on Windows the desktop app can open the microphone the way other apps do when none of the browser's processing is chosen."
       ],
       "concepts": [
         "join preferences",
@@ -2235,7 +2245,8 @@
       "summary": "Lets the user test local microphone level before joining a huddle.",
       "details": [
         "Opens the chosen microphone with the chosen processing through client-core's testMicrophone, the strong noise filter included, so what plays back is what a call would send; if the filter cannot start it says the browser's own suppression is standing in. It shows the microphone's name and level, and opens it again when the choice changes; autoStart listens at once, as the first-huddle question does. An optional playback sends the voice to the chosen speaker.",
-        "Nothing is sent to peers or the server. Stopping the check or closing settings stops the captured tracks."
+        "Nothing is sent to peers or the server. Stopping the check or closing settings stops the captured tracks.",
+        "Where the desktop app opened the microphone itself (Windows, none of the browser's processing chosen), it says the microphone is heard as other apps hear it, with any sound effects set up in Windows. It reads the platform without insisting on one, so it still stands alone."
       ],
       "concepts": ["local microphone test", "hardware lifetime"]
     },
@@ -2584,6 +2595,36 @@
         "Sections show Button's variants and disabled and waiting states, IconButton's sizes and pressed, disabled and round forms, TextField with hint, error and disabled at each size, Select with hint, error, nothing chosen, disabled and small in a row, a form checked on submit (also inside a Dialog), Kbd, Badge's tones, sizes, cap, dots and one that comes on a press, Tooltip, Menu, Sheet (opened by its owner, and a Menu with sheet), Popover, Toast, EmptyState with and without a mark and an action, and ListStatus's loading, refreshing, failed and empty states. Hover and focus are seen by pointing and tabbing."
       ],
       "concepts": ["development only", "component gallery", "themes", "review reference"]
+    },
+    {
+      "path": "packages/ui/src/lib/systemMicrophone.ts",
+      "plain": "Finds your chosen microphone among Windows' own and plays what the desktop app hears from it into your call.",
+      "summary": "Builds the OpenSystemMicrophone a session uses: maps the browser's device to a Windows endpoint by name and plays its port through an AudioWorklet into a MediaStream.",
+      "details": [
+        "The browser names a device by its own hashed id and Windows by its endpoint id, so the two meet by name: the browser's label, less the (vid:pid) Chromium adds to USB devices, must match exactly one of Windows' names. Two microphones of one model, or a label the browser keeps back, match none, and the browser opens the microphone as before. No device chosen means Windows' console default, as Chromium's own default is; a device the browser does not list rejects with NotFoundError, so openSaved falls back to the default as it does for getUserMedia.",
+        "play makes an AudioContext at the microphone's own rate, loads systemMicrophone.worklet.js and hands the port to the worklet, so samples go from the main process to the audio thread without waiting on the page's thread; a MediaStreamDestination's track is what the call sends. The worklet is imported with ?url&no-inline: small as it is, Vite would otherwise make it a data URL, which the desktop page's script-src 'self' does not load.",
+        "Measured through the built app on an Audiocular C18: open to sound in about 350 ms, the same level as DirectShow's at the same moment, and no gap in six seconds with the page's thread blocked twice for 300 ms."
+      ],
+      "concepts": ["AudioWorklet", "device mapping", "fallback"]
+    },
+    {
+      "path": "packages/ui/src/lib/systemMicrophone.worklet.js",
+      "plain": "Plays the microphone sound the desktop app sends, smoothing out how it arrives so your voice never stutters.",
+      "summary": "An AudioWorkletProcessor that buffers the helper's samples from a MessagePort and outputs them in steady 128-frame blocks.",
+      "details": [
+        "Samples arrive on the port in roughly 10 ms packets; a one-second ring holds them, playing starts once 20 ms is held, and running dry outputs silence until it is held again. A backlog past 120 ms, as at the start or after a stall, is cut back to the target at once.",
+        "The helper's clock and the audio output's drift apart slightly, so while more than twice the target is held one sample is skipped per block, and while less than half is held one is repeated, which cannot be heard. Nothing heard for two seconds, or { ended } from the main process, is passed to the page as ended, once."
+      ],
+      "concepts": ["AudioWorklet", "jitter buffer", "clock drift"]
+    },
+    {
+      "path": "packages/ui/src/lib/audioRunning.ts",
+      "plain": "Waits for sound to start playing, and gives up rather than send silence.",
+      "summary": "Shared check that an AudioContext reached running within three seconds, used by the strong noise filter and the system microphone.",
+      "details": [
+        "resume() can stay pending on a page the browser has not let play sound, so it races a three-second timer and then checks state; anything but running rejects, and the caller falls back to the browser's own microphone."
+      ],
+      "concepts": ["Web Audio", "fallback"]
     }
   ],
   "flows": [
