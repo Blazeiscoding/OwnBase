@@ -25,7 +25,14 @@ The name OwnBase has not been trademark-cleared yet.
 ## Try it
 
 Each of these gives you a workspace at `http://localhost:8543`. Work from a
-clone. The first two need Node 24+, pnpm 10 and one `pnpm install`.
+clone:
+
+```sh
+git clone https://github.com/Blazeiscoding/OwnBase.git
+cd OwnBase
+```
+
+The first two need Node 24+, pnpm 10 and one `pnpm install`.
 
 **In a browser.** Build the standalone server and start it:
 
@@ -78,8 +85,14 @@ Then open `http://localhost:8543`, sign in as `maya`, and try:
   same link, `ownbase://join?host=...&code=...`.
 - **No app.** The server serves a full browser client at `http://host:8543/`.
 
-The first account created on a fresh server becomes its owner. The owner and
-admins can rename the workspace and choose [who may join](docs/DEPLOYMENT.md#who-may-join)
+The first account created on a fresh server becomes its owner. Creating it on
+the machine running the server needs nothing more. From anywhere else,
+or on a server started with `--public-url`, it needs the claim code the server
+prints when it starts. `http://host:8543/#/claim/<code>` opens account creation
+with the code filled in, so a host can send the owner that link instead. A host
+that makes the code itself passes it to the server in `OWNBASE_CLAIM_CODE`.
+
+The owner and admins can rename the workspace and choose [who may join](docs/DEPLOYMENT.md#who-may-join)
 in **Workspace settings**, including letting people in as
 [guests](docs/DEPLOYMENT.md#guests), with a display name and no account.
 
@@ -137,6 +150,16 @@ workspace; once it has an owner, it keeps its own name and rule, which the owner
 and admins change in Workspace settings. `--help` lists the rest, along with the `backup`, `restore`,
 `verify-backup` and `recover` commands.
 
+`--backup-dir <dir>` turns on scheduled backups. The server backs up every 24
+hours, verifies each copy before keeping it, and keeps the newest seven.
+`--backup-every-hours` and `--backup-keep` change those numbers. See
+[Backups on a schedule](docs/DEPLOYMENT.md#backups-on-a-schedule).
+
+To run the server as a service that starts with the machine and restarts after a
+crash, follow [A Linux server with systemd](docs/DEPLOYMENT.md#a-linux-server-with-systemd)
+or [A Windows server, as a service](docs/DEPLOYMENT.md#a-windows-server-as-a-service).
+A script ran every command in both recipes, as written, on a fresh machine.
+
 ### Docker
 
 ```sh
@@ -146,6 +169,21 @@ docker compose -f docker/docker-compose.yml up -d
 Data persists in the `ownbase-data` volume. On the public internet, put Caddy
 or another reverse proxy in front for HTTPS. For hosting from home, port-forward
 or use Tailscale.
+
+### Hosting workspaces for others
+
+`ownbase-cloud` runs many workspaces on one Linux machine, the way OwnBase's Team
+plan is hosted. Each workspace gets its own `ownbase-server`, its own address
+such as `https://acme.example.com`, and a certificate Caddy fetches the first
+time someone opens it. An operator API creates, suspends, resumes, exports and
+deletes workspaces. Creating one answers with the claim link to send its owner.
+`ownbase-cloud` is in `ee/cloud`, under the same license as the rest of
+[`ee/`](ee/README.md). [Hosting workspaces for others](docs/DEPLOYMENT.md#hosting-workspaces-for-others)
+walks through the setup.
+
+`--member-notice <n>` tells a server how many members its plan includes. Past
+that number, the owner and admins see a notice. It never locks anyone out. See
+[A plan's members](docs/DEPLOYMENT.md#a-plans-members).
 
 ## What works today
 
@@ -205,13 +243,25 @@ only. See
 [Voice and huddles](docs/DEPLOYMENT.md#voice-and-huddles) for STUN and TURN
 configuration and the HTTPS requirement for browser microphone access.
 
+For a relay of your own, run coturn with a secret it shares with the server,
+given in `OWNBASE_TURN_URLS` and `OWNBASE_TURN_SECRET`. Each member then gets a
+TURN password that names them and runs out after a day, so nobody holds one for
+good. [Your own relay with coturn](docs/DEPLOYMENT.md#your-own-relay-with-coturn)
+has the configuration.
+
 Everyone in the call gets a tile, camera or not, in a grid that keeps its shape
 and its height as people arrive. A share takes the stage and the other tiles
 move to a strip beside it. A green ring marks who is talking. The app tells the
 others when you mute, so a quiet person and a muted one do not look the same.
 
 **Voice & video** in account settings picks the microphone, speaker and camera,
-and sets noise suppression to Strong, Standard or Off. The first huddle on a
+and sets noise suppression to Strong, Standard or Off. With **Echo
+cancellation** and **Automatic volume** off and noise suppression on Strong or
+Off, the desktop app on Windows opens the microphone itself, the way Discord and
+other apps do. Sound effects set up in Windows, such as Equalizer APO or a
+microphone maker's noise removal, then reach the call. A device the app cannot
+open falls back to the browser, and the call log says which of the two opened it.
+`OWNBASE_SYSTEM_MICROPHONE=0` leaves every microphone to the browser. The first huddle on a
 device with more than one microphone or camera asks which to use. Each person in
 a call has their own volume control. When a call stays on **Connecting…** for 15
 seconds, the huddle bar says so and links to a call log that names the cause.
@@ -334,6 +384,36 @@ owner can change another admin, no admin can change the owner's account, and
 nobody can change their own role. A workspace cannot be lost to an argument
 between two admins, or to a misclick.
 
+The owner can download the whole workspace as one `.zip` from **Workspace
+settings → General → Download a copy**, without access to the server.
+`ownbase-server restore --from <zip>` puts it back. The copy holds every
+message, file and account and the secrets apps use, so keep it as safe as the
+server.
+
+## Enterprise edition
+
+The code in [`ee/`](ee/README.md) adds paid features to the same server. It is
+source-available under its own license, not MIT, and the MIT core never imports
+it. The server bundle includes it. Without a license key it runs as the free
+edition, flag for flag, and chat, sign-in and joining never depend on a license.
+
+```sh
+ownbase-server --data ./data --license ./acme.license
+```
+
+No license signing key has been published yet, so for now every build runs as
+the free edition. See [An Enterprise license](docs/DEPLOYMENT.md#an-enterprise-license).
+
+**Single sign-on.** A license with `sso` lets the owner sign people in through
+an OpenID Connect provider such as Okta, Microsoft Entra ID, Google Workspace or
+Keycloak. The owner sets it up in Workspace settings, under Sign-in, and the
+sign-in screen gets a **Sign in with** button. Accounts have no email address,
+so each person links their provider account once, in Account settings under
+Security. The owner can let the provider create accounts for verified addresses
+at chosen domains. The owner can also require single sign-on, after which only
+the owner signs in with a password. The desktop app signs in through the
+system's browser. See [Single sign-on](docs/DEPLOYMENT.md#single-sign-on).
+
 ## The interface
 
 The layout follows Discord's 2025 desktop app. One app background holds a rail
@@ -379,6 +459,8 @@ pnpm typecheck
 | `apps/desktop`         | Electron app (electron-vite, React 19, Tailwind 4)       |
 | `apps/web`             | Browser client, served by the server itself              |
 | `apps/server-cli`      | Bundles the server into one runnable file                |
+| `ee`                   | Enterprise edition: license keys and single sign-on      |
+| `ee/cloud`             | `ownbase-cloud`, the control plane for hosted workspaces |
 
 The [project atlas](docs/PROJECT-VISUALIZER.html) is one offline HTML file that
 covers every tracked file, the architecture and flows, implemented improvements,
@@ -442,7 +524,7 @@ checked-in assets and does not need this step.
 - **Next.** The Block Kit inputs still missing: date pickers, multi-selects and
   checkboxes. Then `views.update`, so a form can change as it is filled in.
 - **Later.** An SFU for larger huddles, message forwarding, sidebar sections,
-  optional Postgres and S3, and SSO.
+  and optional Postgres and S3.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing
 today.
