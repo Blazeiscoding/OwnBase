@@ -377,12 +377,14 @@
     },
     {
       "path": "packages/server/src/relay.ts",
-      "plain": "Sets up a relay, from Cloudflare or elsewhere, that carries huddle audio and video when two networks will not connect directly.",
-      "summary": "A TURN relay for calls between networks that will not connect directly: Cloudflare's, or any other.",
+      "plain": "Sets up a relay, from Cloudflare, the host's own coturn or elsewhere, that carries huddle audio and video when two networks will not connect directly.",
+      "summary": "A TURN relay for calls between networks that will not connect directly: Cloudflare's, one sharing a secret with the server, or any other.",
       "details": [
-        "callRelaySchema accepts a Cloudflare TURN key (ID and API token) or another relay's turn:/turns: addresses, username and password. relayFromEnvironment reads a Cloudflare key from OWNBASE_CLOUDFLARE_TURN_KEY_ID and OWNBASE_CLOUDFLARE_TURN_API_TOKEN, both or neither.",
+        "callRelaySchema accepts a Cloudflare TURN key (ID and API token) or another relay's turn:/turns: addresses, username and password, the two kinds the desktop app saves. serverRelaySchema adds a shared-secret relay (addresses and a secret of at least 16 characters), which only the environment sets.",
+        "relayFromEnvironment reads OWNBASE_TURN_URLS and OWNBASE_TURN_SECRET, or OWNBASE_CLOUDFLARE_TURN_KEY_ID and OWNBASE_CLOUDFLARE_TURN_API_TOKEN: each pair both or neither, never both pairs, refused with a ConfigError that leaves the secret out.",
         "cloudflareIceServers asks Cloudflare's credential endpoint for a password that lasts a day, leaves out port 53 (browsers block it), and turns refusals into words a host can act on without repeating the token.",
-        "createRelaySource reuses one Cloudflare password for an hour and one request for everyone joining at once; after a refusal calls go without a relay for 30 seconds before it asks again, and error() says why. withRelay adds the relay after the workspace's own servers, leaving out an address already given."
+        "sharedSecretCredential signs a member's password as coturn's use-auth-secret checks it: username <expiry>:<userId>, a day ahead, password HMAC-SHA1 of it in base64. coturn counts quotas on the part after the colon, so per member.",
+        "createRelaySource reuses one Cloudflare password for an hour and one request for everyone joining at once; after a refusal calls go without a relay for 30 seconds before it asks again, and error() says why. A shared secret signs a password for each member as they ask. withRelay adds the relay after the workspace's own servers, leaving out an address already given."
       ],
       "concepts": ["TURN", "short-lived credentials", "WebRTC"]
     },
