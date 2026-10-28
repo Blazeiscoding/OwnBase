@@ -1,0 +1,23 @@
+# The landing page at ownbase.tech. Cloudflare Pages serves this folder as it
+# is: no build command, output directory apps/site, production branch main,
+# build watch paths apps/site/*. It reads this file and does not publish it.
+#
+# Fonts and pictures are cached for a week (their names carry no hash, so not
+# forever); pages are checked every time.
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Permissions-Policy: camera=(), microphone=(), geolocation=()
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+
+/fonts/*
+  Cache-Control: public, max-age=604800
+
+/shots/*
+  Cache-Control: public, max-age=604800
+
+/scene.js
+  Cache-Control: public, max-age=3600
+
+/site.css
+  Cache-Control: public, max-age=3600
