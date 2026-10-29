@@ -89,6 +89,7 @@ interface OwnBaseBridge {
   hostingSetInviteOnly: (inviteOnly: boolean) => Promise<HostingStatus>;
   hostingSetAccessPolicy: (policy: AccessPolicy) => Promise<HostingStatus>;
   hostingSetPublicAddress: (address: string) => Promise<HostingStatus>;
+  hostingInstallCloudflared: () => Promise<HostingStatus>;
   hostingRelay: () => Promise<CallRelaySetting>;
   hostingSetRelay: (draft: CallRelayDraft) => Promise<CallRelaySetting>;
   hostingTestRelay: (draft: CallRelayDraft) => Promise<RTCIceServer[]>;
@@ -328,6 +329,8 @@ export function electronPlatform(): Platform {
       setInviteOnly: (inviteOnly) => bridge.hostingSetInviteOnly(inviteOnly),
       setAccessPolicy: (policy) => bridge.hostingSetAccessPolicy(policy),
       setPublicAddress: (address) => plainly(bridge.hostingSetPublicAddress(address)),
+      // Says, in the installer's words, what to do when it could not.
+      installCloudflared: () => plainly(bridge.hostingInstallCloudflared()),
       relay: {
         get: () => bridge.hostingRelay(),
         set: (draft) => plainly(bridge.hostingSetRelay(draft)),

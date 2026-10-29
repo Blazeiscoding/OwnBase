@@ -12,7 +12,7 @@ import type { AccessPolicy } from "@ownbase/protocol";
 import { useHostingStatus } from "../lib/hosting.js";
 import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { useCopy } from "../lib/useCopy.js";
-import { formatDay, formatTime } from "../lib/format.js";
+import { formatBytes, formatDay, formatTime } from "../lib/format.js";
 import { inventorySummary } from "../lib/restoreInventory.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useTabs } from "../lib/useTabs.js";
@@ -891,6 +891,20 @@ export function HostDialog(props: {
     void refresh();
   }, [refresh]);
 
+  // Once cloudflared is installed, the install button that had focus is gone,
+  // and Open to all, which took its place, is what comes next.
+  const openButton = useRef<HTMLButtonElement>(null);
+  const tunnelWasMissing = useRef(false);
+  useEffect(() => {
+    if (
+      status?.tunnelAvailable &&
+      tunnelWasMissing.current &&
+      document.activeElement === document.body
+    )
+      openButton.current?.focus();
+    tunnelWasMissing.current = status?.tunnelAvailable === false;
+  }, [status?.tunnelAvailable]);
+
   useEffect(() => {
     if (status?.inviteOnly !== undefined) setRequireInvite(status.inviteOnly);
   }, [status?.inviteOnly]);
@@ -1746,7 +1760,16 @@ export function HostDialog(props: {
                             )}
                             {status.tunnelAvailable === false ? (
                               <div className="mt-3 text-xs text-ink-dim">
-                                <p>Install Cloudflare’s cloudflared tool, then check again.</p>
+                                {status.cloudflaredInstall && props.hosting.installCloudflared ? (
+                                  <InstallCloudflared
+                                    install={status.cloudflaredInstall}
+                                    onInstall={props.hosting.installCloudflared}
+                                    onDone={() => void refresh()}
+                                    disabled={!!busy}
+                                  />
+                                ) : (
+                                  <p>Install Cloudflare’s cloudflared tool, then check again.</p>
+                                )}
                                 <button
                                   type="button"
                                   disabled={!!busy}
@@ -1780,6 +1803,7 @@ export function HostDialog(props: {
                                   </label>
                                 )}
                                 <button
+                                  ref={openButton}
                                   type="button"
                                   disabled={
                                     unavailable ||
@@ -2294,6 +2318,90 @@ export function HostDialog(props: {
         </DialogScroll>
       )}
     </Dialog>
+  );
+}
+
+const INSTALLED_WITH = { winget: "winget", homebrew: "Homebrew" } as const;
+
+/**
+ * Installs cloudflared for Open to all with what this computer has, or by
+ * downloading Cloudflare's own release, and shows how far it has got. The
+ * install is the main process's, so a window opened again while it runs
+ * shows it too.
+ */
+function InstallCloudflared(props: {
+  install: NonNullable<HostingStatus["cloudflaredInstall"]>;
+  onInstall: () => Promise<HostingStatus>;
+  onDone: () => void;
+  disabled: boolean;
+}) {
+  const [pressed, setPressed] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+  const { via, received, total } = props.install;
+  const installing = pressed || !!props.install.installing;
+  const downloading = via === "download" && installing && total !== undefined;
+
+  async function install() {
+    if (installing || props.disabled) return;
+    setPressed(true);
+    setFailure(null);
+    try {
+      await props.onInstall();
+    } catch (err) {
+      setFailure(
+        err instanceof Error && err.message
+          ? err.message
+          : "cloudflared could not be installed. Install it yourself, then check again.",
+      );
+    } finally {
+      setPressed(false);
+      props.onDone();
+    }
+  }
+
+  return (
+    <>
+      <p>Open to all needs Cloudflare’s cloudflared tool, which this computer does not have yet.</p>
+      {/* Kept in place while it installs, so focus stays where it was. */}
+      <button
+        type="button"
+        disabled={props.disabled && !installing}
+        aria-disabled={installing || undefined}
+        onClick={() => void install()}
+        className={buttonClass("primary", "mt-3 w-full aria-disabled:opacity-60")}
+      >
+        {installing ? "Installing cloudflared…" : "Install cloudflared"}
+      </button>
+      <p role="status" className="mt-2">
+        {!installing
+          ? via === "download"
+            ? "OwnBase downloads it from Cloudflare’s releases on GitHub, and keeps it only if it matches what Cloudflare published."
+            : `OwnBase installs it with ${INSTALLED_WITH[via]}, which this computer already has.`
+          : via === "download"
+            ? "Downloading from Cloudflare…"
+            : `Installing with ${INSTALLED_WITH[via]}. This can take a few minutes.`}
+      </p>
+      {/* Outside the status above, so a screen reader is not told every percent. */}
+      {downloading && (
+        <>
+          <progress
+            max={total}
+            value={received ?? 0}
+            aria-label="Downloading cloudflared"
+            className="mt-2 h-1.5 w-full accent-[var(--color-copper)]"
+          />
+          <p className="mt-1 tabular-nums">
+            {formatBytes(received ?? 0)} of {formatBytes(total)}
+          </p>
+        </>
+      )}
+      {failure && (
+        <p role="alert" className="mt-2 text-alert">
+          {failure}
+        </p>
+      )}
+      <p className="mt-3">Or install it yourself, then check again.</p>
+    </>
   );
 }
 

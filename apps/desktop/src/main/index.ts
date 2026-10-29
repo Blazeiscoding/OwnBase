@@ -75,6 +75,7 @@ import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { windowColours } from "./windowTheme.js";
+import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
   findCloudflared,
   openConfiguredAddress,
@@ -525,16 +526,41 @@ function lanUrls(port: number): string[] {
 }
 
 function hostingStatus() {
-  return { ...hosting.status(), backgroundAvailable: !!tray && !tray.isDestroyed() };
+  const status = { ...hosting.status(), backgroundAvailable: !!tray && !tray.isDestroyed() };
+  // Offered only while Open to all lacks it, and shown until an install ends.
+  const install = cloudflaredInstaller.state();
+  return install && (status.tunnelAvailable === false || install.installing)
+    ? { ...status, cloudflaredInstall: install }
+    : status;
 }
+
+/** Where OwnBase keeps the cloudflared it downloads, when nothing here could install one. */
+const cloudflaredFolder = join(app.getPath("userData"), "cloudflared");
 
 /** Looked up again at most every few seconds, so installing it takes effect without a restart. */
 let cloudflaredLookup: { at: number; path: string | null } | null = null;
 function cloudflared(): string | null {
   if (!cloudflaredLookup || Date.now() - cloudflaredLookup.at > 5_000)
-    cloudflaredLookup = { at: Date.now(), path: findCloudflared() };
+    cloudflaredLookup = {
+      at: Date.now(),
+      path: findCloudflared(
+        process.env,
+        existsSync,
+        process.platform,
+        downloadedCloudflared(cloudflaredFolder),
+      ),
+    };
   return cloudflaredLookup.path;
 }
+
+const cloudflaredInstaller = createCloudflaredInstaller({
+  dir: cloudflaredFolder,
+  find: () => {
+    cloudflaredLookup = null;
+    return cloudflared();
+  },
+  onChange: () => publishHostingStatus(),
+});
 
 /**
  * The saved address, kept in memory because hosting status is read far more
@@ -865,6 +891,12 @@ handle("hosting:setInviteOnly", async (_e, value: unknown) => {
 });
 handle("hosting:setAccessPolicy", async (_e, value: unknown) => {
   await hosting.setAccessPolicy(value);
+  return hostingStatus();
+});
+/** Installs cloudflared for Open to all, and resolves once it can be used. */
+handle("hosting:installCloudflared", async () => {
+  if (quitting) throw new Error("OwnBase is shutting down.");
+  await cloudflaredInstaller.install();
   return hostingStatus();
 });
 handle("hosting:setPublicAddress", async (_e, value: unknown) => {
@@ -1319,7 +1351,10 @@ app.on("window-all-closed", () => {
   else if (!quitting && !tray) showMainWindow();
 });
 
-app.on("will-quit", () => microphones.closeAll());
+app.on("will-quit", () => {
+  microphones.closeAll();
+  cloudflaredInstaller.cancel();
+});
 
 app.on("before-quit", (event) => {
   if (quitReady || !primaryInstance) return;

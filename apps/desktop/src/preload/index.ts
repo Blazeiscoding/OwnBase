@@ -54,6 +54,7 @@ export interface OwnBaseBridge {
     policy: "invite_only" | "account_required" | "guest_allowed",
   ) => Promise<unknown>;
   hostingSetPublicAddress: (address: string) => Promise<unknown>;
+  hostingInstallCloudflared: () => Promise<unknown>;
   hostingRelay: () => Promise<unknown>;
   hostingSetRelay: (draft: unknown) => Promise<unknown>;
   hostingTestRelay: (draft: unknown) => Promise<unknown>;
@@ -148,6 +149,7 @@ const bridge: OwnBaseBridge = {
   hostingSetInviteOnly: (inviteOnly) => ipcRenderer.invoke("hosting:setInviteOnly", inviteOnly),
   hostingSetAccessPolicy: (policy) => ipcRenderer.invoke("hosting:setAccessPolicy", policy),
   hostingSetPublicAddress: (address) => ipcRenderer.invoke("hosting:setPublicAddress", address),
+  hostingInstallCloudflared: () => ipcRenderer.invoke("hosting:installCloudflared"),
   hostingRelay: () => ipcRenderer.invoke("hosting:relay"),
   hostingSetRelay: (draft) => ipcRenderer.invoke("hosting:setRelay", draft),
   hostingTestRelay: (draft) => ipcRenderer.invoke("hosting:testRelay", draft),

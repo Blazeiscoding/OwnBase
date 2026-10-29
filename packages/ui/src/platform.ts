@@ -180,6 +180,18 @@ export interface HostingStatus {
   openToAllError?: string;
   /** Whether cloudflared is installed where the desktop app can find it. */
   tunnelAvailable?: boolean;
+  /**
+   * While cloudflared is missing, how OwnBase would install it: with the
+   * package manager this computer has, or by downloading Cloudflare's own
+   * release. While it installs, how far it has got. Absent where it cannot.
+   */
+  cloudflaredInstall?: {
+    via: "winget" | "homebrew" | "download";
+    installing?: boolean;
+    /** Bytes downloaded so far, and of how many, once a download has started. */
+    received?: number;
+    total?: number;
+  };
   /** A configured address that stays the same each time the link is opened. */
   publicAddress?: string;
   /** What the public address setting holds, valid or not, for editing. */
@@ -375,6 +387,11 @@ export interface Platform {
      * published, so the setting never holds an address that will not work.
      */
     setPublicAddress?: (address: string) => Promise<HostingStatus>;
+    /**
+     * Installs cloudflared, which Open to all needs, and resolves once it can
+     * be used. Rejects, saying why and what to do, when it could not be.
+     */
+    installCloudflared?: () => Promise<HostingStatus>;
     /**
      * The TURN relay for calls between networks that will not connect
      * directly: the one saved, saving another, and the relay servers a draft

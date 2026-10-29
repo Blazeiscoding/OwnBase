@@ -139,7 +139,14 @@ friends use the public address while that connector is already running.
 
 ### Install cloudflared
 
-Use Cloudflare's [official downloads](https://developers.cloudflare.com/tunnel/downloads/),
+The desktop app can install it for you: when it is missing, **Manage hosting →
+Share on the internet** offers **Install cloudflared**. OwnBase uses winget on
+Windows (for your account only, without an administrator) or Homebrew on macOS
+and Linux. Without either, or when that fails, it downloads Cloudflare's latest
+release from GitHub into its own folder, and keeps it only when it matches the
+SHA-256 digest GitHub publishes for it.
+
+To install it yourself instead, use Cloudflare's [official downloads](https://developers.cloudflare.com/tunnel/downloads/),
 then check the installed version. On Windows, run these commands in PowerShell:
 
 ```powershell

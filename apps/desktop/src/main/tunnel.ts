@@ -5,15 +5,20 @@ import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
 
+/** winget's folder for the portable cloudflared it installs for one account. */
+const WINGET_PACKAGE = "Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe";
+
 /**
  * Where to find Cloudflare's cloudflared: a path set for this app, then PATH,
  * then where its Windows installer and winget put it, then the usual package
- * manager folders elsewhere. Null when it is not installed.
+ * manager folders elsewhere, then the copy OwnBase downloaded itself. Null
+ * when it is not installed.
  */
 export function findCloudflared(
   env: NodeJS.ProcessEnv = process.env,
   exists: (path: string) => boolean = existsSync,
   platform: NodeJS.Platform = process.platform,
+  downloaded?: string,
 ): string | null {
   const configured = env.OWNBASE_CLOUDFLARED;
   if (configured) return exists(configured) ? configured : null;
@@ -27,15 +32,22 @@ export function findCloudflared(
     for (const root of [env["ProgramFiles(x86)"], env.ProgramFiles]) {
       if (root) candidates.push(join(root, "cloudflared", file));
     }
-    if (env.LOCALAPPDATA)
-      candidates.push(join(env.LOCALAPPDATA, "Microsoft", "WinGet", "Links", file));
+    if (env.LOCALAPPDATA) {
+      const winget = join(env.LOCALAPPDATA, "Microsoft", "WinGet");
+      candidates.push(join(winget, "Links", file));
+      // Where winget cannot make the link, it puts the package's own folder on
+      // PATH instead, which an app already running never sees.
+      candidates.push(join(winget, "Packages", WINGET_PACKAGE, file));
+    }
   } else {
     candidates.push(
       "/opt/homebrew/bin/cloudflared",
       "/usr/local/bin/cloudflared",
       "/usr/bin/cloudflared",
+      "/home/linuxbrew/.linuxbrew/bin/cloudflared",
     );
   }
+  if (downloaded) candidates.push(downloaded);
   return candidates.find((candidate) => exists(candidate)) ?? null;
 }
 
