@@ -13,6 +13,7 @@ import { inputCls } from "./TextField.js";
 import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
 import { useOptionalConfirm } from "./Confirm.js";
+import { useOptionalToast } from "./Toast.js";
 import {
   CLEAR_AFTER,
   STATUS_PRESETS,
@@ -242,7 +243,8 @@ export function ProfileForm() {
   );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  // Saves are told in a notice, so the form never shifts to make room for one.
+  const toast = useOptionalToast();
   const id = useId();
   // The server keeps pictures and time zones (E9); an older one offers neither.
   const profiles = useWorkspace((s) => s.profiles);
@@ -299,14 +301,14 @@ export function ProfileForm() {
   async function chooseZone(zone: string) {
     setZoneNote(null);
     const ok = await client.setTimeZone(zone);
-    setZoneNote(ok ? "Time zone saved." : "Your time zone was not saved. Try again.");
+    if (ok) toast?.({ message: "Time zone saved.", kind: "success" });
+    else setZoneNote("Your time zone was not saved. Try again.");
   }
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
-    setSaved(false);
     const hasStatus = !!(statusEmoji.trim() || statusText.trim());
     const statusExpiresAt = !hasStatus
       ? null
@@ -322,7 +324,7 @@ export function ProfileForm() {
       });
       // Saved again, it keeps this end rather than starting the time over.
       setClearAfter(statusExpiresAt ? "kept" : "never");
-      setSaved(true);
+      toast?.({ message: "Profile saved.", kind: "success" });
     } catch (err) {
       // What was typed stays in the form, so saving again is one press.
       setError(
@@ -338,13 +340,7 @@ export function ProfileForm() {
   }
 
   return (
-    <form
-      onSubmit={save}
-      // A change after saving is not saved yet, so the confirmation goes.
-      onChange={() => setSaved(false)}
-      aria-label="Your profile"
-      className="space-y-4"
-    >
+    <form onSubmit={save} aria-label="Your profile" className="space-y-4">
       <div className="flex items-center gap-3">
         <Avatar user={self ?? undefined} size={48} />
         <div className="min-w-0 flex-1">
@@ -484,7 +480,6 @@ export function ProfileForm() {
                 setStatusEmoji(p.emoji);
                 setStatusText(p.text);
                 setClearAfter(p.clearAfter);
-                setSaved(false);
               }}
               className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink"
             >
@@ -498,7 +493,6 @@ export function ProfileForm() {
                 setStatusEmoji("");
                 setStatusText("");
                 setClearAfter("never");
-                setSaved(false);
               }}
               className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-faint transition-colors hover:border-alert hover:text-alert"
             >
@@ -532,10 +526,6 @@ export function ProfileForm() {
           {error}
         </p>
       )}
-      {/* Always present, so the confirmation is announced when it appears. */}
-      <p role="status" className="text-sm text-online empty:hidden">
-        {saved ? "Profile saved." : ""}
-      </p>
       <button type="submit" disabled={busy} className={buttonClass("primary")}>
         {busy ? "Saving…" : "Save profile"}
       </button>

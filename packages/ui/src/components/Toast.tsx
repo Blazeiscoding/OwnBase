@@ -163,11 +163,8 @@ function ToastStack({ shown, dismiss }: { shown: Shown[]; dismiss: (id: number) 
         if (from instanceof HTMLElement && !event.currentTarget.contains(from))
           cameFrom.current = from;
       }}
-      // Just below the 76-pixel header every workspace screen shares. A
-      // failure waits there to be read without covering the composer, the
-      // sidebar's controls, or the window controls the desktop app draws in
-      // the header itself.
-      className="pointer-events-none fixed right-4 top-[88px] z-[65] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+      // Placed in theme.css: under the header, or above an open dialog.
+      className="pointer-events-none fixed z-[65] flex flex-col gap-2"
     >
       {/* Both regions outlive the notices inside them, so a screen reader is
           already watching when one arrives rather than meeting a new region.

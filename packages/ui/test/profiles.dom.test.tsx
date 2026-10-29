@@ -6,6 +6,7 @@ import { currentZoneName, type Channel, type User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Avatar } from "../src/components/Avatar.js";
 import { ProfileDialog, ProfileForm } from "../src/components/ProfileDialog.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { PartnerTime } from "../src/components/PartnerTime.js";
 import { AccountMenu } from "../src/components/Sidebar.js";
 import { MembersPanel } from "../src/components/MembersPanel.js";
@@ -238,7 +239,12 @@ describe("your profile in settings", () => {
     const updateMe = vi.spyOn(client.api, "updateMe").mockImplementation(async (body) => ({
       user: { ...now(), timeZone: body.timeZone ?? undefined },
     }));
-    const { container } = shown(client, <ProfileForm />);
+    const { container } = shown(
+      client,
+      <ToastProvider>
+        <ProfileForm />
+      </ToastProvider>,
+    );
 
     const picker = container.querySelector<HTMLInputElement>('input[type="file"]')!;
     await user.upload(picker, new File(["png"], "me.png", { type: "image/png" }));

@@ -5,6 +5,7 @@ import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { ProfileDialog, ProfileForm } from "../src/components/ProfileDialog.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { statusEnd, statusUntil } from "../src/lib/status.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -144,9 +145,12 @@ describe("editing your own profile", () => {
       .mockResolvedValueOnce({ user: { ...sam, statusText: "Heads down" } });
     render(
       <ClientContext.Provider value={client}>
-        <ProfileForm />
+        <ToastProvider>
+          <ProfileForm />
+        </ToastProvider>
       </ClientContext.Provider>,
     );
+    const form = screen.getByRole("form", { name: "Your profile" });
     const name = screen.getByRole("textbox", { name: "Display name" });
     const status = screen.getByRole("textbox", { name: "Status text" });
     await user.clear(name);
@@ -157,7 +161,7 @@ describe("editing your own profile", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Your profile was not saved. Check your connection and try again.",
     );
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(screen.queryByText("Profile saved.")).toBeNull();
     expect(name).toHaveValue("Sam R.");
     expect(status).toHaveValue("Heads down");
 
@@ -168,13 +172,11 @@ describe("editing your own profile", () => {
       statusText: "Heads down",
       statusExpiresAt: null,
     });
-    expect(await screen.findByRole("status")).toHaveTextContent("Profile saved.");
+    // Said in a notice over the window, not in a line that moves the form.
+    expect(await screen.findByText("Profile saved.")).toBeInTheDocument();
+    expect(form).not.toHaveTextContent("Profile saved.");
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    // Changing it again takes the confirmation away until it is saved.
-    await user.type(status, "!");
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
-    await user.click(screen.getByRole("button", { name: /Heads down/ }));
-    expect(screen.getByRole("status")).toBeEmptyDOMElement();
+    expect(status).toHaveValue("Heads down");
   });
 
   it("explains a refused profile and limits each field to what the server accepts", async () => {
