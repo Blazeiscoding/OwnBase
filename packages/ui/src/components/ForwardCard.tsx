@@ -1,5 +1,5 @@
 import { useContext } from "react";
-import type { Channel, FileMeta, ForwardReference, ID, User } from "@ownbase/protocol";
+import type { Channel, FileMeta, ForwardReference, ID, Message, User } from "@ownbase/protocol";
 import { OpenMessageContext } from "../context.js";
 import { channelTitle, formatFull, formatTime } from "../lib/format.js";
 import { MessageAttachments } from "./Attachments.js";
@@ -58,33 +58,15 @@ export function ForwardCard(props: {
             : "Only people in that conversation can see it."}
         </p>
       ) : (
-        <>
-          <div className="mt-1 flex items-center gap-2">
-            <Avatar user={author} size={20} />
-            <span className="text-sm font-semibold text-ink">
-              {author?.displayName ?? "Someone"}
-            </span>
-            <time
-              dateTime={new Date(forward.createdAt).toISOString()}
-              title={formatFull(forward.createdAt)}
-              className="text-xs text-ink-faint"
-            >
-              {formatTime(forward.createdAt)}
-            </time>
-          </div>
-          {forward.text && (
-            <div className="message-text mt-0.5 text-[15px] leading-[1.375] text-ink/90">
-              <Mrkdwn
-                text={forward.text}
-                users={users}
-                channels={channels}
-                selfId={selfId}
-                onChannelClick={props.onChannelClick}
-              />
-            </div>
-          )}
-          <MessageAttachments files={forward.files} onOpenImage={(f) => props.onOpenImage?.(f)} />
-        </>
+        <QuotedMessage
+          message={forward}
+          author={author}
+          users={users}
+          channels={channels}
+          selfId={selfId}
+          onOpenImage={props.onOpenImage}
+          onChannelClick={props.onChannelClick}
+        />
       )}
       {props.linked !== false && where && openMessage && !forward.deleted && (
         <button
@@ -96,5 +78,47 @@ export function ForwardCard(props: {
         </button>
       )}
     </div>
+  );
+}
+
+/** Who wrote a message a card shows, when, what it said and its files. */
+export function QuotedMessage(props: {
+  message: Pick<Message, "text" | "files" | "createdAt">;
+  author: User | undefined;
+  users: Record<ID, User>;
+  channels: Record<ID, Channel>;
+  selfId: ID | undefined;
+  /** How its time reads; the hour alone unless the card says otherwise. */
+  when?: (ts: number) => string;
+  onOpenImage?: (file: FileMeta) => void;
+  onChannelClick?: (id: ID) => void;
+}) {
+  const { message, author } = props;
+  return (
+    <>
+      <div className="mt-1 flex items-center gap-2">
+        <Avatar user={author} size={20} />
+        <span className="text-sm font-semibold text-ink">{author?.displayName ?? "Someone"}</span>
+        <time
+          dateTime={new Date(message.createdAt).toISOString()}
+          title={formatFull(message.createdAt)}
+          className="text-xs text-ink-faint"
+        >
+          {(props.when ?? formatTime)(message.createdAt)}
+        </time>
+      </div>
+      {message.text && (
+        <div className="message-text mt-0.5 text-[15px] leading-[1.375] text-ink/90">
+          <Mrkdwn
+            text={message.text}
+            users={props.users}
+            channels={props.channels}
+            selfId={props.selfId}
+            onChannelClick={props.onChannelClick}
+          />
+        </div>
+      )}
+      <MessageAttachments files={message.files} onOpenImage={(f) => props.onOpenImage?.(f)} />
+    </>
   );
 }

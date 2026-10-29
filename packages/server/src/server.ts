@@ -270,6 +270,7 @@ export const GUEST_ROUTES = new Set([
   "GET /api/channels/:id/threads/:rootId",
   "GET /api/channels/:id/messages/around/:messageId",
   "GET /api/channels/:id/messages/after/:messageId",
+  "GET /api/channels/:id/messages/:messageId",
   "PATCH /api/messages/:id",
   "DELETE /api/messages/:id",
   "GET /api/files",
@@ -3074,6 +3075,20 @@ async function startWorkspaceServer(
         threadRootId: target.threadRootId,
         seq: store.currentSeq(),
       };
+    },
+  );
+
+  // One message, for the card under a link to it. Asked by each reader, so a
+  // message in a private conversation shows only to the people in it.
+  app.get<{ Params: { id: string; messageId: string } }>(
+    "/api/channels/:id/messages/:messageId",
+    async (req) => {
+      const me = requireUser(req);
+      requireChannelAccess(req.params.id, me);
+      const message = store.getMessage(req.params.messageId);
+      if (!message || message.channelId !== req.params.id)
+        throw new HttpError(404, "message_not_found");
+      return { message };
     },
   );
 

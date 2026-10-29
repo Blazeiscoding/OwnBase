@@ -722,6 +722,58 @@ describe("workspace server", () => {
     expect(res.status).toBe(404);
   });
 
+  it("gives one message to whoever can read its conversation, for a link to it", async () => {
+    const general = server.store.getChannelByName("general")!;
+    const secret = server.store.getChannelByName("secret-plans")!;
+    const said = await api<{ message: Message }>(`/api/channels/${general.id}/messages`, {
+      token: aliceToken,
+      body: { text: "the plan is in the doc" },
+    });
+    const root = said.data.message;
+    const answered = await api<{ message: Message }>(`/api/channels/${general.id}/messages`, {
+      token: aliceToken,
+      body: { text: "and the budget too", threadRootId: root.id },
+    });
+    const hidden = await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
+      token: aliceToken,
+      body: { text: "not for everyone" },
+    });
+
+    const one = await api<{ message: Message }>(`/api/channels/${general.id}/messages/${root.id}`, {
+      token: bobToken,
+    });
+    expect(one.status).toBe(200);
+    expect(one.data.message).toMatchObject({ id: root.id, text: "the plan is in the doc" });
+    // A reply is itself, not the thread it is in.
+    const reply = await api<{ message: Message }>(
+      `/api/channels/${general.id}/messages/${answered.data.message.id}`,
+      { token: bobToken },
+    );
+    expect(reply.data.message).toMatchObject({ text: "and the budget too", threadRootId: root.id });
+
+    // Not to someone outside a private conversation, and not under another conversation's id.
+    expect(
+      (
+        await api(`/api/channels/${secret.id}/messages/${hidden.data.message.id}`, {
+          token: bobToken,
+        })
+      ).status,
+    ).toBe(404);
+    expect(
+      (
+        await api(`/api/channels/${general.id}/messages/${hidden.data.message.id}`, {
+          token: aliceToken,
+        })
+      ).status,
+    ).toBe(404);
+
+    // A deleted one is gone.
+    await api(`/api/messages/${root.id}`, { method: "DELETE", token: aliceToken });
+    expect(
+      (await api(`/api/channels/${general.id}/messages/${root.id}`, { token: bobToken })).status,
+    ).toBe(404);
+  });
+
   it("queues a message and sends it when it comes due", async () => {
     const general = server.store.getChannelByName("general")!;
 
