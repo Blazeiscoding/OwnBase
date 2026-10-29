@@ -39,9 +39,9 @@
       older copy (the ownbase.site zone sets how long; see _headers) fetch these
       afresh, since the page itself is never cached. Raise it when they change.
     -->
-    <link rel="stylesheet" href="site.css?v=2" />
-    <script src="scene.js?v=2" defer></script>
-    <script src="download.js?v=2" defer></script>
+    <link rel="stylesheet" href="site.css?v=3" />
+    <script src="scene.js?v=3" defer></script>
+    <script src="download.js?v=3" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -121,8 +121,8 @@
         <div class="section-head">
           <h2 id="showcase-title">All of team chat, on a machine you own</h2>
           <p>
-            Channels, threads, reactions, search, calls and bots. The desktop app and the browser
-            client are the same app, and a narrow window gets a phone layout.
+            Channels, threads, search, calls and bots, in the desktop app or any browser. A narrow
+            window gets a phone layout.
           </p>
         </div>
         <figure class="stage stage-wide">
@@ -136,41 +136,19 @@
         <ul class="features">
           <li>
             <h3>Channels, DMs and threads</h3>
-            <p>
-              Public and private channels, group DMs, pins, saved items, and drafts that survive a
-              restart.
-            </p>
+            <p>Private channels, group DMs, pins, and drafts that survive a restart.</p>
           </li>
           <li>
             <h3>Search with modifiers</h3>
-            <p>
-              <code>from:@sam in:#design has:file</code> narrows it down. Free text matches file
-              names too, so <code>budget</code> finds Q3 Budget.xlsx.
-            </p>
+            <p><code>from:@sam in:#design</code> narrows it down. File names match too.</p>
           </li>
           <li>
             <h3>Send later</h3>
-            <p>
-              Scheduled messages wait on the server, so they go out even when your laptop is shut.
-            </p>
+            <p>Scheduled messages go out from the server, even with your laptop shut.</p>
           </li>
           <li>
             <h3>No app needed</h3>
-            <p>
-              The server serves the whole client to any browser, phones included. Nothing to
-              install.
-            </p>
-          </li>
-          <li>
-            <h3>Blunt roles</h3>
-            <p>
-              Only the owner can change an admin, and nobody can change their own role. A workspace
-              can't be lost to a misclick.
-            </p>
-          </li>
-          <li>
-            <h3>Notifications per channel</h3>
-            <p>Mute what's noisy, and snooze everything with Do Not Disturb.</p>
+            <p>The server hands the whole app to any browser, phones included.</p>
           </li>
         </ul>
       </section>
@@ -180,75 +158,71 @@
           <div class="section-head">
             <h2 id="host-title">From your desk to anyone, in three steps</h2>
             <p>
-              Hosting is a button in the desktop app. The same server code runs inside it, so you
-              can move the workspace to a VPS later without changing anything.
+              Hosting is a button in the desktop app. It runs the same server you'd put on a VPS, so
+              you can move there later without changing anything.
             </p>
           </div>
 
           <ol class="steps">
             <li class="step">
-              <div class="step-text">
-                <span class="step-num" aria-hidden="true">1</span>
-                <h3>Host a workspace on this computer</h3>
-                <p>
-                  Name it and press Start hosting. Your computer becomes the server, and anyone on
-                  the same Wi-Fi sees the workspace on their Join screen. One click and they're in.
-                </p>
-                <p class="reach">
-                  <span>Reachable at</span>
-                  <code>192.168.1.42:8543</code>
-                </p>
-              </div>
-              <figure class="stage stage-tall">
-                <img
-                  src="shots/join.webp"
-                  width="1080"
-                  height="1230"
-                  loading="lazy"
-                  alt="The desktop app's Join screen. Under On your network it lists Pinecone Studio with its address. Below are a Direct connect field and the option Host a workspace on this computer."
-                />
-              </figure>
-            </li>
-            <li class="step">
-              <div class="step-text">
-                <span class="step-num" aria-hidden="true">2</span>
-                <h3>Open it to the internet</h3>
-                <p>
-                  Open to all starts a Cloudflare Quick Tunnel and gives the workspace an HTTPS
-                  address. You don't touch your router or need a Cloudflare account. Already run
-                  Tailscale Funnel or a reverse proxy? Enter your own address instead.
-                </p>
-                <p class="reach">
-                  <span>Reachable at</span>
-                  <code>https://lantern-maple-quiet-river.trycloudflare.com</code>
-                </p>
-              </div>
-              <figure class="stage stage-tall">
-                <img
-                  src="shots/open-to-all.webp"
-                  width="1144"
-                  height="1430"
-                  loading="lazy"
-                  alt="The Manage hosting window on its Share on the internet tab, with the Open to all button and the options to require an account and an invite link."
-                />
-              </figure>
-            </li>
-            <li class="step">
-              <div class="step-text">
-                <span class="step-num" aria-hidden="true">3</span>
-                <h3>Send an invite link</h3>
-                <p>
-                  The link opens the workspace in any browser with the invite already filled in, and
-                  phones can scan the QR code. New accounts need an invite by default, so a public
-                  address isn't an open door.
-                </p>
-                <p class="reach">
-                  <span>Joined from</span>
-                  <code>…trycloudflare.com/#/join/JMYJ0SRY</code>
-                </p>
-              </div>
+              <span class="step-num" aria-hidden="true">1</span>
+              <h3>Host on this computer</h3>
+              <p>
+                Press Start hosting. Anyone on the same Wi-Fi sees the workspace on their Join
+                screen.
+              </p>
+              <p class="reach">
+                <span>Reachable at</span>
+                <code>192.168.1.42:8543</code>
+              </p>
               <div class="step-shots">
-                <figure class="stage stage-tall">
+                <figure class="stage shot-join">
+                  <img
+                    src="shots/join.webp"
+                    width="1080"
+                    height="1230"
+                    loading="lazy"
+                    alt="The desktop app's Join screen. Under On your network it lists Pinecone Studio with its address. Below are a Direct connect field and the option Host a workspace on this computer."
+                  />
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-num" aria-hidden="true">2</span>
+              <h3>Open it to the internet</h3>
+              <p>
+                Open to all starts a Cloudflare Quick Tunnel: an HTTPS address, with no router
+                settings and no account. Or bring your own address.
+              </p>
+              <p class="reach">
+                <span>Reachable at</span>
+                <code>https://lantern-maple-quiet-river<wbr />.trycloudflare.com</code>
+              </p>
+              <div class="step-shots">
+                <figure class="stage shot-open">
+                  <img
+                    src="shots/open-to-all.webp"
+                    width="1144"
+                    height="1430"
+                    loading="lazy"
+                    alt="The Manage hosting window on its Share on the internet tab, with the Open to all button and the options to require an account and an invite link."
+                  />
+                </figure>
+              </div>
+            </li>
+            <li class="step">
+              <span class="step-num" aria-hidden="true">3</span>
+              <h3>Send an invite link</h3>
+              <p>
+                It opens in any browser, and phones can scan its QR code. New accounts need an
+                invite by default.
+              </p>
+              <p class="reach">
+                <span>Joined from</span>
+                <code>…trycloudflare.com<wbr />/#/join/JMYJ0SRY</code>
+              </p>
+              <div class="step-shots">
+                <figure class="stage shot-invite">
                   <img
                     src="shots/invite.webp"
                     width="904"
@@ -257,7 +231,7 @@
                     alt="The Invite people dialog with an HTTPS invite link, a Copy link button, a QR code and the invite code."
                   />
                 </figure>
-                <figure class="stage stage-phone">
+                <figure class="stage shot-phone">
                   <img
                     src="shots/phone.webp"
                     width="780"
@@ -269,31 +243,18 @@
               </div>
             </li>
           </ol>
-          <p class="footnote">
-            The workspace is up while the host computer is on. Closing the window keeps it running
-            in the system tray.
-          </p>
         </div>
       </section>
 
       <section class="download wrap" id="download" aria-labelledby="download-title">
         <div class="section-head">
           <h2 id="download-title">Download OwnBase</h2>
-          <p>
-            The desktop app hosts and joins workspaces on Windows and Mac. On Linux and everything
-            else, run the server, or open a workspace in the browser. OwnBase is in beta, so expect
-            rough edges and keep a backup of the data folder.
-          </p>
+          <p>OwnBase is in beta, so expect rough edges and keep a backup of the data folder.</p>
         </div>
         <ul class="platforms">
           <li class="platform" data-platform="windows">
-            <div class="platform-text">
-              <h3>Windows <span class="yours" hidden>This device</span></h3>
-              <p>
-                The desktop app. Host a workspace on this computer, or join one on your network or
-                from an invite link.
-              </p>
-            </div>
+            <h3>Windows <span class="yours" hidden>This device</span></h3>
+            <p>The desktop app. Host a workspace, or join one nearby or from an invite link.</p>
             <div class="platform-get">
               <a
                 class="btn btn-host"
@@ -305,14 +266,11 @@
             </div>
           </li>
           <li class="platform" data-platform="mac">
-            <div class="platform-text">
-              <h3>Mac <span class="yours" hidden>This device</span></h3>
-              <p>
-                The desktop app, one download for Apple silicon and Intel Macs. Apple hasn't signed
-                it yet, so macOS stops it the first time. Open System Settings, then Privacy &amp;
-                Security, and choose Open Anyway.
-              </p>
-            </div>
+            <h3>Mac <span class="yours" hidden>This device</span></h3>
+            <p>
+              One app for Apple silicon and Intel. Apple hasn't signed it yet, so the first time,
+              choose Open Anyway in System Settings, Privacy &amp; Security.
+            </p>
             <div class="platform-get">
               <a
                 class="btn btn-host"
@@ -323,17 +281,13 @@
               <p class="platform-meta" data-meta="mac">From the latest release on GitHub</p>
             </div>
           </li>
-          <li class="platform" data-platform="server">
-            <div class="platform-text">
-              <h3>Any system with Node 24 <span class="yours" hidden>This device</span></h3>
-              <p>
-                The standalone server: one JavaScript file and the browser client it serves. For a
-                VPS, a home server or a spare machine on Linux, macOS or Windows.
-              </p>
-              <pre
-                tabindex="0"
-              ><code>node ownbase-server.js --data ./data --name "My Team"</code></pre>
-            </div>
+          <li class="platform platform-server" data-platform="server">
+            <h3>Server, on Node 24 <span class="yours" hidden>This device</span></h3>
+            <p>
+              One JavaScript file for a VPS or home server, or use the
+              <a href="https://github.com/Blazeiscoding/OwnBase/tree/main/docker">Docker setup</a>.
+            </p>
+            <pre tabindex="0"><code>node ownbase-server.js --data ./data</code></pre>
             <div class="platform-get">
               <a
                 class="btn btn-dark"
@@ -344,45 +298,82 @@
               <p class="platform-meta" data-meta="server">From the latest release on GitHub</p>
             </div>
           </li>
-          <li class="platform" data-platform="docker">
-            <div class="platform-text">
-              <h3>Docker</h3>
-              <p>
-                Builds and runs the server from a clone of the repository. Messages and files live
-                in the <code>ownbase-data</code> volume.
-              </p>
-              <pre tabindex="0"><code>docker compose -f docker/docker-compose.yml up -d</code></pre>
-            </div>
-            <div class="platform-get">
-              <a class="btn btn-dark" href="https://github.com/Blazeiscoding/OwnBase"
-                >Clone on GitHub</a
-              >
-            </div>
-          </li>
-          <li class="platform" data-platform="browser">
-            <div class="platform-text">
-              <h3>
-                Phones, tablets and everything else <span class="yours" hidden>This device</span>
-              </h3>
-              <p>
-                Nothing to install. Every workspace serves the whole app to the browser, so open
-                your team's invite link and sign in.
-              </p>
-            </div>
+          <li class="platform platform-browser" data-platform="browser">
+            <h3>Phones, tablets and the rest <span class="yours" hidden>This device</span></h3>
+            <p>Nothing to install. Open your team's invite link in the browser and sign in.</p>
           </li>
         </ul>
       </section>
+
+      <div class="duo">
+        <div class="duo-grid wrap">
+          <section id="calls" aria-labelledby="calls-title">
+            <h2 id="calls-title">Calls go straight between people</h2>
+            <p>
+              Huddles with audio, camera and screen share, in any channel or DM. The server only
+              introduces people. Audio and video go directly between them, or through a TURN relay
+              you run.
+            </p>
+            <figure class="stage">
+              <img
+                src="shots/huddle.webp"
+                width="2400"
+                height="1500"
+                loading="lazy"
+                alt="A huddle in #general. Priya shares her screen, a sign-in design, on the big stage, with tiles for Maya, Sam, Priya and Alex underneath."
+              />
+              <figcaption>Four people and a shared screen, with no media server.</figcaption>
+            </figure>
+            <p class="duo-note">
+              Made for small groups: twelve people with two cameras on cost each of them about a
+              third of a CPU core.
+            </p>
+          </section>
+
+          <section id="bots" aria-labelledby="bots-title">
+            <h2 id="bots-title">Your Slack bots already speak OwnBase</h2>
+            <p>
+              Bot tokens, incoming webhooks, slash commands, events, buttons and modals, in Slack's
+              shapes and signed the way Slack signs them. Most integrations only need a new URL.
+            </p>
+            <div
+              class="terminal"
+              role="group"
+              aria-label="Posting to an incoming webhook"
+              tabindex="0"
+            >
+              <pre><code><span class="prompt">$</span> curl https://chat.yourteam.dev/hooks/&lt;token&gt; \
+    -H 'content-type: application/json' \
+    -d '{"text":"Build 412 passed on Windows and Linux"}'</code></pre>
+            </div>
+            <figure class="stage">
+              <img
+                src="shots/build-bot.webp"
+                width="1500"
+                height="470"
+                loading="lazy"
+                alt="A message from Build bot in #engineering: Build 412 passed on Windows and Linux, with Approve and Hold buttons."
+              />
+            </figure>
+            <p class="duo-note">
+              <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md"
+                >The integration contract</a
+              >
+              lists every method and each place OwnBase differs from Slack.
+            </p>
+          </section>
+        </div>
+      </div>
 
       <section class="folder wrap" aria-labelledby="folder-title">
         <div class="section-head">
           <h2 id="folder-title">The whole workspace is one folder</h2>
           <p>
-            Every message, file and account lives in a data folder on the host. Copy it, back it up,
-            or carry it to another machine. There's no account with us and no cloud in between
-            unless you add one.
+            Every message, file and account lives in a data folder on the host. Copy it, back it up
+            or move it. There's no account with us, and no cloud in between unless you add one.
           </p>
         </div>
-        <div class="folder-grid">
+        <div class="folder-side">
           <div class="tree" role="group" aria-label="The data folder">
             <p class="tree-root">data/</p>
             <dl>
@@ -400,116 +391,19 @@
             <li>
               <h3>Backups on a schedule</h3>
               <p>
-                <code>--backup-dir</code> backs up every 24 hours, checks each copy before keeping
-                it, and keeps the newest seven.
+                <code>--backup-dir</code> backs up every 24 hours, checks each copy and keeps the
+                newest seven.
               </p>
             </li>
             <li>
               <h3>Download a copy</h3>
               <p>
-                The owner gets the whole workspace as one .zip from Workspace settings.
-                <code>ownbase-server restore --from &lt;zip&gt;</code> puts it back.
-              </p>
-            </li>
-            <li>
-              <h3>One file to run</h3>
-              <p>
-                The standalone server is a single JavaScript file. It needs Node 24 and nothing
-                else, because the database is Node's built-in SQLite.
+                The owner downloads the workspace as one .zip, and
+                <code>restore --from</code> puts it back.
               </p>
             </li>
           </ul>
         </div>
-        <div class="terminal" role="group" aria-label="Running the server on a VPS" tabindex="0">
-          <pre><code><span class="prompt">$</span> node ownbase-server.js --data ./data --name "My Team" --invite-only
-<span class="comment"># or, with Docker</span>
-<span class="prompt">$</span> docker compose -f docker/docker-compose.yml up -d</code></pre>
-        </div>
-      </section>
-
-      <section class="calls" id="calls" aria-labelledby="calls-title">
-        <div class="wrap">
-          <div class="section-head">
-            <h2 id="calls-title">Calls go straight between people</h2>
-            <p>
-              Start a huddle in any channel or DM, with audio, camera and screen share. The server
-              only introduces the people in it. Their audio and video go directly to each other, or
-              through a TURN relay you run when a network blocks direct connections.
-            </p>
-          </div>
-          <figure class="stage stage-wide">
-            <img
-              src="shots/huddle.webp"
-              width="2400"
-              height="1500"
-              loading="lazy"
-              alt="A huddle in #general. Priya shares her screen, a sign-in design, on the big stage, with tiles for Maya, Sam, Priya and Alex underneath."
-            />
-            <figcaption>
-              Priya shares her design in #general. Four people, and no media server.
-            </figcaption>
-          </figure>
-          <ul class="features features-three">
-            <li>
-              <h3>Nothing sent for nothing</h3>
-              <p>
-                A muted microphone sends nothing, and each camera is sent no bigger than the others
-                draw it.
-              </p>
-            </li>
-            <li>
-              <h3>Light on the machine</h3>
-              <p>
-                Twelve people with two cameras on cost each of them about a third of a CPU core.
-              </p>
-            </li>
-            <li>
-              <h3>Made for small groups</h3>
-              <p>
-                Calls are a mesh. Past eight cameras or sixteen people, the call says once that it
-                may stutter.
-              </p>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <section class="bots wrap" id="bots" aria-labelledby="bots-title">
-        <div class="section-head">
-          <h2 id="bots-title">Your Slack bots already speak OwnBase</h2>
-          <p>
-            Each app gets a bot user, an <code>xoxb-</code> token and incoming webhooks in Slack's
-            shapes, so most integrations work once you change the URL. Slash commands, events,
-            buttons and modals work too, signed the way Slack signs them.
-          </p>
-        </div>
-        <div class="bots-grid">
-          <div
-            class="terminal"
-            role="group"
-            aria-label="Posting to an incoming webhook"
-            tabindex="0"
-          >
-            <pre><code><span class="prompt">$</span> curl -X POST https://chat.yourteam.dev/hooks/&lt;token&gt; \
-    -H 'content-type: application/json' \
-    -d '{"text":"Build 412 passed on Windows and Linux"}'</code></pre>
-          </div>
-          <figure class="stage">
-            <img
-              src="shots/build-bot.webp"
-              width="1500"
-              height="470"
-              loading="lazy"
-              alt="A message from Build bot in #engineering: Build 412 passed on Windows and Linux, with Approve and Hold buttons."
-            />
-          </figure>
-        </div>
-        <p class="footnote">
-          <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md"
-            >The integration contract</a
-          >
-          lists every supported method and field, and each place OwnBase differs from Slack.
-        </p>
       </section>
 
       <section class="plans wrap" id="plans" aria-labelledby="plans-title">
@@ -517,17 +411,14 @@
           <h2 id="plans-title">Free to host yourself</h2>
           <p>
             The self-hosted edition is the whole product, for anyone, companies included. Hosted
-            plans are planned for teams who would rather not run a server.
+            plans are coming for teams who would rather not run a server.
           </p>
         </div>
         <div class="plan-grid">
           <article class="plan plan-now">
             <h3>Self-hosted</h3>
             <p class="price">Free</p>
-            <p>
-              Everything in the repository, under the MIT license. No member limit. Support through
-              GitHub issues.
-            </p>
+            <p>MIT licensed, with no member limit. Support through GitHub issues.</p>
             <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase"
               >Get OwnBase on GitHub</a
             >
@@ -536,8 +427,8 @@
             <h3>Team</h3>
             <p class="price">$20 a month per workspace</p>
             <p>
-              We run the server: hosting, daily backups, updates and a stable HTTPS address, for up
-              to 50 members. Download the folder and move to your own server whenever you like.
+              We run it: backups, updates and a stable HTTPS address, for up to 50 members. Take the
+              folder to your own server any time.
             </p>
             <p class="soon">Not on sale yet</p>
           </article>
@@ -545,8 +436,8 @@
             <h3>Enterprise</h3>
             <p class="price">Annual contract</p>
             <p>
-              Single sign-on and SCIM, an audit log, compliance export and an SLA, on your servers
-              or a dedicated one we run.
+              Single sign-on, SCIM, an audit log and an SLA, on your servers or a dedicated one we
+              run.
             </p>
             <p class="soon">Not on sale yet</p>
           </article>
