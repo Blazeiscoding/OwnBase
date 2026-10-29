@@ -140,7 +140,8 @@ pre {
 .step-num,
 .tree,
 .terminal,
-.plan {
+.plan,
+.platforms {
   clip-path: polygon(
     0 calc(var(--n) * 2),
     var(--n) calc(var(--n) * 2),
@@ -210,6 +211,13 @@ pre {
 }
 .btn-light:hover {
   background: #fff;
+}
+.btn-dark {
+  background: var(--ink);
+  color: #fff;
+}
+.btn-dark:hover {
+  background: #2e2b4c;
 }
 
 .actions {
@@ -731,6 +739,103 @@ h3 {
   margin-top: 0;
 }
 
+/* Downloads. download.js marks the row for this device and fills in the files. */
+
+/* On the glass the second button uses, so it reads over the treeline too. */
+.get-note {
+  width: fit-content;
+  max-width: min(56ch, 100%);
+  margin-top: 14px;
+  padding: 7px 12px;
+  border-radius: 6px;
+  background: rgb(20 17 54 / 0.62);
+  backdrop-filter: blur(8px);
+  color: rgb(255 255 255 / 0.86);
+  font-size: 15px;
+}
+.get-note a {
+  color: #fff;
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+.download {
+  padding-block: var(--section);
+}
+.platforms {
+  --n: 6px;
+  background: #fff;
+}
+.platform {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px 48px;
+  align-items: center;
+  padding: clamp(22px, 3vw, 32px) clamp(22px, 3vw, 36px);
+  border-top: 1px solid var(--line);
+}
+.platform:first-child {
+  border-top: 0;
+}
+.platform-text p {
+  max-width: 62ch;
+  margin-top: 6px;
+  color: var(--ink-2);
+}
+.platform pre {
+  width: fit-content;
+  max-width: 100%;
+  margin-top: 14px;
+  padding: 9px 14px;
+  border-radius: 6px;
+  background: var(--fog);
+  font-size: 14px;
+  overflow-x: auto;
+}
+.platform pre code {
+  padding: 0;
+  background: none;
+  font-size: inherit;
+  white-space: pre;
+}
+.platform-get {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+}
+.platform-meta {
+  max-width: 34ch;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+.platform.is-yours {
+  background: #fff7ef;
+}
+.platform.is-yours::before {
+  content: "";
+  position: absolute;
+  top: 24px;
+  bottom: 24px;
+  left: 0;
+  width: 4px;
+  background: var(--host);
+}
+.yours {
+  display: inline-block;
+  margin-left: 10px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgb(249 115 22 / 0.14);
+  color: #943b00;
+  font-size: 13px;
+  font-weight: 600;
+  vertical-align: 2px;
+}
+.yours[hidden] {
+  display: none;
+}
+
 /* Plans. */
 
 .plans {
@@ -881,7 +986,8 @@ h3 {
   }
   .step,
   .folder-grid,
-  .bots-grid {
+  .bots-grid,
+  .platform {
     grid-template-columns: minmax(0, 1fr);
   }
   .step::before {
