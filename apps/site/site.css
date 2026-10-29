@@ -34,7 +34,7 @@
   --font: "Onest", system-ui, sans-serif;
   --mono: "Geist Mono", ui-monospace, "Cascadia Mono", monospace;
   --gutter: clamp(20px, 4vw, 48px);
-  --section: clamp(88px, 12vw, 168px);
+  --section: clamp(64px, 8vw, 112px);
   color-scheme: light;
 }
 
@@ -459,10 +459,11 @@ pre {
 
 .section-head {
   max-width: 760px;
-  margin-bottom: clamp(36px, 5vw, 64px);
+  margin-bottom: clamp(28px, 4vw, 48px);
 }
-.section-head h2 {
-  font-size: clamp(34px, 4.6vw, 60px);
+.section-head h2,
+.duo h2 {
+  font-size: clamp(32px, 4vw, 52px);
   font-weight: 650;
   line-height: 1.02;
   letter-spacing: -0.035em;
@@ -470,7 +471,7 @@ pre {
 }
 .section-head p {
   max-width: 60ch;
-  margin-top: 20px;
+  margin-top: 16px;
   color: var(--ink-2);
   font-size: clamp(17px, 1.3vw, 19px);
 }
@@ -499,17 +500,17 @@ h3 {
 }
 
 .showcase {
-  padding-block: clamp(64px, 9vw, 120px) var(--section);
+  padding-block: clamp(56px, 7vw, 96px) var(--section);
 }
 
 .features {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 40px clamp(28px, 4vw, 56px);
-  margin-top: clamp(48px, 6vw, 72px);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 28px clamp(24px, 3vw, 40px);
+  margin-top: clamp(32px, 4vw, 48px);
 }
 .features p {
-  margin-top: 8px;
+  margin-top: 6px;
   color: var(--ink-2);
   font-size: 16px;
 }
@@ -521,74 +522,101 @@ h3 {
   background: var(--paper);
 }
 
+/*
+ * The steps stand side by side, each over its screenshots. A step's share of
+ * the row is its screenshots' width per unit of height (--r) on top of their
+ * frames (--b), so every screenshot comes out the same height and the bottoms
+ * line up.
+ */
 .steps {
-  --gap: clamp(72px, 10vw, 136px);
-  --pad: clamp(8px, 3vw, 40px);
-  display: grid;
+  --gap: clamp(24px, 3.4vw, 48px);
+  --p: clamp(8px, 1vw, 12px);
+  --shot-gap: 12px;
+  display: flex;
   gap: var(--gap);
 }
 
 .step {
+  --b: calc(2 * var(--p));
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: clamp(32px, 6vw, 96px);
-  align-items: start;
+  display: flex;
+  flex: var(--r) 1 var(--b);
+  flex-direction: column;
+  min-width: 0;
+}
+.step:nth-child(1) {
+  --r: 0.878;
+  --from: var(--host);
+  --to: #fb9a3c;
+}
+.step:nth-child(2) {
+  --r: 0.8;
+  --from: #fb9a3c;
+  --to: var(--gold);
+}
+.step:nth-child(3) {
+  --r: 1.094;
+  --b: calc(4 * var(--p) + var(--shot-gap));
 }
 /* A dotted rail from each number to the next, running from the server's orange to the people's gold. */
 .step:not(:last-child)::before {
   content: "";
   position: absolute;
-  top: calc(var(--pad) + 44px);
-  bottom: calc(14px - var(--gap) - var(--pad));
-  left: 19px;
-  width: 2px;
+  top: 19px;
+  left: 56px;
+  right: calc(16px - var(--gap));
+  height: 2px;
   background:
-    repeating-linear-gradient(to bottom, transparent 0 6px, var(--paper) 6px 12px),
-    linear-gradient(to bottom, var(--from), var(--to));
-}
-.step:nth-child(1) {
-  --from: var(--host);
-  --to: #fb9a3c;
-}
-.step:nth-child(2) {
-  --from: #fb9a3c;
-  --to: var(--gold);
-}
-.step-text {
-  position: relative;
-  padding-top: var(--pad);
-  padding-left: 72px;
+    repeating-linear-gradient(to right, transparent 0 6px, var(--paper) 6px 12px),
+    linear-gradient(to right, var(--from), var(--to));
 }
 .step-num {
   --n: 3px;
-  position: absolute;
-  top: calc(var(--pad) - 6px);
-  left: 0;
   display: grid;
   width: 40px;
   height: 40px;
+  margin-bottom: 20px;
   place-items: center;
   background: var(--ink);
   color: #fff;
   font-weight: 650;
 }
 .step h3 {
-  font-size: clamp(22px, 2vw, 28px);
+  font-size: clamp(20px, 1.7vw, 24px);
   font-weight: 650;
-  letter-spacing: -0.025em;
+  letter-spacing: -0.02em;
 }
-.step-text > p:not(.reach) {
+.step > p:not(.reach) {
   max-width: 46ch;
-  margin-top: 14px;
+  margin-top: 8px;
   color: var(--ink-2);
+  font-size: 16px;
+}
+
+.step-shots {
+  display: flex;
+  gap: var(--shot-gap);
+  margin-top: auto;
+  padding-top: 24px;
+}
+/* Grow factors that add up to under 1 hand out only that share of the room, so these are scaled up. */
+.step-shots .stage {
+  flex: calc(var(--r) * 100) 1 calc(2 * var(--p));
+  min-width: 0;
+  padding: var(--p);
+}
+.shot-invite {
+  --r: 0.632;
+}
+.shot-phone {
+  --r: 0.462;
 }
 
 /* How the workspace is reached after each step: an address, or the link itself. */
 .reach {
   display: grid;
-  gap: 6px;
-  margin-top: 24px;
+  gap: 4px;
+  margin-top: 16px;
 }
 .reach span {
   color: var(--ink-3);
@@ -619,43 +647,21 @@ h3 {
   background: #e0a63a;
 }
 
-.stage-tall {
-  max-width: 560px;
-  justify-self: center;
-  width: 100%;
-}
-.step-shots {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 0.6fr);
-  gap: 16px;
-  align-items: end;
-}
-.step-shots .stage-tall {
-  max-width: none;
-}
-
-.footnote {
-  max-width: 60ch;
-  margin-top: clamp(48px, 6vw, 72px);
-  color: var(--ink-3);
-  font-size: 15px;
-}
-.footnote a {
-  color: var(--ink);
-  font-weight: 600;
-  text-underline-offset: 3px;
-}
-
-/* One folder. */
+/* One folder: what it is on the left, what's in it on the right. */
 
 .folder {
-  padding-block: var(--section);
-}
-.folder-grid {
   display: grid;
   grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
-  gap: clamp(32px, 6vw, 96px);
+  gap: 0 clamp(32px, 6vw, 96px);
   align-items: start;
+  padding-block: var(--section);
+}
+.folder .section-head {
+  margin-bottom: 0;
+}
+.folder-side {
+  display: grid;
+  gap: 32px;
 }
 .tree {
   --n: 5px;
@@ -692,20 +698,21 @@ h3 {
 }
 .folder-facts {
   display: grid;
-  gap: 32px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px 32px;
 }
 .folder-facts p {
   margin-top: 6px;
   color: var(--ink-2);
+  font-size: 16px;
 }
 
 .terminal {
   --n: 5px;
-  margin-top: 40px;
-  padding: clamp(20px, 2.4vw, 28px);
+  padding: clamp(18px, 2vw, 24px);
   background: var(--ink);
   color: #e9e7f6;
-  font-size: clamp(13px, 1.1vw, 15px);
+  font-size: clamp(13px, 1vw, 14px);
   line-height: 1.75;
   overflow-x: auto;
 }
@@ -723,37 +730,44 @@ h3 {
   color: #9895b2;
 }
 
-/* Calls, on the dusk colour. */
+/* Calls and bots, side by side on the dusk colour. */
 
-.calls {
+.duo {
   padding-block: var(--section);
   background: var(--dusk);
   color: #fff;
 }
-.calls .section-head p,
-.calls .features p {
+.duo-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 56px clamp(32px, 5vw, 72px);
+}
+.duo section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.duo h2 {
+  font-size: clamp(30px, 3.2vw, 42px);
+}
+.duo section > p {
   color: rgb(255 255 255 / 0.76);
 }
-.calls .stage {
+.duo .stage,
+.duo .terminal {
   background: #0b0a1e;
 }
-.features-three {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+.duo :where(p) code {
+  background: rgb(255 255 255 / 0.1);
 }
-
-/* Bots. */
-
-.bots {
-  padding-block: var(--section);
+.duo-note {
+  margin-top: auto;
+  font-size: 15px;
 }
-.bots-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 24px;
-  align-items: center;
-}
-.bots-grid .terminal {
-  margin-top: 0;
+.duo-note a {
+  color: #fff;
+  font-weight: 600;
+  text-underline-offset: 3px;
 }
 
 /* Downloads. download.js marks the row for this device and fills in the files. */
@@ -781,35 +795,49 @@ h3 {
 .download {
   padding-block: var(--section);
 }
+/* Three cards in one frame, and a row under them for everything else. */
 .platforms {
   --n: 6px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   background: #fff;
 }
 .platform {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
-  gap: 16px 48px;
-  align-items: center;
-  padding: clamp(22px, 3vw, 32px) clamp(22px, 3vw, 36px);
-  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: clamp(22px, 2.6vw, 32px);
+  border-left: 1px solid var(--line);
 }
 .platform:first-child {
-  border-top: 0;
+  border-left: 0;
 }
-.platform-text p {
-  max-width: 62ch;
-  margin-top: 6px;
+.platform > p {
   color: var(--ink-2);
+  font-size: 16px;
+}
+.platform > p a {
+  color: var(--ink);
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+.platform-browser {
+  flex-flow: row wrap;
+  align-items: baseline;
+  gap: 4px 16px;
+  grid-column: 1 / -1;
+  padding-block: clamp(18px, 2vw, 24px);
+  border-top: 1px solid var(--line);
+  border-left: 0;
 }
 .platform pre {
   width: fit-content;
   max-width: 100%;
-  margin-top: 14px;
   padding: 9px 14px;
   border-radius: 6px;
   background: var(--fog);
-  font-size: 14px;
+  font-size: 13px;
   overflow-x: auto;
 }
 .platform pre code {
@@ -822,6 +850,8 @@ h3 {
   display: grid;
   gap: 8px;
   justify-items: start;
+  margin-top: auto;
+  padding-top: 6px;
 }
 .platform-meta {
   max-width: 34ch;
@@ -834,10 +864,10 @@ h3 {
 .platform.is-yours::before {
   content: "";
   position: absolute;
-  top: 24px;
-  bottom: 24px;
-  left: 0;
-  width: 4px;
+  top: 0;
+  left: 24px;
+  right: 24px;
+  height: 4px;
   background: var(--host);
 }
 .yours {
@@ -1014,18 +1044,20 @@ h3 {
   .nav .btn {
     margin-left: auto;
   }
-  .step,
-  .folder-grid,
-  .bots-grid,
-  .platform {
+  .folder,
+  .duo-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .step::before {
-    display: none;
+  .folder {
+    gap: 32px;
   }
-  .stage-tall {
-    max-width: 520px;
-    justify-self: start;
+  .platforms {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .platform-server {
+    grid-column: 1 / -1;
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
   .chip-house,
   .chip-city {
@@ -1035,9 +1067,39 @@ h3 {
     transform: translate(calc(-100% - 40px), 24px);
   }
   .features,
-  .features-three,
   .plan-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/*
+ * Too narrow for the steps side by side: each over the next, its number beside
+ * its title, and its screenshots no taller than --shot-h.
+ */
+@media (max-width: 860px) {
+  .steps {
+    --shot-h: 280px;
+    flex-direction: column;
+    gap: 44px;
+  }
+  .step {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0 14px;
+    align-items: center;
+  }
+  .step > :not(.step-num, h3) {
+    grid-column: 1 / -1;
+  }
+  .step-num {
+    margin-bottom: 0;
+  }
+  .step::before {
+    display: none;
+  }
+  .step-shots {
+    width: min(100%, calc(var(--r) * var(--shot-h) + var(--b)));
+    padding-top: 20px;
   }
 }
 
@@ -1052,19 +1114,22 @@ h3 {
     flex: 1 1 100%;
   }
   .features,
-  .features-three,
+  .folder-facts,
   .plan-grid {
     grid-template-columns: minmax(0, 1fr);
   }
-  .step-text {
-    padding-left: 0;
-    padding-top: 56px;
+  .steps {
+    --shot-h: 240px;
   }
-  .step-num {
-    top: 0;
+  .platforms {
+    grid-template-columns: minmax(0, 1fr);
   }
-  .step-shots {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 0.62fr);
+  .platform {
+    border-top: 1px solid var(--line);
+    border-left: 0;
+  }
+  .platform:first-child {
+    border-top: 0;
   }
   .end-scene {
     min-height: max(640px, var(--land-clear, 0px));
