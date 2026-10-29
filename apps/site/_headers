@@ -8,11 +8,16 @@
 # deploy would pair new pages with old ones for an hour. They are small, and
 # an unchanged one answers 304. Fonts and pictures keep a week: give a changed
 # one a new name rather than changing it in place.
+#
+# Cloudflare Web Analytics is on for the ownbase.site zone, which adds its
+# beacon to every page there (not on ownbase.pages.dev or previews). The
+# script comes from static.cloudflareinsights.com, under a versioned path, and
+# reports to /cdn-cgi/rum on the site itself, which 'self' already allows.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self'; font-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; font-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /fonts/*
   Cache-Control: public, max-age=604800
