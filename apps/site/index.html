@@ -36,6 +36,7 @@
     />
     <link rel="stylesheet" href="site.css" />
     <script src="scene.js" defer></script>
+    <script src="download.js" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>
@@ -50,6 +51,7 @@
         </a>
         <ul class="nav-links">
           <li><a href="#host">Hosting</a></li>
+          <li><a href="#download">Download</a></li>
           <li><a href="#calls">Calls</a></li>
           <li><a href="#bots">Bots</a></li>
           <li><a href="#plans">Plans</a></li>
@@ -72,11 +74,12 @@
           from a link that opens in any browser.
         </p>
         <div class="actions">
-          <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase"
+          <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase" data-get
             >Get OwnBase on GitHub</a
           >
           <a class="btn btn-glass" href="#host">See how hosting works</a>
         </div>
+        <p class="get-note" data-get-note hidden></p>
       </div>
 
       <div class="chips" aria-hidden="true">
@@ -267,6 +270,97 @@
         </div>
       </section>
 
+      <section class="download wrap" id="download" aria-labelledby="download-title">
+        <div class="section-head">
+          <h2 id="download-title">Download OwnBase</h2>
+          <p>
+            The desktop app hosts and joins workspaces on Windows. On every other system, run the
+            server, or open a workspace in the browser.
+          </p>
+        </div>
+        <ul class="platforms">
+          <li class="platform" data-platform="windows">
+            <div class="platform-text">
+              <h3>Windows <span class="yours" hidden>This device</span></h3>
+              <p>
+                The desktop app. Host a workspace on this computer, or join one on your network or
+                from an invite link.
+              </p>
+            </div>
+            <div class="platform-get">
+              <a
+                class="btn btn-host"
+                href="https://github.com/Blazeiscoding/OwnBase/releases/latest"
+                data-asset="windows"
+                >Download for Windows</a
+              >
+              <p class="platform-meta" data-meta="windows">From the latest release on GitHub</p>
+            </div>
+          </li>
+          <li class="platform" data-platform="server">
+            <div class="platform-text">
+              <h3>Any system with Node 24 <span class="yours" hidden>This device</span></h3>
+              <p>
+                The standalone server: one JavaScript file and the browser client it serves. For a
+                VPS, a home server or a spare machine on Linux, macOS or Windows.
+              </p>
+              <pre
+                tabindex="0"
+              ><code>node ownbase-server.js --data ./data --name "My Team"</code></pre>
+            </div>
+            <div class="platform-get">
+              <a
+                class="btn btn-dark"
+                href="https://github.com/Blazeiscoding/OwnBase/releases/latest"
+                data-asset="server"
+                >Download the server</a
+              >
+              <p class="platform-meta" data-meta="server">From the latest release on GitHub</p>
+            </div>
+          </li>
+          <li class="platform" data-platform="docker">
+            <div class="platform-text">
+              <h3>Docker</h3>
+              <p>
+                Builds and runs the server from a clone of the repository. Messages and files live
+                in the <code>ownbase-data</code> volume.
+              </p>
+              <pre tabindex="0"><code>docker compose -f docker/docker-compose.yml up -d</code></pre>
+            </div>
+            <div class="platform-get">
+              <a class="btn btn-dark" href="https://github.com/Blazeiscoding/OwnBase"
+                >Clone on GitHub</a
+              >
+            </div>
+          </li>
+          <li class="platform" data-platform="mac">
+            <div class="platform-text">
+              <h3>Mac desktop app <span class="yours" hidden>This device</span></h3>
+              <p>
+                Not packaged for download yet. <code>pnpm build:mac</code> builds a DMG from the
+                source, though CI doesn't test it. Until then, run the server or join in a browser.
+              </p>
+            </div>
+            <div class="platform-get">
+              <a class="btn btn-dark" href="https://github.com/Blazeiscoding/OwnBase#try-it"
+                >Build from source</a
+              >
+            </div>
+          </li>
+          <li class="platform" data-platform="browser">
+            <div class="platform-text">
+              <h3>
+                Phones, tablets and everything else <span class="yours" hidden>This device</span>
+              </h3>
+              <p>
+                Nothing to install. Every workspace serves the whole app to the browser, so open
+                your team's invite link and sign in.
+              </p>
+            </div>
+          </li>
+        </ul>
+      </section>
+
       <section class="folder wrap" aria-labelledby="folder-title">
         <div class="section-head">
           <h2 id="folder-title">The whole workspace is one folder</h2>
@@ -454,7 +548,7 @@
         <div class="end-copy wrap">
           <h2>Start a workspace on your own computer</h2>
           <div class="actions">
-            <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase"
+            <a class="btn btn-host" href="https://github.com/Blazeiscoding/OwnBase" data-get
               >Get OwnBase on GitHub</a
             >
             <a
