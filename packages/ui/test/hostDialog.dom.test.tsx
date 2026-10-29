@@ -731,6 +731,107 @@ describe("hosting a workspace from the host dialog", () => {
     await waitFor(() => expect(hosting.status).toHaveBeenCalledTimes(callsBeforeCheck + 1));
   });
 
+  it("installs cloudflared with winget, then moves on to Open to all", async () => {
+    const user = userEvent.setup();
+    const missing: HostingStatus = {
+      ...running,
+      tunnelAvailable: false,
+      cloudflaredInstall: { via: "winget" },
+    };
+    const { hosting, push } = fakeHosting(missing);
+    let finish!: () => void;
+    const installCloudflared = vi.fn(
+      () =>
+        new Promise<HostingStatus>((resolve) => {
+          finish = () => {
+            push({ ...running, tunnelAvailable: true });
+            resolve({ ...running, tunnelAvailable: true });
+          };
+        }),
+    );
+    render(<Harness hosting={{ ...hosting, installCloudflared }} />);
+    await showSection("Share on the internet");
+
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    const install = within(dialog).getByRole("button", { name: "Install cloudflared" });
+    expect(within(dialog).getByText(/installs it with winget/)).toBeVisible();
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+
+    await user.click(install);
+    expect(installCloudflared).toHaveBeenCalledTimes(1);
+    // The button stays where it was, so focus does too, and pressing it again does nothing.
+    expect(install).toHaveTextContent("Installing cloudflared…");
+    expect(install).toHaveAttribute("aria-disabled", "true");
+    expect(install).toHaveFocus();
+    expect(within(dialog).getByText(/Installing with winget/)).toBeVisible();
+    await user.click(install);
+    expect(installCloudflared).toHaveBeenCalledTimes(1);
+
+    act(() => finish());
+    const open = await within(dialog).findByRole("button", { name: "Open to all" });
+    expect(open).toHaveFocus();
+    expect(within(dialog).queryByRole("button", { name: /Install cloudflared/ })).toBeNull();
+  });
+
+  it("shows how far a download has got, even in a window opened while it runs", async () => {
+    const { hosting } = fakeHosting({
+      ...running,
+      tunnelAvailable: false,
+      cloudflaredInstall: {
+        via: "download",
+        installing: true,
+        received: 4 * 1024 * 1024,
+        total: 20 * 1024 * 1024,
+      },
+    });
+    render(<Harness hosting={{ ...hosting, installCloudflared: vi.fn() }} />);
+    await showSection("Share on the internet");
+
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    const bar = within(dialog).getByRole("progressbar", { name: "Downloading cloudflared" });
+    expect(bar).toHaveAttribute("value", String(4 * 1024 * 1024));
+    expect(bar).toHaveAttribute("max", String(20 * 1024 * 1024));
+    expect(within(dialog).getByText("Downloading from Cloudflare…")).toHaveAttribute(
+      "role",
+      "status",
+    );
+    expect(within(dialog).getByText("4.0 MB of 20 MB")).not.toHaveAttribute("role");
+    expect(within(dialog).getByRole("button", { name: "Installing cloudflared…" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+  });
+
+  it("says why cloudflared could not be installed, and lets it be tried again", async () => {
+    const user = userEvent.setup();
+    const { hosting } = fakeHosting({
+      ...running,
+      tunnelAvailable: false,
+      cloudflaredInstall: { via: "download" },
+    });
+    const installCloudflared = vi
+      .fn<() => Promise<HostingStatus>>()
+      .mockRejectedValueOnce(
+        new Error(
+          "OwnBase could not reach Cloudflare's releases on GitHub. Check this computer's internet connection, then try again.",
+        ),
+      );
+    render(<Harness hosting={{ ...hosting, installCloudflared }} />);
+    await showSection("Share on the internet");
+
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    expect(within(dialog).getByText(/downloads it from Cloudflare’s releases/)).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Install cloudflared" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "OwnBase could not reach Cloudflare's releases on GitHub.",
+    );
+    const again = within(dialog).getByRole("button", { name: "Install cloudflared" });
+    expect(again).not.toHaveAttribute("aria-disabled");
+    expect(within(dialog).getByRole("button", { name: "Check again" })).toBeVisible();
+  });
+
   it("keeps hosting and reports an error when opening the public address fails", async () => {
     const user = userEvent.setup();
     const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });

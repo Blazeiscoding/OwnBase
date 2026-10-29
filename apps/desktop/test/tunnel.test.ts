@@ -132,6 +132,32 @@ describe("finding cloudflared", () => {
     expect(findCloudflared(env, present(winget), "win32")).toBe(winget);
     expect(findCloudflared(env, present(), "win32")).toBeNull();
   });
+
+  it("finds winget's package folder where it made no link, and OwnBase's own download last", () => {
+    const env = { PATH: "C:\\bin", LOCALAPPDATA: "C:\\Users\\sam\\AppData\\Local" };
+    const packaged = join(
+      "C:\\Users\\sam\\AppData\\Local",
+      "Microsoft",
+      "WinGet",
+      "Packages",
+      "Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe",
+      "cloudflared.exe",
+    );
+    const downloaded = join("C:\\Users\\sam\\AppData\\Roaming\\OwnBase", "cloudflared.exe");
+    expect(findCloudflared(env, present(packaged, downloaded), "win32", downloaded)).toBe(packaged);
+    expect(findCloudflared(env, present(downloaded), "win32", downloaded)).toBe(downloaded);
+    expect(findCloudflared(env, present(downloaded), "win32")).toBeNull();
+  });
+
+  it("looks where Homebrew puts it on Linux", () => {
+    expect(
+      findCloudflared(
+        { PATH: "/usr/bin" },
+        present("/home/linuxbrew/.linuxbrew/bin/cloudflared"),
+        "linux",
+      ),
+    ).toBe("/home/linuxbrew/.linuxbrew/bin/cloudflared");
+  });
 });
 
 describe("checking the public workspace identity", () => {

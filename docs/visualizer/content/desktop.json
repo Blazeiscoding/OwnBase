@@ -155,11 +155,23 @@
       "plain": "Opens and closes the public link, through Cloudflare, that lets people outside the local network reach a hosted workspace.",
       "summary": "Creates, probes and closes public-address connectors.",
       "details": [
-        "Finds cloudflared and supports quick tunnels, managed named tunnels and externally carried configured addresses.",
+        "Finds cloudflared (configured path, PATH, the Windows installer, winget's link or its package folder when no link could be made, Homebrew and Linuxbrew, then the copy cloudflaredInstall downloaded) and supports quick tunnels, managed named tunnels and externally carried configured addresses.",
         "Validates public addresses and probes the health endpoint to establish that a route reaches the expected running workspace, with bounded setup and teardown.",
         "Tracks child/process cleanup; TunnelCleanupError retains the failed connector handle for the controller to retry rather than treating a failed setup as ownership release."
       ],
       "concepts": ["public routes", "child processes", "health probe", "N12"]
+    },
+    {
+      "path": "apps/desktop/src/main/cloudflaredInstall.ts",
+      "plain": "Installs Cloudflare's cloudflared when Open to all needs it, with winget or Homebrew if the computer has one, or by downloading Cloudflare's own release and checking it.",
+      "summary": "Installs cloudflared through a package manager, or a digest-checked download, one install at a time.",
+      "details": [
+        "findPackageManager looks for winget or brew on PATH and then where each usually lives, since an app opened from Start or the Dock has a short PATH. winget's alias in WindowsApps fails existsSync, so it is looked for with lstat.",
+        "winget installs the portable package for this account alone (--scope user), so no administrator is asked; Homebrew runs without updating itself first. Either is given 15 minutes, and its failure is reported with its exit code (winget's in hex) and last line.",
+        "downloadCloudflared reads the latest release from GitHub's API and accepts only a github.com release URL with a published size and SHA-256 digest. It streams the file with a stall timeout, stops at more bytes than published, unpacks the Mac .tgz with a small ustar reader, runs --version under a staging name, then renames it over OwnBase's copy. Leftovers are removed whatever happens.",
+        "createCloudflaredInstaller shares one install between callers, tries the package manager and then the download, says both failures when both fail, and reports progress at whole percents through the hosting status. It offers nothing when OWNBASE_CLOUDFLARED names a cloudflared."
+      ],
+      "concepts": ["package managers", "supply-chain check", "child processes", "progress"]
     },
     {
       "path": "apps/desktop/src/main/rendererRecovery.ts",

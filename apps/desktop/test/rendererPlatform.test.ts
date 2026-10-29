@@ -13,6 +13,7 @@ function platformRejecting(reason: unknown) {
     ownbase: {
       hostingOpenToAll: failing,
       hostingSetPublicAddress: failing,
+      hostingInstallCloudflared: failing,
     } as unknown as Bridge,
   };
   return electronPlatform();
@@ -109,6 +110,18 @@ describe("what the renderer shows when the main process refuses", () => {
 
     expect(await messageFrom(platform.hosting!.openToAll!({ inviteOnly: true }))).toBe(
       "Stop using the current public address before changing it.",
+    );
+  });
+
+  it("does the same for installing cloudflared, so the window can say what to do", async () => {
+    const platform = platformRejecting(
+      new Error(
+        "Error invoking remote method 'hosting:installCloudflared': Error: OwnBase could not reach Cloudflare's releases on GitHub. Check this computer's internet connection, then try again.",
+      ),
+    );
+
+    expect(await messageFrom(platform.hosting!.installCloudflared!())).toBe(
+      "OwnBase could not reach Cloudflare's releases on GitHub. Check this computer's internet connection, then try again.",
     );
   });
 
