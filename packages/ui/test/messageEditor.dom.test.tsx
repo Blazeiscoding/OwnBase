@@ -1,9 +1,12 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
-import type { Message, User } from "@ownbase/protocol";
+import type { Channel, FileMeta, ForwardReference, Message, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { MessageEditor } from "../src/components/MessageEditor.js";
+import { MessageItem } from "../src/components/MessageItem.js";
+import { ConfirmProvider } from "../src/components/Confirm.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext } from "../src/context.js";
 
 /**
@@ -318,5 +321,86 @@ describe("an edit picked up after a restart", () => {
     expect(screen.queryByRole("status")).toBeNull();
     await user.click(screen.getByRole("button", { name: "Save" }));
     expect(edit).toHaveBeenCalledWith("M1", "Ship it on Monday", "Ship it on Friday");
+  });
+});
+
+describe("a message with files, being edited", () => {
+  const picture = {
+    id: "F_PLAN",
+    name: "plan.png",
+    mime: "image/png",
+    size: 4,
+    width: 800,
+    height: 600,
+  } as FileMeta;
+  const design: Channel = {
+    id: "C_DESIGN",
+    type: "public",
+    name: "design",
+    topic: "",
+    description: "",
+    creatorId: sam.id,
+    archived: false,
+    createdAt: 0,
+  };
+  const forwarded: ForwardReference = {
+    id: "M0",
+    channelId: design.id,
+    userId: sam.id,
+    text: "The mockups are final.",
+    files: [],
+    createdAt: 0,
+    deleted: false,
+    hidden: false,
+  };
+
+  it("keeps showing them under the editor, as the edit leaves them on the message", async () => {
+    const user = userEvent.setup();
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({
+      self: sam,
+      users: { [sam.id]: sam },
+      channels: { [design.id]: design },
+      status: "online",
+    });
+    // Still loading: the preview is drawn, its picture never comes.
+    vi.spyOn(client.api, "fetchFile").mockReturnValue(new Promise(() => {}));
+    render(
+      <ToastProvider>
+        <ConfirmProvider>
+          <ClientContext.Provider value={client}>
+            <MessageItem
+              message={
+                {
+                  ...original,
+                  text: "adad",
+                  broadcast: false,
+                  nonce: null,
+                  actions: [],
+                  files: [picture],
+                  forwardedFrom: forwarded,
+                } as Message
+              }
+              compact={false}
+            />
+          </ClientContext.Provider>
+        </ConfirmProvider>
+      </ToastProvider>,
+    );
+    const row = screen.getByRole("article", { name: "Message from Sam Rivera" });
+    await user.click(
+      within(row).getByRole("button", { name: "Actions for message from Sam Rivera" }),
+    );
+    await user.click(
+      within(screen.getByRole("menu", { name: "Actions for message from Sam Rivera" })).getByRole(
+        "menuitem",
+        { name: "Edit message" },
+      ),
+    );
+
+    expect(await within(row).findByRole("textbox", { name: "Edit message" })).toHaveValue("adad");
+    expect(within(row).getByRole("button", { name: "Open image plan.png" })).toBeVisible();
+    expect(within(row).getByText("Forwarded from #design")).toBeVisible();
+    expect(within(row).getByText("The mockups are final.")).toBeVisible();
   });
 });
