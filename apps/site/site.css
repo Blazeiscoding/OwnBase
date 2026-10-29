@@ -263,6 +263,19 @@ pre {
   text-decoration: none;
 }
 
+/* Beta, beside the name: a quiet tag on the glass the buttons use. */
+.beta {
+  padding: 2px 7px;
+  border-radius: 4px;
+  background: rgb(255 255 255 / 0.12);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.24);
+  color: rgb(255 255 255 / 0.9);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0;
+  line-height: 1.4;
+}
+
 .nav-links {
   display: flex;
   gap: 4px;
