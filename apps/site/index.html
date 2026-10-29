@@ -275,9 +275,9 @@
         <div class="section-head">
           <h2 id="download-title">Download OwnBase</h2>
           <p>
-            The desktop app hosts and joins workspaces on Windows. On every other system, run the
-            server, or open a workspace in the browser. OwnBase is in beta, so expect rough edges
-            and keep a backup of the data folder.
+            The desktop app hosts and joins workspaces on Windows and Mac. On Linux and everything
+            else, run the server, or open a workspace in the browser. OwnBase is in beta, so expect
+            rough edges and keep a backup of the data folder.
           </p>
         </div>
         <ul class="platforms">
@@ -297,6 +297,25 @@
                 >Download for Windows</a
               >
               <p class="platform-meta" data-meta="windows">From the latest release on GitHub</p>
+            </div>
+          </li>
+          <li class="platform" data-platform="mac">
+            <div class="platform-text">
+              <h3>Mac <span class="yours" hidden>This device</span></h3>
+              <p>
+                The desktop app, one download for Apple silicon and Intel Macs. Apple hasn't signed
+                it yet, so macOS stops it the first time. Open System Settings, then Privacy &amp;
+                Security, and choose Open Anyway.
+              </p>
+            </div>
+            <div class="platform-get">
+              <a
+                class="btn btn-host"
+                href="https://github.com/Blazeiscoding/OwnBase/releases/latest"
+                data-asset="mac"
+                >Download for Mac</a
+              >
+              <p class="platform-meta" data-meta="mac">From the latest release on GitHub</p>
             </div>
           </li>
           <li class="platform" data-platform="server">
@@ -332,20 +351,6 @@
             <div class="platform-get">
               <a class="btn btn-dark" href="https://github.com/Blazeiscoding/OwnBase"
                 >Clone on GitHub</a
-              >
-            </div>
-          </li>
-          <li class="platform" data-platform="mac">
-            <div class="platform-text">
-              <h3>Mac desktop app <span class="yours" hidden>This device</span></h3>
-              <p>
-                Not packaged for download yet. <code>pnpm build:mac</code> builds a DMG from the
-                source, though CI doesn't test it. Until then, run the server or join in a browser.
-              </p>
-            </div>
-            <div class="platform-get">
-              <a class="btn btn-dark" href="https://github.com/Blazeiscoding/OwnBase#try-it"
-                >Build from source</a
               >
             </div>
           </li>
