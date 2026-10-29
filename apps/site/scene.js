@@ -88,11 +88,17 @@ const VARIANTS = {
   lost: { sky: "night", horizon: 0.62, fade: "none", reveal: false, seed: 53, broken: "house" },
 };
 
+/** The least land, in CSS pixels, worth drawing under the words. */
+const LAND_MIN = 230;
+
 class Scene {
   constructor(canvas, variant, chips = []) {
     this.canvas = canvas;
     this.cfg = VARIANTS[variant];
     this.chips = chips;
+    // The words over the scene: its land is drawn below them, never behind.
+    this.root = canvas.closest("[data-scene-root]");
+    this.words = this.root?.querySelector("[data-scene-clear]") ?? null;
     this.ctx = canvas.getContext("2d", { alpha: false });
     this.still = matchMedia("(prefers-reduced-motion: reduce)").matches;
     this.visible = true;
@@ -106,10 +112,13 @@ class Scene {
 
   observe() {
     let timer;
-    new ResizeObserver(() => {
+    const resized = new ResizeObserver(() => {
       clearTimeout(timer);
       timer = setTimeout(() => this.build(), 120);
-    }).observe(this.canvas);
+    });
+    resized.observe(this.canvas);
+    // The words change height as the fonts arrive and the download note fills in.
+    if (this.words) resized.observe(this.words);
     new IntersectionObserver(([entry]) => {
       this.visible = entry.isIntersecting;
       if (this.visible) this.loop();
@@ -119,10 +128,27 @@ class Scene {
     });
   }
 
+  /**
+   * Where the words end, in CSS pixels from the top of the scene, with room
+   * for the arcs that rise above the horizon. When that leaves less land
+   * than LAND_MIN, the scene asks its root to grow, through --land-clear.
+   */
+  clearance() {
+    if (!this.words || !this.root) return 0;
+    const top = this.canvas.getBoundingClientRect().top;
+    const words = this.words.getBoundingClientRect().bottom - top;
+    if (words <= 0) return 0;
+    const below = words + Math.max(28, this.canvas.clientHeight * 0.05);
+    this.root.style.setProperty("--land-clear", `${Math.ceil(below + LAND_MIN)}px`);
+    return below;
+  }
+
   build() {
+    const clear = this.clearance();
     const cssW = this.canvas.clientWidth;
     const cssH = this.canvas.clientHeight;
     if (!cssW || !cssH) return;
+    this.clear = clear;
     const px = cssW < 700 ? 3 : 4;
     const W = Math.ceil(cssW / px);
     const H = Math.ceil(cssH / px);
@@ -146,8 +172,14 @@ class Scene {
     const rand = random(cfg.seed);
     const narrow = W < 240;
     const L = {};
-    L.horizon = Math.round(H * (narrow && cfg.fade === "bottom" ? 0.7 : cfg.horizon));
-    L.water = L.horizon + Math.max(10, Math.round(H * 0.07));
+    const horizon = Math.round(H * (narrow && cfg.fade === "bottom" ? 0.7 : cfg.horizon));
+    // Lower, when the words above reach further down than that.
+    L.horizon = Math.max(horizon, Math.ceil(this.clear / this.px));
+    // The land below the horizon is laid out in shares of itself, so it keeps
+    // its look wherever the horizon falls; at the hero's 0.68 these shares are
+    // the fractions of the whole it always used.
+    const land = H - L.horizon;
+    L.water = L.horizon + Math.max(10, Math.round(land * 0.22));
 
     // Two ranges: a hazy one behind, a dark one in front that rises on the
     // left, behind the headline, and drops away to show the afterglow.
@@ -173,12 +205,13 @@ class Scene {
     L.ground = new Int16Array(W);
     for (let x = 0; x < W; x++) {
       const t = x / W;
-      L.mid[x] = L.water - Math.round(H * 0.03 * (0.7 * midN[0](t) + 0.3 * midN[1](t)));
+      L.mid[x] = L.water - Math.round(land * 0.09 * (0.7 * midN[0](t) + 0.3 * midN[1](t)));
       const knoll = Math.exp(-(((x - L.cabinX) / (W * 0.14)) ** 2));
       L.ground[x] =
-        Math.round(H * 0.9) -
-        Math.round(H * 0.02 * (0.7 * groundN[0](t) + 0.3 * groundN[1](t))) -
-        Math.round(H * 0.075 * knoll);
+        L.horizon +
+        Math.round(land * 0.69) -
+        Math.round(land * 0.06 * (0.7 * groundN[0](t) + 0.3 * groundN[1](t))) -
+        Math.round(land * 0.23 * knoll);
     }
 
     L.moon = narrow
