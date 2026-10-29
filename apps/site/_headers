@@ -1,4 +1,4 @@
-# The landing page at ownbase.tech. Cloudflare Pages serves this folder as it
+# The landing page at ownbase.site. Cloudflare Pages serves this folder as it
 # is: no build command, output directory apps/site, production branch main,
 # build watch paths apps/site/*. It reads this file and does not publish it.
 #
