@@ -34,9 +34,14 @@
       type="font/woff2"
       crossorigin
     />
-    <link rel="stylesheet" href="site.css" />
-    <script src="scene.js" defer></script>
-    <script src="download.js" defer></script>
+    <!--
+      ?v= names this version of the style sheet and scripts. Browsers that kept an
+      older copy (the ownbase.site zone sets how long; see _headers) fetch these
+      afresh, since the page itself is never cached. Raise it when they change.
+    -->
+    <link rel="stylesheet" href="site.css?v=2" />
+    <script src="scene.js?v=2" defer></script>
+    <script src="download.js?v=2" defer></script>
   </head>
   <body>
     <a class="skip" href="#main">Skip to content</a>

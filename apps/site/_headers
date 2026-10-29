@@ -2,8 +2,12 @@
 # is: no build command, output directory apps/site, production branch main,
 # build watch paths apps/site/*. It reads this file and does not publish it.
 #
-# Fonts and pictures are cached for a week (their names carry no hash, so not
-# forever); pages are checked every time.
+# The ownbase.site zone caches .css and .js at Cloudflare's edge for as long
+# as these headers allow, while pages are never cached there. So the style
+# sheet and the scripts are checked on every request, like the pages, or a
+# deploy would pair new pages with old ones for an hour. They are small, and
+# an unchanged one answers 304. Fonts and pictures keep a week: give a changed
+# one a new name rather than changing it in place.
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
@@ -16,8 +20,8 @@
 /shots/*
   Cache-Control: public, max-age=604800
 
-/scene.js
-  Cache-Control: public, max-age=3600
+/*.css
+  Cache-Control: public, max-age=0, must-revalidate
 
-/site.css
-  Cache-Control: public, max-age=3600
+/*.js
+  Cache-Control: public, max-age=0, must-revalidate
