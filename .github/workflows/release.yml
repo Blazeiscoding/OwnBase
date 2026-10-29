@@ -130,10 +130,68 @@ jobs:
           path: release/
           retention-days: 1
 
+  # The Mac app, one disk image for Apple silicon and Intel. The beta has no
+  # Apple Developer ID, so it is signed ad hoc and not notarized; macOS asks
+  # people to allow it the first time. The packaged app boots, hosts a
+  # workspace, serves the browser client and joins a huddle here first.
+  mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Cache Electron and packaging tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+          key: electron-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: |
+            electron-${{ runner.os }}-
+      - run: pnpm install --frozen-lockfile
+      # electron-builder signs nothing in a pull request's build, to keep a
+      # certificate out of untrusted code; then the app tested here would not
+      # be the app released. An ad hoc signature uses no certificate or secret.
+      # Revisit this once a Developer ID certificate signs the app.
+      - run: pnpm --filter @ownbase/desktop package --mac
+        env:
+          CSC_FOR_PULL_REQUEST: "true"
+      - run: node scripts/check-desktop-archive.mjs apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/app.asar
+      - run: node scripts/check-web-precompressed.mjs apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/web
+      - name: Check the app runs on both kinds of Mac and says why it asks
+        run: |
+          app=apps/desktop/release/mac-universal/OwnBase.app
+          archs=$(lipo -archs "$app/Contents/MacOS/OwnBase")
+          echo "Architectures: $archs"
+          [[ "$archs" == *x86_64* && "$archs" == *arm64* ]] || { echo "::error::not universal: $archs"; exit 1; }
+          codesign --verify --deep --strict "$app"
+          signature=$(codesign -dv "$app" 2>&1)
+          echo "$signature"
+          grep -q "Signature=adhoc" <<<"$signature" || { echo "::error::not signed ad hoc"; exit 1; }
+          for key in NSMicrophoneUsageDescription NSCameraUsageDescription NSLocalNetworkUsageDescription; do
+            /usr/libexec/PlistBuddy -c "Print :$key" "$app/Contents/Info.plist"
+          done
+      - run: pnpm test:desktop --grep "packaged Mac app"
+      - name: Collect the disk image
+        run: |
+          mkdir -p release
+          cp apps/desktop/release/*-universal.dmg release/
+          node --input-type=module -e "import { readAsarFile } from './scripts/build-identity.mjs'; import { writeFileSync } from 'node:fs'; writeFileSync('release/mac.build.json', readAsarFile('apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/app.asar', 'out/build.json'));"
+          node scripts/release-manifest.mjs bind release mac release/*-universal.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-mac
+          path: release/
+          retention-days: 1
+
   # Checks every file was built from this commit and writes the hashes and
   # notes; on a pull request it stops here.
   manifest:
-    needs: [server, windows]
+    needs: [server, windows, mac]
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
@@ -192,9 +250,10 @@ jobs:
           gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft "${prerelease[@]}" \
             --target "$GITHUB_SHA" --title "OwnBase $TAG" --notes-file release/notes.md "${files[@]}"
 
-  # The installer is about 100 MB of a half-gigabyte storage allowance, and
-  # ci.yml's clean-up leaves release-* alone, so this run deletes its own
-  # artifacts once nothing needs them, published or not.
+  # The installer and the Mac disk image together are near 300 MB of a
+  # half-gigabyte storage allowance, and ci.yml's clean-up leaves release-*
+  # alone, so this run deletes its own artifacts once nothing needs them,
+  # published or not.
   clean-up:
     needs: [manifest, publish]
     if: ${{ always() && !github.event.pull_request.head.repo.fork }}

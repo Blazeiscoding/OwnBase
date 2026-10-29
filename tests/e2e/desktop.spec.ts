@@ -10,6 +10,12 @@ import { mkdtempSync, readFileSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+/** The packaged app: the unpacked folder on Windows, the universal app on a Mac. */
+const PACKAGED =
+  process.platform === "darwin"
+    ? resolve("apps/desktop/release/mac-universal/OwnBase.app/Contents/MacOS/OwnBase")
+    : resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
+
 let launched: { app: ElectronApplication; data: string } | undefined;
 
 test.afterEach(async ({}, info) => {
@@ -55,7 +61,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   // the app into plain Node: launch then fails with "bad option".
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const app = await electron.launch({
-    executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
+    executablePath: PACKAGED,
     env: {
       ...inherited,
       OWNBASE_TEST: "1",
@@ -310,7 +316,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     OWNBASE_TEST_MEDIA: "1",
     OWNBASE_USER_DATA_DIR: data,
   };
-  const executablePath = resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
+  const executablePath = PACKAGED;
   let app = await electron.launch({ executablePath, env });
   const killTree = () => {
     const pid = app.process().pid;
@@ -496,7 +502,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     OWNBASE_TEST_MEDIA: "1",
     OWNBASE_USER_DATA_DIR: data,
   };
-  const executablePath = resolve("apps/desktop/release/win-unpacked/OwnBase.exe");
+  const executablePath = PACKAGED;
   let app = await electron.launch({ executablePath, env });
   const killTree = () => {
     const pid = app.process().pid;
@@ -648,7 +654,7 @@ test("a window whose page crashes comes back by itself, and hosting carries on (
   const data = mkdtempSync(join(tmpdir(), "ownbase-desktop-crash-"));
   const { ELECTRON_RUN_AS_NODE: _runAsNode, ...inherited } = process.env;
   const app = await electron.launch({
-    executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
+    executablePath: PACKAGED,
     env: {
       ...inherited,
       OWNBASE_TEST: "1",
@@ -728,7 +734,7 @@ async function launchApp(prefix: string) {
     OWNBASE_USER_DATA_DIR: data,
   };
   const app = await electron.launch({
-    executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
+    executablePath: PACKAGED,
     env,
   });
   launched = { app, data };
@@ -800,7 +806,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     ).toContain(marker);
 
     app = await electron.launch({
-      executablePath: resolve("apps/desktop/release/win-unpacked/OwnBase.exe"),
+      executablePath: PACKAGED,
       env: first.env,
     });
     launched = { app, data: first.data };
@@ -956,4 +962,47 @@ test("a window that keeps crashing comes back where it was, Try again included (
       "window.ownbase.hostingStop()",
     );
   });
+});
+
+// The release's Mac job runs only this, on the universal app it built. The
+// rest of the file is Windows behaviour: the tray, closing to it, quitting.
+test("packaged Mac app boots with sandbox, hosts a workspace, serves the web client, and joins a huddle", async ({}, info) => {
+  test.skip(process.platform !== "darwin", "the Mac app is built and tested on macOS");
+  const { app, page } = await launchApp("ownbase-desktop-mac-");
+  expect(await app.evaluate(({ app }) => app.getName())).toBe("OwnBase");
+  await expect(page).toHaveTitle("OwnBase");
+  type CreatedWith = { getLastWebPreferences(): { sandbox?: boolean } };
+  expect(
+    await app.evaluate(
+      ({ BrowserWindow }) =>
+        (
+          BrowserWindow.getAllWindows()[0]!.webContents as unknown as CreatedWith
+        ).getLastWebPreferences().sandbox,
+    ),
+  ).toBe(true);
+
+  // The server runs inside the app, on Node's built-in SQLite.
+  await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
+  await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Mac Test");
+  await page.getByRole("button", { name: "Start hosting", exact: true }).click();
+  await page.getByLabel("Username", { exact: true }).fill("macowner");
+  await page.getByLabel("Display name", { exact: true }).fill("Mac Owner");
+  await page.getByLabel("Password", { exact: true }).fill("password123");
+  await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+  await expect(page.locator("textarea")).toBeVisible();
+  await dismissWelcome(page);
+  const status = await page.evaluate(() => (window as any).ownbase.hostingStatus());
+  const web = await fetch(`http://127.0.0.1:${status.port}/`);
+  expect(web.status).toBe(200);
+  expect(await web.text()).toContain('<div id="root">');
+
+  // A huddle opens the microphone, which macOS only allows an app that says why.
+  await page.getByRole("button", { name: "Start a huddle", exact: true }).click();
+  const check = page.getByRole("dialog", { name: "Choose your microphone and camera" });
+  await expect(check.getByText(/^Listening to/)).toBeVisible();
+  await check.getByRole("button", { name: "Join huddle", exact: true }).click();
+  await expect(page.getByText("Huddle in #general", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Leave", exact: true }).click();
+  await page.screenshot({ path: info.outputPath("mac.png") });
+  await page.evaluate(() => (window as any).ownbase.hostingStop());
 });
