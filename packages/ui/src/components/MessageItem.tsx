@@ -602,49 +602,53 @@ const MessageRow = memo(function MessageRow({
                 <MessageEditor message={message} onClose={() => setEditing(false)} />
               </Suspense>
             </ErrorBoundary>
+          ) : message.poll ? (
+            <PollCard
+              message={message}
+              users={users}
+              channels={channels}
+              onChannelClick={onChannelClick}
+            />
+          ) : message.call ? (
+            <CallNote message={message} />
           ) : (
-            <>
-              {message.poll ? (
-                <PollCard
-                  message={message}
-                  users={users}
-                  channels={channels}
-                  onChannelClick={onChannelClick}
-                />
-              ) : message.call ? (
-                <CallNote message={message} />
-              ) : (
-                message.text && (
-                  <div
-                    className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
-                      onlyEmoji(message.text) ? "message-jumbo" : ""
-                    }`}
-                  >
-                    <Mrkdwn
-                      text={message.text}
-                      users={users}
-                      channels={channels}
-                      selfId={selfId}
-                      onChannelClick={onChannelClick}
-                    />
-                    {message.editedAt && (
-                      <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>
-                    )}
-                  </div>
-                )
-              )}
-              <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
-              <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
-              {message.forwardedFrom && (
-                <ForwardCard
-                  forward={message.forwardedFrom}
+            message.text && (
+              <div
+                className={`message-text text-[16px] leading-[1.375] text-ink/90 ${
+                  onlyEmoji(message.text) ? "message-jumbo" : ""
+                }`}
+              >
+                <Mrkdwn
+                  text={message.text}
                   users={users}
                   channels={channels}
                   selfId={selfId}
-                  onOpenImage={onOpenImage}
                   onChannelClick={onChannelClick}
                 />
-              )}
+                {message.editedAt && (
+                  <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>
+                )}
+              </div>
+            )
+          )}
+          {/* An edit changes only the words, so the files and a forwarded
+              message stay in view under the editor. */}
+          <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
+          {!editing && (
+            <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
+          )}
+          {message.forwardedFrom && (
+            <ForwardCard
+              forward={message.forwardedFrom}
+              users={users}
+              channels={channels}
+              selfId={selfId}
+              onOpenImage={onOpenImage}
+              onChannelClick={onChannelClick}
+            />
+          )}
+          {!editing && (
+            <>
               <MessageActions message={message} />
               {deleteError && (
                 <p role="alert" className="mt-2 text-xs text-alert">
