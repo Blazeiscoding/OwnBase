@@ -228,9 +228,13 @@ pre {
 
 /* The hero. */
 
+/*
+ * The scene draws its land below the words over it, and when there is too
+ * little room for that it sets --land-clear on its root, which grows.
+ */
 .hero {
   position: relative;
-  min-height: max(100svh, 780px);
+  min-height: max(100svh, 780px, var(--land-clear, 0px));
   overflow: hidden;
   background: var(--dusk);
   color: #fff;
@@ -302,7 +306,7 @@ pre {
 }
 
 .headline {
-  font-size: clamp(48px, 6.4vw, 96px);
+  font-size: clamp(48px, min(6.4vw, 11svh), 96px);
   font-weight: 650;
   line-height: 0.95;
   letter-spacing: -0.045em;
@@ -754,17 +758,19 @@ h3 {
 
 /* Downloads. download.js marks the row for this device and fills in the files. */
 
-/* On the glass the second button uses, so it reads over the treeline too. */
+/*
+ * Beside the buttons, in their row, so it adds no height: below them it would
+ * sit on the treeline, where the scene's arcs run. When the row wraps on a
+ * narrow screen, it takes the glass the second button uses.
+ */
 .get-note {
-  width: fit-content;
-  max-width: min(56ch, 100%);
-  margin-top: 14px;
-  padding: 7px 12px;
-  border-radius: 6px;
-  background: rgb(20 17 54 / 0.62);
-  backdrop-filter: blur(8px);
-  color: rgb(255 255 255 / 0.86);
-  font-size: 15px;
+  flex: 0 1 32ch;
+  align-self: center;
+  margin: 0 0 0 6px;
+  color: rgb(255 255 255 / 0.82);
+  font-size: 14px;
+  line-height: 1.45;
+  text-shadow: 0 1px 2px rgb(20 17 54 / 0.6);
 }
 .get-note a {
   color: #fff;
@@ -911,7 +917,7 @@ h3 {
 }
 .end-scene {
   position: relative;
-  min-height: 600px;
+  min-height: max(600px, var(--land-clear, 0px));
   overflow: hidden;
   background: var(--night);
 }
@@ -962,7 +968,7 @@ h3 {
 
 .lost {
   position: relative;
-  min-height: max(100svh, 620px);
+  min-height: max(100svh, 620px, var(--land-clear, 0px));
   overflow: hidden;
   background: var(--night);
   color: #fff;
@@ -993,6 +999,17 @@ h3 {
 @media (max-width: 1000px) {
   .nav-links {
     display: none;
+  }
+  .get-note {
+    flex: 0 1 auto;
+    width: fit-content;
+    max-width: min(56ch, 100%);
+    margin: 2px 0 0;
+    padding: 7px 12px;
+    border-radius: 6px;
+    background: rgb(20 17 54 / 0.62);
+    backdrop-filter: blur(8px);
+    text-shadow: none;
   }
   .nav .btn {
     margin-left: auto;
@@ -1029,7 +1046,7 @@ h3 {
     font-size: 16px;
   }
   .hero {
-    min-height: max(100svh, 720px);
+    min-height: max(100svh, 720px, var(--land-clear, 0px));
   }
   .actions .btn {
     flex: 1 1 100%;
@@ -1050,7 +1067,7 @@ h3 {
     grid-template-columns: minmax(0, 1fr) minmax(0, 0.62fr);
   }
   .end-scene {
-    min-height: 640px;
+    min-height: max(640px, var(--land-clear, 0px));
   }
 }
 

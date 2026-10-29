@@ -25,16 +25,20 @@
     return "other";
   }
 
+  // GitHub's answer is kept a while, not for the whole visit: a release
+  // published while the page was open shows up on the next page after that.
+  const KEEP_MS = 10 * 60 * 1000;
   const remember = (value) => {
     try {
-      sessionStorage.setItem(KEY, JSON.stringify(value));
+      sessionStorage.setItem(KEY, JSON.stringify({ at: Date.now(), value }));
     } catch {
       // Storage can be off; the next page asks GitHub again.
     }
   };
   const remembered = () => {
     try {
-      return JSON.parse(sessionStorage.getItem(KEY) ?? "null");
+      const kept = JSON.parse(sessionStorage.getItem(KEY) ?? "null");
+      return kept && Date.now() - kept.at < KEEP_MS ? kept.value : null;
     } catch {
       return null;
     }
@@ -85,7 +89,8 @@
     }
   }
 
-  const megabytes = (bytes) => `${Math.max(1, Math.round(bytes / 1e6))} MB`;
+  // A no-break space, so "119" and "MB" never land on separate lines.
+  const megabytes = (bytes) => `${Math.max(1, Math.round(bytes / 1e6))}\u00a0MB`;
 
   /** Text, with an optional link at the end, into a note element. */
   function say(el, text, link) {
@@ -120,7 +125,7 @@
 
   // What a phone can do never depends on a release.
   if ((os === "phone" || os === "other") && note) {
-    say(note, "Nothing to install here. Open your team's invite link in the browser.");
+    say(note, "Nothing to install here. Open your team's invite link.");
   }
 
   // Each file a release offers, the row it belongs to, and what its button
@@ -130,20 +135,26 @@
     mac: { source: "No disk image is published yet. pnpm build:mac makes one." },
     server: { source: "No release is published yet. pnpm build makes the server." },
   };
-  // What this system's main buttons offer, out of a release.
+  // What this system's main buttons offer, out of a release, and the short
+  // note beside them. The Download section says the rest.
   const OFFERS = {
-    windows: { file: "windows", label: "Download for Windows", what: "for 64-bit Windows" },
+    windows: {
+      file: "windows",
+      label: "Download for Windows",
+      note: (version, size) => `${version} for 64-bit Windows, ${size}.`,
+      link: others,
+    },
     mac: {
       file: "mac",
       label: "Download for Mac",
-      what: "for Apple silicon and Intel Macs",
-      extra: " macOS asks you to allow it the first time it opens.",
+      note: (version, size) => `${version} for Apple silicon and Intel, ${size}.`,
+      link: { href: "#download", text: "How to open it" },
     },
     linux: {
       file: "server",
       label: "Download the server",
-      what: "for any system with Node 24",
-      extra: " The desktop app is for Windows and Mac.",
+      note: (version, size) => `${version} of the server, ${size}. It needs Node 24.`,
+      link: others,
     },
   };
 
@@ -161,11 +172,7 @@
         if (meta(name)) meta(name).textContent = file.source;
       }
       if (OFFERS[os] && note) {
-        say(
-          note,
-          "No release is published yet, so the button leads to the source on GitHub.",
-          others,
-        );
+        say(note, "No release is published yet.", others);
       }
       return;
     }
@@ -189,14 +196,7 @@
     const asset = offer && release[offer.file];
     if (!asset) {
       if (os === "mac" && note) {
-        say(
-          note,
-          "This release has no Mac app. Run the server, or join a workspace in your browser.",
-          {
-            href: "#download",
-            text: "Your options",
-          },
-        );
+        say(note, "This release has no Mac app.", { href: "#download", text: "Your options" });
       }
       return;
     }
@@ -204,12 +204,6 @@
       get.href = asset.url;
       get.textContent = offer.label;
     }
-    if (note) {
-      say(
-        note,
-        `OwnBase ${release.version} ${offer.what}, ${megabytes(asset.size)}.${offer.extra ?? ""}`,
-        others,
-      );
-    }
+    if (note) say(note, offer.note(version, megabytes(asset.size)), offer.link);
   });
 })();
