@@ -32,6 +32,7 @@ const SUMS = "SHA256SUMS";
 export const PUBLISHED = {
   server: { kind: "server archive", file: /^ownbase-server-[^/]+\.tar\.gz$/ },
   desktop: { kind: "Windows installer", file: /Setup[^/]*\.exe$/ },
+  mac: { kind: "Mac disk image", file: /^OwnBase-[^/]+-universal\.dmg$/ },
 };
 /** Hex SHA-256 of a file. */
 export function sha256(path) {
@@ -190,6 +191,8 @@ export function prepareRelease({ dir, revision, tag, signed = false, notes: note
     signed
       ? "The Windows installer is code-signed."
       : "The Windows installer is not code-signed, so Windows SmartScreen may warn before it runs; check its SHA-256 against `SHA256SUMS` first.",
+    "",
+    "The Mac app is signed ad hoc, not with an Apple Developer ID, and is not notarized. The first time it opens, macOS stops it; allow it under System Settings → Privacy & Security → Open Anyway.",
     "",
     "SHA-256:",
     "",

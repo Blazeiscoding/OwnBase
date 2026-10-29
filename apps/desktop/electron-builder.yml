@@ -39,9 +39,28 @@ nsis:
   deleteAppDataOnUninstall: false
 mac:
   icon: build/icon-mac.png
+  # One disk image for Apple silicon and Intel: a browser cannot tell a
+  # visitor which their Mac has.
   target:
-    - dmg
+    - target: dmg
+      arch: universal
   category: public.app-category.productivity
+  # The beta has no Apple Developer ID, so it is signed ad hoc, which Apple
+  # silicon needs before it runs the app at all; macOS then asks people to
+  # allow it once, under Privacy & Security. electron-builder signs nothing
+  # without being told to. An ad hoc signature cannot use the hardened
+  # runtime without dropping library validation; notarizing will need both.
+  identity: "-"
+  hardenedRuntime: false
+  # What macOS shows when it asks for each permission. A huddle asks for the
+  # microphone and the camera; the Join screen and hosting use the local
+  # network, where workspaces advertise as _ownbase._tcp.
+  extendInfo:
+    NSMicrophoneUsageDescription: OwnBase uses your microphone when you join a huddle.
+    NSCameraUsageDescription: OwnBase uses your camera when you turn it on in a huddle.
+    NSLocalNetworkUsageDescription: OwnBase finds workspaces on your network and lets teammates there join the one you host.
+    NSBonjourServices:
+      - _ownbase._tcp
 linux:
   target:
     - AppImage

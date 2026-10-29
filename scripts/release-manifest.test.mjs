@@ -44,24 +44,28 @@ function tarGz(entries) {
 }
 
 const INSTALLER = "OwnBase Setup 0.2.0.exe";
+const DISK_IMAGE = "OwnBase-0.2.0-universal.dmg";
 const ARCHIVE = "ownbase-server-0.2.0.tar.gz";
 
 /**
- * A release directory as the jobs stage it: identities for the server and
- * desktop app, the server archive carrying its identity and the installer,
- * each listed with its SHA-256 by the job that tested it.
+ * A release directory as the jobs stage it: identities for the server, the
+ * Windows app and the Mac app, the server archive carrying its identity, the
+ * installer and the disk image, each listed with its SHA-256 by the job that
+ * tested it.
  */
-function release(identities = { server: identity(), desktop: identity() }) {
+function release(identities = { server: identity(), desktop: identity(), mac: identity() }) {
   const dir = mkdtempSync(join(tmpdir(), "release-manifest-"));
   for (const [name, value] of Object.entries(identities))
     writeFileSync(join(dir, `${name}.build.json`), JSON.stringify(value));
   writeFileSync(join(dir, INSTALLER), "installer bytes");
+  writeFileSync(join(dir, DISK_IMAGE), "disk image bytes");
   writeFileSync(
     join(dir, ARCHIVE),
     tarGz({ "build.json": JSON.stringify(identities.server ?? identity()), "x.js": "server" }),
   );
   bindAssets(dir, "server", [join(dir, ARCHIVE)]);
   bindAssets(dir, "desktop", [join(dir, INSTALLER)]);
+  bindAssets(dir, "mac", [join(dir, DISK_IMAGE)]);
   return dir;
 }
 
@@ -77,16 +81,15 @@ test("every published file is hashed, and the notes name the tested revision", (
   const dir = release();
   try {
     const { sums, notes, files } = prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" });
-    assert.deepEqual(files, [INSTALLER, ARCHIVE]);
-    assert.equal(
-      sums,
-      `${sha256(join(dir, files[0]))}  ${files[0]}\n${sha256(join(dir, files[1]))}  ${files[1]}\n`,
-    );
+    assert.deepEqual(files, [INSTALLER, DISK_IMAGE, ARCHIVE]);
+    assert.equal(sums, files.map((file) => `${sha256(join(dir, file))}  ${file}\n`).join(""));
     assert.match(notes, new RegExp(`Built and tested from ${REVISION}`));
     assert.match(notes, /\| desktop \| 0\.2\.0 \| `0123456789ab` \|/);
+    assert.match(notes, /\| mac \| 0\.2\.0 \| `0123456789ab` \|/);
     assert.match(notes, /\| server \| 0\.2\.0 \| `0123456789ab` \|/);
     // Signing status is stated as it is.
     assert.match(notes, /not code-signed/);
+    assert.match(notes, /Mac app is signed ad hoc[\s\S]*Open Anyway/);
     assert.match(
       prepareRelease({ dir, revision: REVISION, tag: "v0.2.0", signed: true }).notes,
       /is code-signed/,
@@ -116,7 +119,11 @@ test("refuses an artifact built from another commit, changed source, or another 
     /version 0\.1\.0, but the tag names 0\.2\.0/,
   );
 
-  const dir = release({ server: identity(), desktop: identity({ revision: OTHER }) });
+  const dir = release({
+    server: identity(),
+    desktop: identity({ revision: OTHER }),
+    mac: identity(),
+  });
   try {
     assert.throws(
       () => prepareRelease({ dir, revision: REVISION, tag: "v0.2.0" }),
@@ -245,6 +252,25 @@ test("refuses a file no tested build staged, a changed or swapped one, or a seco
     assert.throws(prepare(dir), /no Windows installer was staged/);
     writeFileSync(join(dir, "desktop.build.json"), "null");
     assert.throws(prepare(dir), /desktop\.build\.json is not an object/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  // The Mac job's disk image is as required as the installer, and is the
+  // universal one it built, not an image for one kind of Mac.
+  dir = release();
+  try {
+    rmSync(join(dir, "mac.assets.json"));
+    rmSync(join(dir, DISK_IMAGE));
+    assert.throws(prepare(dir), /no Mac disk image was staged/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+  dir = release();
+  try {
+    rmSync(join(dir, DISK_IMAGE));
+    writeFileSync(join(dir, "OwnBase-0.2.0-arm64.dmg"), "one kind of Mac");
+    bindAssets(dir, "mac", [join(dir, "OwnBase-0.2.0-arm64.dmg")]);
+    assert.throws(prepare(dir), /mac must stage exactly one Mac disk image/);
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }

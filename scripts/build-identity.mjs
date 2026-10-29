@@ -242,12 +242,20 @@ const CHECKS = {
     ["server", "apps/server-cli/dist/build.json"],
     ["web", "apps/server-cli/dist/web/build.json"],
   ],
-  // The tests launch the package, so its archive is what must match.
+  // The tests launch the package, so its archive is what must match: the
+  // unpacked folder on Windows, the universal app on a Mac.
   desktop: [
-    ["desktop", "apps/desktop/release/win-unpacked/resources/app.asar:out/build.json"],
-    ["web", "apps/desktop/release/win-unpacked/resources/web/build.json"],
+    ["desktop", `${packagedResources()}/app.asar:out/build.json`],
+    ["web", `${packagedResources()}/web/build.json`],
   ],
 };
+
+/** Where the packaged desktop app keeps its archive and browser client. */
+export function packagedResources(platform = process.platform) {
+  return platform === "darwin"
+    ? "apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources"
+    : "apps/desktop/release/win-unpacked/resources";
+}
 
 function readManifest(where, root) {
   const [file, inside] = where.split(":");

@@ -1720,7 +1720,10 @@ OwnBase encrypts the desktop app's saved sign-ins using Electron's
 Windows uses the current OS account's protection; macOS uses Keychain and Linux
 needs a supported secret store. Linux's `basic_text` fallback is refused. On
 macOS, consistent application signing is needed for reliable Keychain behavior
-across updates.
+across updates. The beta's Mac app is signed ad hoc, and each build's signature
+differs, so after an update macOS may ask for your password before OwnBase can
+read its saved sign-ins; choose Always Allow. Declining only means signing in
+again, as described below.
 
 An old plaintext sign-in list is migrated on its next successful read or settings
 write. The original remains intact if encryption or replacement fails; it is

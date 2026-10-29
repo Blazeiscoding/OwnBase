@@ -19,3 +19,4 @@ export function staleness(
   root?: string,
 ): string | null;
 export function check(names: Artifact[], root?: string): string[];
+export function packagedResources(platform?: string): string;
