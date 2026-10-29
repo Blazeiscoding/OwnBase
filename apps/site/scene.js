@@ -84,6 +84,8 @@ function noise(rand, cells) {
 const VARIANTS = {
   hero: { sky: "dusk", horizon: 0.68, fade: "bottom", reveal: true, seed: 7 },
   end: { sky: "night", horizon: 0.6, fade: "top", reveal: false, seed: 31 },
+  // The 404 page: a link that goes nowhere, so the arc to the house stops short.
+  lost: { sky: "night", horizon: 0.62, fade: "none", reveal: false, seed: 53, broken: "house" },
 };
 
 class Scene {
@@ -376,8 +378,8 @@ class Scene {
       L.chimney = { x: cx + 4, y: gy - 18 };
     }
 
-    // The edge that dissolves into the page.
-    const band = Math.max(6, Math.round(H * 0.045));
+    // The edge that dissolves into the page, unless the scene is the whole page.
+    const band = cfg.fade === "none" ? 0 : Math.max(6, Math.round(H * 0.045));
     const fadeRand = random(cfg.seed + 3);
     for (let i = 0; i < band; i++) {
       const y = cfg.fade === "bottom" ? H - band + i : band - 1 - i;
@@ -387,7 +389,7 @@ class Scene {
       }
     }
     // A few loose pixels beyond the edge.
-    for (let i = 0; i < W * 0.05; i++) {
+    for (let i = 0; i < (band ? W * 0.05 : 0); i++) {
       const x = Math.floor(fadeRand() * W);
       const off = Math.floor(fadeRand() ** 3 * band * 0.6);
       const y = cfg.fade === "bottom" ? H - band - off : band + off;
@@ -546,7 +548,7 @@ class Scene {
 
     const lit = [];
     this.nodes.forEach((node, i) => {
-      const p = progress(i);
+      const p = node.name === cfg.broken ? Math.min(progress(i), 0.5) : progress(i);
       if (p <= 0) return;
       this.arc(L.hostNode, node, p, blend);
       if (p >= 1) lit.push(node.name);
@@ -575,10 +577,11 @@ class Scene {
     }
     this.announce(lit, hostOn);
 
-    // Messages travelling along the arcs, once everyone is connected.
-    if (!still && lit.length === this.nodes.length) {
+    // Messages travelling along the arcs, once everyone who can connect has.
+    const reachable = this.nodes.filter((node) => node.name !== cfg.broken);
+    if (!still && lit.length === reachable.length) {
       if (t > this.nextPacket) {
-        const node = this.nodes[Math.floor(Math.random() * this.nodes.length)];
+        const node = reachable[Math.floor(Math.random() * reachable.length)];
         this.packets.push({ node, born: t, out: Math.random() < 0.5 });
         this.nextPacket = t + 700 + Math.random() * 900;
       }

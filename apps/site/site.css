@@ -840,6 +840,36 @@ h3 {
   background: rgb(255 255 255 / 0.1);
 }
 
+/* The 404 page: one screen of night, with a link that never arrives. */
+
+.lost {
+  position: relative;
+  min-height: max(100svh, 620px);
+  overflow: hidden;
+  background: var(--night);
+  color: #fff;
+}
+.lost-copy {
+  position: relative;
+  z-index: 1;
+  padding-top: clamp(48px, 12vh, 140px);
+}
+.lost h1 {
+  max-width: 13ch;
+  font-size: clamp(42px, 6vw, 88px);
+  font-weight: 650;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+.lost-copy p {
+  max-width: 44ch;
+  margin: 24px 0 32px;
+  color: rgb(255 255 255 / 0.82);
+  font-size: clamp(17px, 1.35vw, 20px);
+  text-shadow: 0 1px 2px rgb(11 10 32 / 0.6);
+}
+
 /* Narrower screens. */
 
 @media (max-width: 1000px) {
