@@ -5,6 +5,7 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { AccountDialog, type AccountSection } from "../src/components/AccountDialog.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -58,12 +59,14 @@ function settings(section?: AccountSection, kind: Platform["kind"] = "web") {
   const view = (at?: AccountSection) => (
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <AccountDialog
-          onClose={() => {}}
-          onSignedOut={() => {}}
-          section={at}
-          onSectionChange={onSectionChange}
-        />
+        <ToastProvider>
+          <AccountDialog
+            onClose={() => {}}
+            onSignedOut={() => {}}
+            section={at}
+            onSectionChange={onSectionChange}
+          />
+        </ToastProvider>
       </ClientContext.Provider>
     </PlatformContext.Provider>
   );
@@ -212,7 +215,10 @@ describe("account settings, a section at a time", () => {
       // Typed, it stays until changed.
       statusExpiresAt: null,
     });
-    expect(await within(dialog).findByText("Profile saved.")).toBeVisible();
+    // In a notice over the dialog, which stays open.
+    expect(await screen.findByText("Profile saved.")).toBeVisible();
+    expect(dialog).not.toHaveTextContent("Profile saved.");
+    expect(dialog).toBeInTheDocument();
   });
 });
 

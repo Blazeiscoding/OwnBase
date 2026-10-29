@@ -5465,7 +5465,7 @@ test("a picture, a time zone and away set in one browser reach the other as they
 
     // She moves to New York, then takes the picture away; his open card follows both.
     await form.getByLabel("Time zone", { exact: true }).selectOption("America/New_York");
-    await expect(form.getByText("Time zone saved.", { exact: true })).toBeVisible();
+    await expect(alice.getByText("Time zone saved.", { exact: true })).toBeVisible();
     await expect(profile).toContainText(new RegExp(`${time} local time\\s*· America/New York`));
     await form.getByRole("button", { name: "Remove", exact: true }).click();
     await expect(form.getByRole("button", { name: "Upload a picture", exact: true })).toBeVisible();
