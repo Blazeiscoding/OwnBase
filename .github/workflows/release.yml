@@ -153,7 +153,13 @@ jobs:
           restore-keys: |
             electron-${{ runner.os }}-
       - run: pnpm install --frozen-lockfile
+      # electron-builder signs nothing in a pull request's build, to keep a
+      # certificate out of untrusted code; then the app tested here would not
+      # be the app released. An ad hoc signature uses no certificate or secret.
+      # Revisit this once a Developer ID certificate signs the app.
       - run: pnpm --filter @ownbase/desktop package --mac
+        env:
+          CSC_FOR_PULL_REQUEST: "true"
       - run: node scripts/check-desktop-archive.mjs apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/app.asar
       - run: node scripts/check-web-precompressed.mjs apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/web
       - name: Check the app runs on both kinds of Mac and says why it asks
