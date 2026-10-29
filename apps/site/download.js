@@ -41,8 +41,10 @@
   };
 
   /**
-   * The latest published release's files, `{ none: true }` when there is no
-   * release, or null when GitHub did not answer.
+   * The newest published release's files, `{ none: true }` when there is no
+   * release, or null when GitHub did not answer. A stable release wins; while
+   * OwnBase is in beta there may only be pre-releases (v0.1.0-beta.1), which
+   * GitHub's "latest release" leaves out, so the list is read instead.
    */
   async function latestRelease() {
     const known = remembered();
@@ -50,17 +52,19 @@
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
     try {
-      const res = await fetch(`https://api.github.com/repos/${REPO}/releases/latest`, {
+      const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, {
         headers: { Accept: "application/vnd.github+json" },
         signal: controller.signal,
       });
-      if (res.status === 404) {
+      // Rate limited or down: the GitHub links stay.
+      if (!res.ok) return null;
+      const list = await res.json();
+      const published = Array.isArray(list) ? list.filter((r) => !r.draft) : [];
+      const data = published.find((r) => !r.prerelease) ?? published[0];
+      if (!data) {
         remember({ none: true });
         return { none: true };
       }
-      // Rate limited or down: the GitHub links stay.
-      if (!res.ok) return null;
-      const data = await res.json();
       const pick = (pattern) => {
         const asset = (data.assets ?? []).find((a) => pattern.test(a.name));
         return asset ? { url: asset.browser_download_url, size: asset.size } : null;
