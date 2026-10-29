@@ -1,11 +1,10 @@
 import { Fragment, useContext, type ReactNode } from "react";
 import { broadcastLabel, type ID, type User } from "@ownbase/protocol";
 import type { Channel } from "@ownbase/protocol";
-import { ClientContext, OpenMessageContext } from "../context.js";
+import { OpenMessageContext } from "../context.js";
 import { parseDeepLink } from "../lib/deeplink.js";
 import { channelMentionLabel, userMentionLabel } from "../lib/mentionDocument.js";
-import { normalizeServerUrlSafe } from "../lib/deeplinkHelpers.js";
-import { useWorkspaceAddresses } from "./ShareableServer.js";
+import { useOwnAddress } from "./ShareableServer.js";
 
 interface Props {
   text: string;
@@ -31,10 +30,7 @@ export function Mrkdwn({
   highlightTerms = [],
 }: Props) {
   const openMessage = useContext(OpenMessageContext);
-  const known = useWorkspaceAddresses();
-  const baseUrl = useContext(ClientContext)?.baseUrl;
-  const connected = baseUrl ? normalizeServerUrlSafe(baseUrl) : null;
-  const ours = (serverUrl: string) => (known ? known.has(serverUrl) : serverUrl === connected);
+  const ours = useOwnAddress();
   const blocks = text.split(/```/);
   const terms = [...new Set(highlightTerms.filter((term) => term.trim().length > 0))].sort(
     (a, b) => b.length - a.length,

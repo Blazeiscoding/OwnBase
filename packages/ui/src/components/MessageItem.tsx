@@ -32,6 +32,7 @@ import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
 import { LinkPreviews } from "./LinkPreviews.js";
+import { LinkedMessages } from "./LinkedMessages.js";
 import { PollCard } from "./PollCard.js";
 import { CallNote } from "./CallNote.js";
 import { LazyDialog } from "./LazyView.js";
@@ -635,7 +636,14 @@ const MessageRow = memo(function MessageRow({
               message stay in view under the editor. */}
           <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
           {!editing && (
-            <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
+            <>
+              <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
+              <LinkedMessages
+                message={message}
+                onOpenImage={onOpenImage}
+                onChannelClick={onChannelClick}
+              />
+            </>
           )}
           {message.forwardedFrom && (
             <ForwardCard

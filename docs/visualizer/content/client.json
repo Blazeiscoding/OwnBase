@@ -30,6 +30,7 @@
         "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60).",
         "setLinkPreviews calls PUT /api/admin/workspace/link-previews, removeLinkPreview DELETE /api/link-previews/:id, and fetchPreviewImage reads a preview's picture with the session token, through the same private fetchBytes as fetchFile (E2).",
         "setThreadMute calls PUT /api/messages/:id/mute with muted (E3).",
+        "getMessage calls GET /api/channels/:id/messages/:messageId for one message, which the card under a link to it shows; a 404 means gone or not readable by this account.",
         "setReminder, cancelReminder and listReminders call PUT and DELETE /api/messages/:id/reminder and GET /api/reminders (E4).",
         "votePoll and closePoll call PUT /api/messages/:id/poll/votes and POST /api/messages/:id/poll/close (E6).",
         "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7).",
@@ -922,6 +923,16 @@
       "concepts": ["local search history", "bounded list", "clear ownership"]
     },
     {
+      "path": "packages/ui/src/lib/linkedMessages.ts",
+      "plain": "Finds the links in a message that point at other messages in this workspace.",
+      "summary": "Lists the workspace messages a message's words link to, for their cards.",
+      "details": [
+        "Reads the links Mrkdwn draws, Slack's <url|label> and <url> and bare addresses, outside code, and keeps those parseDeepLink reads as a message on an address the caller says is this workspace's.",
+        "Each message once, in the order named, and at most MAX_LINKED_MESSAGES (three, as many as a message gets link previews). A restored copy of the workspace elsewhere holds the same ids, so its links are left alone."
+      ],
+      "concepts": ["message links", "deep links"]
+    },
+    {
       "path": "packages/ui/src/lib/messageReferences.ts",
       "plain": "Lets each message redraw only when the people or channels it shows change, so typing elsewhere does not redraw them all.",
       "summary": "Subscribes each message row only to the users and channels it actually displays.",
@@ -1349,6 +1360,7 @@
         "A message of only a few emoji (onlyEmoji in lib/emoji.ts) is shown at 32 px, as Slack and Discord show one.",
         "Forward… (E1) sits in the menu and the toolbar's More, offered only where the server forwards and where forwardSource finds something to pass on. It opens ForwardDialog, a lazy chunk, with the source as it was when chosen. A forward shows its ForwardCard under its files.",
         "A message's link previews show under its files through LinkPreviews, with Remove for its sender (E2).",
+        "Under the previews, LinkedMessages shows a card for each message in this workspace the words link to. Both are hidden while the message is edited.",
         "Mute thread or Unmute thread (E3) sits in More actions and the touch menu of a thread's first message in the channel, offered where the server mutes threads, once the thread has replies or while it is muted. A muted thread's reply count shows a bell-off mark and is named \"N replies, muted\".",
         "Remind me about this… (E4) sits in More actions and the touch menu where the server keeps reminders, and opens TimePopover from the row. Once set, the menu offers Change reminder… and Cancel reminder, or Mark reminder done once it is due; a toast says when it is set for, or that it was refused, with Try again.",
         "Opens its editor when the Drafts list asks for this message's unsaved edit, through useEditRequest, for the person's own messages only (E5).",
@@ -1544,7 +1556,7 @@
       "summary": "Renders the supported Slack-style message syntax into React elements.",
       "details": [
         "Handles fenced and inline code, bold/italic/strike, quotes, user/channel references and ordinary or labelled HTTP links without interpreting message text as arbitrary HTML.",
-        "Resolves mentions against supplied users/channels, with the same labels the composer shows (mentionDocument), and opens a message link in-place only when it belongs to a known address of this workspace.",
+        "Resolves mentions against supplied users/channels, with the same labels the composer shows (mentionDocument), and opens a message link in-place only when it belongs to a known address of this workspace (useOwnAddress, which LinkedMessages asks too).",
         "A labelled link that looks like a different host exposes the actual destination. Code/quote edge trimming avoids artificial blank lines around block elements.",
         "lineRuns splits text outside code blocks into text, quote, bulleted and numbered runs. Lines starting \"- \", \"* \" or \"• \" become a ul, and \"1. \" or \"1) \" (up to three digits, so a year is not one) an ol that counts on from its first number, as Discord's does. \"-5\", \"*bold*\" and a bare marker stay text, and a list marker inside a quote stays in the quote."
       ],
@@ -1602,7 +1614,8 @@
       "details": [
         "The header names where the original was said, #name for a channel and the people for a DM. A card from a private conversation forwarded elsewhere says only that, and a deleted original says so. Neither shows an author, words or files.",
         "View original opens the message through OpenMessageContext. It is offered only when the reader's replica has the original's conversation and the original is not deleted, and not in ForwardDialog's preview, where it would open the message behind the dialog.",
-        "conversationName is shared with ForwardDialog, so the list and the card name a conversation the same way. MessageItem imports the card directly, so it is in the entry bundle; the dialog is a lazy chunk."
+        "conversationName is shared with ForwardDialog, so the list and the card name a conversation the same way. MessageItem imports the card directly, so it is in the entry bundle; the dialog is a lazy chunk.",
+        "QuotedMessage, the author, time, words and files, is shared with LinkedMessages, so a forward and a linked message read the same; the linked one gives its time with formatWhen, since it can be from any day."
       ],
       "concepts": ["forwarding", "message context", "privacy"]
     },
@@ -1627,6 +1640,17 @@
         "The sender sees Remove on each card, which calls WorkspaceClient.removeLinkPreview and says so in a toast if the server refuses."
       ],
       "concepts": ["link previews", "server-fetched images", "stable layout"]
+    },
+    {
+      "path": "packages/ui/src/components/LinkedMessages.tsx",
+      "plain": "The box under a message that links to another message in the workspace, showing who wrote that message, when, what it says and where, as Slack does.",
+      "summary": "Shows each message a message links to in a card, read as the reader may see it now.",
+      "details": [
+        "linkedMessages picks the links (at most three, each once, none in code) and drops one to the message itself. Each card says Posted in #name, or in a thread, or in a direct message with whom, then QuotedMessage, then View message, which opens it through OpenMessageContext.",
+        "useLinkedMessage uses the copy this device holds in a timeline or a loaded thread, so an edit shows as it is made. Otherwise it asks getMessage, once per message for each value of changedContent for its conversation, and keeps the last answer up while it asks again, so the card does not blink and stays while offline.",
+        "Each reader asks for their own copy, so a message from a private conversation shows only to its members and nothing is asked about a conversation missing from the replica. A 404, deleted or out of reach, shows no card, and neither does a message from someone this account blocked."
+      ],
+      "concepts": ["message links", "per-reader privacy", "live replica"]
     },
     {
       "path": "packages/ui/src/components/PollCard.tsx",
@@ -2038,7 +2062,8 @@
       "summary": "Keeps known workspace addresses ready before the user copies a link.",
       "details": [
         "Combines server-info, native hosting status and explicitly trusted aliases to choose a sharing address without awaiting a network request in the clipboard click handler.",
-        "Rechecks after reconnect, foreground return and periodically while open so temporary/public addresses can refresh. Context also tells Mrkdwn which workspace message links can navigate in-place."
+        "Rechecks after reconnect, foreground return and periodically while open so temporary/public addresses can refresh. Context also tells Mrkdwn which workspace message links can navigate in-place.",
+        "useOwnAddress turns those addresses into one stable check, so Mrkdwn opening a link here and LinkedMessages showing its card agree on which links are this workspace's. Outside the provider only the connected address counts."
       ],
       "concepts": ["shareable links", "address refresh", "clipboard gesture", "trusted aliases"]
     },

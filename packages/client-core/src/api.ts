@@ -617,6 +617,14 @@ export class Api {
     );
   }
 
+  /** One message, for the card under a link to it; a 404 when it is gone or not readable. */
+  getMessage(channelId: ID, messageId: ID, signal?: AbortSignal): Promise<{ message: Message }> {
+    return this.request("GET", `/api/channels/${channelId}/messages/${messageId}`, undefined, {
+      timeoutMs: 10_000,
+      signal,
+    });
+  }
+
   sendMessage(channelId: ID, body: SendMessageBody): Promise<{ message: Message }> {
     return this.request("POST", `/api/channels/${channelId}/messages`, body);
   }

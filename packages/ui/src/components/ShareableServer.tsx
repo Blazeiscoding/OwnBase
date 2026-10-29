@@ -1,5 +1,13 @@
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useClient, useWorkspace } from "../context.js";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
+import { ClientContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import { isLoopbackUrl, shareableServer, type ShareableServer } from "../lib/deeplink.js";
 import { normalizeServerUrlSafe } from "../lib/deeplinkHelpers.js";
@@ -118,6 +126,21 @@ export function ShareableServerProvider(props: { platform: Platform; children: R
  */
 export function useWorkspaceAddresses(): ReadonlySet<string> | null {
   return useContext(WorkspaceAddressesContext);
+}
+
+/**
+ * Whether an address is this workspace's, so that a link to one of its
+ * messages opens it here and shows it under the message that links it.
+ * Outside the provider, only the address this app is connected through is.
+ */
+export function useOwnAddress(): (serverUrl: string) => boolean {
+  const known = useWorkspaceAddresses();
+  const baseUrl = useContext(ClientContext)?.baseUrl;
+  const connected = baseUrl ? normalizeServerUrlSafe(baseUrl) : null;
+  return useCallback(
+    (serverUrl: string) => (known ? known.has(serverUrl) : serverUrl === connected),
+    [known, connected],
+  );
 }
 
 /** The address to build shared links on, and whether it reaches only this computer. */
