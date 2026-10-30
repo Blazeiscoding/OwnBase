@@ -2353,8 +2353,8 @@
     },
     {
       "path": "packages/ui/src/components/Icon.tsx",
-      "plain": "The app's set of small icons and its logo, drawn directly so nothing extra has to download. Six of them move when you point at their button.",
-      "summary": "Provides the application's small inline SVG icon vocabulary and brand mark.",
+      "plain": "The app's set of small icons, drawn directly so nothing extra has to download. Six of them move when you point at their button.",
+      "summary": "Provides the application's small inline SVG icon vocabulary.",
       "details": [
         "IconName maps to shared vector paths, stroke/size conventions and accessible usage supplied by parent controls.",
         "Inline vectors avoid an icon font, extra network fetch and a large icon runtime dependency while keeping common controls visually consistent.",
@@ -2372,6 +2372,25 @@
         "dependency reduction",
         "icons in parts"
       ]
+    },
+    {
+      "path": "packages/ui/src/components/BrandMark.tsx",
+      "plain": "OwnBase's logo on the Join screen: the little pixel cabin at dusk whose orange window is your server.",
+      "summary": "Draws the app icon inline from its generated pixel paths.",
+      "details": [
+        "Renders brandMark.json on a 32-pixel viewBox with crisp edges, the same colours in both themes; at 32 or 64 pixels every pixel is whole.",
+        "Its own module, imported only by JoinScreen, so the drawing's paths load with that screen's chunk instead of the entry every visit downloads."
+      ],
+      "concepts": ["brand mark", "pixel art", "inline SVG"]
+    },
+    {
+      "path": "packages/ui/src/components/brandMark.json",
+      "plain": "The logo's pixels, one shape per colour, written by a script rather than by hand.",
+      "summary": "Generated [fill, path] pairs for BrandMark, from scripts/icon-art.mjs.",
+      "details": [
+        "scripts/generate-palette.mjs writes it from the same drawing as the favicons and the desktop icons; theme.test.ts fails when it differs from what that writes. Prettier skips it."
+      ],
+      "concepts": ["generated asset", "brand mark"]
     },
     {
       "path": "packages/ui/src/components/Button.tsx",

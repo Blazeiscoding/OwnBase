@@ -8,6 +8,10 @@ docs/PROJECT-VISUALIZER.html
 packages/ui/src/lib/emojiData.json
 packages/ui/src/emoji.css
 
+# Written by scripts/generate-palette.mjs; packages/ui/test/theme.test.ts checks
+# it is what that writes.
+packages/ui/src/components/brandMark.json
+
 # Build output and test artefacts. `out/` is the desktop app's built bundles;
 # .gitignore lists it too, but the check must not depend on that file.
 dist/

@@ -318,10 +318,11 @@
     },
     {
       "path": "apps/desktop/src/renderer/public/ownbase.svg",
-      "plain": "OwnBase's logo as shown inside the desktop app.",
+      "plain": "OwnBase's logo, the pixel cabin at dusk, as the desktop app's page names its icon.",
       "summary": "Provides the desktop renderer's application brand artwork.",
       "details": [
-        "A repository-native SVG asset copied by the renderer build; binary/source identities and branding tests ensure the intended artwork ships."
+        "Written by scripts/generate-palette.mjs from scripts/icon-art.mjs, the same file as apps/web/public/ownbase.svg; theme.test.ts fails when either differs from what that writes.",
+        "Holds the 32-pixel drawing and the hand-drawn 16-pixel one, which a media query in the SVG shows when the image is under 24 pixels across. Without that style, the 32-pixel drawing shows at every size."
       ],
       "concepts": ["asset", "branding"]
     },
@@ -330,7 +331,7 @@
       "plain": "The app and tray icon picture packed into the desktop app.",
       "summary": "Provides the packaged raster app/tray icon.",
       "details": [
-        "Electron Builder copies this resource to the installed app's tray resource directory; the icon generator derives it from the repository branding."
+        "Electron Builder copies this resource to the installed app's tray resource directory; scripts/generate-icons.mjs draws it at 256 pixels, 8 to each of the drawing's 32."
       ],
       "concepts": ["native asset", "packaging"]
     },
@@ -339,7 +340,8 @@
       "plain": "The icon Windows shows for the OwnBase program and in the tray.",
       "summary": "Provides the Windows executable and tray icon.",
       "details": [
-        "Referenced by the Windows target and shipped beside other tray assets; changes must trigger installer-aware packaging coverage."
+        "Referenced by the Windows target and shipped beside other tray assets; changes must trigger installer-aware packaging coverage.",
+        "Nine PNG entries from 16 to 256 pixels, so Windows picks a drawn size instead of shrinking one: 16 and 20 are the hand-drawn 16-pixel cabin, 24 and up the 32-pixel one."
       ],
       "concepts": ["Windows", "installer asset"]
     },
@@ -417,10 +419,10 @@
     },
     {
       "path": "apps/web/public/ownbase.svg",
-      "plain": "The OwnBase logo the web version shows in the browser.",
+      "plain": "The OwnBase logo, the pixel cabin at dusk, that a browser tab shows for the web version.",
       "summary": "Supplies browser branding as a static SVG.",
       "details": [
-        "Vite copies the public asset into the hosted client; browser and desktop branding remain tested against their respective shells."
+        "Vite copies the public asset into the hosted client. It is written by scripts/generate-palette.mjs from scripts/icon-art.mjs, like the desktop copy and apps/site/ownbase.svg, and switches to the 16-pixel drawing under 24 pixels, the size of a tab's icon."
       ],
       "concepts": ["asset", "branding"]
     },
@@ -589,17 +591,32 @@
       "summary": "Generates the Onyx and White palettes in OKLCH and writes them, as hex, wherever the app uses them (UX-11).",
       "details": [
         "INPUTS holds OwnBase's orange (#f97316, kept as the accent on purpose), one graphite hue and chroma for surfaces and inks, a hue for online, alert, the highlight and the background washes, and where each colour sits on the lightness scale in each theme. A neutral's chroma falls off toward black and white (4L(1-L)); a colour outside sRGB keeps its lightness and hue and loses chroma until it fits.",
-        "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, glows, gradients, washes, the theme picker's swatches and the mention red, and the .call-dark block of Onyx's tokens and fills that a call in full screen takes), and by position the hex colours in the desktop window's colours (windowTheme.ts), both pages and their first-paint.js, appearance.ts's bar colours, the manifest and the mark. Running it twice changes nothing.",
-        "theme.test.ts fails when a file differs from what OUTPUTS writes, and checks contrast for every ink on every surface, the gradient ends and the mention red. scripts/generate-icons.mjs then draws the app icons from the mark."
+        "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, glows, gradients, washes, the theme picker's swatches and the mention red, and the .call-dark block of Onyx's tokens and fills that a call in full screen takes), and by position the hex colours in the desktop window's colours (windowTheme.ts), both pages and their first-paint.js, appearance.ts's bar colours and the manifest. It writes the mark's SVGs and BrandMark's brandMark.json whole, from scripts/icon-art.mjs. Running it twice changes nothing.",
+        "theme.test.ts fails when a file differs from what OUTPUTS writes, and checks contrast for every ink on every surface, the gradient ends and the mention red. scripts/generate-icons.mjs draws the app icons from the same drawing."
       ],
       "concepts": ["tooling", "asset generation", "OKLCH", "UX-11"]
     },
     {
       "path": "scripts/generate-icons.mjs",
-      "plain": "Makes the desktop app's icon pictures from OwnBase's logo.",
-      "summary": "Produces the native PNG/ICO branding resources used by desktop packaging.",
-      "details": ["Keeps icon generation reproducible and separate from app runtime execution."],
+      "plain": "Makes the desktop app's and the home screen's icon pictures from OwnBase's pixel cabin.",
+      "summary": "Produces the native PNG/ICO branding resources used by desktop packaging, and the web client's home-screen icons.",
+      "details": [
+        "Keeps icon generation reproducible and separate from app runtime execution.",
+        "Draws scripts/icon-art.mjs in Chromium at whole multiples of its grid where a platform allows: icon.png at 256, an ICO of nine sizes, the macOS icon at 832 on a 1024 canvas, and 192, 512, maskable 512 and the 180 touch icon for the browser client. The maskable and touch icons run the scene to the edges for the launcher to cut its own shape."
+      ],
       "concepts": ["tooling", "asset generation"]
+    },
+    {
+      "path": "scripts/icon-art.mjs",
+      "plain": "OwnBase's icon drawn pixel by pixel: the landing page's cabin at dusk, whose orange window is your server.",
+      "summary": "The app icon's pixel drawing, at 32 pixels and by hand at 16, and the SVG and paths made from it.",
+      "details": [
+        "Draws the cabin as apps/site/scene.js builds it, under the hero's dusk sky dithered in steps, on the teal shore with its pines, with the window lit and smoke leaving the chimney. A larger grid adds scenery around it for icons a launcher crops.",
+        "The 16-pixel drawing is a letter map for the sizes under 24, where halving the 32 would blur: the tray and a browser tab.",
+        "paths() merges each row's runs of a colour into one path per colour; svg() wraps them, and with both drawings adds the media query that switches between them.",
+        "scripts/generate-palette.mjs writes the SVGs and brandMark.json from it, and scripts/generate-icons.mjs the PNG and ICO icons."
+      ],
+      "concepts": ["tooling", "asset generation", "pixel art", "brand mark"]
     },
     {
       "path": "scripts/seed-demo.mjs",

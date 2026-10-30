@@ -518,9 +518,10 @@ client, Docker and the Windows app. [CI duration and caching](docs/CI.md) has th
 build reuse, the installer selection and the measured baseline. The optimized
 workflows have not been timed on GitHub.
 
-To regenerate the checked-in desktop icons from the SVG, install Playwright's
-Chromium and run `node scripts/generate-icons.mjs`. Normal packaging uses the
-checked-in assets and does not need this step.
+The app icon is a pixel drawing in `scripts/icon-art.mjs`. After changing it, run
+`node scripts/generate-palette.mjs` to rewrite the SVGs, then install Playwright's
+Chromium and run `node scripts/generate-icons.mjs` for the desktop and home-screen
+icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 

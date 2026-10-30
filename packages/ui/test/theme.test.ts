@@ -254,12 +254,6 @@ describe("colours written outside the stylesheet", () => {
     expect(hexes(read("packages/ui/src/lib/appearance.ts"))).toEqual([tokens.deep, white.deep]);
     // What a phone shows while the installed client starts, and its bars.
     expect(hexes(read("apps/web/public/manifest.webmanifest"))).toEqual([tokens.deep, tokens.deep]);
-    // The mark the favicon and the desktop icons are drawn from, as BrandMark draws it.
-    for (const icon of [
-      "apps/web/public/ownbase.svg",
-      "apps/desktop/src/renderer/public/ownbase.svg",
-    ])
-      expect(hexes(read(icon)), icon).toEqual([tokens.copper, tokens.ground]);
   });
 });
 
