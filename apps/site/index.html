@@ -17,7 +17,7 @@
     <meta property="og:type" content="website" />
     <meta property="og:url" content="https://ownbase.site/" />
     <meta property="og:site_name" content="OwnBase" />
-    <meta property="og:image" content="https://ownbase.site/og.png" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta
@@ -26,7 +26,6 @@
     />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="theme-color" content="#141136" />
-    <link rel="icon" href="ownbase.svg" type="image/svg+xml" />
     <link
       rel="preload"
       href="fonts/onest-latin-wght-normal.woff2"
@@ -35,10 +34,13 @@
       crossorigin
     />
     <!--
-      ?v= names this version of the style sheet and scripts. Browsers that kept an
-      older copy (the ownbase.site zone sets how long; see _headers) fetch these
-      afresh, since the page itself is never cached. Raise it when they change.
+      ?v= names this version of the style sheet, the scripts, the logo and og.png.
+      Browsers that kept an older copy (the ownbase.site zone sets how long; see
+      _headers) fetch these afresh, since the page itself is never cached. Raise
+      it when they change. The logo is ownbase.svg, written by
+      scripts/generate-palette.mjs, so it keeps its name.
     -->
+    <link rel="icon" href="ownbase.svg?v=2" type="image/svg+xml" />
     <link rel="stylesheet" href="site.css?v=3" />
     <script src="scene.js?v=3" defer></script>
     <script src="download.js?v=3" defer></script>
@@ -51,7 +53,7 @@
 
       <nav class="nav wrap" aria-label="Main">
         <a class="brand" href="#top" id="top">
-          <img src="ownbase.svg" alt="" width="32" height="32" />
+          <img src="ownbase.svg?v=2" alt="" width="32" height="32" />
           <span>OwnBase</span>
           <span class="beta">Beta</span>
         </a>
@@ -178,7 +180,7 @@
               <div class="step-shots">
                 <figure class="stage shot-join">
                   <img
-                    src="shots/join.webp"
+                    src="shots/join-2.webp"
                     width="1080"
                     height="1230"
                     loading="lazy"
@@ -464,7 +466,7 @@
       </div>
       <div class="footer wrap">
         <a class="brand" href="#top">
-          <img src="ownbase.svg" alt="" width="24" height="24" />
+          <img src="ownbase.svg?v=2" alt="" width="24" height="24" />
           <span>OwnBase</span>
         </a>
         <ul class="footer-links">
