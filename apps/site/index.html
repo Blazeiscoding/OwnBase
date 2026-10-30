@@ -41,7 +41,7 @@
       scripts/generate-palette.mjs, so it keeps its name.
     -->
     <link rel="icon" href="ownbase.svg?v=2" type="image/svg+xml" />
-    <link rel="stylesheet" href="site.css?v=3" />
+    <link rel="stylesheet" href="site.css?v=4" />
     <script src="scene.js?v=3" defer></script>
     <script src="download.js?v=3" defer></script>
   </head>
@@ -256,7 +256,9 @@
         <ul class="platforms">
           <li class="platform" data-platform="windows">
             <h3>Windows <span class="yours" hidden>This device</span></h3>
-            <p>The desktop app. Host a workspace, or join one nearby or from an invite link.</p>
+            <div class="platform-text">
+              <p>The desktop app. Host a workspace, or join one nearby or from an invite link.</p>
+            </div>
             <div class="platform-get">
               <a
                 class="btn btn-host"
@@ -269,10 +271,12 @@
           </li>
           <li class="platform" data-platform="mac">
             <h3>Mac <span class="yours" hidden>This device</span></h3>
-            <p>
-              One app for Apple silicon and Intel. Apple hasn't signed it yet, so the first time,
-              choose Open Anyway in System Settings, Privacy &amp; Security.
-            </p>
+            <div class="platform-text">
+              <p>
+                One app for Apple silicon and Intel. Apple hasn't signed it yet, so the first time,
+                choose Open Anyway in System Settings, Privacy &amp; Security.
+              </p>
+            </div>
             <div class="platform-get">
               <a
                 class="btn btn-host"
@@ -285,11 +289,14 @@
           </li>
           <li class="platform platform-server" data-platform="server">
             <h3>Server, on Node 24 <span class="yours" hidden>This device</span></h3>
-            <p>
-              One JavaScript file for a VPS or home server, or use the
-              <a href="https://github.com/Blazeiscoding/OwnBase/tree/main/docker">Docker setup</a>.
-            </p>
-            <pre tabindex="0"><code>node ownbase-server.js --data ./data</code></pre>
+            <div class="platform-text">
+              <p>
+                One JavaScript file for a VPS or home server, or use the
+                <a href="https://github.com/Blazeiscoding/OwnBase/tree/main/docker">Docker setup</a
+                >.
+              </p>
+              <pre tabindex="0"><code>node ownbase-server.js --data ./data</code></pre>
+            </div>
             <div class="platform-get">
               <a
                 class="btn btn-dark"
