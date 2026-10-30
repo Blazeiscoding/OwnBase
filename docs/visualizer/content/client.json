@@ -1332,6 +1332,7 @@
         "ViewModal keys AppForm by view.id, so a newly arriving app form starts with its own values, field errors, message and busy state.",
         "Inputs are keyed by block and action ID and submitted as a nested payload. Validation refusal keeps the form open and focuses the first refused field.",
         "E18a: selects for options, people, conversations and channels; checkboxes and radio buttons as a fieldset; several-answer pickers as a checkbox list that gains a search field past six choices, keeps chosen ones in sight and stops at the app's limit; native date and time inputs. Pickers offer what this replica can see, and a starting choice it cannot see is left out.",
+        "E18b: an app may stack forms. The footer's close goes back to the one under it (named \"<label>, back to <title>\" for screen readers) and the dialog's own close shuts them all; both tell the server so other devices follow. Answers are kept per view id while a form is in the stack, so going back finds them, and an update keeps what was typed and drops old errors. A view of text alone has no submit button.",
         "N05 adds alive and submitting guards plus ID-bound client operations: a previous form's success, failure or dismissal cannot close or contaminate its replacement. Answers are not persisted locally and closing alone does not send a callback."
       ],
       "concepts": ["app form", "view identity", "submission lifetime", "N05"]
@@ -2908,7 +2909,7 @@
             "packages/client-core/src/workspace.ts",
             "packages/ui/src/components/ViewModal.tsx"
           ],
-          "detail": "A server ephemeral opens a ModalView in the workspace replica. ViewModal renders an AppForm keyed by that unique view ID."
+          "detail": "A server ephemeral opens a ModalView in the workspace replica, with the stack under it in modalsBelow. ViewModal renders an AppForm keyed by that unique view ID."
         },
         {
           "title": "Fill in the fields",
