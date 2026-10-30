@@ -1011,7 +1011,7 @@ export class Api {
   /** Sends a filled-in modal; field errors come back keyed by block id. */
   submitView(
     viewId: ID,
-    values: Record<string, Record<string, string>>,
+    values: Record<string, Record<string, string | string[]>>,
   ): Promise<{ ok: boolean; errors?: Record<string, string>; message?: string }> {
     return this.request("POST", `/api/views/${viewId}/submit`, { values });
   }

@@ -108,7 +108,13 @@ import { Gateway } from "./gateway.js";
 import { hashPassword, hashToken, newSessionToken, verifyPassword } from "./auth.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
 import { imageSize } from "./imageSize.js";
-import { blocksToActions, parseView, payloadToText } from "./blockKit.js";
+import {
+  blocksToActions,
+  parseView,
+  payloadToText,
+  readAnswer,
+  type AnswerContext,
+} from "./blockKit.js";
 import { OutboundError, postToUrl } from "./outbound.js";
 import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
 import { ConfigError, parsePort, parsePublicUrl } from "./config.js";
@@ -5011,7 +5017,9 @@ async function startWorkspaceServer(
     triggers.delete(body.trigger_id as string);
 
     const id = ulid();
-    const { droppedFields, ...view } = parseView(structured(body.view), id);
+    const { droppedFields, ...view } = parseView(structured(body.view), id, {
+      channelId: trigger.channelId,
+    });
     if (view.fields.length === 0) {
       // Either there was nothing to fill in, or everything in it was a control
       // we cannot draw. Saying so beats showing an empty box.
@@ -5064,27 +5072,23 @@ async function startWorkspaceServer(
     // Only the fields the app actually asked for, in Slack's nested shape.
     const values: Record<string, Record<string, unknown>> = {};
     const missing: Record<string, string> = {};
+    const answering: AnswerContext = {
+      isPerson: (id) => {
+        const person = store.getUser(id);
+        return !!person && !person.deactivated;
+      },
+      conversationType: (id) => {
+        const channel = store.getChannel(id);
+        return channel && !channel.archived && store.canAccess(id, me.id) ? channel.type : null;
+      },
+    };
     for (const field of open.view.fields) {
-      const raw = body.values[field.blockId]?.[field.actionId] ?? "";
-      const value = raw.trim();
-      if (!value && !field.optional) {
-        missing[field.blockId] = "This is required.";
+      const answer = readAnswer(field, body.values[field.blockId]?.[field.actionId], answering);
+      if ("error" in answer) {
+        missing[field.blockId] = answer.error;
         continue;
       }
-      // A select can only answer with something it offered. Otherwise a
-      // hand-written request could hand the app a value it never listed, and
-      // an app is entitled to trust its own options.
-      if (field.type === "select" && value && !field.options.some((o) => o.value === value)) {
-        missing[field.blockId] = "Choose one of the options.";
-        continue;
-      }
-      values[field.blockId] = {
-        ...values[field.blockId],
-        [field.actionId]:
-          field.type === "select"
-            ? { type: "static_select", selected_option: value ? { value } : null }
-            : { type: "plain_text_input", value },
-      };
+      values[field.blockId] = { ...values[field.blockId], [field.actionId]: answer.state };
     }
     // Required fields are checked here as well as in the browser: the app
     // should never have to defend against a submission the form itself forbids.

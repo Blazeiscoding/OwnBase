@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import type { WorkspaceEvent } from "@ownbase/protocol";
+import { INPUT_ELEMENTS } from "../src/blockKit.js";
 import { signatureHeaders, toSlackEvent } from "../src/integrations.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
@@ -157,6 +158,21 @@ describe("the event table", () => {
     expect(types.length).toBeGreaterThan(0);
     const delivered = types.filter((type) => toSlackEvent(sample(type)) !== null);
     expect([...documented.keys()].sort()).toEqual(delivered.sort());
+  });
+});
+
+describe("the modal input table", () => {
+  it("lists exactly the elements a view can hold, and where each answer goes", () => {
+    const documented = tableAfter("The input elements");
+    expect(documented.length).toBeGreaterThan(0);
+    // The answer column starts with the key, sometimes followed by its format.
+    const said = Object.fromEntries(
+      documented.map(([element, , answer]) => [element!, answer!.split("`")[0]!]),
+    );
+    const drawn = Object.fromEntries(
+      Object.entries(INPUT_ELEMENTS).map(([element, { key }]) => [element, key]),
+    );
+    expect(said).toEqual(drawn);
   });
 });
 

@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
-import type { ModalView, User } from "@ownbase/protocol";
+import type { Channel, ModalField, ModalView, User } from "@ownbase/protocol";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ViewModal } from "../src/components/ViewModal.js";
 import { ClientContext } from "../src/context.js";
@@ -238,5 +238,199 @@ describe("an app's form", () => {
     await waitFor(() => expect(screen.getByRole("button", { name: "Submit" })).toBeEnabled());
     fireEvent.submit(form);
     await waitFor(() => expect(submit).toHaveBeenCalledTimes(2));
+  });
+});
+
+describe("an app's form with choices", () => {
+  const person = (id: string, displayName: string, extra: Partial<User> = {}): User => ({
+    ...sam,
+    id,
+    handle: displayName.toLowerCase().replace(/\s+/g, ""),
+    displayName,
+    ...extra,
+  });
+  const people = [
+    sam,
+    person("U_ADA", "Ada Lovelace"),
+    person("U_BEN", "Ben Okafor"),
+    person("U_CY", "Cy Tran"),
+    person("U_DEE", "Dee Ahmed"),
+    person("U_EVE", "Eve Moreau"),
+    person("U_FIN", "Fin Walsh"),
+    person("U_GONE", "Gone Person", { deactivated: true }),
+    person("U_BOT", "Deploy Bot", { isBot: true }),
+  ];
+  const room = (id: string, type: Channel["type"], name: string, extra: Partial<Channel> = {}) =>
+    ({
+      id,
+      type,
+      name,
+      topic: "",
+      description: "",
+      creatorId: sam.id,
+      archived: false,
+      createdAt: 0,
+      ...extra,
+    }) satisfies Channel;
+  const rooms = [
+    room("C_GENERAL", "public", "general"),
+    room("C_OPS", "private", "ops"),
+    room("C_OLD", "public", "old-news", { archived: true }),
+    room("D_ADA", "dm", "", { memberIds: [sam.id, "U_ADA"] }),
+  ];
+  const field = (blockId: string, extra: Partial<ModalField>): ModalField => ({
+    blockId,
+    actionId: "value",
+    label: blockId,
+    hint: "",
+    optional: false,
+    type: "text",
+    placeholder: "",
+    initialValue: "",
+    options: [],
+    ...extra,
+  });
+  const choices: ModalView = {
+    ...view,
+    id: "V_CHOICES",
+    fields: [
+      field("checks", {
+        label: "Before shipping",
+        type: "checkboxes",
+        options: [
+          { text: "Tests pass", value: "tests", description: "On the main branch" },
+          { text: "Notes written", value: "notes" },
+        ],
+        initialValues: ["tests"],
+      }),
+      field("size", {
+        label: "Size",
+        type: "radio",
+        options: [
+          { text: "Small", value: "s" },
+          { text: "Large", value: "l" },
+        ],
+        initialValue: "l",
+      }),
+      field("owner", { label: "Owner", type: "user", initialValue: "U_NOT_HERE" }),
+      field("reviewers", { label: "Reviewers", type: "users", maxSelected: 2, optional: true }),
+      field("where", { label: "Where", type: "conversation", initialValue: "C_GENERAL" }),
+      field("room", { label: "Room", type: "channel" }),
+      field("day", { label: "Day", type: "date", initialValue: "2026-11-02" }),
+      field("at", { label: "Time", type: "time" }),
+    ],
+  };
+
+  function renderChoices(form: ModalView = choices) {
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({
+      self: sam,
+      users: Object.fromEntries(people.map((u) => [u.id, u])),
+      channels: Object.fromEntries(rooms.map((c) => [c.id, c])),
+      modal: form,
+      status: "online",
+    });
+    const submit = vi.spyOn(client, "submitModal").mockResolvedValue({ ok: true });
+    render(
+      <ClientContext.Provider value={client}>
+        <ViewModal />
+      </ClientContext.Provider>,
+    );
+    return { client, submit, user: userEvent.setup() };
+  }
+
+  it("draws each kind as a control that names itself", async () => {
+    renderChoices();
+    const checks = screen.getByRole("group", { name: "Before shipping" });
+    expect(within(checks).getByRole("checkbox", { name: /Tests pass/ })).toBeChecked();
+    expect(within(checks).getByText("On the main branch")).toBeVisible();
+    const size = screen.getByRole("radiogroup", { name: "Size" });
+    expect(within(size).getByRole("radio", { name: "Large" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Owner" })).toBeVisible();
+    expect(screen.getByRole("group", { name: /^Reviewers/ })).toBeVisible();
+    expect(screen.getByLabelText("Day")).toHaveAttribute("type", "date");
+    expect(screen.getByLabelText("Day")).toHaveValue("2026-11-02");
+    expect(screen.getByLabelText("Time")).toHaveAttribute("type", "time");
+    expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
+  });
+
+  it("offers the people and conversations this account can see, and no one gone", () => {
+    renderChoices();
+    const owner = screen.getByRole("combobox", { name: "Owner" });
+    const named = within(owner)
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect(named).toContain("Ada Lovelace");
+    expect(named).not.toContain("Gone Person");
+    expect(named).not.toContain("Deploy Bot");
+    const where = within(screen.getByRole("combobox", { name: "Where" }))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    // A DM is named by who it is with; an archived channel is not offered.
+    expect(where).toEqual(["Choose a conversation…", "#general", "#ops", "Ada Lovelace"]);
+    const room = within(screen.getByRole("combobox", { name: "Room" }))
+      .getAllByRole("option")
+      .map((o) => o.textContent);
+    expect(room).toEqual(["Choose a channel…", "#general"]);
+  });
+
+  it("sends lists for the list kinds, and leaves out a starting choice it cannot show", async () => {
+    const { submit, user } = renderChoices();
+    // The app started Owner on someone this account cannot see.
+    expect(screen.getByRole("combobox", { name: "Owner" })).toHaveValue("");
+    await user.selectOptions(screen.getByRole("combobox", { name: "Owner" }), "U_BEN");
+    await user.click(screen.getByRole("checkbox", { name: "Notes written" }));
+    await user.click(screen.getByRole("radio", { name: "Small" }));
+    await user.click(screen.getByRole("checkbox", { name: "Ada Lovelace" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Room" }), "C_GENERAL");
+    await user.type(screen.getByLabelText("Time"), "14:30");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    expect(submit).toHaveBeenCalledWith(
+      {
+        checks: { value: ["tests", "notes"] },
+        size: { value: "s" },
+        owner: { value: "U_BEN" },
+        reviewers: { value: ["U_ADA"] },
+        where: { value: "C_GENERAL" },
+        room: { value: "C_GENERAL" },
+        day: { value: "2026-11-02" },
+        at: { value: "14:30" },
+      },
+      choices.id,
+    );
+  });
+
+  it("stops at the app's limit until a choice is taken back", async () => {
+    const { user } = renderChoices();
+    const reviewers = screen.getByRole("group", { name: /^Reviewers/ });
+    await user.click(within(reviewers).getByRole("checkbox", { name: "Ada Lovelace" }));
+    await user.click(within(reviewers).getByRole("checkbox", { name: "Ben Okafor" }));
+    expect(within(reviewers).getByText("2 of up to 2 chosen")).toBeVisible();
+    expect(within(reviewers).getByRole("checkbox", { name: "Cy Tran" })).toBeDisabled();
+    await user.click(within(reviewers).getByRole("checkbox", { name: "Ada Lovelace" }));
+    expect(within(reviewers).getByRole("checkbox", { name: "Cy Tran" })).toBeEnabled();
+  });
+
+  it("narrows a long list, keeping what is chosen in sight", async () => {
+    const { user } = renderChoices();
+    const reviewers = screen.getByRole("group", { name: /^Reviewers/ });
+    await user.click(within(reviewers).getByRole("checkbox", { name: "Fin Walsh" }));
+    await user.type(within(reviewers).getByRole("searchbox", { name: "Search Reviewers" }), "ada");
+    expect(within(reviewers).getAllByRole("checkbox")).toHaveLength(2);
+    expect(within(reviewers).getByRole("checkbox", { name: "Ada Lovelace" })).not.toBeChecked();
+    expect(within(reviewers).getByRole("checkbox", { name: "Fin Walsh" })).toBeChecked();
+  });
+
+  it("takes somebody to a group the app refused, and reads why", async () => {
+    const { client, user } = renderChoices();
+    vi.spyOn(client, "submitModal").mockResolvedValue({
+      ok: false,
+      errors: { checks: "Tick both before shipping." },
+    });
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    const checks = screen.getByRole("group", { name: "Before shipping" });
+    expect(checks).toHaveAccessibleDescription("Tick both before shipping.");
+    expect(within(checks).getByRole("checkbox", { name: /Tests pass/ })).toHaveFocus();
+    expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
   });
 });

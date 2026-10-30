@@ -1331,6 +1331,7 @@
       "details": [
         "ViewModal keys AppForm by view.id, so a newly arriving app form starts with its own values, field errors, message and busy state.",
         "Inputs are keyed by block and action ID and submitted as a nested payload. Validation refusal keeps the form open and focuses the first refused field.",
+        "E18a: selects for options, people, conversations and channels; checkboxes and radio buttons as a fieldset; several-answer pickers as a checkbox list that gains a search field past six choices, keeps chosen ones in sight and stops at the app's limit; native date and time inputs. Pickers offer what this replica can see, and a starting choice it cannot see is left out.",
         "N05 adds alive and submitting guards plus ID-bound client operations: a previous form's success, failure or dismissal cannot close or contaminate its replacement. Answers are not persisted locally and closing alone does not send a callback."
       ],
       "concepts": ["app form", "view identity", "submission lifetime", "N05"]
@@ -2911,7 +2912,7 @@
         },
         {
           "title": "Fill in the fields",
-          "description": "Each field keeps its own answer. Whether the form is busy, its errors and its messages all belong to this one form. Nothing is saved on the device.",
+          "description": "Each field keeps its own answer, whether typed, chosen from a list, ticked or picked from a calendar. Whether the form is busy, its errors and its messages all belong to this one form. Nothing is saved on the device.",
           "files": ["packages/ui/src/components/ViewModal.tsx"],
           "detail": "Each block/action pair has its own value key. Busy, errors and message state belong to this keyed instance; nothing is saved to device storage."
         },

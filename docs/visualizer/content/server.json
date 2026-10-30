@@ -57,7 +57,8 @@
       "details": [
         "Headers, sections, context and dividers flatten into the existing mrkdwn renderer. Explicit nonempty text wins over blocks, matching the expected fallback behavior.",
         "Only buttons from actions blocks become MessageAction records; labels, values and count are bounded, styles normalized and link URLs restricted to HTTP(S).",
-        "Modal parsing keeps plain text, multiline text and static selects, caps fields/options and reports dropped fields. A view with no usable inputs is refused by the server rather than presented as a misleading empty form.",
+        "Modal parsing (INPUT_ELEMENTS) keeps text inputs, single and multiple selects from options, people, conversations or public channels, checkboxes, radio buttons and date and time pickers (E18a). It runs option groups together, caps fields and options at Slack's ceilings, honours starting values, max_selected_items, filter.include and default_to_current_conversation, and reports dropped fields. A view with no usable inputs is refused by the server rather than presented as a misleading empty form.",
+        "readAnswer checks each submitted answer against its field: options it listed, its limit, an active account, a conversation the submitter can open and the filter allows, a public channel, a real date or time. It returns Slack's state.values entry (selected_options with text, selected_user, selected_date and so on) or the message shown under the field, so the app never sees an answer its form forbids.",
         "This is a deliberate subset adapter, not a complete Slack UI renderer; unsupported controls are omitted."
       ],
       "concepts": ["Slack compatibility", "bounded payload", "modal parsing"]
@@ -989,9 +990,9 @@
         },
         {
           "title": "Refuse a second submission at the same time",
-          "description": "When the person submits, the server checks the form is theirs, required answers are filled in and each choice comes from the list. Only one submission of a form can be on its way to the app at a time, and a second one meanwhile is refused. Once the first finishes, the person can correct their answers or try again.",
+          "description": "When the person submits, the server checks the form is theirs, required answers are filled in and each answer is one the field offered: an option it listed, someone with an account, a conversation the person can open, a real date. Only one submission of a form can be on its way to the app at a time, and a second one meanwhile is refused. Once the first finishes, the person can correct their answers or try again.",
           "files": ["packages/server/src/server.ts", "packages/protocol/src/rest.ts"],
-          "detail": "The server verifies form ownership, required values and select options. One modal ID may have one callback in flight; overlap receives 409 view_submitting, and finally releases exclusion for correction or deliberate retry."
+          "detail": "The server verifies form ownership, then readAnswer checks each value against its field and shapes it as Slack's state.values. One modal ID may have one callback in flight; overlap receives 409 view_submitting, and finally releases exclusion for correction or deliberate retry."
         },
         {
           "title": "Ignore late changes to an old message",
