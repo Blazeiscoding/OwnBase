@@ -4,6 +4,7 @@ import type { ID, ReminderItem } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { formatReminderTime, formatScheduleShort, reminderPresets } from "../lib/schedule.js";
+import { dropRepeatClick } from "../lib/repeatClick.js";
 import { Avatar } from "./Avatar.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
@@ -181,7 +182,7 @@ function ReminderRow(props: {
   const action =
     "flex size-7 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink";
   return (
-    <li ref={item} className="group/row relative">
+    <li ref={item} className="group/row relative" onClickCapture={dropRepeatClick}>
       <button
         type="button"
         data-activity-row=""

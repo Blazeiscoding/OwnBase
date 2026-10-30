@@ -11,6 +11,7 @@ import { useOptionalToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { usePagedList } from "../lib/pagedList.js";
+import { dropRepeatClick } from "../lib/repeatClick.js";
 
 interface Props {
   title: string;
@@ -155,7 +156,12 @@ export function MessageListPanel(props: Props) {
             const namedBelow =
               channel?.type === "dm" && others.length === 1 && others[0] === m.userId;
             return (
-              <li key={m.id} data-list-row="" className="group/row relative">
+              <li
+                key={m.id}
+                data-list-row=""
+                className="group/row relative"
+                onClickCapture={props.remove ? dropRepeatClick : undefined}
+              >
                 <div className="w-full rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-ink/[0.035]">
                   <div
                     className={`mb-1.5 flex items-center gap-2 text-[12px] text-ink-faint ${
@@ -215,12 +221,7 @@ export function MessageListPanel(props: Props) {
                         aria-label={props.remove.label}
                         // Copper, as a saved message's own bookmark is.
                         className="flex size-7 items-center justify-center rounded-md text-copper transition-colors hover:bg-ink/[0.06]"
-                        onClick={(event) => {
-                          // The next row's button slides up under the pointer, so
-                          // the second click of a double-click would take it too.
-                          if (event.detail > 1) return;
-                          remove(m, event.currentTarget);
-                        }}
+                        onClick={(event) => remove(m, event.currentTarget)}
                       >
                         <Icon name={props.remove.icon} size={14} />
                       </button>

@@ -671,6 +671,16 @@
       "concepts": ["save feedback", "react context"]
     },
     {
+      "path": "packages/ui/src/lib/repeatClick.ts",
+      "plain": "Makes a double-click on a list's Delete, Mark read or Remove act on one row, not on the next row that slides up under the pointer.",
+      "summary": "Drops the second click of a double-click on rows whose actions take rows away.",
+      "details": [
+        "dropRepeatClick goes on a row as onClickCapture and stops a click whose detail is above 1 before any control in the row sees it. Chromium counts the click that lands on the next row as the second of two, even though it hits another element. Key presses have a detail of 0 and always go through.",
+        "It is on the rows of Saved (MessageListPanel's remove), Drafts, Activity and Reminders. Found in a real browser: without it one double-click deleted two drafts, marked two conversations read, or, in Mentions, where Mark read vanishes and the row stays, opened the message."
+      ],
+      "concepts": ["double-click", "row actions", "list panels"]
+    },
+    {
       "path": "packages/ui/src/lib/route.ts",
       "plain": "Records where you are in the workspace in the browser's history, so Back and Forward return you to the right channel and spot.",
       "summary": "Represents workspace places in the URL and browser history.",
@@ -1420,7 +1430,7 @@
         "The generic panel renders a PagedList of server-loaded messages with row context, loading/empty/refusal state and a LoadMore end. listKey names a different list; a change of refreshKey, or of changedContent for a conversation it shows, reads it again in place (UX-08).",
         "Pins are channel-specific, Saved spans readable conversations, and Threads represents followed conversations with unread counts and opens the thread rather than a single message. Saved refreshes on the saved set, Threads on follow state including each thread's lastSeq, so a new reply shows at once.",
         "Since Q08 PinsPanel also passes its channel's changedContent marker in refreshKey, so a pin, edit or deletion outside the loaded timeline is seen.",
-        "keep hides a row this device already knows no longer belongs, before the list is read again. remove gives each row one action that takes it out, shown on hover or focus and always where there is no hover, as Activity's and Drafts' are. Focus then goes to the next row's Open button, or the heading when none is left, and the second click of a double-click is ignored, since the next row's button slides up under the pointer. SavedPanel uses both: Remove from Saved unsaves at once with an Undo notice, and a refusal puts the row back with Try again."
+        "keep hides a row this device already knows no longer belongs, before the list is read again. remove gives each row one action that takes it out, shown on hover or focus and always where there is no hover, as Activity's and Drafts' are. Focus then goes to the next row's Open button, or the heading when none is left, and the row drops the second click of a double-click (dropRepeatClick), since the next row's button slides up under the pointer. SavedPanel uses both: Remove from Saved unsaves at once with an Undo notice, and a refusal puts the row back with Try again."
       ],
       "concepts": [
         "shared panels",

@@ -4,6 +4,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { listDrafts, type DraftEntry, type DraftPlace } from "../lib/drafts.js";
 import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
+import { dropRepeatClick } from "../lib/repeatClick.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
@@ -134,7 +135,7 @@ function DraftRow(props: {
   onDelete: () => void;
 }) {
   return (
-    <li className="group/row relative">
+    <li className="group/row relative" onClickCapture={dropRepeatClick}>
       <button
         type="button"
         onClick={props.onOpen}
