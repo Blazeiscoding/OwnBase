@@ -4989,58 +4989,262 @@ async function startWorkspaceServer(
     channelId: ID;
     appId: ID;
     botUserId: ID;
+    /** The app's own name for it, unique among its open views; empty when it gave none. */
+    externalId: string;
     expiresAt: number;
   }
   const openViews = new CapabilityMap<OpenView>(CAPABILITIES_ALIVE.openViews);
   const submittingViews = new Set<ID>();
+  const VIEW_LIFE = 30 * 60_000;
 
   /**
-   * Slack's views.open. The trigger_id decides who sees it, so an app cannot
-   * open a modal in front of someone who did not just ask for one.
+   * The forms each person has open, bottom first: the one an app opened and
+   * any pushed on it, at most three as on Slack. One stack a person, since a
+   * client shows one form at a time: opening a new one closes the old stack.
    */
+  const viewStacks = new Map<ID, ID[]>();
+  const MAX_STACK = 3;
+
+  /** A person's stack, without any view that expired or was let go. */
+  const stackOf = (userId: ID): ID[] => {
+    const ids = (viewStacks.get(userId) ?? []).filter((id) => openViews.get(id));
+    if (ids.length > 0) viewStacks.set(userId, ids);
+    else viewStacks.delete(userId);
+    return ids;
+  };
+
+  /**
+   * Tells the person's devices what they have open now: the whole stack, with
+   * the form to show on top, or which forms closed when none is left. A client
+   * from before stacks shows the top one, which is the one it can submit.
+   */
+  const showStack = (userId: ID, closed: ID[] = []): void => {
+    const ids = stackOf(userId);
+    if (ids.length > 0) {
+      const stack = ids.map((id) => openViews.get(id)!.view);
+      gateway.sendToUser(userId, { type: "view.open", view: stack.at(-1)!, stack });
+    } else if (closed.length > 0) {
+      gateway.sendToUser(userId, { type: "view.close", viewIds: closed });
+    }
+  };
+
+  /** Closes a view and everything stacked on it; returns what closed. */
+  const closeFrom = (userId: ID, viewId: ID): ID[] => {
+    const ids = stackOf(userId);
+    const at = ids.indexOf(viewId);
+    if (at < 0) return [];
+    const closed = ids.slice(at);
+    for (const id of closed) openViews.delete(id);
+    if (at === 0) viewStacks.delete(userId);
+    else viewStacks.set(userId, ids.slice(0, at));
+    return closed;
+  };
+
+  const closeStack = (userId: ID): ID[] => {
+    const root = stackOf(userId)[0];
+    return root ? closeFrom(userId, root) : [];
+  };
+
+  /**
+   * Keeps or puts a view in the map with a fresh half hour, and with it the
+   * rest of its stack: an app still changing a form is a form still in use,
+   * and the one under it must not expire while the person is on top.
+   */
+  const keepOpen = (open: Omit<OpenView, "expiresAt">): void => {
+    const now = Date.now();
+    for (const id of stackOf(open.userId)) {
+      const other = openViews.get(id, now);
+      if (other && id !== open.view.id)
+        openViews.set(id, { ...other, expiresAt: now + VIEW_LIFE }, now);
+    }
+    openViews.set(open.view.id, { ...open, expiresAt: now + VIEW_LIFE }, now);
+  };
+
+  /** One of this app's open views by the name it gave it. */
+  const viewByExternalId = (appId: ID, externalId: string): OpenView | undefined => {
+    for (const userId of [...viewStacks.keys()]) {
+      for (const id of stackOf(userId)) {
+        const open = openViews.get(id);
+        if (open?.appId === appId && open.externalId === externalId) return open;
+      }
+    }
+    return undefined;
+  };
+
+  /**
+   * An app's view object read for showing, or Slack's name for why it cannot
+   * be: every input it held was a kind this server cannot draw (a form that
+   * silently lost its questions is worse than none), or there is nothing in
+   * it at all. A view of text alone is fine: an app shows "Loading" that way
+   * before it updates the view with the real form, or "Done" after one.
+   */
+  const readView = (
+    raw: unknown,
+    id: ID,
+    channelId: ID,
+  ): { view: ModalView; externalId: string } | { error: string } => {
+    const { droppedFields, ...parsed } = parseView(raw, id, { channelId });
+    if (parsed.fields.length === 0 && (droppedFields > 0 || !parsed.text)) {
+      return { error: droppedFields > 0 ? "unsupported_elements" : "no_inputs" };
+    }
+    const named = (raw as { external_id?: unknown } | null)?.external_id;
+    return {
+      view: { ...parsed, hash: ulid() },
+      externalId: typeof named === "string" ? named.slice(0, 255) : "",
+    };
+  };
+
+  /** The view as Slack's methods answer with it, so an app can keep its id and hash. */
+  const describeView = (open: OpenView) => {
+    const ids = stackOf(open.userId);
+    const at = ids.indexOf(open.view.id);
+    return {
+      id: open.view.id,
+      type: "modal",
+      callback_id: open.view.callbackId,
+      external_id: open.externalId,
+      hash: open.view.hash,
+      private_metadata: open.view.privateMetadata,
+      root_view_id: ids[0] ?? open.view.id,
+      previous_view_id: at > 0 ? ids[at - 1]! : null,
+    };
+  };
+
+  /**
+   * Spends a trigger_id for this app, or names why it cannot be. The trigger
+   * decides who sees the view, so an app cannot open a modal in front of
+   * someone who did not just ask for one.
+   */
+  const spendTrigger = (owner: { id: ID }, triggerId: unknown): Trigger | { error: string } => {
+    const trigger = typeof triggerId === "string" ? triggers.get(triggerId) : undefined;
+    if (!trigger || trigger.expiresAt < Date.now()) {
+      if (typeof triggerId === "string") triggers.delete(triggerId);
+      return { error: "expired_trigger_id" };
+    }
+    // The trigger belongs to whoever it was issued for, and to that app alone.
+    if (trigger.appId !== owner.id) return { error: "trigger_not_yours" };
+    triggers.delete(triggerId as string);
+    if (!capabilityHolds({ ...trigger, invokerId: trigger.userId })) {
+      return { error: "expired_trigger_id" };
+    }
+    return trigger;
+  };
+
+  /**
+   * Shows a new view to the person a trigger was issued for: pushed on the
+   * stack they have open from this app, or as the first of a new stack,
+   * which closes whatever they had open before.
+   */
+  const placeView = (
+    owner: { id: ID; botUserId: ID },
+    trigger: Trigger,
+    raw: unknown,
+    push: boolean,
+  ) => {
+    const ids = stackOf(trigger.userId);
+    const top = ids.length > 0 ? openViews.get(ids.at(-1)!) : undefined;
+    const stacking = push && top?.appId === owner.id;
+    if (stacking && ids.length >= MAX_STACK) return slackError("push_limit_reached");
+    const read = readView(raw, ulid(), trigger.channelId);
+    if ("error" in read) return slackError(read.error);
+    if (read.externalId && viewByExternalId(owner.id, read.externalId)) {
+      return slackError("duplicate_external_id");
+    }
+    if (!stacking) closeStack(trigger.userId);
+    keepOpen({
+      view: read.view,
+      userId: trigger.userId,
+      channelId: trigger.channelId,
+      appId: owner.id,
+      botUserId: owner.botUserId,
+      externalId: read.externalId,
+    });
+    viewStacks.set(trigger.userId, [...(stacking ? ids : []), read.view.id]);
+    showStack(trigger.userId);
+    return { ok: true, view: describeView(openViews.get(read.view.id)!) };
+  };
+
+  /** Slack's views.open: a new form for the person who just asked for one. */
   app.post("/api/views.open", async (req) => {
     const owner = slackCaller(req);
     if (!owner) return slackError("invalid_auth");
-
     const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
-    const trigger = typeof body.trigger_id === "string" ? triggers.get(body.trigger_id) : undefined;
-    if (!trigger || trigger.expiresAt < Date.now()) {
-      if (typeof body.trigger_id === "string") triggers.delete(body.trigger_id);
-      return slackError("expired_trigger_id");
-    }
-    // The trigger belongs to whoever it was issued for, and to that app alone.
-    if (trigger.appId !== owner.id) return slackError("trigger_not_yours");
-    if (!capabilityHolds({ ...trigger, invokerId: trigger.userId })) {
-      triggers.delete(body.trigger_id as string);
-      return slackError("expired_trigger_id");
-    }
-    triggers.delete(body.trigger_id as string);
+    const trigger = spendTrigger(owner, body.trigger_id);
+    if ("error" in trigger) return slackError(trigger.error);
+    return placeView(owner, trigger, structured(body.view), false);
+  });
 
-    const id = ulid();
-    const { droppedFields, ...view } = parseView(structured(body.view), id, {
-      channelId: trigger.channelId,
-    });
-    if (view.fields.length === 0) {
-      // Either there was nothing to fill in, or everything in it was a control
-      // we cannot draw. Saying so beats showing an empty box.
-      return slackError(droppedFields > 0 ? "unsupported_elements" : "no_inputs");
-    }
+  /**
+   * Slack's views.push: a form on top of the one the person has open from
+   * this app, which they come back to when this one closes. With none open,
+   * it opens as views.open would.
+   */
+  app.post("/api/views.push", async (req) => {
+    const owner = slackCaller(req);
+    if (!owner) return slackError("invalid_auth");
+    const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
+    const trigger = spendTrigger(owner, body.trigger_id);
+    if ("error" in trigger) return slackError(trigger.error);
+    return placeView(owner, trigger, structured(body.view), true);
+  });
 
-    const now = Date.now();
-    openViews.set(
-      id,
-      {
-        view,
-        userId: trigger.userId,
-        channelId: trigger.channelId,
-        appId: owner.id,
-        botUserId: owner.botUserId,
-        expiresAt: now + 30 * 60_000,
-      },
-      now,
-    );
-    gateway.sendToUser(trigger.userId, { type: "view.open", view });
-    return { ok: true, view: { id, callback_id: view.callbackId } };
+  /**
+   * Slack's views.update: changes a form the person still has open, without
+   * a trigger, which is how an app shows "Loading" at once and the real form
+   * when it has it. What they typed into an input that keeps its block and
+   * action ids stays, as on Slack. A `hash` from an earlier answer refuses
+   * the change if the view has changed since, so two updates cannot cross.
+   */
+  app.post("/api/views.update", async (req) => {
+    const owner = slackCaller(req);
+    if (!owner) return slackError("invalid_auth");
+    // An app updating in a loop pushes a form at someone with every call.
+    ration("post", owner.botUserId);
+    const body = (req.body ?? {}) as {
+      view_id?: unknown;
+      external_id?: unknown;
+      hash?: unknown;
+      view?: unknown;
+    };
+    const found =
+      typeof body.view_id === "string" && body.view_id
+        ? openViews.get(body.view_id)
+        : typeof body.external_id === "string" && body.external_id
+          ? viewByExternalId(owner.id, body.external_id)
+          : undefined;
+    // Another app's view is answered as no view at all.
+    if (!found || found.appId !== owner.id || !stackOf(found.userId).includes(found.view.id)) {
+      return slackError("not_found");
+    }
+    if (!capabilityHolds({ ...found, invokerId: found.userId })) {
+      showStack(found.userId, closeStack(found.userId));
+      return slackError("not_found");
+    }
+    if (typeof body.hash === "string" && body.hash && body.hash !== found.view.hash) {
+      return slackError("hash_conflict");
+    }
+    const raw = structured(body.view);
+    const read = readView(raw, found.view.id, found.channelId);
+    if ("error" in read) return slackError(read.error);
+    // An update that names the view keeps or changes its name; one that does not keeps it.
+    const externalId = read.externalId || found.externalId;
+    const named = externalId ? viewByExternalId(owner.id, externalId) : undefined;
+    if (named && named.view.id !== found.view.id) return slackError("duplicate_external_id");
+    keepOpen({ ...found, view: read.view, externalId });
+    showStack(found.userId);
+    return { ok: true, view: describeView(openViews.get(found.view.id)!) };
+  });
+
+  /**
+   * The person closed a form: it and anything stacked on it go, and their
+   * other devices follow. Their own stack only, so nobody can close another
+   * person's form. The app is not told, as on Slack without notify_on_close.
+   */
+  app.post<{ Params: { id: string } }>("/api/views/:id/close", async (req) => {
+    const me = requireUser(req);
+    const closed = closeFrom(me.id, req.params.id);
+    if (closed.length > 0) showStack(me.id, closed);
+    return { ok: true };
   });
 
   /**
@@ -5058,14 +5262,19 @@ async function startWorkspaceServer(
       if (!open || open.expiresAt < Date.now()) openViews.delete(req.params.id);
       throw new HttpError(404, "view_not_found");
     }
+    // Only the form on top is in front of the person; one under it waits
+    // until they come back to it.
+    if (stackOf(me.id).at(-1) !== open.view.id) throw new HttpError(404, "view_not_found");
+    // A view of text alone, such as "Loading", has nothing to submit.
+    if (!open.view.submitLabel) throw new HttpError(400, "view_has_no_submit");
     const owner = store.getApp(open.appId);
     if (!owner?.interactivityUrl) {
-      openViews.delete(open.view.id);
+      showStack(me.id, closeStack(me.id));
       throw new HttpError(400, "no_interactivity_url");
     }
     // A form can sit open for half an hour before anyone presses submit.
     if (!capabilityHolds({ ...open, invokerId: open.userId })) {
-      openViews.delete(open.view.id);
+      showStack(me.id, closeStack(me.id));
       throw new HttpError(404, "view_not_found");
     }
 
@@ -5115,10 +5324,7 @@ async function startWorkspaceServer(
           botUserId: owner.botUserId,
         }),
         view: {
-          id: open.view.id,
-          type: "modal",
-          callback_id: open.view.callbackId,
-          private_metadata: open.view.privateMetadata,
+          ...describeView(open),
           title: { type: "plain_text", text: open.view.title },
           state: { values },
         },
@@ -5140,8 +5346,9 @@ async function startWorkspaceServer(
           return { ok: false, errors: {}, message: `The app answered ${res.status}.` };
         }
         const answered = res.body.trim();
+        let parsed: { response_action?: unknown; errors?: Record<string, string>; view?: unknown } =
+          {};
         if (answered.startsWith("{")) {
-          let parsed: { response_action?: unknown; errors?: Record<string, string> };
           try {
             parsed = JSON.parse(answered) as typeof parsed;
           } catch {
@@ -5158,8 +5365,52 @@ async function startWorkspaceServer(
             return { ok: false, errors: parsed.errors };
           }
         }
-        openViews.delete(open.view.id);
-        return { ok: true };
+        // Accepted. The app may change this form or stack another on it,
+        // provided the person has not closed it while the app was deciding.
+        const still = stackOf(me.id).includes(open.view.id) ? openViews.get(open.view.id) : null;
+        const action = parsed.response_action;
+        if (still && (action === "update" || action === "push")) {
+          const pushing = action === "push";
+          if (pushing && stackOf(me.id).length >= MAX_STACK) {
+            return {
+              ok: false,
+              errors: {},
+              message: "The app tried to open more forms on top of this one than can be open.",
+            };
+          }
+          const read = readView(
+            structured(parsed.view),
+            pushing ? ulid() : open.view.id,
+            open.channelId,
+          );
+          const named =
+            "error" in read || !read.externalId
+              ? undefined
+              : viewByExternalId(owner.id, read.externalId);
+          if ("error" in read || (named && named.view.id !== read.view.id)) {
+            return {
+              ok: false,
+              errors: {},
+              message: "The app answered with a form that cannot be shown.",
+            };
+          }
+          if (pushing) {
+            keepOpen({ ...still, view: read.view, externalId: read.externalId });
+            viewStacks.set(me.id, [...stackOf(me.id), read.view.id]);
+          } else {
+            keepOpen({
+              ...still,
+              view: read.view,
+              externalId: read.externalId || still.externalId,
+            });
+          }
+          showStack(me.id);
+          return { ok: true, closedViewIds: [] };
+        }
+        // Anything else closes this form, and "clear" every form under it too.
+        const closed = action === "clear" ? closeStack(me.id) : closeFrom(me.id, open.view.id);
+        showStack(me.id, closed);
+        return { ok: true, closedViewIds: closed.length > 0 ? closed : [open.view.id] };
       } catch (err) {
         const why =
           err instanceof OutboundError && err.code === "blocked_host"

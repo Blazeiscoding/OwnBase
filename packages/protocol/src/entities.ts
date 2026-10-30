@@ -819,10 +819,16 @@ export interface ModalView {
   /** The app's own name for this view, echoed back on submission. */
   callbackId: string;
   title: string;
+  /** Empty when the view only shows something, such as "Loading": no submit button. */
   submitLabel: string;
   closeLabel: string;
   /** Opaque app state, carried through untouched. */
   privateMetadata: string;
+  /**
+   * Changes whenever the app changes the view (E18b), so a client can tell an
+   * update from the same view sent again. Absent from servers before then.
+   */
+  hash?: string;
   /** Anything above the fields — sections, headers — flattened to mrkdwn. */
   text: string;
   fields: ModalField[];

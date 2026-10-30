@@ -17,11 +17,15 @@ let channelId: string;
 const received: { path: string; payload: AppPayload }[] = [];
 const held: ServerResponse[] = [];
 let holdPath: string | null = null;
+/** What the app answers a submission it does not hold with. */
+let answer: (payload: AppPayload) => string = () => "";
+let accountToken: string;
 
 beforeEach(async () => {
   received.length = 0;
   held.length = 0;
   holdPath = null;
+  answer = () => "";
   hook = createServer((request, response) => {
     const chunks: Buffer[] = [];
     request.on("data", (chunk: Buffer) => chunks.push(chunk));
@@ -38,7 +42,7 @@ beforeEach(async () => {
       const path = request.url ?? "";
       received.push({ path, payload });
       if (payload.type === "view_submission" && path === holdPath) held.push(response);
-      else response.end("");
+      else response.end(answer(payload));
     });
   });
   await new Promise<void>((resolve) => hook.listen(0, "127.0.0.1", resolve));
@@ -57,6 +61,7 @@ beforeEach(async () => {
     displayName: "Modal Owner",
     password: "password123",
   });
+  accountToken = account.token;
   admin = new Api(base, account.token);
   client = new WorkspaceClient(base, account.token);
   client.connect();
@@ -123,7 +128,7 @@ async function open(appName: string, hookPath: string) {
   expect(opened.ok).toBe(true);
   const viewId = (opened.view as { id: string }).id;
   await expect.poll(() => client.state.modal?.id).toBe(viewId);
-  return { appId: app.app.id, viewId };
+  return { appId: app.app.id, viewId, token: app.token };
 }
 
 describe("app form ownership across real socket pushes and callbacks (N05)", () => {
@@ -146,6 +151,7 @@ describe("app form ownership across real socket pushes and callbacks (N05)", () 
       expect(client.state.modal?.id).toBe(b.viewId);
       expect(await client.submitModal({ details: { value: "Words for B" } }, b.viewId)).toEqual({
         ok: true,
+        closedViewIds: [b.viewId],
       });
       const delivered = received.find(
         (entry) => entry.path === "/app-B" && entry.payload.type === "view_submission",
@@ -172,5 +178,70 @@ describe("app form ownership across real socket pushes and callbacks (N05)", () 
         (entry) => entry.path === "/app-B" && entry.payload.type === "view_submission",
       ),
     ).toHaveLength(0);
+  });
+});
+
+describe("a stack of app forms (E18b)", () => {
+  const confirm = {
+    type: "modal",
+    title: { type: "plain_text", text: "Are you sure?" },
+    blocks: [
+      {
+        type: "input",
+        block_id: "confirm",
+        label: { type: "plain_text", text: "Type yes" },
+        element: { type: "plain_text_input", action_id: "really" },
+      },
+    ],
+  };
+
+  it("shows a form the app stacks, goes back from it, and every device follows", async () => {
+    const a = await open("Stack App", "/stack");
+    const other = new WorkspaceClient(admin.baseUrl, accountToken);
+    other.connect();
+    await expect.poll(() => other.state.status).toBe("online");
+    try {
+      answer = () => JSON.stringify({ response_action: "push", view: confirm });
+      const result = await client.submitModal({ details: { value: "Ship it" } }, a.viewId);
+      expect(result).toEqual({ ok: true, closedViewIds: [] });
+      await expect.poll(() => client.state.modal?.title).toBe("Are you sure?");
+      expect(client.state.modalsBelow.map((view) => view.id)).toEqual([a.viewId]);
+      await expect.poll(() => other.state.modal?.title).toBe("Are you sure?");
+
+      // Back to the form under it, here and on the other device.
+      client.dismissModal();
+      expect(client.state.modal?.id).toBe(a.viewId);
+      expect(client.state.modalsBelow).toEqual([]);
+      await expect.poll(() => other.state.modal?.id).toBe(a.viewId);
+      expect(other.state.modalsBelow).toEqual([]);
+
+      // And all of them closed at once.
+      client.dismissAllModals();
+      expect(client.state.modal).toBeNull();
+      await expect.poll(() => other.state.modal).toBeNull();
+    } finally {
+      other.destroy();
+    }
+  });
+
+  it("follows the app's change to the open form, keeping its id", async () => {
+    const a = await open("Update App", "/update");
+    const before = client.state.modal!;
+    const updated = await post("/api/views.update", a.token, {
+      view_id: a.viewId,
+      hash: before.hash,
+      view: confirm,
+    });
+    expect(updated.ok).toBe(true);
+    await expect.poll(() => client.state.modal?.title).toBe("Are you sure?");
+    expect(client.state.modal!.id).toBe(a.viewId);
+    expect(client.state.modal!.hash).not.toBe(before.hash);
+  });
+
+  it("closes the submitted form when a server from before stacks names nothing", async () => {
+    const a = await open("Older Server App", "/older");
+    vi.spyOn(client.api, "submitView").mockResolvedValue({ ok: true });
+    expect((await client.submitModal({ details: { value: "x" } }, a.viewId)).ok).toBe(true);
+    expect(client.state.modal).toBeNull();
   });
 });
