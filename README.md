@@ -297,9 +297,10 @@ curl -X POST http://your-server:8543/api/chat.postMessage \
 
 `chat.postMessage` accepts a channel id or `#name`, supports `thread_ts`, and
 replies with Slack's `{ok, channel, ts}`, or `{ok:false, error}` on failure.
-`auth.test` and `views.open` are there too. The tests run Slack's own Web API
-SDK against this server. They cover its form-encoded calls, its error handling,
-and the `auth.test` call Bolt makes before it will start.
+`auth.test`, `views.open`, `views.push` and `views.update` are there too. The
+tests run Slack's own Web API SDK against this server. They cover its
+form-encoded calls, its error handling, and the `auth.test` call Bolt makes
+before it will start.
 
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) is the full contract. It lists every
 supported method and field, each event and what it becomes, and each place this
@@ -342,14 +343,18 @@ Apps can also respond to what people do:
   `views.open` turns that into a form in front of the person who pressed, and
   nobody else. Submitting posts Slack's `view_submission` with
   `view.state.values`, `callback_id` and `private_metadata`. An app can answer
-  `response_action: "errors"` to send the person back to a field with a reason.
-  A trigger opens one form, expires in three minutes, and belongs to the app it
-  was issued to.
+  `response_action: "errors"` to send the person back to a field with a reason,
+  or `update`, `push` and `clear` to change the form, stack another on it, or
+  close them all. A trigger opens one form, expires in three minutes, and
+  belongs to the app it was issued to. `views.update` changes an open form
+  without one, so an app can show "Loading" at once and the form when it has it.
 
-  Forms carry plain-text inputs and static selects. The server drops a date
-  picker or a multi-select instead of drawing a control that does nothing, and
-  it refuses a view left with no fields at all. A form that silently lost half
-  its questions is worse than no form.
+  Forms carry text inputs, selects of one or several (from options, people,
+  conversations or channels), checkboxes, radio buttons, and date and time
+  pickers. The server checks every answer against its field before the app
+  hears of it. It drops any other input instead of drawing a control that does
+  nothing, and refuses a view that lost all its inputs that way. A form that
+  silently lost its questions is worse than no form.
 
 The server signs everything it sends an app the way Slack does, with
 `v0=HMAC-SHA256(v0:timestamp:body)` under the app's signing secret. The
@@ -525,10 +530,9 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 
-- **Next.** The Block Kit inputs still missing: date pickers, multi-selects and
-  checkboxes. Then `views.update`, so a form can change as it is filled in.
-- **Later.** An SFU for larger huddles, message forwarding, sidebar sections,
-  and optional Postgres and S3.
+- **Next.** Scopes on bot tokens, so an app can do only what it was allowed
+  when it was added, and an OpenAPI description of the REST API.
+- **Later.** An SFU for larger huddles, and optional Postgres and S3.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing
 today.

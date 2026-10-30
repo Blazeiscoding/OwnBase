@@ -184,6 +184,43 @@ describe("Slack's SDK against this server", () => {
     expect(opened.ok).toBe(true);
     expect((opened.view as { callback_id?: string }).callback_id).toBe("deploy");
   });
+
+  it("shows Loading at once and the form after, with views.update as the SDK sends it", async () => {
+    lastCommand = null;
+    await call(`/api/channels/${channelId}/commands`, ownerToken, { text: "/deploy" });
+    const loading = await client.views.open({
+      trigger_id: lastCommand!.get("trigger_id")!,
+      view: {
+        type: "modal",
+        title: { type: "plain_text", text: "Deploy" },
+        blocks: [{ type: "section", text: { type: "mrkdwn", text: "Loading…" } }],
+      },
+    });
+    const { id, hash } = loading.view as { id: string; hash: string };
+
+    const form = {
+      type: "modal" as const,
+      callback_id: "deploy",
+      title: { type: "plain_text" as const, text: "Deploy" },
+      submit: { type: "plain_text" as const, text: "Go" },
+      blocks: [
+        {
+          type: "input" as const,
+          block_id: "target",
+          label: { type: "plain_text" as const, text: "Where to" },
+          element: { type: "plain_text_input" as const, action_id: "value" },
+        },
+      ],
+    };
+    const updated = await client.views.update({ view_id: id, hash, view: form });
+    expect(updated.ok).toBe(true);
+    expect((updated.view as { id: string; hash: string }).id).toBe(id);
+    expect((updated.view as { hash: string }).hash).not.toBe(hash);
+
+    // The SDK reports a stale hash by name, as Slack's does.
+    const stale = await refusal(client.views.update({ view_id: id, hash, view: form }));
+    expect(stale.data.error).toBe("hash_conflict");
+  });
 });
 
 describe("a token sent the other way Slack accepts", () => {

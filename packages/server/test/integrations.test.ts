@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import { createHmac } from "node:crypto";
 import { mkdtempSync, rmSync } from "node:fs";
@@ -2358,6 +2358,315 @@ describe("modals", () => {
       }
       // The app is entitled to trust its own form, so it never heard of these.
       expect(stub.received).toHaveLength(0);
+    });
+  });
+  describe("changing an open form, and stacking forms (E18b)", () => {
+    /**
+     * Each test's own person: every press and submission counts against the
+     * account's app calls, and Bob has made plenty by now.
+     */
+    let personToken: string;
+    let people = 0;
+    beforeEach(async () => {
+      people++;
+      const made = await api<{ token: string; user: User }>("/api/auth/register", {
+        body: {
+          handle: `stacker${people}`,
+          displayName: `Stacker ${people}`,
+          password: "password123",
+        },
+      });
+      personToken = made.data.token;
+      server.store.addMember(channelId, made.data.user.id);
+    });
+
+    type ViewAnswer = {
+      ok: boolean;
+      error?: string;
+      view: { id: string; hash: string; external_id: string; root_view_id: string };
+    };
+    type Shown = { id: string; hash?: string; fields: unknown[]; submitLabel: string };
+    type Submitted = {
+      ok: boolean;
+      closedViewIds?: string[];
+      errors?: Record<string, string>;
+      message?: string;
+    };
+
+    const loading = (externalId?: string) => ({
+      type: "modal",
+      title: { type: "plain_text", text: "Deploy" },
+      ...(externalId ? { external_id: externalId } : {}),
+      blocks: [{ type: "section", text: { type: "mrkdwn", text: "Loading…" } }],
+    });
+    const confirm = (title: string) => ({
+      type: "modal",
+      callback_id: "confirm",
+      title: { type: "plain_text", text: title },
+      blocks: [
+        {
+          type: "input",
+          block_id: "confirm",
+          label: { type: "plain_text", text: "Type yes" },
+          element: { type: "plain_text_input", action_id: "really" },
+        },
+      ],
+    });
+    const deployAnswer = { where: { env: "staging" } };
+    const confirmAnswer = { confirm: { really: "yes" } };
+
+    const submit = (id: string, values: Record<string, Record<string, string>>) =>
+      api<Submitted>(`/api/views/${id}/submit`, { token: personToken, body: { values } });
+
+    /** The next stack Bob's devices are sent that passes `check`. */
+    const nextStack = (socket: ReturnType<typeof connectWs>, check: (stack: Shown[]) => boolean) =>
+      socket
+        .next((m) => {
+          if (m.type !== "ephemeral" || m.event.type !== "view.open") return false;
+          const event = m.event as { view: Shown; stack?: Shown[] };
+          return check(event.stack ?? [event.view]);
+        })
+        .then((m) => {
+          const event = (m as { event: { view: Shown; stack?: Shown[] } }).event;
+          // The form to show is the top of the stack, for a client from before stacks.
+          expect(event.view).toEqual(event.stack!.at(-1));
+          return event.stack!;
+        });
+
+    /** The trigger the app was handed with its latest view_submission. */
+    const lastSubmissionTrigger = () =>
+      (
+        JSON.parse(new URLSearchParams(stub.received.at(-1)!.body).get("payload")!) as {
+          trigger_id: string;
+        }
+      ).trigger_id;
+
+    it("shows text alone, then the form in its place, refusing a stale hash", async () => {
+      const created = await interactiveApp("Loading Bot");
+      const socket = connectWs(personToken);
+      await socket.next((m) => m.type === "ready");
+      const opened = await api<ViewAnswer>("/api/views.open", {
+        token: created.token,
+        body: { trigger_id: await pressButton(created, personToken), view: loading("deploy-412") },
+      });
+      expect(opened.data.ok).toBe(true);
+      const { id, hash, external_id } = opened.data.view;
+      expect(external_id).toBe("deploy-412");
+      const [shown] = await nextStack(socket, (s) => s[0]?.id === id);
+      // Text alone: nothing to fill in, and nothing to submit.
+      expect(shown).toMatchObject({ fields: [], submitLabel: "" });
+      expect((await submit(id, {})).status).toBe(400);
+
+      socket.received.length = 0;
+      const updated = await api<ViewAnswer>("/api/views.update", {
+        token: created.token,
+        body: { view_id: id, hash, view: view },
+      });
+      expect(updated.data.ok).toBe(true);
+      expect(updated.data.view.id).toBe(id);
+      expect(updated.data.view.hash).not.toBe(hash);
+      const [form] = await nextStack(socket, (s) => s[0]?.hash === updated.data.view.hash);
+      expect(form!.fields).toHaveLength(2);
+
+      // A change made from the first answer's hash would undo the second.
+      const stale = await api<ViewAnswer>("/api/views.update", {
+        token: created.token,
+        body: { view_id: id, hash, view: loading() },
+      });
+      expect(stale.status).toBe(200);
+      expect(stale.data.error).toBe("hash_conflict");
+
+      // By the name the app gave it, which an update without one keeps.
+      const named = await api<ViewAnswer>("/api/views.update", {
+        token: created.token,
+        body: { external_id: "deploy-412", view: { ...view, title: "Deploy 412" } },
+      });
+      expect(named.data.view).toMatchObject({ id, external_id: "deploy-412" });
+
+      // Another app's update is answered as if there were no such view.
+      const other = await interactiveApp("Nosy Bot");
+      for (const body of [
+        { view_id: id, view },
+        { external_id: "deploy-412", view },
+        { view_id: "01NOSUCHVIEW00000000000000", view },
+      ]) {
+        const refused = await api<ViewAnswer>("/api/views.update", {
+          token: (body.view_id === id || body.external_id ? other : created).token,
+          body,
+        });
+        expect(refused.data.error, JSON.stringify(body)).toBe("not_found");
+      }
+
+      stub.handler = () => ({ body: "" });
+      expect((await submit(id, deployAnswer)).data).toEqual({ ok: true, closedViewIds: [id] });
+      socket.ws.close();
+    });
+
+    it("stacks a form on the one submitted, and goes back to it when that one closes", async () => {
+      const created = await interactiveApp("Stacking Bot");
+      const socket = connectWs(personToken);
+      await socket.next((m) => m.type === "ready");
+      const root = (
+        await api<ViewAnswer>("/api/views.open", {
+          token: created.token,
+          body: { trigger_id: await pressButton(created, personToken), view },
+        })
+      ).data.view.id;
+
+      stub.handler = () => ({
+        body: JSON.stringify({ response_action: "push", view: confirm("Are you sure?") }),
+      });
+      const pushed = await submit(root, deployAnswer);
+      expect(pushed.data).toEqual({ ok: true, closedViewIds: [] });
+      const stack = await nextStack(socket, (s) => s.length === 2);
+      expect(stack[0]!.id).toBe(root);
+      const second = stack[1]!.id;
+      // Only the form on top is in front of the person.
+      expect((await submit(root, deployAnswer)).status).toBe(404);
+
+      // The app sees where the submitted form sits.
+      stub.received.length = 0;
+      stub.handler = () => ({ body: "" });
+      socket.received.length = 0;
+      expect((await submit(second, confirmAnswer)).data).toEqual({
+        ok: true,
+        closedViewIds: [second],
+      });
+      const sent = JSON.parse(new URLSearchParams(stub.received[0]!.body).get("payload")!) as {
+        view: { root_view_id: string; previous_view_id: string | null; hash: string };
+      };
+      expect(sent.view).toMatchObject({ root_view_id: root, previous_view_id: root });
+      expect(sent.view.hash).toBeTruthy();
+      await nextStack(socket, (s) => s.length === 1 && s[0]!.id === root);
+
+      // views.push with that submission's trigger, until the stack is full.
+      const pushes: string[] = [];
+      for (const title of ["Second", "Third"]) {
+        const answer = await api<ViewAnswer>("/api/views.push", {
+          token: created.token,
+          body: { trigger_id: lastSubmissionTrigger(), view: confirm(title) },
+        });
+        expect(answer.data.ok).toBe(true);
+        expect(answer.data.view.root_view_id).toBe(root);
+        pushes.push(answer.data.view.id);
+        // Each push spends its trigger; a submission hands out the next.
+        stub.handler = () => ({
+          body: JSON.stringify({ errors: {}, response_action: "errors" }),
+        });
+        await submit(answer.data.view.id, confirmAnswer);
+      }
+      await nextStack(socket, (s) => s.length === 3);
+      const fourth = await api<ViewAnswer>("/api/views.push", {
+        token: created.token,
+        body: { trigger_id: lastSubmissionTrigger(), view: confirm("Fourth") },
+      });
+      expect(fourth.data.error).toBe("push_limit_reached");
+
+      // "clear" closes the whole stack, and every device is told.
+      stub.handler = () => ({ body: JSON.stringify({ response_action: "clear" }) });
+      expect((await submit(pushes[1]!, confirmAnswer)).data).toEqual({
+        ok: true,
+        closedViewIds: [root, ...pushes],
+      });
+      const closed = (await socket.next(
+        (m) => m.type === "ephemeral" && m.event.type === "view.close",
+      )) as { event: { viewIds: string[] } };
+      expect(closed.event.viewIds).toEqual([root, ...pushes]);
+      socket.ws.close();
+    });
+
+    it("changes the form in its answer and keeps it open", async () => {
+      const created = await interactiveApp("Answer Update Bot");
+      const opened = (
+        await api<ViewAnswer>("/api/views.open", {
+          token: created.token,
+          body: { trigger_id: await pressButton(created, personToken), view },
+        })
+      ).data.view;
+      stub.handler = () => ({
+        body: JSON.stringify({ response_action: "update", view: confirm("Step two") }),
+      });
+      expect((await submit(opened.id, deployAnswer)).data).toEqual({
+        ok: true,
+        closedViewIds: [],
+      });
+      // Still open under the same id, now asking the new question.
+      stub.received.length = 0;
+      stub.handler = () => ({ body: "" });
+      expect((await submit(opened.id, confirmAnswer)).data.ok).toBe(true);
+      const sent = JSON.parse(new URLSearchParams(stub.received[0]!.body).get("payload")!) as {
+        view: { callback_id: string; state: { values: Record<string, unknown> } };
+      };
+      expect(sent.view.callback_id).toBe("confirm");
+      expect(Object.keys(sent.view.state.values)).toEqual(["confirm"]);
+    });
+
+    it("says so when the app answers with a form that cannot be shown", async () => {
+      const created = await interactiveApp("Broken Update Bot");
+      const opened = (
+        await api<ViewAnswer>("/api/views.open", {
+          token: created.token,
+          body: { trigger_id: await pressButton(created, personToken), view },
+        })
+      ).data.view;
+      stub.handler = () => ({ body: JSON.stringify({ response_action: "update", view: {} }) });
+      const result = await submit(opened.id, deployAnswer);
+      expect(result.data).toMatchObject({
+        ok: false,
+        message: "The app answered with a form that cannot be shown.",
+      });
+    });
+
+    it("closes a form when its person does, and only for them", async () => {
+      const created = await interactiveApp("Closable Bot");
+      const opened = (
+        await api<ViewAnswer>("/api/views.open", {
+          token: created.token,
+          body: { trigger_id: await pressButton(created, personToken), view },
+        })
+      ).data.view;
+      // Someone else cannot close it.
+      await api(`/api/views/${opened.id}/close`, { method: "POST", token: aliceToken });
+      const hers = await api<ViewAnswer>("/api/views.update", {
+        token: created.token,
+        body: { view_id: opened.id, view },
+      });
+      expect(hers.data.ok).toBe(true);
+
+      const socket = connectWs(personToken);
+      await socket.next((m) => m.type === "ready");
+      expect(
+        (await api(`/api/views/${opened.id}/close`, { method: "POST", token: personToken })).status,
+      ).toBe(200);
+      const closed = (await socket.next(
+        (m) => m.type === "ephemeral" && m.event.type === "view.close",
+      )) as { event: { viewIds: string[] } };
+      expect(closed.event.viewIds).toEqual([opened.id]);
+      expect((await submit(opened.id, deployAnswer)).status).toBe(404);
+      const gone = await api<ViewAnswer>("/api/views.update", {
+        token: created.token,
+        body: { view_id: opened.id, view },
+      });
+      expect(gone.data.error).toBe("not_found");
+      socket.ws.close();
+    });
+
+    it("closes the form a person had open when another is opened for them", async () => {
+      const first = await interactiveApp("First Form Bot");
+      const second = await interactiveApp("Second Form Bot");
+      const older = (
+        await api<ViewAnswer>("/api/views.open", {
+          token: first.token,
+          body: { trigger_id: await pressButton(first, personToken), view },
+        })
+      ).data.view;
+      const pushed = await api<ViewAnswer>("/api/views.push", {
+        token: second.token,
+        body: { trigger_id: await pressButton(second, personToken), view: confirm("Other app") },
+      });
+      // Not on another app's form: it opens as the first of a new stack.
+      expect(pushed.data.view.root_view_id).toBe(pushed.data.view.id);
+      expect((await submit(older.id, deployAnswer)).status).toBe(404);
     });
   });
 });

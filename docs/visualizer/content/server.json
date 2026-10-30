@@ -57,7 +57,7 @@
       "details": [
         "Headers, sections, context and dividers flatten into the existing mrkdwn renderer. Explicit nonempty text wins over blocks, matching the expected fallback behavior.",
         "Only buttons from actions blocks become MessageAction records; labels, values and count are bounded, styles normalized and link URLs restricted to HTTP(S).",
-        "Modal parsing (INPUT_ELEMENTS) keeps text inputs, single and multiple selects from options, people, conversations or public channels, checkboxes, radio buttons and date and time pickers (E18a). It runs option groups together, caps fields and options at Slack's ceilings, honours starting values, max_selected_items, filter.include and default_to_current_conversation, and reports dropped fields. A view with no usable inputs is refused by the server rather than presented as a misleading empty form.",
+        "Modal parsing (INPUT_ELEMENTS) keeps text inputs, single and multiple selects from options, people, conversations or public channels, checkboxes, radio buttons and date and time pickers (E18a). It runs option groups together, caps fields and options at Slack's ceilings, honours starting values, max_selected_items, filter.include and default_to_current_conversation, and reports dropped fields. A view whose every input was dropped is refused rather than presented as a form that lost its questions; one of text alone is kept (E18b), with no submit button unless it names one.",
         "readAnswer checks each submitted answer against its field: options it listed, its limit, an active account, a conversation the submitter can open and the filter allows, a public channel, a real date or time. It returns Slack's state.values entry (selected_options with text, selected_user, selected_date and so on) or the message shown under the field, so the app never sees an answer its form forbids.",
         "This is a deliberate subset adapter, not a complete Slack UI renderer; unsupported controls are omitted."
       ],
@@ -412,6 +412,7 @@
         "Every change to an account's scheduled queue (queued, edited, moved, cancelled, sent, failed, or held for a new reason) sends that account's own sockets a private scheduled event, announced by scheduledEvents in the ready snapshot, so an open Scheduled list reads the queue again at once (UX-08).",
         "Retention removes whole eligible threads in bounded passes and publishes history.removed after commit. Upload streams reserve chunks before writing so simultaneous uploads cannot exceed the storage budget.",
         "N08 permits one callback in flight per modal ID, returns 409 view_submitting to overlap, and releases exclusion for correction/retry. A foreign account cannot consume the owner's form.",
+        "E18b: each person has one stack of at most three open views (viewStacks, in memory with the 30-minute openViews map). views.open starts a new stack and closes the old; views.push stacks on this app's stack or opens as views.open; views.update changes a view by view_id or external_id, refusing a stale hash, rationed like posting. A view_submission answer may update, push or clear; anything else closes the submitted view and those above it, and the result names closedViewIds. Only the top view can be submitted; POST /api/views/:id/close lets the person close their own. Every change is sent as view.open with the whole stack, or view.close when none is left.",
         "N09 checks a pressed message's text/edit/actions fingerprint before delayed replace/delete. A missing or externally changed origin is a no-op; the same response URL can advance its own result.",
         "Shutdown stops new work, aborts outbound requests and closes sockets/listeners/database/ownership in coordinated retryable cleanup. The library also exposes operations used by desktop hosting.",
         "The file is an orchestration boundary with many domains; narrower modules carry SQL, crypto, networking and parsing. Callback exclusion cannot promise exactly-once business effects after an uncertain external retry.",
@@ -986,7 +987,7 @@
             "packages/server/src/blockKit.ts",
             "packages/protocol/src/events.ts"
           ],
-          "detail": "views.open consumes one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event for the owner alone."
+          "detail": "views.open and views.push consume one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event, carrying the person's whole stack, for the owner alone. views.update needs no trigger and changes a view still open."
         },
         {
           "title": "Refuse a second submission at the same time",

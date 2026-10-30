@@ -673,8 +673,13 @@ export interface WorkspaceState {
   ephemerals: Record<ID, EphemeralMessage[]>;
   /** channelId -> private replies let go there to stay within the limits. */
   ephemeralsDropped: Record<ID, number>;
-  /** A form an app has asked this person to fill in, or null. */
+  /** The form an app has asked this person to fill in, on top of any stack, or null. */
   modal: ModalView | null;
+  /**
+   * Forms under the one shown, bottom first, which it goes back to when it
+   * closes (E18b). Empty when only one is open.
+   */
+  modalsBelow: ModalView[];
   /** Commands that can be typed here; loaded once after connecting. */
   commands: CommandHint[];
   /** The huddle this client is in, if any. */
@@ -751,6 +756,7 @@ const initialState: WorkspaceState = {
   ephemerals: {},
   ephemeralsDropped: {},
   modal: null,
+  modalsBelow: [],
   commands: [],
 };
 
@@ -1259,6 +1265,7 @@ export class WorkspaceClient {
       ephemerals: {},
       ephemeralsDropped: {},
       modal: null,
+      modalsBelow: [],
     });
   }
 
@@ -1322,6 +1329,7 @@ export class WorkspaceClient {
       ),
       saved: Object.fromEntries(Object.entries(state.saved).filter(([id]) => !roots.has(id))),
       modal: null,
+      modalsBelow: [],
     });
   }
 
@@ -1962,8 +1970,12 @@ export class WorkspaceClient {
         createdAt: event.createdAt,
       });
     } else if (event.type === "view.open") {
-      // One at a time: a second form arriving would have nowhere to go anyway.
-      this.store.setState({ modal: event.view });
+      // The server says what is open now, bottom first. One from before
+      // stacks sends only the form to show, which replaces any other.
+      const stack = event.stack?.length ? event.stack : [event.view];
+      this.store.setState({ modal: stack.at(-1)!, modalsBelow: stack.slice(0, -1) });
+    } else if (event.type === "view.close") {
+      this.forgetModals(event.viewIds);
     } else if (event.type === "typing") {
       if (event.userId === s.self?.id) return;
       this.store.setState({
@@ -1990,10 +2002,34 @@ export class WorkspaceClient {
 
   // ---------- actions ----------
 
-  /** Closes the form without answering it; the app is told nothing, as in Slack. */
+  /** Takes forms off the stack; the one left on top, if any, is shown. */
+  private forgetModals(viewIds: readonly ID[]): void {
+    const { modal, modalsBelow } = this.state;
+    const open = [...modalsBelow, ...(modal ? [modal] : [])];
+    const kept = open.filter((view) => !viewIds.includes(view.id));
+    if (kept.length === open.length) return;
+    this.store.setState({ modal: kept.at(-1) ?? null, modalsBelow: kept.slice(0, -1) });
+  }
+
+  /**
+   * Closes the form without answering it, going back to the one under it if
+   * there is one. The server is told so the person's other devices follow;
+   * the app is told nothing, as in Slack.
+   */
   dismissModal(viewId = this.state.modal?.id): void {
-    if (this.state.modal?.id !== viewId) return;
-    this.store.setState({ modal: null });
+    if (!viewId || this.state.modal?.id !== viewId) return;
+    this.forgetModals([viewId]);
+    // A server from before stacks has no such route, and nothing to close.
+    void this.api.closeView(viewId).catch(() => {});
+  }
+
+  /** Closes every form open, the whole stack at once. */
+  dismissAllModals(): void {
+    const { modal, modalsBelow } = this.state;
+    const root = modalsBelow[0] ?? modal;
+    if (!root) return;
+    this.forgetModals([...modalsBelow, ...(modal ? [modal] : [])].map((view) => view.id));
+    void this.api.closeView(root.id).catch(() => {});
   }
 
   /**
@@ -2008,7 +2044,10 @@ export class WorkspaceClient {
     if (!modal || modal.id !== viewId)
       return { ok: false, message: "This form is no longer available." };
     const result = await this.api.submitView(modal.id, values);
-    if (result.ok) this.dismissModal(modal.id);
+    // The server names what closed: none when the app changed the form or
+    // stacked another on it. One from before stacks names nothing, and the
+    // form closes. Only ever closing keeps a late answer from reopening one.
+    if (result.ok) this.forgetModals(result.closedViewIds ?? [modal.id]);
     return result;
   }
 

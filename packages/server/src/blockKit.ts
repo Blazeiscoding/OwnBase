@@ -439,7 +439,9 @@ export function parseView(
     id,
     callbackId: typeof view.callback_id === "string" ? view.callback_id.slice(0, 255) : "",
     title: textOf(view.title).trim().slice(0, 100) || "Untitled",
-    submitLabel: textOf(view.submit).trim().slice(0, 40) || "Submit",
+    // A view with nothing to fill in has no submit button unless the app gave
+    // it one, as on Slack: "Loading" and "Done" are only closed.
+    submitLabel: textOf(view.submit).trim().slice(0, 40) || (fields.length > 0 ? "Submit" : ""),
     closeLabel: textOf(view.close).trim().slice(0, 40) || "Cancel",
     privateMetadata:
       typeof view.private_metadata === "string" ? view.private_metadata.slice(0, 3000) : "",

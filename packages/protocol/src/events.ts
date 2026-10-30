@@ -177,11 +177,15 @@ export type EphemeralEvent =
       createdAt: number;
     }
   /**
-   * An app is asking this one person to fill in a form. Like an ephemeral
-   * message it is not stored: closing the app loses it, which is what a modal
-   * that has not been submitted should do.
+   * An app is asking this one person to fill in a form, or changed one they
+   * have open. Like an ephemeral message it is not stored: closing the app
+   * loses it, which is what a modal that has not been submitted should do.
+   * `stack` is every form they have open, bottom first, ending with `view`,
+   * the one to show (E18b). A client from before stacks shows `view`.
    */
-  | { type: "view.open"; view: ModalView };
+  | { type: "view.open"; view: ModalView; stack?: ModalView[] }
+  /** Forms this person no longer has open: closed on another device, or by the app. */
+  | { type: "view.close"; viewIds: ID[] };
 
 export type Presence = "online" | "away" | "offline";
 

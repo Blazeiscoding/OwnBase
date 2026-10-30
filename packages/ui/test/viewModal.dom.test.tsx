@@ -434,3 +434,86 @@ describe("an app's form with choices", () => {
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
   });
 });
+
+describe("a stack of app forms", () => {
+  const confirm: ModalView = {
+    ...view,
+    id: "V_CONFIRM",
+    title: "Are you sure?",
+    fields: [{ ...view.fields[0]!, blockId: "confirm", label: "Type yes", hint: "" }],
+  };
+
+  function renderStack() {
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({ self: sam, users: { [sam.id]: sam }, modal: view, status: "online" });
+    const closeView = vi.spyOn(client.api, "closeView").mockResolvedValue({ ok: true });
+    render(
+      <ClientContext.Provider value={client}>
+        <ViewModal />
+      </ClientContext.Provider>,
+    );
+    return { client, closeView, user: userEvent.setup() };
+  }
+
+  it("goes back to the form under it, as it was left", async () => {
+    const { client, closeView, user } = renderStack();
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "42");
+    // The app stacked a second form on the first.
+    act(() => client.store.setState({ modal: confirm, modalsBelow: [view] }));
+    expect(screen.getByRole("dialog", { name: "Are you sure?" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Cancel, back to File an expense" }));
+    expect(screen.getByRole("dialog", { name: "File an expense" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Amount" })).toHaveValue("42");
+    // The server is told, so the person's other devices go back too.
+    expect(closeView).toHaveBeenCalledWith("V_CONFIRM");
+    expect(client.state.modalsBelow).toEqual([]);
+  });
+
+  it("names a close button the app already called Back once", () => {
+    const { client } = renderStack();
+    act(() =>
+      client.store.setState({ modal: { ...confirm, closeLabel: "Back" }, modalsBelow: [view] }),
+    );
+    expect(screen.getByRole("button", { name: "Back to File an expense" })).toBeVisible();
+  });
+
+  it("closes every form in the stack from the dialog's own close", async () => {
+    const { client, closeView, user } = renderStack();
+    act(() => client.store.setState({ modal: confirm, modalsBelow: [view] }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(client.state.modal).toBeNull();
+    expect(closeView).toHaveBeenCalledWith(view.id);
+  });
+
+  it("keeps what was typed when the app changes the form, dropping what it refused", async () => {
+    const { client, user } = renderStack();
+    vi.spyOn(client, "submitModal").mockResolvedValue({
+      ok: false,
+      errors: { amount: "Enter an amount above zero." },
+    });
+    await user.type(screen.getByRole("textbox", { name: "Amount" }), "12");
+    await user.click(screen.getByRole("button", { name: "Submit" }));
+    expect(await screen.findByText("Enter an amount above zero.")).toBeVisible();
+    act(() =>
+      client.store.setState({ modal: { ...view, title: "File an expense (EUR)", hash: "h2" } }),
+    );
+    expect(screen.getByRole("dialog", { name: "File an expense (EUR)" })).toBeVisible();
+    expect(screen.getByRole("textbox", { name: "Amount" })).toHaveValue("12");
+    expect(screen.queryByText("Enter an amount above zero.")).toBeNull();
+  });
+
+  it("shows a form of text alone with nothing to submit", async () => {
+    const { client } = renderStack();
+    act(() =>
+      client.store.setState({
+        modal: { ...view, id: "V_LOADING", text: "Loading…", fields: [], submitLabel: "" },
+      }),
+    );
+    const dialog = screen.getByRole("dialog", { name: "File an expense" });
+    expect(within(dialog).getByText("Loading…")).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Submit" })).toBeNull();
+    expect(within(dialog).getByRole("button", { name: "Cancel" })).toBeVisible();
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+  });
+});

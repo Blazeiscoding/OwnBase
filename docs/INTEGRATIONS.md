@@ -98,16 +98,17 @@ which the SDK understands.
 
 The supported methods — _checked_:
 
-| Method             | Arguments honoured                       | Notes                                                                                                |
-| ------------------ | ---------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `auth.test`        | —                                        | Returns `url`, `team`, `user`, `team_id`, `user_id`, `bot_id`. Bolt calls this before it will start. |
-| `chat.postMessage` | `channel`, `text`, `blocks`, `thread_ts` | Returns `ok`, `channel`, `ts`, and this server's own `message` object.                               |
-| `views.open`       | `trigger_id`, `view`                     | Returns `ok` and `view` with `id` and `callback_id` only.                                            |
+| Method             | Arguments honoured                         | Notes                                                                                                |
+| ------------------ | ------------------------------------------ | ---------------------------------------------------------------------------------------------------- |
+| `auth.test`        | —                                          | Returns `url`, `team`, `user`, `team_id`, `user_id`, `bot_id`. Bolt calls this before it will start. |
+| `chat.postMessage` | `channel`, `text`, `blocks`, `thread_ts`   | Returns `ok`, `channel`, `ts`, and this server's own `message` object.                               |
+| `views.open`       | `trigger_id`, `view`                       | Returns `ok` and `view` with `id`, `callback_id`, `external_id`, `hash` and the stack's ids.         |
+| `views.push`       | `trigger_id`, `view`                       | As `views.open`.                                                                                     |
+| `views.update`     | `view_id` or `external_id`, `view`, `hash` | As `views.open`.                                                                                     |
 
 **Any other method** answers `unknown_method`. That includes `chat.update`,
 `chat.delete`, `chat.postEphemeral`, `conversations.*`, `users.*`,
-`reactions.*`, `files.*`, `views.update`, `views.push`, `views.publish`, and
-`apps.connections.open` — so **Socket Mode is not supported**; an app receives
+`reactions.*`, `files.*`, `views.publish`, and `apps.connections.open` — so **Socket Mode is not supported**; an app receives
 events and interactions over HTTP.
 
 ### `chat.postMessage`
@@ -140,15 +141,54 @@ It **lasts three minutes** (Slack's last three seconds, which is unkind to an ap
 on a cold start), opens one view, and belongs to the app it was issued to and
 the person whose action produced it. The view is shown only to that person.
 
-What a view can contain is described under [Modals](#modals).
+A person has **one stack of forms** open at a time, as the client shows one:
+opening a view closes whatever they had open, from this app or another. What a
+view can contain is described under [Modals](#modals). A view may hold only
+text, with no inputs, such as "Loading" or "Done"; it has no submit button
+unless it names one.
 
-| Error                  | When                                                                |
-| ---------------------- | ------------------------------------------------------------------- |
-| `invalid_auth`         | As for `chat.postMessage`                                           |
-| `expired_trigger_id`   | Unknown, used, or older than three minutes — or its room has closed |
-| `trigger_not_yours`    | Issued to a different app                                           |
-| `unsupported_elements` | Every input in the view was a kind this server cannot draw          |
-| `no_inputs`            | The view has no inputs at all                                       |
+`external_id` names a view for `views.update`, and must be unique among the
+app's open views. The `hash` in the answer changes every time the view does.
+
+| Error                   | When                                                                |
+| ----------------------- | ------------------------------------------------------------------- |
+| `invalid_auth`          | As for `chat.postMessage`                                           |
+| `expired_trigger_id`    | Unknown, used, or older than three minutes — or its room has closed |
+| `trigger_not_yours`     | Issued to a different app                                           |
+| `unsupported_elements`  | Every input in the view was a kind this server cannot draw          |
+| `no_inputs`             | The view has neither inputs nor text                                |
+| `duplicate_external_id` | Another of the app's open views has that `external_id`              |
+
+### `views.push`
+
+Puts a view on top of the one the person has open from this app, as on Slack:
+closing or submitting it goes back to the one under it. At most **three** views
+stack. If the person has no view of this app open, it opens as `views.open`
+would. The trigger is spent the same way.
+
+Errors are those of `views.open`, and `push_limit_reached` when three are open.
+
+### `views.update`
+
+Changes a view the person still has open, anywhere in the stack, without a
+trigger: the usual way to answer at once with "Loading" and show the real form
+when the app has it. Name the view by `view_id` or by `external_id`. An input
+that keeps its `block_id` and `action_id` keeps what the person entered in it,
+as on Slack.
+
+Pass the `hash` from the last answer to refuse the change if the view has
+changed since, so two updates cannot overwrite each other. It also refreshes the
+view's thirty minutes. An app that updates views in a loop is limited as a
+posting app is, with **429** and `Retry-After`.
+
+| Error                   | When                                                                 |
+| ----------------------- | -------------------------------------------------------------------- |
+| `invalid_auth`          | As for `chat.postMessage`                                            |
+| `not_found`             | No open view of this app by that id or name — or its room has closed |
+| `hash_conflict`         | The view changed after the `hash` was given                          |
+| `unsupported_elements`  | As for `views.open`                                                  |
+| `no_inputs`             | As for `views.open`                                                  |
+| `duplicate_external_id` | Another of the app's open views has that `external_id`               |
 
 ## Incoming webhooks
 
@@ -287,16 +327,27 @@ defend against a form its own view forbids.
 
 The app's answer:
 
-- anything that is not an error closes the view, including an empty body;
+- anything that is not an error or one of the actions below closes the view,
+  including an empty body, and shows the one under it if there is one;
 - `{"response_action": "errors", "errors": {"<block_id>": "<message>"}}` keeps it
   open with each message shown against its input;
+- `{"response_action": "update", "view": {…}}` changes the view, as
+  `views.update` would;
+- `{"response_action": "push", "view": {…}}` stacks a view on it, as
+  `views.push` would;
+- `{"response_action": "clear"}` closes every view in the stack;
 - an answer that starts like JSON but cannot be read keeps it open, and the
-  person is told the app's answer could not be read;
+  person is told the app's answer could not be read, as does an `update` or
+  `push` whose view cannot be shown or would be a fourth;
 - an error status, or no answer within four seconds, keeps it open and says so.
 
-`response_action` values `update`, `push` and `clear` are **not supported**; the
-view closes. A view is open for thirty minutes, and is closed without reaching
-the app if its conversation or app goes away in that time.
+Only the view on top can be submitted. Its `view` in the payload also carries
+`hash`, `external_id`, `root_view_id` and `previous_view_id` (null for the
+first). The close button of a stacked view goes back to the one under it; the
+dialog's own close and Escape close them all. Closing tells the app nothing:
+`notify_on_close` and `view_closed` are not supported. A view is open for
+thirty minutes, and is closed without reaching the app if its conversation or
+app goes away in that time.
 
 ## Events
 

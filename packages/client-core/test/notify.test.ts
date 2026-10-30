@@ -111,6 +111,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     ephemerals: {},
     ephemeralsDropped: {},
     modal: null,
+    modalsBelow: [],
     commands: [],
     huddle: null,
     huddleEnded: null,

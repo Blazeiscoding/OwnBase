@@ -23,8 +23,26 @@ import { buttonClass } from "./Button.js";
  */
 export function ViewModal() {
   const view = useWorkspace((s) => s.modal);
-  // The newest form replaces the old one, with independent answers and results.
-  return view ? <AppForm key={view.id} view={view} /> : null;
+  const below = useWorkspace((s) => s.modalsBelow);
+  /**
+   * What was entered in each form of a stack, so going back to one finds it
+   * as it was left. Kept only while the form is open.
+   */
+  const drafts = useRef(new Map<ID, Record<string, Answer>>());
+  useEffect(() => {
+    const open = new Set([...below, ...(view ? [view] : [])].map((v) => v.id));
+    for (const id of drafts.current.keys()) if (!open.has(id)) drafts.current.delete(id);
+  }, [view, below]);
+  // A new form starts with its own answers and results; an updated one keeps its id.
+  return view ? (
+    <AppForm
+      key={view.id}
+      view={view}
+      backTo={below.at(-1)?.title ?? null}
+      draft={drafts.current.get(view.id)}
+      onDraft={(values) => drafts.current.set(view.id, values)}
+    />
+  ) : null;
 }
 
 /** One answer, or several for the kinds that take a list. */
@@ -106,12 +124,19 @@ function choicesFor(
   }
 }
 
-function AppForm({ view }: { view: ModalView }) {
+function AppForm(props: {
+  view: ModalView;
+  /** The title of the form under this one, which closing it goes back to. */
+  backTo: string | null;
+  draft: Record<string, Answer> | undefined;
+  onDraft: (values: Record<string, Answer>) => void;
+}) {
+  const { view, backTo, onDraft } = props;
   const client = useClient();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  const [values, setValues] = useState<Record<string, Answer>>({});
+  const [values, setValues] = useState<Record<string, Answer>>(props.draft ?? {});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -142,6 +167,20 @@ function AppForm({ view }: { view: ModalView }) {
     if (refused) document.getElementById(fieldId(refused))?.focus();
   }, [errors, view]);
 
+  useEffect(() => {
+    onDraft(values);
+  }, [values, onDraft]);
+
+  // The app changed this form: what it refused before may not apply now.
+  // What was typed stays, as on Slack, in inputs that kept their ids.
+  const shownHash = useRef(view.hash);
+  useEffect(() => {
+    if (shownHash.current === view.hash) return;
+    shownHash.current = view.hash;
+    setErrors({});
+    setMessage(null);
+  }, [view.hash]);
+
   /**
    * What a field holds: what was entered, or what the app started it with.
    * A starting choice this account cannot see is left out rather than sent
@@ -163,9 +202,16 @@ function AppForm({ view }: { view: ModalView }) {
   const setAnswer = (field: ModalField, value: Answer) =>
     setValues((v) => ({ ...v, [fieldId(field)]: value }));
 
+  /** Back to the form under this one, or closed when there is none. */
   function close() {
     alive.current = false;
     client.dismissModal(view.id);
+  }
+
+  /** The dialog's own close: every form in the stack. */
+  function closeAll() {
+    alive.current = false;
+    client.dismissAllModals();
   }
 
   async function submit(e: React.FormEvent) {
@@ -182,8 +228,8 @@ function AppForm({ view }: { view: ModalView }) {
     try {
       const result = await client.submitModal(payload, view.id);
       if (!alive.current) return;
+      // Accepted and still open: the app changed it or stacked another on it.
       if (result.ok) {
-        setValues({});
         setErrors({});
       } else {
         showError.current = true;
@@ -199,7 +245,7 @@ function AppForm({ view }: { view: ModalView }) {
   }
 
   return (
-    <Dialog title={view.title} onClose={close} width={520} ownScroll>
+    <Dialog title={view.title} onClose={closeAll} width={520} ownScroll>
       {/* An app decides how many fields there are; the buttons stay in sight
           under however many that is. */}
       <form onSubmit={submit} className="flex min-h-0 flex-col">
@@ -339,16 +385,22 @@ function AppForm({ view }: { view: ModalView }) {
           )}
         </DialogScroll>
         <div className="dialog-foot flex justify-end gap-2">
+          {/* On a stacked form this goes back, as on Slack; the dialog's own
+              close shuts them all. */}
           <button
             type="button"
             onClick={close}
+            aria-label={backTo ? backName(view.closeLabel, backTo) : undefined}
             className="rounded-lg border border-edge px-4 py-2.5 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
           >
             {view.closeLabel}
           </button>
-          <button type="submit" disabled={busy} className={buttonClass("primary")}>
-            {busy ? "Sending…" : view.submitLabel}
-          </button>
+          {/* "Loading" or "Done": only shown, nothing to send. */}
+          {view.submitLabel && (
+            <button type="submit" disabled={busy} className={buttonClass("primary")}>
+              {busy ? "Sending…" : view.submitLabel}
+            </button>
+          )}
         </div>
       </form>
     </Dialog>
@@ -501,6 +553,15 @@ function PickList(props: {
       )}
     </div>
   );
+}
+
+/**
+ * What the close button of a stacked form is read as: where it goes, and the
+ * words it shows, which a name read aloud must contain. An app that already
+ * calls it Back is not echoed.
+ */
+function backName(label: string, backTo: string): string {
+  return /^back\b/i.test(label) ? `${label} to ${backTo}` : `${label}, back to ${backTo}`;
 }
 
 /** A field's element id, and the key its value is kept under. */

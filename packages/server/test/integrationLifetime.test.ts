@@ -108,10 +108,10 @@ async function button() {
   return result.body.ts as string;
 }
 
-async function view() {
+async function view(auth = token) {
   const message = await button();
   expect(
-    (await api("POST", `/api/messages/${message}/actions`, { actionId: "rsvp" })).body.ok,
+    (await api("POST", `/api/messages/${message}/actions`, { actionId: "rsvp" }, auth)).body.ok,
   ).toBe(true);
   const trigger = callbacks.at(-1)!.trigger_id;
   const result = await api(
@@ -137,15 +137,23 @@ async function view() {
   return result.body.view.id as string;
 }
 
-const submit = (id: string, text = "Attending") =>
-  api("POST", `/api/views/${id}/submit`, { values: { b: { a: text } } });
+const submit = (id: string, text = "Attending", auth = token) =>
+  api("POST", `/api/views/${id}/submit`, { values: { b: { a: text } } }, auth);
 const submissions = () => callbacks.filter((payload) => payload.type === "view_submission");
 const messages = () => server.store.listMessages({ channelId: channel, limit: 50 });
 
 describe("one submission per app view (N08)", () => {
-  it("refuses another submission during its callback, while independent views still proceed", async () => {
+  it("refuses another submission during its callback, while another person's view still proceeds", async () => {
     const first = await view();
-    const second = await view();
+    // A person has one form open at a time (E18b), so the other view is someone else's.
+    const someone = (
+      await api("POST", "/api/auth/register", {
+        handle: "someone",
+        displayName: "Someone",
+        password: "password123",
+      })
+    ).body.token as string;
+    const second = await view(someone);
     const responses: ServerResponse[] = [];
     handler = (_payload, response) => responses.push(response);
     const sendingFirst = submit(first);
@@ -153,7 +161,7 @@ describe("one submission per app view (N08)", () => {
     const repeated = await submit(first, "Changed answer");
     expect(repeated).toMatchObject({ status: 409, body: { error: "view_submitting" } });
     expect(submissions()).toHaveLength(1);
-    const sendingSecond = submit(second);
+    const sendingSecond = submit(second, "Attending", someone);
     await expect.poll(() => responses.length).toBe(2);
     answer(responses[0]!, {
       response_action: "errors",
@@ -169,7 +177,7 @@ describe("one submission per app view (N08)", () => {
     expect((await submit(first, "Corrected answer")).body.ok).toBe(true);
     expect(submissions().map((payload) => payload.view!.id)).toEqual([first, second, first]);
     expect((await submit(first)).status).toBe(404);
-    expect((await submit(second)).status).toBe(404);
+    expect((await submit(second, "Attending", someone)).status).toBe(404);
   });
 
   it("releases the claim after an uncertain transport failure so an explicit retry can proceed", async () => {

@@ -1008,12 +1008,25 @@ export class Api {
     return this.request("POST", `/api/messages/${messageId}/actions`, { actionId });
   }
 
-  /** Sends a filled-in modal; field errors come back keyed by block id. */
+  /**
+   * Sends a filled-in modal; field errors come back keyed by block id. Once
+   * accepted, `closedViewIds` names the forms that closed (E18b).
+   */
   submitView(
     viewId: ID,
     values: Record<string, Record<string, string | string[]>>,
-  ): Promise<{ ok: boolean; errors?: Record<string, string>; message?: string }> {
+  ): Promise<{
+    ok: boolean;
+    errors?: Record<string, string>;
+    message?: string;
+    closedViewIds?: ID[];
+  }> {
     return this.request("POST", `/api/views/${viewId}/submit`, { values });
+  }
+
+  /** Closes a modal and any stacked on it, for the person's other devices. */
+  closeView(viewId: ID): Promise<{ ok: boolean }> {
+    return this.request("POST", `/api/views/${viewId}/close`);
   }
 
   /**
