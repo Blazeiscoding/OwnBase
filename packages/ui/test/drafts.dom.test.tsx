@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, ScheduledMessage, User } from "@ownbase/protocol";
@@ -242,6 +242,21 @@ describe("the Drafts panel", () => {
     const undo = await screen.findAllByRole("button", { name: "Undo" });
     await user.click(undo.at(-1)!);
     expect(client.state.drafts.C_DESIGN).toBe("Started again");
+  });
+
+  it("deletes one for a double-click, though the next row's Delete slides under it", async () => {
+    const { client, user } = fourDrafts();
+    const onOpen = vi.fn();
+    render(tree(client, <DraftsPanel onClose={() => {}} onOpen={onOpen} />));
+    const thread = screen.getByRole("button", { name: /^Thread in/ }).closest("li")!;
+    await user.click(within(thread).getByRole("button", { name: "Delete draft" }));
+    // Chromium counts the click that lands on the next row as the second of two.
+    const next = screen.getByRole("button", { name: /^#design/ }).closest("li")!;
+    fireEvent.click(within(next).getByRole("button", { name: "Delete draft" }), { detail: 2 });
+    fireEvent.click(within(next).getByRole("button", { name: /^#design/ }), { detail: 2 });
+    expect(client.state.drafts[design.id]).toBe("Notes from the review");
+    expect(client.state.drafts[`${general.id}:M_ROOT`]).toBeUndefined();
+    expect(onOpen).not.toHaveBeenCalled();
   });
 
   it("says when there are none", () => {

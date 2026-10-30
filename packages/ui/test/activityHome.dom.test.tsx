@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, ThreadFollow, User } from "@ownbase/protocol";
@@ -257,6 +257,23 @@ describe("reading and saving from Activity", () => {
         within(panel).getByRole("button", { name: /Looks good/ }),
       ),
     );
+  });
+
+  it("acts once for a double-click, whatever slid up under its second click", async () => {
+    const user = userEvent.setup();
+    const { panel, client, onJump, fromOmar } = hanasActivity();
+    const design = await within(panel).findByRole("region", { name: "#design, 3 new" });
+    const oldest = within(design).getAllByRole("listitem").at(-1)!;
+    await user.click(within(oldest).getByRole("button", { name: "Mark read" }));
+    expect(client.state.memberships.C_DESIGN).toBe(5);
+    // The direct message's row moves up into its place. Chromium counts the
+    // click that lands on any of its controls as the second of two.
+    const direct = groupNamed(panel, "Direct message");
+    for (const name of ["Mark read", "Save", /Lunch at one/])
+      fireEvent.click(within(direct).getByRole("button", { name }), { detail: 2 });
+    expect(client.state.memberships.D_OMAR).toBe(1);
+    expect(client.state.saved[fromOmar.id]).toBeUndefined();
+    expect(onJump).not.toHaveBeenCalled();
   });
 
   it("marks everything read at once, conversations and followed threads", async () => {

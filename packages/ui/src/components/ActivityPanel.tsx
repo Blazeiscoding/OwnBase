@@ -11,6 +11,7 @@ import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useTabs } from "../lib/useTabs.js";
 import { usePagedList } from "../lib/pagedList.js";
+import { dropRepeatClick } from "../lib/repeatClick.js";
 import { RemindersList } from "./RemindersList.js";
 
 /**
@@ -407,7 +408,9 @@ function ActivityRow(props: {
   const action =
     "flex size-7 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink";
   return (
-    <li className="group/row relative">
+    // Mark read can take this row and the ones below it away, or itself
+    // vanish, leaving the row's own button under the pointer.
+    <li className="group/row relative" onClickCapture={dropRepeatClick}>
       {props.unread && (
         <span
           aria-hidden="true"
