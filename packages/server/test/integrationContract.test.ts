@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import type { WorkspaceEvent } from "@ownbase/protocol";
+import { APP_EVENT_TYPES, APP_SCOPES, eventScopes, type WorkspaceEvent } from "@ownbase/protocol";
 import { INPUT_ELEMENTS } from "../src/blockKit.js";
 import { signatureHeaders, toSlackEvent } from "../src/integrations.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
@@ -107,9 +107,8 @@ describe("the Web API methods the document lists", () => {
 });
 
 describe("the event table", () => {
-  const documented = new Map(
-    tableAfter("The events").map(([native, slack]) => [native!, slack!] as const),
-  );
+  const rows = tableAfter("The events");
+  const documented = new Map(rows.map(([native, slack]) => [native!, slack!] as const));
 
   /** One event carrying every field any event type reads. */
   const sample = (type: string) =>
@@ -158,6 +157,21 @@ describe("the event table", () => {
     expect(types.length).toBeGreaterThan(0);
     const delivered = types.filter((type) => toSlackEvent(sample(type)) !== null);
     expect([...documented.keys()].sort()).toEqual(delivered.sort());
+    // The list the Apps dialog reasons about scopes from, too.
+    expect([...APP_EVENT_TYPES].sort()).toEqual(delivered.sort());
+  });
+
+  it("names the scopes an app needs to be sent each one", () => {
+    for (const [native, , , scopes] of rows) {
+      const named = scopes!.split(/[`,\s]+/).filter(Boolean);
+      expect(named, native).toEqual(eventScopes(native!));
+    }
+  });
+});
+
+describe("the scope table", () => {
+  it("lists exactly the scopes an app can be given, in order", () => {
+    expect(tableAfter("The scopes").map(([scope]) => scope)).toEqual([...APP_SCOPES]);
   });
 });
 

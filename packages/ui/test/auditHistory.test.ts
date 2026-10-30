@@ -67,6 +67,16 @@ describe("an entry, as an administrator would say it", () => {
         }),
       ),
     ).toBe("Alice added /deploy to Deploy Bot, calling ci.internal:8080");
+    expect(
+      say(
+        entry("app.scopes_changed", {
+          targetType: "app",
+          details: { name: "Deploy Bot", added: "channels:history", removed: "chat:write.public" },
+        }),
+      ),
+    ).toBe(
+      "Alice changed what Deploy Bot may do: allowed channels:history; took away chat:write.public",
+    );
   });
 
   it("gets a possessive right for a name ending in s", () => {
@@ -153,6 +163,7 @@ describe("an entry, as an administrator would say it", () => {
       "app.token_replaced",
       "app.signing_secret_replaced",
       "app.interactivity_url_changed",
+      "app.scopes_changed",
       "webhook.created",
       "webhook.url_replaced",
       "webhook.deleted",

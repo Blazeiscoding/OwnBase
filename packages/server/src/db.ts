@@ -725,6 +725,13 @@ const MIGRATIONS: string[] = [
     ON message_reports(message_id, reporter_id) WHERE resolved_at IS NULL;
   CREATE INDEX idx_message_reports_reporter ON message_reports(reporter_id);
   `,
+  // v51 — what each app may do (E18c), as a JSON list of Slack's scope names.
+  // An app made before could do everything, so it keeps every scope there was
+  // then; a scope added later has to be given to it.
+  `
+  ALTER TABLE apps ADD COLUMN scopes TEXT NOT NULL DEFAULT '[]';
+  UPDATE apps SET scopes = '["chat:write","chat:write.public","channels:history","groups:history","im:history","mpim:history","channels:read","groups:read","reactions:read","pins:read","users:read"]';
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import {
+  APP_SCOPES,
   SIDEBAR_SECTIONS_MAX,
   SIDEBAR_SECTION_NAME_MAX,
   POLL_OPTION_MAX,
@@ -278,9 +279,19 @@ export const editScheduledBody = z.object({
   expectedText: z.string().max(12000),
 });
 
+const appScopes = z.array(z.enum(APP_SCOPES)).max(APP_SCOPES.length);
+
 export const createAppBody = z.object({
   name: z.string().min(1).max(60),
+  /**
+   * What it may do (E18c). Left out, it may do everything, as every app could
+   * before scopes, so an older client or a script makes the same app it did.
+   */
+  scopes: appScopes.optional(),
 });
+
+/** Replaces what an app may do. */
+export const appScopesBody = z.object({ scopes: appScopes });
 
 export const createWebhookBody = z.object({
   channelId: z.string(),
@@ -510,6 +521,7 @@ export type RescheduleBody = z.infer<typeof rescheduleBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;
 export type ChangePasswordBody = z.infer<typeof changePasswordBody>;
 export type CreateAppBody = z.infer<typeof createAppBody>;
+export type AppScopesBody = z.infer<typeof appScopesBody>;
 export type CreateWebhookBody = z.infer<typeof createWebhookBody>;
 export type CreateCommandBody = z.infer<typeof createCommandBody>;
 export type CreateSubscriptionBody = z.infer<typeof createSubscriptionBody>;

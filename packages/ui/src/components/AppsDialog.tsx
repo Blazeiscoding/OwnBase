@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useCopy } from "../lib/useCopy.js";
 import { useTabs } from "../lib/useTabs.js";
 import {
@@ -14,7 +14,18 @@ import {
   suggestedAppName,
   type AppTemplate,
 } from "../lib/appTemplates.js";
-import type { App, Channel, EventSubscription, ID, SlashCommand } from "@ownbase/protocol";
+import {
+  APP_EVENT_TYPES,
+  APP_SCOPES,
+  DEFAULT_APP_SCOPES,
+  eventScopes,
+  type App,
+  type AppScope,
+  type Channel,
+  type EventSubscription,
+  type ID,
+  type SlashCommand,
+} from "@ownbase/protocol";
 import { ApiError, type AppDetail } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
@@ -101,6 +112,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
   const loadVersion = useRef(0);
   const loadInFlight = useRef(false);
   const [name, setName] = useState("");
+  /** What the next app made here may do: post, and be sent nothing, until more is ticked. */
+  const [scopes, setScopes] = useState<AppScope[]>([...DEFAULT_APP_SCOPES]);
   const [createError, setCreateError] = useState<string | null>(null);
   const nameInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -187,8 +200,9 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     setCreateError(null);
     setBusy(true);
     try {
-      adopt(await client.api.createApp({ name: name.trim() }));
+      adopt(await client.api.createApp({ name: name.trim(), scopes }));
       setName("");
+      setScopes([...DEFAULT_APP_SCOPES]);
     } catch {
       setCreateError("Could not create the app. Check your connection and try again.");
     } finally {
@@ -264,7 +278,9 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
         apps={apps ?? []}
         rooms={rooms}
         hookUrls={hookUrls}
-        makeApp={async (appName) => adopt(await client.api.createApp({ name: appName }))}
+        makeApp={async (appName) =>
+          adopt(await client.api.createApp({ name: appName, scopes: [...DEFAULT_APP_SCOPES] }))
+        }
         makeWebhook={addWebhook}
         onChanged={load}
       />
@@ -272,7 +288,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       <SlackDifferences />
 
       <h3 className="mb-2 mt-6 text-[13px] font-medium text-ink-dim">Your apps</h3>
-      <form onSubmit={create} noValidate className="mb-5 flex gap-2">
+      <form onSubmit={create} noValidate className="mb-2 flex gap-2">
         <input
           ref={nameInput}
           aria-label="App name"
@@ -290,6 +306,20 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
           Create
         </button>
       </form>
+      {/* Chosen when the app is added, as Slack asks at installation (E18c). */}
+      <details className="group mb-5 rounded-lg border border-edge">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-3 py-1.5 text-[12px] text-ink-dim hover:text-ink">
+          <Icon
+            name="chevronDown"
+            size={12}
+            className="shrink-0 transition-transform group-open:rotate-180"
+          />
+          <span className="min-w-0">What it may do: {scopeSummary(scopes)}</span>
+        </summary>
+        <div className="border-t border-edge px-3 py-2">
+          <ScopePicker scopes={scopes} onChange={setScopes} />
+        </div>
+      </details>
 
       {createError && (
         <p role="alert" className="-mt-3 mb-4 text-sm text-alert">
@@ -405,6 +435,13 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                 </button>
               ))}
             </div>
+
+            {/* A server from before scopes has none to show (E18c). */}
+            {a.scopes && (
+              <FormSection label="What it may do">
+                <AppScopes app={{ ...a, scopes: a.scopes }} onChanged={load} />
+              </FormSection>
+            )}
 
             <FormSection label="Slash commands">
               <CommandList app={a} onChanged={load} />
@@ -955,9 +992,10 @@ function SlackDifferences() {
           <code className="font-mono">chat.postMessage</code> take the shapes Slack&rsquo;s do.
         </p>
         <p>
-          Not everything carries over. There is no OAuth, Socket Mode or scopes: an app gets a bot
-          token and a signing secret here, and receives events and button presses over HTTP. A
-          message&rsquo;s <code className="font-mono">ts</code> is an id rather than a time.
+          Not everything carries over. There is no OAuth or Socket Mode: an app gets a bot token and
+          a signing secret here, with the scopes ticked below, and receives events and button
+          presses over HTTP. A message&rsquo;s <code className="font-mono">ts</code> is an id rather
+          than a time.
         </p>
         <p>
           <a
@@ -1136,6 +1174,152 @@ const EVENT_TYPES = [
   "channel.created",
 ];
 
+/** Each scope in the words an administrator decides on. */
+const SCOPE_WORDS: Record<AppScope, string> = {
+  "chat:write": "Post where it has been added",
+  "chat:write.public": "Post in any public channel",
+  "channels:history": "Messages in public channels it is in",
+  "groups:history": "Messages in private channels it is in",
+  "im:history": "Its direct messages",
+  "mpim:history": "Group messages it is in",
+  "channels:read": "Public channels, and who joins them",
+  "groups:read": "Private channels it is in, and who joins them",
+  "reactions:read": "Reactions",
+  "pins:read": "Pins",
+  "users:read": "People joining, and changes to profiles",
+};
+const POST_SCOPES: readonly AppScope[] = ["chat:write", "chat:write.public"];
+const READ_SCOPES = APP_SCOPES.filter((scope) => !POST_SCOPES.includes(scope));
+
+/** What a list of scopes comes to, short enough for a closed disclosure. */
+function scopeSummary(scopes: readonly AppScope[]): string {
+  const posts = scopes.includes("chat:write.public")
+    ? "posts in any public channel"
+    : scopes.includes("chat:write")
+      ? "posts where it has been added"
+      : "cannot post";
+  const reads = READ_SCOPES.filter((scope) => scopes.includes(scope)).length;
+  return `${posts}, ${reads === 0 ? "is sent no events" : `is sent ${reads} of ${READ_SCOPES.length} kinds of event`}`;
+}
+
+/**
+ * What an app may do (E18c), by Slack's scope names beside plain words: an
+ * app's own instructions name the scopes it needs, and an administrator
+ * decides in words. Posting is a method; the rest decide which events reach
+ * its subscriptions.
+ */
+function ScopePicker(props: {
+  scopes: readonly AppScope[];
+  onChange: (scopes: AppScope[]) => void;
+  disabled?: boolean;
+}) {
+  const toggle = (scope: AppScope, on: boolean) =>
+    props.onChange(APP_SCOPES.filter((s) => (s === scope ? on : props.scopes.includes(s))));
+  const group = (title: string, scopes: readonly AppScope[]) => (
+    <fieldset className="min-w-0">
+      <legend className="mb-0.5 text-[11px] font-medium text-ink-faint">{title}</legend>
+      <div className="grid gap-x-3 sm:grid-cols-2">
+        {scopes.map((scope) => (
+          <label
+            key={scope}
+            className="flex cursor-pointer items-start gap-2 rounded py-0.5 text-[12px] text-ink-dim has-[:disabled]:cursor-default has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-copper"
+          >
+            <input
+              type="checkbox"
+              checked={props.scopes.includes(scope)}
+              disabled={props.disabled}
+              onChange={(e) => toggle(scope, e.target.checked)}
+              className="mt-0.5 size-3.5 shrink-0 accent-[var(--color-copper)]"
+            />
+            <span className="min-w-0">
+              {SCOPE_WORDS[scope]}{" "}
+              <code className="font-mono text-[10px] text-ink-faint">{scope}</code>
+            </span>
+          </label>
+        ))}
+      </div>
+    </fieldset>
+  );
+  return (
+    <div className="space-y-1.5">
+      {group("Post", POST_SCOPES)}
+      {group("Be sent events about", READ_SCOPES)}
+    </div>
+  );
+}
+
+/**
+ * An app's scopes, saved as they are ticked. Its tokens hold the new list
+ * from their next call. A change that does not go through is taken back on
+ * screen, so what is ticked is what the server holds.
+ */
+function AppScopes({
+  app,
+  onChanged,
+}: {
+  app: AppDetail & { scopes: AppScope[] };
+  onChanged: () => void;
+}) {
+  const client = useClient();
+  const [shown, setShown] = useState<AppScope[]>(app.scopes);
+  const [error, setError] = useState<string | null>(null);
+  const saving = useRef(0);
+  // A list loaded again, or changed from a subscription's Allow, wins.
+  useEffect(() => setShown(app.scopes), [app.scopes]);
+
+  async function change(next: AppScope[]) {
+    const before = shown;
+    setShown(next);
+    setError(null);
+    const attempt = ++saving.current;
+    try {
+      await client.api.setAppScopes(app.id, next);
+      onChanged();
+    } catch {
+      if (attempt !== saving.current) return;
+      setShown(before);
+      setError("Could not change what it may do. Check your connection and try again.");
+    }
+  }
+
+  const summary = scopeSummary(shown);
+  return (
+    <>
+      {/* Closed to one line, so a list of apps stays a list. */}
+      <details className="group rounded-lg border border-edge">
+        <summary className="flex cursor-pointer list-none items-center gap-2 px-2.5 py-1.5 text-[12px] text-ink-dim hover:text-ink">
+          <Icon
+            name="chevronDown"
+            size={12}
+            className="shrink-0 transition-transform group-open:rotate-180"
+          />
+          <span className="min-w-0">{summary.charAt(0).toUpperCase() + summary.slice(1)}</span>
+        </summary>
+        <div className="border-t border-edge px-2.5 py-2">
+          <ScopePicker scopes={shown} onChange={(next) => void change(next)} />
+        </div>
+      </details>
+      {error && (
+        <p role="alert" className="mt-1 text-[11px] text-alert">
+          {error}
+        </p>
+      )}
+    </>
+  );
+}
+
+/**
+ * The scopes a subscription's events need that its app has not been given.
+ * Those events are not sent, which an administrator should not have to find
+ * out from a quiet endpoint.
+ */
+function missingScopes(app: AppDetail, sub: EventSubscription): AppScope[] {
+  if (!app.scopes) return [];
+  const types = sub.eventTypes.length > 0 ? sub.eventTypes : APP_EVENT_TYPES;
+  const needed = new Set(types.flatMap((type) => eventScopes(type)));
+  return APP_SCOPES.filter((scope) => needed.has(scope) && !app.scopes!.includes(scope));
+}
+
 /**
  * How an endpoint's queue is doing, in the terms an administrator has to act
  * on: work still waiting, work given up on, and events that never got queued
@@ -1175,6 +1359,21 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
   const [busy, setBusy] = useState(false);
   const [retrying, setRetrying] = useState<ID | null>(null);
   const urlField = useRef<HTMLInputElement>(null);
+
+  /** Gives the app the scopes a subscription is waiting on. */
+  async function allow(missing: AppScope[]) {
+    setError(null);
+    try {
+      const granted = app.scopes ?? [];
+      await client.api.setAppScopes(
+        app.id,
+        APP_SCOPES.filter((scope) => granted.includes(scope) || missing.includes(scope)),
+      );
+      onChanged();
+    } catch {
+      setError("Could not allow those. Check your connection and try again.");
+    }
+  }
 
   async function add(e: React.FormEvent) {
     e.preventDefault();
@@ -1246,6 +1445,25 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
               </button>
             </div>
             <DeliveryStatus delivery={sub.delivery} />
+            {missingScopes(app, sub).length > 0 && (
+              <p className="text-[11px] text-ink-faint">
+                Not sent without{" "}
+                {missingScopes(app, sub).map((scope, i) => (
+                  <Fragment key={scope}>
+                    {i > 0 && ", "}
+                    <code className="font-mono">{scope}</code>
+                  </Fragment>
+                ))}
+                .{" "}
+                <button
+                  type="button"
+                  onClick={() => void allow(missingScopes(app, sub))}
+                  className="text-copper hover:underline"
+                >
+                  Allow {missingScopes(app, sub).length === 1 ? "it" : "them"}
+                </button>
+              </p>
+            )}
           </li>
         ))}
       </ul>

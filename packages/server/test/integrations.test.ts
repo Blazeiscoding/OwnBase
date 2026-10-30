@@ -2865,3 +2865,170 @@ describe("replacing an app's credentials", () => {
     }
   });
 });
+
+describe("scopes on bot tokens (E18c)", () => {
+  type Made = { app: { id: string; scopes: string[] }; botUser: User; token: string };
+  const make = async (name: string, scopes?: string[]) =>
+    (
+      await api<Made>("/api/apps", {
+        token: aliceToken,
+        body: scopes ? { name, scopes } : { name },
+      })
+    ).data;
+
+  /** A Web API call with its answer's scopes header. */
+  async function slack(method: string, token: string, body: unknown) {
+    const res = await fetch(`${base}/api/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    return {
+      scopes: res.headers.get("x-oauth-scopes"),
+      data: (await res.json()) as Record<string, unknown>,
+    };
+  }
+
+  it("gives an app every scope when none are named, as before scopes", async () => {
+    const made = await make("Unscoped Bot");
+    expect(made.app.scopes).toEqual([
+      "chat:write",
+      "chat:write.public",
+      "channels:history",
+      "groups:history",
+      "im:history",
+      "mpim:history",
+      "channels:read",
+      "groups:read",
+      "reactions:read",
+      "pins:read",
+      "users:read",
+    ]);
+    // Named, an app gets those alone, whatever order they came in.
+    const narrow = await make("Narrow Bot", ["reactions:read", "chat:write", "chat:write"]);
+    expect(narrow.app.scopes).toEqual(["chat:write", "reactions:read"]);
+    const listed = await api<{ apps: { id: string; scopes: string[] }[] }>("/api/apps", {
+      token: aliceToken,
+    });
+    expect(listed.data.apps.find((a) => a.id === narrow.app.id)!.scopes).toEqual([
+      "chat:write",
+      "reactions:read",
+    ]);
+  });
+
+  it("refuses a method its scopes do not reach, naming the scope it needs", async () => {
+    const made = await make("Mute Bot", []);
+    const refused = await slack("chat.postMessage", made.token, {
+      channel: channelId,
+      text: "hello",
+    });
+    // Slack's shape, which its SDK reports by name.
+    expect(refused.data).toEqual({
+      ok: false,
+      error: "missing_scope",
+      needed: "chat:write",
+      provided: "",
+    });
+    expect(refused.scopes).toBe("");
+    // Methods that need no scope still answer, saying what the token holds.
+    const who = await slack("auth.test", made.token, {});
+    expect(who.data.ok).toBe(true);
+    expect(who.scopes).toBe("");
+  });
+
+  it("posts where it was not added only with chat:write.public", async () => {
+    const inside = await make("Member Bot", ["chat:write"]);
+    const outside = await slack("chat.postMessage", inside.token, {
+      channel: channelId,
+      text: "not a member yet",
+    });
+    expect(outside.data).toMatchObject({
+      ok: false,
+      error: "not_in_channel",
+      needed: "chat:write.public",
+    });
+    expect(outside.scopes).toBe("chat:write");
+    server.store.addMember(channelId, inside.botUser.id);
+    expect(
+      (await slack("chat.postMessage", inside.token, { channel: channelId, text: "now a member" }))
+        .data.ok,
+    ).toBe(true);
+
+    const everywhere = await make("Public Bot", ["chat:write", "chat:write.public"]);
+    expect(
+      (await slack("chat.postMessage", everywhere.token, { channel: channelId, text: "anywhere" }))
+        .data.ok,
+    ).toBe(true);
+  });
+
+  it("sends an app only the events its scopes let it read", async () => {
+    const made = await make("Reading Bot", ["chat:write", "reactions:read"]);
+    stub.handler = (req) => ({
+      body: JSON.stringify({
+        challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
+      }),
+    });
+    // Every event type, which is more than it may read.
+    await api(`/api/apps/${made.app.id}/subscriptions`, {
+      token: aliceToken,
+      body: { url: stub.url("/scoped") },
+    });
+    stub.handler = () => ({ body: "" });
+    server.store.addMember(channelId, made.botUser.id);
+    stub.received.length = 0;
+    const scoped = () =>
+      stub.received
+        .filter((r) => r.url === "/scoped")
+        .map((r) => JSON.parse(r.body) as { event: { type: string; text?: string } });
+
+    const unread = await api<{ message: { id: string } }>(`/api/channels/${channelId}/messages`, {
+      token: aliceToken,
+      body: { text: "words it may not read" },
+    });
+    await api(`/api/messages/${unread.data.message.id}/reactions/${encodeURIComponent("👀")}`, {
+      method: "PUT",
+      token: aliceToken,
+    });
+    await eventually(() => scoped().some((e) => e.event.type === "reaction_added"));
+    // Events go out in order, so the message would have come first.
+    expect(scoped().map((e) => e.event.type)).toEqual(["reaction_added"]);
+
+    await api(`/api/apps/${made.app.id}/scopes`, {
+      method: "PUT",
+      token: aliceToken,
+      body: { scopes: ["chat:write", "reactions:read", "channels:history"] },
+    });
+    await api(`/api/channels/${channelId}/messages`, {
+      token: aliceToken,
+      body: { text: "words it may read" },
+    });
+    await eventually(() => scoped().some((e) => e.event.text === "words it may read"));
+    expect(JSON.stringify(scoped())).not.toContain("words it may not read");
+  });
+
+  it("lets only an admin change what an app may do", async () => {
+    const made = await make("Guarded Scopes Bot", ["chat:write"]);
+    const refused = await api(`/api/apps/${made.app.id}/scopes`, {
+      method: "PUT",
+      token: bobToken,
+      body: { scopes: ["chat:write", "users:read"] },
+    });
+    expect(refused.status).toBe(403);
+    const unknown = await api(`/api/apps/${made.app.id}/scopes`, {
+      method: "PUT",
+      token: aliceToken,
+      body: { scopes: ["admin"] },
+    });
+    expect(unknown.status).toBe(400);
+    const changed = await api<{ app: { scopes: string[] } }>(`/api/apps/${made.app.id}/scopes`, {
+      method: "PUT",
+      token: aliceToken,
+      body: { scopes: ["users:read"] },
+    });
+    expect(changed.data.app.scopes).toEqual(["users:read"]);
+    // The token holds the new list from its next call.
+    const after = await slack("chat.postMessage", made.token, { channel: channelId, text: "hi" });
+    expect(after.data.error).toBe("missing_scope");
+    expect(after.scopes).toBe("users:read");
+  });
+});

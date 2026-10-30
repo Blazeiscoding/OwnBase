@@ -302,6 +302,13 @@ tests run Slack's own Web API SDK against this server. They cover its
 form-encoded calls, its error handling, and the `auth.test` call Bolt makes
 before it will start.
 
+Each app has Slack's scopes, chosen when it is made and changeable on its card:
+`chat:write` to post, `chat:write.public` to post where its bot was not added,
+and reading scopes such as `channels:history` or `reactions:read` that decide
+which events it is sent. A method its scopes do not reach answers Slack's
+`missing_scope`. Apps from before scopes, and apps made through the API without
+a list, keep every scope.
+
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) is the full contract. It lists every
 supported method and field, each event and what it becomes, and each place this
 server differs from Slack.
@@ -322,11 +329,12 @@ Apps can also respond to what people do:
   arrive as `{type: "event_callback", event: {...}}`, with OwnBase's own event
   alongside Slack's shape. The URL has to echo a `url_verification` challenge
   before the server accepts it. An app receives events only from channels its
-  bot has been added to. It is never sent its own bot's actions, which is the
-  loop every chat integration otherwise causes. The server queues each delivery
-  with its event, retries in order after failures or restarts, and reports the
-  outcome in Apps and integrations. Receivers should deduplicate by `event_id`,
-  because a crash after their HTTP success can deliver the same event again.
+  bot has been added to, and only those its scopes let it read. It is never
+  sent its own bot's actions, which is the loop every chat integration otherwise
+  causes. The server queues each delivery with its event, retries in order after
+  failures or restarts, and reports the outcome in Apps and integrations.
+  Receivers should deduplicate by `event_id`, because a crash after their HTTP
+  success can deliver the same event again.
 - **Interactive buttons.** Give the app an interactivity request URL and its
   buttons become live. A press posts Slack's `block_actions` payload, which
   carries the pressed `action_id` and `value`, who pressed it, where, and a
@@ -530,8 +538,7 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 
-- **Next.** Scopes on bot tokens, so an app can do only what it was allowed
-  when it was added, and an OpenAPI description of the REST API.
+- **Next.** An OpenAPI description of the REST API, checked in CI.
 - **Later.** An SFU for larger huddles, and optional Postgres and S3.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing

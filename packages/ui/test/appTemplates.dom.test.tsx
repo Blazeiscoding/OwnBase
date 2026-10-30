@@ -137,7 +137,11 @@ describe("Apps and integrations' templates", () => {
       ],
     });
     await user.click(within(panel).getByRole("button", { name: "Create webhook" }));
-    expect(createApp).toHaveBeenCalledWith({ name: "Webhook" });
+    // A template's app may post, and is sent nothing until more is allowed (E18c).
+    expect(createApp).toHaveBeenCalledWith({
+      name: "Webhook",
+      scopes: ["chat:write", "chat:write.public"],
+    });
     expect(createWebhook).toHaveBeenCalledWith("A_HOOK", { channelId: general.id });
     const url = `http://127.0.0.1:9${HOOK_PATH}`;
     expect(await within(panel).findByText(asRead(curlExample(url)))).toBeVisible();

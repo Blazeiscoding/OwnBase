@@ -6,7 +6,7 @@ import { monitorEventLoopDelay } from "node:perf_hooks";
 import { open, stat, unlink } from "node:fs/promises";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import Fastify, { type FastifyRequest } from "fastify";
+import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
 import cors from "@fastify/cors";
 import fastifyStatic from "@fastify/static";
 import multipart from "@fastify/multipart";
@@ -84,6 +84,10 @@ import {
   type MessageAction,
   type Message,
   type ModalView,
+  type App,
+  type AppScope,
+  appScopesBody,
+  eventScope,
   type ScheduledMessage,
   type ServerInfo,
   type User,
@@ -1153,6 +1157,11 @@ async function startWorkspaceServer(
     const payload = toSlackEvent(envelope.event);
     if (!payload) return;
     const actor = eventActorId(envelope.event);
+    // What an app must be allowed to read to be sent this (E18c).
+    const needed = eventScope(
+      envelope.event.type,
+      channelId === null ? null : (store.getChannel(channelId)?.type ?? null),
+    );
     const inChannel = new Map<ID, boolean>();
     const botInChannel = (botUserId: ID, channel: ID): boolean => {
       let member = inChannel.get(botUserId);
@@ -1183,6 +1192,8 @@ async function startWorkspaceServer(
       // Never hand an app back its own bot's actions — that is how a bot that
       // replies to messages ends up replying to itself forever.
       if (actor !== null && actor === owner.botUserId) continue;
+      // Nor what its scopes do not let it read, whatever it subscribed to.
+      if (needed && !owner.scopes?.includes(needed)) continue;
       // An app sees a channel only once its bot has been added to it, so
       // subscribing does not quietly expose every private conversation.
       if (channelId !== null && !botInChannel(owner.botUserId, channelId)) continue;
@@ -3874,6 +3885,7 @@ async function startWorkspaceServer(
         botUserId: bot.id,
         createdBy: me.id,
         signingSecret,
+        scopes: body.scopes,
       });
 
       const token = secretToken("xoxb-");
@@ -3883,7 +3895,7 @@ async function startWorkspaceServer(
         action: "app.created",
         targetType: "app",
         targetId: created.id,
-        details: { name: created.name },
+        details: { name: created.name, scopes: (created.scopes ?? []).join(", ") },
       });
       emit({ type: "user.joined", user: bot }, null);
 
@@ -3906,6 +3918,38 @@ async function startWorkspaceServer(
         signingSecret: store.appSigningSecret(a.id) ?? "",
       })),
     };
+  });
+
+  /**
+   * What an app may do (E18c): Slack's scope names, replacing the whole list.
+   * Its tokens hold the new list from the next call; events already queued
+   * for it were let through under the old one and are still sent.
+   *
+   * Logged with what was added and taken away, which is what an operator
+   * looks for when an app starts or stops seeing something.
+   */
+  app.put<{ Params: { id: string } }>("/api/apps/:id/scopes", async (req) => {
+    const me = requireAdmin(req);
+    const body = appScopesBody.parse(req.body);
+    return store.transaction(() => {
+      const target = store.getApp(req.params.id);
+      if (!target) throw new HttpError(404, "not_found");
+      const before = target.scopes ?? [];
+      store.setAppScopes(target.id, body.scopes);
+      const after = store.getApp(target.id)!;
+      const added = (after.scopes ?? []).filter((scope) => !before.includes(scope));
+      const removed = before.filter((scope) => !(after.scopes ?? []).includes(scope));
+      if (added.length > 0 || removed.length > 0) {
+        store.recordAudit({
+          actorId: me.id,
+          action: "app.scopes_changed",
+          targetType: "app",
+          targetId: target.id,
+          details: { name: target.name, added: added.join(", "), removed: removed.join(", ") },
+        });
+      }
+      return { app: after };
+    });
   });
 
   /**
@@ -4130,6 +4174,22 @@ async function startWorkspaceServer(
   const slackError = (error: string) => ({ ok: false as const, error });
 
   /**
+   * Which scopes a token holds, sent on every Web API answer as Slack does;
+   * its SDK reads them into `response_metadata.scopes`.
+   */
+  const sayScopes = (reply: FastifyReply, owner: App): void => {
+    reply.header("x-oauth-scopes", (owner.scopes ?? []).join(","));
+  };
+
+  /** Slack's refusal for a method this token's scopes do not reach, naming what would. */
+  const missingScope = (owner: App, needed: AppScope) => ({
+    ok: false as const,
+    error: "missing_scope",
+    needed,
+    provided: (owner.scopes ?? []).join(","),
+  });
+
+  /**
    * The app a Web API call is made as. Slack takes the token as a bearer header
    * or as a `token` field in the body, and code written against it uses both.
    */
@@ -4159,9 +4219,10 @@ async function startWorkspaceServer(
    * fails, so without it no Bolt app could run against this server at all.
    * `bot_id` is the app's id: this server has no separate bot identity.
    */
-  app.post("/api/auth.test", async (req) => {
+  app.post("/api/auth.test", async (req, reply) => {
     const owner = slackCaller(req);
     if (!owner) return slackError("invalid_auth");
+    sayScopes(reply, owner);
     const bot = store.getUser(owner.botUserId)!;
     return {
       ok: true,
@@ -4179,9 +4240,12 @@ async function startWorkspaceServer(
    * Slack Web API compatible send, so existing bot code works by pointing at
    * this server. Errors use Slack's `{ok:false, error}` shape.
    */
-  app.post("/api/chat.postMessage", async (req) => {
+  app.post("/api/chat.postMessage", async (req, reply) => {
     const owner = slackCaller(req);
     if (!owner) return slackError("invalid_auth");
+    sayScopes(reply, owner);
+    reply.header("x-accepted-oauth-scopes", "chat:write");
+    if (!owner.scopes?.includes("chat:write")) return missingScope(owner, "chat:write");
     // A bot stuck in a loop is the version of this that nobody is watching.
     ration("post", owner.botUserId);
 
@@ -4198,8 +4262,13 @@ async function startWorkspaceServer(
     const channel = store.getChannel(body.channel) ?? store.getChannelByName(named);
     if (!channel || channel.archived) return slackError("channel_not_found");
 
-    if (channel.type !== "public" && !store.isMember(channel.id, owner.botUserId)) {
-      return slackError("not_in_channel");
+    // A public channel the bot was never added to takes Slack's
+    // chat:write.public; anything else needs the bot in it.
+    if (!store.isMember(channel.id, owner.botUserId)) {
+      if (channel.type !== "public") return slackError("not_in_channel");
+      if (!owner.scopes?.includes("chat:write.public")) {
+        return { ...slackError("not_in_channel"), needed: "chat:write.public" };
+      }
     }
 
     const blocks = structured(body.blocks);
@@ -5165,9 +5234,10 @@ async function startWorkspaceServer(
   };
 
   /** Slack's views.open: a new form for the person who just asked for one. */
-  app.post("/api/views.open", async (req) => {
+  app.post("/api/views.open", async (req, reply) => {
     const owner = slackCaller(req);
     if (!owner) return slackError("invalid_auth");
+    sayScopes(reply, owner);
     const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
     const trigger = spendTrigger(owner, body.trigger_id);
     if ("error" in trigger) return slackError(trigger.error);
@@ -5179,9 +5249,10 @@ async function startWorkspaceServer(
    * this app, which they come back to when this one closes. With none open,
    * it opens as views.open would.
    */
-  app.post("/api/views.push", async (req) => {
+  app.post("/api/views.push", async (req, reply) => {
     const owner = slackCaller(req);
     if (!owner) return slackError("invalid_auth");
+    sayScopes(reply, owner);
     const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
     const trigger = spendTrigger(owner, body.trigger_id);
     if ("error" in trigger) return slackError(trigger.error);
@@ -5195,9 +5266,10 @@ async function startWorkspaceServer(
    * action ids stays, as on Slack. A `hash` from an earlier answer refuses
    * the change if the view has changed since, so two updates cannot cross.
    */
-  app.post("/api/views.update", async (req) => {
+  app.post("/api/views.update", async (req, reply) => {
     const owner = slackCaller(req);
     if (!owner) return slackError("invalid_auth");
+    sayScopes(reply, owner);
     // An app updating in a loop pushes a form at someone with every call.
     ration("post", owner.botUserId);
     const body = (req.body ?? {}) as {

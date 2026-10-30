@@ -24,9 +24,39 @@ An administrator creates an app under **Apps and integrations**. Each app gets:
 - any number of **incoming webhooks**, one per channel, each with a secret URL —
   **New URL** replaces one.
 
-There is no OAuth installation flow and no scopes. A bot token can call every
-method listed below, limited by what its bot user can reach: private channels
-and group conversations only once the bot has been added to them.
+There is no OAuth installation flow. Instead, the administrator chooses the
+app's **scopes** when they create it, and can change them on its card at any
+time. They use Slack's names, so the scopes an app's own instructions ask for
+carry over. Its bot token holds them from its next call. On top of them, the
+bot user's reach still applies: private channels and group conversations only
+once the bot has been added to them.
+
+- An app made in **Apps and integrations** starts able to post and is sent no
+  events, until more is ticked.
+- An app made through the API without a `scopes` list, and every app made before
+  scopes existed, has all of them, as every app did then.
+- Every Web API answer carries the token's scopes in `X-OAuth-Scopes`, as
+  Slack's do, and a method the scopes do not reach answers `missing_scope` with
+  `needed` and `provided`.
+- The methods for forms (`views.*`) and `auth.test` need no scope, as on Slack.
+- There are no methods that read, so the reading scopes decide which **events**
+  reach the app's subscriptions (see [Events](#events)).
+
+The scopes — _checked_:
+
+| Scope               | Lets the app                                                                |
+| ------------------- | --------------------------------------------------------------------------- |
+| `chat:write`        | Post with `chat.postMessage` where its bot has been added                   |
+| `chat:write.public` | Also post in public channels its bot has not been added to                  |
+| `channels:history`  | Be sent messages from public channels its bot is in                         |
+| `groups:history`    | Be sent messages from private channels its bot is in                        |
+| `im:history`        | Be sent messages from direct messages with its bot                          |
+| `mpim:history`      | Be sent messages from group conversations its bot is in                     |
+| `channels:read`     | Be sent channels made or changed, and members joining or leaving, if public |
+| `groups:read`       | The same for private channels its bot is in                                 |
+| `reactions:read`    | Be sent reactions added and removed                                         |
+| `pins:read`         | Be sent pins added and removed                                              |
+| `users:read`        | Be sent people joining the workspace and changing their profiles            |
 
 ## Identifiers
 
@@ -115,9 +145,11 @@ events and interactions over HTTP.
 
 - `channel` is a channel id or `#name`. **A user id is not accepted**: this does
   not open a direct message, and answers `channel_not_found`.
-- Posting to a **public** channel does not require the bot to be a member —
-  as if every app had Slack's `chat:write.public`. A private channel or group
-  conversation does, and answers `not_in_channel` otherwise.
+- It needs `chat:write`. Posting to a **public** channel the bot has not been
+  added to also needs `chat:write.public`, as on Slack, and answers
+  `not_in_channel` with `"needed": "chat:write.public"` otherwise. A private
+  channel or group conversation needs the bot in it, and answers
+  `not_in_channel` otherwise.
 - `text` wins when both `text` and `blocks` are given, though the buttons in
   `blocks` are still drawn; `blocks` alone are turned into text (see
   [Block Kit](#block-kit)).
@@ -130,8 +162,9 @@ events and interactions over HTTP.
 | Error               | When                                                               |
 | ------------------- | ------------------------------------------------------------------ |
 | `invalid_auth`      | The token is missing, unknown, replaced, or its app is deactivated |
+| `missing_scope`     | The app does not have `chat:write`                                 |
 | `channel_not_found` | No such channel, or it is archived                                 |
-| `not_in_channel`    | A private conversation the bot has not been added to               |
+| `not_in_channel`    | A conversation the bot has not been added to, as above             |
 | `no_text`           | Neither `text` nor `blocks` produced anything to post              |
 
 ### `views.open`
@@ -380,7 +413,12 @@ What is delivered:
 - **never** an event caused by the app's own bot, which is how a bot that answers
   messages ends up answering itself forever;
 - only the event types the subscription names, using the native names in the
-  table below, or every type if it names none.
+  table below, or every type if it names none;
+- only what the app's scopes let it read, as the table's last column says. A
+  message from a private channel needs `groups:history` where one from a public
+  channel needs `channels:history`. Apps and integrations names the scopes a
+  subscription's events are waiting on. Events already queued when a scope is
+  taken away are still sent.
 
 How it is delivered:
 
@@ -418,21 +456,21 @@ on its way out at that moment may still arrive as it was.
 
 The events — _checked_:
 
-| Native event       | Slack `event.type`      | Differences                                                        |
-| ------------------ | ----------------------- | ------------------------------------------------------------------ |
-| `message.created`  | `message`               | `thread_ts` present for a reply                                    |
-| `message.updated`  | `message`               | `subtype: "message_changed"`, with the new `message`               |
-| `message.deleted`  | `message`               | `subtype: "message_deleted"`, with `deleted_ts`                    |
-| `reaction.added`   | `reaction_added`        | `reaction` is the emoji itself, not its name                       |
-| `reaction.removed` | `reaction_removed`      | As above                                                           |
-| `pin.added`        | `pin_added`             | —                                                                  |
-| `pin.removed`      | `pin_removed`           | No `user`                                                          |
-| `channel.created`  | `channel_created`       | —                                                                  |
-| `channel.updated`  | `channel_rename`        | Sent for any change to a channel, not only its name                |
-| `member.joined`    | `member_joined_channel` | —                                                                  |
-| `member.left`      | `member_left_channel`   | —                                                                  |
-| `user.joined`      | `team_join`             | `user` carries `id`, `name`, `real_name`, `is_bot`, `deleted` only |
-| `user.updated`     | `user_change`           | As above                                                           |
+| Native event       | Slack `event.type`      | Differences                                                        | Scope                                                              |
+| ------------------ | ----------------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------ |
+| `message.created`  | `message`               | `thread_ts` present for a reply                                    | `channels:history`, `groups:history`, `im:history`, `mpim:history` |
+| `message.updated`  | `message`               | `subtype: "message_changed"`, with the new `message`               | `channels:history`, `groups:history`, `im:history`, `mpim:history` |
+| `message.deleted`  | `message`               | `subtype: "message_deleted"`, with `deleted_ts`                    | `channels:history`, `groups:history`, `im:history`, `mpim:history` |
+| `reaction.added`   | `reaction_added`        | `reaction` is the emoji itself, not its name                       | `reactions:read`                                                   |
+| `reaction.removed` | `reaction_removed`      | As above                                                           | `reactions:read`                                                   |
+| `pin.added`        | `pin_added`             | —                                                                  | `pins:read`                                                        |
+| `pin.removed`      | `pin_removed`           | No `user`                                                          | `pins:read`                                                        |
+| `channel.created`  | `channel_created`       | —                                                                  | `channels:read`, `groups:read`                                     |
+| `channel.updated`  | `channel_rename`        | Sent for any change to a channel, not only its name                | `channels:read`, `groups:read`                                     |
+| `member.joined`    | `member_joined_channel` | —                                                                  | `channels:read`, `groups:read`                                     |
+| `member.left`      | `member_left_channel`   | —                                                                  | `channels:read`, `groups:read`                                     |
+| `user.joined`      | `team_join`             | `user` carries `id`, `name`, `real_name`, `is_bot`, `deleted` only | `users:read`                                                       |
+| `user.updated`     | `user_change`           | As above                                                           | `users:read`                                                       |
 
 ## Block Kit
 
