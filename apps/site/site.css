@@ -802,27 +802,41 @@ h3 {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   background: #fff;
 }
+/*
+ * Each card shares three rows with the cards beside it: title, text, then the
+ * button and its note. So the buttons sit on one line however long each
+ * card's text runs.
+ */
 .platform {
   position: relative;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  display: grid;
+  grid-row: span 3;
+  grid-template-rows: subgrid;
   padding: clamp(22px, 2.6vw, 32px);
   border-left: 1px solid var(--line);
 }
 .platform:first-child {
   border-left: 0;
 }
-.platform > p {
+.platform-text {
+  display: grid;
+  gap: 10px;
+  align-content: start;
+  margin-top: 10px;
+}
+.platform-text > p,
+.platform-browser > p {
   color: var(--ink-2);
   font-size: 16px;
 }
-.platform > p a {
+.platform-text a {
   color: var(--ink);
   font-weight: 600;
   text-underline-offset: 3px;
 }
 .platform-browser {
+  display: flex;
+  grid-row: auto;
   flex-flow: row wrap;
   align-items: baseline;
   gap: 4px 16px;
@@ -849,9 +863,9 @@ h3 {
 .platform-get {
   display: grid;
   gap: 8px;
+  align-content: start;
   justify-items: start;
-  margin-top: auto;
-  padding-top: 6px;
+  margin-top: 16px;
 }
 .platform-meta {
   max-width: 34ch;
