@@ -370,25 +370,22 @@
 }
 
 /*
- * Notices sit just below the 76-pixel header every workspace screen shares. A
- * failure waits there to be read without covering the composer, the sidebar's
- * controls, or the window controls the desktop app draws in the header itself.
- * Over a dialog they sit centred at the top of the window instead, clear of
- * its corner and close button, and glide back once it closes. Menus and
- * popovers are not dialogs here: opening one leaves an Undo where it was.
+ * Notices sit centred just below the 76-pixel header every workspace screen
+ * shares. A failure waits there to be read without covering the composer, the
+ * sidebar's controls, the side panel's rows, or the window controls the
+ * desktop app draws in the header itself. Over a dialog they rise to the top
+ * of the window instead, and glide back once it closes. Menus and popovers are
+ * not dialogs here: opening one leaves an Undo where it was.
  */
 [data-ownbase-toasts] {
   --toast-width: min(24rem, calc(100vw - 2rem));
   top: 88px;
-  left: calc(100% - 1rem - var(--toast-width));
+  left: calc(50% - var(--toast-width) / 2);
   width: var(--toast-width);
-  transition:
-    top var(--duration-medium) var(--ease-smooth),
-    left var(--duration-medium) var(--ease-smooth);
+  transition: top var(--duration-medium) var(--ease-smooth);
 }
 body:has(> .dialog-backdrop[data-ownbase-modal]) > [data-ownbase-toasts] {
   top: 0.75rem;
-  left: calc(50% - var(--toast-width) / 2);
 }
 /* The desktop app's settings window starts below its title bar. */
 body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts] {
