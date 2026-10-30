@@ -156,7 +156,7 @@ describe("account and administration dialogs", () => {
     const dialog = screen.getByRole("form", { name: "Your profile" });
     expect(within(dialog).getByLabelText("Display name")).toHaveValue("Sam Rivera");
     const status = within(dialog).getByRole("group", { name: "Status" });
-    expect(within(status).getByLabelText("Status emoji")).toHaveValue("🎧");
+    expect(within(status).getByRole("button", { name: "Change status emoji, 🎧" })).toBeVisible();
     expect(within(status).getByLabelText("Status text")).toHaveValue("Heads down");
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });

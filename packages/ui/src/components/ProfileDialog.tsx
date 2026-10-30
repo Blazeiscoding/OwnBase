@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
 import { currentZoneName, type ID } from "@ownbase/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
@@ -14,6 +14,7 @@ import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
 import { useOptionalConfirm } from "./Confirm.js";
 import { useOptionalToast } from "./Toast.js";
+import { ErrorBoundary } from "./ErrorBoundary.js";
 import {
   CLEAR_AFTER,
   STATUS_PRESETS,
@@ -21,6 +22,11 @@ import {
   statusUntil,
   type ClearAfter,
 } from "../lib/status.js";
+
+// Every emoji is more than a profile should bring with it; it comes when a status's emoji is chosen.
+const ReactionPicker = lazy(() =>
+  import("./ReactionPicker.js").then((module) => ({ default: module.ReactionPicker })),
+);
 
 /**
  * Someone's profile card, with a shortcut to open a DM with them; or your own,
@@ -237,6 +243,8 @@ export function ProfileForm() {
   const [displayName, setDisplayName] = useState(self?.displayName ?? "");
   const [statusEmoji, setStatusEmoji] = useState(self?.statusEmoji ?? "");
   const [statusText, setStatusText] = useState(self?.statusText ?? "");
+  const [choosingEmoji, setChoosingEmoji] = useState(false);
+  const emojiButton = useRef<HTMLButtonElement>(null);
   /** How long the status lasts; "kept" leaves the end it was set with. */
   const [clearAfter, setClearAfter] = useState<ClearAfter | "kept">(
     self?.statusExpiresAt ? "kept" : "never",
@@ -452,16 +460,26 @@ export function ProfileForm() {
       <fieldset>
         <legend className="mb-1.5 block text-[13px] font-medium text-ink-dim">Status</legend>
         <div className="flex gap-2">
-          <input
-            aria-label="Status emoji"
-            value={statusEmoji}
-            onChange={(e) => setStatusEmoji(e.target.value)}
-            maxLength={32}
-            placeholder="🙂"
+          {/* One emoji, chosen from the picker rather than typed, so a status never holds several. */}
+          <button
+            ref={emojiButton}
+            type="button"
+            aria-label={
+              statusEmoji ? `Change status emoji, ${statusEmoji}` : "Choose a status emoji"
+            }
+            aria-haspopup="dialog"
+            aria-expanded={choosingEmoji}
+            onClick={() => setChoosingEmoji(true)}
             // One emoji's width: the shared class is full width, which split the
             // row in half with the status text.
-            className={`${inputCls.replace("w-full", "")} w-14 shrink-0 text-center text-base`}
-          />
+            className={`${inputCls.replace("w-full", "")} flex w-14 shrink-0 items-center justify-center text-ink-faint`}
+          >
+            {statusEmoji ? (
+              <span className="font-emoji text-lg leading-5 text-ink">{statusEmoji}</span>
+            ) : (
+              <Icon name="smile" size={18} />
+            )}
+          </button>
           <input
             aria-label="Status text"
             value={statusText}
@@ -471,6 +489,27 @@ export function ProfileForm() {
             className={inputCls}
           />
         </div>
+        {choosingEmoji && (
+          <ErrorBoundary
+            fallback={
+              <Dialog title="Choose a status emoji" onClose={() => setChoosingEmoji(false)}>
+                <p role="alert" className="text-sm text-ink-dim">
+                  The emoji picker could not load. Reload the app to try again.
+                </p>
+              </Dialog>
+            }
+          >
+            <Suspense fallback={null}>
+              <ReactionPicker
+                title="Choose a status emoji"
+                anchor={emojiButton}
+                align="start"
+                onPick={setStatusEmoji}
+                onClose={() => setChoosingEmoji(false)}
+              />
+            </Suspense>
+          </ErrorBoundary>
+        )}
         <div className="mt-2 flex flex-wrap gap-1.5">
           {STATUS_PRESETS.map((p) => (
             <button
