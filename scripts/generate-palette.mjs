@@ -11,8 +11,9 @@
 // Change the inputs, run this, and every file below follows. packages/ui/
 // test/theme.test.ts fails when one of them was edited by hand, and checks
 // that every ink still reads at 4.5:1 on every surface in both themes.
-import { readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { paths, pixels, svg } from "./icon-art.mjs";
 
 export const INPUTS = {
   /** chaicode.com's orange: OwnBase's accent, kept on purpose. */
@@ -367,22 +368,23 @@ export const OUTPUTS = {
     const deep = palette().darkTokens["--color-deep"];
     return setHexes(text, [deep, deep]);
   },
-  // The mark; scripts/generate-icons.mjs draws the app icons from it.
-  "apps/web/public/ownbase.svg": (text) => {
-    const t = palette().darkTokens;
-    return setHexes(text, [t["--color-copper"], t["--color-ground"]]);
-  },
-  "apps/desktop/src/renderer/public/ownbase.svg": (text) => {
-    const t = palette().darkTokens;
-    return setHexes(text, [t["--color-copper"], t["--color-ground"]]);
-  },
+  // The mark, a pixel drawing of its own in scripts/icon-art.mjs: the favicons,
+  // the landing page's logo and the one the Join screen shows. scripts/
+  // generate-icons.mjs draws the app icons from the same drawing.
+  "apps/web/public/ownbase.svg": () => svg({ both: true }),
+  "apps/desktop/src/renderer/public/ownbase.svg": () => svg({ both: true }),
+  "apps/site/ownbase.svg": () => svg({ both: true }),
+  "packages/ui/src/components/brandMark.json": () =>
+    `[\n${paths(pixels())
+      .map((path) => `  ${JSON.stringify(path)}`)
+      .join(",\n")}\n]\n`,
 };
 
 const root = new URL("../", import.meta.url);
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   for (const [path, write] of Object.entries(OUTPUTS)) {
     const file = new URL(path, root);
-    const before = readFileSync(file, "utf8");
+    const before = existsSync(file) ? readFileSync(file, "utf8") : "";
     const after = write(before);
     if (after !== before) {
       writeFileSync(file, after);

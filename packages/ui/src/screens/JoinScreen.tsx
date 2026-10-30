@@ -8,7 +8,8 @@ import type {
   Platform,
   SavedServer,
 } from "../platform.js";
-import { BrandMark, Icon } from "../components/Icon.js";
+import { BrandMark } from "../components/BrandMark.js";
+import { Icon } from "../components/Icon.js";
 import { Tooltip } from "../components/Tooltip.js";
 import { connectionFailure, host, incompatibleWorkspace } from "../lib/connection.js";
 import { useHostedIcon, useWorkspaceIconUrl } from "../lib/workspaceIcon.js";
@@ -241,7 +242,7 @@ export function JoinScreen({
               className={`flex items-center gap-2.5 font-brand text-[17px] font-semibold tracking-tight ${authing ? "mb-3" : "mb-6"}`}
             >
               <span className="drop-shadow-[0_6px_18px_color-mix(in_oklab,var(--color-copper)_45%,transparent)]">
-                <BrandMark size={30} />
+                <BrandMark size={32} />
               </span>
               OwnBase
             </div>

@@ -182,24 +182,3 @@ export function Icon({
     </svg>
   );
 }
-
-export function BrandMark({ size = 32 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 40 40"
-      fill="none"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <rect width="40" height="40" rx="12" fill="currentColor" className="text-copper" />
-      <path
-        d="M20 11.5a6 6 0 1 1 0 12a6 6 0 1 1 0-12M12 28h16"
-        stroke="var(--color-ground)"
-        strokeWidth="3"
-        strokeLinecap="round"
-      />
-    </svg>
-  );
-}

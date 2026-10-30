@@ -117,6 +117,12 @@ const cases = [
     changed: [packageTask("web", "build"), "ownbase-server#build", packageTask("ui", "test")],
     unchanged: [packageTask("desktop", "build")],
   },
+  // The drawing the marks above are written from; ui's tests check they match it.
+  {
+    file: "scripts/icon-art.mjs",
+    changed: [packageTask("ui", "test")],
+    unchanged: [packageTask("web", "build"), packageTask("desktop", "build")],
+  },
   // Scripts the pages run that ui's tests read and run themselves.
   {
     file: "apps/web/public/first-paint.js",
@@ -168,6 +174,7 @@ try {
       "packages",
       "tests/fixtures",
       "docs/INTEGRATIONS.md",
+      "scripts/icon-art.mjs",
     ],
     root,
   )
