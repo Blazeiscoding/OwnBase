@@ -228,26 +228,62 @@ nothing. Only buttons are drawn from an `actions` block.
 A view is Slack's `modal` reduced to what this server can draw:
 
 - `title`, `submit`, `close`, `callback_id` and `private_metadata`;
-- `input` blocks holding a `plain_text_input` (with `multiline`, `placeholder`
-  and `initial_value`) or a `static_select` (with up to 100 `options` and
-  `initial_option`), with `label`, `hint` and `optional`. A select left with no
-  usable options is dropped;
+- `input` blocks, with `label`, `hint` and `optional`, each holding one of the
+  elements below;
 - `header`, `section`, `context` and `divider` blocks, shown as text above the
   inputs.
 
-An input of any other kind — a date picker, a multi-select, a checkbox — is
-**dropped** rather than drawn as a control that does nothing. At most 25 inputs
-are kept.
+The input elements — _checked_:
+
+| Element                      | Honoured                                                                                   | Answer in `state.values`      |
+| ---------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------- |
+| `plain_text_input`           | `multiline`, `placeholder`, `initial_value`                                                | `value`                       |
+| `static_select`              | `options` or `option_groups`, `placeholder`, `initial_option`                              | `selected_option`             |
+| `multi_static_select`        | As above, with `initial_options` and `max_selected_items`                                  | `selected_options`            |
+| `checkboxes`                 | `options` with `description`, `initial_options`                                            | `selected_options`            |
+| `radio_buttons`              | `options` with `description`, `initial_option`                                             | `selected_option`             |
+| `users_select`               | `placeholder`, `initial_user`                                                              | `selected_user`               |
+| `multi_users_select`         | `placeholder`, `initial_users`, `max_selected_items`                                       | `selected_users`              |
+| `conversations_select`       | `placeholder`, `initial_conversation`, `default_to_current_conversation`, `filter.include` | `selected_conversation`       |
+| `multi_conversations_select` | As above, with `initial_conversations` and `max_selected_items`                            | `selected_conversations`      |
+| `channels_select`            | `placeholder`, `initial_channel`                                                           | `selected_channel`            |
+| `multi_channels_select`      | `placeholder`, `initial_channels`, `max_selected_items`                                    | `selected_channels`           |
+| `datepicker`                 | `placeholder`, `initial_date`                                                              | `selected_date`, `YYYY-MM-DD` |
+| `timepicker`                 | `initial_time`                                                                             | `selected_time`, `HH:mm`      |
+
+- A select takes up to 100 options, and checkboxes and radio buttons up to 10,
+  as on Slack. Option groups are run together into one list. A choice left
+  with no usable options is dropped.
+- The people pickers offer everyone with an active account except bots. The
+  conversation pickers offer what the person filling in the form can open,
+  limited by `filter.include` (`public`, `private`, `im`, `mpim`). The channel
+  pickers offer public channels. Archived conversations are never offered.
+- `default_to_current_conversation` starts a conversation picker on the
+  conversation where the slash command was run or the button pressed.
+- A starting value the person cannot see is left out rather than sent unseen.
+- Not honoured: `exclude_bot_users` and `exclude_external_shared_channels` in a
+  filter, `min_length` and `max_length` on text, `timezone` on a time picker,
+  `focus_on_load`, `dispatch_action` and `response_url_enabled`.
+
+An input of any other kind, such as `datetimepicker`, `number_input`,
+`email_text_input`, `file_input` or `external_select`, is **dropped** rather than
+drawn as a control that does nothing. At most 25 inputs are kept.
 
 Submitting posts a form with a `payload` field holding Slack's `view_submission`:
 `team`, `user`, `api_app_id`, a fresh `trigger_id`, and `view` with `id`,
-`callback_id`, `private_metadata`, `title` and `state.values`, where each value
-is `{"type": "plain_text_input", "value": "…"}` or
-`{"type": "static_select", "selected_option": {"value": "…"} | null}`.
+`callback_id`, `private_metadata`, `title` and `state.values`. Each value names
+its element as `type` and holds its answer under the key in the table, as Slack
+sends it: a chosen option is `{"text": {"type": "plain_text", "text": "…"},
+"value": "…"}`, with a `description` if it had one, and people and
+conversations are ids. An optional input left empty answers `""` for text,
+`null` for one choice and `[]` for several.
 
 Before anything reaches the app, the server refuses a submission that leaves a
-required input empty or chooses an option the select never offered, so an app
-never has to defend against a form its own view forbids.
+required input empty, or chooses something the input never offered: an option
+it did not list, more than `max_selected_items`, an account that is not active,
+a conversation the person cannot open or the filter leaves out, a channel that
+is not public, or a date or time that does not exist. So an app never has to
+defend against a form its own view forbids.
 
 The app's answer:
 

@@ -1838,9 +1838,9 @@ describe("modals", () => {
       // A control we cannot draw is dropped rather than shown as a dead field.
       {
         type: "input",
-        block_id: "when",
-        label: { type: "plain_text", text: "When" },
-        element: { type: "datepicker", action_id: "date" },
+        block_id: "logs",
+        label: { type: "plain_text", text: "Build logs" },
+        element: { type: "file_input", action_id: "files" },
       },
     ],
   };
@@ -1875,7 +1875,7 @@ describe("modals", () => {
     expect(pushedView.title).toBe("Deploy");
     expect(pushedView.submitLabel).toBe("Ship it");
     expect(pushedView.text).toBe("Where is this going?");
-    // The date picker is gone; the two fields we can draw are not.
+    // The file input is gone; the two fields we can draw are not.
     expect(pushedView.fields.map((f) => f.blockId)).toEqual(["where", "why"]);
     expect(pushedView.fields[0]!.options).toHaveLength(2);
     expect(pushedView.fields[1]!.optional).toBe(true);
@@ -1903,7 +1903,7 @@ describe("modals", () => {
         state: {
           values: Record<
             string,
-            Record<string, { value?: string; selected_option?: { value: string } }>
+            Record<string, { value?: string; selected_option?: { text: unknown; value: string } }>
           >;
         };
       };
@@ -1912,7 +1912,9 @@ describe("modals", () => {
     expect(delivered.user.id).toBe(bob.id);
     expect(delivered.view.callback_id).toBe("deploy_form");
     expect(delivered.view.private_metadata).toBe("build-412");
+    // As Slack sends it: the option's text beside its value.
     expect(delivered.view.state.values.where!.env!.selected_option).toEqual({
+      text: { type: "plain_text", text: "Production" },
       value: "production",
     });
 
@@ -2018,13 +2020,13 @@ describe("modals", () => {
       body: {
         trigger_id: trigger,
         view: {
-          title: { type: "plain_text", text: "Pick a day" },
+          title: { type: "plain_text", text: "Send a file" },
           blocks: [
             {
               type: "input",
-              block_id: "when",
-              label: { type: "plain_text", text: "When" },
-              element: { type: "datepicker", action_id: "date" },
+              block_id: "upload",
+              label: { type: "plain_text", text: "File" },
+              element: { type: "file_input", action_id: "file" },
             },
           ],
         },
@@ -2046,6 +2048,317 @@ describe("modals", () => {
     // Slack answers a failed method with 200 and ok:false; see slackError.
     expect(stolen.status).toBe(200);
     expect(stolen.data.error).toBe("trigger_not_yours");
+  });
+
+  describe("controls beyond text and a static select", () => {
+    const option = (text: string, value: string, description?: string) => ({
+      text: { type: "plain_text", text },
+      value,
+      ...(description ? { description: { type: "mrkdwn", text: description } } : {}),
+    });
+    const input = (
+      blockId: string,
+      label: string,
+      element: Record<string, unknown>,
+      optional = false,
+    ) => ({
+      type: "input",
+      block_id: blockId,
+      optional,
+      label: { type: "plain_text", text: label },
+      element,
+    });
+
+    /** A private channel Bob is not in, one he is in, his DM with Alice, and an archived one. */
+    let leads: string;
+    let ops: string;
+    let dm: string;
+    let archived: string;
+    let carol: User;
+
+    beforeAll(async () => {
+      const room = async (body: Record<string, unknown>) =>
+        (await api<{ channel: { id: string } }>("/api/channels", { token: aliceToken, body })).data
+          .channel.id;
+      leads = await room({ type: "private", name: "leads" });
+      ops = await room({ type: "private", name: "ops", memberIds: [bob.id] });
+      dm = await room({ type: "dm", memberIds: [bob.id] });
+      archived = await room({ type: "public", name: "old-news" });
+      await api(`/api/channels/${archived}`, {
+        method: "PATCH",
+        token: aliceToken,
+        body: { archived: true },
+      });
+      const c = await api<{ user: User }>("/api/auth/register", {
+        body: { handle: "carol", displayName: "Carol", password: "password123" },
+      });
+      carol = c.data.user;
+      await api(`/api/admin/users/${carol.id}`, {
+        method: "PATCH",
+        token: aliceToken,
+        body: { deactivated: true },
+      });
+    });
+
+    const triage = () => ({
+      type: "modal",
+      callback_id: "triage",
+      title: { type: "plain_text", text: "Triage" },
+      blocks: [
+        input("labels", "Labels", {
+          type: "multi_static_select",
+          action_id: "pick",
+          max_selected_items: 2,
+          option_groups: [
+            { label: { type: "plain_text", text: "Kind" }, options: [option("Bug", "bug")] },
+            {
+              label: { type: "plain_text", text: "Other" },
+              options: [option("Docs", "docs"), option("Urgent", "urgent")],
+            },
+          ],
+          // One the select never offered, which is left out.
+          initial_options: [option("Docs", "docs"), option("Gone", "gone")],
+        }),
+        input("checks", "Before shipping", {
+          type: "checkboxes",
+          action_id: "done",
+          options: [option("Tests pass", "tests", "On the main branch"), option("Notes", "notes")],
+          initial_options: [option("Tests pass", "tests", "On the main branch")],
+        }),
+        input("size", "Size", {
+          type: "radio_buttons",
+          action_id: "size",
+          options: [option("Small", "s"), option("Large", "l")],
+          initial_option: option("Large", "l"),
+        }),
+        input("owner", "Owner", { type: "users_select", action_id: "who", initial_user: bob.id }),
+        input(
+          "reviewers",
+          "Reviewers",
+          { type: "multi_users_select", action_id: "who", max_selected_items: 3 },
+          true,
+        ),
+        input("where", "Where", {
+          type: "conversations_select",
+          action_id: "conv",
+          default_to_current_conversation: true,
+          filter: { include: ["public", "private"] },
+        }),
+        input(
+          "tell",
+          "Tell",
+          { type: "multi_conversations_select", action_id: "convs", filter: { include: ["im"] } },
+          true,
+        ),
+        input("room", "Room", { type: "channels_select", action_id: "chan" }),
+        input("rooms", "Also in", { type: "multi_channels_select", action_id: "chans" }, true),
+        input("day", "Day", { type: "datepicker", action_id: "date", initial_date: "2026-11-02" }),
+        // Not a time, so the picker starts empty rather than wrong.
+        input("at", "Time", { type: "timepicker", action_id: "time", initial_time: "25:00" }),
+      ],
+    });
+
+    /** Answers that are all acceptable, for a test to spoil one at a time. */
+    const good = () => ({
+      labels: { pick: ["bug", "urgent"] },
+      checks: { done: ["tests"] },
+      size: { size: "s" },
+      owner: { who: alice.id },
+      reviewers: { who: [alice.id, bob.id] },
+      where: { conv: ops },
+      tell: { convs: [dm] },
+      room: { chan: channelId },
+      rooms: { chans: [] as string[] },
+      day: { date: "2026-11-02" },
+      at: { time: "09:30" },
+    });
+
+    type Field = {
+      blockId: string;
+      type: string;
+      initialValue: string;
+      initialValues?: string[];
+      options: { text: string; value: string; description?: string }[];
+      maxSelected?: number;
+      conversationTypes?: string[];
+    };
+
+    /** Opens the triage form in front of Bob and returns what his client was sent. */
+    async function openTriage(created: { id: string; token: string }) {
+      const trigger = await pressButton(created, bobToken);
+      const socket = connectWs(bobToken);
+      await socket.next((m) => m.type === "ready");
+      const opened = await api<{ ok: boolean; error?: string }>("/api/views.open", {
+        token: created.token,
+        body: { trigger_id: trigger, view: triage() },
+      });
+      expect(opened.data).toMatchObject({ ok: true });
+      const pushed = (await socket.next(
+        (m) => m.type === "ephemeral" && m.event.type === "view.open",
+      )) as { type: "ephemeral"; event: { view: { id: string; fields: Field[] } } };
+      socket.ws.close();
+      return pushed.event.view;
+    }
+
+    it("draws every kind it was sent, each starting where the app asked", async () => {
+      const opened = await openTriage(await interactiveApp("Triage Bot"));
+      const field = (blockId: string) => opened.fields.find((f) => f.blockId === blockId)!;
+
+      expect(opened.fields.map((f) => [f.blockId, f.type])).toEqual([
+        ["labels", "multiselect"],
+        ["checks", "checkboxes"],
+        ["size", "radio"],
+        ["owner", "user"],
+        ["reviewers", "users"],
+        ["where", "conversation"],
+        ["tell", "conversations"],
+        ["room", "channel"],
+        ["rooms", "channels"],
+        ["day", "date"],
+        ["at", "time"],
+      ]);
+      // Groups are run together, since they are not drawn.
+      expect(field("labels").options.map((o) => o.value)).toEqual(["bug", "docs", "urgent"]);
+      expect(field("labels").initialValues).toEqual(["docs"]);
+      expect(field("labels").maxSelected).toBe(2);
+      expect(field("checks").options[0]).toEqual({
+        text: "Tests pass",
+        value: "tests",
+        description: "On the main branch",
+      });
+      expect(field("checks").initialValues).toEqual(["tests"]);
+      expect(field("checks").maxSelected).toBeUndefined();
+      expect(field("size").initialValue).toBe("l");
+      expect(field("owner").initialValue).toBe(bob.id);
+      expect(field("reviewers").maxSelected).toBe(3);
+      // The conversation the button was pressed in.
+      expect(field("where").initialValue).toBe(channelId);
+      expect(field("where").conversationTypes).toEqual(["public", "private"]);
+      expect(field("tell").conversationTypes).toEqual(["dm"]);
+      expect(field("room").conversationTypes).toBeUndefined();
+      expect(field("day").initialValue).toBe("2026-11-02");
+      expect(field("at").initialValue).toBe("");
+    });
+
+    it("hands the app each answer under the key Slack uses", async () => {
+      const opened = await openTriage(await interactiveApp("Answer Bot"));
+      stub.received.length = 0;
+      stub.handler = () => ({ body: "" });
+      const sent = await api<{ ok: boolean }>(`/api/views/${opened.id}/submit`, {
+        token: bobToken,
+        body: { values: good() },
+      });
+      expect(sent.data.ok).toBe(true);
+
+      const values = (
+        JSON.parse(new URLSearchParams(stub.received[0]!.body).get("payload")!) as {
+          view: { state: { values: Record<string, Record<string, unknown>> } };
+        }
+      ).view.state.values;
+      const text = (t: string) => ({ type: "plain_text", text: t });
+      expect(values).toEqual({
+        labels: {
+          pick: {
+            type: "multi_static_select",
+            selected_options: [
+              { text: text("Bug"), value: "bug" },
+              { text: text("Urgent"), value: "urgent" },
+            ],
+          },
+        },
+        checks: {
+          done: {
+            type: "checkboxes",
+            selected_options: [
+              { text: text("Tests pass"), value: "tests", description: text("On the main branch") },
+            ],
+          },
+        },
+        size: {
+          size: { type: "radio_buttons", selected_option: { text: text("Small"), value: "s" } },
+        },
+        owner: { who: { type: "users_select", selected_user: alice.id } },
+        reviewers: { who: { type: "multi_users_select", selected_users: [alice.id, bob.id] } },
+        where: { conv: { type: "conversations_select", selected_conversation: ops } },
+        tell: { convs: { type: "multi_conversations_select", selected_conversations: [dm] } },
+        room: { chan: { type: "channels_select", selected_channel: channelId } },
+        rooms: { chans: { type: "multi_channels_select", selected_channels: [] } },
+        day: { date: { type: "datepicker", selected_date: "2026-11-02" } },
+        at: { time: { type: "timepicker", selected_time: "09:30" } },
+      });
+    });
+
+    it("takes one answer for a list from a client that drew the list as a text box", async () => {
+      const opened = await openTriage(await interactiveApp("Older Client Bot"));
+      stub.received.length = 0;
+      stub.handler = () => ({ body: "" });
+      // A client from before these kinds draws any it does not know as text.
+      const sent = await api<{ ok: boolean }>(`/api/views/${opened.id}/submit`, {
+        token: bobToken,
+        body: { values: { ...good(), reviewers: { who: ` ${bob.id} ` } } },
+      });
+      expect(sent.data.ok).toBe(true);
+      const values = (
+        JSON.parse(new URLSearchParams(stub.received[0]!.body).get("payload")!) as {
+          view: { state: { values: Record<string, Record<string, unknown>> } };
+        }
+      ).view.state.values;
+      expect(values.reviewers!.who).toEqual({
+        type: "multi_users_select",
+        selected_users: [bob.id],
+      });
+    });
+
+    it("refuses an answer the field never offered, without asking the app", async () => {
+      const opened = await openTriage(await interactiveApp("Guarded Bot"));
+      stub.received.length = 0;
+      const cases: [string, string, unknown, string][] = [
+        ["labels", "pick", ["bug", "made-up"], "Choose from the options given."],
+        ["labels", "pick", ["bug", "docs", "urgent"], "Choose at most 2."],
+        ["labels", "pick", [], "This is required."],
+        ["checks", "done", ["shipped"], "Choose from the options given."],
+        ["size", "size", "m", "Choose one of the options."],
+        ["size", "size", ["s", "l"], "Choose only one."],
+        ["owner", "who", "", "This is required."],
+        ["owner", "who", "01NOSUCHPERSON0000000000000", "Choose someone in this workspace."],
+        ["owner", "who", "carol", "Choose someone in this workspace."],
+        ["reviewers", "who", [bob.id, "nobody"], "Choose someone in this workspace."],
+        // Private, and Bob is not in it.
+        ["where", "conv", "leads", "Choose a conversation you can see."],
+        // Bob can see it, but the app asked for channels only.
+        ["where", "conv", "dm", "Choose a conversation you can see."],
+        ["where", "conv", "archived", "Choose a conversation you can see."],
+        ["tell", "convs", ["ops"], "Choose a conversation you can see."],
+        ["room", "chan", "ops", "Choose a public channel."],
+        ["rooms", "chans", ["archived"], "Choose a public channel."],
+        ["day", "date", "2026-02-30", "Enter a date such as 2026-10-31."],
+        ["day", "date", "next tuesday", "Enter a date such as 2026-10-31."],
+        ["at", "time", "24:00", "Enter a time such as 14:30."],
+      ];
+      const ids: Record<string, string> = { leads, ops, dm, archived, carol: carol.id };
+      const resolve = (value: unknown): unknown =>
+        Array.isArray(value)
+          ? value.map(resolve)
+          : typeof value === "string"
+            ? (ids[value] ?? value)
+            : value;
+
+      for (const [blockId, actionId, value, error] of cases) {
+        const result = await api<{ ok: boolean; errors: Record<string, string> }>(
+          `/api/views/${opened.id}/submit`,
+          {
+            token: bobToken,
+            body: { values: { ...good(), [blockId]: { [actionId]: resolve(value) } } },
+          },
+        );
+        expect(result.data, `${blockId} = ${JSON.stringify(value)}`).toEqual({
+          ok: false,
+          errors: { [blockId]: error },
+        });
+      }
+      // The app is entitled to trust its own form, so it never heard of these.
+      expect(stub.received).toHaveLength(0);
+    });
   });
 });
 

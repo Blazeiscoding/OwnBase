@@ -2001,7 +2001,7 @@ export class WorkspaceClient {
    * can put each one under the field it belongs to; the form stays open then.
    */
   async submitModal(
-    values: Record<string, Record<string, string>>,
+    values: Record<string, Record<string, string | string[]>>,
     viewId = this.state.modal?.id,
   ): Promise<{ ok: boolean; errors?: Record<string, string>; message?: string }> {
     const modal = this.state.modal;

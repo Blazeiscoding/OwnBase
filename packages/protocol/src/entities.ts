@@ -828,6 +828,45 @@ export interface ModalView {
   fields: ModalField[];
 }
 
+/**
+ * What a modal input is drawn as. The pickers choose from the workspace: people
+ * (`user`, `users`), conversations the person can see (`conversation`,
+ * `conversations`) or public channels (`channel`, `channels`). A client that
+ * does not know a kind draws a text box; the server checks every answer
+ * against the kind, so an older client costs comfort, not correctness.
+ */
+export type ModalFieldType =
+  | "text"
+  | "textarea"
+  | "select"
+  | "multiselect"
+  | "checkboxes"
+  | "radio"
+  | "user"
+  | "users"
+  | "conversation"
+  | "conversations"
+  | "channel"
+  | "channels"
+  | "date"
+  | "time";
+
+/** The kinds answered with a list rather than one value. */
+export const MANY_ANSWER_FIELDS: ReadonlySet<ModalFieldType> = new Set([
+  "multiselect",
+  "checkboxes",
+  "users",
+  "conversations",
+  "channels",
+]);
+
+export interface ModalOption {
+  text: string;
+  value: string;
+  /** A line under the choice, for checkboxes and radio buttons. */
+  description?: string;
+}
+
 /** One input in a modal. Anything Slack offers that is not here is dropped. */
 export interface ModalField {
   blockId: string;
@@ -835,11 +874,21 @@ export interface ModalField {
   label: string;
   hint: string;
   optional: boolean;
-  type: "text" | "textarea" | "select";
+  type: ModalFieldType;
   placeholder: string;
+  /**
+   * What a one-answer kind starts with: text, an option's value, an id, a
+   * date as `YYYY-MM-DD` or a time as `HH:mm`. Empty for the list kinds.
+   */
   initialValue: string;
-  /** Choices for a select; empty for the text kinds. */
-  options: { text: string; value: string }[];
+  /** What a list kind starts with chosen. Absent for the one-answer kinds. */
+  initialValues?: string[];
+  /** Choices for select, multiselect, checkboxes and radio; empty for the rest. */
+  options: ModalOption[];
+  /** For the list pickers: at most this many may be chosen. Absent: no limit. */
+  maxSelected?: number;
+  /** For `conversation` and `conversations`: which kinds are offered. Absent: all. */
+  conversationTypes?: ChannelType[];
 }
 
 export interface Webhook {

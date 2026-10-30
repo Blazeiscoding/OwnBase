@@ -1,6 +1,16 @@
-import { useEffect, useRef, useState } from "react";
-import type { ModalField, ModalView } from "@ownbase/protocol";
+import { useEffect, useMemo, useRef, useState } from "react";
+import {
+  MANY_ANSWER_FIELDS,
+  type Channel,
+  type ID,
+  type ModalField,
+  type ModalFieldType,
+  type ModalView,
+  type User,
+} from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
+import { channelTitle } from "../lib/format.js";
+import { Avatar } from "./Avatar.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -17,11 +27,91 @@ export function ViewModal() {
   return view ? <AppForm key={view.id} view={view} /> : null;
 }
 
+/** One answer, or several for the kinds that take a list. */
+type Answer = string | string[];
+
+/** Something a field offers to choose: what is sent, what is shown, and who, for a person. */
+interface Choice {
+  value: string;
+  text: string;
+  description?: string;
+  person?: User;
+}
+
+/** The one-answer kinds that choose from a list, drawn as a select. */
+const ONE_CHOICE: ReadonlySet<ModalFieldType> = new Set([
+  "select",
+  "user",
+  "conversation",
+  "channel",
+]);
+
+/** What a one-answer select says before anything is chosen, when the app gave no placeholder. */
+const PROMPT: Partial<Record<ModalFieldType, string>> = {
+  select: "Choose one…",
+  user: "Choose someone…",
+  conversation: "Choose a conversation…",
+  channel: "Choose a channel…",
+};
+
+/** More choices than this, and a list picker gets a field to narrow it. */
+const FILTER_FROM = 6;
+
+const byText = (a: Choice, b: Choice) => a.text.localeCompare(b.text);
+
+/**
+ * What a field offers: the app's own options, or for a picker what this
+ * account can see. The server checks every answer again, so a list drawn from
+ * a stale copy of the workspace costs a refusal, not a wrong answer.
+ */
+function choicesFor(
+  field: ModalField,
+  users: Record<ID, User>,
+  channels: Record<ID, Channel>,
+  selfId: ID | undefined,
+): Choice[] {
+  switch (field.type) {
+    case "select":
+    case "multiselect":
+    case "checkboxes":
+    case "radio":
+      return field.options;
+    case "user":
+    case "users":
+      return Object.values(users)
+        .filter((u) => !u.deactivated && !u.isBot)
+        .map((u) => ({ value: u.id, text: u.displayName, person: u }))
+        .sort(byText);
+    case "conversation":
+    case "conversations":
+    case "channel":
+    case "channels": {
+      const kinds: readonly string[] | undefined =
+        field.type === "channel" || field.type === "channels"
+          ? ["public"]
+          : field.conversationTypes;
+      return Object.values(channels)
+        .filter((c) => !c.archived && (!kinds || kinds.includes(c.type)))
+        .map((c) => ({
+          value: c.id,
+          text:
+            c.type === "public" || c.type === "private"
+              ? `#${c.name}`
+              : channelTitle(c, users, selfId),
+        }))
+        .sort(byText);
+    }
+    default:
+      return [];
+  }
+}
+
 function AppForm({ view }: { view: ModalView }) {
   const client = useClient();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
-  const [values, setValues] = useState<Record<string, string>>({});
+  const selfId = useWorkspace((s) => s.self?.id);
+  const [values, setValues] = useState<Record<string, Answer>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -29,6 +119,14 @@ function AppForm({ view }: { view: ModalView }) {
   const showError = useRef(false);
   const alive = useRef(true);
   const submitting = useRef(false);
+
+  const choices = useMemo(
+    () =>
+      Object.fromEntries(
+        view.fields.map((field) => [fieldId(field), choicesFor(field, users, channels, selfId)]),
+      ),
+    [view, users, channels, selfId],
+  );
 
   useEffect(() => {
     alive.current = true;
@@ -44,10 +142,25 @@ function AppForm({ view }: { view: ModalView }) {
     if (refused) document.getElementById(fieldId(refused))?.focus();
   }, [errors, view]);
 
-  // Keyed by block as well: an action id need only be unique within its block,
-  // and two fields sharing one would otherwise share a value.
-  const valueOf = (field: ModalField) => values[fieldId(field)] ?? field.initialValue;
-  const setValue = (field: ModalField, value: string) =>
+  /**
+   * What a field holds: what was entered, or what the app started it with.
+   * A starting choice this account cannot see is left out rather than sent
+   * unseen. Keyed by block as well: an action id need only be unique within
+   * its block, and two fields sharing one would otherwise share a value.
+   */
+  const answerOf = (field: ModalField): Answer => {
+    const own = values[fieldId(field)];
+    if (own !== undefined) return own;
+    const offered = choices[fieldId(field)] ?? [];
+    if (MANY_ANSWER_FIELDS.has(field.type)) {
+      return (field.initialValues ?? []).filter((v) => offered.some((c) => c.value === v));
+    }
+    if (ONE_CHOICE.has(field.type) || field.type === "radio") {
+      return offered.some((c) => c.value === field.initialValue) ? field.initialValue : "";
+    }
+    return field.initialValue;
+  };
+  const setAnswer = (field: ModalField, value: Answer) =>
     setValues((v) => ({ ...v, [fieldId(field)]: value }));
 
   function close() {
@@ -62,9 +175,9 @@ function AppForm({ view }: { view: ModalView }) {
     setBusy(true);
     setMessage(null);
     // Nested the way the app will read it back: block id, then action id.
-    const payload: Record<string, Record<string, string>> = {};
+    const payload: Record<string, Record<string, Answer>> = {};
     for (const field of view.fields) {
-      payload[field.blockId] = { ...payload[field.blockId], [field.actionId]: valueOf(field) };
+      payload[field.blockId] = { ...payload[field.blockId], [field.actionId]: answerOf(field) };
     }
     try {
       const result = await client.submitModal(payload, view.id);
@@ -103,56 +216,16 @@ function AppForm({ view }: { view: ModalView }) {
               const error = errors[field.blockId];
               // The error replaces the hint on screen, and so in what is read.
               const described = error ? `${id}-error` : field.hint ? `${id}-hint` : undefined;
-              const shared = {
-                id,
-                "aria-describedby": described,
-                "aria-invalid": error ? true : undefined,
-                "aria-required": !field.optional,
-              };
-              return (
-                <div key={id}>
-                  <label htmlFor={id} className="mb-1 block text-[13px] font-medium">
-                    {field.label}
-                    {field.optional && (
-                      <span className="ml-1.5 text-[11px] font-normal text-ink-faint">
-                        optional
-                      </span>
-                    )}
-                  </label>
-
-                  {field.type === "select" ? (
-                    <select
-                      {...shared}
-                      value={valueOf(field)}
-                      onChange={(e) => setValue(field, e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">{field.placeholder || "Choose one…"}</option>
-                      {field.options.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.text}
-                        </option>
-                      ))}
-                    </select>
-                  ) : field.type === "textarea" ? (
-                    <textarea
-                      {...shared}
-                      value={valueOf(field)}
-                      placeholder={field.placeholder}
-                      rows={4}
-                      onChange={(e) => setValue(field, e.target.value)}
-                      className={`${inputCls} resize-y`}
-                    />
-                  ) : (
-                    <input
-                      {...shared}
-                      value={valueOf(field)}
-                      placeholder={field.placeholder}
-                      onChange={(e) => setValue(field, e.target.value)}
-                      className={inputCls}
-                    />
+              const label = (
+                <>
+                  {field.label}
+                  {field.optional && (
+                    <span className="ml-1.5 text-[11px] font-normal text-ink-faint">optional</span>
                   )}
-
+                </>
+              );
+              const notes = (
+                <>
                   {field.hint && !error && (
                     <p id={`${id}-hint`} className="mt-1 text-[11px] text-ink-faint">
                       {field.hint}
@@ -163,6 +236,97 @@ function AppForm({ view }: { view: ModalView }) {
                       {error}
                     </p>
                   )}
+                </>
+              );
+              const offered = choices[id] ?? [];
+              const answer = answerOf(field);
+
+              // Several controls answer together, so they are one group with
+              // one name, and the hint or error is read on entering it.
+              if (field.type === "radio" || MANY_ANSWER_FIELDS.has(field.type)) {
+                return (
+                  <fieldset
+                    key={id}
+                    role={field.type === "radio" ? "radiogroup" : undefined}
+                    aria-required={field.type === "radio" ? !field.optional : undefined}
+                    aria-describedby={described}
+                  >
+                    <legend className="mb-1 text-[13px] font-medium">{label}</legend>
+                    {field.type === "radio" || field.type === "checkboxes" ? (
+                      <ShortList
+                        id={id}
+                        field={field}
+                        choices={offered}
+                        answer={answer}
+                        invalid={!!error}
+                        onChange={(next) => setAnswer(field, next)}
+                      />
+                    ) : (
+                      <PickList
+                        id={id}
+                        field={field}
+                        choices={offered}
+                        chosen={answer as string[]}
+                        invalid={!!error}
+                        onChange={(next) => setAnswer(field, next)}
+                      />
+                    )}
+                    {notes}
+                  </fieldset>
+                );
+              }
+
+              const shared = {
+                id,
+                "aria-describedby": described,
+                "aria-invalid": error ? true : undefined,
+                "aria-required": !field.optional,
+              };
+              return (
+                <div key={id}>
+                  <label htmlFor={id} className="mb-1 block text-[13px] font-medium">
+                    {label}
+                  </label>
+
+                  {ONE_CHOICE.has(field.type) ? (
+                    <select
+                      {...shared}
+                      value={answer as string}
+                      onChange={(e) => setAnswer(field, e.target.value)}
+                      className={inputCls}
+                    >
+                      <option value="">{field.placeholder || PROMPT[field.type]}</option>
+                      {offered.map((choice) => (
+                        <option key={choice.value} value={choice.value}>
+                          {choice.text}
+                        </option>
+                      ))}
+                    </select>
+                  ) : field.type === "textarea" ? (
+                    <textarea
+                      {...shared}
+                      value={answer as string}
+                      placeholder={field.placeholder}
+                      rows={4}
+                      onChange={(e) => setAnswer(field, e.target.value)}
+                      className={`${inputCls} resize-y`}
+                    />
+                  ) : (
+                    <input
+                      {...shared}
+                      // The browser's own pickers, which already know the
+                      // person's calendar, clock and keyboard.
+                      type={
+                        field.type === "date" ? "date" : field.type === "time" ? "time" : "text"
+                      }
+                      value={answer as string}
+                      placeholder={field.placeholder}
+                      onChange={(e) => setAnswer(field, e.target.value)}
+                      className={inputCls}
+                    />
+                  )}
+
+                  {notes}
                 </div>
               );
             })}
@@ -188,6 +352,154 @@ function AppForm({ view }: { view: ModalView }) {
         </div>
       </form>
     </Dialog>
+  );
+}
+
+const ROW =
+  "flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-ink/[0.04] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-copper has-[:disabled]:cursor-default has-[:disabled]:opacity-50";
+const MARK = "mt-0.5 size-4 shrink-0 accent-[var(--color-copper)]";
+
+/**
+ * Checkboxes or radio buttons, all in sight: Slack allows ten of either, few
+ * enough to read at a glance. The first takes the field's id, so a refused
+ * answer can bring focus here.
+ */
+function ShortList(props: {
+  id: string;
+  field: ModalField;
+  choices: Choice[];
+  answer: Answer;
+  invalid: boolean;
+  onChange: (answer: Answer) => void;
+}) {
+  const { id, field, choices, answer, invalid, onChange } = props;
+  const radio = field.type === "radio";
+  const chosen = Array.isArray(answer) ? answer : answer ? [answer] : [];
+  return (
+    <div className="-mx-2 space-y-0.5">
+      {choices.map((choice, index) => {
+        const on = chosen.includes(choice.value);
+        return (
+          <label key={choice.value} className={ROW}>
+            <input
+              id={index === 0 ? id : undefined}
+              type={radio ? "radio" : "checkbox"}
+              name={id}
+              value={choice.value}
+              checked={on}
+              aria-invalid={invalid || undefined}
+              onChange={(e) =>
+                onChange(
+                  radio
+                    ? choice.value
+                    : e.target.checked
+                      ? [...chosen, choice.value]
+                      : chosen.filter((v) => v !== choice.value),
+                )
+              }
+              className={MARK}
+            />
+            <span className="min-w-0 text-sm">
+              <span className="block">{choice.text}</span>
+              {choice.description && (
+                <span className="block text-[12px] text-ink-faint">{choice.description}</span>
+              )}
+            </span>
+          </label>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * Several from a list that can run long: the app's options, people, or
+ * conversations. A field narrows it once there are more than a handful, and
+ * what is chosen stays in sight whatever the field holds. At the app's limit
+ * the rest wait until something is taken back.
+ */
+function PickList(props: {
+  id: string;
+  field: ModalField;
+  choices: Choice[];
+  chosen: string[];
+  invalid: boolean;
+  onChange: (chosen: string[]) => void;
+}) {
+  const { id, field, choices, chosen, invalid, onChange } = props;
+  const [query, setQuery] = useState("");
+  const filtered = choices.length > FILTER_FROM;
+  const needle = query.trim().toLocaleLowerCase();
+  const shown = needle
+    ? choices.filter(
+        (c) =>
+          chosen.includes(c.value) ||
+          c.text.toLocaleLowerCase().includes(needle) ||
+          c.person?.handle.toLocaleLowerCase().includes(needle),
+      )
+    : choices;
+  const full = field.maxSelected !== undefined && chosen.length >= field.maxSelected;
+  const count =
+    field.maxSelected !== undefined
+      ? `${chosen.length} of up to ${field.maxSelected} chosen`
+      : `${chosen.length} chosen`;
+
+  if (choices.length === 0) {
+    return (
+      <p id={id} tabIndex={-1} className="text-sm text-ink-faint">
+        {field.type === "users" ? "There is no one to choose yet." : "There is nothing to choose."}
+      </p>
+    );
+  }
+  return (
+    <div>
+      {filtered && (
+        <input
+          id={id}
+          type="search"
+          value={query}
+          aria-label={`Search ${field.label}`}
+          aria-invalid={invalid || undefined}
+          placeholder={field.placeholder || "Search"}
+          onChange={(e) => setQuery(e.target.value)}
+          className={`${inputCls} mb-1.5`}
+        />
+      )}
+      <ul className="max-h-52 space-y-0.5 overflow-y-auto rounded-lg border border-edge p-1">
+        {shown.map((choice, index) => {
+          const on = chosen.includes(choice.value);
+          return (
+            <li key={choice.value}>
+              <label className={`${ROW} items-center`}>
+                <input
+                  id={!filtered && index === 0 ? id : undefined}
+                  type="checkbox"
+                  checked={on}
+                  disabled={!on && full}
+                  aria-invalid={invalid || undefined}
+                  onChange={(e) =>
+                    onChange(
+                      e.target.checked
+                        ? [...chosen, choice.value]
+                        : chosen.filter((v) => v !== choice.value),
+                    )
+                  }
+                  className="size-4 shrink-0 accent-[var(--color-copper)]"
+                />
+                {choice.person && <Avatar user={choice.person} size={20} />}
+                <span className="min-w-0 truncate text-sm">{choice.text}</span>
+              </label>
+            </li>
+          );
+        })}
+        {shown.length === 0 && (
+          <li className="px-2 py-1.5 text-sm text-ink-faint">Nothing matches “{query.trim()}”.</li>
+        )}
+      </ul>
+      {(chosen.length > 0 || field.maxSelected !== undefined) && (
+        <p className="mt-1 text-[11px] text-ink-faint">{count}</p>
+      )}
+    </div>
   );
 }
 

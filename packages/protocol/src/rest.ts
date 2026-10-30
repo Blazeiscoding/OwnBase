@@ -337,12 +337,19 @@ export const messageActionBody = z.object({
 });
 
 /**
- * What someone typed into a modal: block id -> action id -> value. Bounded
- * because it is echoed to the app, and an app should not be handed a megabyte
- * because a field had no maxlength.
+ * What someone typed into a modal: block id -> action id -> value, or a list
+ * of values for the kinds that take several. Bounded because it is echoed to
+ * the app, and an app should not be handed a megabyte because a field had no
+ * maxlength.
  */
 export const viewSubmitBody = z.object({
-  values: z.record(z.string().max(255), z.record(z.string().max(255), z.string().max(3000))),
+  values: z.record(
+    z.string().max(255),
+    z.record(
+      z.string().max(255),
+      z.union([z.string().max(3000), z.array(z.string().max(3000)).max(100)]),
+    ),
+  ),
 });
 
 /** What an admin is changing about someone. Both are optional; at least one is required. */
