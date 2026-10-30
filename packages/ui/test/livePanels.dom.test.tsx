@@ -99,8 +99,10 @@ describe("the Saved panel", () => {
 
     saved = [message("M2", "Saved on the phone", 2)];
     act(() => client.store.setState({ saved: { M2: true } }));
-    await waitFor(() => expect(within(panel).queryByText("Saved earlier")).toBeNull());
-    expect(spy).toHaveBeenCalledTimes(3);
+    // Gone at once, since this device already knows, and the list read again.
+    expect(within(panel).queryByText("Saved earlier")).toBeNull();
+    await waitFor(() => expect(spy).toHaveBeenCalledTimes(3));
+    expect(within(panel).getByText("Saved on the phone")).toBeVisible();
   });
 
   it("asks again when a message it shows is edited, and not for other conversations", async () => {

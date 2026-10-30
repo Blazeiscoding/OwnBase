@@ -7,6 +7,8 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon, type IconName } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
+import { useOptionalToast } from "./Toast.js";
+import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { usePagedList } from "../lib/pagedList.js";
 
@@ -34,6 +36,13 @@ interface Props {
   itemBadge?: (message: Message) => ReactNode;
   /** Overrides the row's action wording when "Open message" is wrong. */
   jumpLabel?: (message: Message) => string;
+  /**
+   * Whether a row read from the server still belongs here as far as this
+   * device knows: one taken out goes at once, not when the list is next read.
+   */
+  keep?: (message: Message) => boolean;
+  /** Takes a row out of the list, such as unsaving it. Shows on hover or focus. */
+  remove?: { label: string; icon: IconName; run: (message: Message) => void };
   onClose: () => void;
   onJump: (channelId: ID, messageId: ID) => void;
 }
@@ -82,6 +91,20 @@ export function MessageListPanel(props: Props) {
   }, [list, changedContent, messages]);
 
   const { panel, heading } = usePanelFocus({ takeFocus: true });
+  const shown = (messages ?? []).filter((m) => channels[m.channelId] && (props.keep?.(m) ?? true));
+
+  /** Takes the row out and keeps keyboard focus nearby rather than on the page. */
+  function remove(message: Message, from: HTMLElement) {
+    const rows = [...(scroller.current?.querySelectorAll<HTMLElement>("[data-list-row]") ?? [])];
+    const at = rows.indexOf(from.closest<HTMLElement>("[data-list-row]")!);
+    const next = rows[at + 1] ?? rows[at - 1] ?? null;
+    props.remove!.run(message);
+    setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const open = next?.isConnected ? next.querySelector<HTMLElement>("[data-list-open]") : null;
+      (open ?? heading.current)?.focus();
+    });
+  }
 
   return (
     <aside
@@ -119,75 +142,94 @@ export function MessageListPanel(props: Props) {
               : null
           }
           onRetry={() => list.retry()}
-          empty={messages?.length === 0 && !paged.nextCursor ? props.emptyHint : null}
+          empty={messages && shown.length === 0 && !paged.nextCursor ? props.emptyHint : null}
           emptyIcon={props.emptyIcon}
           emptyAction={props.emptyAction}
         />
         <ul className="space-y-2">
-          {(messages ?? [])
-            .filter((message) => channels[message.channelId])
-            .map((m) => {
-              const channel = channels[m.channelId];
-              // A one-to-one conversation is named by its other person, who
-              // may be the author named just below: say the name once.
-              const others = (channel?.memberIds ?? []).filter((id) => id !== selfId);
-              const namedBelow =
-                channel?.type === "dm" && others.length === 1 && others[0] === m.userId;
-              return (
-                <li key={m.id}>
-                  <div className="w-full rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-ink/[0.035]">
-                    <div className="mb-1.5 flex items-center gap-2 text-[12px] text-ink-faint">
-                      <span className="truncate font-medium text-ink-dim">
-                        {namedBelow
-                          ? "Direct message"
-                          : channel
-                            ? channel.name
-                              ? `#${channel.name}`
-                              : channelTitle(channel, users, selfId)
-                            : "unknown"}
-                      </span>
-                      {props.itemBadge?.(m)}
-                      <time
-                        dateTime={new Date(m.createdAt).toISOString()}
-                        title={formatFull(m.createdAt)}
-                        className="ml-auto shrink-0"
-                      >
-                        {formatWhen(m.createdAt)}
-                      </time>
-                    </div>
-                    <div className="flex gap-2.5">
-                      <Avatar user={users[m.userId]} size={28} />
-                      <div className="min-w-0 flex-1">
-                        <div className="text-[13px] font-semibold">
-                          {users[m.userId]?.displayName ?? "unknown"}
-                        </div>
-                        <div className="line-clamp-4 text-sm text-ink-dim">
-                          {m.text ? (
-                            <Mrkdwn
-                              text={m.text}
-                              users={users}
-                              channels={channels}
-                              selfId={selfId}
-                            />
-                          ) : (
-                            <span className="italic">
-                              {m.files.length} {m.files.length === 1 ? "file" : "files"}
-                            </span>
-                          )}
-                        </div>
+          {shown.map((m) => {
+            const channel = channels[m.channelId];
+            // A one-to-one conversation is named by its other person, who
+            // may be the author named just below: say the name once.
+            const others = (channel?.memberIds ?? []).filter((id) => id !== selfId);
+            const namedBelow =
+              channel?.type === "dm" && others.length === 1 && others[0] === m.userId;
+            return (
+              <li key={m.id} data-list-row="" className="group/row relative">
+                <div className="w-full rounded-xl px-2.5 py-2.5 text-left transition-colors hover:bg-ink/[0.035]">
+                  <div
+                    className={`mb-1.5 flex items-center gap-2 text-[12px] text-ink-faint ${
+                      // Where there is no hover the action stays over this line's end.
+                      props.remove ? "[@media(hover:none)]:pr-9" : ""
+                    }`}
+                  >
+                    <span className="truncate font-medium text-ink-dim">
+                      {namedBelow
+                        ? "Direct message"
+                        : channel
+                          ? channel.name
+                            ? `#${channel.name}`
+                            : channelTitle(channel, users, selfId)
+                          : "unknown"}
+                    </span>
+                    {props.itemBadge?.(m)}
+                    <time
+                      dateTime={new Date(m.createdAt).toISOString()}
+                      title={formatFull(m.createdAt)}
+                      className="ml-auto shrink-0"
+                    >
+                      {formatWhen(m.createdAt)}
+                    </time>
+                  </div>
+                  <div className="flex gap-2.5">
+                    <Avatar user={users[m.userId]} size={28} />
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[13px] font-semibold">
+                        {users[m.userId]?.displayName ?? "unknown"}
+                      </div>
+                      <div className="line-clamp-4 text-sm text-ink-dim">
+                        {m.text ? (
+                          <Mrkdwn text={m.text} users={users} channels={channels} selfId={selfId} />
+                        ) : (
+                          <span className="italic">
+                            {m.files.length} {m.files.length === 1 ? "file" : "files"}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <button
-                      className="ml-[38px] mt-1.5 inline-flex items-center gap-1 rounded-md text-[12px] font-medium text-ink-faint transition-colors hover:text-ink"
-                      onClick={() => props.onJump(m.channelId, m.id)}
-                    >
-                      {props.jumpLabel?.(m) ?? (m.threadRootId ? "Open reply" : "Open message")}
-                      <Icon name="arrow" size={12} />
-                    </button>
                   </div>
-                </li>
-              );
-            })}
+                  <button
+                    data-list-open=""
+                    className="ml-[38px] mt-1.5 inline-flex items-center gap-1 rounded-md text-[12px] font-medium text-ink-faint transition-colors hover:text-ink"
+                    onClick={() => props.onJump(m.channelId, m.id)}
+                  >
+                    {props.jumpLabel?.(m) ?? (m.threadRootId ? "Open reply" : "Open message")}
+                    <Icon name="arrow" size={12} />
+                  </button>
+                </div>
+                {props.remove && (
+                  <span className="absolute right-1.5 top-1 flex rounded-lg bg-raised p-0.5 opacity-0 shadow-[0_1px_3px_rgb(0_0_0/0.18)] transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:top-2 [@media(hover:none)]:opacity-100">
+                    <Tooltip label={props.remove.label}>
+                      <button
+                        type="button"
+                        aria-label={props.remove.label}
+                        // Copper, as a saved message's own bookmark is.
+                        className="flex size-7 items-center justify-center rounded-md text-copper transition-colors hover:bg-ink/[0.06]"
+                        onClick={(event) => {
+                          // The next row's button slides up under the pointer, so
+                          // the second click of a double-click would take it too.
+                          if (event.detail > 1) return;
+                          remove(m, event.currentTarget);
+                        }}
+                      >
+                        <Icon name={props.remove.icon} size={14} />
+                      </button>
+                    </Tooltip>
+                  </span>
+                )}
+              </li>
+            );
+          })}
         </ul>
         <LoadMore
           more={!!paged.nextCursor}
@@ -241,7 +283,32 @@ export function SavedPanel(props: {
   onScheduled?: () => void;
 }) {
   const client = useClient();
+  const toast = useOptionalToast();
+  const saved = useWorkspace((s) => s.saved);
   const savedSignature = useWorkspace((s) => Object.keys(s.saved).sort().join(","));
+
+  /**
+   * Optimistic, like the message's own bookmark: the row goes at once and
+   * comes back if the server refuses, with the news and a second try.
+   */
+  function setSaved(message: Message, save: boolean) {
+    const hideUndo = save
+      ? undefined
+      : toast?.({
+          message: "Removed from Saved.",
+          kind: "success",
+          action: { label: "Undo", run: () => setSaved(message, true) },
+        });
+    void client.toggleSaved(message.id, save).then((ok) => {
+      if (ok) return;
+      hideUndo?.();
+      toast?.({
+        message: save ? "Could not put that back in Saved." : "Could not remove that from Saved.",
+        action: { label: "Try again", run: () => setSaved(message, save) },
+      });
+    });
+  }
+
   return (
     <MessageListPanel
       title="Saved"
@@ -260,6 +327,12 @@ export function SavedPanel(props: {
       load={(cursor, signal) => client.api.listSaved(cursor, signal)}
       listKey="saved"
       refreshKey={savedSignature}
+      keep={(m) => !!saved[m.id]}
+      remove={{
+        label: "Remove from Saved",
+        icon: "bookmark",
+        run: (m) => setSaved(m, false),
+      }}
       onClose={props.onClose}
       onJump={props.onJump}
     />
