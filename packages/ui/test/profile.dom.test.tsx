@@ -192,10 +192,6 @@ describe("editing your own profile", () => {
       "maxlength",
       "80",
     );
-    expect(screen.getByRole("textbox", { name: "Status emoji" })).toHaveAttribute(
-      "maxlength",
-      "32",
-    );
     expect(screen.getByRole("textbox", { name: "Status text" })).toHaveAttribute(
       "maxlength",
       "120",
@@ -204,6 +200,50 @@ describe("editing your own profile", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "A display name can be up to 80 characters and a status up to 120.",
     );
+  });
+});
+
+describe("a status's emoji", () => {
+  it("is one emoji, chosen from the picker rather than typed", async () => {
+    const user = userEvent.setup();
+    const client = workspace();
+    client.store.setState({ self: { ...sam, statusEmoji: "💬", statusText: "In a meeting" } });
+    const updateMe = vi
+      .spyOn(client.api, "updateMe")
+      .mockImplementation(async (body) => ({ user: { ...sam, ...body } as User }));
+    render(
+      <ClientContext.Provider value={client}>
+        <ProfileForm />
+      </ClientContext.Provider>,
+    );
+    expect(screen.queryByRole("textbox", { name: /emoji/i })).toBeNull();
+    const button = screen.getByRole("button", { name: "Change status emoji, 💬" });
+    await user.click(button);
+    const search = await screen.findByRole("combobox", { name: "Search emoji" });
+    expect(screen.getByRole("dialog", { name: "Choose a status emoji" })).toBeInTheDocument();
+    await user.type(search, "party{Enter}");
+
+    // The pick takes the old one's place, and the picker goes, back to the button.
+    expect(screen.queryByRole("dialog", { name: "Choose a status emoji" })).toBeNull();
+    expect(button).toHaveAccessibleName("Change status emoji, 🎉");
+    expect(button).toHaveFocus();
+    await user.click(screen.getByRole("button", { name: "Save profile" }));
+    expect(updateMe).toHaveBeenLastCalledWith(
+      expect.objectContaining({ statusEmoji: "🎉", statusText: "In a meeting" }),
+    );
+  });
+
+  it("is offered with a smile while there is none", async () => {
+    const user = userEvent.setup();
+    render(
+      <ClientContext.Provider value={workspace()}>
+        <ProfileForm />
+      </ClientContext.Provider>,
+    );
+    await user.click(screen.getByRole("button", { name: "Choose a status emoji" }));
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog", { name: "Choose a status emoji" })).toBeNull();
+    expect(screen.getByRole("button", { name: "Choose a status emoji" })).toHaveFocus();
   });
 });
 
