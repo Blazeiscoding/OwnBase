@@ -1600,12 +1600,13 @@
     },
     {
       "path": "packages/ui/src/components/ReactionPicker.tsx",
-      "plain": "Where you pick an emoji to react to a message with, hanging off the message, or as its own window on a touchscreen.",
-      "summary": "Places the shared emoji picker beside a message, or in a dialog on touch.",
+      "plain": "Where you pick an emoji to react to a message with, or for your status, hanging off what it is for, or as its own window on a touchscreen.",
+      "summary": "Places the shared emoji picker beside a message or the status emoji button, or in a dialog on touch.",
       "details": [
         "Shows EmojiPicker in a Popover anchored to the message with a pointer, and in a Dialog on a touchscreen, and closes as the reaction is sent.",
         "Touch users tap before opening the software keyboard, allowing the picker to show choices without the keyboard immediately covering them.",
-        "Kept out of the entry every visit downloads: MessageItem loads it the first time someone asks for more than the toolbar's three reactions, shows nothing new while it loads, and says the picker could not load if its chunk fails."
+        "Kept out of the entry every visit downloads: MessageItem loads it the first time someone asks for more than the toolbar's three reactions, shows nothing new while it loads, and says the picker could not load if its chunk fails.",
+        "ProfileForm opens it, titled Choose a status emoji and lined up with the button's start, to choose a status's one emoji; a pick replaces the one there."
       ],
       "concepts": ["emoji reactions", "touch input", "listbox", "lazy loading"]
     },
@@ -1839,6 +1840,7 @@
       "summary": "Displays a person's profile and provides the shared self-profile editor.",
       "details": [
         "ProfileForm updates the current user's name and status through Api. Another person's profile can start/open a direct message.",
+        "A status's emoji is a button that opens ReactionPicker, loaded the first time it is pressed, rather than a text box, so a status holds one emoji; a pick replaces it.",
         "Since Q11 a press on Message is dropped once the card closes or shows someone else, so a late answer neither navigates nor changes the card.",
         "Your own form offers Clear after (30 minutes, 1 hour, Today, This week, Don't clear) once there is a status; a preset picks its usual length, and a status saved again keeps the end it was set with. Someone else's card says until when their status lasts (UX-61).",
         "A profile says Active now, Away (a ring, E9) or Offline, and the person's local time where their zone is known, with the zone, written with spaces, where their clock reads otherwise than yours.",
