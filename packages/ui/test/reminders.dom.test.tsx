@@ -265,6 +265,22 @@ describe("Activity's reminders", () => {
     expect(onJump).toHaveBeenCalledWith(general.id, later.id);
   });
 
+  it("finishes one for a double-click, though the next row's button slides under it", async () => {
+    const { user, cancelReminder, onJump } = activity({
+      [due.id]: items[0]!.reminder,
+      [later.id]: items[1]!.reminder,
+    });
+    await user.click(screen.getByRole("tab", { name: "Reminders, 1 due" }));
+    const dueSection = await screen.findByRole("region", { name: "Due" });
+    const upcoming = screen.getByRole("region", { name: "Upcoming" });
+    await user.click(within(dueSection).getByRole("button", { name: "Mark done" }));
+    // Chromium counts the click that lands on the next row as the second of two.
+    for (const name of ["Cancel reminder", /Book the venue/])
+      fireEvent.click(within(upcoming).getByRole("button", { name }), { detail: 2 });
+    expect(cancelReminder).toHaveBeenCalledExactlyOnceWith(due.id);
+    expect(onJump).not.toHaveBeenCalled();
+  });
+
   it("reads the list again when a reminder changes on another device", async () => {
     const { client, list } = activity({ [later.id]: items[1]!.reminder });
     await userEvent.setup().click(screen.getByRole("tab", { name: "Reminders" }));
