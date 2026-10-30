@@ -1414,17 +1414,19 @@
     },
     {
       "path": "packages/ui/src/components/MessageListPanel.tsx",
-      "plain": "The shared layout for the Pins, Saved and Threads panels. Each keeps itself up to date while it is open and shows more as you scroll.",
+      "plain": "The shared layout for the Pins, Saved and Threads panels. Each keeps itself up to date while it is open and shows more as you scroll. A message can be taken out of Saved from the Saved panel itself, with Undo.",
       "summary": "Shares the layout and live, scroll-to-load behavior for Pins, Saved and followed Threads.",
       "details": [
         "The generic panel renders a PagedList of server-loaded messages with row context, loading/empty/refusal state and a LoadMore end. listKey names a different list; a change of refreshKey, or of changedContent for a conversation it shows, reads it again in place (UX-08).",
         "Pins are channel-specific, Saved spans readable conversations, and Threads represents followed conversations with unread counts and opens the thread rather than a single message. Saved refreshes on the saved set, Threads on follow state including each thread's lastSeq, so a new reply shows at once.",
-        "Since Q08 PinsPanel also passes its channel's changedContent marker in refreshKey, so a pin, edit or deletion outside the loaded timeline is seen."
+        "Since Q08 PinsPanel also passes its channel's changedContent marker in refreshKey, so a pin, edit or deletion outside the loaded timeline is seen.",
+        "keep hides a row this device already knows no longer belongs, before the list is read again. remove gives each row one action that takes it out, shown on hover or focus and always where there is no hover, as Activity's and Drafts' are. Focus then goes to the next row's Open button, or the heading when none is left, and the second click of a double-click is ignored, since the next row's button slides up under the pointer. SavedPanel uses both: Remove from Saved unsaves at once with an Undo notice, and a refusal puts the row back with Try again."
       ],
       "concepts": [
         "shared panels",
         "pins",
         "saved messages",
+        "unsave",
         "followed threads",
         "live lists",
         "Q08",
