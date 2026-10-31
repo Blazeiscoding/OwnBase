@@ -309,6 +309,10 @@ which events it is sent. A method its scopes do not reach answers Slack's
 `missing_scope`. Apps from before scopes, and apps made through the API without
 a list, keep every scope.
 
+[packages/server/openapi.json](packages/server/openapi.json) describes every REST
+route under `/api/`, generated from the schemas the server validates requests
+with, and CI fails when it is out of date.
+
 [docs/INTEGRATIONS.md](docs/INTEGRATIONS.md) is the full contract. It lists every
 supported method and field, each event and what it becomes, and each place this
 server differs from Slack.
@@ -538,7 +542,8 @@ icons. Normal packaging uses the checked-in assets and does not need this step.
 
 ## Roadmap
 
-- **Next.** An OpenAPI description of the REST API, checked in CI.
+- **Next.** Exporting and importing a whole workspace, and push notifications
+  for the browser client.
 - **Later.** An SFU for larger huddles, and optional Postgres and S3.
 
 [Current boundaries](docs/DEPLOYMENT.md#current-boundaries) lists what is missing

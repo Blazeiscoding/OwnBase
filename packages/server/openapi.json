@@ -1,0 +1,6171 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "OwnBase REST API",
+    "version": "1",
+    "description": "The REST routes under /api/ that the first-party clients use, and the Slack-compatible methods apps call. The native routes are not a stable public API: they change with the clients, and the version here is the client protocol's (`PROTOCOL_VERSION`). docs/INTEGRATIONS.md is the contract for apps.\n\nGenerated from the server's source and the zod schemas it validates requests with, by packages/server/test/openapi.test.ts, which fails when this file is out of date. Rewrite it with `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.\n\nThe WebSocket at /ws, incoming webhooks at /hooks/, the web client's files and the enterprise edition's routes are not described here."
+  },
+  "servers": [
+    {
+      "url": "/"
+    }
+  ],
+  "tags": [
+    {
+      "name": "activity",
+      "description": "Mentions, replies and reactions addressed to the signed-in account."
+    },
+    {
+      "name": "admin",
+      "description": "Running the workspace: members, audit history, reports, copies and status."
+    },
+    {
+      "name": "apps",
+      "description": "Apps and integrations: bot users, tokens, scopes, webhooks, commands, events."
+    },
+    {
+      "name": "auth",
+      "description": "Accounts, signing in and out, guests and sessions."
+    },
+    {
+      "name": "channels",
+      "description": "Conversations, their members, messages, threads and read state."
+    },
+    {
+      "name": "commands",
+      "description": "Slash commands, and the URL an app answers one through later."
+    },
+    {
+      "name": "files",
+      "description": "Uploads, downloads and the files shared in conversations."
+    },
+    {
+      "name": "friends",
+      "description": "Friend requests between members."
+    },
+    {
+      "name": "health",
+      "description": "Whether the server is up."
+    },
+    {
+      "name": "invites",
+      "description": "Invite codes."
+    },
+    {
+      "name": "link-previews",
+      "description": "What the server found at links in messages."
+    },
+    {
+      "name": "me",
+      "description": "The signed-in account: profile, picture, two-step sign-in, blocks."
+    },
+    {
+      "name": "messages",
+      "description": "One message: edits, reactions, pins, saves, polls, reminders, reports, buttons."
+    },
+    {
+      "name": "reminders",
+      "description": "The signed-in account's reminders."
+    },
+    {
+      "name": "rtc-config",
+      "description": "What calls connect through: ICE and TURN servers."
+    },
+    {
+      "name": "saved",
+      "description": "Messages the signed-in account saved."
+    },
+    {
+      "name": "scheduled",
+      "description": "Messages waiting to be sent later."
+    },
+    {
+      "name": "search",
+      "description": "Searching messages."
+    },
+    {
+      "name": "server-info",
+      "description": "What this server is and supports, before signing in."
+    },
+    {
+      "name": "sidebar-sections",
+      "description": "The signed-in account's own sidebar sections."
+    },
+    {
+      "name": "slack",
+      "description": "Slack's Web API methods, for apps: see docs/INTEGRATIONS.md."
+    },
+    {
+      "name": "storage",
+      "description": "How much room uploads have left."
+    },
+    {
+      "name": "subscriptions",
+      "description": "An app's event subscriptions and their deliveries."
+    },
+    {
+      "name": "threads",
+      "description": "Threads the signed-in account follows."
+    },
+    {
+      "name": "users",
+      "description": "Everyone in the workspace, and their pictures."
+    },
+    {
+      "name": "views",
+      "description": "Forms apps open: submitting and closing them."
+    },
+    {
+      "name": "webhooks",
+      "description": "Incoming webhook URLs."
+    },
+    {
+      "name": "workspace",
+      "description": "The workspace's own name and icon."
+    }
+  ],
+  "paths": {
+    "/api/health": {
+      "get": {
+        "operationId": "getHealth",
+        "tags": [
+          "health"
+        ],
+        "description": "Anyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/rtc-config": {
+      "get": {
+        "operationId": "getRtcConfig",
+        "tags": [
+          "rtc-config"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/server-info": {
+      "get": {
+        "operationId": "getServerInfo",
+        "tags": [
+          "server-info"
+        ],
+        "description": "Anyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/workspace/icon": {
+      "get": {
+        "operationId": "getWorkspaceIcon",
+        "tags": [
+          "workspace"
+        ],
+        "summary": "The workspace's icon, for anyone: the Join screen shows it beside the workspace's name before anyone signs in.",
+        "description": "The workspace's icon, for anyone: the Join screen shows it beside the workspace's name before anyone signs in. Its type is the one its bytes were checked to be. Asked for by its current version, the answer never changes, since another picture has another version, so it is kept for a year; asked for otherwise, it is checked again each time.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/register": {
+      "post": {
+        "operationId": "postAuthRegister",
+        "tags": [
+          "auth"
+        ],
+        "description": "Anyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/guest": {
+      "post": {
+        "operationId": "postAuthGuest",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Joining with a display name alone, where the host allows guests.",
+        "description": "Joining with a display name alone, where the host allows guests. The policy is read inside the same write that creates the guest, so a page that still says guests are welcome cannot let one in after the host said no. Rationed by address like any sign-in, and bounded in number.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestJoinBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/guest/account": {
+      "post": {
+        "operationId": "postAuthGuestAccount",
+        "tags": [
+          "auth"
+        ],
+        "summary": "A guest keeping who they are as an account: same id, so their messages and rooms stay theirs.",
+        "description": "A guest keeping who they are as an account: same id, so their messages and rooms stay theirs. Only while accounts can be created without an invite, and a new session replaces every guest one.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GuestAccountBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/login": {
+      "post": {
+        "operationId": "postAuthLogin",
+        "tags": [
+          "auth"
+        ],
+        "description": "Anyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/two-step": {
+      "post": {
+        "operationId": "postAuthTwoStep",
+        "tags": [
+          "auth"
+        ],
+        "summary": "The second step of signing in (E11): a code from the authenticator app, each step's once, or a recovery code, each once.",
+        "description": "The second step of signing in (E11): a code from the authenticator app, each step's once, or a recovery code, each once. A few wrong ones send the person back to their password.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoStepSignInBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/logout": {
+      "post": {
+        "operationId": "postAuthLogout",
+        "tags": [
+          "auth"
+        ],
+        "description": "Anyone may call this, signed in or not. Guests may call it too.",
+        "x-access": "anyone",
+        "x-guests": true,
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/password": {
+      "post": {
+        "operationId": "postAuthPassword",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Changing a password proves you know the current one, then signs out everywhere else.",
+        "description": "Changing a password proves you know the current one, then signs out everywhere else. A password is usually changed because someone else might know it; leaving their sessions running would defeat the whole exercise.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/two-step": {
+      "get": {
+        "operationId": "getMeTwoStep",
+        "tags": [
+          "me"
+        ],
+        "summary": "Whether two-step sign-in is on, and how many recovery codes are left (E11).",
+        "description": "Whether two-step sign-in is on, and how many recovery codes are left (E11).\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postMeTwoStep",
+        "tags": [
+          "me"
+        ],
+        "summary": "Starts setting two-step sign-in up: a new key and what an app scans for it (E11).",
+        "description": "Starts setting two-step sign-in up: a new key and what an app scans for it (E11).\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoStepPasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/two-step/enable": {
+      "post": {
+        "operationId": "postMeTwoStepEnable",
+        "tags": [
+          "me"
+        ],
+        "summary": "Turns two-step sign-in on once a code from the new key is right (E11), and gives the recovery codes, which are never shown again.",
+        "description": "Turns two-step sign-in on once a code from the new key is right (E11), and gives the recovery codes, which are never shown again. Other devices stay signed in; it is asked for at each sign-in from now on.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoStepCodeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/two-step/recovery-codes": {
+      "post": {
+        "operationId": "postMeTwoStepRecoveryCodes",
+        "tags": [
+          "me"
+        ],
+        "summary": "A new set of recovery codes in place of the old (E11), shown once.",
+        "description": "A new set of recovery codes in place of the old (E11), shown once.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoStepPasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/two-step/disable": {
+      "post": {
+        "operationId": "postMeTwoStepDisable",
+        "tags": [
+          "me"
+        ],
+        "summary": "Turns two-step sign-in off (E11).",
+        "description": "Turns two-step sign-in off (E11).\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TwoStepPasswordBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/sessions": {
+      "get": {
+        "operationId": "getAuthSessions",
+        "tags": [
+          "auth"
+        ],
+        "summary": "Everywhere this account is signed in, so its owner can see and end them.",
+        "description": "Everywhere this account is signed in, so its owner can see and end them.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAuthSessions",
+        "tags": [
+          "auth"
+        ],
+        "summary": "\"Sign out my other devices\" — the one asking stays signed in.",
+        "description": "\"Sign out my other devices\" — the one asking stays signed in.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth/sessions/{id}": {
+      "delete": {
+        "operationId": "deleteAuthSessionsById",
+        "tags": [
+          "auth"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me": {
+      "get": {
+        "operationId": "getMe",
+        "tags": [
+          "me"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchMe",
+        "tags": [
+          "me"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateMeBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/users/{id}/avatar": {
+      "get": {
+        "operationId": "getUsersByIdAvatar",
+        "tags": [
+          "users"
+        ],
+        "summary": "Someone's profile picture, for whoever is signed in (E9).",
+        "description": "Someone's profile picture, for whoever is signed in (E9). A request naming its version may keep it for good: another picture has another.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/avatar": {
+      "delete": {
+        "operationId": "deleteMeAvatar",
+        "tags": [
+          "me"
+        ],
+        "summary": "Removes this account's profile picture; its initials show again.",
+        "description": "Removes this account's profile picture; its initials show again.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putMeAvatar",
+        "tags": [
+          "me"
+        ],
+        "summary": "This account's profile picture, sent whole as the image itself, as the icon is (E9).",
+        "description": "This account's profile picture, sent whole as the image itself, as the icon is (E9).\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The image itself, typed by its Content-Type.",
+          "content": {
+            "image/*": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/users": {
+      "get": {
+        "operationId": "getUsers",
+        "tags": [
+          "users"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/friends": {
+      "get": {
+        "operationId": "getFriends",
+        "tags": [
+          "friends"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/friends/{id}": {
+      "post": {
+        "operationId": "postFriendsById",
+        "tags": [
+          "friends"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "put": {
+        "operationId": "putFriendsById",
+        "tags": [
+          "friends"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteFriendsById",
+        "tags": [
+          "friends"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/blocks/{id}": {
+      "put": {
+        "operationId": "putMeBlocksById",
+        "tags": [
+          "me"
+        ],
+        "summary": "Blocks someone for this account (E12): it hears nothing from them, and they are told nothing.",
+        "description": "Blocks someone for this account (E12): it hears nothing from them, and they are told nothing. Blocking also ends a friendship or a request between the two, as it does elsewhere; that alone reaches them, as an unfriending.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMeBlocksById",
+        "tags": [
+          "me"
+        ],
+        "summary": "Unblocks someone for this account (E12).",
+        "description": "Unblocks someone for this account (E12).\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels": {
+      "get": {
+        "operationId": "getChannels",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postChannels",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateChannelBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}": {
+      "patch": {
+        "operationId": "patchChannelsById",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateChannelBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/join": {
+      "post": {
+        "operationId": "postChannelsByIdJoin",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/leave": {
+      "post": {
+        "operationId": "postChannelsByIdLeave",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/invite-member": {
+      "post": {
+        "operationId": "postChannelsByIdInviteMember",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/members/{userId}": {
+      "delete": {
+        "operationId": "deleteChannelsByIdMembersByUserId",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/managers/{userId}": {
+      "patch": {
+        "operationId": "patchChannelsByIdManagersByUserId",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelManagerBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/members": {
+      "get": {
+        "operationId": "getChannelsByIdMembers",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/read": {
+      "post": {
+        "operationId": "postChannelsByIdRead",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkReadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/unread": {
+      "post": {
+        "operationId": "postChannelsByIdUnread",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkUnreadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/threads/{rootId}": {
+      "get": {
+        "operationId": "getChannelsByIdThreadsByRootId",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "rootId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "around",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/messages": {
+      "get": {
+        "operationId": "getChannelsByIdMessages",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "threadRootId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postChannelsByIdMessages",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/messages/around/{messageId}": {
+      "get": {
+        "operationId": "getChannelsByIdMessagesAroundByMessageId",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "threadRootId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/messages/{messageId}": {
+      "get": {
+        "operationId": "getChannelsByIdMessagesByMessageId",
+        "tags": [
+          "channels"
+        ],
+        "summary": "One message, for the card under a link to it.",
+        "description": "One message, for the card under a link to it. Asked by each reader, so a message in a private conversation shows only to the people in it.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/messages/after/{messageId}": {
+      "get": {
+        "operationId": "getChannelsByIdMessagesAfterByMessageId",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "messageId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "threadRootId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}": {
+      "patch": {
+        "operationId": "patchMessagesById",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditMessageBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMessagesById",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/report": {
+      "post": {
+        "operationId": "postMessagesByIdReport",
+        "tags": [
+          "messages"
+        ],
+        "summary": "Reports a message to the workspace's admins (E12), by anyone who can read it but its author.",
+        "description": "Reports a message to the workspace's admins (E12), by anyone who can read it but its author. Reporting it again while the first report is open changes nothing, and its author is told nothing.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportMessageBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/link-previews/{id}/image": {
+      "get": {
+        "operationId": "getLinkPreviewsByIdImage",
+        "tags": [
+          "link-previews"
+        ],
+        "summary": "A preview's picture, for whoever can read its message.",
+        "description": "A preview's picture, for whoever can read its message. The server fetched it and checked its first bytes; it is sent as the type those bytes say, never sniffed again by the browser, and kept by nothing on the way.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/link-previews/{id}": {
+      "delete": {
+        "operationId": "deleteLinkPreviewsById",
+        "tags": [
+          "link-previews"
+        ],
+        "summary": "The sender takes a preview off their message; an edit keeping the link leaves it off.",
+        "description": "The sender takes a preview off their message; an edit keeping the link leaves it off.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/storage": {
+      "get": {
+        "operationId": "getStorage",
+        "tags": [
+          "storage"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/files": {
+      "post": {
+        "operationId": "postChannelsByIdFiles",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/files": {
+      "get": {
+        "operationId": "getFiles",
+        "tags": [
+          "files"
+        ],
+        "summary": "The file browser's page (E7): files shared in conversations the asker can read, newest first, by kind, sharer, conversation and words in the name.",
+        "description": "The file browser's page (E7): files shared in conversations the asker can read, newest first, by kind, sharer, conversation and words in the name.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "image",
+                "document",
+                "other"
+              ]
+            }
+          },
+          {
+            "name": "userId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "channelId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          },
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/files/{id}/download-token": {
+      "post": {
+        "operationId": "postFilesByIdDownloadToken",
+        "tags": [
+          "files"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/files/{id}": {
+      "get": {
+        "operationId": "getFilesById",
+        "tags": [
+          "files"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/reactions/{emoji}": {
+      "put": {
+        "operationId": "putMessagesByIdReactionsByEmoji",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "emoji",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMessagesByIdReactionsByEmoji",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "emoji",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/poll/votes": {
+      "put": {
+        "operationId": "putMessagesByIdPollVotes",
+        "tags": [
+          "messages"
+        ],
+        "summary": "A voter's choices, replacing any before; none takes the vote back.",
+        "description": "A voter's choices, replacing any before; none takes the vote back. Readers are told the new count by a `message.updated` that says `pollOnly`, and the voter's own devices what they chose, which an anonymous poll says to nobody.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PollVotesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/poll/close": {
+      "post": {
+        "operationId": "postMessagesByIdPollClose",
+        "tags": [
+          "messages"
+        ],
+        "summary": "Its author closes a poll for good: the votes stand and nobody can change them.",
+        "description": "Its author closes a poll for good: the votes stand and nobody can change them.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/status": {
+      "get": {
+        "operationId": "getAdminStatus",
+        "tags": [
+          "admin"
+        ],
+        "summary": "For the owner and admins: whether the server is keeping up, from counts, sizes and times alone.",
+        "description": "For the owner and admins: whether the server is keeping up, from counts, sizes and times alone. Nothing from a conversation, an app's delivery error or a credential is in it.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/copy": {
+      "get": {
+        "operationId": "getAdminCopy",
+        "tags": [
+          "admin"
+        ],
+        "description": "Needs the workspace owner.",
+        "x-access": "owner",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "post": {
+        "operationId": "postAdminCopy",
+        "tags": [
+          "admin"
+        ],
+        "description": "Needs the workspace owner.",
+        "x-access": "owner",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/copy/download-token": {
+      "post": {
+        "operationId": "postAdminCopyDownloadToken",
+        "tags": [
+          "admin"
+        ],
+        "description": "Needs the workspace owner.",
+        "x-access": "owner",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/copy/{id}": {
+      "get": {
+        "operationId": "getAdminCopyById",
+        "tags": [
+          "admin"
+        ],
+        "summary": "The copy as one zip.",
+        "description": "The copy as one zip. A ticket stands in for the header a download in the browser cannot carry, and whoever spends it must still be the owner, signed in with the session that asked for it.\n\nNeeds the workspace owner.",
+        "x-access": "owner",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/calls": {
+      "get": {
+        "operationId": "getAdminCalls",
+        "tags": [
+          "admin"
+        ],
+        "summary": "For the owner and admins: what happened in huddles lately (see `CallLog`), in the conversations they can see themselves.",
+        "description": "For the owner and admins: what happened in huddles lately (see `CallLog`), in the conversations they can see themselves. Memory only.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps": {
+      "post": {
+        "operationId": "postApps",
+        "tags": [
+          "apps"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateAppBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getApps",
+        "tags": [
+          "apps"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/scopes": {
+      "put": {
+        "operationId": "putAppsByIdScopes",
+        "tags": [
+          "apps"
+        ],
+        "summary": "What an app may do (E18c): Slack's scope names, replacing the whole list.",
+        "description": "What an app may do (E18c): Slack's scope names, replacing the whole list. Its tokens hold the new list from the next call; events already queued for it were let through under the old one and are still sent.\n\nLogged with what was added and taken away, which is what an operator looks for when an app starts or stops seeing something.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppScopesBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/token": {
+      "post": {
+        "operationId": "postAppsByIdToken",
+        "tags": [
+          "apps"
+        ],
+        "summary": "A new bot token, replacing every one the app had.",
+        "description": "A new bot token, replacing every one the app had. For a token that has leaked, and for an admin who closed the dialog before copying the one they were shown at creation, which is otherwise a working app nobody can use.\n\nLogged without the token: who replaced which app's credentials is what an operator wants to find afterwards.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/signing-secret": {
+      "post": {
+        "operationId": "postAppsByIdSigningSecret",
+        "tags": [
+          "apps"
+        ],
+        "summary": "A new signing secret.",
+        "description": "A new signing secret. Every request signed from here on uses it, including event deliveries already waiting in the queue, which are signed when they are sent rather than when they were queued. The app refuses them until it has the new secret, which is the point when the old one has leaked.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}": {
+      "delete": {
+        "operationId": "deleteAppsById",
+        "tags": [
+          "apps"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/webhooks": {
+      "post": {
+        "operationId": "postAppsByIdWebhooks",
+        "tags": [
+          "apps"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWebhookBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/webhooks/{id}/url": {
+      "post": {
+        "operationId": "postWebhooksByIdUrl",
+        "tags": [
+          "webhooks"
+        ],
+        "summary": "A new URL for an existing webhook.",
+        "description": "A new URL for an existing webhook. The secret is the whole of a webhook's authority, so a URL pasted somewhere public has to be replaceable without removing the webhook and choosing its channel again.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/webhooks/{id}": {
+      "delete": {
+        "operationId": "deleteWebhooksById",
+        "tags": [
+          "webhooks"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/auth.test": {
+      "post": {
+        "operationId": "auth.test",
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack's auth.test.",
+        "description": "Slack's auth.test. Bolt calls it before it will start, and gives up if it fails, so without it no Bolt app could run against this server at all. `bot_id` is the app's id: this server has no separate bot identity.\n\nCalled with an app's bot token, as Slack's Web API is. A failure is HTTP 200 with `ok: false`.",
+        "x-access": "bot",
+        "security": [
+          {
+            "botToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slack's answer, refusals included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAnswer"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/chat.postMessage": {
+      "post": {
+        "operationId": "chat.postMessage",
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack Web API compatible send, so existing bot code works by pointing at this server.",
+        "description": "Slack Web API compatible send, so existing bot code works by pointing at this server. Errors use Slack's `{ok:false, error}` shape.\n\nCalled with an app's bot token, as Slack's Web API is. A failure is HTTP 200 with `ok: false`.",
+        "x-access": "bot",
+        "security": [
+          {
+            "botToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slack's answer, refusals included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAnswer"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/commands": {
+      "post": {
+        "operationId": "postAppsByIdCommands",
+        "tags": [
+          "apps"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCommandBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/commands/{id}": {
+      "delete": {
+        "operationId": "deleteCommandsById",
+        "tags": [
+          "commands"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/commands": {
+      "get": {
+        "operationId": "getCommands",
+        "tags": [
+          "commands"
+        ],
+        "summary": "Every command anyone can run, for the composer's hint list.",
+        "description": "Every command anyone can run, for the composer's hint list.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/commands": {
+      "post": {
+        "operationId": "postChannelsByIdCommands",
+        "tags": [
+          "channels"
+        ],
+        "summary": "Runs `/whatever …` typed in a channel.",
+        "description": "Runs `/whatever …` typed in a channel.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RunCommandBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/commands/response/{token}": {
+      "post": {
+        "operationId": "postCommandsResponseByToken",
+        "tags": [
+          "commands"
+        ],
+        "summary": "Slack's `response_url`: how an app replies after its first few seconds.",
+        "description": "Slack's `response_url`: how an app replies after its first few seconds.\n\nAnyone may call this, signed in or not.",
+        "x-access": "anyone",
+        "security": [],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/audit": {
+      "get": {
+        "operationId": "getAdminAudit",
+        "tags": [
+          "admin"
+        ],
+        "summary": "What administrators have changed, newest first, for a workspace that has to be able to say who deactivated someone or replaced an app's token.",
+        "description": "What administrators have changed, newest first, for a workspace that has to be able to say who deactivated someone or replaced an app's token.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 40
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 200
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/users": {
+      "get": {
+        "operationId": "getAdminUsers",
+        "tags": [
+          "admin"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}": {
+      "patch": {
+        "operationId": "patchAdminUsersById",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Change what someone can do, or take their access away.",
+        "description": "Change what someone can do, or take their access away.\n\nThe rules are about who may act on whom, and they are deliberately narrow: the owner is untouchable and cannot be locked out of their own server, an admin cannot demote or deactivate another admin (a workspace should not be losable to an argument between two of them), and nobody can act on themselves — an admin cannot quietly promote themselves to owner or lock themselves out by accident.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/password": {
+      "post": {
+        "operationId": "postAdminUsersByIdPassword",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Password recovery for an installation with no email: an admin issues a temporary password and reads it to the person over whatever channel they trust.",
+        "description": "Password recovery for an installation with no email: an admin issues a temporary password and reads it to the person over whatever channel they trust. It is shown once, all their sessions end, and they are expected to change it. Who may be reset is resettable's to say.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/two-step/reset": {
+      "post": {
+        "operationId": "postAdminUsersByIdTwoStepReset",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Turns someone's two-step sign-in off, for one who lost their authenticator app and recovery codes (E11).",
+        "description": "Turns someone's two-step sign-in off, for one who lost their authenticator app and recovery codes (E11). Their devices stay signed in; their next sign-in asks for the password alone, and they can set it up again.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/reports": {
+      "get": {
+        "operationId": "getAdminReports",
+        "tags": [
+          "admin"
+        ],
+        "summary": "The reported messages waiting for an admin (E12), each with its reports: the message itself even from a conversation the admin is not in, since whoever repor…",
+        "description": "The reported messages waiting for an admin (E12), each with its reports: the message itself even from a conversation the admin is not in, since whoever reported it showed it to them, and null once its author deleted it.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/reports/{id}/resolve": {
+      "post": {
+        "operationId": "postAdminReportsByIdResolve",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Settles a reported message (E12): dismissed, removed, or removed with its author deactivated, by People's rules for deactivating.",
+        "description": "Settles a reported message (E12): dismissed, removed, or removed with its author deactivated, by People's rules for deactivating. Every open report of it closes, and the record says what was done and to whom, never what the message said.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveReportBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/users/{id}/owner": {
+      "post": {
+        "operationId": "postAdminUsersByIdOwner",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Hands the workspace to someone else.",
+        "description": "Hands the workspace to someone else. Only the owner can do it, and they become an admin rather than losing their access — a workspace with no owner is the state this whole area exists to prevent.\n\nNeeds the workspace owner.",
+        "x-access": "owner",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/workspace/name": {
+      "put": {
+        "operationId": "putAdminWorkspaceName",
+        "tags": [
+          "admin"
+        ],
+        "summary": "The workspace's name, for its owner and admins.",
+        "description": "The workspace's name, for its owner and admins. The host renames it by the same rule, so the two cannot drift apart.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceNameBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/workspace/access-policy": {
+      "put": {
+        "operationId": "putAdminWorkspaceAccessPolicy",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Who may join, for its owner and admins: the stored choice every start keeps, and the same one the desktop host changes.",
+        "description": "Who may join, for its owner and admins: the stored choice every start keeps, and the same one the desktop host changes. Leaving guests allowed signs every guest out at once.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessPolicyBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/workspace/link-previews": {
+      "put": {
+        "operationId": "putAdminWorkspaceLinkPreviews",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Link previews for new messages, on or off, for the owner and admins (E2).",
+        "description": "Link previews for new messages, on or off, for the owner and admins (E2). Turning them off adds none from then on; the previews messages already have stay, and their senders can remove them.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LinkPreviewsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/workspace/icon": {
+      "put": {
+        "operationId": "putAdminWorkspaceIcon",
+        "tags": [
+          "admin"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "description": "The image itself, typed by its Content-Type.",
+          "content": {
+            "image/*": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAdminWorkspaceIcon",
+        "tags": [
+          "admin"
+        ],
+        "summary": "Removes the icon, for the owner and admins; the workspace shows its coloured square again.",
+        "description": "Removes the icon, for the owner and admins; the workspace shows its coloured square again.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/views.open": {
+      "post": {
+        "operationId": "views.open",
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack's views.open: a new form for the person who just asked for one.",
+        "description": "Slack's views.open: a new form for the person who just asked for one.\n\nCalled with an app's bot token, as Slack's Web API is. A failure is HTTP 200 with `ok: false`.",
+        "x-access": "bot",
+        "security": [
+          {
+            "botToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slack's answer, refusals included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAnswer"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/views.push": {
+      "post": {
+        "operationId": "views.push",
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack's views.push: a form on top of the one the person has open from this app, which they come back to when this one closes.",
+        "description": "Slack's views.push: a form on top of the one the person has open from this app, which they come back to when this one closes. With none open, it opens as views.open would.\n\nCalled with an app's bot token, as Slack's Web API is. A failure is HTTP 200 with `ok: false`.",
+        "x-access": "bot",
+        "security": [
+          {
+            "botToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slack's answer, refusals included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAnswer"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/views.update": {
+      "post": {
+        "operationId": "views.update",
+        "tags": [
+          "slack"
+        ],
+        "summary": "Slack's views.update: changes a form the person still has open, without a trigger, which is how an app shows \"Loading\" at once and the real form when it has it.",
+        "description": "Slack's views.update: changes a form the person still has open, without a trigger, which is how an app shows \"Loading\" at once and the real form when it has it. What they typed into an input that keeps its block and action ids stays, as on Slack. A `hash` from an earlier answer refuses the change if the view has changed since, so two updates cannot cross.\n\nCalled with an app's bot token, as Slack's Web API is. A failure is HTTP 200 with `ok: false`.",
+        "x-access": "bot",
+        "security": [
+          {
+            "botToken": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Slack's answer, refusals included.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SlackAnswer"
+                }
+              }
+            }
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimited"
+          }
+        }
+      }
+    },
+    "/api/views/{id}/close": {
+      "post": {
+        "operationId": "postViewsByIdClose",
+        "tags": [
+          "views"
+        ],
+        "summary": "The person closed a form: it and anything stacked on it go, and their other devices follow.",
+        "description": "The person closed a form: it and anything stacked on it go, and their other devices follow. Their own stack only, so nobody can close another person's form. The app is not told, as on Slack without notify_on_close.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/views/{id}/submit": {
+      "post": {
+        "operationId": "postViewsByIdSubmit",
+        "tags": [
+          "views"
+        ],
+        "summary": "Someone filled the form in and pressed submit.",
+        "description": "Someone filled the form in and pressed submit. The values go to the app as Slack's `view_submission`; field errors it answers with come back to the client so they can be shown against the fields they belong to.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ViewSubmitBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/interactivity": {
+      "put": {
+        "operationId": "putAppsByIdInteractivity",
+        "tags": [
+          "apps"
+        ],
+        "summary": "Where this app's button clicks are delivered.",
+        "description": "Where this app's button clicks are delivered. Verified the same way a subscription URL is: an endpoint that cannot echo the challenge has not agreed to receive anything, which is also what stops this server being aimed at an unrelated host.\n\nNeeds an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InteractivityBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/actions": {
+      "post": {
+        "operationId": "postMessagesByIdActions",
+        "tags": [
+          "messages"
+        ],
+        "summary": "Someone pressed a button.",
+        "description": "Someone pressed a button. This posts Slack's `block_actions` payload to the owning app and renders whatever comes back, so an integration written for Slack works unchanged.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageActionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/apps/{id}/subscriptions": {
+      "post": {
+        "operationId": "postAppsByIdSubscriptions",
+        "tags": [
+          "apps"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateSubscriptionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/subscriptions/{id}": {
+      "delete": {
+        "operationId": "deleteSubscriptionsById",
+        "tags": [
+          "subscriptions"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/subscriptions/{id}/retry": {
+      "post": {
+        "operationId": "postSubscriptionsByIdRetry",
+        "tags": [
+          "subscriptions"
+        ],
+        "description": "Needs an administrator or the owner.",
+        "x-access": "admin",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/scheduled": {
+      "post": {
+        "operationId": "postChannelsByIdScheduled",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScheduleMessageBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/scheduled": {
+      "get": {
+        "operationId": "getScheduled",
+        "tags": [
+          "scheduled"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/scheduled/{id}": {
+      "delete": {
+        "operationId": "deleteScheduledById",
+        "tags": [
+          "scheduled"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "patchScheduledById",
+        "tags": [
+          "scheduled"
+        ],
+        "summary": "The recovery path for a held or failed message: a past time sends it now.",
+        "description": "The recovery path for a held or failed message: a past time sends it now.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RescheduleBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/scheduled/{id}/text": {
+      "patch": {
+        "operationId": "patchScheduledByIdText",
+        "tags": [
+          "scheduled"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditScheduledBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/pin": {
+      "put": {
+        "operationId": "putMessagesByIdPin",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMessagesByIdPin",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/pins": {
+      "get": {
+        "operationId": "getChannelsByIdPins",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,15}:[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/save": {
+      "put": {
+        "operationId": "putMessagesByIdSave",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMessagesByIdSave",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/channels/{id}/prefs": {
+      "patch": {
+        "operationId": "patchChannelsByIdPrefs",
+        "tags": [
+          "channels"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelPrefsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/sidebar-sections": {
+      "post": {
+        "operationId": "postSidebarSections",
+        "tags": [
+          "sidebar-sections"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SidebarSectionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/sidebar-sections/{id}": {
+      "patch": {
+        "operationId": "patchSidebarSectionsById",
+        "tags": [
+          "sidebar-sections"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SidebarSectionBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteSidebarSectionsById",
+        "tags": [
+          "sidebar-sections"
+        ],
+        "summary": "Deletes a section; its conversations go back where they would be.",
+        "description": "Deletes a section; its conversations go back where they would be.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/sidebar-sections/order": {
+      "put": {
+        "operationId": "putSidebarSectionsOrder",
+        "tags": [
+          "sidebar-sections"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SidebarSectionOrderBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/follow": {
+      "put": {
+        "operationId": "putMessagesByIdFollow",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadFollowBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/mute": {
+      "put": {
+        "operationId": "putMessagesByIdMute",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadMuteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/reminder": {
+      "put": {
+        "operationId": "putMessagesByIdReminder",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReminderBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "deleteMessagesByIdReminder",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/reminders": {
+      "get": {
+        "operationId": "getReminders",
+        "tags": [
+          "reminders"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/thread/read": {
+      "post": {
+        "operationId": "postMessagesByIdThreadRead",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ThreadReadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/messages/{id}/thread/unread": {
+      "post": {
+        "operationId": "postMessagesByIdThreadUnread",
+        "tags": [
+          "messages"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarkUnreadBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/threads/followed": {
+      "get": {
+        "operationId": "getThreadsFollowed",
+        "tags": [
+          "threads"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,15}:[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          },
+          {
+            "name": "unreadOnly",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "false",
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/saved": {
+      "get": {
+        "operationId": "getSaved",
+        "tags": [
+          "saved"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^\\d{1,15}:[0-9A-HJKMNP-TV-Z]{26}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/invites": {
+      "post": {
+        "operationId": "postInvites",
+        "tags": [
+          "invites"
+        ],
+        "description": "Needs a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInviteBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      },
+      "get": {
+        "operationId": "getInvites",
+        "tags": [
+          "invites"
+        ],
+        "summary": "The invites someone can do something about: every one for an administrator, and a member's own for everyone else.",
+        "description": "The invites someone can do something about: every one for an administrator, and a member's own for everyone else. Codes are credentials for an invite-only workspace, so a member is never shown anyone else's.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/invites/{code}": {
+      "delete": {
+        "operationId": "deleteInvitesByCode",
+        "tags": [
+          "invites"
+        ],
+        "summary": "Withdraws an invite, for a link that has been shared further than meant.",
+        "description": "Withdraws an invite, for a link that has been shared further than meant. Its creator or an administrator may; anyone else is told there is no such invite, so trying codes cannot confirm which ones exist.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/activity": {
+      "get": {
+        "operationId": "getActivity",
+        "tags": [
+          "activity"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "mode",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "unread",
+              "type": "string",
+              "enum": [
+                "unread",
+                "mentions",
+                "threads"
+              ]
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 100
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/search": {
+      "get": {
+        "operationId": "getSearch",
+        "tags": [
+          "search"
+        ],
+        "description": "Needs a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string",
+              "maxLength": 200
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "channelId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          },
+          {
+            "name": "tz",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/admin/extension-settings": {
+      "get": {
+        "operationId": "getAdminExtensionSettings",
+        "tags": [
+          "admin"
+        ],
+        "summary": "The panels the extensions add to Workspace settings, for the owner (P9).",
+        "description": "The panels the extensions add to Workspace settings, for the owner (P9).\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "session": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "A session token, from POST /api/auth/login or /api/auth/register."
+      },
+      "botToken": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "An app's `xoxb-` bot token. Slack's methods also take it as a `token` field in the body."
+      }
+    },
+    "schemas": {
+      "Error": {
+        "type": "object",
+        "description": "Why a native route refused, with an HTTP status of 400 or more. `error` is a stable code; `message`, when present, is a sentence for people.",
+        "properties": {
+          "error": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "details": {
+            "description": "For `invalid_request`: what failed to validate."
+          }
+        },
+        "required": [
+          "error"
+        ]
+      },
+      "SlackAnswer": {
+        "type": "object",
+        "description": "Slack's answer shape. A refusal still has HTTP status 200, with `ok: false` and an `error` code.",
+        "properties": {
+          "ok": {
+            "type": "boolean"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "additionalProperties": true
+      },
+      "RegisterBody": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 256
+          },
+          "inviteCode": {
+            "type": "string"
+          },
+          "claimCode": {
+            "type": "string",
+            "maxLength": 128
+          }
+        },
+        "required": [
+          "handle",
+          "displayName",
+          "password"
+        ]
+      },
+      "GuestJoinBody": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "displayName"
+        ]
+      },
+      "GuestAccountBody": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "handle",
+          "password"
+        ]
+      },
+      "LoginBody": {
+        "type": "object",
+        "properties": {
+          "handle": {
+            "type": "string",
+            "minLength": 2,
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9._-]*$"
+          },
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "twoStep": {
+            "type": "boolean",
+            "enum": [
+              true
+            ]
+          }
+        },
+        "required": [
+          "handle",
+          "password"
+        ]
+      },
+      "TwoStepSignInBody": {
+        "type": "object",
+        "properties": {
+          "challenge": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          },
+          "recoveryCode": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          }
+        },
+        "required": [
+          "challenge"
+        ]
+      },
+      "ChangePasswordBody": {
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          },
+          "newPassword": {
+            "type": "string",
+            "minLength": 8,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ]
+      },
+      "TwoStepPasswordBody": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256
+          }
+        },
+        "required": [
+          "password"
+        ]
+      },
+      "TwoStepCodeBody": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 16
+          }
+        },
+        "required": [
+          "code"
+        ]
+      },
+      "UpdateMeBody": {
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "statusText": {
+            "type": "string",
+            "maxLength": 120
+          },
+          "statusEmoji": {
+            "type": "string",
+            "maxLength": 32
+          },
+          "statusExpiresAt": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "dndUntil": {
+            "nullable": true,
+            "type": "integer",
+            "minimum": -9007199254740991,
+            "maximum": 9007199254740991
+          },
+          "timeZone": {
+            "nullable": true,
+            "type": "string",
+            "maxLength": 64
+          },
+          "away": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CreateChannelBody": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "public"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "topic": {
+                "type": "string",
+                "maxLength": 250
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 500
+              }
+            },
+            "required": [
+              "type",
+              "name"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "private"
+                ]
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "topic": {
+                "type": "string",
+                "maxLength": 250
+              },
+              "description": {
+                "type": "string",
+                "maxLength": 500
+              },
+              "memberIds": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "type",
+              "name"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "dm"
+                ]
+              },
+              "memberIds": {
+                "minItems": 1,
+                "maxItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "type",
+              "memberIds"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": [
+                  "group_dm"
+                ]
+              },
+              "memberIds": {
+                "minItems": 2,
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "type",
+              "memberIds"
+            ]
+          }
+        ]
+      },
+      "UpdateChannelBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 80
+          },
+          "topic": {
+            "type": "string",
+            "maxLength": 250
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 500
+          },
+          "archived": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ChannelManagerBody": {
+        "type": "object",
+        "properties": {
+          "manager": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "manager"
+        ]
+      },
+      "MarkReadBody": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      },
+      "MarkUnreadBody": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      },
+      "SendMessageBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 12000
+          },
+          "threadRootId": {
+            "type": "string"
+          },
+          "nonce": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "fileIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "alsoSendToChannel": {
+            "type": "boolean"
+          },
+          "replyToId": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "replyPing": {
+            "type": "boolean"
+          },
+          "forwardFrom": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "poll": {
+            "type": "object",
+            "properties": {
+              "options": {
+                "minItems": 2,
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 80
+                }
+              },
+              "multiple": {
+                "default": false,
+                "type": "boolean"
+              },
+              "anonymous": {
+                "default": false,
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "options"
+            ]
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "EditMessageBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 12000
+          },
+          "expectedText": {
+            "type": "string",
+            "maxLength": 12000
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "ReportMessageBody": {
+        "type": "object",
+        "properties": {
+          "reason": {
+            "type": "string",
+            "enum": [
+              "spam",
+              "harassment",
+              "inappropriate",
+              "other"
+            ]
+          },
+          "note": {
+            "type": "string",
+            "maxLength": 500
+          }
+        },
+        "required": [
+          "reason"
+        ]
+      },
+      "PollVotesBody": {
+        "type": "object",
+        "properties": {
+          "choices": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "integer",
+              "minimum": 0,
+              "maximum": 9
+            }
+          }
+        },
+        "required": [
+          "choices"
+        ]
+      },
+      "CreateAppBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 60
+          },
+          "scopes": {
+            "maxItems": 11,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "chat:write",
+                "chat:write.public",
+                "channels:history",
+                "groups:history",
+                "im:history",
+                "mpim:history",
+                "channels:read",
+                "groups:read",
+                "reactions:read",
+                "pins:read",
+                "users:read"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AppScopesBody": {
+        "type": "object",
+        "properties": {
+          "scopes": {
+            "maxItems": 11,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "chat:write",
+                "chat:write.public",
+                "channels:history",
+                "groups:history",
+                "im:history",
+                "mpim:history",
+                "channels:read",
+                "groups:read",
+                "reactions:read",
+                "pins:read",
+                "users:read"
+              ]
+            }
+          }
+        },
+        "required": [
+          "scopes"
+        ]
+      },
+      "CreateWebhookBody": {
+        "type": "object",
+        "properties": {
+          "channelId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "channelId"
+        ]
+      },
+      "CreateCommandBody": {
+        "type": "object",
+        "properties": {
+          "command": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 32
+          },
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 160
+          },
+          "usageHint": {
+            "type": "string",
+            "maxLength": 80
+          }
+        },
+        "required": [
+          "command",
+          "url"
+        ]
+      },
+      "RunCommandBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 4000
+          },
+          "threadRootId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "text"
+        ]
+      },
+      "AdminUserBody": {
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": "string",
+            "enum": [
+              "member",
+              "admin"
+            ]
+          },
+          "deactivated": {
+            "type": "boolean"
+          },
+          "canInvite": {
+            "type": "boolean"
+          }
+        }
+      },
+      "ResolveReportBody": {
+        "type": "object",
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "dismiss",
+              "remove",
+              "deactivate"
+            ]
+          }
+        },
+        "required": [
+          "action"
+        ]
+      },
+      "WorkspaceNameBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "AccessPolicyBody": {
+        "type": "object",
+        "properties": {
+          "accessPolicy": {
+            "type": "string",
+            "enum": [
+              "invite_only",
+              "account_required",
+              "guest_allowed"
+            ]
+          }
+        },
+        "required": [
+          "accessPolicy"
+        ]
+      },
+      "LinkPreviewsBody": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "enabled"
+        ]
+      },
+      "ViewSubmitBody": {
+        "type": "object",
+        "properties": {
+          "values": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 3000
+                  },
+                  {
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "maxLength": 3000
+                    }
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "required": [
+          "values"
+        ]
+      },
+      "InteractivityBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 500,
+                "format": "uri"
+              },
+              {
+                "type": "string",
+                "enum": [
+                  ""
+                ]
+              }
+            ]
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "MessageActionBody": {
+        "type": "object",
+        "properties": {
+          "actionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255
+          }
+        },
+        "required": [
+          "actionId"
+        ]
+      },
+      "CreateSubscriptionBody": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "maxLength": 500,
+            "format": "uri"
+          },
+          "eventTypes": {
+            "maxItems": 20,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "maxLength": 40
+            }
+          }
+        },
+        "required": [
+          "url"
+        ]
+      },
+      "ScheduleMessageBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 12000
+          },
+          "nonce": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          },
+          "sendAt": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          },
+          "threadRootId": {
+            "type": "string"
+          },
+          "alsoSendToChannel": {
+            "type": "boolean"
+          },
+          "fileIds": {
+            "maxItems": 10,
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "text",
+          "sendAt"
+        ]
+      },
+      "RescheduleBody": {
+        "type": "object",
+        "properties": {
+          "sendAt": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "sendAt"
+        ]
+      },
+      "EditScheduledBody": {
+        "type": "object",
+        "properties": {
+          "text": {
+            "type": "string",
+            "maxLength": 12000
+          },
+          "expectedText": {
+            "type": "string",
+            "maxLength": 12000
+          }
+        },
+        "required": [
+          "text",
+          "expectedText"
+        ]
+      },
+      "ChannelPrefsBody": {
+        "type": "object",
+        "properties": {
+          "notifyLevel": {
+            "type": "string",
+            "enum": [
+              "all",
+              "mentions",
+              "nothing"
+            ]
+          },
+          "muted": {
+            "type": "boolean"
+          },
+          "starred": {
+            "type": "boolean"
+          },
+          "sectionId": {
+            "nullable": true,
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        }
+      },
+      "SidebarSectionBody": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ]
+      },
+      "SidebarSectionOrderBody": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "maxItems": 50,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 64
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
+      },
+      "ThreadFollowBody": {
+        "type": "object",
+        "properties": {
+          "following": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "following"
+        ]
+      },
+      "ThreadMuteBody": {
+        "type": "object",
+        "properties": {
+          "muted": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "muted"
+        ]
+      },
+      "ReminderBody": {
+        "type": "object",
+        "properties": {
+          "at": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "at"
+        ]
+      },
+      "ThreadReadBody": {
+        "type": "object",
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "seq"
+        ]
+      },
+      "CreateInviteBody": {
+        "type": "object",
+        "properties": {
+          "expiresInHours": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 8760
+          },
+          "maxUses": {
+            "type": "integer",
+            "minimum": 0,
+            "exclusiveMinimum": true,
+            "maximum": 1000
+          }
+        }
+      }
+    },
+    "responses": {
+      "Error": {
+        "description": "A refusal.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/Error"
+            }
+          }
+        }
+      },
+      "RateLimited": {
+        "description": "Too many calls for now. `Retry-After` says how many seconds to wait.",
+        "headers": {
+          "Retry-After": {
+            "schema": {
+              "type": "integer"
+            }
+          }
+        }
+      }
+    }
+  }
+}
