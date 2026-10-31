@@ -15,8 +15,8 @@ const COUNT: Record<BadgeSize, string> = {
 const TONE: Record<BadgeTone, { count: string; dot: string }> = {
   // Something unread that does not name you: there, but not loud.
   quiet: { count: "bg-ink/[0.08] font-semibold text-ink-dim", dot: "bg-ink" },
-  // Discord's red, which glows a little (`badge-mention` in theme.css).
-  mention: { count: "badge-mention font-bold", dot: "badge-mention" },
+  // Discord's red (`badge-mention` in theme.css).
+  mention: { count: "badge-mention font-semibold", dot: "badge-mention" },
 };
 
 export type BadgeProps = Omit<ComponentProps<"span">, "children" | "aria-label" | "role"> & {

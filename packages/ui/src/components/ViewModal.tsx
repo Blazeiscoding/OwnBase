@@ -407,7 +407,7 @@ function AppForm(props: {
             type="button"
             onClick={close}
             aria-label={backTo ? backName(view.closeLabel, backTo) : undefined}
-            className="rounded-lg border border-edge px-4 py-2.5 text-sm text-ink-dim transition-colors hover:border-ink-faint hover:text-ink"
+            className={buttonClass("secondary")}
           >
             {view.closeLabel}
           </button>

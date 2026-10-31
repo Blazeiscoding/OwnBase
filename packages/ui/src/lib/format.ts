@@ -99,14 +99,15 @@ export function avatarColor(userId: ID, alpha = 1): string {
 }
 
 /**
- * A workspace's own colour, for its tile: one hue from its name, lighter at
- * the top, so two workspaces look different and the same one always the same.
+ * A workspace's own colour, for its tile: one hue from its name, a shade
+ * lighter at the top, so two workspaces look different and the same one
+ * always the same.
  */
 export function workspaceGradient(name: string): string {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0;
   const hue = AVATAR_HUES[h % AVATAR_HUES.length];
-  return `linear-gradient(145deg, oklch(0.6 0.14 ${hue}), oklch(0.46 0.14 ${(hue! + 24) % 360}))`;
+  return `linear-gradient(180deg, oklch(0.54 0.13 ${hue}), oklch(0.48 0.13 ${hue}))`;
 }
 
 export function initials(name: string): string {

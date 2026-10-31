@@ -307,6 +307,16 @@ describe("notificationBody", () => {
     expect(body).toBe("build #7 failed, see https://ci.example.com");
   });
 
+  it("leaves out a code block's fences and keeps what is inside them", () => {
+    const body = notificationBody(
+      state(),
+      message({ text: "Release checklist:\n```\n[x] Tag the release\n[ ] Announce\n```" }),
+    );
+    expect(body).toBe("Release checklist:\n[x] Tag the release\n[ ] Announce\n");
+    // A message that is nothing but fences still says something.
+    expect(notificationBody(state(), message({ text: "```\n```" }))).toBe("```\n```");
+  });
+
   it("describes attachments when there is no text", () => {
     const withFile = message({
       text: "",

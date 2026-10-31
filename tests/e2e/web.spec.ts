@@ -5396,7 +5396,7 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
     await account.getByRole("tab", { name: "Security", exact: true }).click();
     await account.getByRole("button", { name: "Sign out of this workspace", exact: true }).click();
     await account.getByRole("button", { name: "Confirm sign out", exact: true }).click();
-    const card = page.locator(".glass-card");
+    const card = page.locator(".sign-in-card");
     await expect(card.getByRole("heading", { name: "Product Test", exact: true })).toBeVisible();
     await expect(card.locator("img")).toBeVisible();
     await expect

@@ -812,7 +812,6 @@ function AppearanceSettings() {
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-ink-faint">More themes are on the way.</p>
       </fieldset>
       <fieldset disabled={!appearance.loaded} className="mt-6 border-t border-edge pt-5">
         <legend className="float-left w-full font-semibold">Density</legend>
@@ -882,12 +881,11 @@ function WorkspaceStorage() {
     return () => controller.abort();
   }, [client, attempt]);
   return (
-    <section
-      className="mt-4 rounded-xl border border-edge p-4"
-      aria-label="Workspace attachment storage"
-    >
-      <h3 className="font-semibold">Workspace attachment storage</h3>
-      <p className="mt-2 text-sm text-ink-dim">
+    <section aria-labelledby="account-storage-title">
+      <h3 id="account-storage-title" className="font-semibold">
+        Workspace attachment storage
+      </h3>
+      <p className="mt-1 text-sm text-ink-dim">
         Shared by everyone, including unfinished uploads. The host controls the limit.
       </p>
       {usage && (

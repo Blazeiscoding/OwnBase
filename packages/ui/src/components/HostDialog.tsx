@@ -21,6 +21,7 @@ import { inputClass, inputCls } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { EarlierCopies } from "./EarlierCopies.js";
+import { Icon } from "./Icon.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
@@ -2261,12 +2262,19 @@ export function HostDialog(props: {
                     value={name}
                     disabled={!!busy}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="Workspace name (e.g. Rocket Team)"
+                    placeholder="e.g. Rocket Team"
                     className={inputCls}
                   />
                 </label>
-                <details className="text-sm text-ink-dim">
-                  <summary className="cursor-pointer">Choose a port</summary>
+                <details className="group text-sm text-ink-dim">
+                  <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
+                    <Icon
+                      name="chevronDown"
+                      size={14}
+                      className="-rotate-90 transition-transform group-open:rotate-0"
+                    />
+                    Choose a port
+                  </summary>
                   <label className="mt-2 block">
                     Port
                     <input
@@ -2277,7 +2285,7 @@ export function HostDialog(props: {
                       onChange={(e) => setPortText(e.target.value)}
                       placeholder="8543"
                       aria-describedby="host-port-hint"
-                      className={`${inputCls} mt-1 w-32 font-mono`}
+                      className={`${inputCls} mt-1 max-w-32 font-mono`}
                     />
                   </label>
                   <p id="host-port-hint" className="mt-1 text-xs text-ink-faint">
