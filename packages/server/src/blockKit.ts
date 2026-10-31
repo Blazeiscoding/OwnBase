@@ -2,6 +2,7 @@ import {
   MANY_ANSWER_FIELDS,
   type ChannelType,
   type MessageAction,
+  type ModalBlock,
   type ModalField,
   type ModalFieldType,
   type ModalOption,
@@ -44,49 +45,54 @@ function textOf(value: TextObject | string | undefined): string {
   return value?.text ?? "";
 }
 
+/**
+ * A block that only shows something: a header's plain text, a section's text
+ * with its fields after it, a context's words run together, or a divider.
+ * Null for one with no words, and for buttons, images, inputs and the rest,
+ * which carry no plain text worth showing.
+ */
+function displayBlock(raw: Block): Exclude<ModalBlock, { type: "field" }> | null {
+  switch (raw.type) {
+    case "header": {
+      const t = textOf(raw.text).trim();
+      return t ? { type: "header", text: t } : null;
+    }
+    case "section": {
+      const parts = [raw.text, ...(raw.fields ?? [])].map((t) => textOf(t).trim()).filter(Boolean);
+      return parts.length > 0 ? { type: "section", text: parts.join("\n\n") } : null;
+    }
+    case "context": {
+      // Context elements are either text objects themselves or wrappers
+      // around one; images carry no text and fall out as empty.
+      const bits = (raw.elements ?? [])
+        .map((el) => {
+          if (typeof el === "string") return el;
+          const inner = (el as { text?: TextObject | string }).text;
+          return textOf(inner ?? (el as TextObject));
+        })
+        .map((t) => t.trim())
+        .filter(Boolean);
+      return bits.length > 0 ? { type: "context", text: bits.join(" ") } : null;
+    }
+    case "divider":
+      return { type: "divider" };
+    default:
+      return null;
+  }
+}
+
 export function blocksToText(blocks: unknown): string {
   if (!Array.isArray(blocks)) return "";
   const parts: string[] = [];
 
   for (const raw of blocks as Block[]) {
     if (!raw || typeof raw !== "object") continue;
-    switch (raw.type) {
-      case "header": {
-        const t = textOf(raw.text).trim();
-        // Headers have no mrkdwn equivalent; bold is the closest thing.
-        if (t) parts.push(`*${t}*`);
-        break;
-      }
-      case "section": {
-        const t = textOf(raw.text).trim();
-        if (t) parts.push(t);
-        for (const field of raw.fields ?? []) {
-          const f = textOf(field).trim();
-          if (f) parts.push(f);
-        }
-        break;
-      }
-      case "context": {
-        // Context elements are either text objects themselves or wrappers
-        // around one; images carry no text and fall out as empty.
-        const bits = (raw.elements ?? [])
-          .map((el) => {
-            if (typeof el === "string") return el;
-            const inner = (el as { text?: TextObject | string }).text;
-            return textOf(inner ?? (el as TextObject));
-          })
-          .map((t) => t.trim())
-          .filter(Boolean);
-        if (bits.length > 0) parts.push(bits.join(" "));
-        break;
-      }
-      case "divider":
-        parts.push("———");
-        break;
-      default:
-        // Buttons, images, inputs and the rest carry no plain text worth showing.
-        break;
-    }
+    const shown = displayBlock(raw);
+    if (!shown) continue;
+    // Headers have no mrkdwn equivalent; bold is the closest thing.
+    if (shown.type === "header") parts.push(`*${shown.text}*`);
+    else if (shown.type === "divider") parts.push("———");
+    else parts.push(shown.text);
   }
 
   return parts.join("\n\n").trim();
@@ -391,9 +397,16 @@ export function parseView(
   const blocks: InputBlock[] = Array.isArray(view.blocks) ? (view.blocks as InputBlock[]) : [];
 
   const fields: ModalField[] = [];
+  // Words and fields in the app's order; a dropped field leaves no gap.
+  const layout: ModalBlock[] = [];
   let droppedFields = 0;
   for (const [index, block] of blocks.entries()) {
-    if (!block || typeof block !== "object" || block.type !== "input") continue;
+    if (!block || typeof block !== "object") continue;
+    if (block.type !== "input") {
+      const shown = displayBlock(block);
+      if (shown) layout.push(shown);
+      continue;
+    }
     const element = block.element ?? {};
     const known = typeof element.type === "string" ? INPUT_ELEMENTS[element.type] : undefined;
     if (!known || fields.length >= MAX_FIELDS) {
@@ -432,6 +445,7 @@ export function parseView(
       const types = conversationTypesOf(element.filter);
       if (types) field.conversationTypes = types;
     }
+    layout.push({ type: "field", field: fields.length });
     fields.push(field);
   }
 
@@ -445,9 +459,10 @@ export function parseView(
     closeLabel: textOf(view.close).trim().slice(0, 40) || "Cancel",
     privateMetadata:
       typeof view.private_metadata === "string" ? view.private_metadata.slice(0, 3000) : "",
-    // Sections and headers above the inputs still carry the explanation.
+    // All the words in one, for a client that draws them above the fields.
     text: blocksToText(blocks.filter((b) => b?.type !== "input")),
     fields,
+    blocks: layout,
     droppedFields,
   };
 }

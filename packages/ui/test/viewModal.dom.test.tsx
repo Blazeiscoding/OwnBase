@@ -517,3 +517,54 @@ describe("a stack of app forms", () => {
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 });
+
+describe("words between an app's fields", () => {
+  function renderView(modal: ModalView) {
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({ self: sam, users: { [sam.id]: sam }, modal, status: "online" });
+    render(
+      <ClientContext.Provider value={client}>
+        <ViewModal />
+      </ClientContext.Provider>,
+    );
+    return screen.getByRole("dialog", { name: "File an expense" });
+  }
+  /** Whether `a` comes before `b` in the page, as it is read. */
+  const before = (a: Element, b: Element) =>
+    !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
+  it("draws them where the app put them", async () => {
+    const dialog = renderView({
+      ...view,
+      text: "*What*\n\nThe amount on the receipt.\n\n———\n\nWhy you spent it.\n\nYour manager sees this.",
+      blocks: [
+        { type: "header", text: "What" },
+        { type: "section", text: "The amount on the receipt." },
+        { type: "field", field: 0 },
+        { type: "divider" },
+        { type: "section", text: "Why you spent it." },
+        { type: "field", field: 1 },
+        { type: "context", text: "Your manager sees this." },
+      ],
+    });
+    const heading = within(dialog).getByRole("heading", { name: "What" });
+    const receipt = within(dialog).getByText("The amount on the receipt.");
+    const amount = within(dialog).getByRole("textbox", { name: "Amount" });
+    const rule = within(dialog).getByRole("separator");
+    const why = within(dialog).getByText("Why you spent it.");
+    const reason = within(dialog).getByRole("textbox", { name: /^Reason/ });
+    const small = within(dialog).getByText("Your manager sees this.");
+    const order = [heading, receipt, amount, rule, why, reason, small];
+    for (let i = 1; i < order.length; i++) expect(before(order[i - 1]!, order[i]!)).toBe(true);
+    // Each field is drawn once, however the blocks list it.
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(2);
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+  });
+
+  it("puts every word above the fields when an older server sends no order", () => {
+    const dialog = renderView({ ...view, text: "Keep the receipt." });
+    const words = within(dialog).getByText("Keep the receipt.");
+    expect(before(words, within(dialog).getByRole("textbox", { name: "Amount" }))).toBe(true);
+    expect(within(dialog).getAllByRole("textbox")).toHaveLength(2);
+  });
+});

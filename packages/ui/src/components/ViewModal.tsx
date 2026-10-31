@@ -3,6 +3,7 @@ import {
   MANY_ANSWER_FIELDS,
   type Channel,
   type ID,
+  type ModalBlock,
   type ModalField,
   type ModalFieldType,
   type ModalView,
@@ -244,137 +245,152 @@ function AppForm(props: {
     }
   }
 
+  /** One field, drawn where the app put it. */
+  const renderField = (field: ModalField) => {
+    const id = fieldId(field);
+    const error = errors[field.blockId];
+    // The error replaces the hint on screen, and so in what is read.
+    const described = error ? `${id}-error` : field.hint ? `${id}-hint` : undefined;
+    const label = (
+      <>
+        {field.label}
+        {field.optional && (
+          <span className="ml-1.5 text-[11px] font-normal text-ink-faint">optional</span>
+        )}
+      </>
+    );
+    const notes = (
+      <>
+        {field.hint && !error && (
+          <p id={`${id}-hint`} className="mt-1 text-[11px] text-ink-faint">
+            {field.hint}
+          </p>
+        )}
+        {error && (
+          <p id={`${id}-error`} role="alert" className="mt-1 text-[11px] text-alert">
+            {error}
+          </p>
+        )}
+      </>
+    );
+    const offered = choices[id] ?? [];
+    const answer = answerOf(field);
+
+    // Several controls answer together, so they are one group with
+    // one name, and the hint or error is read on entering it.
+    if (field.type === "radio" || MANY_ANSWER_FIELDS.has(field.type)) {
+      return (
+        <fieldset
+          key={id}
+          role={field.type === "radio" ? "radiogroup" : undefined}
+          aria-required={field.type === "radio" ? !field.optional : undefined}
+          aria-describedby={described}
+        >
+          <legend className="mb-1 text-[13px] font-medium">{label}</legend>
+          {field.type === "radio" || field.type === "checkboxes" ? (
+            <ShortList
+              id={id}
+              field={field}
+              choices={offered}
+              answer={answer}
+              invalid={!!error}
+              onChange={(next) => setAnswer(field, next)}
+            />
+          ) : (
+            <PickList
+              id={id}
+              field={field}
+              choices={offered}
+              chosen={answer as string[]}
+              invalid={!!error}
+              onChange={(next) => setAnswer(field, next)}
+            />
+          )}
+          {notes}
+        </fieldset>
+      );
+    }
+
+    const shared = {
+      id,
+      "aria-describedby": described,
+      "aria-invalid": error ? true : undefined,
+      "aria-required": !field.optional,
+    };
+    return (
+      <div key={id}>
+        <label htmlFor={id} className="mb-1 block text-[13px] font-medium">
+          {label}
+        </label>
+
+        {ONE_CHOICE.has(field.type) ? (
+          <select
+            {...shared}
+            value={answer as string}
+            onChange={(e) => setAnswer(field, e.target.value)}
+            className={inputCls}
+          >
+            <option value="">{field.placeholder || PROMPT[field.type]}</option>
+            {offered.map((choice) => (
+              <option key={choice.value} value={choice.value}>
+                {choice.text}
+              </option>
+            ))}
+          </select>
+        ) : field.type === "textarea" ? (
+          <textarea
+            {...shared}
+            value={answer as string}
+            placeholder={field.placeholder}
+            rows={4}
+            onChange={(e) => setAnswer(field, e.target.value)}
+            className={`${inputCls} resize-y`}
+          />
+        ) : (
+          <input
+            {...shared}
+            // The browser's own pickers, which already know the
+            // person's calendar, clock and keyboard.
+            type={field.type === "date" ? "date" : field.type === "time" ? "time" : "text"}
+            value={answer as string}
+            placeholder={field.placeholder}
+            onChange={(e) => setAnswer(field, e.target.value)}
+            className={inputCls}
+          />
+        )}
+
+        {notes}
+      </div>
+    );
+  };
+
+  // The app's order, where the server keeps it. An older server sends the
+  // words as one text, drawn above the fields.
+  const layout: ModalBlock[] = view.blocks ?? [
+    ...(view.text ? [{ type: "section" as const, text: view.text }] : []),
+    ...view.fields.map((_, field) => ({ type: "field" as const, field })),
+  ];
+
   return (
     <Dialog title={view.title} onClose={closeAll} width={520} ownScroll>
       {/* An app decides how many fields there are; the buttons stay in sight
           under however many that is. */}
       <form onSubmit={submit} className="flex min-h-0 flex-col">
         <DialogScroll>
-          {view.text && (
-            <div className="mb-4 text-sm text-ink-dim">
-              <Mrkdwn text={view.text} users={users} channels={channels} />
-            </div>
-          )}
-
           <div className="space-y-3.5">
-            {view.fields.map((field) => {
-              const id = fieldId(field);
-              const error = errors[field.blockId];
-              // The error replaces the hint on screen, and so in what is read.
-              const described = error ? `${id}-error` : field.hint ? `${id}-hint` : undefined;
-              const label = (
-                <>
-                  {field.label}
-                  {field.optional && (
-                    <span className="ml-1.5 text-[11px] font-normal text-ink-faint">optional</span>
-                  )}
-                </>
-              );
-              const notes = (
-                <>
-                  {field.hint && !error && (
-                    <p id={`${id}-hint`} className="mt-1 text-[11px] text-ink-faint">
-                      {field.hint}
-                    </p>
-                  )}
-                  {error && (
-                    <p id={`${id}-error`} role="alert" className="mt-1 text-[11px] text-alert">
-                      {error}
-                    </p>
-                  )}
-                </>
-              );
-              const offered = choices[id] ?? [];
-              const answer = answerOf(field);
-
-              // Several controls answer together, so they are one group with
-              // one name, and the hint or error is read on entering it.
-              if (field.type === "radio" || MANY_ANSWER_FIELDS.has(field.type)) {
+            {layout.map((block, index) => {
+              if (block.type !== "field") {
                 return (
-                  <fieldset
-                    key={id}
-                    role={field.type === "radio" ? "radiogroup" : undefined}
-                    aria-required={field.type === "radio" ? !field.optional : undefined}
-                    aria-describedby={described}
-                  >
-                    <legend className="mb-1 text-[13px] font-medium">{label}</legend>
-                    {field.type === "radio" || field.type === "checkboxes" ? (
-                      <ShortList
-                        id={id}
-                        field={field}
-                        choices={offered}
-                        answer={answer}
-                        invalid={!!error}
-                        onChange={(next) => setAnswer(field, next)}
-                      />
-                    ) : (
-                      <PickList
-                        id={id}
-                        field={field}
-                        choices={offered}
-                        chosen={answer as string[]}
-                        invalid={!!error}
-                        onChange={(next) => setAnswer(field, next)}
-                      />
-                    )}
-                    {notes}
-                  </fieldset>
+                  <ShownBlock
+                    key={`shown-${index}`}
+                    block={block}
+                    users={users}
+                    channels={channels}
+                  />
                 );
               }
-
-              const shared = {
-                id,
-                "aria-describedby": described,
-                "aria-invalid": error ? true : undefined,
-                "aria-required": !field.optional,
-              };
-              return (
-                <div key={id}>
-                  <label htmlFor={id} className="mb-1 block text-[13px] font-medium">
-                    {label}
-                  </label>
-
-                  {ONE_CHOICE.has(field.type) ? (
-                    <select
-                      {...shared}
-                      value={answer as string}
-                      onChange={(e) => setAnswer(field, e.target.value)}
-                      className={inputCls}
-                    >
-                      <option value="">{field.placeholder || PROMPT[field.type]}</option>
-                      {offered.map((choice) => (
-                        <option key={choice.value} value={choice.value}>
-                          {choice.text}
-                        </option>
-                      ))}
-                    </select>
-                  ) : field.type === "textarea" ? (
-                    <textarea
-                      {...shared}
-                      value={answer as string}
-                      placeholder={field.placeholder}
-                      rows={4}
-                      onChange={(e) => setAnswer(field, e.target.value)}
-                      className={`${inputCls} resize-y`}
-                    />
-                  ) : (
-                    <input
-                      {...shared}
-                      // The browser's own pickers, which already know the
-                      // person's calendar, clock and keyboard.
-                      type={
-                        field.type === "date" ? "date" : field.type === "time" ? "time" : "text"
-                      }
-                      value={answer as string}
-                      placeholder={field.placeholder}
-                      onChange={(e) => setAnswer(field, e.target.value)}
-                      className={inputCls}
-                    />
-                  )}
-
-                  {notes}
-                </div>
-              );
+              const field = view.fields[block.field];
+              return field ? renderField(field) : null;
             })}
           </div>
 
@@ -410,6 +426,30 @@ function AppForm(props: {
 const ROW =
   "flex cursor-pointer items-start gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-ink/[0.04] has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-copper has-[:disabled]:cursor-default has-[:disabled]:opacity-50";
 const MARK = "mt-0.5 size-4 shrink-0 accent-[var(--color-copper)]";
+
+/**
+ * Words an app put in its form, where it put them: a heading, a paragraph,
+ * small print under a field, or a rule between parts.
+ */
+function ShownBlock(props: {
+  block: Exclude<ModalBlock, { type: "field" }>;
+  users: Record<ID, User>;
+  channels: Record<ID, Channel>;
+}) {
+  const { block, users, channels } = props;
+  if (block.type === "divider") return <hr className="border-edge" />;
+  // Slack's header is plain text only.
+  if (block.type === "header") {
+    return <h3 className="text-[15px] font-semibold text-ink">{block.text}</h3>;
+  }
+  return (
+    <div
+      className={block.type === "context" ? "text-[12px] text-ink-faint" : "text-sm text-ink-dim"}
+    >
+      <Mrkdwn text={block.text} users={users} channels={channels} />
+    </div>
+  );
+}
 
 /**
  * Checkboxes or radio buttons, all in sight: Slack allows ten of either, few
