@@ -1075,12 +1075,12 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                   aria-pressed={replyTarget.ping}
                   aria-label={`Notify ${replyName}`}
                   onClick={() => setReplyPing(client, draftKey, !replyTarget.ping)}
-                  className={`flex h-6 items-center gap-0.5 rounded-md px-1.5 text-[12px] font-bold transition-colors hover:bg-ink/[0.07] ${
+                  className={`flex h-6 items-center gap-1 rounded-md px-1.5 text-[12px] font-medium transition-colors hover:bg-ink/[0.07] ${
                     replyTarget.ping ? "text-copper" : "text-ink-faint"
                   }`}
                 >
-                  <Icon name="at" size={13} strokeWidth={2.4} />
-                  {replyTarget.ping ? "ON" : "OFF"}
+                  <Icon name="at" size={13} />
+                  {replyTarget.ping ? "On" : "Off"}
                 </button>
               </Tooltip>
             )}

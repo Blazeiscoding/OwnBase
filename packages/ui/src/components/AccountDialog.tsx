@@ -812,7 +812,6 @@ function AppearanceSettings() {
             );
           })}
         </div>
-        <p className="mt-2 text-xs text-ink-faint">More themes are on the way.</p>
       </fieldset>
       <fieldset disabled={!appearance.loaded} className="mt-6 border-t border-edge pt-5">
         <legend className="float-left w-full font-semibold">Density</legend>

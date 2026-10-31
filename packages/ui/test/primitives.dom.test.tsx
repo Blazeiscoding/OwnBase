@@ -332,7 +332,7 @@ describe("a badge", () => {
     const badge = (name: string) => screen.getByRole("img", { name });
     expect(badge("quiet")).toHaveClass("bg-ink/[0.08]", "text-ink-dim", "rounded-full");
     expect(badge("quiet")).not.toHaveClass("badge-mention");
-    expect(badge("mention")).toHaveClass("badge-mention", "font-bold", "leading-[18px]");
+    expect(badge("mention")).toHaveClass("badge-mention", "font-semibold", "leading-[18px]");
     // Placed by the caller, sized by the badge: jsdom lays nothing out.
     expect(badge("small")).toHaveClass("badge-mention", "leading-4", "absolute", "right-0");
     expect(badge("quiet dot")).toHaveClass("size-2", "bg-ink");

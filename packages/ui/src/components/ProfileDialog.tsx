@@ -151,7 +151,7 @@ export function ProfileDialog(props: {
           )}
         </div>
         <div className="rounded-xl bg-deep/70 p-3.5">
-          <h2 className="truncate text-xl font-bold leading-tight">{user.displayName}</h2>
+          <h2 className="truncate text-xl font-semibold leading-tight">{user.displayName}</h2>
           <div className="text-sm text-ink-dim">@{user.handle}</div>
           <div className="mt-2 flex items-center gap-1.5 text-[13px] text-ink-dim">
             <span

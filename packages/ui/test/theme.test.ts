@@ -96,13 +96,12 @@ describe("the colour tokens", () => {
         "copper-deep",
         "online",
         "alert",
-        "cream",
       ]),
     );
   });
 
   it("keep every ink readable on every surface", () => {
-    const inks = ["ink", "ink-dim", "ink-faint", "copper", "online", "alert", "cream"];
+    const inks = ["ink", "ink-dim", "ink-faint", "copper", "online", "alert"];
     const surfaces = ["deep", "ground", "raised", "lifted"];
     expect(
       unreadable(inks.flatMap((ink) => surfaces.map((s): [string, string] => [ink, s]))),
@@ -122,7 +121,7 @@ describe("the colour tokens", () => {
 });
 
 describe("the other themes", () => {
-  const inks = ["ink", "ink-dim", "ink-faint", "copper", "online", "alert", "cream"];
+  const inks = ["ink", "ink-dim", "ink-faint", "copper", "online", "alert"];
   const surfaces = ["deep", "ground", "raised", "lifted"];
   const everyPair = inks.flatMap((ink) => surfaces.map((s): [string, string] => [ink, s]));
   const fills: [string, string][] = [
@@ -174,8 +173,10 @@ describe("the other themes", () => {
     expect(Object.keys(call)).toEqual(
       expect.arrayContaining(Object.keys(onyx).filter((name) => name.startsWith("--color-"))),
     );
-    // The fills and shadows too: White's darker red under Onyx's ink would not read.
-    expect(Object.keys(call)).toEqual(expect.arrayContaining(["--alert-grad", "--accent-grad"]));
+    // The shadows and the hairline of light too: White's bright line would show on black.
+    expect(Object.keys(call)).toEqual(
+      expect.arrayContaining(["--sheen", "--shadow-float", "--shadow-dialog"]),
+    );
     for (const [name, value] of Object.entries(call)) expect(value, name).toBe(onyx[name]);
   });
 
@@ -273,22 +274,9 @@ describe("the palette", () => {
     expect(stale).toEqual([]);
   });
 
-  it("keeps text on both ends of each gradient readable, and white on the mention red", () => {
-    const declared = (opening: string, name: string) =>
-      block(opening).match(new RegExp(`--${name}:([^;]*);`))![1]!;
-    const stops = (opening: string, name: string) =>
-      [...declared(opening, name).matchAll(/#[0-9a-f]{6}\b/gi)].map(([hex]) => hex);
-    const dark = ":root {\n  color-scheme: dark;";
-    const light = ':root[data-theme="light"] {\n  --shadow-float';
-    const below = (ground: string, opening: string) =>
-      ["accent-grad", "alert-grad"].flatMap((name) =>
-        stops(opening, name)
-          .filter((stop) => contrast(ground, stop) < 4.5)
-          .map((stop) => `${name} ${stop}: ${contrast(ground, stop).toFixed(2)}`),
-      );
-    expect(below(colourTokens("dark").ground!, dark)).toEqual([]);
-    expect(below(colourTokens("light").ground!, light)).toEqual([]);
-    expect(contrast("#ffffff", declared(dark, "mention-red").trim())).toBeGreaterThanOrEqual(4.5);
+  it("keeps white readable on the mention red", () => {
+    const red = block(":root {\n  color-scheme: dark;").match(/--mention-red:([^;]*);/)![1]!;
+    expect(contrast("#ffffff", red.trim())).toBeGreaterThanOrEqual(4.5);
   });
 });
 

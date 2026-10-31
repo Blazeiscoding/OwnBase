@@ -228,11 +228,6 @@ export function JoinScreen({
   const authing = stage.view === "auth";
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-deep">
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="aurora" />
-        <div className="hex-glow" />
-        <div className="grain" />
-      </div>
       {platform.kind === "desktop" && <div className="titlebar-drag relative h-10 shrink-0" />}
       <main className="relative flex flex-1 overflow-y-auto px-4 py-8 sm:px-8">
         <div className="join-layout m-auto w-full max-w-[440px] animate-rise-in">
@@ -241,20 +236,15 @@ export function JoinScreen({
             <div
               className={`flex items-center gap-2.5 font-brand text-[17px] font-semibold tracking-tight ${authing ? "mb-3" : "mb-6"}`}
             >
-              <span className="drop-shadow-[0_6px_18px_color-mix(in_oklab,var(--color-copper)_45%,transparent)]">
-                <BrandMark size={32} />
-              </span>
+              <BrandMark size={32} />
               OwnBase
             </div>
             {authing ? (
-              <p className="text-[15px] text-ink-dim">
-                Your people. Your place.{" "}
-                <span className="text-vibrant font-semibold">Your server.</span>
-              </p>
+              <p className="text-[15px] text-ink-dim">Your people. Your place. Your server.</p>
             ) : (
               <>
-                <h1 className="text-4xl font-bold leading-tight tracking-[-0.025em]">
-                  Find your <span className="highlight">workspace</span>
+                <h1 className="text-4xl font-semibold leading-tight tracking-[-0.02em]">
+                  Find your workspace
                 </h1>
                 <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-ink-dim">
                   Join your team’s server, or host one right here on this computer.
@@ -698,7 +688,9 @@ function ServerRow(props: {
           />
           <span className="min-w-0 flex-1">
             <span className="block truncate text-sm font-medium">{props.title}</span>
-            <span className="block truncate text-xs text-ink-faint">{props.subtitle}</span>
+            <span className="block truncate font-mono text-xs text-ink-faint">
+              {props.subtitle}
+            </span>
           </span>
           <span className="text-xs text-ink-faint">{props.busy ? "…" : props.meta}</span>
           <Icon name="arrow" size={14} className="text-ink-faint" />
@@ -1062,19 +1054,19 @@ function AuthCard(props: {
   const submitCls = buttonClass("primary", "h-10 w-full rounded-xl");
 
   return (
-    <div className="card-warm glass-card overflow-hidden rounded-3xl p-6 sm:p-7">
+    <div className="card-warm sign-in-card overflow-hidden rounded-3xl p-6 sm:p-7">
       <div className="mb-6 flex flex-col items-center text-center">
         <WorkspaceIcon
           name={props.info.workspaceName}
           src={icon}
           size={56}
-          className="rounded-2xl text-xl shadow-[0_10px_30px_-10px_rgb(0_0_0/0.6)]"
+          className="rounded-2xl text-xl shadow-[0_8px_20px_-12px_rgb(0_0_0/0.5)]"
         />
         <h1 className="mt-4 font-brand text-2xl font-semibold tracking-tight">
           {props.info.workspaceName}
         </h1>
         <p className="mt-1 text-[13px] text-ink-faint">
-          {props.url.replace(/^https?:\/\//, "")} ·{" "}
+          <span className="font-mono text-[12px]">{props.url.replace(/^https?:\/\//, "")}</span> ·{" "}
           {props.info.userCount === 0
             ? "No members yet"
             : `${props.info.userCount} ${props.info.userCount === 1 ? "member" : "members"}`}

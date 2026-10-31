@@ -1012,7 +1012,7 @@ export function GuestTag() {
   return (
     <span
       title="Joined as a guest"
-      className="rounded border border-edge px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint"
+      className="rounded border border-edge px-1 text-[11px] font-medium text-ink-faint"
     >
       Guest
     </span>

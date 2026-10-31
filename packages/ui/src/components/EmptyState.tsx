@@ -11,7 +11,7 @@ export interface EmptyStateProps {
   /** What the place is for and how to fill it, said while there is nothing in it. */
   children: ReactNode;
   /**
-   * A mark for what the place holds, in a glowing tile above the words: a
+   * A mark for what the place holds, in a quiet tile above the words: a
    * side panel or a dialog's list. Without one, the words alone and quieter,
    * for a list that is one part of a larger view.
    */
@@ -40,7 +40,7 @@ function EmptyWords({ children, icon }: { children: ReactNode; icon?: IconName }
     <div className="flex flex-col items-center px-6 pb-6 pt-12 text-center">
       <span
         aria-hidden="true"
-        className="empty-tile mb-4 flex size-12 items-center justify-center rounded-2xl text-copper"
+        className="empty-tile mb-4 flex size-12 items-center justify-center rounded-2xl text-ink-dim"
       >
         <Icon name={icon} size={20} />
       </span>
