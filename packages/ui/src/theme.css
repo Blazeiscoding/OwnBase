@@ -1212,20 +1212,29 @@ textarea::placeholder {
 
 /*
  * A conversation's own actions, as Discord's: invite, settings and More at the
- * end of its row while the row is pointed at or holds the keyboard, and always
- * on the conversation open, or while its More menu is. The row's words and
- * counts make room rather than run under them. Hidden, they are not in the Tab
- * order; Tab onto the row shows them.
+ * end of its row while the row is pointed at or holds the keyboard, or while
+ * its More menu is open. The row's words and counts make room rather than run
+ * under them. With a pointer, the conversation open shows them only then too,
+ * so its name is not cut short to make room; a touchscreen, which cannot
+ * point, shows them on the conversation open all the time. Hidden, they are
+ * not in the Tab order; Tab onto the row shows them.
  */
 .channel-actions {
   display: none;
 }
-.channel-item:is(:hover, :focus-within, [data-active], [data-menu-open]) .channel-actions {
+.channel-item:is(:hover, :focus-within, [data-menu-open]) .channel-actions {
   display: flex;
 }
-.channel-item[data-actions]:is(:hover, :focus-within, [data-active], [data-menu-open])
-  .channel-row {
+.channel-item[data-actions]:is(:hover, :focus-within, [data-menu-open]) .channel-row {
   padding-right: calc(var(--row-actions, 2) * 26px + 6px);
+}
+@media (hover: none) {
+  .channel-item[data-active] .channel-actions {
+    display: flex;
+  }
+  .channel-item[data-actions][data-active] .channel-row {
+    padding-right: calc(var(--row-actions, 2) * 26px + 6px);
+  }
 }
 .channel-item[data-actions="1"] {
   --row-actions: 1;
