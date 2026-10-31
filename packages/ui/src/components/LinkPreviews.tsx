@@ -60,7 +60,7 @@ function PreviewCard({
   }
 
   return (
-    <div className="flex max-w-xl gap-3 rounded-lg border border-edge border-l-2 border-l-copper/60 bg-ink/[0.025] py-2 pl-3 pr-2">
+    <div className="flex max-w-xl gap-3 rounded-lg border border-edge border-l-2 border-l-ink-faint bg-ink/[0.025] py-2 pl-3 pr-2">
       <div className="min-w-0 flex-1">
         {preview.siteName && (
           <p className="truncate text-xs font-medium text-ink-faint">{preview.siteName}</p>

@@ -348,7 +348,8 @@ export function ChannelDetailsDialog(props: {
                     onClick={() =>
                       channel.type === "private" ? setConfirmLeave(true) : void leave()
                     }
-                    className="rounded-lg border border-edge px-4 py-2.5 text-sm text-ink-dim transition-colors hover:border-alert hover:text-alert"
+                    // As tall as Save changes beside it; red only when pointed at.
+                    className="btn-shape inline-flex h-9 items-center justify-center border border-edge px-3.5 text-sm font-medium text-ink-dim hover:border-alert hover:text-alert disabled:opacity-40"
                   >
                     Leave channel
                   </button>
