@@ -303,8 +303,9 @@ A view is Slack's `modal` reduced to what this server can draw:
 - `title`, `submit`, `close`, `callback_id` and `private_metadata`;
 - `input` blocks, with `label`, `hint` and `optional`, each holding one of the
   elements below;
-- `header`, `section`, `context` and `divider` blocks, shown as text above the
-  inputs.
+- `header`, `section`, `context` and `divider` blocks, shown where they sit
+  among the inputs: a header as a heading, a section (with its `fields` after
+  it) as text, a context as small print, and a divider as a line.
 
 The input elements — _checked_:
 

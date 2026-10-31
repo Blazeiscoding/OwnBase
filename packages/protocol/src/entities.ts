@@ -921,10 +921,31 @@ export interface ModalView {
    * update from the same view sent again. Absent from servers before then.
    */
   hash?: string;
-  /** Anything above the fields — sections, headers — flattened to mrkdwn. */
+  /**
+   * Every header, section, context and divider, in order, flattened to one
+   * mrkdwn text. What a client draws above `fields` when `blocks` is absent.
+   */
   text: string;
   fields: ModalField[];
+  /**
+   * The view in the app's order, so words between two fields stay between
+   * them. Each field appears once, by its index in `fields`. Absent from
+   * servers before this was added: a client draws `text`, then `fields`.
+   */
+  blocks?: ModalBlock[];
 }
+
+/**
+ * One step of a view, top to bottom. A header is plain text; a section (with
+ * its fields run in after it) and a context are mrkdwn; a field is the one
+ * at that index of the view's `fields`.
+ */
+export type ModalBlock =
+  | { type: "header"; text: string }
+  | { type: "section"; text: string }
+  | { type: "context"; text: string }
+  | { type: "divider" }
+  | { type: "field"; field: number };
 
 /**
  * What a modal input is drawn as. The pickers choose from the workspace: people

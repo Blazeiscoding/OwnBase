@@ -1871,6 +1871,7 @@ describe("modals", () => {
       submitLabel: string;
       text: string;
       fields: { blockId: string; type: string; optional: boolean; options: unknown[] }[];
+      blocks?: unknown[];
     };
     expect(pushedView.title).toBe("Deploy");
     expect(pushedView.submitLabel).toBe("Ship it");
@@ -1879,6 +1880,12 @@ describe("modals", () => {
     expect(pushedView.fields.map((f) => f.blockId)).toEqual(["where", "why"]);
     expect(pushedView.fields[0]!.options).toHaveLength(2);
     expect(pushedView.fields[1]!.optional).toBe(true);
+    // In the app's order too, the dropped input leaving no gap.
+    expect(pushedView.blocks).toEqual([
+      { type: "section", text: "Where is this going?" },
+      { type: "field", field: 0 },
+      { type: "field", field: 1 },
+    ]);
 
     // The app answers the submission with a field error; the form stays open.
     stub.received.length = 0;
