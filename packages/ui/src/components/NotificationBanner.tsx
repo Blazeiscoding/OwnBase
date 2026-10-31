@@ -78,7 +78,7 @@ export function NotificationBanner({
       aria-label="Notifications"
       className="mx-3 mt-3 flex shrink-0 animate-rise-in flex-wrap items-center gap-x-3 gap-y-2 card-warm rounded-xl px-3.5 py-2.5 text-sm text-ink"
     >
-      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-copper/12 text-copper">
+      <span className="flex size-7 shrink-0 items-center justify-center rounded-lg border border-[var(--card-edge)] bg-lifted text-ink-dim">
         <Icon name="bell" size={15} />
       </span>
       <span className="min-w-0 flex-1 text-ink-dim">

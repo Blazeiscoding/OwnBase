@@ -208,7 +208,8 @@ export function TwoStepSettings() {
             ) : (
               <button
                 type="button"
-                className={buttonClass("primary")}
+                // Secondary: Security's one primary is Update password, above it.
+                className={buttonClass("secondary")}
                 onClick={() => go({ step: "password", purpose: "setup" })}
               >
                 Set up two-step sign-in

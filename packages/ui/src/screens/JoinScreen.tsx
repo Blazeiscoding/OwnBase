@@ -594,7 +594,14 @@ function BrowseCard(props: {
           props.hostingStatus.phase === "starting" ||
           props.hostingStatus.phase === "stopping" ? (
           <div className="card-warm flex items-center gap-3 rounded-2xl px-4 py-3 text-sm">
-            <span className="size-2 shrink-0 animate-pulse rounded-full bg-online" />
+            {/* Steady while it runs, as the sidebar's is; it pulses only on the way up or down. */}
+            <span
+              className={`size-2 shrink-0 rounded-full bg-online ${
+                props.hostingStatus.phase === "starting" || props.hostingStatus.phase === "stopping"
+                  ? "animate-pulse"
+                  : ""
+              }`}
+            />
             <span className="min-w-0 flex-1 text-ink-dim">
               {props.hostingStatus.phase === "starting"
                 ? "Starting your workspace…"
