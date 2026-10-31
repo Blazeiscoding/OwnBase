@@ -1000,8 +1000,15 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           >
             Retry confirmation
           </button>
-          <details>
-            <summary>Keep this draft instead</summary>
+          <details className="group">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
+              <Icon
+                name="chevronDown"
+                size={14}
+                className="-rotate-90 transition-transform group-open:rotate-0"
+              />
+              Keep this draft instead
+            </summary>
             <p className="my-2">
               Check Scheduled first. Keeping this draft does not cancel any message already queued;
               sending it again could create a duplicate.
@@ -1024,8 +1031,15 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           >
             Retry restoring request
           </button>
-          <details>
-            <summary>Discard unreadable recovery record</summary>
+          <details className="group">
+            <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
+              <Icon
+                name="chevronDown"
+                size={14}
+                className="-rotate-90 transition-transform group-open:rotate-0"
+              />
+              Discard unreadable recovery record
+            </summary>
             <p>
               Check Scheduled before sending this draft again. Discarding recovery does not cancel a
               queued message.
@@ -1293,7 +1307,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                 }}
                 disabled={(!text.trim() && attached.length === 0) || text.length > MESSAGE_LIMIT}
                 aria-label="Send message"
-                className="btn-shape flex size-8 items-center justify-center bg-copper text-ground transition-all hover:bg-copper-deep disabled:bg-transparent disabled:text-ink-faint/60"
+                className="btn-shape flex size-8 items-center justify-center bg-copper text-ground hover:bg-copper-deep disabled:bg-transparent disabled:text-ink-faint/60"
               >
                 <Icon name="send" size={16} />
               </button>

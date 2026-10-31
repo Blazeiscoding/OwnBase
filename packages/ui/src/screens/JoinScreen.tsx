@@ -247,7 +247,10 @@ export function JoinScreen({
                   Find your workspace
                 </h1>
                 <p className="mt-3 max-w-sm text-[15px] leading-relaxed text-ink-dim">
-                  Join your team’s server, or host one right here on this computer.
+                  {/* Only the desktop app can host. */}
+                  {platform.hosting
+                    ? "Join your team’s server, or host one on this computer."
+                    : "Enter your team’s server address, or open the invite link someone sent you."}
                 </p>
               </>
             )}
@@ -546,7 +549,7 @@ function BrowseCard(props: {
               }}
               placeholder="192.168.1.42:8543 or chat.yourteam.dev"
               spellCheck={false}
-              className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--card-edge)] bg-[var(--card-fill)] px-3.5 text-sm outline-none backdrop-blur transition-colors placeholder:text-ink-faint hover:border-ink-faint/40 focus:border-copper aria-invalid:border-alert"
+              className="h-10 min-w-0 flex-1 rounded-xl border border-[var(--card-edge)] bg-[var(--card-fill)] px-3.5 font-mono text-[13px] outline-none transition-colors placeholder:text-ink-faint hover:border-ink-faint/40 focus:border-copper aria-invalid:border-alert"
             />
             <button
               type="submit"
@@ -629,7 +632,7 @@ function HostCard(props: { onClick: () => void }) {
         aria-describedby={`${id}-body`}
         className="card-warm group flex w-full items-center gap-3.5 rounded-2xl p-4 text-left hover:bg-ink/[0.03]"
       >
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-copper/12 text-copper">
+        <span className="flex size-10 shrink-0 items-center justify-center rounded-xl border border-[var(--card-edge)] bg-lifted text-ink-dim">
           <Icon name="server" size={20} />
         </span>
         <span className="min-w-0 flex-1">
