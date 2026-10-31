@@ -12,6 +12,10 @@ packages/ui/src/emoji.css
 # it is what that writes.
 packages/ui/src/components/brandMark.json
 
+# The REST API's description, written by packages/server/test/openapi.test.ts,
+# which checks it is what that writes.
+packages/server/openapi.json
+
 # Build output and test artefacts. `out/` is the desktop app's built bundles;
 # .gitignore lists it too, but the check must not depend on that file.
 dist/

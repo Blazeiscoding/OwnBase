@@ -498,7 +498,14 @@ and date formatting such as `<!date^…>`.
 
 The first-party clients use a WebSocket at `/ws` and the REST routes under
 `/api/`. They are not a stable public API — they change with the clients, and
-are versioned by `PROTOCOL_VERSION` in `packages/protocol` — but an outline:
+are versioned by `PROTOCOL_VERSION` in `packages/protocol`.
+
+Every REST route, with the body or query it takes and who may call it, is
+described in [`packages/server/openapi.json`](../packages/server/openapi.json):
+OpenAPI 3.0, generated from the schemas the server validates requests with, and
+checked in CI.
+
+The socket, in outline:
 
 1. The client opens the socket and, within 10 seconds, sends
    `{"type": "hello", "token": "<session token>", "lastSeq": <number | null>, "protocolVersion": <n>}`.
