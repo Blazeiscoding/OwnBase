@@ -48,7 +48,29 @@ concurrency:
 permissions:
   contents: read
 jobs:
+  # Publishing a draft by hand creates its tag, and a version tag starts this
+  # workflow, which would build the same release again and leave a second
+  # draft of it. A tag whose release is already out builds nothing.
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          build=true
+          if [ "$GITHUB_REF_TYPE" = "tag" ] &&
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json isDraft --jq '.isDraft' 2>/dev/null | grep -qx false; then
+            echo "::notice::$GITHUB_REF_NAME is already released, so there is nothing to build."
+            build=false
+          fi
+          echo "build=$build" >> "$GITHUB_OUTPUT"
+
   server:
+    needs: [plan]
+    if: needs.plan.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -88,6 +110,8 @@ jobs:
           retention-days: 1
 
   windows:
+    needs: [plan]
+    if: needs.plan.outputs.build == 'true'
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -157,6 +181,8 @@ jobs:
   # people to allow it the first time. The packaged app boots, hosts a
   # workspace, serves the browser client and joins a huddle here first.
   mac:
+    needs: [plan]
+    if: needs.plan.outputs.build == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -287,8 +313,8 @@ jobs:
   # alone, so this run deletes its own artifacts once nothing needs them,
   # published or not.
   clean-up:
-    needs: [manifest, publish]
-    if: ${{ always() && !github.event.pull_request.head.repo.fork }}
+    needs: [plan, manifest, publish]
+    if: ${{ always() && needs.plan.outputs.build == 'true' && !github.event.pull_request.head.repo.fork }}
     runs-on: ubuntu-latest
     permissions:
       actions: write
