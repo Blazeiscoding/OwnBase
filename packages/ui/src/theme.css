@@ -78,8 +78,6 @@
   --color-copper-deep: #e96800; /* accent, pressed and hovered */
   --color-online: #50dd7f; /* present, live huddles */
   --color-alert: #fa706a; /* mentions, errors, leaving, destructive */
-  /* The highlight phrase: one per paragraph, pale cream. */
-  --color-cream: #f9d29e;
   --color-mention: rgba(249, 115, 22, 0.08); /* a message that names you */
 
   /*
@@ -488,28 +486,12 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
   --card-edge: rgba(255, 255, 255, 0.07);
   --card-edge-hover: rgba(255, 255, 255, 0.14);
   --card-fill: rgba(255, 255, 255, 0.025);
-  --glow: rgba(249, 115, 22, 0.2);
-  --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(255,255,255,0.05)'/%3E%3C/svg%3E");
   --focus-ring-width: 2px;
   /* How far the conversation card sits in from the window's edges. */
   --inset: 8px;
-  /*
-   * The vibrant layer (see the end of this file). The accent as light falls
-   * on it, for the one primary action; the glow it casts; the alert's fill;
-   * a hairline of light along the top of anything raised; and the three
-   * washes of colour the backgrounds are lit with. Text on the gradients
-   * takes the ground colour and clears 4.5:1 at both ends.
-   */
-  --accent-grad: linear-gradient(135deg, #ffa35c 0%, #f97316 48%, #ee591a 100%);
-  --accent-glow: rgba(249, 115, 22, 0.45);
-  --alert-grad: linear-gradient(135deg, #ff9088 0%, #fa706a 50%, #f15a53 100%);
+  /* A hairline of light along the top of anything raised (see the end of this file). */
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
-  --aura-1: rgba(249, 115, 22, 0.14);
-  --aura-2: rgba(148, 81, 255, 0.12);
-  --aura-3: rgba(248, 49, 150, 0.08);
-  --text-grad: linear-gradient(100deg, #ffb36f 0%, #f97316 45%, #f871aa 100%);
-  /* The sign-in page's aurora, and the red badges for what names you. */
-  --aurora-violet: #a375ff;
+  /* The red badges for what names you. */
   --mention-red: #da373a;
   /* The theme picker shows each theme as it is, whichever is on. */
   --onyx-deep: #111115;
@@ -539,14 +521,10 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
   --color-copper-deep: #903d00;
   --color-online: #0d6b34;
   --color-alert: #c52b30;
-  /* The highlight phrase, steeped darker so it reads on white. */
-  --color-cream: #744c01;
   --color-mention: rgba(163, 70, 0, 0.06);
   --card-edge: rgba(15, 15, 19, 0.09);
   --card-edge-hover: rgba(15, 15, 19, 0.18);
   --card-fill: rgba(255, 255, 255, 0.6);
-  --glow: rgba(249, 115, 22, 0.12);
-  --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,15,19,0.06)'/%3E%3C/svg%3E");
   /* The call: the window's grey, with a sheet of paper for each person. */
   --call-ground: var(--color-deep);
   --call-tile: var(--color-ground);
@@ -567,14 +545,10 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
     --color-copper-deep: #903d00;
     --color-online: #0d6b34;
     --color-alert: #c52b30;
-    /* The highlight phrase, steeped darker so it reads on white. */
-    --color-cream: #744c01;
     --color-mention: rgba(163, 70, 0, 0.06);
     --card-edge: rgba(15, 15, 19, 0.09);
     --card-edge-hover: rgba(15, 15, 19, 0.18);
     --card-fill: rgba(255, 255, 255, 0.6);
-    --glow: rgba(249, 115, 22, 0.12);
-    --hex: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(15,15,19,0.06)'/%3E%3C/svg%3E");
     /* The call: the window's grey, with a sheet of paper for each person. */
     --call-ground: var(--color-deep);
     --call-tile: var(--color-ground);
@@ -583,22 +557,14 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
 
 /*
  * White's shadows are softer: on a light page a heavy shadow reads as dirt.
- * Its vibrant layer is steeped darker, so white text on the gradients still
- * reads, and its washes are paler.
+ * Its hairline of light is brighter, so it shows on a pale surface.
  */
 :root[data-theme="light"] {
   --shadow-float:
     0 0 0 1px rgb(15 15 19 / 0.06), 0 2px 4px -1px rgb(15 15 19 / 0.06),
     0 12px 32px -8px rgb(15 15 19 / 0.16);
   --shadow-dialog: 0 0 0 1px rgb(15 15 19 / 0.06), 0 32px 80px -16px rgb(15 15 19 / 0.28);
-  --accent-grad: linear-gradient(135deg, #b85200 0%, #a34600 55%, #903d00 100%);
-  --accent-glow: rgba(163, 70, 0, 0.32);
-  --alert-grad: linear-gradient(135deg, #d03739 0%, #c52b30 55%, #b71824 100%);
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.75);
-  --aura-1: rgba(249, 115, 22, 0.1);
-  --aura-2: rgba(148, 81, 255, 0.08);
-  --aura-3: rgba(248, 49, 150, 0.06);
-  --text-grad: linear-gradient(100deg, #a34600 0%, #b44107 45%, #ba1b6e 100%);
 }
 @media (prefers-color-scheme: light) {
   :root[data-theme="system"] {
@@ -606,22 +572,15 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
       0 0 0 1px rgb(15 15 19 / 0.06), 0 2px 4px -1px rgb(15 15 19 / 0.06),
       0 12px 32px -8px rgb(15 15 19 / 0.16);
     --shadow-dialog: 0 0 0 1px rgb(15 15 19 / 0.06), 0 32px 80px -16px rgb(15 15 19 / 0.28);
-    --accent-grad: linear-gradient(135deg, #b85200 0%, #a34600 55%, #903d00 100%);
-    --accent-glow: rgba(163, 70, 0, 0.32);
-    --alert-grad: linear-gradient(135deg, #d03739 0%, #c52b30 55%, #b71824 100%);
     --sheen: inset 0 1px 0 rgb(255 255 255 / 0.75);
-    --aura-1: rgba(249, 115, 22, 0.1);
-    --aura-2: rgba(148, 81, 255, 0.08);
-    --aura-3: rgba(248, 49, 150, 0.06);
-    --text-grad: linear-gradient(100deg, #a34600 0%, #b44107 45%, #ba1b6e 100%);
   }
 }
 
 /*
  * The call takes the theme's colours, but full screen is dark in either, as a
  * cinema is: a share fills the screen on black, and the controls float over
- * it. Onyx's colours, fills and shadows; scripts/generate-palette.mjs writes
- * the colours and fills here too.
+ * it. Onyx's colours and shadows; scripts/generate-palette.mjs writes the
+ * colours here too.
  */
 .call-dark {
   color-scheme: dark;
@@ -639,11 +598,7 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
   --color-copper-deep: #e96800;
   --color-online: #50dd7f;
   --color-alert: #fa706a;
-  --color-cream: #f9d29e;
   --color-mention: rgba(249, 115, 22, 0.08);
-  --accent-grad: linear-gradient(135deg, #ffa35c 0%, #f97316 48%, #ee591a 100%);
-  --accent-glow: rgba(249, 115, 22, 0.45);
-  --alert-grad: linear-gradient(135deg, #ff9088 0%, #fa706a 50%, #f15a53 100%);
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
   --shadow-float:
     0 0 0 1px rgb(0 0 0 / 0.04), 0 2px 4px -1px rgb(0 0 0 / 0.18),
@@ -852,15 +807,13 @@ textarea::placeholder {
 }
 
 /*
- * chaicode.com's warm card: a hairline, a faint fill, a little blur, no
- * shadow. A component, so a utility on the same element still wins.
+ * chaicode.com's warm card: a hairline and a faint fill, no shadow. A
+ * component, so a utility on the same element still wins.
  */
 @layer components {
   .card-warm {
     border: 1px solid var(--card-edge);
     background: var(--card-fill);
-    -webkit-backdrop-filter: blur(4px);
-    backdrop-filter: blur(4px);
     transition:
       border-color 150ms ease-out,
       background-color 150ms ease-out;
@@ -868,12 +821,6 @@ textarea::placeholder {
   .card-warm:is(a, button):hover {
     border-color: var(--card-edge-hover);
   }
-}
-
-/* The highlight phrase: one per paragraph at most, pale cream. */
-.highlight {
-  font-weight: 600;
-  color: var(--color-cream);
 }
 
 /* Discord's red for what names you: white on it reads at 4.6:1 in both themes. */
@@ -914,25 +861,14 @@ textarea::placeholder {
   transition: transform var(--duration-fast) var(--ease-smooth);
 }
 
-/*
- * The field being filled in, lit from above like a stage: a warm wash and a
- * soft ring in the accent. The wash is faint enough that text on it reads as
- * it does on the plain field.
- */
+/* The field being filled in: its edge in the accent, and a thin ring around it. */
 .field-spot {
   transition:
     border-color 150ms ease-out,
     box-shadow 150ms ease-out;
 }
 .field-spot:focus {
-  background-image: radial-gradient(
-    90% 180% at 50% -70%,
-    color-mix(in oklab, var(--color-copper) 16%, transparent),
-    transparent 70%
-  );
-  box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--color-copper) 14%, transparent),
-    0 12px 28px -16px color-mix(in oklab, var(--color-copper) 60%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-copper) 14%, transparent);
 }
 
 /*
@@ -974,71 +910,6 @@ textarea::placeholder {
 }
 .rail-pill[data-state="current"] {
   height: 40px;
-}
-
-/*
- * The page behind everything: a faint hexagon lattice under a warm glow that
- * fades out towards the bottom, warm in White too.
- */
-.hex-glow {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background: radial-gradient(70% 55% at 50% -5%, var(--glow), transparent 70%), var(--hex);
-  -webkit-mask-image: linear-gradient(to bottom, black 35%, transparent 95%);
-  mask-image: linear-gradient(to bottom, black 35%, transparent 95%);
-}
-
-/* A soft field of light behind the sign-in card, drifting slowly. */
-.aurora {
-  position: absolute;
-  inset: -20%;
-  pointer-events: none;
-  background:
-    radial-gradient(
-      40% 35% at 30% 30%,
-      color-mix(in oklab, var(--color-copper) 26%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      35% 30% at 72% 62%,
-      color-mix(in oklab, var(--aurora-violet) 14%, transparent),
-      transparent 70%
-    ),
-    radial-gradient(
-      30% 30% at 50% 90%,
-      color-mix(in oklab, var(--color-copper) 10%, transparent),
-      transparent 70%
-    );
-  filter: blur(40px);
-  opacity: 0.85;
-  animation: aurora-drift 24s ease-in-out infinite alternate;
-}
-:root[data-theme="light"] .aurora {
-  opacity: 0.55;
-}
-@media (prefers-color-scheme: light) {
-  :root[data-theme="system"] .aurora {
-    opacity: 0.55;
-  }
-}
-@keyframes aurora-drift {
-  from {
-    transform: translate3d(-3%, -2%, 0) rotate(0deg);
-  }
-  to {
-    transform: translate3d(3%, 2%, 0) rotate(6deg);
-  }
-}
-/* A faint grain over the field, so the gradient does not band. */
-.grain {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  opacity: 0.035;
-  background-image: radial-gradient(var(--color-ink) 0.5px, transparent 0.5px);
-  background-size: 3px 3px;
-  mask-image: radial-gradient(ellipse at center, black 30%, transparent 75%);
 }
 
 /* Files dragged over a conversation land on a dotted field. */
@@ -1341,20 +1212,29 @@ textarea::placeholder {
 
 /*
  * A conversation's own actions, as Discord's: invite, settings and More at the
- * end of its row while the row is pointed at or holds the keyboard, and always
- * on the conversation open, or while its More menu is. The row's words and
- * counts make room rather than run under them. Hidden, they are not in the Tab
- * order; Tab onto the row shows them.
+ * end of its row while the row is pointed at or holds the keyboard, or while
+ * its More menu is open. The row's words and counts make room rather than run
+ * under them. With a pointer, the conversation open shows them only then too,
+ * so its name is not cut short to make room; a touchscreen, which cannot
+ * point, shows them on the conversation open all the time. Hidden, they are
+ * not in the Tab order; Tab onto the row shows them.
  */
 .channel-actions {
   display: none;
 }
-.channel-item:is(:hover, :focus-within, [data-active], [data-menu-open]) .channel-actions {
+.channel-item:is(:hover, :focus-within, [data-menu-open]) .channel-actions {
   display: flex;
 }
-.channel-item[data-actions]:is(:hover, :focus-within, [data-active], [data-menu-open])
-  .channel-row {
+.channel-item[data-actions]:is(:hover, :focus-within, [data-menu-open]) .channel-row {
   padding-right: calc(var(--row-actions, 2) * 26px + 6px);
+}
+@media (hover: none) {
+  .channel-item[data-active] .channel-actions {
+    display: flex;
+  }
+  .channel-item[data-actions][data-active] .channel-row {
+    padding-right: calc(var(--row-actions, 2) * 26px + 6px);
+  }
 }
 .channel-item[data-actions="1"] {
   --row-actions: 1;
@@ -1745,56 +1625,27 @@ textarea::placeholder {
 
 /*
  * ---------------------------------------------------------------------------
- * The vibrant layer, after the sites vibrant.design collects: surfaces lit
- * from above by a hairline of light, the accent as a gradient with a glow for
- * the one primary action, frosted floating panels, and soft washes of colour
- * behind the places people arrive at. It sits on top of the rules above and
- * changes no layout, so every screen takes it as it is.
+ * Light and depth. The chrome stays quiet so that what people post (faces,
+ * pictures, reactions, a call) is where the colour is. Raised surfaces catch
+ * a hairline of light along their top edge; floating ones add a neutral
+ * shadow. The accent is a flat fill, never a gradient or a glow, and nothing
+ * behind the content is washed with colour.
  * ---------------------------------------------------------------------------
  */
 
 /*
  * The primary action, wherever it is drawn: a Button, or any button or link
- * filled with the accent. Lit along its top edge, shaded along its foot, and
- * casting a little of its own colour. A disabled one stays flat.
+ * filled with the accent. Lit along its top edge, a step deeper when pointed
+ * at. A disabled one stays flat.
  */
 :is(button, a, label)[class~="bg-copper"]:not(:disabled) {
-  background-image: var(--accent-grad);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.28),
-    inset 0 -1px 0 rgb(0 0 0 / 0.12),
-    0 6px 20px -8px var(--accent-glow);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
   transition:
-    filter 140ms ease-out,
-    box-shadow 140ms ease-out,
+    background-color 120ms ease-out,
     transform 80ms ease-out;
 }
 :is(button, a, label)[class~="bg-copper"]:not(:disabled):hover {
-  filter: brightness(1.07) saturate(1.05);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.32),
-    inset 0 -1px 0 rgb(0 0 0 / 0.12),
-    0 10px 28px -8px var(--accent-glow);
-}
-:is(button, a)[class~="bg-alert"]:not(:disabled) {
-  background-image: var(--alert-grad);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.24),
-    0 6px 20px -10px color-mix(in oklab, var(--color-alert) 70%, transparent);
-}
-
-/* A bar that fills as something is done: the accent as light. */
-.progress-fill {
-  background-image: var(--accent-grad);
-  box-shadow: 0 0 12px -2px var(--accent-glow);
-}
-
-/* Text that carries the brand: the accent running into rose. One phrase at a time. */
-.text-vibrant {
-  background-image: var(--text-grad);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
+  background-color: var(--color-copper-deep);
 }
 
 /* Floating panels catch the light along their top edge. */
@@ -1802,18 +1653,9 @@ textarea::placeholder {
   box-shadow: var(--sheen), var(--shadow-float);
 }
 
-/*
- * A dialog: the raised surface, with the accent and a violet wash glowing in
- * from above, and the hairline of light along its top.
- */
+/* A dialog: the raised surface, with the hairline of light along its top. */
 .dialog-surface {
-  background:
-    radial-gradient(
-      110% 60% at 50% -25%,
-      color-mix(in oklab, var(--color-copper) 9%, transparent),
-      transparent 60%
-    ),
-    radial-gradient(70% 50% at 105% -5%, var(--aura-2), transparent 65%), var(--color-raised);
+  background: var(--color-raised);
   box-shadow: var(--sheen), var(--shadow-dialog);
 }
 /* What a dialog sits over: dimmed, and softly out of focus. */
@@ -2049,151 +1891,56 @@ textarea::placeholder {
 }
 
 /*
- * A card set on the page, such as sign-in: frosted glass with an edge that
- * catches the accent at one corner and violet at the other.
+ * A card set on the page, such as sign-in: the raised surface on its own,
+ * with the hairline of light along its top and a dialog's shadow.
  */
-.glass-card {
-  position: relative;
-  background: linear-gradient(
-    180deg,
-    color-mix(in oklab, var(--color-raised) 84%, transparent),
-    color-mix(in oklab, var(--color-ground) 72%, transparent)
-  );
-  border-color: transparent;
-  -webkit-backdrop-filter: blur(20px) saturate(1.3);
-  backdrop-filter: blur(20px) saturate(1.3);
-  box-shadow:
-    var(--sheen),
-    0 0 0 1px var(--card-edge),
-    0 40px 100px -40px rgb(0 0 0 / 0.65);
-}
-.glass-card::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  padding: 1px;
-  border-radius: inherit;
-  pointer-events: none;
-  background: linear-gradient(
-    155deg,
-    color-mix(in oklab, var(--color-copper) 60%, transparent),
-    transparent 32%,
-    transparent 68%,
-    color-mix(in oklab, #8b5cf6 45%, transparent)
-  );
-  -webkit-mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  -webkit-mask-composite: xor;
-  mask:
-    linear-gradient(#000 0 0) content-box,
-    linear-gradient(#000 0 0);
-  mask-composite: exclude;
+.sign-in-card {
+  background: var(--color-raised);
+  box-shadow: var(--sheen), var(--shadow-dialog);
 }
 
-/*
- * The conversation pane, lit faintly from its top corners: the accent on one
- * side, violet on the other. Behind everything in it, and gone by the time
- * the first message is reached.
- */
+/* The conversation pane holds what is placed over it, such as the drop field. */
 .workspace-main {
   position: relative;
   isolation: isolate;
 }
-.workspace-main::before {
-  content: "";
-  position: absolute;
-  inset: 0 0 auto 0;
-  height: 360px;
-  z-index: -1;
-  pointer-events: none;
-  background:
-    radial-gradient(55% 100% at 92% -25%, var(--aura-1), transparent 70%),
-    radial-gradient(45% 90% at 12% -35%, var(--aura-2), transparent 70%);
-}
-.workspace-main .channel-header {
-  background: transparent;
-}
 
-/* The sidebar: a faint wash of the accent at its head, fading out within a few rows. */
-.workspace-sidebar {
-  background-image: radial-gradient(140% 28% at 0% 0%, var(--aura-1), transparent 70%);
-}
-
-/* The open conversation's row: lit with the accent, with a fine accent edge. */
+/*
+ * The open conversation's row: a step lighter than a row pointed at, with the
+ * hairline of light along its top. Its icon takes the accent.
+ */
 .channel-row-active {
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklab, var(--color-copper) 17%, transparent),
-    color-mix(in oklab, var(--color-copper) 5%, transparent)
-  );
-  box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--color-copper) 20%, transparent);
+  background: color-mix(in oklab, var(--color-ink) 11%, transparent);
+  box-shadow: var(--sheen);
 }
 
-/* The workspace on screen glows in its own colour on the rail. */
+/* The workspace icons on the rail catch the light along their top edge. */
 .squircle {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);
 }
-.squircle[aria-current="page"] {
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.25),
-    0 8px 22px -8px var(--accent-glow);
-}
 
-/*
- * A count that names you glows a little, so it is found at a glance. Given
- * as Tailwind's own shadow, and in the components layer, so a badge that
- * also has a ring (the rail's, set apart from the icon it sits on) keeps the
- * ring and adds the glow, rather than losing one to the other.
- */
-@layer components {
-  .badge-mention {
-    --tw-shadow: 0 2px 10px -2px rgb(218 55 60 / 0.65);
-    box-shadow: var(--tw-shadow);
-  }
-}
-
-/* With forced colours on, gradient text would vanish: it goes back to plain text. */
-@media (forced-colors: active) {
-  .text-vibrant {
-    background: none;
-    color: CanvasText;
-  }
-}
-
-/* The composer: lit along its top, and ringed with the accent while you write. */
+/* The composer: lit along its top, and its edge a step stronger while you write. */
 .composer-box {
   box-shadow: var(--sheen);
 }
 .composer-box:focus-within {
-  border-color: color-mix(in oklab, var(--color-copper) 45%, transparent);
-  box-shadow:
-    var(--sheen),
-    0 0 0 3px color-mix(in oklab, var(--color-copper) 12%, transparent),
-    0 14px 34px -22px var(--accent-glow);
+  border-color: color-mix(in oklab, var(--color-ink) 22%, transparent);
 }
 
-/* The top of a conversation: its mark on the accent, glowing. */
+/* The top of a conversation: its mark on a quiet tile. */
 .intro-tile {
-  background-image: var(--accent-grad);
-  color: var(--color-ground);
-  box-shadow:
-    inset 0 1px 0 rgb(255 255 255 / 0.3),
-    0 14px 36px -12px var(--accent-glow);
-}
-
-/* A live huddle: green light running across the bar, and a glow under it. */
-.huddle-live {
-  border-color: color-mix(in oklab, var(--color-online) 32%, transparent);
-  background: linear-gradient(
-    90deg,
-    color-mix(in oklab, var(--color-online) 12%, transparent),
-    color-mix(in oklab, var(--color-online) 3%, transparent) 60%,
-    color-mix(in oklab, #22d3ee 6%, transparent)
-  );
+  background: var(--color-lifted);
+  color: var(--color-ink-dim);
   box-shadow:
     var(--sheen),
-    0 10px 30px -22px var(--color-online);
+    0 0 0 1px var(--card-edge);
+}
+
+/* A live huddle: the bar tinted with the green that says someone is there. */
+.huddle-live {
+  border-color: color-mix(in oklab, var(--color-online) 30%, transparent);
+  background: color-mix(in oklab, var(--color-online) 8%, transparent);
+  box-shadow: var(--sheen);
 }
 
 /* A segmented control's thumb catches the light like a key. */
@@ -2221,17 +1968,9 @@ textarea::placeholder {
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.14);
 }
 
-/* The mark over an empty list: the accent, glowing softly from inside its tile. */
+/* The mark over an empty list, on a quiet tile. */
 .empty-tile {
-  background:
-    radial-gradient(
-      circle at 30% 20%,
-      color-mix(in oklab, var(--color-copper) 26%, transparent),
-      color-mix(in oklab, var(--color-copper) 7%, transparent) 70%
-    ),
-    var(--color-raised);
-  border: 1px solid color-mix(in oklab, var(--color-copper) 28%, transparent);
-  box-shadow:
-    var(--sheen),
-    0 12px 32px -14px var(--accent-glow);
+  background: var(--color-lifted);
+  border: 1px solid var(--card-edge);
+  box-shadow: var(--sheen);
 }

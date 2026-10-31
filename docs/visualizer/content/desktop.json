@@ -590,9 +590,9 @@
       "plain": "Works out every colour of both themes from a few choices, and writes them into the stylesheet and the files that repeat them.",
       "summary": "Generates the Onyx and White palettes in OKLCH and writes them, as hex, wherever the app uses them (UX-11).",
       "details": [
-        "INPUTS holds OwnBase's orange (#f97316, kept as the accent on purpose), one graphite hue and chroma for surfaces and inks, a hue for online, alert, the highlight and the background washes, and where each colour sits on the lightness scale in each theme. A neutral's chroma falls off toward black and white (4L(1-L)); a colour outside sRGB keeps its lightness and hue and loses chroma until it fits.",
-        "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, glows, gradients, washes, the theme picker's swatches and the mention red, and the .call-dark block of Onyx's tokens and fills that a call in full screen takes), and by position the hex colours in the desktop window's colours (windowTheme.ts), both pages and their first-paint.js, appearance.ts's bar colours and the manifest. It writes the mark's SVGs and BrandMark's brandMark.json whole, from scripts/icon-art.mjs. Running it twice changes nothing.",
-        "theme.test.ts fails when a file differs from what OUTPUTS writes, and checks contrast for every ink on every surface, the gradient ends and the mention red. scripts/generate-icons.mjs draws the app icons from the same drawing."
+        "INPUTS holds OwnBase's orange (#f97316, kept as the accent on purpose), one graphite hue and chroma for surfaces and inks, a hue for online and alert, the mention red, and where each colour sits on the lightness scale in each theme. A neutral's chroma falls off toward black and white (4L(1-L)); a colour outside sRGB keeps its lightness and hue and loses chroma until it fits.",
+        "OUTPUTS rewrites theme.css by declaration name in the dark @theme and :root blocks and the light and system-light blocks (tokens, the mention tint, cards, shadows, the theme picker's swatches and the mention red, and the .call-dark block of Onyx's tokens that a call in full screen takes), and by position the hex colours in the desktop window's colours (windowTheme.ts), both pages and their first-paint.js, appearance.ts's bar colours and the manifest. It writes the mark's SVGs and BrandMark's brandMark.json whole, from scripts/icon-art.mjs. Running it twice changes nothing.",
+        "theme.test.ts fails when a file differs from what OUTPUTS writes, and checks contrast for every ink on every surface, text on the accent and alert fills, and white on the mention red. scripts/generate-icons.mjs draws the app icons from the same drawing."
       ],
       "concepts": ["tooling", "asset generation", "OKLCH", "UX-11"]
     },
@@ -914,7 +914,7 @@
       "plain": "Takes new pictures of the main screens on GitHub's Linux computers when a change is meant to alter how they look, and adds them to the change.",
       "summary": "Regenerates the visual check's Linux pictures and commits them to the branch (UX-15).",
       "details": [
-        "Starts from the visual baselines label on a pull request from this repository, or by hand on a branch. It builds, runs pnpm test:visual --update-snapshots, which takes again only pictures that no longer match, commits those, approves the runs GitHub holds for its own push (or starts Checks by hand where there are none), and takes the label off.",
+        "Starts from the visual baselines label on a pull request from this repository, or by hand on a branch. It builds, runs pnpm test:visual --update-snapshots=changed, which takes again only pictures that no longer match (or =all when started by hand with every ticked, for a faint change that still matches), commits those, approves the runs GitHub holds for its own push (or starts Checks by hand where there are none), and takes the label off.",
         "Anything else that fails, such as axe, fails the run and commits nothing; its results are kept for a day."
       ],
       "concepts": ["configuration", "CI", "visual regression"]

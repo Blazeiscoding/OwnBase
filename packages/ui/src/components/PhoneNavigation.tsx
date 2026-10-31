@@ -214,7 +214,7 @@ function Pill(props: { current?: boolean; children: ReactNode }) {
   return (
     <span
       className={`relative flex h-8 w-14 items-center justify-center rounded-full transition-colors duration-150 ${
-        props.current ? "bg-copper/15 text-copper" : "group-active/item:bg-ink/[0.06]"
+        props.current ? "bg-ink/[0.11] text-copper" : "group-active/item:bg-ink/[0.06]"
       }`}
     >
       {props.children}

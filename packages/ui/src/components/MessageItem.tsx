@@ -953,9 +953,11 @@ function MessageActions({ message }: { message: Message }) {
 
   if (message.actions.length === 0) return null;
 
+  // An app's primary is drawn as the app's own primary is. Danger stays quiet
+  // until pointed at: a message is not where anything is confirmed.
   const styles: Record<string, string> = {
-    primary: "border-online bg-online/15 text-online hover:bg-online/25",
-    danger: "border-alert bg-alert/15 text-alert hover:bg-alert/25",
+    primary: "border-copper bg-copper text-ground hover:border-copper-deep hover:bg-copper-deep",
+    danger: "border-edge text-alert hover:border-alert/60",
     default: "border-edge text-ink-dim hover:border-ink-faint hover:text-ink",
   };
 
@@ -1012,7 +1014,7 @@ export function GuestTag() {
   return (
     <span
       title="Joined as a guest"
-      className="rounded border border-edge px-1 text-[10px] font-semibold uppercase tracking-wide text-ink-faint"
+      className="rounded border border-edge px-1 text-[11px] font-medium text-ink-faint"
     >
       Guest
     </span>

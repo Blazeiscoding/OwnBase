@@ -964,7 +964,7 @@ function WorkspaceRail(props: {
           <button
             onClick={props.onAdd}
             aria-label="Add or join a workspace"
-            className="squircle flex size-12 items-center justify-center bg-raised text-online hover:bg-online hover:text-ground"
+            className="squircle flex size-12 items-center justify-center bg-raised text-ink-dim hover:bg-lifted hover:text-ink"
           >
             <Icon name="plus" size={22} />
           </button>
@@ -1011,7 +1011,7 @@ function RailItem(props: {
           <CountBadge
             count={props.badge ?? 0}
             aria-hidden="true"
-            className="badge-mention absolute -bottom-1 -right-1 min-w-5 rounded-full px-1 text-center text-[11px] font-bold leading-4 ring-4 ring-deep"
+            className="badge-mention absolute -bottom-1 -right-1 min-w-5 rounded-full px-1 text-center text-[11px] font-semibold leading-4 ring-4 ring-deep"
           />
         </button>
       </Tooltip>
@@ -1389,7 +1389,7 @@ function SectionHeader(props: {
         onClick={props.onToggle}
         data-section-toggle={props.section}
         aria-expanded={props.onToggle ? !props.collapsed : undefined}
-        className="flex min-w-0 flex-1 items-center gap-0.5 rounded-md py-1 pl-0.5 text-left text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-faint transition-colors hover:text-ink-dim"
+        className="flex min-w-0 flex-1 items-center gap-0.5 rounded-md py-1 pl-0.5 text-left text-[13px] font-medium text-ink-faint transition-colors hover:text-ink-dim"
       >
         <Icon
           name="chevronDown"

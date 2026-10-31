@@ -3,6 +3,7 @@ import { normalizeServerUrl, WorkspaceClient } from "@ownbase/client-core";
 import { PlatformContext } from "./context.js";
 import type { Platform, SavedServer } from "./platform.js";
 import { parseDeepLink } from "./lib/deeplink.js";
+import { normalizeServerUrlSafe } from "./lib/deeplinkHelpers.js";
 import { WorkspaceScreen } from "./screens/WorkspaceScreen.js";
 import { Dialog } from "./components/Dialog.js";
 import { Icon } from "./components/Icon.js";
@@ -395,10 +396,22 @@ export function App({ platform }: { platform: Platform }) {
   // In a workspace it waits its turn in the one banner place there (UX-25).
   const saveErrorAbove = saveError && session.view !== "workspace";
   const hostingStatus = hosting.status;
+  // The workspace this computer hosts, however it was reached: by this
+  // computer's own name for it, an address on the network (as "On your
+  // network" offers it), or the address it is open to all on.
+  const viewedUrl = session.view === "workspace" ? session.server.url : null;
+  const hostedUrls =
+    hostingStatus?.port === undefined
+      ? []
+      : [
+          `localhost:${hostingStatus.port}`,
+          `127.0.0.1:${hostingStatus.port}`,
+          ...(hostingStatus.lanUrls ?? []),
+          ...(hostingStatus.openToAll?.phase === "open" ? [hostingStatus.openToAll.url] : []),
+          ...(hostingStatus.publicAddress ? [hostingStatus.publicAddress] : []),
+        ];
   const viewingHosted =
-    session.view === "workspace" &&
-    hostingStatus?.port !== undefined &&
-    session.server.url === normalizeServerUrl(`localhost:${hostingStatus.port}`);
+    viewedUrl !== null && hostedUrls.some((url) => normalizeServerUrlSafe(url) === viewedUrl);
   const hostingLine: HostingLine | undefined =
     platform.hosting &&
     (hostingStatus?.running ||
@@ -416,8 +429,13 @@ export function App({ platform }: { platform: Platform }) {
                   ? "Starting your hosted workspace…"
                   : hostingStatus?.phase === "stopping"
                     ? "Stopping your hosted workspace…"
-                    : // The sidebar names the workspace on screen already.
-                      `Hosting ${viewingHosted ? "" : `${hostingStatus?.workspaceName ?? "a workspace"} `}on this computer${hostingStatus?.openToAll?.phase === "open" ? " · open to all" : ""}`,
+                    : viewingHosted
+                      ? // The sidebar names the workspace just above, and the
+                        // line has room for about 22 characters beside Manage.
+                        hostingStatus?.openToAll?.phase === "open"
+                        ? "Hosting · open to all"
+                        : "Hosting here"
+                      : `Hosting ${hostingStatus?.workspaceName ?? "a workspace"} on this computer${hostingStatus?.openToAll?.phase === "open" ? " · open to all" : ""}`,
           state:
             hosting.error || hostingStatus?.warning || hostingStatus?.openToAllError
               ? "trouble"

@@ -162,11 +162,18 @@ describe("a channel's row in the sidebar", () => {
 });
 
 describe("the stylesheet", () => {
-  it("shows a row's buttons only while it is pointed at, holds focus, is open, or has its menu open", () => {
+  it("shows a row's buttons only while it is pointed at, holds focus, or has its menu open", () => {
     const css = readFileSync(join(process.cwd(), "src/theme.css"), "utf8");
     expect(css).toMatch(/\.channel-actions \{\s*display: none;\s*\}/);
     expect(css).toContain(
-      ".channel-item:is(:hover, :focus-within, [data-active], [data-menu-open]) .channel-actions {\n  display: flex;",
+      ".channel-item:is(:hover, :focus-within, [data-menu-open]) .channel-actions {\n  display: flex;",
+    );
+  });
+
+  it("keeps them on the open conversation's row only where nothing can point", () => {
+    const css = readFileSync(join(process.cwd(), "src/theme.css"), "utf8");
+    expect(css).toMatch(
+      /@media \(hover: none\) \{\s*\.channel-item\[data-active\] \.channel-actions \{\s*display: flex;/,
     );
   });
 });

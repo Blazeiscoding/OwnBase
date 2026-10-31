@@ -860,9 +860,9 @@ export function HuddleStage({
                 {main.kind === "screen" && (
                   <span
                     aria-hidden="true"
-                    className="shrink-0 rounded-md bg-alert px-1.5 py-0.5 text-[11px] font-bold tracking-wide text-ground"
+                    className="shrink-0 rounded-md bg-alert px-1.5 py-0.5 text-[11px] font-semibold text-ground"
                   >
-                    LIVE
+                    Live
                   </span>
                 )}
               </>

@@ -117,9 +117,7 @@ function MemberGroup(props: {
   if (props.people.length === 0) return null;
   return (
     <section aria-label={props.title} className="mb-4">
-      <h3 className="mb-1 px-2 text-[12px] font-semibold uppercase tracking-[0.04em] text-ink-faint">
-        {props.title}
-      </h3>
+      <h3 className="mb-1 px-2 text-[13px] font-medium text-ink-faint">{props.title}</h3>
       <ul>
         {props.people.map((user) => (
           <li key={user.id}>

@@ -7,13 +7,20 @@ name: Visual baselines
 # Checks on it where there are none to approve.
 #
 # Only pictures that no longer match are taken again, so one that still does
-# keeps its file. A failure other than a picture, such as axe, fails the run
-# and commits nothing; its results are kept for a day, and the next Checks
-# run deletes them.
+# keeps its file. A faint change of colour can still match and leave the old
+# look in its file; started from the Actions tab with "Take every picture
+# again" ticked, it takes them all. A failure other than a picture, such as
+# axe, fails the run and commits nothing; its results are kept for a day, and
+# the next Checks run deletes them.
 on:
   pull_request:
     types: [labeled]
   workflow_dispatch:
+    inputs:
+      every:
+        description: Take every picture again, not only those that no longer match
+        type: boolean
+        default: false
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
@@ -52,7 +59,7 @@ jobs:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium
-      - run: pnpm test:visual --update-snapshots
+      - run: pnpm test:visual --update-snapshots=${{ inputs.every && 'all' || 'changed' }}
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

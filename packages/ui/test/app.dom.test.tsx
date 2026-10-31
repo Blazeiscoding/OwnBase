@@ -14,15 +14,18 @@ const rocket: SavedServer = {
 };
 
 /** A browser with one saved sign-in, and a way to hand the app links as they arrive. */
-function appWithLinks(hosting?: {
-  status: () => Promise<HostingStatus>;
-  lastHosted: () => Promise<{ workspaceName: string; port: number } | null>;
-}) {
+function appWithLinks(
+  hosting?: {
+    status: () => Promise<HostingStatus>;
+    lastHosted: () => Promise<{ workspaceName: string; port: number } | null>;
+  },
+  saved: SavedServer = rocket,
+) {
   let deliver: (url: string) => void = () => {};
   const platform: Platform = {
     kind: "web",
     storage: {
-      get: async <T,>(key: string) => (key === "servers" ? [rocket] : null) as T | null,
+      get: async <T,>(key: string) => (key === "servers" ? [saved] : null) as T | null,
       set: async () => {},
     },
     notify: () => {},
@@ -110,6 +113,31 @@ describe("reopening a workspace this computer hosted", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/public link stopped working/);
     expect(screen.getByRole("alert")).not.toHaveTextContent(/settings could not be saved/);
     expect(screen.getByRole("button", { name: "Manage hosting" })).toBeVisible();
+  });
+
+  const hostedHere = (workspaceName: string): HostingStatus => ({
+    running: true,
+    phase: "running",
+    workspaceName,
+    port: 8543,
+    lanUrls: ["http://192.168.1.2:8543"],
+  });
+
+  it("knows its own workspace when it was opened by its address on the network", async () => {
+    vi.spyOn(WorkspaceClient.prototype, "connect").mockImplementation(() => {});
+    // As "On your network" offers it: the LAN address, not localhost.
+    appWithLinks(
+      { status: async () => hostedHere("Rocket Team"), lastHosted: async () => null },
+      { ...rocket, url: "http://192.168.1.2:8543" },
+    );
+    // The sidebar names the workspace already, so the line beside Manage does not.
+    expect(await screen.findByText("Hosting here")).toBeVisible();
+  });
+
+  it("names the hosted workspace from inside another one", async () => {
+    vi.spyOn(WorkspaceClient.prototype, "connect").mockImplementation(() => {});
+    appWithLinks({ status: async () => hostedHere("Launch Crew"), lastHosted: async () => null });
+    expect(await screen.findByText("Hosting Launch Crew on this computer")).toBeVisible();
   });
 });
 

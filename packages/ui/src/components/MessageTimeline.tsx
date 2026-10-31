@@ -493,7 +493,7 @@ export const MessageTimeline = memo(function MessageTimeline({
                 >
                   {/* Discord's red rule, with its tag at the end of the line. */}
                   <span className="h-px flex-1 bg-[var(--mention-red)]" />
-                  <span className="badge-mention rounded-md px-1.5 text-[10px] font-bold uppercase leading-4 tracking-wide">
+                  <span className="badge-mention rounded-md px-1.5 text-[11px] font-semibold leading-4">
                     New
                   </span>
                 </div>
@@ -727,24 +727,19 @@ function ChannelIntro({
           </span>
         )}
       </div>
-      <h2 className="text-3xl font-bold tracking-tight">{name}</h2>
+      <h2 className="text-3xl font-semibold tracking-tight">{name}</h2>
       <p className="mt-1.5 max-w-xl text-[16px] leading-relaxed text-ink-dim">
-        {/* One highlight phrase, as chaicode.com writes a paragraph. */}
-        {isRoom ? (
-          channel.description || (
-            <>
-              This is the very beginning of <span className="highlight">#{channel.name}</span>.
-              {/* Asked of an empty channel only: once people have written, it is going. */}
-              {empty && " Say something to get it going."}
-            </>
-          )
-        ) : person ? (
-          <>
-            <span className="highlight">Your direct messages</span> start here.
-          </>
-        ) : (
-          "This conversation is just between you. It starts here."
-        )}
+        {isRoom
+          ? channel.description || (
+              <>
+                This is the very beginning of <span className="text-ink">#{channel.name}</span>.
+                {/* Asked of an empty channel only: once people have written, it is going. */}
+                {empty && " Say something to get it going."}
+              </>
+            )
+          : person
+            ? "Your direct messages start here."
+            : "This conversation is just between you. It starts here."}
       </p>
       {empty && isRoom && (onInvite || onDetails) && (
         <div className="mt-4 flex flex-wrap gap-2">

@@ -289,8 +289,15 @@ export function ScheduledPanel(props: {
                 </button>
               </div>
             )}
-            <details className="text-sm text-ink-dim">
-              <summary>Preview</summary>
+            <details className="group text-sm text-ink-dim">
+              <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
+                <Icon
+                  name="chevronDown"
+                  size={14}
+                  className="-rotate-90 transition-transform group-open:rotate-0"
+                />
+                Preview
+              </summary>
               <Mrkdwn text={editText} users={users} channels={channels} selfId={selfId} />
             </details>
             <div className="flex gap-3 text-sm">

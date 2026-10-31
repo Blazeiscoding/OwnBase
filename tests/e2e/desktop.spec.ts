@@ -110,7 +110,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   });
   const trayMenu = () => app.evaluate(() => (globalThis as any).trayMenus.at(-1));
   await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-  await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Desktop Test");
+  await page.getByPlaceholder("e.g. Rocket Team").fill("Desktop Test");
   await page.getByRole("button", { name: "Start hosting", exact: true }).click();
   await page.getByLabel("Username", { exact: true }).fill("desktopowner");
   await page.getByLabel("Display name", { exact: true }).fill("Desktop Owner");
@@ -328,7 +328,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     let page = await app.firstWindow();
     await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-    await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Resume Test");
+    await page.getByPlaceholder("e.g. Rocket Team").fill("Resume Test");
     await page.getByRole("button", { name: "Start hosting", exact: true }).click();
     await page.getByLabel("Username", { exact: true }).fill("resumeowner");
     await page.getByLabel("Display name", { exact: true }).fill("Resume Owner");
@@ -528,7 +528,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     let page = await app.firstWindow();
     await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-    await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Launch Test");
+    await page.getByPlaceholder("e.g. Rocket Team").fill("Launch Test");
     await page.getByRole("button", { name: "Start hosting", exact: true }).click();
     await page.getByLabel("Username", { exact: true }).fill("launchowner");
     await page.getByLabel("Display name", { exact: true }).fill("Launch Owner");
@@ -757,7 +757,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
       };
     });
     await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-    await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Final Draft Test");
+    await page.getByPlaceholder("e.g. Rocket Team").fill("Final Draft Test");
     await page.getByRole("button", { name: "Start hosting", exact: true }).click();
     await page.getByLabel("Username", { exact: true }).fill("draftowner");
     await page.getByLabel("Display name", { exact: true }).fill("Draft Owner");
@@ -905,7 +905,7 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
 test("a window that keeps crashing comes back where it was, Try again included (F08)", async () => {
   const { app, page } = await launchApp("ownbase-desktop-place-");
   await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-  await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Place Test");
+  await page.getByPlaceholder("e.g. Rocket Team").fill("Place Test");
   await page.getByRole("button", { name: "Start hosting", exact: true }).click();
   await page.getByLabel("Username", { exact: true }).fill("placeowner");
   await page.getByLabel("Display name", { exact: true }).fill("Place Owner");
@@ -983,7 +983,7 @@ test("packaged Mac app boots with sandbox, hosts a workspace, serves the web cli
 
   // The server runs inside the app, on Node's built-in SQLite.
   await page.getByRole("button", { name: "Host a workspace on this computer" }).click();
-  await page.getByPlaceholder("Workspace name (e.g. Rocket Team)").fill("Mac Test");
+  await page.getByPlaceholder("e.g. Rocket Team").fill("Mac Test");
   await page.getByRole("button", { name: "Start hosting", exact: true }).click();
   await page.getByLabel("Username", { exact: true }).fill("macowner");
   await page.getByLabel("Display name", { exact: true }).fill("Mac Owner");

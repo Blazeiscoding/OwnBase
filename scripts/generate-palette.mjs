@@ -3,8 +3,8 @@
 // OwnBase's palette, generated in OKLCH from the inputs below (UX-11). Each
 // colour is a point on one scale: a lightness from 0 (black) to 1 (white), a
 // chroma (how much colour) and a hue. Surfaces and inks share one graphite
-// hue; the accent is OwnBase's own orange, kept on purpose; online, alert, the
-// highlight and the background washes each have a hue of their own. Where a
+// hue; the accent is OwnBase's own orange, kept on purpose; online and alert
+// each have a hue of their own. Where a
 // colour falls outside what a screen shows (sRGB), its chroma is lowered until
 // it fits, keeping its lightness and hue, and it is written as hex.
 //
@@ -20,7 +20,7 @@ export const INPUTS = {
   accent: "#f97316",
   /** Surfaces and inks: one graphite hue, this much colour at middle lightness, less toward black and white. */
   neutral: { hue: 282, chroma: 0.014 },
-  hues: { online: 151, alert: 25, cream: 74, violet: 296, pink: 356 },
+  hues: { online: 151, alert: 25 },
   /** Where each colour sits in each theme, as [lightness, chroma]; chroma is lowered to fit. */
   themes: {
     dark: {
@@ -37,7 +37,6 @@ export const INPUTS = {
       "copper-deep": [0.665, 0.187],
       online: [0.8, 0.18],
       alert: [0.71, 0.17],
-      cream: [0.885, 0.08],
     },
     light: {
       deep: 0.935,
@@ -53,32 +52,10 @@ export const INPUTS = {
       "copper-deep": [0.465, 0.187],
       online: [0.465, 0.12],
       alert: [0.54, 0.19],
-      cream: [0.45, 0.095],
     },
   },
-  /**
-   * The vibrant layer: each gradient's ends as steps from the colour in its
-   * middle (lightness added, chroma multiplied, hue turned), and the washes.
-   */
-  vibrant: {
-    dark: {
-      accentGrad: { from: [0.09, 0.75, 9], to: [-0.05, 1.05, -8] },
-      alertGrad: { from: [0.06, 0.8, 0], to: [-0.045, 1.1, 1] },
-      textGrad: { from: [0.12, 0.7, 14], pink: [0.725, 0.175] },
-    },
-    light: {
-      accentGrad: { from: [0.05, 1.1, 1], to: [-0.045, 1, 0] },
-      alertGrad: { from: [0.03, 1, 0], to: [-0.04, 1, 0] },
-      textGrad: { via: [0.02, 1.15, -7], pink: [0.525, 0.2] },
-    },
-    /** The washes the backgrounds are lit with, as [lightness, chroma]. */
-    violet: [0.606, 0.25],
-    pink: [0.656, 0.241],
-    /** The aurora's violet on the sign-in page. */
-    aurora: [0.672, 0.214],
-    /** Discord's red for what names you: white on it reads at 4.5:1 in both themes. */
-    mentionRed: [0.588, 0.2],
-  },
+  /** Discord's red for what names you, as [lightness, chroma]: white on it reads at 4.5:1 in both themes. */
+  mentionRed: [0.588, 0.2],
 };
 
 // --- OKLCH and sRGB -------------------------------------------------------
@@ -150,11 +127,8 @@ const ROLE_HUE = {
   "copper-deep": "accent",
   online: "online",
   alert: "alert",
-  cream: "cream",
 };
 
-/** A step from `lch`: lightness added, chroma multiplied, hue turned. */
-const step = ([L, C, h], [dL, kC, dh]) => toGamut([L + dL, C * kC, h + dh]);
 const rgba = (lch, alpha) => `rgba(${channels(lch).join(", ")}, ${alpha})`;
 const rgbSpace = (lch, alpha) => `rgb(${channels(lch).join(" ")} / ${alpha})`;
 
@@ -175,47 +149,17 @@ function themeColours(theme) {
 
 /** Each theme's tokens and the declarations made from them, as CSS values by name. */
 export function palette() {
-  const accent = fromHex(INPUTS.accent);
-  const { vibrant, hues } = INPUTS;
-  const violet = toGamut([...vibrant.violet, hues.violet]);
-  const pink = toGamut([...vibrant.pink, hues.pink]);
   const dark = themeColours("dark");
   const light = themeColours("light");
   const tokens = (colours) =>
     Object.fromEntries(Object.entries(colours).map(([name, lch]) => [`--color-${name}`, hex(lch)]));
-  const grad = (angle, stops) =>
-    `linear-gradient(${angle}deg, ${stops.map(([lch, at]) => `${hex(lch)} ${at}%`).join(", ")})`;
-
-  const d = vibrant.dark;
-  const l = vibrant.light;
   const lightInk = light.ink;
   return {
     /** The dark theme's tokens, in `@theme`. */
     darkTokens: { ...tokens(dark), "--color-mention": rgba(dark.copper, 0.08) },
-    /** The dark theme's vibrant layer, and what both themes share, in `:root`. */
+    /** What both themes share, in `:root`. */
     darkRoot: {
-      "--glow": rgba(accent, 0.2),
-      "--accent-grad": grad(135, [
-        [step(dark.copper, d.accentGrad.from), 0],
-        [dark.copper, 48],
-        [step(dark.copper, d.accentGrad.to), 100],
-      ]),
-      "--accent-glow": rgba(dark.copper, 0.45),
-      "--alert-grad": grad(135, [
-        [step(dark.alert, d.alertGrad.from), 0],
-        [dark.alert, 50],
-        [step(dark.alert, d.alertGrad.to), 100],
-      ]),
-      "--aura-1": rgba(accent, 0.14),
-      "--aura-2": rgba(violet, 0.12),
-      "--aura-3": rgba(pink, 0.08),
-      "--text-grad": grad(100, [
-        [step(dark.copper, d.textGrad.from), 0],
-        [dark.copper, 45],
-        [toGamut([...d.textGrad.pink, hues.pink]), 100],
-      ]),
-      "--aurora-violet": hex([...vibrant.aurora, hues.violet]),
-      "--mention-red": hex([...vibrant.mentionRed, hues.alert]),
+      "--mention-red": hex([...INPUTS.mentionRed, INPUTS.hues.alert]),
       // The theme picker shows both themes at once, whichever is on.
       "--onyx-deep": hex(dark.deep),
       "--onyx-ground": hex(dark.ground),
@@ -230,33 +174,12 @@ export function palette() {
       "--color-mention": rgba(light.copper, 0.06),
       "--card-edge": rgba(lightInk, 0.09),
       "--card-edge-hover": rgba(lightInk, 0.18),
-      "--glow": rgba(accent, 0.12),
-      "--hex": `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='31.18' height='54' viewBox='0 0 31.18 54'%3E%3Cpath d='M15.59 0L31.18 9v18L15.59 36 0 27V9zM15.59 36v18' fill='none' stroke='rgba(${channels(lightInk).join(",")},0.06)'/%3E%3C/svg%3E")`,
     },
-    /** The light theme's shadows and vibrant layer. */
-    lightVibrant: {
+    /** The light theme's shadows. */
+    lightShadows: {
       // Each "\n\t" starts a line, indented two more than the declaration.
       "--shadow-float": `\n\t0 0 0 1px ${rgbSpace(lightInk, 0.06)}, 0 2px 4px -1px ${rgbSpace(lightInk, 0.06)},\n\t0 12px 32px -8px ${rgbSpace(lightInk, 0.16)}`,
       "--shadow-dialog": `0 0 0 1px ${rgbSpace(lightInk, 0.06)}, 0 32px 80px -16px ${rgbSpace(lightInk, 0.28)}`,
-      "--accent-grad": grad(135, [
-        [step(light.copper, l.accentGrad.from), 0],
-        [light.copper, 55],
-        [step(light.copper, l.accentGrad.to), 100],
-      ]),
-      "--accent-glow": rgba(light.copper, 0.32),
-      "--alert-grad": grad(135, [
-        [step(light.alert, l.alertGrad.from), 0],
-        [light.alert, 55],
-        [step(light.alert, l.alertGrad.to), 100],
-      ]),
-      "--aura-1": rgba(accent, 0.1),
-      "--aura-2": rgba(violet, 0.08),
-      "--aura-3": rgba(pink, 0.06),
-      "--text-grad": grad(100, [
-        [light.copper, 0],
-        [step(light.copper, l.textGrad.via), 45],
-        [toGamut([...l.textGrad.pink, hues.pink]), 100],
-      ]),
     },
   };
 }
@@ -332,15 +255,10 @@ export const OUTPUTS = {
       ':root[data-theme="system"] {\n    color-scheme: light;',
       p.lightTokens,
     );
-    out = setDeclarations(out, ':root[data-theme="light"] {\n  --shadow-float', p.lightVibrant);
-    out = setDeclarations(out, ':root[data-theme="system"] {\n    --shadow-float', p.lightVibrant);
+    out = setDeclarations(out, ':root[data-theme="light"] {\n  --shadow-float', p.lightShadows);
+    out = setDeclarations(out, ':root[data-theme="system"] {\n    --shadow-float', p.lightShadows);
     // A call in full screen, dark in either theme.
-    out = setDeclarations(out, ".call-dark {", {
-      ...p.darkTokens,
-      "--accent-grad": p.darkRoot["--accent-grad"],
-      "--accent-glow": p.darkRoot["--accent-glow"],
-      "--alert-grad": p.darkRoot["--alert-grad"],
-    });
+    out = setDeclarations(out, ".call-dark {", p.darkTokens);
     return out;
   },
   // What the window shows before the page paints, and the title bar drawn over
