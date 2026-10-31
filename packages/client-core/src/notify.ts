@@ -167,9 +167,14 @@ export function readableText(state: WorkspaceState, text: string): string {
   );
 }
 
-/** Text for a notification, with mention markup resolved to readable names. */
+/**
+ * Text for a notification, with mention markup resolved to readable names.
+ * A code block's fences are markup, so only what is inside them is kept.
+ */
 export function notificationBody(state: WorkspaceState, message: Message): string {
   const text = readableText(state, message.text);
+  const words = text.replaceAll(/```\n?/g, "");
+  if (words.trim()) return words;
   if (text.trim()) return text;
   const count = message.files.length;
   return count === 1 ? "Sent a file" : `Sent ${count} files`;
