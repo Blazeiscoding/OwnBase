@@ -11,6 +11,11 @@ Its notes name the commit it was built and tested from, which Diagnostics in the
 app and `/api/server-info` on a server also report. Release installers are not
 code-signed yet.
 
+Every change to the app merged to `main` is built, tested and published as the
+next beta (`v0.1.0-beta.4` after `v0.1.0-beta.3`) by the Release workflow, and
+the download buttons on the website offer the newest published release. A run by
+hand, or from a pushed version tag, still leaves a draft to look over first.
+
 Install, choose **Host a workspace on this computer**, name it, and create the
 owner account. Allow incoming TCP on the displayed port through the host firewall.
 Other desktop users can discover the workspace on the same LAN or connect using
