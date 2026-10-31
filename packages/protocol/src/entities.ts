@@ -423,6 +423,7 @@ export type AuditAction =
   | "app.token_replaced"
   | "app.signing_secret_replaced"
   | "app.interactivity_url_changed"
+  | "app.scopes_changed"
   | "webhook.created"
   | "webhook.url_replaced"
   | "webhook.deleted"
@@ -807,6 +808,97 @@ export interface App {
    * posts should be.
    */
   interactivityUrl: string;
+  /**
+   * What its bot token may do and what it is sent (E18c). Absent from servers
+   * before then, where every app could do everything.
+   */
+  scopes?: AppScope[];
+}
+
+/**
+ * What an app may do (E18c), by Slack's names so the scopes an app documents
+ * carry over. Posting is checked on the method. There are no read methods, so
+ * the read scopes decide which events reach its subscriptions. The methods
+ * for forms need none, as on Slack: a trigger already says someone asked.
+ */
+export const APP_SCOPES = [
+  "chat:write",
+  "chat:write.public",
+  "channels:history",
+  "groups:history",
+  "im:history",
+  "mpim:history",
+  "channels:read",
+  "groups:read",
+  "reactions:read",
+  "pins:read",
+  "users:read",
+] as const;
+
+export type AppScope = (typeof APP_SCOPES)[number];
+
+/** What a new app may do unless it is given more: post, and be sent nothing. */
+export const DEFAULT_APP_SCOPES: readonly AppScope[] = ["chat:write", "chat:write.public"];
+
+/** The native events an app can be sent, each in its Slack shape. */
+export const APP_EVENT_TYPES = [
+  "message.created",
+  "message.updated",
+  "message.deleted",
+  "reaction.added",
+  "reaction.removed",
+  "pin.added",
+  "pin.removed",
+  "channel.created",
+  "channel.updated",
+  "member.joined",
+  "member.left",
+  "user.joined",
+  "user.updated",
+] as const;
+
+const HISTORY: Record<ChannelType, AppScope> = {
+  public: "channels:history",
+  private: "groups:history",
+  dm: "im:history",
+  group_dm: "mpim:history",
+};
+
+/**
+ * The scope an app needs to be sent an event of this type from a conversation
+ * of this kind, or from none for a workspace-wide one, as Slack names them.
+ * Null for an event no app is sent.
+ */
+export function eventScope(type: string, channelType: ChannelType | null): AppScope | null {
+  const kind = channelType ?? "public";
+  switch (type) {
+    case "message.created":
+    case "message.updated":
+    case "message.deleted":
+      return HISTORY[kind];
+    case "reaction.added":
+    case "reaction.removed":
+      return "reactions:read";
+    case "pin.added":
+    case "pin.removed":
+      return "pins:read";
+    case "channel.created":
+    case "channel.updated":
+    case "member.joined":
+    case "member.left":
+      return kind === "public" ? "channels:read" : "groups:read";
+    case "user.joined":
+    case "user.updated":
+      return "users:read";
+    default:
+      return null;
+  }
+}
+
+/** Every scope an event of this type can need, wherever it happens. */
+export function eventScopes(type: string): AppScope[] {
+  const kinds: (ChannelType | null)[] = ["public", "private", "dm", "group_dm", null];
+  return [...new Set(kinds.map((kind) => eventScope(type, kind)).filter((s) => s !== null))];
 }
 
 /**

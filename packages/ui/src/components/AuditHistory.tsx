@@ -88,6 +88,13 @@ export function describeAuditEntry(
       return d.cleared
         ? `${actor} turned off ${possessive(app)} buttons and forms`
         : `${actor} changed where ${possessive(app)} buttons and forms go${at("host", ", to ")}`;
+    case "app.scopes_changed": {
+      // Scope names, as the app's own documentation gives them (E18c).
+      const allowed = typeof d.added === "string" && d.added ? `allowed ${d.added}` : "";
+      const taken = typeof d.removed === "string" && d.removed ? `took away ${d.removed}` : "";
+      const what = [allowed, taken].filter(Boolean).join("; ");
+      return `${actor} changed what ${app} may do${what ? `: ${what}` : ""}`;
+    }
     case "webhook.created":
       return `${actor} added a webhook for ${app}`;
     case "webhook.url_replaced":

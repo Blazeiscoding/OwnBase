@@ -171,6 +171,9 @@ describe("the administrative record", () => {
     await call(`/api/apps/${appId}/interactivity`, owner.token, "PUT", {
       url: `http://127.0.0.1:${endpointPort}${secretPath}`,
     });
+    await call(`/api/apps/${appId}/scopes`, owner.token, "PUT", { scopes: ["chat:write"] });
+    // The same list again changes nothing, and is not logged.
+    await call(`/api/apps/${appId}/scopes`, owner.token, "PUT", { scopes: ["chat:write"] });
     const sub = await call<{ subscription: { id: string } }>(
       `/api/apps/${appId}/subscriptions`,
       owner.token,
@@ -192,6 +195,7 @@ describe("the administrative record", () => {
       "command.created",
       "command.deleted",
       "app.interactivity_url_changed",
+      "app.scopes_changed",
       "subscription.created",
       "subscription.retried",
       "subscription.deleted",

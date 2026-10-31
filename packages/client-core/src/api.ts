@@ -2,6 +2,7 @@ import type {
   AccessPolicy,
   CallLogEntry,
   App,
+  AppScope,
   Channel,
   ChannelPrefs,
   ChannelPrefsBody,
@@ -901,10 +902,17 @@ export class Api {
   // ---------- apps and integrations (admin only) ----------
 
   /** The bot token comes back once here and is never retrievable again. */
+  /** Left without scopes, the app may do everything, as before scopes (E18c). */
   createApp(body: {
     name: string;
+    scopes?: AppScope[];
   }): Promise<{ app: App; botUser: User; token: string; signingSecret: string }> {
     return this.request("POST", "/api/apps", body);
+  }
+
+  /** Replaces what an app may do (E18c). */
+  setAppScopes(appId: ID, scopes: AppScope[]): Promise<{ app: App }> {
+    return this.request("PUT", `/api/apps/${appId}/scopes`, { scopes });
   }
 
   listApps(): Promise<{ apps: AppDetail[] }> {

@@ -41,8 +41,24 @@ import type {
   MessageReport,
   ReportReason,
 } from "@ownbase/protocol";
-import { FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@ownbase/protocol";
+import { APP_SCOPES, FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@ownbase/protocol";
+import type { AppScope } from "@ownbase/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
+
+/** Known scopes only, each once, in one order, so two lists compare as text. */
+function scopeList(scopes: readonly unknown[]): AppScope[] {
+  return APP_SCOPES.filter((scope) => scopes.includes(scope));
+}
+
+/** A stored JSON list, or empty when it is missing or not a list. */
+function parseJsonArray(text: string | undefined): unknown[] {
+  try {
+    const value: unknown = JSON.parse(text ?? "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
 import { previewLinks, type FetchedPreview } from "./linkPreview.js";
 
 interface UserRow {
@@ -3665,14 +3681,30 @@ export class Store {
     return this.getUser(id)!;
   }
 
-  createApp(input: { name: string; botUserId: ID; createdBy: ID; signingSecret: string }): App {
+  createApp(input: {
+    name: string;
+    botUserId: ID;
+    createdBy: ID;
+    signingSecret: string;
+    /** Left out, everything, as every app could before scopes (E18c). */
+    scopes?: readonly AppScope[];
+  }): App {
     const id = ulid();
     const now = Date.now();
+    const scopes = scopeList(input.scopes ?? APP_SCOPES);
     this.db
       .prepare(
-        "INSERT INTO apps (id, name, bot_user_id, created_by, created_at, signing_secret) VALUES (?, ?, ?, ?, ?, ?)",
+        "INSERT INTO apps (id, name, bot_user_id, created_by, created_at, signing_secret, scopes) VALUES (?, ?, ?, ?, ?, ?, ?)",
       )
-      .run(id, input.name, input.botUserId, input.createdBy, now, input.signingSecret);
+      .run(
+        id,
+        input.name,
+        input.botUserId,
+        input.createdBy,
+        now,
+        input.signingSecret,
+        JSON.stringify(scopes),
+      );
     return {
       id,
       name: input.name,
@@ -3680,7 +3712,17 @@ export class Store {
       createdBy: input.createdBy,
       createdAt: now,
       interactivityUrl: "",
+      scopes,
     };
+  }
+
+  /** Replaces what an app may do (E18c). */
+  setAppScopes(id: ID, scopes: readonly AppScope[]): boolean {
+    return (
+      this.db
+        .prepare("UPDATE apps SET scopes = ? WHERE id = ?")
+        .run(JSON.stringify(scopeList(scopes)), id).changes > 0
+    );
   }
 
   /** Where this app's button clicks go. Empty leaves its buttons inert. */
@@ -3714,6 +3756,7 @@ export class Store {
     created_by: string;
     created_at: number;
     interactivity_url?: string;
+    scopes?: string;
   }): App {
     return {
       id: r.id,
@@ -3722,6 +3765,7 @@ export class Store {
       createdBy: r.created_by,
       createdAt: r.created_at,
       interactivityUrl: r.interactivity_url ?? "",
+      scopes: scopeList(parseJsonArray(r.scopes)),
     };
   }
 
@@ -4011,7 +4055,7 @@ export class Store {
   listAllSubscriptions(): { subscription: EventSubscription; app: App }[] {
     const rows = this.db
       .prepare(
-        "SELECT s.*, a.id AS a_id, a.name AS a_name, a.bot_user_id, a.created_by, a.created_at AS a_created_at" +
+        "SELECT s.*, a.id AS a_id, a.name AS a_name, a.bot_user_id, a.created_by, a.created_at AS a_created_at, a.scopes AS a_scopes" +
           " FROM event_subscriptions s JOIN apps a ON a.id = s.app_id" +
           " JOIN users u ON u.id = a.bot_user_id WHERE u.deactivated = 0",
       )
@@ -4021,6 +4065,7 @@ export class Store {
       bot_user_id: string;
       created_by: string;
       a_created_at: number;
+      a_scopes: string;
     })[];
     return rows.map((r) => ({
       subscription: this.toSubscription(r),
@@ -4030,6 +4075,7 @@ export class Store {
         bot_user_id: r.bot_user_id,
         created_by: r.created_by,
         created_at: r.a_created_at,
+        scopes: r.a_scopes,
       }),
     }));
   }
