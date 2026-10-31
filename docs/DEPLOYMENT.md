@@ -15,6 +15,8 @@ Every change to the app merged to `main` is built, tested and published as the
 next beta (`v0.1.0-beta.4` after `v0.1.0-beta.3`) by the Release workflow, and
 the download buttons on the website offer the newest published release. A run by
 hand, or from a pushed version tag, still leaves a draft to look over first.
+Publishing that draft creates its tag, and a tag whose release is already out
+builds nothing, so no second draft appears.
 
 Install, choose **Host a workspace on this computer**, name it, and create the
 owner account. Allow incoming TCP on the displayed port through the host firewall.
