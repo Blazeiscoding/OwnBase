@@ -1205,7 +1205,7 @@ function AuthCard(props: {
         <>
           {isFirstUser && (
             <p className="mb-5 flex items-start gap-2.5 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim">
-              <Icon name="sparkle" size={16} className="mt-0.5 text-copper" />
+              <Icon name="info" size={16} className="mt-0.5 shrink-0 text-ink-faint" />
               <span>This workspace is brand new. The first account becomes its owner.</span>
             </p>
           )}
