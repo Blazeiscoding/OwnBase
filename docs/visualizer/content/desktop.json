@@ -914,7 +914,7 @@
       "plain": "Takes new pictures of the main screens on GitHub's Linux computers when a change is meant to alter how they look, and adds them to the change.",
       "summary": "Regenerates the visual check's Linux pictures and commits them to the branch (UX-15).",
       "details": [
-        "Starts from the visual baselines label on a pull request from this repository, or by hand on a branch. It builds, runs pnpm test:visual --update-snapshots, which takes again only pictures that no longer match, commits those, approves the runs GitHub holds for its own push (or starts Checks by hand where there are none), and takes the label off.",
+        "Starts from the visual baselines label on a pull request from this repository, or by hand on a branch. It builds, runs pnpm test:visual --update-snapshots=changed, which takes again only pictures that no longer match (or =all when started by hand with every ticked, for a faint change that still matches), commits those, approves the runs GitHub holds for its own push (or starts Checks by hand where there are none), and takes the label off.",
         "Anything else that fails, such as axe, fails the run and commits nothing; its results are kept for a day."
       ],
       "concepts": ["configuration", "CI", "visual regression"]
