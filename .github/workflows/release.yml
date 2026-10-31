@@ -1,7 +1,12 @@
 name: Release
 # A release is built and tested from one commit, then published as a draft
 # with the SHA-256 of every file and the revision each was built from
-# (IMP-08). It runs on a version tag, or by hand with the tag to create.
+# (IMP-08). It runs on a version tag, or by hand with the tag to create,
+# and leaves a draft for someone to publish. Every change to the app merged
+# to main is released too, as the next beta of package.json's version
+# (v0.1.0-beta.4 after v0.1.0-beta.3), and published at once, so the
+# website's download buttons, which offer the newest published release,
+# offer it within minutes.
 # Published files are release assets, not Actions artifacts, so the checks'
 # artifact clean-up (ci.yml) cannot delete them; the artifacts carrying them
 # between these jobs are named release-*, which the clean-up leaves alone.
@@ -10,6 +15,19 @@ name: Release
 on:
   push:
     tags: ["v*"]
+    branches: [main]
+    # What is in the installer, the disk image or the server. GitHub does not
+    # read paths for a tag, so a version tag still releases whatever changed.
+    paths:
+      - "apps/desktop/**"
+      - "apps/server-cli/**"
+      - "apps/web/**"
+      - "packages/**"
+      - "package.json"
+      - "pnpm-lock.yaml"
+      - "!**/test/**"
+      - "!**/*.test.*"
+      - "!**/*.md"
   workflow_dispatch:
     inputs:
       tag:
@@ -20,6 +38,10 @@ on:
     paths:
       - ".github/workflows/release.yml"
       - "scripts/release-*"
+# Releases from main wait their turn rather than cancel one another: a run
+# stopped while publishing could leave a release with half its files. Of the
+# merges that pile up meanwhile, GitHub keeps only the newest waiting, so a
+# burst of merges is released once, from the last of them.
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
@@ -207,9 +229,16 @@ jobs:
         env:
           INPUT_TAG: ${{ inputs.tag }}
         run: |
+          version=$(node -p "require('./package.json').version")
           if [ -n "$INPUT_TAG" ]; then tag="$INPUT_TAG"
           elif [ "$GITHUB_REF_TYPE" = "tag" ]; then tag="$GITHUB_REF_NAME"
-          else tag="v$(node -p "require('./package.json').version")-check"; fi
+          elif [ "$GITHUB_EVENT_NAME" = "push" ]; then
+            # The next beta after every one tagged so far. A draft has no tag
+            # until it is published, so a draft left waiting may share its name.
+            last=$(git ls-remote --tags origin "refs/tags/v$version-beta.*" \
+              | grep -oE -- '-beta\.[0-9]+$' | grep -oE '[0-9]+$' | sort -n | tail -1) || true
+            tag="v$version-beta.$(( ${last:-0} + 1 ))"
+          else tag="v$version-check"; fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
       - run: node --test scripts/release-manifest.test.mjs
       - run: node scripts/release-manifest.mjs release --revision "$GITHUB_SHA" --tag "$TAG" --notes release/notes.md
@@ -235,9 +264,10 @@ jobs:
           pattern: release-*
           path: release
           merge-multiple: true
-      # A draft: someone looks it over and publishes it, which creates the
-      # tag at this commit for a manual run.
-      - name: Create the draft release
+      # From main, published at once: that creates the tag at this commit and
+      # puts the files on the website. By hand or from a tag, a draft that
+      # someone looks over and publishes, which creates the tag for a run by hand.
+      - name: Create the release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.manifest.outputs.tag }}
@@ -247,7 +277,9 @@ jobs:
           files+=(release/SHA256SUMS)
           prerelease=()
           if [[ "$TAG" == *-* ]]; then prerelease=(--prerelease); fi
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft "${prerelease[@]}" \
+          draft=(--draft)
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ "$GITHUB_REF_TYPE" = "branch" ]; then draft=(); fi
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" "${draft[@]}" "${prerelease[@]}" \
             --target "$GITHUB_SHA" --title "OwnBase $TAG" --notes-file release/notes.md "${files[@]}"
 
   # The installer and the Mac disk image together are near 300 MB of a

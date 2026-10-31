@@ -948,10 +948,11 @@
     },
     {
       "path": ".github/workflows/release.yml",
-      "plain": "Builds, tests and prepares an OwnBase release on GitHub, with a practice run that publishes nothing.",
-      "summary": "Prepares tested release artifacts and optional publication.",
+      "plain": "Builds, tests and publishes an OwnBase release on GitHub every time the app changes on main, which the website then offers; with a practice run that publishes nothing.",
+      "summary": "Prepares tested release artifacts and publishes each change to the app as the next beta.",
       "details": [
-        "Coordinates build/content/install gates and checksum manifests; separates dry-run validation from an actual release."
+        "Coordinates build/content/install gates and checksum manifests; separates dry-run validation from an actual release.",
+        "A push to main that touches the app (desktop, server, web client, shared packages or the lockfile, not tests or docs) is released as the next beta of package.json's version, counted from the tags so far, and published at once; the website's download script offers the newest published release. A run by hand or from a version tag stays a draft. Runs from main queue rather than cancel, so a release is never stopped half published."
       ],
       "concepts": ["configuration", "CI"]
     },
