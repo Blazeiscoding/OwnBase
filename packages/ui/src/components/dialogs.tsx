@@ -497,7 +497,13 @@ export function NewDmDialog(props: {
       const channel = await client.openDm(picked);
       if (mounted.current) props.onOpen(channel.id);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not open the conversation.");
+      // A refusal the server explained in words is said as it is; anything
+      // else (a code, a network error) in plain words.
+      setError(
+        err instanceof ApiError && err.message && /\s/.test(err.message)
+          ? err.message
+          : "Could not open the conversation. Check your connection and try again.",
+      );
     } finally {
       setBusy(false);
     }

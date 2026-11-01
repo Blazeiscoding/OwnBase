@@ -123,7 +123,7 @@ export function ConversationSearch(props: {
     <button
       onClick={props.onSearch}
       aria-label={label}
-      className="header-search flex h-8 shrink-0 items-center gap-2 rounded-lg bg-ink/[0.06] px-2.5 text-[13px] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim"
+      className="header-search touch-target flex h-8 shrink-0 items-center gap-2 rounded-lg bg-ink/[0.06] px-2.5 text-[13px] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim"
     >
       <Icon name="search" size={14} className="shrink-0" />
       <span className="header-secondary min-w-0 truncate">{label}</span>
@@ -180,7 +180,7 @@ export function ConversationMenu(props: {
       tooltip="More"
       items={items}
       sheet
-      triggerClassName="icon-live flex size-8 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink-dim aria-expanded:text-ink"
+      triggerClassName="touch-target icon-live flex size-8 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink-dim aria-expanded:text-ink"
       triggerContent={<Icon name="dots" size={18} strokeWidth={2} />}
       triggerLabel="Conversation options"
     />

@@ -1,5 +1,6 @@
 import type { ComponentProps } from "react";
 import { Modal } from "./Modal.js";
+import { useGuardRegistry } from "../lib/dismissGuard.js";
 import { Icon } from "./Icon.js";
 
 interface Props {
@@ -27,10 +28,13 @@ export function Dialog({
   describedBy,
   ownScroll,
 }: Props) {
+  // Its close button asks what the dialog holds, as Escape does.
+  const guards = useGuardRegistry();
   return (
     <Modal
       title={title}
       onClose={onClose}
+      guards={guards}
       dismissible={dismissible}
       describedBy={describedBy}
       backdropClassName="flex items-start justify-center dialog-backdrop px-3 pt-[12dvh] animate-fade-in"
@@ -42,11 +46,11 @@ export function Dialog({
         <button
           type="button"
           onClick={() => {
-            if (dismissible) onClose();
+            if (dismissible) guards.ask(onClose);
           }}
           disabled={!dismissible}
           aria-label="Close"
-          className="flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
+          className="touch-target flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
         >
           <Icon name="close" size={16} />
         </button>

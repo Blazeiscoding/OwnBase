@@ -131,11 +131,12 @@ export function KeepAccountOffer(props: {
         <h2 id={titleId} className="min-w-0 flex-1 pt-0.5 text-[13px] font-semibold">
           You're a guest for a day
         </h2>
-        <Tooltip label="Not now">
+        {/* Put away for good on this device, so it says so. */}
+        <Tooltip label="Dismiss">
           <button
             type="button"
             onClick={close}
-            aria-label="Not now"
+            aria-label="Dismiss"
             className="-mr-1 -mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
           >
             <Icon name="close" size={14} />
@@ -148,10 +149,9 @@ export function KeepAccountOffer(props: {
       </p>
       <button
         type="button"
-        onClick={() => {
-          close();
-          props.onKeep();
-        }}
+        // Stays until the account is made: cancelling the form leaves the
+        // offer here, and an account made is no longer a guest's to offer.
+        onClick={props.onKeep}
         className={buttonClass("primary", "mt-3 w-full")}
       >
         Keep this account

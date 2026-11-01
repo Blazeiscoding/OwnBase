@@ -7,6 +7,38 @@ import { Tooltip } from "./Tooltip.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
+import { channelTitle } from "../lib/format.js";
+import { useOptionalToast } from "./Toast.js";
+import { useOptionalConfirm } from "./Confirm.js";
+import type { WorkspaceClient } from "@ownbase/client-core";
+
+/**
+ * Joining a huddle leaves the one you are in. Asked first, so a press on
+ * another channel's Join does not end a call, or a screen being shared.
+ * True to go ahead.
+ */
+export async function confirmHuddleSwitch(
+  client: WorkspaceClient,
+  confirm: ReturnType<typeof useOptionalConfirm>,
+  channelId: ID,
+): Promise<boolean> {
+  const current = client.state.huddle;
+  if (!current || current.channelId === channelId || !confirm) return true;
+  const state = client.state;
+  const channel = state.channels[current.channelId];
+  const where = !channel
+    ? "the other conversation"
+    : channel.type === "public" || channel.type === "private"
+      ? `#${channel.name}`
+      : channelTitle(channel, state.users, state.self?.id);
+  return confirm({
+    title: "Switch huddles?",
+    body: current.sharingScreen
+      ? `You leave the huddle in ${where}, and stop sharing your screen there.`
+      : `You leave the huddle in ${where} and join this one.`,
+    confirmLabel: "Switch",
+  });
+}
 
 /** How many faces the button shows before it counts the rest. */
 const FACES = 3;
@@ -21,6 +53,8 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const calls = useCallPreferences();
+  const confirm = useOptionalConfirm();
+  const toast = useOptionalToast();
   const currentRoom = useRef({ client, channelId });
   currentRoom.current = { client, channelId };
   const mounted = useRef(true);
@@ -35,6 +69,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
 
   async function join() {
     setError(null);
+    if (!(await confirmHuddleSwitch(client, confirm, channelId))) return;
     setJoining(true);
     try {
       await calls.joinHuddle(
@@ -46,8 +81,11 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
           currentRoom.current.channelId === channelId,
       );
     } catch (err) {
-      if (mounted.current) {
-        setError(err instanceof Error ? err.message : "Could not join this huddle.");
+      const message = err instanceof Error ? err.message : "Could not join this huddle.";
+      // A notice stays until read; the button had room for a few words for four seconds.
+      if (toast) toast({ message, kind: "error" });
+      else if (mounted.current) {
+        setError(message);
         setTimeout(() => {
           if (mounted.current) setError(null);
         }, 4000);

@@ -1,4 +1,5 @@
 import { useEffect, useId, useRef, useState } from "react";
+import { UnsavedGuard } from "../lib/dismissGuard.js";
 import {
   channelPermissions,
   canRemoveChannelMember,
@@ -244,6 +245,7 @@ export function ChannelDetailsDialog(props: {
       onClose={props.onClose}
       width={480}
     >
+      <UnsavedGuard dirty={changed && permissions.manage && !busy} what="channel changes" />
       {error && (
         <p role="alert" className="mb-3 text-sm text-alert">
           {error}

@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, type ReactNode, type RefObject } from "react";
+import { useGuardRegistry } from "../lib/dismissGuard.js";
 import { usePlatform } from "../context.js";
 import { DialogScroll } from "./Dialog.js";
 import { Icon } from "./Icon.js";
@@ -69,6 +70,10 @@ export function SettingsWindow<S extends string>({
   children: ReactNode;
 }) {
   const platform = usePlatform();
+  // Closing, and going to another section, which puts this one away, both ask
+  // what the open section holds (`useDismissGuard`).
+  const guards = useGuardRegistry();
+  const choose = (next: S) => guards.ask(() => onChoose(next));
   const heading = useRef<HTMLHeadingElement>(null);
   const shown = useRef(section);
 
@@ -94,6 +99,7 @@ export function SettingsWindow<S extends string>({
     <Modal
       title={title}
       onClose={onClose}
+      guards={guards}
       backdropClassName={`settings-backdrop dialog-backdrop animate-fade-in${platform.kind === "desktop" ? " settings-under-titlebar" : ""}`}
       className="settings-window dialog-surface animate-pop-in outline-none"
     >
@@ -116,7 +122,7 @@ export function SettingsWindow<S extends string>({
             const next = sectionAfter(sections, event.key, section);
             if (!next) return;
             event.preventDefault();
-            onChoose(next);
+            choose(next);
             document.getElementById(`${tabsId}-tab-${next}`)?.focus();
           }}
         >
@@ -129,7 +135,7 @@ export function SettingsWindow<S extends string>({
               aria-selected={section === s.id}
               aria-controls={`${tabsId}-panel`}
               tabIndex={section === s.id ? 0 : -1}
-              onClick={() => onChoose(s.id)}
+              onClick={() => choose(s.id)}
               className={`shrink-0 rounded-md px-3 py-1.5 text-left text-sm font-medium transition-colors ${
                 section === s.id
                   ? "channel-row-active text-ink"
@@ -144,9 +150,9 @@ export function SettingsWindow<S extends string>({
       </div>
       <button
         type="button"
-        onClick={onClose}
+        onClick={() => guards.ask(onClose)}
         aria-label="Close"
-        className="settings-close flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
+        className="settings-close touch-target flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
       >
         <Icon name="close" size={16} />
       </button>

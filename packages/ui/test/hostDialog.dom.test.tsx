@@ -644,7 +644,7 @@ describe("hosting a workspace from the host dialog", () => {
       publicUrl,
     );
     expect(within(dialog).getByText("Public")).toBeVisible();
-    expect(within(dialog).getByText(/Workspace → Invite people/)).toBeVisible();
+    expect(within(dialog).getByText(/choose Invite people and copy the link/)).toBeVisible();
 
     await user.click(within(dialog).getByRole("button", { name: "Copy address" }));
     expect(await navigator.clipboard.readText()).toBe(publicUrl);

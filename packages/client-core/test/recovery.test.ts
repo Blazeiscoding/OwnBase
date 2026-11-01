@@ -98,7 +98,7 @@ describe("connection recovery", () => {
     expect(client.state.lastSeq).toBe(server.store.currentSeq());
   });
 
-  it("reloads history after replay expiry while preserving drafts and failed sends", async () => {
+  it("reloads history after replay expiry, keeping drafts and sending what was lost", async () => {
     client.setDraft(channelId, "Keep my draft");
     vi.spyOn(client.api, "sendMessage").mockRejectedValueOnce(new Error("offline"));
     client.send(channelId, "Keep my pending message");
@@ -113,11 +113,13 @@ describe("connection recovery", () => {
       .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === newest.id))
       .toBe(true);
     expect(client.state.drafts[channelId]).toBe("Keep my draft");
-    expect(client.state.pending[0]).toMatchObject({
-      nonce,
-      failed: true,
-      text: "Keep my pending message",
-    });
+    // Lost on the way, not refused: it goes again once the workspace is back.
+    await expect.poll(() => client.state.pending.length).toBe(0);
+    const sent = (await owner.listMessages(channelId)).messages.filter(
+      (m) => m.text === "Keep my pending message",
+    );
+    expect(sent).toHaveLength(1);
+    expect(sent[0]?.nonce).toBe(nonce);
   });
 
   it("settles HTTP success even when the socket is disconnected", async () => {

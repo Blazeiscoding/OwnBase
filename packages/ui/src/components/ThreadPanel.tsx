@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FileMeta, ID, ReplyReference } from "@ownbase/protocol";
 import type { PollDraft } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { PendingStatus } from "./PendingStatus.js";
 import { Composer } from "./Composer.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useRovingMessages } from "../lib/useRovingMessages.js";
@@ -354,15 +355,7 @@ export function ThreadPanel({
             {p.replyTo && <PendingQuote quote={p.replyTo} />}
             {p.poll ? <PendingThreadPoll text={p.text} poll={p.poll} /> : p.text}
             <PendingAttachments attachments={p.attachments} progress={p.uploadProgress} />
-            <span className="ml-2 font-mono text-[11px] text-ink-faint">
-              {p.failed ? (p.failureReason ?? "Could not send this reply.") : "sending…"}
-            </span>
-            {p.failed && (
-              <div className="flex gap-3 text-xs font-medium text-ink-dim">
-                <button onClick={() => client.retrySend(p.nonce)}>Retry</button>
-                <button onClick={() => client.discardSend(p.nonce)}>Discard</button>
-              </div>
-            )}
+            <PendingStatus pending={p} />
           </div>
         ))}
       </div>

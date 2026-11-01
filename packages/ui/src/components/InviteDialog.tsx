@@ -392,7 +392,8 @@ export function InviteDialog(props: { onClose: () => void; welcome?: boolean }) 
                     )}
                     {INVITE_STATUS[status]}
                   </span>
-                  {status !== "revoked" && (
+                  {/* One that can no longer be used has nothing to revoke. */}
+                  {status !== "revoked" && status !== "expired" && status !== "used_up" && (
                     <button
                       onClick={() => void revoke(inv.code)}
                       className="rounded-lg px-2 py-1 text-xs text-ink-dim transition-colors hover:bg-alert/10 hover:text-alert"

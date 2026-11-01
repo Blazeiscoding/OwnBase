@@ -1,4 +1,5 @@
 import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from "react";
+import { UnsavedGuard } from "../lib/dismissGuard.js";
 import { ApiError } from "@ownbase/client-core";
 import { currentZoneName, type ID } from "@ownbase/protocol";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
@@ -347,8 +348,14 @@ export function ProfileForm() {
     }
   }
 
+  const dirty =
+    !!self &&
+    (displayName.trim() !== self.displayName ||
+      statusEmoji.trim() !== (self.statusEmoji ?? "") ||
+      statusText.trim() !== (self.statusText ?? ""));
   return (
     <form onSubmit={save} aria-label="Your profile" className="space-y-4">
+      <UnsavedGuard dirty={dirty && !busy} what="profile changes" />
       <div className="flex items-center gap-3">
         <Avatar user={self ?? undefined} size={48} />
         <div className="min-w-0 flex-1">

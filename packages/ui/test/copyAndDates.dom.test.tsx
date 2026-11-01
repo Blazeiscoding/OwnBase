@@ -151,9 +151,9 @@ describe("signing in, when it does not work", () => {
     );
   });
 
-  it("names a refusal the server did not explain", async () => {
+  it("says a refusal the server did not explain in words, without its code", async () => {
     expect(await signInFailing(new ApiError(409, "not_now"))).toHaveTextContent(
-      "The workspace's server turned that down (not_now).",
+      "The workspace's server turned that down. Try again, or ask whoever runs it.",
     );
   });
 });

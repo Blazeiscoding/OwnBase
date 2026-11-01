@@ -170,13 +170,13 @@ describe("the Scheduled panel", () => {
       scheduled: [queued("S1", "Standup notes")],
     }));
     await within(panel).findByText("Standup notes");
-    await user.click(within(panel).getByRole("button", { name: "Cancel" }));
+    await user.click(within(panel).getByRole("button", { name: "Remove" }));
     expect(within(panel).getByText("Remove this scheduled message?")).toBeVisible();
     await user.click(within(panel).getByRole("button", { name: "Keep as is" }));
     expect(api.cancel).not.toHaveBeenCalled();
     expect(within(panel).queryByText("Remove this scheduled message?")).toBeNull();
 
-    await user.click(within(panel).getByRole("button", { name: "Cancel" }));
+    await user.click(within(panel).getByRole("button", { name: "Remove" }));
     await user.click(within(panel).getByRole("button", { name: "Remove message" }));
     expect(api.cancel).toHaveBeenCalledWith("S1");
     await waitFor(() => expect(within(panel).queryByText("Standup notes")).toBeNull());
@@ -206,7 +206,7 @@ describe("the Scheduled panel", () => {
     }));
     api.cancel.mockRejectedValueOnce(new TypeError("Failed to fetch"));
     await within(panel).findByText("Standup notes");
-    await user.click(within(panel).getByRole("button", { name: "Cancel" }));
+    await user.click(within(panel).getByRole("button", { name: "Remove" }));
     await user.click(within(panel).getByRole("button", { name: "Remove message" }));
     expect(await within(panel).findByRole("alert")).toHaveTextContent(
       "Could not confirm this change. Refresh the list before trying again; it may already have been sent or changed on another device.",

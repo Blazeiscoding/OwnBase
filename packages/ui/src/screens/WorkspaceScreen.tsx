@@ -82,10 +82,15 @@ import {
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { requestEdit } from "../lib/editRequest.js";
+import { markEverythingRead, unreadEverywhere, unreadSummary } from "../lib/readAll.js";
+import { neighbourConversation } from "../lib/conversationKeys.js";
+import { useOptionalToast } from "../components/Toast.js";
+import { useOptionalConfirm } from "../components/Confirm.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
 import type { DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
+import { EmptyState } from "../components/EmptyState.js";
 
 const ActivityPanel = lazy(() =>
   import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
@@ -799,6 +804,19 @@ function WorkspaceInner({
   // Global shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Mute in a huddle, as Slack's Ctrl/Cmd+Shift+Space: from anywhere, a
+      // dialog included, since the call goes on behind it.
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        e.code === "Space" &&
+        !e.defaultPrevented &&
+        clientFromCtx.state.huddle
+      ) {
+        e.preventDefault();
+        clientFromCtx.toggleMic();
+        return;
+      }
       // A foreground form owns its keys. Shortcuts must not replace a busy
       // dialog, or let its Escape dismiss a thread behind it as well.
       if (e.defaultPrevented || hasOpenModal() || isImeKey(e)) return;
@@ -808,7 +826,26 @@ function WorkspaceInner({
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        setDialog({ kind: "search" });
+        // Within the open conversation, as the header's field does; the
+        // dialog widens it to everywhere in one press.
+        setDialog({ kind: "search", inConversation: !!activeChannelRef.current });
+      }
+      // Alt+Up/Down walk the sidebar, and with Shift only what is unread, as in Slack.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        const next = neighbourConversation(
+          activeChannelRef.current,
+          e.key === "ArrowUp" ? -1 : 1,
+          e.shiftKey,
+        );
+        if (next) {
+          e.preventDefault();
+          openChannelRef.current(next);
+        }
+      }
+      if (e.key === "Escape" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        void markAllReadRef.current();
+        return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "/") {
         e.preventDefault();
@@ -823,7 +860,7 @@ function WorkspaceInner({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeDrawer]);
+  }, [closeDrawer, clientFromCtx]);
 
   const activeChannel = activeChannelId ? channels[activeChannelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
@@ -847,6 +884,33 @@ function WorkspaceInner({
     },
     [clientFromCtx],
   );
+  const openChannelRef = useRef(openChannel);
+  openChannelRef.current = openChannel;
+  const activeChannelRef = useRef(activeChannelId);
+  activeChannelRef.current = activeChannelId;
+  const toast = useOptionalToast();
+  const confirm = useOptionalConfirm();
+  /** Shift+Esc: everything read, after asking when it is more than a couple of places. */
+  const markAllReadRef = useRef(async () => {});
+  markAllReadRef.current = async () => {
+    const { channels: unreadChannels, threads } = unreadEverywhere(clientFromCtx.state);
+    const count = unreadChannels.length + threads.length;
+    if (count === 0) {
+      toast?.({ message: "Nothing unread.", kind: "info" });
+      return;
+    }
+    const summary = unreadSummary(unreadChannels.length, threads.length);
+    if (count > 2 && confirm) {
+      const go = await confirm({
+        title: "Mark everything as read?",
+        body: `${summary} will be marked as read.`,
+        confirmLabel: "Mark as read",
+      });
+      if (!go) return;
+    }
+    markEverythingRead(clientFromCtx);
+    toast?.({ message: `Marked ${summary} as read.`, kind: "success" });
+  };
   const openThread = useCallback((rootId: ID) => setPanel({ kind: "thread", rootId }), []);
   const openProfile = useCallback((userId: ID) => setDialog({ kind: "profile", userId }), []);
   // What a conversation that has only just begun offers to do first.
@@ -1562,8 +1626,10 @@ function WorkspaceInner({
                 }`}
               >
                 <MessageTimeline
+                  // A panel beside the conversation leaves it in view, and so read,
+                  // as Slack's does; only one covering it stops that.
                   readActive={
-                    dialog.kind === "none" && panel.kind === "none" && !sidebarOpen && !chatCovered
+                    dialog.kind === "none" && !panelCovers && !sidebarOpen && !chatCovered
                   }
                   channelId={activeChannelId}
                   highlightMessageId={highlightMessageId}
@@ -1606,9 +1672,14 @@ function WorkspaceInner({
               </div>
             </div>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-ink-faint">
-              Pick a channel to start.
-            </div>
+            // Nothing open: no channel left, or the last one was left. Not a dead end.
+            <EmptyState
+              icon="hash"
+              className="flex flex-1 flex-col items-center justify-center"
+              action={{ label: "Browse channels", run: () => setDialog({ kind: "browse" }) }}
+            >
+              Pick a conversation in the sidebar, or find a channel to join.
+            </EmptyState>
           )}
         </div>
       </main>

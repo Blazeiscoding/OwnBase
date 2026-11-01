@@ -606,9 +606,9 @@ describe("hosting a workspace from the desktop app", () => {
     h.beforeBind = () => {
       throw Object.assign(new Error("listen EACCES"), { code: "EACCES" });
     };
-    // Described by its code: a system error's own message names paths.
+    // Said in words, its code kept at the end: a system error's own message names paths.
     await expect(h.controller.start({ workspaceName: "Rocket Team" })).rejects.toThrow(
-      "The workspace could not start (EACCES). Check that its data folder is writable and its port is free, then try again.",
+      "The workspace could not start: this computer did not allow OwnBase to use its data folder or port (EACCES).",
     );
     // Not retried elsewhere, not remembered, and no lasting warning to repeat
     // what the caller has already been told.

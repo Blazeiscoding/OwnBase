@@ -38,7 +38,7 @@ describe("the keyboard shortcut sheet", () => {
     const { rows, writing } = sheet(true);
     await waitFor(() => expect(rows()).toContain("Enter → Send"));
     expect(rows()).toContain("Shift Enter → New line");
-    expect(rows()).toContain("Ctrl Enter → Send without choosing a mention");
+    expect(rows()).toContain("Ctrl Enter → Send, even with a suggestion open");
     expect(writing).toHaveTextContent("Choose what Enter does in Account settings.");
   });
 
@@ -67,7 +67,7 @@ describe("finding a shortcut", () => {
     expect(screen.queryByRole("heading", { name: "Writing" })).toBeNull();
 
     await user.clear(find);
-    await user.type(find, "ctrl k");
+    await user.type(find, "ctrl k person");
     expect(screen.getAllByRole("listitem").map((row) => row.textContent)).toEqual([
       "Jump to a channel or personCtrlK",
     ]);

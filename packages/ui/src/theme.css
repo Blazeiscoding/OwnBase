@@ -823,6 +823,48 @@ textarea::placeholder {
   }
 }
 
+/*
+ * The pills over a conversation: to the New line above, or down to the newest.
+ * A component, so the absolute placement utilities on it still win.
+ */
+@layer components {
+  .timeline-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 30px;
+    padding: 0 12px 0 10px;
+    border-radius: 9999px;
+    border: 1px solid var(--color-edge);
+    background: var(--color-lifted);
+    color: var(--color-ink);
+    font-size: 12.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    box-shadow: var(--shadow-float);
+    animation: var(--animate-pop-in);
+    transition: background-color 120ms ease-out;
+  }
+  .timeline-pill:hover {
+    background: color-mix(in oklab, var(--color-lifted), var(--color-ink) 8%);
+  }
+}
+
+/*
+ * A finger needs about 44 px. Small icon buttons keep their look, and their
+ * place in a crowded phone header, and reach further than they show.
+ */
+@media (pointer: coarse) {
+  .touch-target:not(.settings-close) {
+    position: relative;
+  }
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+}
+
 /* Discord's red for what names you: white on it reads at 4.6:1 in both themes. */
 .badge-mention {
   background: var(--mention-red);

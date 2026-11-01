@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useDismissGuard } from "../lib/dismissGuard.js";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
@@ -332,6 +333,7 @@ export function TwoStepSettings() {
         </form>
       )}
 
+      <CodesGuard shown={stage.step === "codes"} />
       {stage.step === "codes" && (
         <div
           ref={codesPanel}
@@ -402,4 +404,18 @@ function saveCodes(text: string) {
   a.click();
   // Long enough for the download to have read it, in every browser.
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
+}
+
+/** Recovery codes are shown once: closing before Done asks first. */
+function CodesGuard({ shown }: { shown: boolean }) {
+  useDismissGuard(
+    shown
+      ? {
+          title: "Close without your recovery codes?",
+          body: "They are not shown again. Copy them or save them as a file first, unless you already have.",
+          confirmLabel: "Close anyway",
+        }
+      : null,
+  );
+  return null;
 }

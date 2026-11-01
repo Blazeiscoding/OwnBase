@@ -17,6 +17,10 @@ import { Tooltip } from "./Tooltip.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
+import { lastEditable, requestEdit } from "../lib/editRequest.js";
+import { shortcutLabel } from "../lib/shortcuts.js";
+import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
+import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { whenKeptLocally } from "../lib/localWork.js";
@@ -106,6 +110,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   /** A word typed after a colon, such as ":rock", offering emoji to finish it. */
   const [emojiQuery, setEmojiQuery] = useState<{ start: number; query: string } | null>(null);
   const [attached, setAttached] = useState<File[]>([]);
+  const maxFileBytes = useMaxFileBytes(client, !guest);
   const [dragging, setDragging] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const scheduleButton = useRef<HTMLButtonElement>(null);
@@ -279,6 +284,19 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       if (incoming.length > 0)
         setAttachmentNote("Guests cannot attach files. Create an account to share them.");
       return;
+    }
+    // One over the workspace's limit would only fail once uploaded.
+    const { ok, over } = withinLimit(incoming, maxFileBytes);
+    if (over.length > 0 && maxFileBytes !== null) {
+      const names = over.map((f) => f.name).join(", ");
+      note = [
+        note,
+        `${names} ${over.length === 1 ? "is" : "are"} over this workspace's ${formatBytes(maxFileBytes)} limit per file and ${over.length === 1 ? "was" : "were"} not attached.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      incoming.splice(0, incoming.length, ...ok);
+      if (incoming.length === 0) setAttachmentNote(note);
     }
     if (incoming.length > 0) {
       const notes = [
@@ -731,7 +749,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     setScheduleNote(
       scheduled.status === "sent"
         ? "This scheduling request was already delivered."
-        : `Confirmed in Scheduled for ${formatScheduleTime(scheduled.sendAt)}`,
+        : `Scheduled for ${formatScheduleTime(scheduled.sendAt)}. Change or remove it in Scheduled.`,
     );
   }
 
@@ -777,7 +795,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     if (isImeKey(e.nativeEvent)) return;
     field.onKeyDown(e);
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-      const marker = formattingShortcut(e.key);
+      const marker = formattingShortcut(e.key, e.shiftKey);
       if (marker) {
         e.preventDefault();
         format(marker, "text");
@@ -829,6 +847,25 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         e.preventDefault();
         e.stopPropagation();
         setEmojiQuery(null);
+        return;
+      }
+    }
+    if (
+      e.key === "ArrowUp" &&
+      !e.shiftKey &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      e.currentTarget.value === "" &&
+      attached.length === 0
+    ) {
+      // Up in an empty box edits your last message here, as in Slack.
+      const s = client.store.getState();
+      const items = threadRootId ? s.threads[threadRootId] : s.timelines[channelId]?.items;
+      const mine = lastEditable(items, s.self?.id);
+      if (mine) {
+        e.preventDefault();
+        requestEdit(mine.id);
         return;
       }
     }
@@ -885,6 +922,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           </div>
         </div>
       )}
+      <ConnectionNotice />
       {archived && (
         <p role="status" className="mb-3 rounded-lg border border-edge p-3 text-sm text-ink-dim">
           This channel is archived. New posts and replies are paused; your draft is kept. A channel
@@ -1180,6 +1218,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               if (held) return;
               const next = field.fromInput(e);
               edited.current = true;
+              // What was scheduled has been said; the next message starts afresh.
+              setScheduleNote(null);
               setText(next.stored);
               refreshMentionState(e.target.value, e.target.selectionStart, next);
               finishShortcode(e.target.value, e.target.selectionStart);
@@ -1276,8 +1316,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               {scheduleNote ??
                 (text.trim() || attached.length > 0
                   ? enterSends
-                    ? "Enter to send · Shift+Enter for a new line"
-                    : "Ctrl/Cmd+Enter to send · Enter for a new line"
+                    ? `${shortcutLabel("Enter")} to send · ${shortcutLabel("Shift+Enter")} for a new line`
+                    : `${shortcutLabel("Mod+Enter")} to send · ${shortcutLabel("Enter")} for a new line`
                   : "")}
             </span>
             {/* A scheduled send cannot answer in place, so it is not offered while replying. */}
@@ -1297,7 +1337,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                 </button>
               </Tooltip>
             )}
-            <Tooltip label="Send message" keys={enterSends ? "Enter" : "Ctrl/Cmd+Enter"}>
+            <Tooltip label="Send message" keys={shortcutLabel(enterSends ? "Enter" : "Mod+Enter")}>
               <button
                 // Focus stays in the box, so a phone's keyboard stays up for the next message.
                 onMouseDown={(e) => e.preventDefault()}
@@ -1377,6 +1417,42 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
  * A file waiting to be sent: a picture shows itself, so the right one is
  * attached before it goes, and anything else shows its kind.
  */
+/** How long the connection may be down before the message box says so: a blip says nothing. */
+export const CONNECTION_NOTICE_MS = 3000;
+
+/**
+ * Says above the message box that the workspace cannot be reached, where
+ * someone writing looks, rather than only in the sidebar, which a phone keeps
+ * in its drawer. What is sent meanwhile waits and goes once it is back.
+ */
+function ConnectionNotice() {
+  const down = useConnectionDown();
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!down) {
+      setShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), CONNECTION_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [down]);
+  if (!down || !shown) return null;
+  return (
+    <p
+      role="status"
+      className="mb-2 flex items-center gap-2 rounded-lg bg-copper/10 px-3 py-2 text-[13px] text-ink-dim"
+    >
+      <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
+      <span>
+        <span className="font-medium text-ink">
+          {down === "offline" ? "You're offline." : "Reconnecting to the workspace…"}
+        </span>{" "}
+        What you send now goes once you're back.
+      </span>
+    </p>
+  );
+}
+
 function StagedFile({ file, onRemove }: { file: File; onRemove: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {

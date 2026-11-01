@@ -47,12 +47,25 @@ export async function writeClipboard(text: string): Promise<boolean> {
   if (navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
+      copiedTexts.add(text);
       return true;
     } catch {
       // Try the selection instead.
     }
   }
-  return copySelection(text);
+  const ok = copySelection(text);
+  if (ok) copiedTexts.add(text);
+  return ok;
+}
+
+/** What this page has copied, so a secret shown once is known to be kept. */
+const copiedTexts = new Set<string>();
+
+/** Whether `text` has been copied from this page, alone or within something longer. */
+export function wasCopied(text: string): boolean {
+  if (copiedTexts.has(text)) return true;
+  for (const copied of copiedTexts) if (copied.includes(text)) return true;
+  return false;
 }
 
 function copySelection(text: string): boolean {

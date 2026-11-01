@@ -10,6 +10,7 @@ import { Menu, type MenuItem } from "./Menu.js";
 import { Swap } from "./Motion.js";
 import { ScreenShareDialog } from "./ScreenShareDialog.js";
 import { Tooltip } from "./Tooltip.js";
+import { shortcutLabel } from "../lib/shortcuts.js";
 
 /**
  * Whether the desktop app's screen picker is open. The controls out of full
@@ -69,6 +70,8 @@ function DeviceMenu({
       tooltip={label}
       align="start"
       width={320}
+      // On a phone, a sheet with rows a finger can hit, as the message menu.
+      sheet
       triggerContent={
         <>
           <Icon name="chevronUp" size={14} />
@@ -155,6 +158,12 @@ export function HuddleControls({
     ? "bg-ink text-ground hover:bg-ink/85"
     : "border-transparent bg-ink text-ground";
 
+  // A phone's browser has media devices but no way to share a screen.
+  const canShare =
+    huddle.sharingScreen ||
+    !!platform.screenShare ||
+    !navigator.mediaDevices ||
+    typeof navigator.mediaDevices.getDisplayMedia === "function";
   const shareScreen = () => {
     // A browser shows its own picker, and stopping needs none.
     if (huddle.sharingScreen || !platform.screenShare) {
@@ -240,7 +249,10 @@ export function HuddleControls({
           overlay ? "rounded-2xl bg-black/50 p-1.5 backdrop-blur" : stage ? "" : "ml-auto"
         }`}
       >
-        <Tooltip label={huddle.micMuted ? "Unmute" : "Mute"}>
+        <Tooltip
+          label={huddle.micMuted ? "Unmute" : "Mute"}
+          keys={shortcutLabel("Mod+Shift+Space")}
+        >
           <button
             aria-label="Mute microphone"
             aria-pressed={huddle.micMuted}
@@ -268,17 +280,20 @@ export function HuddleControls({
           </button>
         </Tooltip>
         {cameraMenu}
-        <Tooltip label={huddle.sharingScreen ? "Stop sharing" : "Share your screen"}>
-          <button
-            aria-label="Share screen"
-            aria-pressed={huddle.sharingScreen}
-            onClick={shareScreen}
-            disabled={busy !== null}
-            className={toggleCls(huddle.sharingScreen, lit)}
-          >
-            <Icon name="screen" />
-          </button>
-        </Tooltip>
+        {/* A phone's browser cannot share a screen; a button that only says so is left out. */}
+        {canShare && (
+          <Tooltip label={huddle.sharingScreen ? "Stop sharing" : "Share your screen"}>
+            <button
+              aria-label="Share screen"
+              aria-pressed={huddle.sharingScreen}
+              onClick={shareScreen}
+              disabled={busy !== null}
+              className={toggleCls(huddle.sharingScreen, lit)}
+            >
+              <Icon name="screen" />
+            </button>
+          </Tooltip>
+        )}
         {/* Leave keeps its word: an arrow out of a door reads as signing out just as easily. */}
         <button
           onClick={() => client.leaveHuddle()}

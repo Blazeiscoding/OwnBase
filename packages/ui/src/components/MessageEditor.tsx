@@ -185,7 +185,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
               if (isImeKey(e.nativeEvent)) return;
               field.onKeyDown(e);
               if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-                const marker = formattingShortcut(e.key);
+                const marker = formattingShortcut(e.key, e.shiftKey);
                 if (marker) {
                   e.preventDefault();
                   format(marker, "text");

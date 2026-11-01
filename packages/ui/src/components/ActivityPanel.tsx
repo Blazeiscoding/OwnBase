@@ -13,6 +13,7 @@ import { useTabs } from "../lib/useTabs.js";
 import { usePagedList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { RemindersList } from "./RemindersList.js";
+import { markEverythingRead } from "../lib/readAll.js";
 
 /**
  * Activity's tabs (UX-52), and what each asks the server for. Reminders (E4)
@@ -194,17 +195,7 @@ export function ActivityPanel({
 
   /** Every conversation and followed thread read to its newest, and every reply listed. */
   function markAllRead() {
-    const state = client.state;
-    for (const [channelId, read] of Object.entries(state.memberships)) {
-      const newest = state.channelLastSeq[channelId] ?? 0;
-      if (newest > read) client.markRead(channelId, newest, { explicit: true });
-    }
-    for (const follow of Object.values(state.threadFollows))
-      if (follow.following && follow.lastSeq > follow.lastReadSeq)
-        client.markThreadRead(follow.rootId, {
-          explicit: true,
-          through: { channelId: follow.channelId, seq: follow.lastSeq },
-        });
+    markEverythingRead(client);
     // A mention in a thread nobody follows is read through its thread too.
     const newestReply = new Map<ID, Message>();
     for (const message of messages)

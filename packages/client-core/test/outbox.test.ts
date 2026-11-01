@@ -123,7 +123,7 @@ describe("a send that does not go through", () => {
     expect(client.state.pending).toHaveLength(0);
   });
 
-  it("says the workspace could not be reached, and that it will send on retry", async () => {
+  it("says the workspace could not be reached, and that it sends again once back", async () => {
     const client = await online();
     const self = client.state.self!;
     // A client whose server went away: same account, nobody listening.
@@ -134,8 +134,27 @@ describe("a send that does not go through", () => {
     const state = await until(away, (s) => !!failed(s), "the failure");
     expect(failed(state)).toMatchObject({
       text: "Written on the train",
-      failureReason: "Could not reach the workspace. It will be sent when you try again.",
+      failureReason: "Could not reach the workspace. It is sent again once you're back online.",
     });
     expect(client.state.pending).toHaveLength(0);
+  });
+
+  it("sends what was lost on the way once the connection is back, but not what was refused", async () => {
+    const client = await online();
+    const send = vi.spyOn(client.api, "sendMessage");
+    // The first try never reaches the server; later ones do.
+    send.mockRejectedValueOnce(new TypeError("fetch failed"));
+    client.send(general, "Sent from a tunnel");
+    await until(client, (s) => !!failed(s), "the lost send");
+
+    // The socket drops and comes back, as on leaving the tunnel.
+    (client as unknown as { ws: WebSocket }).ws.close();
+    await until(client, (s) => s.status === "reconnecting", "the drop");
+    await until(client, (s) => s.pending.length === 0, "the send going again", 10_000);
+    expect(
+      server.store
+        .listMessages({ channelId: general, limit: 10 })
+        .filter((m) => m.text === "Sent from a tunnel"),
+    ).toHaveLength(1);
   });
 });

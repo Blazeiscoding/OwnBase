@@ -388,7 +388,7 @@ export function ScheduledPanel(props: {
                     }}
                     className="rounded-lg border border-edge px-2.5 py-1 text-[12px] text-ink-faint transition-colors hover:border-alert hover:text-alert"
                   >
-                    {s.status === "queued" ? "Cancel" : "Discard"}
+                    {s.status === "queued" ? "Remove" : "Discard"}
                   </button>
                   <button
                     disabled={busy !== null}

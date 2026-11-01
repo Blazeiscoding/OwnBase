@@ -310,13 +310,21 @@ export function Sidebar(props: Props) {
     }
   });
 
-  /** A row's own menu: Star or Unstar, and Mute or Unmute, named by what they do now. */
+  /** A row's own menu: Mark as read, Star or Unstar, and Mute or Unmute, named by what they do now. */
   function rowMenu(ch: Channel, label: string): RowMenu {
     const conversation: Conversation = {
       id: ch.id,
       noun: isDirect(ch) ? "conversation" : "channel",
     };
     const items: MenuItem[] = [];
+    // Read without opening it, as Slack's row menu does.
+    if (isUnread(ch.id) || mentions(ch.id) > 0)
+      items.push({
+        id: "read",
+        label: "Mark as read",
+        icon: "check",
+        onSelect: () => client.markRead(ch.id, channelLastSeq[ch.id] ?? 0, { explicit: true }),
+      });
     if (stars) {
       const isStarred = prefs[ch.id]?.starred === true;
       const star = starItem(client, toast, conversation, isStarred);
@@ -1489,6 +1497,8 @@ function ChannelRow(props: {
       className="channel-item relative"
       data-conversation={props.id}
       data-active={props.active || undefined}
+      // Alt+Shift+Up/Down go to the next of these (conversationKeys.ts).
+      data-unread={(props.unread && !props.muted) || props.mentions > 0 || undefined}
       data-actions={count || undefined}
       data-menu-open={menuOpen || undefined}
     >

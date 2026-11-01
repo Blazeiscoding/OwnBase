@@ -2366,6 +2366,12 @@ test("deactivating someone signs them out of the app they already have open", as
     const leaverRow = dialog.locator("li").filter({ hasText: "@frank" });
     await leaverRow.getByRole("button", { name: "Actions for frank", exact: true }).click();
     await ownerPage.getByRole("menuitem", { name: "Deactivate", exact: true }).click();
+    // It signs someone out everywhere, so it asks first.
+    await ownerPage
+      .getByRole("dialog", { name: /^Deactivate / })
+      .getByRole("button", { name: "Deactivate", exact: true })
+      .click();
+    await expect(dialog.getByText("frank is deactivated and signed out everywhere.")).toBeVisible();
     // Deactivated accounts drop out of the list, and are still reachable behind
     // a toggle, because reactivating is the other half of this.
     await expect(leaverRow).toHaveCount(0);
@@ -2485,8 +2491,10 @@ test("an admin who never copied a bot token can replace it, and the old one stop
     await expect(eventsUrl).toBeFocused();
     await expect(eventsUrl).toHaveAccessibleDescription("Give the address that receives events.");
 
-    // Closing the dialog is how a token shown once gets lost.
+    // Closing the dialog is how a token shown once gets lost, so it asks first.
     await page.keyboard.press("Escape");
+    const unsaved = page.getByRole("dialog", { name: "Close before copying?", exact: true });
+    await unsaved.getByRole("button", { name: "Close anyway", exact: true }).click();
     await expect(dialog).toHaveCount(0);
     await page.getByRole("button", { name: /, workspace menu$/ }).click();
     await page.getByRole("menuitem", { name: "Apps and integrations", exact: true }).click();
@@ -2600,8 +2608,13 @@ test("Apps starts from templates: a webhook posts a test message, and the copied
     );
     expect(await notesOpen()).toBe(false);
 
-    // Both posts are in #general, and the service's private answer too.
+    // Both posts are in #general, and the service's private answer too. The
+    // new app's bot token was never copied, so closing asks first.
     await page.keyboard.press("Escape");
+    await page
+      .getByRole("dialog", { name: "Close before copying?", exact: true })
+      .getByRole("button", { name: "Close anyway", exact: true })
+      .click();
     await expect(dialog).toHaveCount(0);
     await expect(
       page.getByRole("textbox", { name: "Message #general", exact: true }),
@@ -4456,7 +4469,7 @@ test("a visitor joins with only a name where guests are allowed, and can keep it
     await expect(composer).toBeVisible();
     await expect(nav.getByText("Guest", { exact: true })).toBeVisible();
     await expect(offer).toBeVisible();
-    await offer.getByRole("button", { name: "Not now", exact: true }).click();
+    await offer.getByRole("button", { name: "Dismiss", exact: true }).click();
     await expect(offer).toHaveCount(0);
     // Put away for good: the guest's message is on screen again, and no offer.
     await page.reload();

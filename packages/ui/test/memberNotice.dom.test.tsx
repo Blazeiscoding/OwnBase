@@ -217,7 +217,8 @@ describe("the member notice", () => {
   it("waits behind the ask to turn on notifications", async () => {
     workspace(owner, team, TEAM, { notifications: "default" });
     expect(await screen.findByRole("region", { name: "Notifications" })).toBeVisible();
-    expect(notice()).toBeNull();
+    // Settled: a notice that came first may still be fading out as the ask takes its place.
+    await waitFor(() => expect(notice()).toBeNull());
   });
 });
 

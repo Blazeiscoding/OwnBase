@@ -1,5 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
-import { useCopy } from "../lib/useCopy.js";
+import { useDismissGuard } from "../lib/dismissGuard.js";
+import { useCopy, wasCopied } from "../lib/useCopy.js";
 import { useTabs } from "../lib/useTabs.js";
 import {
   APP_TEMPLATES,
@@ -103,6 +104,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 /** Admin view for integrations: bot tokens, webhooks, commands and events. */
 export function AppsDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
+  const toast = useOptionalToast();
   const confirm = useConfirm();
   const channels = useWorkspace((s) => s.channels);
   const [apps, setApps] = useState<AppDetail[] | null>(null);
@@ -270,6 +272,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog title="Apps and integrations" onClose={onClose} width={620}>
+      <OnceGuard shown={[...Object.values(secrets), ...Object.values(hookUrls)]} />
       <p className="mb-4 text-sm text-ink-dim">
         Start from what you want to happen. Each app you make posts as its own bot.
       </p>
@@ -411,8 +414,23 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                     </button>
                     <button
                       onClick={async () => {
-                        await client.api.deleteWebhook(w.id);
-                        load();
+                        const room = channels[w.channelId]?.name ?? "unknown";
+                        const go = await confirm({
+                          title: `Remove the webhook for #${room}?`,
+                          body: "Anything posting to its address stops reaching the channel at once.",
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        });
+                        if (!go) return;
+                        try {
+                          await client.api.deleteWebhook(w.id);
+                          load();
+                        } catch {
+                          toast?.({
+                            message: `Could not remove the webhook for #${room}. Check your connection and try again.`,
+                            kind: "error",
+                          });
+                        }
                       }}
                       className="text-ink-faint hover:text-alert"
                     >
@@ -1017,9 +1035,18 @@ function SlackDifferences() {
 const rowButton =
   "mt-5 h-8 shrink-0 rounded-lg border border-edge px-3 text-[12px] font-medium text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink";
 
-/** The server's reason, as a sentence. */
+/**
+ * The server's reason, as a sentence. A bare code ("name_taken") is not one,
+ * so it is said in words instead of shown as it is.
+ */
 function reason(err: ApiError): string {
-  const text = err.message || err.code;
+  const text = err.message && err.message !== err.code ? err.message : "";
+  if (!text || !/\s/.test(text)) {
+    if (err.code === "name_taken") return "An app already has that name. Choose another.";
+    if (err.status >= 500)
+      return "The workspace's server ran into a problem. Try again in a moment.";
+    return "The workspace turned that down. Check what you entered and try again.";
+  }
   return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
 
@@ -1605,4 +1632,22 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
       )}
     </form>
   );
+}
+
+/**
+ * A bot token or webhook address is shown once: closing asks first while one
+ * is up that has not been copied. Asked at the moment of closing, since a
+ * copy button deep in the dialog does not render this again.
+ */
+function OnceGuard({ shown }: { shown: string[] }) {
+  useDismissGuard(() =>
+    shown.some((value) => !wasCopied(value))
+      ? {
+          title: "Close before copying?",
+          body: "Bot tokens and webhook addresses made here are shown only once. Copy them first, unless you already have.",
+          confirmLabel: "Close anyway",
+        }
+      : null,
+  );
+  return null;
 }

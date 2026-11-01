@@ -976,11 +976,12 @@
     },
     {
       "path": "packages/ui/src/lib/editRequest.ts",
-      "plain": "Lets the Drafts list open a message's editor, even when the message is still scrolling into view.",
+      "plain": "Lets the Drafts list, or Up in an empty message box, open a message's editor, even when the message is still scrolling into view.",
       "summary": "Asks the row showing a message to open its editor, now or when it appears.",
       "details": [
         "requestEdit opens the editor of the message's row if one is on screen; otherwise the next row for that message to appear within ten seconds takes the request, as after a jump to it. One never shown lets it go.",
-        "useEditRequest is how MessageItem listens, only for the person's own messages."
+        "useEditRequest is how MessageItem listens, only for the person's own messages.",
+        "lastEditable finds the newest message of one's own that can be edited (not a poll or a call's note), for Up in an empty composer. nearestComposer and refocusComposer put focus back in the pane's message box after an editor closes or a message is deleted."
       ],
       "concepts": ["drafts", "message editing", "E5"]
     },
@@ -2689,6 +2690,62 @@
         "resume() can stay pending on a page the browser has not let play sound, so it races a three-second timer and then checks state; anything but running rejects, and the caller falls back to the browser's own microphone."
       ],
       "concepts": ["Web Audio", "fallback"]
+    },
+    {
+      "path": "packages/ui/src/components/PendingStatus.tsx",
+      "plain": "Says where a message on its way is, the same in a conversation and in a thread.",
+      "summary": "Sending, uploading with Cancel, waiting for the connection, or not sent with Retry and Discard.",
+      "details": [
+        "A send lost while the connection is down reads 'Waiting for the connection…', since the client sends it again once back; one the server refused shows its reason with Retry and Discard.",
+        "While files upload it offers Cancel, which discards the send."
+      ],
+      "concepts": ["outbox", "offline"]
+    },
+    {
+      "path": "packages/ui/src/lib/conversationKeys.ts",
+      "plain": "Finds the conversation above or below the open one in the sidebar, for Alt+Up and Alt+Down.",
+      "summary": "neighbourConversation walks the sidebar's rows as drawn.",
+      "details": [
+        "Reads the rows' data-conversation in DOM order, so starred, sections, folded categories and direct messages are walked as the person sees them. With unreadOnly it stops only at rows marked data-unread (Alt+Shift)."
+      ],
+      "concepts": ["keyboard", "sidebar"]
+    },
+    {
+      "path": "packages/ui/src/lib/dismissGuard.ts",
+      "plain": "Makes a dialog ask before closing while it holds something that would be lost.",
+      "summary": "useDismissGuard, UnsavedGuard and the guard registry Modal asks before it closes.",
+      "details": [
+        "Modal makes a registry (or takes one from Dialog or SettingsWindow); Escape, a click beside it, its close button and, in settings, another section all go through registry.ask, which asks the first guard set with the shared Confirm and closes only on yes.",
+        "Used for unsaved edits (channel About, workspace name, profile) and things shown once (recovery codes, bot tokens, webhook addresses)."
+      ],
+      "concepts": ["dialogs", "unsaved changes"]
+    },
+    {
+      "path": "packages/ui/src/lib/fileLimit.ts",
+      "plain": "Knows the largest file the workspace takes, so one too big is turned away when attached.",
+      "summary": "useMaxFileBytes asks /api/storage once per connection; withinLimit splits files.",
+      "details": [
+        "A failed ask is forgotten so the next composer asks again; until known, every file is let through and the server decides."
+      ],
+      "concepts": ["files", "composer"]
+    },
+    {
+      "path": "packages/ui/src/lib/online.ts",
+      "plain": "Tells whether the workspace can be reached now, and why not.",
+      "summary": "useDeviceOffline and useConnectionDown.",
+      "details": [
+        "The device's online and offline events count as well as the socket's 'reconnecting', since a socket can stay open through a lost network without noticing."
+      ],
+      "concepts": ["offline"]
+    },
+    {
+      "path": "packages/ui/src/lib/readAll.ts",
+      "plain": "Marks every conversation and followed thread read, for Shift+Esc and Activity's Mark all read.",
+      "summary": "unreadEverywhere, markEverythingRead and unreadSummary.",
+      "details": [
+        "There is no undo: the server's mark unread needs a real message, which may not be loaded. Shift+Esc asks first when more than two places would be marked."
+      ],
+      "concepts": ["unread", "keyboard"]
     }
   ],
   "flows": [
