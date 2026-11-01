@@ -612,6 +612,11 @@ h3 {
   --r: 0.462;
 }
 
+/* The way on to the full guide, under the three steps. */
+.hosting-more {
+  margin-top: clamp(32px, 4vw, 48px);
+}
+
 /* How the workspace is reached after each step: an address, or the link itself. */
 .reach {
   display: grid;
@@ -1038,6 +1043,158 @@ h3 {
   text-shadow: 0 1px 2px rgb(11 10 32 / 0.6);
 }
 
+/* The hosting guide (host.html): a night band, then steps with their screens beside them. */
+
+.guide-head {
+  background: var(--night);
+  color: #fff;
+}
+.guide-intro {
+  padding-block: clamp(40px, 7vw, 88px) clamp(56px, 8vw, 104px);
+}
+.guide-kicker {
+  color: var(--gold);
+  font-size: 15px;
+  font-weight: 600;
+}
+.guide-intro h1 {
+  max-width: 14ch;
+  margin-top: 12px;
+  font-size: clamp(40px, 6vw, 80px);
+  font-weight: 650;
+  line-height: 0.98;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+}
+.guide-intro p:last-child {
+  max-width: 50ch;
+  margin-top: 20px;
+  color: rgb(255 255 255 / 0.82);
+  font-size: clamp(17px, 1.35vw, 20px);
+}
+
+.guide {
+  padding-block: clamp(40px, 6vw, 72px) var(--section);
+}
+.guide h2 {
+  font-size: clamp(22px, 2vw, 28px);
+  font-weight: 650;
+  line-height: 1.15;
+  letter-spacing: -0.025em;
+  text-wrap: balance;
+}
+.guide strong {
+  font-weight: 620;
+  color: var(--ink);
+}
+
+.guide-needs {
+  max-width: 760px;
+  padding: clamp(20px, 3vw, 32px);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--paper);
+}
+.guide-needs ul {
+  display: grid;
+  gap: 8px;
+  margin-top: 14px;
+}
+.guide-needs li {
+  position: relative;
+  padding-left: 22px;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+.guide-needs li::before {
+  content: "";
+  position: absolute;
+  top: 0.62em;
+  left: 2px;
+  width: 8px;
+  height: 8px;
+  background: var(--host);
+}
+
+.guide-steps {
+  display: grid;
+  gap: clamp(48px, 7vw, 96px);
+  margin-top: clamp(48px, 7vw, 96px);
+}
+/* Words on the left, the screen they describe on the right. */
+.guide-step {
+  display: grid;
+  grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+  gap: clamp(24px, 4vw, 64px);
+  align-items: start;
+}
+.guide-text {
+  max-width: 52ch;
+}
+.guide-text .step-num {
+  margin-bottom: 16px;
+}
+.guide-text > p:not(.reach) {
+  margin-top: 10px;
+  color: var(--ink-2);
+  font-size: 16px;
+}
+.guide-text > p.guide-note {
+  padding-left: 14px;
+  border-left: 3px solid var(--line);
+  color: var(--ink-3);
+  font-size: 15px;
+}
+.guide-optional {
+  margin-left: 6px;
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: rgb(29 27 51 / 0.07);
+  color: var(--ink-3);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  vertical-align: 0.3em;
+}
+.guide-shot {
+  --p: clamp(8px, 1.2vw, 14px);
+  max-width: 560px;
+}
+/* The invite and the phone it opened on, the same height side by side. */
+.guide-pair {
+  display: flex;
+  gap: 16px;
+  max-width: 560px;
+}
+.guide-pair .stage {
+  flex: calc(var(--r) * 100) 1 calc(2 * var(--p));
+  min-width: 0;
+  padding: var(--p);
+}
+
+.guide-next {
+  max-width: 760px;
+  margin-top: clamp(64px, 9vw, 120px);
+  padding-top: clamp(32px, 4vw, 48px);
+  border-top: 1px solid var(--line);
+}
+.guide-next p {
+  max-width: 60ch;
+  margin: 12px 0 24px;
+  color: var(--ink-2);
+}
+.btn-quiet {
+  background: rgb(29 27 51 / 0.07);
+  color: var(--ink);
+}
+.btn-quiet:hover {
+  background: rgb(29 27 51 / 0.12);
+}
+
+.guide-foot .footer {
+  padding-top: 40px;
+}
+
 /* Narrower screens. */
 
 @media (max-width: 1000px) {
@@ -1114,6 +1271,14 @@ h3 {
   .step-shots {
     width: min(100%, calc(var(--r) * var(--shot-h) + var(--b)));
     padding-top: 20px;
+  }
+  /* The guide's screens go under their words, kept to a readable size. */
+  .guide-step {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .guide-shot,
+  .guide-pair {
+    max-width: min(100%, 460px);
   }
 }
 

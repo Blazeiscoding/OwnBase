@@ -528,7 +528,8 @@ function BrowseCard(props: {
                     l.instanceId !== undefined &&
                     l.instanceId === props.hostingStatus.instanceId
                       ? "hosted here"
-                      : "on your network"
+                      : // Under "On your network" already; a version number meant nothing.
+                        ""
                   }
                   busy={props.probing?.includes(l.host) ?? false}
                   onClick={() => props.onSelect(address)}

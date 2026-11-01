@@ -1,0 +1,309 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Host your first workspace · OwnBase</title>
+    <meta
+      name="description"
+      content="Host an OwnBase workspace on your own computer in about ten minutes: install the desktop app, start hosting, invite your team on the same Wi-Fi or from anywhere."
+    />
+    <meta property="og:title" content="Host your first workspace · OwnBase" />
+    <meta
+      property="og:description"
+      content="Team chat on a computer you already have, in about ten minutes."
+    />
+    <link rel="canonical" href="https://ownbase.site/host" />
+    <meta property="og:type" content="article" />
+    <meta property="og:url" content="https://ownbase.site/host" />
+    <meta property="og:site_name" content="OwnBase" />
+    <meta property="og:image" content="https://ownbase.site/og.png?v=2" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#0b0a20" />
+    <link
+      rel="preload"
+      href="/fonts/onest-latin-wght-normal.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <!-- Named from the root, as 404.html is, so /host and /host.html load alike. -->
+    <link rel="icon" href="/ownbase.svg?v=2" type="image/svg+xml" />
+    <link rel="stylesheet" href="/site.css?v=5" />
+  </head>
+  <body>
+    <a class="skip" href="#main">Skip to content</a>
+
+    <header class="guide-head">
+      <nav class="nav wrap" aria-label="Main">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="32" height="32" />
+          <span>OwnBase</span>
+          <span class="beta">Beta</span>
+        </a>
+        <ul class="nav-links">
+          <li><a href="/#host">Hosting</a></li>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="/#calls">Calls</a></li>
+          <li><a href="/#plans">Plans</a></li>
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+        </ul>
+        <a class="btn btn-small btn-light" href="/#download">Get OwnBase</a>
+      </nav>
+      <div class="guide-intro wrap">
+        <p class="guide-kicker">Guide · about 10 minutes</p>
+        <h1>Host your first workspace</h1>
+        <p>
+          OwnBase runs on a computer you already have. Start it on your desk, bring in the people on
+          your Wi&#8209;Fi, then open it to anyone you invite, wherever they are.
+        </p>
+      </div>
+    </header>
+
+    <main id="main" class="guide wrap">
+      <section class="guide-needs" aria-labelledby="needs-title">
+        <h2 id="needs-title">What you need</h2>
+        <ul>
+          <li>
+            A Windows or Mac computer that stays on while people use the workspace. Messages and
+            files are kept on it.
+          </li>
+          <li>The OwnBase desktop app, free. It is both the server and the app you chat in.</li>
+          <li>
+            Nothing else. No router settings and no accounts with anyone, even to reach people
+            outside your network.
+          </li>
+        </ul>
+      </section>
+
+      <ol class="guide-steps">
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">1</span>
+            <h2>Install the desktop app</h2>
+            <p>
+              Download OwnBase for Windows or Mac from the
+              <a href="/#download">download section</a>, and install it like any other app.
+            </p>
+            <p class="guide-note">
+              On a Mac, Apple hasn't signed this beta yet. The first time, choose Open Anyway in
+              System Settings, Privacy &amp; Security.
+            </p>
+          </div>
+          <figure class="stage guide-shot">
+            <img
+              src="/shots/join-3.webp"
+              width="1080"
+              height="1230"
+              loading="lazy"
+              alt="The desktop app's Find your workspace screen. It lists workspaces on your network, a field to join with an address, and Host a workspace on this computer."
+            />
+          </figure>
+        </li>
+
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">2</span>
+            <h2>Start hosting</h2>
+            <p>
+              On the first screen, choose <strong>Host a workspace on this computer</strong>. Give
+              the workspace a name, such as your team's, and press <strong>Start hosting</strong>.
+            </p>
+            <p>
+              Your computer is now the server. The port is chosen for you; you can set one under
+              Choose a port.
+            </p>
+          </div>
+          <figure class="stage guide-shot">
+            <img
+              src="/shots/host-dialog.webp"
+              width="1024"
+              height="744"
+              loading="lazy"
+              alt="The Host a workspace dialog with the name Pinecone Studio typed in, a Choose a port option, and a Start hosting button."
+            />
+          </figure>
+        </li>
+
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">3</span>
+            <h2>Make your account first</h2>
+            <p>
+              Press <strong>Open it</strong> and create an account: a username, the name people see,
+              and a password of at least 8 characters.
+            </p>
+            <p>
+              The first account in a new workspace becomes its owner, so make yours before you tell
+              anyone the address.
+            </p>
+          </div>
+        </li>
+
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">4</span>
+            <h2>Bring in the people on your Wi&#8209;Fi</h2>
+            <p>
+              <strong>Manage hosting</strong> shows the address teammates connect at, and a QR code
+              for phones.
+            </p>
+            <p>
+              Anyone with the desktop app on the same network sees the workspace on their first
+              screen. Everyone else types the address into a browser. There is nothing to install.
+            </p>
+            <p class="reach">
+              <span>Reachable at</span>
+              <code>192.168.1.42:8543</code>
+            </p>
+          </div>
+          <figure class="stage guide-shot">
+            <img
+              src="/shots/hosting-overview.webp"
+              width="1144"
+              height="1140"
+              loading="lazy"
+              alt="The Manage hosting window, Overview tab: Pinecone Studio is live, the addresses teammates can connect at, a QR code, and an Open it button."
+            />
+          </figure>
+        </li>
+
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">5</span>
+            <h2>Open it to the internet <span class="guide-optional">Optional</span></h2>
+            <p>
+              For people at home or on mobile data, open <strong>Share on the internet</strong> in
+              Manage hosting and press <strong>Open to all</strong>.
+            </p>
+            <p>
+              OwnBase starts a Cloudflare Quick Tunnel and gives the workspace an HTTPS address.
+              There is no router to set up and no Cloudflare account to make. If the computer
+              doesn't have cloudflared yet, OwnBase offers to install it.
+            </p>
+            <p class="guide-note">
+              The address changes each time hosting restarts. For one that stays, enter your own,
+              such as a Tailscale Funnel or a reverse proxy. Keep
+              <strong>Require an invite link</strong> ticked, so only people you invite can make an
+              account.
+            </p>
+            <p class="reach">
+              <span>Reachable at</span>
+              <code>https://lantern-maple-quiet-river<wbr />.trycloudflare.com</code>
+            </p>
+          </div>
+          <figure class="stage guide-shot">
+            <img
+              src="/shots/open-to-all-2.webp"
+              width="1144"
+              height="1430"
+              loading="lazy"
+              alt="The Manage hosting window, Share on the internet tab: Open to all, a field for your own address, and the options to require an account and an invite link."
+            />
+          </figure>
+        </li>
+
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">6</span>
+            <h2>Send an invite link</h2>
+            <p>
+              In the workspace, open the menu under its name and choose
+              <strong>Invite people</strong>. Copy the link, or let someone scan the QR code.
+            </p>
+            <p>
+              The link opens in any browser, on a laptop or a phone, with the invite already filled
+              in. People who'd rather have the app can download it too.
+            </p>
+          </div>
+          <div class="guide-pair">
+            <figure class="stage guide-shot shot-invite">
+              <img
+                src="/shots/invite-2.webp"
+                width="904"
+                height="1430"
+                loading="lazy"
+                alt="The Invite people dialog with an HTTPS invite link, a Copy link button, a QR code and the invite code."
+              />
+            </figure>
+            <figure class="stage guide-shot shot-phone">
+              <img
+                src="/shots/phone-2.webp"
+                width="780"
+                height="1688"
+                loading="lazy"
+                alt="OwnBase in a phone's browser, showing #general, where Alex writes that the invite link opened straight in the phone's browser."
+              />
+            </figure>
+          </div>
+        </li>
+
+        <li class="guide-step">
+          <div class="guide-text">
+            <span class="step-num" aria-hidden="true">7</span>
+            <h2>Keep it running</h2>
+            <p>
+              Closing the window keeps the workspace running in the background. While the computer
+              sleeps or is off, nobody can reach it; what people write meanwhile waits in their app
+              and goes once it's back.
+            </p>
+            <p>
+              Turn on automatic backups under <strong>Backups</strong> in Manage hosting, daily or
+              weekly. The whole workspace is one folder, so a backup is everything.
+            </p>
+          </div>
+        </li>
+      </ol>
+
+      <section class="guide-next" aria-labelledby="next-title">
+        <h2 id="next-title">Later: move it to a server</h2>
+        <p>
+          The desktop app runs the same server you'd put on a VPS or a home server, on Node 24 or in
+          Docker. Take a backup, restore it there, and everyone keeps their messages and accounts.
+        </p>
+        <div class="actions">
+          <a
+            class="btn btn-dark"
+            href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md"
+            >Read the deployment guide</a
+          >
+          <a class="btn btn-quiet" href="/#download">Download OwnBase</a>
+        </div>
+      </section>
+    </main>
+
+    <footer class="end guide-foot">
+      <div class="footer wrap">
+        <a class="brand" href="/">
+          <img src="/ownbase.svg?v=2" alt="" width="24" height="24" />
+          <span>OwnBase</span>
+        </a>
+        <ul class="footer-links">
+          <li><a href="https://github.com/Blazeiscoding/OwnBase">GitHub</a></li>
+          <li>
+            <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/DEPLOYMENT.md"
+              >Deployment</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/INTEGRATIONS.md"
+              >Integrations</a
+            >
+          </li>
+          <li>
+            <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/SECURITY.md">Security</a>
+          </li>
+          <li>
+            <a href="https://github.com/Blazeiscoding/OwnBase/blob/main/docs/PLANS.md">Plans</a>
+          </li>
+        </ul>
+        <p class="legal">
+          OwnBase is in beta. MIT licensed, except the Enterprise code in <code>ee/</code>. Not
+          affiliated with Slack or Salesforce.
+        </p>
+      </div>
+    </footer>
+  </body>
+</html>
