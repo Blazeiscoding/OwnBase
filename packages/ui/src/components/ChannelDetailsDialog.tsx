@@ -17,6 +17,7 @@ import { ListStatus } from "./ListStatus.js";
 import { buttonClass } from "./Button.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Icon } from "./Icon.js";
+import { AddPeople } from "./AddPeople.js";
 
 type Tab = "about" | "members" | "notifications";
 const TABS: readonly Tab[] = ["about", "members", "notifications"];
@@ -162,15 +163,18 @@ export function ChannelDetailsDialog(props: {
     }
   }
 
-  async function addMember(userId: ID) {
-    if (!permissions.invite || busy) return;
+  async function addMember(userId: ID): Promise<boolean> {
+    if (!permissions.invite || busy) return false;
     setBusy(true);
     setError(null);
     try {
       await client.api.inviteMember(props.channelId, userId);
       setMemberIds((prev) => [...new Set([...prev, userId])]);
+      return true;
     } catch (err) {
-      setError(channelError(err, "Could not add this person."));
+      const name = users[userId]?.displayName;
+      setError(channelError(err, name ? `Could not add ${name}.` : "Could not add this person."));
+      return false;
     } finally {
       setBusy(false);
     }
@@ -652,22 +656,13 @@ export function ChannelDetailsDialog(props: {
               })}
             </ul>
             {permissions.invite && !membersLoading && !membersError && notMembers.length > 0 && (
-              <div>
-                <div className="mb-1.5 text-[13px] font-semibold text-ink">Add someone</div>
-                <ul className="flex flex-wrap gap-1.5">
-                  {notMembers.map((u) => (
-                    <li key={u.id}>
-                      <button
-                        onClick={() => addMember(u.id)}
-                        disabled={busy}
-                        className="rounded-full border border-edge px-2.5 py-1 text-xs text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink"
-                      >
-                        + {u.displayName}
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <AddPeople
+                candidates={notMembers}
+                where={isRoom ? `#${channel.name}` : "the conversation"}
+                disabled={busy}
+                autoFocus={props.initialTab === "members"}
+                onAdd={addMember}
+              />
             )}
           </div>
         ) : null}
