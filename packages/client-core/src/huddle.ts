@@ -45,6 +45,8 @@ export interface HuddlePeer {
    * ask; null while it is fine or still within that time. See `CALL_CAUSES`.
    */
   trouble?: CallCause | null;
+  /** The connection carried media before and dropped; it is being made again. */
+  reconnecting?: boolean;
 }
 
 /**
@@ -325,6 +327,11 @@ export interface HuddleState {
    * other could be had: nobody can hear you until one is (CALL-01).
    */
   micLost: boolean;
+  /**
+   * You have been talking for a while with the microphone off: nobody hears
+   * it, and you may not know. Clears a few seconds after you stop, or on unmute.
+   */
+  talkingWhileMuted?: boolean;
   peers: HuddlePeer[];
 }
 
@@ -341,6 +348,14 @@ export interface HuddleTransport {
 const SPEAKING_LEVEL = 0.02;
 const SPEAKING_HOLD_MS = 500;
 const LEVEL_POLL_MS = 120;
+
+/**
+ * Talking while muted, as against a cough or a door: loud in this many polls
+ * within the window, and said for this long after the last of them.
+ */
+const MUTED_TALK_WINDOW_MS = 1500;
+const MUTED_TALK_POLLS = 5;
+const MUTED_TALK_HOLD_MS = 4000;
 
 /**
  * How loud a peer's last audio packet was, read from the RTP header extension
@@ -399,6 +414,15 @@ export class HuddleSession {
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private levelSamples: Uint8Array<ArrayBuffer> | null = null;
+  /**
+   * A copy of the microphone for the level alone. Muting turns the sent track
+   * off, and this one stays on, so talking while muted can be noticed.
+   */
+  private levelTrack: MediaStreamTrack | null = null;
+  /** Loud polls while muted, newest last, within `MUTED_TALK_WINDOW_MS`. */
+  private mutedLoud: number[] = [];
+  private mutedTalkAt = 0;
+  private talkingWhileMuted = false;
   /** Every step of this call, for whoever has to work out what went wrong. */
   readonly log: CallLogLine[] = [];
 
@@ -582,6 +606,7 @@ export class HuddleSession {
 
   /** Closes the microphone in use, without taking that for the device going. */
   private releaseMicrophone(): void {
+    this.stopLevelTrack();
     if (this.mic?.device) this.mic.device.onended = null;
     if (this.mic?.system) this.mic.system.onEnded = null;
     this.mic?.stop();
@@ -687,9 +712,11 @@ export class HuddleSession {
 
   /**
    * Your own microphone level, so your tile lights up like everyone else's.
-   * A muted track carries silence, so muting stops this on its own.
+   * Measured on a copy of the track that muting leaves on, so that talking
+   * while muted can be pointed out; nothing of the copy is sent anywhere.
    */
   private watchLocalLevel(stream: MediaStream): void {
+    this.stopLevelTrack();
     const Ctx = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext;
     if (!Ctx) return;
     try {
@@ -697,13 +724,22 @@ export class HuddleSession {
       void context.resume().catch(() => {});
       const analyser = context.createAnalyser();
       analyser.fftSize = 256;
-      context.createMediaStreamSource(stream).connect(analyser);
+      const track = stream.getAudioTracks()[0];
+      const copy = typeof track?.clone === "function" ? track.clone() : null;
+      if (copy) copy.enabled = true;
+      this.levelTrack = copy;
+      context.createMediaStreamSource(copy ? new MediaStream([copy]) : stream).connect(analyser);
       this.audioContext = context;
       this.analyser = analyser;
       this.levelSamples = new Uint8Array(new ArrayBuffer(analyser.fftSize));
     } catch {
       // Showing a level is a nicety. Never let it cost someone the call.
     }
+  }
+
+  private stopLevelTrack(): void {
+    this.levelTrack?.stop();
+    this.levelTrack = null;
   }
 
   private localLevel(): number {
@@ -719,14 +755,15 @@ export class HuddleSession {
   /** One pass over every participant's loudness, published only on a change. */
   private sampleLevels(): void {
     const now = Date.now();
-    if (this.localLevel() > SPEAKING_LEVEL) this.spokeAt.set(this.selfId, now);
+    const loud = this.localLevel() > SPEAKING_LEVEL;
+    if (loud && !this.muted) this.spokeAt.set(this.selfId, now);
+    let changed = this.noticeMutedTalk(loud, now);
     for (const [userId, peer] of this.peers) {
       // Muted, they send nothing, and the browser goes on reporting their last
       // packet for seconds: someone muting mid-word would stay lit.
       if (!peer.micMuted && receivedLevel(peer) > SPEAKING_LEVEL) this.spokeAt.set(userId, now);
     }
 
-    let changed = false;
     const present = new Set<ID>([this.selfId, ...this.peers.keys()]);
     for (const userId of present) {
       const talking = now - (this.spokeAt.get(userId) ?? 0) < SPEAKING_HOLD_MS;
@@ -745,6 +782,26 @@ export class HuddleSession {
     if (changed) this.onChange?.();
   }
 
+  /** Whether `talkingWhileMuted` changed with this poll. */
+  private noticeMutedTalk(loud: boolean, now: number): boolean {
+    const was = this.talkingWhileMuted;
+    if (!this.muted) {
+      this.mutedLoud = [];
+      this.talkingWhileMuted = false;
+      return was;
+    }
+    if (loud) this.mutedLoud.push(now);
+    while (this.mutedLoud.length && now - this.mutedLoud[0]! > MUTED_TALK_WINDOW_MS)
+      this.mutedLoud.shift();
+    if (this.mutedLoud.length >= MUTED_TALK_POLLS) {
+      this.mutedTalkAt = this.mutedLoud.at(-1)!;
+      this.talkingWhileMuted = true;
+    } else if (now - this.mutedTalkAt > MUTED_TALK_HOLD_MS) {
+      this.talkingWhileMuted = false;
+    }
+    return was !== this.talkingWhileMuted;
+  }
+
   get micMuted(): boolean {
     return this.muted;
   }
@@ -754,6 +811,7 @@ export class HuddleSession {
     if (this.destroyed || !track) return;
     this.muted = !this.muted;
     track.enabled = !this.muted;
+    this.noticeMutedTalk(false, Date.now());
     void this.sendMicrophone();
     // Everyone else needs to know, or a muted person just looks silent.
     this.announceMedia();
@@ -787,9 +845,11 @@ export class HuddleSession {
         micMuted: peer.micMuted,
         speaking: this.speaking.has(userId),
         trouble: this.connected.has(userId) ? null : peer.trouble,
+        reconnecting: !this.connected.has(userId) && peer.everConnected,
       })),
       speaking: this.speaking.has(this.selfId),
       micLost: this.micLost,
+      talkingWhileMuted: this.talkingWhileMuted,
     };
   }
 
@@ -954,6 +1014,7 @@ export class HuddleSession {
       hasScreenSoundSlot: false,
       micMuted: false,
       pendingIce: [],
+      everConnected: false,
       initiating,
       startedAt: Date.now(),
       local: noCandidates(),
@@ -1029,6 +1090,7 @@ export class HuddleSession {
       this.note(`Connection: ${state}.`, userId);
       if (state === "connected") {
         this.connected.add(userId);
+        peer.everConnected = true;
         peer.trouble = null;
         this.stopWatching(peer);
         void this.describeRoute(userId, peer);
@@ -1614,6 +1676,7 @@ export class HuddleSession {
     this.levelSamples = null;
     void this.audioContext?.close().catch(() => {});
     this.audioContext = null;
+    this.stopLevelTrack();
     for (const userId of [...this.peers.keys()]) this.closePeer(userId);
     this.cameraTrack?.stop();
     this.cameraTrack = null;
@@ -1631,6 +1694,8 @@ export class HuddleSession {
 /** One connection and its fixed media slots. */
 interface Peer {
   pendingIce: RTCIceCandidateInit[];
+  /** The connection has carried media at least once. */
+  everConnected: boolean;
   /** This side sends the offers, by id (`shouldInitiateOffer`). */
   initiating: boolean;
   startedAt: number;

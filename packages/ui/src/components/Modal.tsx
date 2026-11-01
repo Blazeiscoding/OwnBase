@@ -35,6 +35,19 @@ export function hasOpenModal(): boolean {
   return activeLayer() !== null;
 }
 
+/**
+ * What stays usable over a dialog: notices, and a call ringing or going on.
+ * Each is a child of the body, outside every dialog.
+ */
+const OVER_DIALOGS = "[data-ownbase-toasts], [data-ownbase-call]";
+
+/** A call's buttons, which Tab reaches after the dialog's own. */
+function callStops(): HTMLElement[] {
+  return [...document.body.querySelectorAll<HTMLElement>(":scope > [data-ownbase-call]")].flatMap(
+    (region) => tabStops(region),
+  );
+}
+
 function focusedElement(): HTMLElement | null {
   return document.activeElement instanceof HTMLElement ? document.activeElement : null;
 }
@@ -83,6 +96,8 @@ function recoverFocus() {
   if (!layer || redirectingFocus) return;
   const current = focusedElement();
   if (enteringHigherLayer(current, layer)) return;
+  // Answering a call, or pressing Undo, from over a dialog.
+  if (current?.closest(OVER_DIALOGS)) return;
   if (usableIn(layer, current)) {
     layer.lastFocus = current;
     return;
@@ -111,7 +126,8 @@ function isolate(layer: Layer | null) {
     // Notices report what happened elsewhere, including while this dialog has
     // been open. They compete with nothing on it, so they stay readable and
     // stay in the accessibility tree rather than going inert behind it.
-    if (element.hasAttribute("data-ownbase-toasts")) continue;
+    // So is a call: someone ringing can be answered from settings.
+    if (element.matches(OVER_DIALOGS)) continue;
     if (!originalInert.has(element)) originalInert.set(element, element.getAttribute("inert"));
     if (!element.hasAttribute("inert")) element.setAttribute("inert", "");
   }
@@ -201,6 +217,14 @@ function scrollFromOutside(event: KeyboardEvent, panel: HTMLElement): boolean {
 function onKeyDown(event: KeyboardEvent) {
   const layer = activeLayer();
   if (!layer || event.defaultPrevented || isImeKey(event)) return;
+  const current = focusedElement();
+  const overDialog = !!current?.closest(OVER_DIALOGS);
+  if (event.key === "Escape" && overDialog) {
+    // Out of the call or the notice and back to the dialog, which stays open.
+    event.preventDefault();
+    focus(usableIn(layer, layer.lastFocus) ? layer.lastFocus : layer.panel);
+    return;
+  }
   if (event.key === "Escape") {
     event.preventDefault();
     layer.close();
@@ -211,13 +235,32 @@ function onKeyDown(event: KeyboardEvent) {
     return;
   }
   if (event.key !== "Tab") return;
-  const stops = tabStops(layer.panel);
+  // Remembered as where to come back to, as focus that moves on its own is.
+  const move = (element: HTMLElement) => {
+    focus(element);
+    if (usableIn(layer, element)) layer.lastFocus = element;
+  };
+  // A call ringing or going on comes after the dialog in Tab's round.
+  const own = tabStops(layer.panel);
+  const calls = callStops();
+  const stops = [...own, ...calls];
   const first = stops[0],
     last = stops.at(-1);
-  const current = focusedElement();
+  if (current && overDialog) {
+    const at = stops.indexOf(current);
+    event.preventDefault();
+    if (at < 0) move(first ?? layer.panel);
+    else move(stops[(at + (event.shiftKey ? -1 : 1) + stops.length) % stops.length]!);
+    return;
+  }
+  if (!event.shiftKey && calls.length > 0 && current && current === own.at(-1)) {
+    event.preventDefault();
+    move(calls[0]!);
+    return;
+  }
   if (!first || !last) {
     event.preventDefault();
-    focus(layer.panel);
+    move(layer.panel);
     return;
   }
   const outside = !usableIn(layer, current);
@@ -226,15 +269,15 @@ function onKeyDown(event: KeyboardEvent) {
   // navigation through its children, while still wrapping at the panel edges.
   const beyondStops =
     current &&
-    !stops.includes(current) &&
+    !own.includes(current) &&
     !panelFocused &&
-    !stops.some((stop) => (event.shiftKey ? follows(current, stop) : follows(stop, current)));
+    !own.some((stop) => (event.shiftKey ? follows(current, stop) : follows(stop, current)));
   if (event.shiftKey && (outside || panelFocused || current === first || beyondStops)) {
     event.preventDefault();
-    focus(last);
+    move(last);
   } else if (!event.shiftKey && (outside || panelFocused || current === last || beyondStops)) {
     event.preventDefault();
-    focus(first);
+    move(first);
   }
 }
 

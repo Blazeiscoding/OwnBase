@@ -319,6 +319,26 @@ export function HuddleControls({
           The connection to the workspace dropped. You stay in the call while it comes back.
         </p>
       )}
+      {huddle.talkingWhileMuted && huddle.micMuted && !huddle.micLost && (
+        <p
+          role="status"
+          className={`flex basis-full items-center gap-3 text-xs ${
+            inCall
+              ? "justify-center rounded-lg bg-black/60 px-3 py-2 text-white"
+              : "justify-end text-ink-dim"
+          }`}
+        >
+          <span>You're muted, so nobody hears you.</span>
+          <button
+            type="button"
+            onClick={() => client.toggleMic()}
+            className="shrink-0 rounded-lg border border-current px-2 py-1 font-medium"
+          >
+            Unmute
+            <span className="ml-1.5 opacity-70">{shortcutLabel("Mod+Shift+Space")}</span>
+          </button>
+        </p>
+      )}
       {huddle.micLost && (
         <p
           role="alert"

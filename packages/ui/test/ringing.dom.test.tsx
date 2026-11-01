@@ -115,12 +115,14 @@ describe("a ring someone gets", () => {
   it("says who is calling, rings, and goes when the ring stops", async () => {
     const { client, shown } = workspace();
     const onOpen = vi.fn();
-    const { container } = shown(<IncomingCall onOpen={onOpen} preview="full" tag="sam" />);
+    shown(<IncomingCall onOpen={onOpen} preview="full" tag="sam" />);
     const prompt = screen.getByRole("region", { name: "Maya Chen is calling" });
     expect(prompt).toHaveTextContent("Huddle with you");
     expect(screen.getByRole("alert")).toHaveTextContent("Maya Chen is calling");
+    // On the body, where the modal layer leaves it usable (Modal.tsx).
+    expect(prompt.closest("[data-ownbase-call]")?.parentElement).toBe(document.body);
     expect(startRingTone).toHaveBeenCalledTimes(1);
-    expect(await accessibilityProblems(container)).toEqual([]);
+    expect(await accessibilityProblems(prompt.parentElement!)).toEqual([]);
 
     act(() => client.store.setState({ rings: {} }));
     expect(screen.queryByRole("region", { name: /is calling/ })).toBeNull();

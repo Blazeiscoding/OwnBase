@@ -269,4 +269,41 @@ describe("modal keyboard and focus ownership", () => {
       added.remove();
     }
   });
+
+  it("leaves a ringing call answerable over a dialog: not inert, in Tab's round, Esc back", async () => {
+    const call = document.createElement("div");
+    call.setAttribute("data-ownbase-call", "");
+    const join = document.createElement("button");
+    join.textContent = "Join";
+    call.append(join);
+    const { unmount } = render(
+      <Modal title="Settings" onClose={() => {}}>
+        <button autoFocus>First</button>
+        <button>Last</button>
+      </Modal>,
+    );
+    try {
+      document.body.append(call);
+      const user = userEvent.setup();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "Last" })).toHaveFocus();
+      expect(call).not.toHaveAttribute("inert");
+      await user.tab();
+      expect(join).toHaveFocus();
+      await user.tab();
+      expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(join).toHaveFocus();
+      // Esc from the call goes back to the dialog, which stays open.
+      await user.keyboard("{Escape}");
+      expect(screen.getByRole("dialog", { name: "Settings" })).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "First" })).toHaveFocus();
+      // A click on the call keeps focus there.
+      act(() => join.focus());
+      expect(join).toHaveFocus();
+    } finally {
+      unmount();
+      call.remove();
+    }
+  });
 });
