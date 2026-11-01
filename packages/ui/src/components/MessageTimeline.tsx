@@ -292,6 +292,9 @@ export const MessageTimeline = memo(function MessageTimeline({
     if (!el || placedUnread.current === channelId || initialLoaded.current !== channelId) return;
     placedUnread.current = channelId;
     if (highlightMessageId || timeline?.hasMoreNewer || pendingPosition.current) return;
+    // Never read here, as someone who has just joined: all of it is "new",
+    // and the place to start is the newest, not the top of its history.
+    if (readBoundary.current.seq === 0) return;
     const line = el.querySelector<HTMLElement>(NEW_LINE);
     if (!line) return;
     const above = line.getBoundingClientRect().top - el.getBoundingClientRect().top;

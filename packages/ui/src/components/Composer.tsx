@@ -110,7 +110,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   /** A word typed after a colon, such as ":rock", offering emoji to finish it. */
   const [emojiQuery, setEmojiQuery] = useState<{ start: number; query: string } | null>(null);
   const [attached, setAttached] = useState<File[]>([]);
-  const maxFileBytes = useMaxFileBytes(client);
+  const maxFileBytes = useMaxFileBytes(client, !guest);
   const [dragging, setDragging] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const scheduleButton = useRef<HTMLButtonElement>(null);

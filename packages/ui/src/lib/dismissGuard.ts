@@ -12,7 +12,9 @@ export interface DismissGuard {
   confirmLabel?: string;
 }
 
-type Entry = { current: DismissGuard | null };
+/** A guard, or what decides one at the moment of closing, for state a parent does not see. */
+type GuardInput = DismissGuard | null | (() => DismissGuard | null);
+type Entry = { current: GuardInput };
 
 /** The guards of one dialog, and the way to close it that asks them first. */
 export interface GuardRegistry {
@@ -35,7 +37,9 @@ export function useGuardRegistry(): GuardRegistry {
     registry.current = {
       entries,
       ask(go) {
-        const guard = [...entries].map((entry) => entry.current).find(Boolean);
+        const guard = [...entries]
+          .map((entry) => (typeof entry.current === "function" ? entry.current() : entry.current))
+          .find(Boolean);
         const ask = confirmRef.current;
         if (!guard || !ask) return go();
         // A second Escape while the question is up is the question's.
@@ -60,9 +64,9 @@ export function useGuardRegistry(): GuardRegistry {
  * Asks before the dialog this is in closes, or its settings go to another
  * section, for as long as `guard` is set.
  */
-export function useDismissGuard(guard: DismissGuard | null): void {
+export function useDismissGuard(guard: GuardInput): void {
   const registry = useContext(GuardContext);
-  const entry = useRef<DismissGuard | null>(guard);
+  const entry = useRef<GuardInput>(guard);
   entry.current = guard;
   useEffect(() => {
     if (!registry) return;

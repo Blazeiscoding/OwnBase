@@ -9,9 +9,11 @@ const asked = new WeakMap<WorkspaceClient, Promise<number | null>>();
  * is attached rather than after it has uploaded. Null until known, or where
  * the server does not say.
  */
-export function useMaxFileBytes(client: WorkspaceClient): number | null {
+export function useMaxFileBytes(client: WorkspaceClient, enabled = true): number | null {
   const [max, setMax] = useState<number | null>(null);
   useEffect(() => {
+    // A guest attaches nothing, and the server keeps its storage from guests.
+    if (!enabled) return;
     let live = true;
     let request = asked.get(client);
     if (!request) {
@@ -31,7 +33,7 @@ export function useMaxFileBytes(client: WorkspaceClient): number | null {
     return () => {
       live = false;
     };
-  }, [client]);
+  }, [client, enabled]);
   return max;
 }
 

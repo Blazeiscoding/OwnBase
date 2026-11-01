@@ -1,6 +1,6 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
 import { useDismissGuard } from "../lib/dismissGuard.js";
-import { useCopy } from "../lib/useCopy.js";
+import { useCopy, wasCopied } from "../lib/useCopy.js";
 import { useTabs } from "../lib/useTabs.js";
 import {
   APP_TEMPLATES,
@@ -272,7 +272,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog title="Apps and integrations" onClose={onClose} width={620}>
-      <OnceGuard held={Object.keys(secrets).length > 0 || Object.keys(hookUrls).length > 0} />
+      <OnceGuard shown={[...Object.values(secrets), ...Object.values(hookUrls)]} />
       <p className="mb-4 text-sm text-ink-dim">
         Start from what you want to happen. Each app you make posts as its own bot.
       </p>
@@ -1634,10 +1634,14 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
   );
 }
 
-/** A bot token or webhook address is shown once: closing asks first while one is up. */
-function OnceGuard({ held }: { held: boolean }) {
-  useDismissGuard(
-    held
+/**
+ * A bot token or webhook address is shown once: closing asks first while one
+ * is up that has not been copied. Asked at the moment of closing, since a
+ * copy button deep in the dialog does not render this again.
+ */
+function OnceGuard({ shown }: { shown: string[] }) {
+  useDismissGuard(() =>
+    shown.some((value) => !wasCopied(value))
       ? {
           title: "Close before copying?",
           body: "Bot tokens and webhook addresses made here are shown only once. Copy them first, unless you already have.",
