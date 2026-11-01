@@ -252,3 +252,52 @@ describe("a message's reactions", () => {
     expect(react).toHaveBeenCalledWith(expect.objectContaining({ id: "M_1" }), "👍");
   });
 });
+
+describe("one key per action on a focused message", () => {
+  it("edits, opens the thread, saves, pins, reacts and deletes your own message", async () => {
+    const { client, onOpenThread, user } = messageFrom(sam, sam);
+    const pin = vi.spyOn(client, "togglePin").mockResolvedValue(true);
+    const save = vi.spyOn(client, "toggleSaved").mockResolvedValue(true);
+    const unread = vi.spyOn(client, "markUnread").mockImplementation(() => {});
+    const remove = vi.spyOn(client.api, "deleteMessage").mockResolvedValue({ ok: true } as never);
+    const row = screen.getByRole("article", { name: "Message from Sam Rivera" });
+    act(() => row.focus());
+
+    await user.keyboard("t");
+    expect(onOpenThread).toHaveBeenCalledWith("M_1");
+    await user.keyboard("a");
+    expect(save).toHaveBeenCalledWith("M_1", true);
+    await user.keyboard("p");
+    expect(pin).toHaveBeenCalled();
+    await user.keyboard("u");
+    expect(unread).toHaveBeenCalledWith("C_GENERAL", 7);
+    // With a modifier the key is someone else's: Ctrl+A, a browser shortcut.
+    save.mockClear();
+    await user.keyboard("{Control>}a{/Control}");
+    expect(save).not.toHaveBeenCalled();
+
+    await user.keyboard("r");
+    expect(await screen.findByRole("dialog", { name: /reaction/i })).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+
+    act(() => row.focus());
+    await user.keyboard("{Delete}");
+    const ask = await screen.findByRole("dialog", { name: "Delete this message?" });
+    await user.click(within(ask).getByRole("button", { name: "Delete" }));
+    expect(remove).toHaveBeenCalledWith("M_1");
+
+    act(() => row.focus());
+    await user.keyboard("e");
+    expect(screen.getByRole("textbox", { name: /edit/i })).toHaveFocus();
+  });
+
+  it("does not edit or delete someone else's message", async () => {
+    const { client, user } = messageFrom(priya, sam);
+    const remove = vi.spyOn(client.api, "deleteMessage");
+    act(() => screen.getByRole("article", { name: "Message from Priya Shah" }).focus());
+    await user.keyboard("e{Delete}");
+    expect(screen.queryByRole("textbox", { name: /edit/i })).toBeNull();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(remove).not.toHaveBeenCalled();
+  });
+});

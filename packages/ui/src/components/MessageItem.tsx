@@ -367,6 +367,7 @@ const MessageRow = memo(function MessageRow({
           id: "forward",
           label: "Forward…",
           icon: "forward",
+          keys: ["F"],
           onSelect: () => setForwarding(forwarded),
         },
       ]
@@ -375,6 +376,7 @@ const MessageRow = memo(function MessageRow({
     id: "unread",
     label: unreadLabel,
     icon: "markUnread",
+    keys: ["U"],
     onSelect: markUnread,
   };
   // A thread is muted from its first message in the channel once it has
@@ -392,7 +394,9 @@ const MessageRow = memo(function MessageRow({
       : [];
   // Pinning changes the channel for everyone, which a guest may not.
   const pinItems: MenuItem[] =
-    selfRole === "guest" ? [] : [{ id: "pin", label: pinLabel, icon: "pin", onSelect: togglePin }];
+    selfRole === "guest"
+      ? []
+      : [{ id: "pin", label: pinLabel, icon: "pin", keys: ["P"], onSelect: togglePin }];
   // Someone else's message, to the workspace's admins (E12).
   const reportItems: MenuItem[] =
     canReport && !mine
@@ -413,6 +417,7 @@ const MessageRow = memo(function MessageRow({
           icon: "trash",
           destructive: true,
           section: true,
+          keys: ["Delete"],
           disabled: deleting,
           onSelect: () => void deleteMessage(),
         },
@@ -435,9 +440,17 @@ const MessageRow = memo(function MessageRow({
     },
   };
   /** Everything, named, for a touchscreen, where there is no toolbar. */
-  const menuItems: MenuItem[] = [
+  const touchItems: MenuItem[] = [
     ...(canReply
-      ? [{ id: "answer", label: "Reply", icon: "reply" as const, onSelect: () => reply() }]
+      ? [
+          {
+            id: "answer",
+            label: "Reply",
+            icon: "reply" as const,
+            keys: ["Q"],
+            onSelect: () => reply(),
+          },
+        ]
       : []),
     ...(inThread
       ? []
@@ -446,15 +459,22 @@ const MessageRow = memo(function MessageRow({
             id: "reply",
             label: "Reply in thread",
             icon: "thread" as const,
+            keys: ["T"],
             onSelect: () => onOpenThread?.(message.id),
           },
         ]),
-    { id: "react", label: "Add a reaction…", icon: "smile", onSelect: () => setPicking(true) },
+    {
+      id: "react",
+      label: "Add a reaction…",
+      icon: "smile",
+      keys: ["R"],
+      onSelect: () => setPicking(true),
+    },
     // Holding a message opens this menu rather than selecting its words.
     ...(message.text ? [{ ...copyTextItem, icon: "fileText" as const }] : []),
     copyItem,
     ...forwardItems,
-    { id: "save", label: saveLabel, icon: "bookmark", onSelect: toggleSaved },
+    { id: "save", label: saveLabel, icon: "bookmark", keys: ["A"], onSelect: toggleSaved },
     ...remindItems,
     unreadItem,
     ...muteItems,
@@ -465,6 +485,7 @@ const MessageRow = memo(function MessageRow({
             id: "edit",
             label: "Edit message",
             icon: "edit" as const,
+            keys: ["E"],
             onSelect: () => setEditing(true),
           },
         ]
@@ -472,6 +493,25 @@ const MessageRow = memo(function MessageRow({
     ...reportItems,
     ...deleteItems.map((item) => ({ ...item, section: undefined })),
   ];
+  // A touchscreen has no keys to name.
+  const menuItems: MenuItem[] = touchItems.map(({ keys: _keys, ...item }) => item);
+  /**
+   * One key for each common action while the message itself has focus, as
+   * Slack has them: the list of messages is a Tab stop, and arrows move in it.
+   */
+  const messageKeys: Record<string, (() => void) | undefined> = {
+    e: editable ? () => setEditing(true) : undefined,
+    t: inThread ? undefined : () => onOpenThread?.(message.id),
+    q: canReply ? () => reply() : undefined,
+    r: () => setPicking(true),
+    a: toggleSaved,
+    u: markUnread,
+    p: pinItems.length ? togglePin : undefined,
+    f: forwarded ? () => setForwarding(forwarded) : undefined,
+    delete: canDelete && !deleting ? () => void deleteMessage() : undefined,
+    backspace: canDelete && !deleting ? () => void deleteMessage() : undefined,
+  };
+
   /** What the toolbar keeps behind its last button: the less frequent half. */
   const moreItems: MenuItem[] = [
     copyItem,
@@ -491,6 +531,14 @@ const MessageRow = memo(function MessageRow({
       data-message-id={message.id}
       aria-label={`Message from ${author?.displayName ?? "unknown"}`}
       tabIndex={0}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || event.defaultPrevented || editing) return;
+        if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+        const run = messageKeys[event.key.toLowerCase()];
+        if (!run) return;
+        event.preventDefault();
+        run();
+      }}
       // Holding a message opens its actions, as phones do everywhere else.
       // A press on a control or a link stays that control's.
       onTouchStart={(event) => {
@@ -762,6 +810,7 @@ const MessageRow = memo(function MessageRow({
           <ToolbarButton
             label={<Icon name="smile" size={18} strokeWidth={2} />}
             title="Add a reaction"
+            keys="R"
             onClick={() => setPicking(true)}
           />
           <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-edge" />
@@ -769,6 +818,7 @@ const MessageRow = memo(function MessageRow({
             <ToolbarButton
               label={<Icon name="reply" size={18} strokeWidth={2} />}
               title="Reply"
+              keys="Q"
               onClick={(event) => reply(!event.shiftKey)}
             />
           )}
@@ -776,12 +826,14 @@ const MessageRow = memo(function MessageRow({
             <ToolbarButton
               label={<Icon name="thread" size={18} strokeWidth={2} />}
               title="Reply in thread"
+              keys="T"
               onClick={() => onOpenThread?.(message.id)}
             />
           )}
           <ToolbarButton
             label={<Icon name="bookmark" size={18} strokeWidth={2} />}
             title={saveLabel}
+            keys="A"
             active={isSaved}
             onClick={toggleSaved}
           />
@@ -789,6 +841,7 @@ const MessageRow = memo(function MessageRow({
             <ToolbarButton
               label={<Icon name="edit" size={18} strokeWidth={2} />}
               title="Edit message"
+              keys="E"
               onClick={() => setEditing(true)}
             />
           )}
@@ -944,6 +997,8 @@ function ReactionChip({
 function ToolbarButton(props: {
   label: ReactNode;
   title?: string;
+  /** The key that does the same while the message has focus. */
+  keys?: string;
   active?: boolean;
   disabled?: boolean;
   onClick: (event: React.MouseEvent) => void;
@@ -961,7 +1016,13 @@ function ToolbarButton(props: {
       {props.label}
     </button>
   );
-  return props.title ? <Tooltip label={props.title}>{button}</Tooltip> : button;
+  return props.title ? (
+    <Tooltip label={props.title} keys={props.keys}>
+      {button}
+    </Tooltip>
+  ) : (
+    button
+  );
 }
 
 /**
