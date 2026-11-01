@@ -46,6 +46,9 @@ function restoreAnchor(el: HTMLElement, anchor: Anchor | null): void {
   if (row) el.scrollTop = row.offsetTop - anchor.offset;
 }
 
+/** The red New line above the first unread message. */
+const NEW_LINE = '[role="separator"][aria-label="New messages"]';
+
 interface Props {
   channelId: ID;
   readActive?: boolean;
@@ -80,8 +83,21 @@ export const MessageTimeline = memo(function MessageTimeline({
   const readBoundary = useRef({ channelId, seq: client.state.memberships[channelId] ?? 0 });
   if (readBoundary.current.channelId !== channelId)
     readBoundary.current = { channelId, seq: client.state.memberships[channelId] ?? 0 };
+  // Marked unread from a message here: the New line moves up to it at once.
+  const readCursor = useWorkspace((s) => s.memberships[channelId] ?? 0);
+  if (readCursor < readBoundary.current.seq) readBoundary.current.seq = readCursor;
   const scroller = useRef<HTMLDivElement>(null);
   const pinnedToBottom = useRef(true);
+  /**
+   * Scrolled up from the newest, and how many have come in since, which the
+   * pill at the bottom offers to go down to (Slack's "New messages").
+   */
+  const [away, setAway] = useState<{ newer: number } | null>(null);
+  /** The New line is above what is on screen, so the pill at the top offers it. */
+  const [unreadAbove, setUnreadAbove] = useState(false);
+  /** The conversation whose first load has finished, and whose opening place is settled. */
+  const initialLoaded = useRef<ID | null>(null);
+  const placedUnread = useRef<ID | null>(null);
   const historyRequest = useRef<object | null>(null);
   const historyAnchor = useRef<{ ticket: object; anchor: Anchor } | null>(null);
   const [loadingHistory, setLoadingHistory] = useState<"initial" | "older" | "newer" | null>(null);
@@ -123,6 +139,8 @@ export const MessageTimeline = memo(function MessageTimeline({
     historyAnchor.current = null;
     setHistoryError(null);
     setLoadingHistory(null);
+    setAway(null);
+    setUnreadAbove(false);
     // A jump anchors the view. Arriving by Back, Forward or a reload returns
     // to where the conversation was being read; anything else tails the newest.
     if (!highlightMessageId) {
@@ -157,6 +175,8 @@ export const MessageTimeline = memo(function MessageTimeline({
     try {
       if (kind === "newer") await client.loadNewer(channelId);
       else await client.loadTimeline(channelId, { older: kind === "older" });
+      if (kind === "initial" && historyRequest.current === ticket)
+        initialLoaded.current = channelId;
     } catch {
       if (historyRequest.current === ticket) setHistoryError(kind);
     } finally {
@@ -262,6 +282,68 @@ export const MessageTimeline = memo(function MessageTimeline({
     observer.observe(inner);
     return () => observer.disconnect();
   }, [highlightMessageId, timeline?.hasMoreNewer]);
+
+  // Opening a conversation with more unread than fits starts at the New line,
+  // as Slack does, rather than at the newest with the first unread far above.
+  // Once, after its first load; not after a jump or a remembered place.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    if (!el || placedUnread.current === channelId || initialLoaded.current !== channelId) return;
+    placedUnread.current = channelId;
+    if (highlightMessageId || timeline?.hasMoreNewer || pendingPosition.current) return;
+    const line = el.querySelector<HTMLElement>(NEW_LINE);
+    if (!line) return;
+    const above = line.getBoundingClientRect().top - el.getBoundingClientRect().top;
+    if (above >= 0) return;
+    el.scrollTop += above - 12;
+    pinnedToBottom.current = false;
+    lastScrollTop.current = el.scrollTop;
+    setAway({ newer: 0 });
+  });
+
+  // Messages that come in while the reader is scrolled up are counted for the pill.
+  const newestSeen = useRef<{ channelId: ID; id?: ID } | null>(null);
+  useEffect(() => {
+    const newest = items.at(-1)?.id;
+    const before = newestSeen.current;
+    newestSeen.current = { channelId, id: newest };
+    if (!before || before.channelId !== channelId || !before.id || !newest) return;
+    if (pinnedToBottom.current || timeline?.hasMoreNewer) return;
+    const since = before.id;
+    const fresh = items.filter((m) => m.id > since && m.userId !== selfId).length;
+    if (fresh > 0) setAway((was) => ({ newer: (was?.newer ?? 0) + fresh }));
+  }, [channelId, items.at(-1)?.id]);
+
+  /** The conversation whose New line has been on screen; its pill is not offered again. */
+  const lineSeen = useRef<ID | null>(null);
+  function checkUnreadAbove(el: HTMLElement) {
+    const line = el.querySelector<HTMLElement>(NEW_LINE);
+    const box = el.getBoundingClientRect();
+    const at = line?.getBoundingClientRect();
+    if (at && at.bottom >= box.top + 4 && at.top <= box.bottom) lineSeen.current = channelId;
+    const above = !!at && at.bottom < box.top + 4 && lineSeen.current !== channelId;
+    setUnreadAbove((was) => (was === above ? was : above));
+  }
+  useEffect(() => {
+    if (scroller.current) checkUnreadAbove(scroller.current);
+  }, [channelId, firstUnread, items.length]);
+
+  const smooth = (): ScrollBehavior =>
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
+  function toNewest() {
+    const el = scroller.current;
+    if (!el) return;
+    pinnedToBottom.current = true;
+    setAway(null);
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth() });
+  }
+  function toFirstUnread() {
+    const el = scroller.current;
+    const line = el?.querySelector<HTMLElement>(NEW_LINE);
+    if (!el || !line) return;
+    const offset = line.getBoundingClientRect().top - el.getBoundingClientRect().top;
+    el.scrollTo({ top: el.scrollTop + offset - 12, behavior: smooth() });
+  }
 
   // Live messages arriving in a long-running channel eventually trim the oldest
   // ones off the top. That removes content above the viewport, which would
@@ -374,6 +456,11 @@ export const MessageTimeline = memo(function MessageTimeline({
     if (!el) return;
     pinnedToBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60;
     readVisibleTail();
+    // A screen or more up, the pill offers the way back down; at the bottom it goes.
+    const farUp = el.scrollHeight - el.scrollTop - el.clientHeight > el.clientHeight;
+    if (pinnedToBottom.current) setAway((was) => (was ? null : was));
+    else if (farUp) setAway((was) => was ?? { newer: 0 });
+    checkUnreadAbove(el);
     // Not while a position waits to be put back: that would overwrite it.
     if (!pendingPosition.current) {
       const anchor = pinnedToBottom.current ? null : topAnchor(el);
@@ -414,6 +501,20 @@ export const MessageTimeline = memo(function MessageTimeline({
       className="timeline-scroll flex min-h-0 flex-1 flex-col overflow-y-auto pb-3"
       aria-busy={loadingHistory !== null}
     >
+      {unreadAbove && firstUnread >= 0 && (
+        <div className="pointer-events-none sticky top-0 z-10 h-0 shrink-0">
+          <button
+            type="button"
+            onClick={toFirstUnread}
+            className="timeline-pill pointer-events-auto absolute left-1/2 top-2 -translate-x-1/2"
+          >
+            <Icon name="arrow" size={13} style={{ transform: "rotate(-90deg)" }} />
+            {items.length - firstUnread === 1
+              ? "1 new message"
+              : `${items.length - firstUnread} new messages`}
+          </button>
+        </div>
+      )}
       {/* A short conversation sits on the composer, as in any chat, rather than
           at the top with an empty page between it and where you write. */}
       <div
@@ -547,6 +648,22 @@ export const MessageTimeline = memo(function MessageTimeline({
           </Swap>
         </div>
       </div>
+      {away && !timeline?.hasMoreNewer && (
+        <div className="pointer-events-none sticky bottom-0 z-10 h-0 shrink-0">
+          <button
+            type="button"
+            onClick={toNewest}
+            className="timeline-pill pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2"
+          >
+            <Icon name="arrow" size={13} style={{ transform: "rotate(90deg)" }} />
+            {away.newer === 0
+              ? "Jump to latest"
+              : away.newer === 1
+                ? "1 new message"
+                : `${away.newer} new messages`}
+          </button>
+        </div>
+      )}
       {lightboxFile && <Lightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
     </div>
   );

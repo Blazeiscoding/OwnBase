@@ -252,6 +252,8 @@ const MessageRow = memo(function MessageRow({
     // shown at the top of the panel is itself the thread.
     if (inThread) client.markThreadUnread(message.threadRootId ?? message.id, message.seq);
     else client.markUnread(message.channelId, message.seq);
+    // The row in the sidebar does not show it for the open conversation, so say so.
+    toast({ message: "Marked unread from here.", kind: "success" });
   }
   function remind(at: Date) {
     setReminding(false);
