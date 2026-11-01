@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
@@ -39,7 +39,9 @@ const room = (
 
 /** A workspace client that never connects, holding the replica a test gives it. */
 function switcherWith(
-  extra: Partial<Pick<Parameters<typeof QuickSwitcher>[0], "commands" | "onSearch">> = {},
+  extra: Partial<
+    Pick<Parameters<typeof QuickSwitcher>[0], "commands" | "onSearch" | "recent">
+  > = {},
 ) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   const sam = person("U_SAM", "sam", "Sam Rivera");
@@ -58,6 +60,9 @@ function switcherWith(
       D_DANA: room("D_DANA", "dm", "", ["U_SAM", "U_DANA"]),
       G_TRIO: room("G_TRIO", "group_dm", "", ["U_SAM", "U_ALEX", "U_PRIYA"]),
     },
+    // Everything read; the newest message first: design, leads, the trio, Alex.
+    memberships: { C_DESIGN: 50, C_LEADS: 40, G_TRIO: 30, D_ALEX: 20, D_DANA: 0 },
+    channelLastSeq: { C_DESIGN: 50, C_LEADS: 40, G_TRIO: 30, D_ALEX: 20 },
   });
   const onOpen = vi.fn();
   const onClose = vi.fn();
@@ -118,12 +123,13 @@ describe("jumping to a conversation", () => {
 
   it("lists a person once, whether or not you already talk to them directly", () => {
     const { options } = switcherWith();
+    // Where you are a member first, the latest message first; then the rest.
     expect(options()).toEqual([
       "#design",
       "leads",
-      "@Dana Old",
       "@Alex Chen, Priya Natarajan",
       "@Alex Chen",
+      "@Dana Old",
       "@Priya Natarajan",
     ]);
   });
@@ -151,7 +157,41 @@ describe("jumping to a conversation", () => {
     expect(options()).toEqual(["#design"]);
     await user.clear(screen.getByPlaceholderText("Channel or person"));
     await user.type(screen.getByPlaceholderText("Channel or person"), "@pri");
-    expect(options()).toEqual(["@Alex Chen, Priya Natarajan", "@Priya Natarajan"]);
+    // A name that starts with it before one with a word that does.
+    expect(options()).toEqual(["@Priya Natarajan", "@Alex Chen, Priya Natarajan"]);
+  });
+
+  it("offers what was open lately first, under Recent, and an unread conversation next", () => {
+    const { client, options } = switcherWith({ recent: ["D_ALEX", "C_LEADS"] });
+    expect(options().slice(0, 3)).toEqual(["@Alex Chen", "leads", "#design"]);
+    expect(screen.getByText("Recent")).toBeInTheDocument();
+    expect(screen.getByText("Channels and people")).toBeInTheDocument();
+    cleanup();
+    client.destroy();
+    const unread = switcherWith();
+    act(() =>
+      unread.client.store.setState((s) => ({ channelLastSeq: { ...s.channelLastSeq, D_DANA: 5 } })),
+    );
+    expect(unread.options().slice(0, 1)).toEqual(["@Dana Old"]);
+  });
+
+  it("puts a whole-name match before a prefix, and a prefix before a word inside", async () => {
+    const user = userEvent.setup();
+    const { client, options } = switcherWith();
+    act(() =>
+      client.store.setState((s) => ({
+        channels: {
+          ...s.channels,
+          C_UX: room("C_UX", "public", "ux-design"),
+          C_REVIEW: room("C_REVIEW", "public", "design-review"),
+          C_REDESIGN: room("C_REDESIGN", "public", "redesign"),
+        },
+        // The busiest last, so only the match decides.
+        channelLastSeq: { ...s.channelLastSeq, C_UX: 90, C_REVIEW: 80, C_REDESIGN: 99 },
+      })),
+    );
+    await user.type(screen.getByRole("combobox"), "design");
+    expect(options()).toEqual(["#design", "#design-review", "#ux-design", "#redesign"]);
   });
 
   it("says when nothing matches, and arrow keys there leave a later match choosable", async () => {
