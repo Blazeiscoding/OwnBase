@@ -184,7 +184,7 @@ describe("message rows and changes they do show", () => {
       const menu = await screen.findByRole("menu", { name: "More actions" });
       const offered = within(menu)
         .getAllByRole("menuitem")
-        .some((item) => item.textContent === "Delete message");
+        .some((item) => item.textContent?.startsWith("Delete message"));
       fireEvent.keyDown(menu, { key: "Escape" });
       fireEvent.click(document.body);
       return offered;
