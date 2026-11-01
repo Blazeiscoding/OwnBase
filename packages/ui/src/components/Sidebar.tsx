@@ -15,6 +15,8 @@ import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { modKey, shortcutLabel } from "../lib/shortcuts.js";
+import { useLongPress } from "../lib/useLongPress.js";
+import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
 import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -1492,6 +1494,11 @@ function ChannelRow(props: {
   const [menuOpen, setMenuOpen] = useState(false);
   const actions = props.actions ?? [];
   const count = actions.length + (props.menu ? 1 : 0);
+  // Holding the row opens its menu, on iOS too, where there is no right-click.
+  const hold = useLongPress(props.menu && (() => setMenuOpen(true)));
+  // A finger's hold is for the menu; iOS would start a drag with it instead.
+  const touch = useMediaQuery("(hover: none)");
+  const dragStart = touch ? undefined : props.onDragStart;
   return (
     <li
       className="channel-item relative"
@@ -1513,9 +1520,10 @@ function ChannelRow(props: {
       )}
       <button
         onClick={props.onClick}
-        draggable={props.onDragStart ? true : undefined}
-        onDragStart={props.onDragStart}
-        onDragEnd={props.onDragEnd}
+        {...hold}
+        draggable={dragStart ? true : undefined}
+        onDragStart={dragStart}
+        onDragEnd={dragStart && props.onDragEnd}
         onContextMenu={
           props.menu &&
           ((event) => {

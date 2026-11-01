@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
@@ -175,6 +175,51 @@ describe("the stylesheet", () => {
     expect(css).toMatch(
       /@media \(hover: none\) \{\s*\.channel-item\[data-active\] \.channel-actions \{\s*display: flex;/,
     );
+  });
+});
+
+describe("holding a row on a touchscreen", () => {
+  const touchscreen = () =>
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("hover: none"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+
+  it("opens its menu, as iOS gives no right-click, and does not open the channel too", () => {
+    vi.useFakeTimers();
+    try {
+      touchscreen();
+      sidebar(person("member"));
+      const row = screen.getByRole("button", { name: /^#\s*general$/ });
+      // A drag would start from the hold on iOS, and take it.
+      expect(row).not.toHaveAttribute("draggable");
+      fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(500));
+      fireEvent.touchEnd(row);
+      expect(screen.getByRole("menu", { name: "Options for general" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves a scroll or a tap alone", () => {
+    vi.useFakeTimers();
+    try {
+      touchscreen();
+      sidebar(person("member"));
+      const row = screen.getByRole("button", { name: /^#\s*general$/ });
+      fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
+      fireEvent.touchMove(row, { touches: [{ clientX: 10, clientY: 40 }] });
+      act(() => vi.advanceTimersByTime(500));
+      fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(200));
+      fireEvent.touchEnd(row);
+      act(() => vi.advanceTimersByTime(500));
+      expect(screen.queryByRole("menu")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
