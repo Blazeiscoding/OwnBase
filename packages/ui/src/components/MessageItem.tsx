@@ -19,7 +19,7 @@ import { formatFull, formatTime } from "../lib/format.js";
 import { formatReminderTime, reminderPresets } from "../lib/schedule.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
 import { conversationKey, startReply } from "../lib/replyTarget.js";
-import { useEditRequest } from "../lib/editRequest.js";
+import { nearestComposer, refocusComposer, useEditRequest } from "../lib/editRequest.js";
 import { Avatar } from "./Avatar.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -308,8 +308,15 @@ const MessageRow = memo(function MessageRow({
       () => client.togglePin(message),
     );
   }
+  /** Typing carries on in the message box once the editor has gone. */
+  function closeEditor() {
+    const box = nearestComposer(row.current);
+    setEditing(false);
+    requestAnimationFrame(() => refocusComposer(box));
+  }
   async function deleteMessage() {
     if (deleting) return;
+    const box = nearestComposer(row.current);
     const go = await confirm({
       title: "Delete this message?",
       body: "Everyone in the conversation stops seeing it.",
@@ -321,6 +328,15 @@ const MessageRow = memo(function MessageRow({
     setDeleteError(false);
     try {
       await client.api.deleteMessage(message.id);
+      // The row, and the menu button focus went back to, go once the
+      // deletion comes back from the server; focus moves on then.
+      const gone = row.current;
+      const started = Date.now();
+      const settle = () => {
+        if (gone?.isConnected && Date.now() - started < 3000) requestAnimationFrame(settle);
+        else refocusComposer(box);
+      };
+      requestAnimationFrame(settle);
     } catch {
       setDeleteError(true);
     } finally {
@@ -600,7 +616,7 @@ const MessageRow = memo(function MessageRow({
                   </p>
                 }
               >
-                <MessageEditor message={message} onClose={() => setEditing(false)} />
+                <MessageEditor message={message} onClose={closeEditor} />
               </Suspense>
             </ErrorBoundary>
           ) : message.poll ? (

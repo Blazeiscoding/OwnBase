@@ -2,6 +2,7 @@ import { Suspense, lazy, useEffect, useId, useRef, useState } from "react";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
+import { shortcutLabel } from "../lib/shortcuts.js";
 
 // Every emoji is far too much for the first download; the workspace fetches it as it opens.
 const EmojiPicker = lazy(() =>
@@ -9,7 +10,11 @@ const EmojiPicker = lazy(() =>
 );
 
 export const MESSAGE_LIMIT = 12_000;
-export const formattingShortcut = (key: string) => ({ b: "*", i: "_", e: "`" })[key.toLowerCase()];
+/** The marker Ctrl/Cmd with this key puts round the selection: B, I and E, and Shift+X for strikethrough as in Slack. */
+export const formattingShortcut = (key: string, shift = false) =>
+  shift
+    ? ({ x: "~" } as Record<string, string>)[key.toLowerCase()]
+    : ({ b: "*", i: "_", e: "`" } as Record<string, string>)[key.toLowerCase()];
 
 /** A bulleted list ("- ") or a numbered one ("1. "), as Mrkdwn draws them. */
 export type ListKind = "bullets" | "numbers";
@@ -179,15 +184,33 @@ export function FormattingToolbar({
           data-expanded={expanded || undefined}
         >
           {[
-            { label: "Bold", symbol: "B", marker: "*", style: "font-bold", keys: "Ctrl/Cmd+B" },
-            { label: "Italic", symbol: "I", marker: "_", style: "italic", keys: "Ctrl/Cmd+I" },
-            { label: "Strikethrough", symbol: "S", marker: "~", style: "line-through" },
+            {
+              label: "Bold",
+              symbol: "B",
+              marker: "*",
+              style: "font-bold",
+              keys: shortcutLabel("Mod+B"),
+            },
+            {
+              label: "Italic",
+              symbol: "I",
+              marker: "_",
+              style: "italic",
+              keys: shortcutLabel("Mod+I"),
+            },
+            {
+              label: "Strikethrough",
+              symbol: "S",
+              marker: "~",
+              style: "line-through",
+              keys: shortcutLabel("Mod+Shift+X"),
+            },
             {
               label: "Inline code",
               symbol: "</>",
               marker: "`",
               style: "font-mono text-xs",
-              keys: "Ctrl/Cmd+E",
+              keys: shortcutLabel("Mod+E"),
             },
           ].map((item) => (
             <Tooltip key={item.label} label={item.label} keys={item.keys}>
@@ -215,8 +238,8 @@ export function FormattingToolbar({
           </Tooltip>
           {(
             [
-              { kind: "bullets", label: "Bulleted list", keys: "Ctrl/Cmd+Shift+8" },
-              { kind: "numbers", label: "Numbered list", keys: "Ctrl/Cmd+Shift+7" },
+              { kind: "bullets", label: "Bulleted list", keys: shortcutLabel("Mod+Shift+8") },
+              { kind: "numbers", label: "Numbered list", keys: shortcutLabel("Mod+Shift+7") },
             ] as const
           ).map((item) => (
             <Tooltip key={item.kind} label={item.label} keys={item.keys}>

@@ -88,18 +88,17 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     expect(container.querySelector("[title]")).toBeNull();
 
     const bold = screen.getByRole("button", { name: "Bold" });
-    expect(await tabTo(user, bold)).toHaveTextContent("Bold. Shortcut: Ctrl/Cmd+B");
-    expect(bold).toHaveAccessibleDescription("Bold. Shortcut: Ctrl/Cmd+B");
+    expect(await tabTo(user, bold)).toHaveTextContent("Bold. Shortcut: Ctrl B");
+    expect(bold).toHaveAccessibleDescription("Bold. Shortcut: Ctrl B");
 
     const italic = screen.getByRole("button", { name: "Italic" });
-    expect(await tabTo(user, italic)).toHaveTextContent("Italic. Shortcut: Ctrl/Cmd+I");
+    expect(await tabTo(user, italic)).toHaveTextContent("Italic. Shortcut: Ctrl I");
 
-    // Strikethrough has no shortcut, so its hint claims none.
     const strike = screen.getByRole("button", { name: "Strikethrough" });
-    expect(await tabTo(user, strike)).toHaveTextContent(/^Strikethrough$/);
+    expect(await tabTo(user, strike)).toHaveTextContent("Strikethrough. Shortcut: Ctrl Shift X");
 
     const code = screen.getByRole("button", { name: "Inline code" });
-    expect(await tabTo(user, code)).toHaveTextContent("Inline code. Shortcut: Ctrl/Cmd+E");
+    expect(await tabTo(user, code)).toHaveTextContent("Inline code. Shortcut: Ctrl E");
     expect(await accessibilityProblems(container)).toEqual([]);
 
     await user.keyboard("{Enter}");
@@ -108,15 +107,11 @@ describe("compact controls explain themselves with the shared tooltip", () => {
     expect(onFormat).toHaveBeenLastCalledWith("```", "code", true);
 
     const bullets = screen.getByRole("button", { name: "Bulleted list" });
-    expect(await tabTo(user, bullets)).toHaveTextContent(
-      "Bulleted list. Shortcut: Ctrl/Cmd+Shift+8",
-    );
+    expect(await tabTo(user, bullets)).toHaveTextContent("Bulleted list. Shortcut: Ctrl Shift 8");
     await user.keyboard("{Enter}");
     expect(onList).toHaveBeenLastCalledWith("bullets");
     const numbers = screen.getByRole("button", { name: "Numbered list" });
-    expect(await tabTo(user, numbers)).toHaveTextContent(
-      "Numbered list. Shortcut: Ctrl/Cmd+Shift+7",
-    );
+    expect(await tabTo(user, numbers)).toHaveTextContent("Numbered list. Shortcut: Ctrl Shift 7");
     await user.click(numbers);
     expect(onList).toHaveBeenLastCalledWith("numbers");
   });

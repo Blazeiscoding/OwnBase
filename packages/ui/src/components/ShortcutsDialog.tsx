@@ -3,10 +3,12 @@ import { useState } from "react";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { Kbd } from "./Kbd.js";
-import { modKey } from "../lib/shortcuts.js";
+import { isApple, modKey } from "../lib/shortcuts.js";
 
 /** The key held for shortcuts, as this keyboard labels it: ⌘ on a Mac, Ctrl elsewhere. */
 const MOD = modKey();
+/** Option on a Mac, Alt elsewhere. */
+const ALT = isApple() ? "⌥" : "Alt";
 
 /** What Enter does depends on the preference in Account settings, so the list follows it. */
 function writingKeys(enterSends: boolean): [string, string][] {
@@ -14,7 +16,7 @@ function writingKeys(enterSends: boolean): [string, string][] {
     ? [
         ["Enter", "Send"],
         ["Shift Enter", "New line"],
-        [`${MOD} Enter`, "Send without choosing a mention"],
+        [`${MOD} Enter`, "Send, even with a suggestion open"],
       ]
     : [
         [`${MOD} Enter`, "Send"],
@@ -29,7 +31,12 @@ const groups = (
     title: "Getting around",
     items: [
       [`${MOD} K`, "Jump to a channel or person"],
-      [`${MOD} F`, "Search messages"],
+      [`${MOD} F`, "Search this conversation"],
+      [`${ALT} ↑`, "Previous conversation in the sidebar"],
+      [`${ALT} ↓`, "Next conversation in the sidebar"],
+      [`${ALT} Shift ↑`, "Previous unread conversation"],
+      [`${ALT} Shift ↓`, "Next unread conversation"],
+      ["Shift Esc", "Mark everything as read"],
       ["Esc", "Close the open panel or dialog"],
       [`${MOD} /`, "Show this list"],
     ],
@@ -41,9 +48,11 @@ const groups = (
       ...writingKeys(enterSends),
       [`${MOD} B`, "Bold selected text"],
       [`${MOD} I`, "Italic selected text"],
+      [`${MOD} Shift X`, "Strikethrough selected text"],
       [`${MOD} E`, "Inline code"],
       [`${MOD} Shift 8`, "Bulleted list"],
       [`${MOD} Shift 7`, "Numbered list"],
+      ["↑", "Edit your last message, from an empty box"],
       ["@", "Mention someone"],
       [":", "Add an emoji by name, as :rocket"],
       [`${MOD} V`, "Paste an image straight in"],

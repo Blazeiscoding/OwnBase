@@ -1,9 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
+import { useEditRequest } from "../src/lib/editRequest.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 
@@ -338,5 +339,57 @@ describe("Send later's own date and time", () => {
     expect(field).toHaveAccessibleDescription("Choose a date and time in the future.");
     expect(schedule).not.toHaveBeenCalled();
     expect(box).toHaveValue("See you Monday");
+  });
+});
+
+describe("Up in an empty box", () => {
+  const message = (id: string, userId: string, extra: object = {}) => ({
+    id,
+    channelId: design.id,
+    userId,
+    text: id,
+    threadRootId: null,
+    broadcast: false,
+    seq: 1,
+    createdAt: 0,
+    editedAt: null,
+    nonce: null,
+    replyCount: 0,
+    reactions: [],
+    files: [],
+    pinned: false,
+    actions: [],
+    ...extra,
+  });
+
+  it("edits your newest message here, skipping others' and polls", async () => {
+    const asked = vi.fn();
+    const user = userEvent.setup();
+    const { client, box } = await renderComposer();
+    client.store.setState({
+      timelines: {
+        [design.id]: {
+          items: [
+            message("M_OLD", sam.id),
+            message("M_MINE", sam.id),
+            message("M_POLL", sam.id, { poll: { question: "?", options: [] } }),
+            message("M_THEIRS", "U_OTHER"),
+          ] as never,
+          hasMore: false,
+          hasMoreNewer: false,
+          loaded: true,
+        },
+      },
+    });
+    // A row on screen for M_MINE takes the request.
+    renderHook(() => useEditRequest("M_MINE", true, asked));
+    box.focus();
+    await user.keyboard("{ArrowUp}");
+    expect(asked).toHaveBeenCalledTimes(1);
+
+    // With words in the box, Up moves the caret instead.
+    await user.type(box, "hello");
+    await user.keyboard("{ArrowUp}");
+    expect(asked).toHaveBeenCalledTimes(1);
   });
 });

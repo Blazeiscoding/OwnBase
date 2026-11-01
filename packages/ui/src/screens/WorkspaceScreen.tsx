@@ -82,6 +82,10 @@ import {
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
 import { requestEdit } from "../lib/editRequest.js";
+import { markEverythingRead, unreadEverywhere, unreadSummary } from "../lib/readAll.js";
+import { neighbourConversation } from "../lib/conversationKeys.js";
+import { useOptionalToast } from "../components/Toast.js";
+import { useOptionalConfirm } from "../components/Confirm.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
 import type { DraftPlace } from "../lib/drafts.js";
@@ -808,7 +812,26 @@ function WorkspaceInner({
       }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
         e.preventDefault();
-        setDialog({ kind: "search" });
+        // Within the open conversation, as the header's field does; the
+        // dialog widens it to everywhere in one press.
+        setDialog({ kind: "search", inConversation: !!activeChannelRef.current });
+      }
+      // Alt+Up/Down walk the sidebar, and with Shift only what is unread, as in Slack.
+      if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
+        const next = neighbourConversation(
+          activeChannelRef.current,
+          e.key === "ArrowUp" ? -1 : 1,
+          e.shiftKey,
+        );
+        if (next) {
+          e.preventDefault();
+          openChannelRef.current(next);
+        }
+      }
+      if (e.key === "Escape" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        void markAllReadRef.current();
+        return;
       }
       if ((e.ctrlKey || e.metaKey) && e.key === "/") {
         e.preventDefault();
@@ -847,6 +870,33 @@ function WorkspaceInner({
     },
     [clientFromCtx],
   );
+  const openChannelRef = useRef(openChannel);
+  openChannelRef.current = openChannel;
+  const activeChannelRef = useRef(activeChannelId);
+  activeChannelRef.current = activeChannelId;
+  const toast = useOptionalToast();
+  const confirm = useOptionalConfirm();
+  /** Shift+Esc: everything read, after asking when it is more than a couple of places. */
+  const markAllReadRef = useRef(async () => {});
+  markAllReadRef.current = async () => {
+    const { channels: unreadChannels, threads } = unreadEverywhere(clientFromCtx.state);
+    const count = unreadChannels.length + threads.length;
+    if (count === 0) {
+      toast?.({ message: "Nothing unread.", kind: "info" });
+      return;
+    }
+    const summary = unreadSummary(unreadChannels.length, threads.length);
+    if (count > 2 && confirm) {
+      const go = await confirm({
+        title: "Mark everything as read?",
+        body: `${summary} will be marked as read.`,
+        confirmLabel: "Mark as read",
+      });
+      if (!go) return;
+    }
+    markEverythingRead(clientFromCtx);
+    toast?.({ message: `Marked ${summary} as read.`, kind: "success" });
+  };
   const openThread = useCallback((rootId: ID) => setPanel({ kind: "thread", rootId }), []);
   const openProfile = useCallback((userId: ID) => setDialog({ kind: "profile", userId }), []);
   // What a conversation that has only just begun offers to do first.
@@ -1562,8 +1612,10 @@ function WorkspaceInner({
                 }`}
               >
                 <MessageTimeline
+                  // A panel beside the conversation leaves it in view, and so read,
+                  // as Slack's does; only one covering it stops that.
                   readActive={
-                    dialog.kind === "none" && panel.kind === "none" && !sidebarOpen && !chatCovered
+                    dialog.kind === "none" && !panelCovers && !sidebarOpen && !chatCovered
                   }
                   channelId={activeChannelId}
                   highlightMessageId={highlightMessageId}

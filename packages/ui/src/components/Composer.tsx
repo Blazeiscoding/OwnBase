@@ -17,6 +17,8 @@ import { Tooltip } from "./Tooltip.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
+import { lastEditable, requestEdit } from "../lib/editRequest.js";
+import { shortcutLabel } from "../lib/shortcuts.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { whenKeptLocally } from "../lib/localWork.js";
@@ -777,7 +779,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     if (isImeKey(e.nativeEvent)) return;
     field.onKeyDown(e);
     if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-      const marker = formattingShortcut(e.key);
+      const marker = formattingShortcut(e.key, e.shiftKey);
       if (marker) {
         e.preventDefault();
         format(marker, "text");
@@ -829,6 +831,25 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         e.preventDefault();
         e.stopPropagation();
         setEmojiQuery(null);
+        return;
+      }
+    }
+    if (
+      e.key === "ArrowUp" &&
+      !e.shiftKey &&
+      !e.altKey &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      e.currentTarget.value === "" &&
+      attached.length === 0
+    ) {
+      // Up in an empty box edits your last message here, as in Slack.
+      const s = client.store.getState();
+      const items = threadRootId ? s.threads[threadRootId] : s.timelines[channelId]?.items;
+      const mine = lastEditable(items, s.self?.id);
+      if (mine) {
+        e.preventDefault();
+        requestEdit(mine.id);
         return;
       }
     }
@@ -1276,8 +1297,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               {scheduleNote ??
                 (text.trim() || attached.length > 0
                   ? enterSends
-                    ? "Enter to send · Shift+Enter for a new line"
-                    : "Ctrl/Cmd+Enter to send · Enter for a new line"
+                    ? `${shortcutLabel("Enter")} to send · ${shortcutLabel("Shift+Enter")} for a new line`
+                    : `${shortcutLabel("Mod+Enter")} to send · ${shortcutLabel("Enter")} for a new line`
                   : "")}
             </span>
             {/* A scheduled send cannot answer in place, so it is not offered while replying. */}
@@ -1297,7 +1318,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                 </button>
               </Tooltip>
             )}
-            <Tooltip label="Send message" keys={enterSends ? "Enter" : "Ctrl/Cmd+Enter"}>
+            <Tooltip label="Send message" keys={shortcutLabel(enterSends ? "Enter" : "Mod+Enter")}>
               <button
                 // Focus stays in the box, so a phone's keyboard stays up for the next message.
                 onMouseDown={(e) => e.preventDefault()}

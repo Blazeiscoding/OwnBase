@@ -41,3 +41,41 @@ export function useEditRequest(messageId: ID, enabled: boolean, open: () => void
     };
   }, [messageId, enabled]);
 }
+
+/**
+ * The newest message someone can still edit in a list, oldest first: their
+ * own, and not a poll or a call's note. Up in an empty box edits it, as Slack
+ * and Discord do.
+ */
+export function lastEditable<M extends { userId: ID; poll?: unknown; call?: unknown }>(
+  items: readonly M[] | undefined,
+  selfId: ID | undefined,
+): M | undefined {
+  if (!items || !selfId) return undefined;
+  for (let i = items.length - 1; i >= 0; i--) {
+    const item = items[i]!;
+    if (item.userId === selfId && !item.poll && !item.call) return item;
+  }
+  return undefined;
+}
+
+/** The message box of the pane `from` sits in: the conversation's, or a thread's. */
+export function nearestComposer(from: Element | null): HTMLTextAreaElement | null {
+  for (let el = from; el; el = el.parentElement) {
+    const box = el.querySelector<HTMLTextAreaElement>(".composer-shell textarea");
+    if (box) return box;
+  }
+  return null;
+}
+
+/**
+ * Puts focus back in a message box when focus has nowhere else to be: after
+ * an editor closes or a message goes, typing carries on there instead of into
+ * the page. Look the box up with `nearestComposer` while the row is still on
+ * screen.
+ */
+export function refocusComposer(box: HTMLTextAreaElement | null): void {
+  const now = document.activeElement;
+  if (now && now !== document.body && now.isConnected) return;
+  if (box?.isConnected) box.focus({ preventScroll: true });
+}
