@@ -1035,9 +1035,18 @@ function SlackDifferences() {
 const rowButton =
   "mt-5 h-8 shrink-0 rounded-lg border border-edge px-3 text-[12px] font-medium text-ink-dim transition-colors hover:border-ink-faint/50 hover:text-ink";
 
-/** The server's reason, as a sentence. */
+/**
+ * The server's reason, as a sentence. A bare code ("name_taken") is not one,
+ * so it is said in words instead of shown as it is.
+ */
 function reason(err: ApiError): string {
-  const text = err.message || err.code;
+  const text = err.message && err.message !== err.code ? err.message : "";
+  if (!text || !/\s/.test(text)) {
+    if (err.code === "name_taken") return "An app already has that name. Choose another.";
+    if (err.status >= 500)
+      return "The workspace's server ran into a problem. Try again in a moment.";
+    return "The workspace turned that down. Check what you entered and try again.";
+  }
   return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
 

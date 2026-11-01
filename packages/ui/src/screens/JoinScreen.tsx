@@ -22,6 +22,9 @@ import { Swap, useChanges } from "../components/Motion.js";
 import { beginSingleSignOn, redeemSingleSignOn } from "../lib/singleSignOn.js";
 import { useOptionalConfirm } from "../components/Confirm.js";
 
+/** How long the network is looked through before the join screen suggests other ways in. */
+export const SCAN_PATIENCE_MS = 10_000;
+
 /** How a sign-in came about, where it matters to what opens next. */
 export interface Connected {
   /** This account was just created as the workspace's first, so its owner. */
@@ -401,6 +404,14 @@ function BrowseCard(props: {
   onHostClick?: () => void;
 }) {
   const confirm = useOptionalConfirm();
+  // Looking goes on, but after a while it says what else to do rather than
+  // pulsing forever over an empty list.
+  const [scanGaveUp, setScanGaveUp] = useState(false);
+  useEffect(() => {
+    if (!props.lanSupported) return;
+    const timer = setTimeout(() => setScanGaveUp(true), SCAN_PATIENCE_MS);
+    return () => clearTimeout(timer);
+  }, [props.lanSupported]);
   const [address, setAddress] = useState("");
   /** What is wrong with the typed address, said under it once Connect is pressed. */
   const [addressError, setAddressError] = useState<string | null>(null);
@@ -420,7 +431,10 @@ function BrowseCard(props: {
   return (
     <div className="space-y-6">
       {props.error && (
-        <div className="rounded-xl border border-alert/30 bg-alert/10 px-4 py-3 text-sm text-alert">
+        <div
+          role="alert"
+          className="rounded-xl border border-alert/30 bg-alert/10 px-4 py-3 text-sm text-alert"
+        >
           <p>{props.error.text}</p>
           {props.error.retry && (
             <button
@@ -492,7 +506,7 @@ function BrowseCard(props: {
       <section>
         <SectionLabel>
           On your network
-          {props.lanSupported && (
+          {props.lanSupported && !scanGaveUp && (
             <span className="ml-2 inline-block size-1.5 animate-pulse rounded-full bg-online align-middle" />
           )}
         </SectionLabel>
@@ -514,7 +528,7 @@ function BrowseCard(props: {
                     l.instanceId !== undefined &&
                     l.instanceId === props.hostingStatus.instanceId
                       ? "hosted here"
-                      : `v${l.serverVersion}`
+                      : "on your network"
                   }
                   busy={props.probing?.includes(l.host) ?? false}
                   onClick={() => props.onSelect(address)}
@@ -524,15 +538,17 @@ function BrowseCard(props: {
           </ul>
         ) : (
           <p className="rounded-2xl border border-dashed border-edge px-4 py-5 text-center text-sm text-ink-faint">
-            {props.lanSupported
-              ? "Scanning for workspaces on your Wi-Fi…"
-              : "LAN discovery works in the desktop app."}
+            {!props.lanSupported
+              ? "The desktop app finds workspaces on your network. Here, type the address below."
+              : scanGaveUp
+                ? "No workspaces found on this network yet. Type an address below, or host one."
+                : "Looking for workspaces on your network…"}
           </p>
         )}
       </section>
 
       <section>
-        <SectionLabel>Direct connect</SectionLabel>
+        <SectionLabel>Join with an address</SectionLabel>
         {/* Connect always answers: with no address, or one that is not one, it says so under the field. */}
         <form
           noValidate
@@ -584,7 +600,7 @@ function BrowseCard(props: {
           )}
         </form>
         {props.probing && (
-          <p className="mt-2 flex items-center gap-2 text-sm text-ink-dim">
+          <p role="status" className="mt-2 flex items-center gap-2 text-sm text-ink-dim">
             <span className="text-xs">Contacting {host(props.probing)}…</span>
             <button onClick={props.onCancelProbe} className="underline underline-offset-2">
               Cancel
@@ -865,7 +881,12 @@ function AuthCard(props: {
       },
       (err: unknown) => {
         if (gone) return;
-        setError(err instanceof ApiError ? errorMessage(err, "login") : (err as Error).message);
+        // Its own failures are written for people; anything else is said here.
+        setError(
+          err instanceof ApiError || !(err instanceof Error) || !err.message
+            ? errorMessage(err, "login")
+            : err.message,
+        );
         setBusy(false);
       },
     );
@@ -1501,7 +1522,7 @@ function errorMessage(err: unknown, mode: Mode): string {
     if (err.message && err.message !== err.code) return err.message;
     if (err.status >= 500)
       return "The workspace's server ran into a problem. Try again in a moment, and tell whoever runs it if it keeps happening.";
-    return `The workspace's server turned that down (${err.code}). Try again, or ask whoever runs it.`;
+    return "The workspace's server turned that down. Try again, or ask whoever runs it.";
   }
   // No answer came: the request failed on the way, or waited too long.
   if (err instanceof DOMException && err.name === "TimeoutError")

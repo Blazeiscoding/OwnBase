@@ -90,6 +90,7 @@ import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
 import type { DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
+import { EmptyState } from "../components/EmptyState.js";
 
 const ActivityPanel = lazy(() =>
   import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
@@ -1658,9 +1659,14 @@ function WorkspaceInner({
               </div>
             </div>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-ink-faint">
-              Pick a channel to start.
-            </div>
+            // Nothing open: no channel left, or the last one was left. Not a dead end.
+            <EmptyState
+              icon="hash"
+              className="flex flex-1 flex-col items-center justify-center"
+              action={{ label: "Browse channels", run: () => setDialog({ kind: "browse" }) }}
+            >
+              Pick a conversation in the sidebar, or find a channel to join.
+            </EmptyState>
           )}
         </div>
       </main>

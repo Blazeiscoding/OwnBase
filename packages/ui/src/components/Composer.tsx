@@ -749,7 +749,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     setScheduleNote(
       scheduled.status === "sent"
         ? "This scheduling request was already delivered."
-        : `Confirmed in Scheduled for ${formatScheduleTime(scheduled.sendAt)}`,
+        : `Scheduled for ${formatScheduleTime(scheduled.sendAt)}. Change or remove it in Scheduled.`,
     );
   }
 
@@ -1218,6 +1218,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               if (held) return;
               const next = field.fromInput(e);
               edited.current = true;
+              // What was scheduled has been said; the next message starts afresh.
+              setScheduleNote(null);
               setText(next.stored);
               refreshMentionState(e.target.value, e.target.selectionStart, next);
               finishShortcode(e.target.value, e.target.selectionStart);

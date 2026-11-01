@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { useOptionalToast } from "./Toast.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import {
   readWorkspaceStorage,
@@ -41,6 +42,7 @@ export function GettingStarted(props: {
 }) {
   const platform = usePlatform();
   const client = useClient();
+  const toast = useOptionalToast();
   const self = useWorkspace((s) => s.self);
   const workspaceId = useWorkspace((s) => s.workspaceId);
   const channels = useWorkspace((s) => s.channels);
@@ -140,7 +142,16 @@ export function GettingStarted(props: {
           {left} of {steps.length} left
         </p>
         <button
-          onClick={() => save({ ...saved, dismissed: true })}
+          onClick={() => {
+            const before = saved;
+            save({ ...saved, dismissed: true });
+            // Nothing else brings the list back, so a hide by mistake can be undone.
+            toast?.({
+              message: "Getting started is hidden.",
+              kind: "info",
+              action: { label: "Undo", run: () => save({ ...before, dismissed: false }) },
+            });
+          }}
           className="-mr-1.5 ml-auto h-6 shrink-0 rounded-md px-1.5 text-[12px] text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
         >
           Hide

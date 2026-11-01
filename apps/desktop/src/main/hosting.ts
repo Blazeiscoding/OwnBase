@@ -321,6 +321,15 @@ export interface RestoreInventory {
  */
 function startFailure(error: unknown): Error {
   const code = (error as NodeJS.ErrnoException)?.code;
+  // The usual causes, said plainly; the code stays at the end for whoever helps.
+  if (code === "EACCES" || code === "EPERM")
+    return new Error(
+      `The workspace could not start: this computer did not allow OwnBase to use its data folder or port (${code}). Choose another port, or check the folder's permissions, then try again.`,
+    );
+  if (code === "ENOSPC")
+    return new Error(
+      "The workspace could not start: this computer's disk is full. Free some space, then try again.",
+    );
   if (typeof code === "string" && /^E[A-Z]+$/.test(code))
     return new Error(
       `The workspace could not start (${code}). Check that its data folder is writable and its port is free, then try again.`,

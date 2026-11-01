@@ -177,7 +177,7 @@ describe("offering a guest to keep their account", () => {
       /keeps your name and your messages, and gives you a place in private conversations/,
     );
     expect(screen.getByRole("button", { name: "Keep this account" })).toBeEnabled();
-    expect(screen.getByRole("button", { name: "Not now" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();
     expect(browse).toHaveFocus();
     // Written down, so a reload offers it without finding the message again.
     await waitFor(() => expect(values.get(slot(workspaceId))).toEqual({ posted: true }));
@@ -221,7 +221,7 @@ describe("offering a guest to keep their account", () => {
   it("puts it away for good on Not now, handing focus to the account button", async () => {
     const { user, values, view, workspaceId } = sidebar({ messages: [message("M_2", "U_G")] });
     await screen.findByRole("region", OFFER);
-    await user.click(screen.getByRole("button", { name: "Not now" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByRole("region", OFFER)).toBeNull();
     expect(screen.getByRole("button", { name: /^Vic, Guest, your account$/ })).toHaveFocus();
     await waitFor(() =>
@@ -273,7 +273,7 @@ describe("offering a guest to keep their account", () => {
       failSet: true,
     });
     await screen.findByRole("region", OFFER);
-    await user.click(screen.getByRole("button", { name: "Not now" }));
+    await user.click(screen.getByRole("button", { name: "Dismiss" }));
     expect(screen.queryByRole("region", OFFER)).toBeNull();
     expect(values.has(slot(workspaceId))).toBe(false);
     view.unmount();
@@ -282,17 +282,16 @@ describe("offering a guest to keep their account", () => {
     expect(screen.queryByRole("region", OFFER)).toBeNull();
   });
 
-  it("opens the keep-account form from Keep this account, and does not come back", async () => {
+  it("opens the keep-account form from Keep this account, and stays until the account is made", async () => {
     const { user, onCreateAccount, values, workspaceId } = sidebar({
       messages: [message("M_2", "U_G")],
     });
     await screen.findByRole("region", OFFER);
     await user.click(screen.getByRole("button", { name: "Keep this account" }));
     expect(onCreateAccount).toHaveBeenCalledOnce();
-    expect(screen.queryByRole("region", OFFER)).toBeNull();
-    await waitFor(() =>
-      expect(values.get(slot(workspaceId))).toEqual({ posted: true, closed: true }),
-    );
+    // The form can be cancelled; the offer is still there to come back to.
+    expect(screen.getByRole("region", OFFER)).toBeVisible();
+    expect(values.get(slot(workspaceId))).not.toEqual(expect.objectContaining({ closed: true }));
   });
 
   it("goes as soon as the guest becomes a member", async () => {

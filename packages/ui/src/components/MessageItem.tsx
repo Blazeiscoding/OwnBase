@@ -645,7 +645,12 @@ const MessageRow = memo(function MessageRow({
                   onChannelClick={onChannelClick}
                 />
                 {message.editedAt && (
-                  <span className="ml-1.5 text-[11px] text-ink-faint">(edited)</span>
+                  <span
+                    className="ml-1.5 text-[11px] text-ink-faint"
+                    title={`Edited ${formatFull(message.editedAt)}`}
+                  >
+                    (edited)
+                  </span>
                 )}
               </div>
             )

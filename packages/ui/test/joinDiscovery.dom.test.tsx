@@ -73,7 +73,7 @@ describe("workspaces found on the network", () => {
     const row = (name: string) => screen.getByText(name).closest("li")!;
     expect(row("Rocket Team")).toHaveTextContent("hosted here");
     expect(row("Design Guild")).not.toHaveTextContent("hosted here");
-    expect(row("Design Guild")).toHaveTextContent("v1.0.0");
+    expect(row("Design Guild")).toHaveTextContent("on your network");
     expect(row("Old Team")).not.toHaveTextContent("hosted here");
   });
 
@@ -91,7 +91,7 @@ describe("workspaces found on the network", () => {
   });
 });
 
-describe("Direct connect", () => {
+describe("Join with an address", () => {
   it("says under the field what Connect needs, rather than waiting greyed out", async () => {
     const serverInfo = vi.spyOn(Api.prototype, "serverInfo").mockResolvedValue(info);
     const user = joinWith([]);
