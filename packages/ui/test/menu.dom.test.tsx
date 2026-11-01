@@ -26,6 +26,15 @@ function actions(): { items: MenuItem[]; selected: (id: string) => void; calls: 
 }
 
 describe("a menu", () => {
+  it("opens from its button with the Down arrow, as a native menu button does", async () => {
+    const { items } = actions();
+    const user = userEvent.setup();
+    render(<Menu label="Actions for Sam Rivera" items={items} />);
+    screen.getByRole("button", { name: "Actions for Sam Rivera" }).focus();
+    await user.keyboard("{ArrowDown}");
+    expect(await screen.findByRole("menu", { name: "Actions for Sam Rivera" })).toBeVisible();
+  });
+
   it("opens from its trigger as a named menu, with no automated accessibility problems", async () => {
     const { items } = actions();
     const user = userEvent.setup();

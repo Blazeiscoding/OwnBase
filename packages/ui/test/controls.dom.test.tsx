@@ -158,7 +158,7 @@ describe("the huddle bar", () => {
     const share = within(controls).getByRole("button", { name: "Share screen" });
     for (const control of [mute, camera, share]) expect(control).not.toHaveAttribute("title");
     act(() => mute.focus());
-    expect(mute).toHaveAccessibleDescription("Mute");
+    expect(mute).toHaveAccessibleDescription("Mute. Shortcut: Ctrl Shift Space");
     act(() => camera.focus());
     expect(camera).toHaveAccessibleDescription("Turn your camera on");
 
@@ -171,7 +171,7 @@ describe("the huddle bar", () => {
     for (const name of toggles)
       expect(within(controls).getByRole("button", { name, pressed: true })).toBeInTheDocument();
     act(() => mute.focus());
-    expect(mute).toHaveAccessibleDescription("Unmute");
+    expect(mute).toHaveAccessibleDescription("Unmute. Shortcut: Ctrl Shift Space");
     // Each device menu opens from a small arrow of its own beside its toggle.
     expect(
       within(controls)

@@ -40,6 +40,7 @@ export function DraftsPanel(props: {
     client.setDraft(entry.key, "");
     toast({
       message: "Draft deleted.",
+      kind: "success",
       action: {
         label: "Undo",
         // Back as it was, in its place in the list, unless written there since.

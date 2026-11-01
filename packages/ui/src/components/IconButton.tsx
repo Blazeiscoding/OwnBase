@@ -16,7 +16,7 @@ const SIZES: Record<IconButtonSize, { box: string; icon: number }> = {
  * is open. `icon-live` plays the motion of an icon drawn in parts.
  */
 const BASE =
-  "icon-live inline-flex shrink-0 items-center justify-center text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 aria-expanded:bg-ink/[0.08] aria-expanded:text-ink aria-pressed:bg-ink/[0.08] aria-pressed:text-ink";
+  "touch-target icon-live inline-flex shrink-0 items-center justify-center text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink disabled:opacity-40 aria-expanded:bg-ink/[0.08] aria-expanded:text-ink aria-pressed:bg-ink/[0.08] aria-pressed:text-ink";
 
 /** Shown inside: one of Icon's drawings, or anything else that is not words. */
 type Content = { icon: IconName; children?: never } | { icon?: never; children: ReactNode };

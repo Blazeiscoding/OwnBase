@@ -152,7 +152,7 @@ export function SettingsWindow<S extends string>({
         type="button"
         onClick={() => guards.ask(onClose)}
         aria-label="Close"
-        className="settings-close flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
+        className="settings-close touch-target flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
       >
         <Icon name="close" size={16} />
       </button>

@@ -804,6 +804,19 @@ function WorkspaceInner({
   // Global shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      // Mute in a huddle, as Slack's Ctrl/Cmd+Shift+Space: from anywhere, a
+      // dialog included, since the call goes on behind it.
+      if (
+        (e.ctrlKey || e.metaKey) &&
+        e.shiftKey &&
+        e.code === "Space" &&
+        !e.defaultPrevented &&
+        clientFromCtx.state.huddle
+      ) {
+        e.preventDefault();
+        clientFromCtx.toggleMic();
+        return;
+      }
       // A foreground form owns its keys. Shortcuts must not replace a busy
       // dialog, or let its Escape dismiss a thread behind it as well.
       if (e.defaultPrevented || hasOpenModal() || isImeKey(e)) return;
@@ -847,7 +860,7 @@ function WorkspaceInner({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeDrawer]);
+  }, [closeDrawer, clientFromCtx]);
 
   const activeChannel = activeChannelId ? channels[activeChannelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";

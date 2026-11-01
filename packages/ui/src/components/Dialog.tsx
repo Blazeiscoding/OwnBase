@@ -50,7 +50,7 @@ export function Dialog({
           }}
           disabled={!dismissible}
           aria-label="Close"
-          className="flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
+          className="touch-target flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
         >
           <Icon name="close" size={16} />
         </button>

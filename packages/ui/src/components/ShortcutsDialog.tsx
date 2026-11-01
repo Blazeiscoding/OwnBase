@@ -59,6 +59,10 @@ const groups = (
     ],
   },
   {
+    title: "Huddles",
+    items: [[`${MOD} Shift Space`, "Mute or unmute your microphone"]],
+  },
+  {
     title: "Messages",
     note: "The list of messages is one Tab stop; these work once it has focus.",
     items: [

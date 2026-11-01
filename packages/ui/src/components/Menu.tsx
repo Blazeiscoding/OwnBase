@@ -118,6 +118,12 @@ export function Menu({
       aria-label={triggerLabel ?? (typeof triggerContent === "undefined" ? label : undefined)}
       disabled={disabled}
       onClick={() => setOpen(true)}
+      // Down or Up on a menu's button opens it, as on a native menu button.
+      onKeyDown={(event) => {
+        if (event.key !== "ArrowDown" && event.key !== "ArrowUp") return;
+        event.preventDefault();
+        setOpen(true);
+      }}
       className={
         triggerClassName ??
         "icon-live rounded-lg border border-edge px-2 py-1 text-[12px] text-ink-dim transition-colors hover:bg-ink/[0.05] hover:text-ink disabled:opacity-40"

@@ -52,6 +52,11 @@ export function useOptionalToast(): Show | null {
 
 /** A success has been read by the time it goes; a failure is not guessed at. */
 const SUCCESS_LIFETIME = 5000;
+/**
+ * One with something to do, such as Undo, stays longer: long enough to reach
+ * its button from the keyboard or with a screen reader, not only the mouse.
+ */
+const ACTION_LIFETIME = 10_000;
 /** Beyond this the oldest notice is older news than the screen has room for. */
 const MAX_VISIBLE = 4;
 
@@ -197,7 +202,7 @@ function ToastItem({
   const failed = notice.kind === "error";
   const messageId = useId();
   const element = useRef<HTMLDivElement>(null);
-  const remaining = useRef(SUCCESS_LIFETIME);
+  const remaining = useRef(notice.action ? ACTION_LIFETIME : SUCCESS_LIFETIME);
   const [leaving, setLeaving] = useState(false);
   // It fades as its row folds away, so the notices after it slide up rather
   // than jump. One closed from the keyboard goes at once, so focus moves to

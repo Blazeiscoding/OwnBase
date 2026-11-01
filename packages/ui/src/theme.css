@@ -850,6 +850,21 @@ textarea::placeholder {
   }
 }
 
+/*
+ * A finger needs about 44 px. Small icon buttons keep their look, and their
+ * place in a crowded phone header, and reach further than they show.
+ */
+@media (pointer: coarse) {
+  .touch-target:not(.settings-close) {
+    position: relative;
+  }
+  .touch-target::after {
+    content: "";
+    position: absolute;
+    inset: -6px;
+  }
+}
+
 /* Discord's red for what names you: white on it reads at 4.6:1 in both themes. */
 .badge-mention {
   background: var(--mention-red);

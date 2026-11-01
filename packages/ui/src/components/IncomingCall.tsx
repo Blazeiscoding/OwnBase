@@ -9,6 +9,8 @@ import { useCallPreferences } from "../lib/callPreferences.js";
 import { channelTitle } from "../lib/format.js";
 import { ringContent, type NotificationPreview } from "../lib/notificationPreview.js";
 import { startRingTone } from "../lib/ringTone.js";
+import { confirmHuddleSwitch } from "./HuddleButton.js";
+import { useOptionalConfirm } from "./Confirm.js";
 
 /**
  * A direct message's huddle ringing this account (E10): who is calling, with
@@ -99,11 +101,13 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
       mounted.current = false;
     };
   }, []);
+  const confirm = useOptionalConfirm();
   const titleId = useId();
   const name = caller?.displayName ?? "Someone";
 
   async function join() {
     if (joining) return;
+    if (!(await confirmHuddleSwitch(client, confirm, ring.channelId))) return;
     setJoining(true);
     onOpen(ring.channelId);
     try {

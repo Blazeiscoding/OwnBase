@@ -414,6 +414,10 @@ function TileButton(props: {
 function TileVolume({ item }: { item: StageItem & { userId: ID } }) {
   const [open, setOpen] = useState(false);
   const wrap = useRef<HTMLDivElement>(null);
+  // Stable, so it runs once as the popover mounts rather than on every render.
+  const focusSlider = useCallback((el: HTMLDivElement | null) => {
+    el?.querySelector<HTMLInputElement>('input[type="range"]')?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     if (!open) return;
     const away = (event: Event) => {
@@ -433,6 +437,8 @@ function TileVolume({ item }: { item: StageItem & { userId: ID } }) {
       />
       {open && (
         <div
+          // The slider takes focus as it opens, so the keyboard is already on it.
+          ref={focusSlider}
           className="surface-float absolute inset-x-2 top-1/2 mx-auto max-w-64 -translate-y-1/2 rounded-xl px-2 py-1"
           onDoubleClick={(event) => event.stopPropagation()}
           onKeyDown={(event) => {
