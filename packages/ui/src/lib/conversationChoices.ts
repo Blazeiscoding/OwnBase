@@ -167,6 +167,7 @@ export function closeItem(
       choose(client, toast, id, { hiddenSeq: lastSeq }, "Could not close that conversation.");
       toast?.({
         message: `Closed your conversation with ${name}. It comes back when someone writes.`,
+        kind: "success",
         action: {
           label: "Undo",
           run: () =>
