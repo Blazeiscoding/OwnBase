@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { UnsavedGuard } from "../lib/dismissGuard.js";
 import { WORKSPACE_NAME_MAX, type AccessPolicy, type WorkspaceCopy } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
@@ -337,6 +338,7 @@ function NameSection({ editable }: { editable: boolean }) {
 
   return (
     <section>
+      <UnsavedGuard dirty={typed && draft.trim() !== name && !busy} what="the new name" />
       <form onSubmit={(event) => void save(event)} noValidate className="space-y-3">
         <TextField
           ref={field}

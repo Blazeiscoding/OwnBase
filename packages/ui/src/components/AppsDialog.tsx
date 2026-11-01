@@ -1,4 +1,5 @@
 import { Fragment, useCallback, useEffect, useRef, useState } from "react";
+import { useDismissGuard } from "../lib/dismissGuard.js";
 import { useCopy } from "../lib/useCopy.js";
 import { useTabs } from "../lib/useTabs.js";
 import {
@@ -103,6 +104,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 /** Admin view for integrations: bot tokens, webhooks, commands and events. */
 export function AppsDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
+  const toast = useOptionalToast();
   const confirm = useConfirm();
   const channels = useWorkspace((s) => s.channels);
   const [apps, setApps] = useState<AppDetail[] | null>(null);
@@ -270,6 +272,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
 
   return (
     <Dialog title="Apps and integrations" onClose={onClose} width={620}>
+      <OnceGuard held={Object.keys(secrets).length > 0 || Object.keys(hookUrls).length > 0} />
       <p className="mb-4 text-sm text-ink-dim">
         Start from what you want to happen. Each app you make posts as its own bot.
       </p>
@@ -411,8 +414,23 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                     </button>
                     <button
                       onClick={async () => {
-                        await client.api.deleteWebhook(w.id);
-                        load();
+                        const room = channels[w.channelId]?.name ?? "unknown";
+                        const go = await confirm({
+                          title: `Remove the webhook for #${room}?`,
+                          body: "Anything posting to its address stops reaching the channel at once.",
+                          confirmLabel: "Remove",
+                          destructive: true,
+                        });
+                        if (!go) return;
+                        try {
+                          await client.api.deleteWebhook(w.id);
+                          load();
+                        } catch {
+                          toast?.({
+                            message: `Could not remove the webhook for #${room}. Check your connection and try again.`,
+                            kind: "error",
+                          });
+                        }
                       }}
                       className="text-ink-faint hover:text-alert"
                     >
@@ -1605,4 +1623,18 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
       )}
     </form>
   );
+}
+
+/** A bot token or webhook address is shown once: closing asks first while one is up. */
+function OnceGuard({ held }: { held: boolean }) {
+  useDismissGuard(
+    held
+      ? {
+          title: "Close before copying?",
+          body: "Bot tokens and webhook addresses made here are shown only once. Copy them first, unless you already have.",
+          confirmLabel: "Close anyway",
+        }
+      : null,
+  );
+  return null;
 }

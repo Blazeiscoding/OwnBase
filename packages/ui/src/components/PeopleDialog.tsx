@@ -14,6 +14,21 @@ import { AuditHistory } from "./AuditHistory.js";
 import { buttonClass } from "./Button.js";
 import { ListStatus } from "./ListStatus.js";
 import { isImeKey } from "../lib/textInput.js";
+import { useOptionalConfirm } from "./Confirm.js";
+
+/** What an account change did, in a sentence that names the person. */
+export function changeNotice(
+  name: string,
+  patch: { role?: "member" | "admin"; deactivated?: boolean; canInvite?: boolean },
+): string {
+  if (patch.deactivated === true) return `${name} is deactivated and signed out everywhere.`;
+  if (patch.deactivated === false) return `${name} is active again and can sign in.`;
+  if (patch.role === "admin") return `${name} is now an admin.`;
+  if (patch.role === "member") return `${name} is now a member, no longer an admin.`;
+  if (patch.canInvite === true) return `${name} can now invite people.`;
+  if (patch.canInvite === false) return `${name} can no longer invite people.`;
+  return `${name}'s account is updated.`;
+}
 
 /** Someone on the admin list: when last here, and whether they have two-step sign-in (E11). */
 type Person = User & { lastSeenAt: number | null; twoStep?: boolean };
@@ -26,6 +41,7 @@ type Action = "reset" | "twoStep" | "transfer";
  */
 export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
+  const confirm = useOptionalConfirm();
   const self = useWorkspace((s) => s.self);
   // Every account, kept current by the socket: an admin's snapshot holds them
   // all, and joins and changes arrive as they happen, so there is no Refresh.
@@ -95,6 +111,16 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     patch: { role?: "member" | "admin"; deactivated?: boolean; canInvite?: boolean },
   ) {
     if (busy) return;
+    // Deactivating signs someone out everywhere: asked first, as a reset is.
+    if (patch.deactivated === true && confirm) {
+      const go = await confirm({
+        title: `Deactivate ${person.displayName}?`,
+        body: `@${person.handle} is signed out on every device and cannot sign back in until reactivated. Their messages stay.`,
+        confirmLabel: "Deactivate",
+        destructive: true,
+      });
+      if (!go) return;
+    }
     setError(null);
     setNotice(null);
     setBusy(person.id);
@@ -104,8 +130,13 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
       client.store.setState((state) => ({
         users: { ...state.users, [result.user.id]: result.user },
       }));
+      setNotice(changeNotice(person.displayName, patch));
     } catch (err) {
-      setError(err instanceof ApiError ? errorText(err.code, err.message) : "That did not work.");
+      setError(
+        err instanceof ApiError
+          ? errorText(err.code, err.message)
+          : `Could not change ${person.displayName}'s account. Check your connection and try again.`,
+      );
     } finally {
       setBusy(null);
     }
@@ -213,9 +244,11 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     );
 
   return (
-    <Dialog title="People" onClose={onClose} width={680} dismissible={!busy}>
+    // A temporary password is shown once: only Done puts it away, not a stray
+    // Escape or a click beside the dialog.
+    <Dialog title="People" onClose={onClose} width={680} dismissible={!busy && !issued}>
       {error && (
-        <p role="alert" className="mb-3 text-[12px] text-alert">
+        <p role="alert" className="mb-3 rounded-lg bg-alert/10 p-3 text-sm text-alert">
           {error}
         </p>
       )}

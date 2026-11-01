@@ -25,6 +25,7 @@ import { Icon } from "./Icon.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
+import { useOptionalConfirm } from "./Confirm.js";
 
 type Hosting = NonNullable<Platform["hosting"]>;
 
@@ -835,6 +836,7 @@ export function HostDialog(props: {
   onInvite?: () => void;
 }) {
   const { status, loading, error: statusError, refresh } = props.state;
+  const confirm = useOptionalConfirm();
   const [name, setName] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
   /** The port for a new workspace, as typed. Empty for the usual one. */
@@ -1212,6 +1214,17 @@ export function HostDialog(props: {
   /** Changes who may join, showing what the workspace then holds rather than the wish. */
   async function changeAccessPolicy(next: AccessPolicy) {
     if (operationPending.current || !props.hosting.setAccessPolicy) return;
+    // Signing guests out cannot be taken back, so it is asked first, as
+    // Workspace settings asks for the same change.
+    if (livePolicy === "guest_allowed" && next !== "guest_allowed" && confirm) {
+      const sure = await confirm({
+        title: "Sign every guest out?",
+        body: "Whoever is signed in as a guest is signed out now, and nobody new can join as one. What guests wrote stays.",
+        confirmLabel: "Sign guests out",
+        destructive: true,
+      });
+      if (!sure) return;
+    }
     operationPending.current = true;
     setBusy("policy");
     setError(null);
@@ -1623,7 +1636,7 @@ export function HostDialog(props: {
                               {livePolicy === "guest_allowed"
                                 ? "Anyone with this address can join as a guest for a day and post in public channels. Requiring an account again signs every guest out."
                                 : status.inviteOnly
-                                  ? "In the workspace, choose Workspace → Invite people, generate a code, and copy its Browser link."
+                                  ? "To bring someone in, open the workspace menu in the workspace, choose Invite people and copy the link."
                                   : "Anyone with this address can create an account. Send the address only to people you trust."}
                             </p>
                             <button

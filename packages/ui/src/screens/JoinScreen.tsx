@@ -20,6 +20,7 @@ import { inputClass } from "../components/TextField.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
 import { beginSingleSignOn, redeemSingleSignOn } from "../lib/singleSignOn.js";
+import { useOptionalConfirm } from "../components/Confirm.js";
 
 /** How a sign-in came about, where it matters to what opens next. */
 export interface Connected {
@@ -399,6 +400,7 @@ function BrowseCard(props: {
   onForget: (url: string) => void;
   onHostClick?: () => void;
 }) {
+  const confirm = useOptionalConfirm();
   const [address, setAddress] = useState("");
   /** What is wrong with the typed address, said under it once Connect is pressed. */
   const [addressError, setAddressError] = useState<string | null>(null);
@@ -469,7 +471,18 @@ function BrowseCard(props: {
                 meta={`@${s.handle}`}
                 busy={props.probing === s.url}
                 onClick={() => props.onOpenSaved(s)}
-                onForget={() => props.onForget(s.url)}
+                onForget={async () => {
+                  // Forgetting drops the saved sign-in: coming back needs the password.
+                  const sure = confirm
+                    ? await confirm({
+                        title: `Forget ${s.workspaceName}?`,
+                        body: `This device stops keeping you signed in as @${s.handle}. To come back you need its address and your password. Nothing in the workspace changes.`,
+                        confirmLabel: "Forget",
+                        destructive: true,
+                      })
+                    : true;
+                  if (sure) props.onForget(s.url);
+                }}
               />
             ))}
           </ul>

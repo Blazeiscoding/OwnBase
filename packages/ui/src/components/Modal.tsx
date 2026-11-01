@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import { GuardContext, useGuardRegistry, type GuardRegistry } from "../lib/dismissGuard.js";
 import { createPortal } from "react-dom";
 import { isImeKey } from "../lib/textInput.js";
 
@@ -344,6 +345,11 @@ interface Props {
   backdropClassName?: string;
   className?: string;
   style?: CSSProperties;
+  /**
+   * What asks before this closes (`useDismissGuard`); one of its own when not
+   * given. Given by a dialog whose own buttons close it, or move away within it.
+   */
+  guards?: GuardRegistry;
 }
 
 /** One keyboard/focus owner for every dialog and image viewer. */
@@ -356,7 +362,10 @@ export function Modal({
   backdropClassName = "",
   className,
   style,
+  guards,
 }: Props) {
+  const own = useGuardRegistry();
+  const registry = guards ?? own;
   const root = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const layer = useRef<Layer | null>(null);
@@ -365,7 +374,7 @@ export function Modal({
   const owner = useRef(ownerOf(opener.current));
   const close = useRef(onClose);
   close.current = () => {
-    if (dismissible) onClose();
+    if (dismissible) registry.ask(onClose);
   };
   const left = useRef<(() => void) | undefined>(undefined);
 
@@ -426,7 +435,7 @@ export function Modal({
         className={className}
         style={style}
       >
-        {children}
+        <GuardContext.Provider value={registry}>{children}</GuardContext.Provider>
       </div>
     </div>,
     document.body,
