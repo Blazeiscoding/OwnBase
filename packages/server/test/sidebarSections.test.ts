@@ -289,3 +289,25 @@ describe("a guest", () => {
     expect(moved.body.prefs.sectionId).toBe(section.id);
   });
 });
+
+describe("closing a direct conversation", () => {
+  it("keeps the seq it was closed at, for this account's devices alone; null opens it", async () => {
+    const opened = await request("/api/channels", { type: "dm", memberIds: [peer.id] });
+    expect(opened.status, JSON.stringify(opened.body)).toBeLessThan(300);
+    const dm = opened.body.channel.id as string;
+    const mine = await connect(owner.token);
+    const closed = await prefs(dm, { hiddenSeq: 42 });
+    expect(closed.status).toBe(200);
+    expect(closed.body.prefs.hiddenSeq).toBe(42);
+    await expect.poll(() => prefsTold(mine).at(-1)?.prefs.hiddenSeq).toBe(42);
+    expect(server!.store.getChannelPrefs(dm, peer.id)?.hiddenSeq).toBeNull();
+    expect((await prefs(dm, { hiddenSeq: null })).body.prefs.hiddenSeq).toBeNull();
+  });
+
+  it("refuses to close a channel, which is left instead", async () => {
+    const refused = await prefs(general, { hiddenSeq: 1 });
+    expect(refused.status).toBe(400);
+    expect(refused.body.error).toBe("not_direct");
+    expect((await prefs(general, { hiddenSeq: -1 })).status).toBe(400);
+  });
+});

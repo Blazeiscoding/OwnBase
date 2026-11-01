@@ -31,6 +31,8 @@ import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/stat
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import {
+  closeItem,
+  isClosed,
   moveConversation,
   moveItems,
   muteItem,
@@ -229,6 +231,13 @@ export function Sidebar(props: Props) {
       if (ch.archived || !(ch.id in memberships)) continue;
       // A DM with someone this account blocked leaves the sidebar (E12).
       if (blockedPartner(ch, selfId, blocked)) continue;
+      // So does one it closed, until someone writes there; the open one stays.
+      if (
+        isDirect(ch) &&
+        ch.id !== props.activeChannelId &&
+        isClosed(prefs[ch.id], channelLastSeq[ch.id])
+      )
+        continue;
       // Starred moves a conversation out of its usual section, as Slack's does,
       // and so does a section of this account's (E8); one it no longer has is none.
       const inSection = sectioned.get(prefs[ch.id]?.sectionId ?? "");
@@ -246,7 +255,17 @@ export function Sidebar(props: Props) {
     rooms.sort((a, b) => a.name.localeCompare(b.name));
     dms.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
     return { starred, sectioned, rooms, dms };
-  }, [channels, memberships, channelLastSeq, prefs, users, selfId, sections, blocked]);
+  }, [
+    channels,
+    memberships,
+    channelLastSeq,
+    prefs,
+    users,
+    selfId,
+    sections,
+    blocked,
+    props.activeChannelId,
+  ]);
   /** The section of this account's a conversation is in, if it is in one it still has. */
   const sectionOf = (id: ID): ID | null => {
     const sectionId = prefs[id]?.sectionId ?? null;
@@ -357,6 +376,8 @@ export function Sidebar(props: Props) {
       ...muteItem(client, toast, conversation, isMuted(ch.id)),
       ...(sections ? { section: true } : {}),
     });
+    if (isDirect(ch) && prefs[ch.id] && "hiddenSeq" in prefs[ch.id]!)
+      items.push(closeItem(client, toast, ch.id, channelLastSeq[ch.id] ?? 0, label));
     return { label, items };
   }
 

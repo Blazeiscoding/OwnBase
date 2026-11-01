@@ -658,6 +658,15 @@ function WorkspaceInner({
     }
   }, [channels, activeChannelId, status, lastConversation.remembered]);
 
+  // A closed conversation opened again, from Ctrl+K or a link, is back in the
+  // sidebar. Only on arriving: closing the open one leaves it closed.
+  useEffect(() => {
+    if (!activeChannelId) return;
+    const hidden = clientFromCtx.state.prefs[activeChannelId]?.hiddenSeq;
+    if (hidden !== null && hidden !== undefined)
+      clientFromCtx.setChannelPrefs(activeChannelId, { hiddenSeq: null });
+  }, [activeChannelId, clientFromCtx]);
+
   const { remember } = lastConversation;
   const recentConversations = useRecentConversations();
   const rememberRecent = recentConversations.remember;
