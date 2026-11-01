@@ -73,7 +73,7 @@ describe("workspaces found on the network", () => {
     const row = (name: string) => screen.getByText(name).closest("li")!;
     expect(row("Rocket Team")).toHaveTextContent("hosted here");
     expect(row("Design Guild")).not.toHaveTextContent("hosted here");
-    expect(row("Design Guild")).toHaveTextContent("on your network");
+    expect(row("Design Guild")).not.toHaveTextContent(/v1.0.0|on your network/);
     expect(row("Old Team")).not.toHaveTextContent("hosted here");
   });
 
