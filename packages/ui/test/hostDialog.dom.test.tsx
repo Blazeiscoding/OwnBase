@@ -259,7 +259,8 @@ describe("hosting a workspace from the host dialog", () => {
         .map((item) => item.textContent),
     ).toEqual([
       expect.stringContaining("Team-APort 8544"),
-      expect.stringContaining("Team APort 8543"),
+      // The usual port goes unsaid.
+      expect.not.stringContaining("Port 8543"),
       expect.stringContaining("Old ClubIts folder is missing"),
     ]);
     expect(
@@ -317,7 +318,8 @@ describe("hosting a workspace from the host dialog", () => {
     });
     render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(list).toHaveTextContent("Port 8543 · Not backed up yet");
+    expect(list).toHaveTextContent("Not backed up yet");
+    expect(list).not.toHaveTextContent("Port 8543");
 
     hosting.list!.mockResolvedValueOnce({
       workspaces: [
@@ -1213,7 +1215,7 @@ describe("starting with the computer", () => {
       "OwnBase did not start hosting Rocket Team when it opened. Its folder is missing.",
     );
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(list).toHaveTextContent("Port 8543 · Starts with OwnBase");
+    expect(list).toHaveTextContent("Starts with OwnBase");
   });
 });
 
@@ -1284,7 +1286,7 @@ describe("a workspace restored from a backup", () => {
     const { hosting } = fakeHosting(stopped, { workspaces: [restored], unreadable: [] });
     render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(list).toHaveTextContent("Restored, not in use yet · Port 8543");
+    expect(list).toHaveTextContent("Restored, not in use yet");
     expect(within(list).queryByRole("button", { name: "Start hosting Rocket Team" })).toBeNull();
 
     await user.click(within(list).getByRole("button", { name: "Put Rocket Team back in use" }));
@@ -1331,9 +1333,7 @@ describe("a workspace restored from a backup", () => {
     });
     render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(list).toHaveTextContent(
-      "Restored, not in use yet · Port 8543 · Backs up daily once back in use",
-    );
+    expect(list).toHaveTextContent("Restored, not in use yet · Backs up daily once back in use");
   });
 
   it("says while looking inside that nothing is backed up or removed on its schedule", async () => {
@@ -1752,7 +1752,7 @@ describe("automatic backups", () => {
     render(<Harness hosting={hosting} />);
     expect(
       await screen.findByRole("region", { name: "Hosted on this computer" }),
-    ).toHaveTextContent("Port 8543 · Backs up weekly");
+    ).toHaveTextContent("Backs up weekly");
   });
 });
 
