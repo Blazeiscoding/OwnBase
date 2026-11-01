@@ -106,6 +106,7 @@ describe("a starred conversation", () => {
       muted: false,
       starred: true,
       sectionId: null,
+      hiddenSeq: null,
     });
     expect(ctx.server.store.getChannelPrefs(general, owner.id)?.starred).toBe(true);
     expect(ctx.server.store.getChannelPrefs(general, peer.id)?.starred).toBe(false);
@@ -126,6 +127,7 @@ describe("a starred conversation", () => {
       muted: true,
       starred: true,
       sectionId: null,
+      hiddenSeq: null,
     });
     const unstarred = await ctx.star(general, owner.token, { starred: false });
     expect(unstarred.body.prefs).toEqual({
@@ -133,6 +135,7 @@ describe("a starred conversation", () => {
       muted: true,
       starred: false,
       sectionId: null,
+      hiddenSeq: null,
     });
   });
 
@@ -236,12 +239,14 @@ describe("upgrading a workspace to stars (v40)", () => {
         muted: true,
         starred: false,
         sectionId: null,
+        hiddenSeq: null,
       });
       expect(store.memberships("U2")[0]?.prefs).toEqual({
         notifyLevel: "mentions",
         muted: false,
         starred: false,
         sectionId: null,
+        hiddenSeq: null,
       });
       expect(store.setChannelPrefs("C1", "U2", { starred: true })?.starred).toBe(true);
       expect(store.getChannelPrefs("C1", "U1")?.starred).toBe(false);

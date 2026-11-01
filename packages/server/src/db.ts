@@ -732,6 +732,11 @@ const MIGRATIONS: string[] = [
   ALTER TABLE apps ADD COLUMN scopes TEXT NOT NULL DEFAULT '[]';
   UPDATE apps SET scopes = '["chat:write","chat:write.public","channels:history","groups:history","im:history","mpim:history","channels:read","groups:read","reactions:read","pins:read","users:read"]';
   `,
+  // v52 — a direct conversation one member closed: out of their sidebar until
+  // a message newer than this event seq, or until they open it. Null: shown.
+  `
+  ALTER TABLE channel_members ADD COLUMN hidden_seq INTEGER;
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

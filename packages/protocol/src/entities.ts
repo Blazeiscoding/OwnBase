@@ -106,6 +106,12 @@ export interface ChannelPrefs {
    * be. Absent from servers before schema v46; see `ReadySnapshot.sidebarSections`.
    */
   sectionId?: ID | null;
+  /**
+   * A direct conversation this account closed: left out of the sidebar until
+   * a message newer than this event seq arrives, or it is opened again. Null
+   * while shown. Absent from servers before schema v52, which hide nothing.
+   */
+  hiddenSeq?: number | null;
 }
 
 /**

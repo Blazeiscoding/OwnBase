@@ -15,6 +15,8 @@ import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { modKey, shortcutLabel } from "../lib/shortcuts.js";
+import { useLongPress } from "../lib/useLongPress.js";
+import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { AvatarWithPresence, PresenceDot } from "./Avatar.js";
 import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -29,6 +31,8 @@ import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/stat
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import {
+  closeItem,
+  isClosed,
   moveConversation,
   moveItems,
   muteItem,
@@ -227,6 +231,13 @@ export function Sidebar(props: Props) {
       if (ch.archived || !(ch.id in memberships)) continue;
       // A DM with someone this account blocked leaves the sidebar (E12).
       if (blockedPartner(ch, selfId, blocked)) continue;
+      // So does one it closed, until someone writes there; the open one stays.
+      if (
+        isDirect(ch) &&
+        ch.id !== props.activeChannelId &&
+        isClosed(prefs[ch.id], channelLastSeq[ch.id])
+      )
+        continue;
       // Starred moves a conversation out of its usual section, as Slack's does,
       // and so does a section of this account's (E8); one it no longer has is none.
       const inSection = sectioned.get(prefs[ch.id]?.sectionId ?? "");
@@ -244,7 +255,17 @@ export function Sidebar(props: Props) {
     rooms.sort((a, b) => a.name.localeCompare(b.name));
     dms.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
     return { starred, sectioned, rooms, dms };
-  }, [channels, memberships, channelLastSeq, prefs, users, selfId, sections, blocked]);
+  }, [
+    channels,
+    memberships,
+    channelLastSeq,
+    prefs,
+    users,
+    selfId,
+    sections,
+    blocked,
+    props.activeChannelId,
+  ]);
   /** The section of this account's a conversation is in, if it is in one it still has. */
   const sectionOf = (id: ID): ID | null => {
     const sectionId = prefs[id]?.sectionId ?? null;
@@ -355,6 +376,8 @@ export function Sidebar(props: Props) {
       ...muteItem(client, toast, conversation, isMuted(ch.id)),
       ...(sections ? { section: true } : {}),
     });
+    if (isDirect(ch) && prefs[ch.id] && "hiddenSeq" in prefs[ch.id]!)
+      items.push(closeItem(client, toast, ch.id, channelLastSeq[ch.id] ?? 0, label));
     return { label, items };
   }
 
@@ -1492,6 +1515,11 @@ function ChannelRow(props: {
   const [menuOpen, setMenuOpen] = useState(false);
   const actions = props.actions ?? [];
   const count = actions.length + (props.menu ? 1 : 0);
+  // Holding the row opens its menu, on iOS too, where there is no right-click.
+  const hold = useLongPress(props.menu && (() => setMenuOpen(true)));
+  // A finger's hold is for the menu; iOS would start a drag with it instead.
+  const touch = useMediaQuery("(hover: none)");
+  const dragStart = touch ? undefined : props.onDragStart;
   return (
     <li
       className="channel-item relative"
@@ -1513,9 +1541,10 @@ function ChannelRow(props: {
       )}
       <button
         onClick={props.onClick}
-        draggable={props.onDragStart ? true : undefined}
-        onDragStart={props.onDragStart}
-        onDragEnd={props.onDragEnd}
+        {...hold}
+        draggable={dragStart ? true : undefined}
+        onDragStart={dragStart}
+        onDragEnd={dragStart && props.onDragEnd}
         onContextMenu={
           props.menu &&
           ((event) => {

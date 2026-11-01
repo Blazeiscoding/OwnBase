@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import type { HuddleRing, ID } from "@ownbase/protocol";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
@@ -75,12 +76,18 @@ export function IncomingCall(props: {
   });
 
   if (ringingMe.length === 0) return null;
-  return (
-    <div className="pointer-events-none fixed inset-x-0 top-14 z-[66] flex flex-col items-center gap-2 px-3">
+  // On the body and outside the modal layer's reach (Modal.tsx), so a call can
+  // be answered from inside settings or any other dialog, by mouse or by Tab.
+  return createPortal(
+    <div
+      data-ownbase-call=""
+      className="pointer-events-none fixed inset-x-0 top-14 z-[66] flex flex-col items-center gap-2 px-3"
+    >
       {ringingMe.map((ring) => (
         <RingCard key={ring.channelId} ring={ring} onOpen={props.onOpen} />
       ))}
-    </div>
+    </div>,
+    document.body,
   );
 }
 

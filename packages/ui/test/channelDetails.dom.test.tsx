@@ -5,6 +5,7 @@ import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { ChannelDetailsDialog } from "../src/components/ChannelDetailsDialog.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -31,6 +32,9 @@ const alex: User = {
   role: "member",
 };
 
+const lee: User = { ...alex, id: "U_LEE", handle: "lee", displayName: "Lee Park" };
+const priya: User = { ...alex, id: "U_PRIYA", handle: "priya", displayName: "Priya Natarajan" };
+
 const design: Channel = {
   id: "C_DESIGN",
   type: "public",
@@ -45,11 +49,11 @@ const design: Channel = {
 
 afterEach(() => vi.restoreAllMocks());
 
-function details(channel: Channel = design) {
+function details(channel: Channel = design, initialTab?: "members") {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
-    users: { [sam.id]: sam, [alex.id]: alex },
+    users: { [sam.id]: sam, [alex.id]: alex, [lee.id]: lee, [priya.id]: priya },
     channels: { [channel.id]: channel },
     memberships: { [channel.id]: 0 },
     status: "online",
@@ -64,18 +68,22 @@ function details(channel: Channel = design) {
     leave: vi.spyOn(client.api, "leaveChannel").mockResolvedValue({ ok: true } as never),
     remove: vi.spyOn(client.api, "removeChannelMember").mockResolvedValue({ ok: true } as never),
     manager: vi.spyOn(client.api, "setChannelManager").mockResolvedValue({ channel } as never),
+    invite: vi.spyOn(client.api, "inviteMember").mockResolvedValue({ ok: true } as never),
   };
   const onLeft = vi.fn();
   render(
-    <ClientContext.Provider value={client}>
-      <ChannelDetailsDialog
-        channelId={channel.id}
-        onClose={() => {}}
-        onLeft={onLeft}
-        onOpenProfile={() => {}}
-        onChangeParticipants={() => {}}
-      />
-    </ClientContext.Provider>,
+    <ToastProvider>
+      <ClientContext.Provider value={client}>
+        <ChannelDetailsDialog
+          channelId={channel.id}
+          onClose={() => {}}
+          onLeft={onLeft}
+          onOpenProfile={() => {}}
+          onChangeParticipants={() => {}}
+          initialTab={initialTab}
+        />
+      </ClientContext.Provider>
+    </ToastProvider>,
   );
   const dialog = within(screen.getByRole("dialog"));
   return { api, client, dialog, onLeft, user: userEvent.setup() };
@@ -281,5 +289,37 @@ describe("notification settings", () => {
     );
     await user.click(dialog.getByRole("tab", { name: "Notifications" }));
     expect(dialog.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("adding someone to a channel", () => {
+  it("finds them by name or handle, adds with Enter, and says so", async () => {
+    const { api, dialog, user } = details(design, "members");
+    const box = await dialog.findByRole("combobox", { name: "Add someone" });
+    expect(box).toHaveFocus();
+    // Everyone not in it yet, before anything is typed.
+    const options = () =>
+      within(dialog.getByRole("listbox", { name: "People to add" }))
+        .getAllByRole("option")
+        .map((option) => option.getAttribute("aria-label"));
+    expect(options()).toEqual(["Lee Park, @lee", "Priya Natarajan, @priya"]);
+    await user.type(box, "@pri");
+    expect(options()).toEqual(["Priya Natarajan, @priya"]);
+    await user.keyboard("{Enter}");
+    expect(api.invite).toHaveBeenCalledWith("C_DESIGN", "U_PRIYA");
+    expect(await screen.findByText("Added Priya Natarajan to #design.")).toBeInTheDocument();
+    expect(box).toHaveValue("");
+    expect(options()).toEqual(["Lee Park, @lee"]);
+    expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
+  });
+
+  it("names the person a refusal was about, and keeps what was typed", async () => {
+    const { api, dialog, user } = details(design, "members");
+    api.invite.mockRejectedValueOnce(new TypeError("Failed to fetch"));
+    const box = await dialog.findByRole("combobox", { name: "Add someone" });
+    await user.type(box, "lee");
+    await user.keyboard("{Enter}");
+    expect(await dialog.findByRole("alert")).toHaveTextContent("Could not add Lee Park.");
+    expect(box).toHaveValue("lee");
   });
 });

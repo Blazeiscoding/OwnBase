@@ -271,6 +271,13 @@ describe("message actions", () => {
     expect(profile).toHaveAccessibleDescription("View Sam Rivera's profile");
     const toolbar = screen.getByRole("button", { name: "Reply in thread" }).parentElement!;
     // What a message is answered with most stays in sight; the rest is one menu away.
+    // With the key that does the same on a focused message, where there is one.
+    const shortcuts: Record<string, string> = {
+      "Add a reaction": "R",
+      "Reply in thread": "T",
+      "Remove from Saved": "A",
+      "Edit message": "E",
+    };
     const named = [
       "Add a reaction",
       "Reply in thread",
@@ -281,7 +288,9 @@ describe("message actions", () => {
     for (const name of named) {
       const action = within(toolbar).getByRole("button", { name });
       act(() => action.focus());
-      expect(action).toHaveAccessibleDescription(name);
+      expect(action).toHaveAccessibleDescription(
+        shortcuts[name] ? `${name}. Shortcut: ${shortcuts[name]}` : name,
+      );
       expect(action).not.toHaveAttribute("title");
     }
     // The rest are the quick reactions, which are emoji on purpose.
@@ -299,9 +308,10 @@ describe("message actions", () => {
         .map((item) => item.textContent),
     ).toEqual([
       "Copy link to message",
-      "Mark unread from this message",
-      "Unpin from channel",
-      "Delete message",
+      // Each with its key as a keycap after the name.
+      "Mark unread from this messageU",
+      "Unpin from channelP",
+      "Delete messageDelete",
     ]);
   });
 

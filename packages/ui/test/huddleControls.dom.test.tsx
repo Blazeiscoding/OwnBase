@@ -29,7 +29,7 @@ const sam: User = {
   createdAt: 0,
 };
 
-function controls(overlay = false, micLost = false) {
+function controls(overlay = false, micLost = false, talkingWhileMuted = false) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
@@ -37,7 +37,8 @@ function controls(overlay = false, micLost = false) {
     status: "online",
     huddle: {
       channelId: "C_GENERAL",
-      micMuted: false,
+      micMuted: talkingWhileMuted,
+      talkingWhileMuted,
       cameraOn: false,
       sharingScreen: false,
       localCameraStream: null,
@@ -50,6 +51,7 @@ function controls(overlay = false, micLost = false) {
   const camera = vi.spyOn(client, "toggleCamera");
   const share = vi.spyOn(client, "toggleScreenShare");
   const retryMic = vi.spyOn(client, "retryMicrophone").mockImplementation(() => {});
+  const toggleMic = vi.spyOn(client, "toggleMic").mockImplementation(() => {});
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
@@ -57,7 +59,7 @@ function controls(overlay = false, micLost = false) {
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
-  return { camera, share, retryMic };
+  return { camera, share, retryMic, toggleMic };
 }
 
 const refused = (name: string, message: string) => new DOMException(message, name);
@@ -128,5 +130,21 @@ describe("a microphone that stopped mid-call (CALL-01)", () => {
   it("says nothing while the microphone works", () => {
     controls();
     expect(screen.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("talking with the microphone off", () => {
+  it("says nobody hears you, with Unmute and its shortcut", async () => {
+    const user = userEvent.setup();
+    const { toggleMic } = controls(false, false, true);
+    const hint = screen.getByRole("status");
+    expect(hint).toHaveTextContent("You're muted, so nobody hears you.");
+    await user.click(screen.getByRole("button", { name: /^Unmute/ }));
+    expect(toggleMic).toHaveBeenCalledOnce();
+  });
+
+  it("says nothing while not talking", () => {
+    controls();
+    expect(screen.queryByText(/nobody hears you/)).toBeNull();
   });
 });

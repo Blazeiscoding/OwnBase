@@ -138,6 +138,52 @@ export function moveItems(
   return items;
 }
 
+/**
+ * Whether this account closed a direct conversation (`ChannelPrefs.hiddenSeq`)
+ * and nothing has been said in it since.
+ */
+export function isClosed(prefs: ChannelPrefs | undefined, lastSeq: number | undefined): boolean {
+  const at = prefs?.hiddenSeq;
+  return at !== null && at !== undefined && (lastSeq ?? 0) <= at;
+}
+
+/**
+ * Close a direct conversation: out of the sidebar until someone writes in it,
+ * or it is opened again, as Slack's does. Offer it only where the server
+ * keeps it, which says so by sending `hiddenSeq` at all.
+ */
+export function closeItem(
+  client: WorkspaceClient,
+  toast: Toast,
+  id: ID,
+  lastSeq: number,
+  name: string,
+): MenuItem {
+  return {
+    id: "close",
+    label: "Close conversation",
+    icon: "close",
+    onSelect: () => {
+      choose(client, toast, id, { hiddenSeq: lastSeq }, "Could not close that conversation.");
+      toast?.({
+        message: `Closed your conversation with ${name}. It comes back when someone writes.`,
+        kind: "success",
+        action: {
+          label: "Undo",
+          run: () =>
+            choose(
+              client,
+              toast,
+              id,
+              { hiddenSeq: null },
+              "Could not bring that conversation back.",
+            ),
+        },
+      });
+    },
+  };
+}
+
 /** Mute or Unmute, which every server keeps. */
 export function muteItem(
   client: WorkspaceClient,

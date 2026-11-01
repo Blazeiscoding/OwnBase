@@ -15,6 +15,7 @@ import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
+import { CallAnnouncer } from "./CallAnnouncer.js";
 
 /** Someone in the call, as the bar and its roster need them. */
 interface Person {
@@ -31,6 +32,8 @@ interface Person {
   connecting: boolean;
   /** Connecting has taken long enough to know something is wrong. */
   stuck: boolean;
+  /** Was connected, dropped, and is being connected again. */
+  reconnecting?: boolean;
   /** Sharing a screen with its sound, whose volume is yours to set as well. */
   screenSound?: boolean;
 }
@@ -40,7 +43,8 @@ const FACES = 4;
 
 /** What is true of someone besides their name, for a label or the roster. */
 function stateOf(p: Person): string | null {
-  if (p.connecting) return p.stuck ? "can't connect" : "connecting…";
+  if (p.connecting)
+    return p.stuck ? "can't connect" : p.reconnecting ? "reconnecting…" : "connecting…";
   // Before talking: it is why you cannot hear them.
   if (p.mutedForYou) return "muted for you";
   if (p.speaking) return "talking";
@@ -213,7 +217,15 @@ export function HuddleBar({
       : channelTitle(channel, users, selfId)
     : "huddle";
 
-  const connecting = huddle.peers.some((p) => !p.connected);
+  const waiting = huddle.peers.filter((p) => !p.connected);
+  // Someone who was here and dropped is being connected again, which is news;
+  // anyone still arriving is only connecting.
+  const connecting =
+    waiting.length === 0
+      ? ""
+      : waiting.every((p) => p.reconnecting)
+        ? " · Reconnecting…"
+        : " · Connecting…";
   // Someone who has taken too long to connect: say so, and offer the reason.
   const stuck = huddle.peers.filter((p) => !p.connected && p.trouble);
   const people: Person[] = [
@@ -236,6 +248,7 @@ export function HuddleBar({
       mutedForYou: volumes[p.userId]?.muted ?? false,
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
+      reconnecting: !p.connected && !!p.reconnecting,
       screenSound: !!p.screenSoundStream,
     })),
   ];
@@ -255,7 +268,7 @@ export function HuddleBar({
             .map((p) => users[p.userId]?.displayName ?? "someone")
             .join(", ")} · Trying again`
         : `With ${namesList(huddle.peers.map((p) => users[p.userId]?.displayName ?? "someone"))}${
-            connecting ? " · Connecting…" : ""
+            connecting
           }${sharing}${ringing ? ` · ${ringing}` : ""}`;
   const calling = view === "call";
   return (
@@ -266,6 +279,7 @@ export function HuddleBar({
       className="huddle-live mx-4 mb-2 flex flex-wrap items-center gap-3 rounded-xl border px-4 py-2.5"
     >
       <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
+      <CallAnnouncer peerIds={huddle.peers.map((p) => p.userId)} users={users} />
       <BigCallNotice huddle={huddle} />
       {!calling && (
         <>

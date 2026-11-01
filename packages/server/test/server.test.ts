@@ -612,6 +612,7 @@ describe("workspace server", () => {
       muted: true,
       starred: false,
       sectionId: null,
+      hiddenSeq: null,
     });
 
     // Alice's choice is hers alone.
@@ -620,6 +621,7 @@ describe("workspace server", () => {
       muted: false,
       starred: false,
       sectionId: null,
+      hiddenSeq: null,
     });
 
     await api(`/api/channels/${general.id}/prefs`, {
@@ -633,6 +635,7 @@ describe("workspace server", () => {
       muted: false,
       starred: false,
       sectionId: null,
+      hiddenSeq: null,
     });
   });
 

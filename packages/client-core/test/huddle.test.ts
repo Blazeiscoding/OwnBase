@@ -390,6 +390,18 @@ describe("HuddleSession", () => {
     session.destroy();
   });
 
+  it("says reconnecting, not connecting, for a connection that dropped after carrying media", () => {
+    const { session } = makeSession("A");
+    session.syncParticipants(["A", "B"]);
+    const pc = FakePeerConnection.instances[0]!;
+    expect(session.state().peers[0]).toMatchObject({ connected: false, reconnecting: false });
+    pc.become("connected");
+    expect(session.state().peers[0]).toMatchObject({ connected: true, reconnecting: false });
+    pc.become("disconnected");
+    expect(session.state().peers[0]).toMatchObject({ connected: false, reconnecting: true });
+    session.destroy();
+  });
+
   it("drops anyone who leaves the room", () => {
     const { session } = makeSession("A");
     session.syncParticipants(["A", "B"]);
@@ -457,6 +469,90 @@ describe("HuddleSession", () => {
     session.toggleMic();
     expect(sent.at(-1)!.signal).toMatchObject({ kind: "media", muted: false });
     session.destroy();
+  });
+
+  describe("talking while muted", () => {
+    let level = 0;
+    beforeEach(() => {
+      level = 0;
+      g.AudioContext = class {
+        resume = () => Promise.resolve();
+        close = () => Promise.resolve();
+        createAnalyser() {
+          return {
+            fftSize: 0,
+            getByteTimeDomainData: (into: Uint8Array) => into.fill(128 + level * 128),
+          };
+        }
+        createMediaStreamSource() {
+          return { connect() {} };
+        }
+      };
+    });
+    afterEach(() => {
+      delete g.AudioContext;
+    });
+
+    async function muted() {
+      const { session } = makeSession("A");
+      const copy = { kind: "audio", enabled: false, stop: vi.fn() };
+      const mic = { kind: "audio", enabled: true, stop: vi.fn(), clone: () => copy };
+      vi.spyOn(navigator.mediaDevices, "getUserMedia").mockResolvedValue(
+        new FakeMediaStream([mic]) as unknown as MediaStream,
+      );
+      await session.startLocalAudio(true);
+      return { session, mic, copy };
+    }
+
+    it("measures a copy of the microphone that muting leaves on, and stops it on leaving", async () => {
+      const { session, mic, copy } = await muted();
+      expect(mic.enabled).toBe(false);
+      expect(copy.enabled).toBe(true);
+      session.destroy();
+      expect(copy.stop).toHaveBeenCalled();
+    });
+
+    it("says so after a moment of talking, not for a cough, and clears on unmute", async () => {
+      vi.useFakeTimers();
+      try {
+        const { session } = await muted();
+        level = 0.5;
+        vi.advanceTimersByTime(250);
+        level = 0;
+        vi.advanceTimersByTime(2000);
+        expect(session.state().talkingWhileMuted).toBe(false);
+
+        level = 0.5;
+        vi.advanceTimersByTime(800);
+        expect(session.state().talkingWhileMuted).toBe(true);
+        // Never shown as talking to anyone: nothing is sent.
+        expect(session.state().speaking).toBe(false);
+
+        session.toggleMic();
+        expect(session.state().talkingWhileMuted).toBe(false);
+        session.destroy();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it("lets go a few seconds after the talking stops", async () => {
+      vi.useFakeTimers();
+      try {
+        const { session } = await muted();
+        level = 0.5;
+        vi.advanceTimersByTime(800);
+        expect(session.state().talkingWhileMuted).toBe(true);
+        level = 0;
+        vi.advanceTimersByTime(3000);
+        expect(session.state().talkingWhileMuted).toBe(true);
+        vi.advanceTimersByTime(1500);
+        expect(session.state().talkingWhileMuted).toBe(false);
+        session.destroy();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
   });
 
   it("starts with the microphone off when asked, and says so to each peer as it connects", async () => {

@@ -68,6 +68,8 @@ interface StageItem {
   connecting: boolean;
   /** Connecting has taken long enough to know something is wrong. */
   stuck?: boolean;
+  /** Was connected, dropped, and is being connected again. */
+  reconnecting?: boolean;
 }
 
 /** Shares first, since they are what people came to look at, then everyone, you first. */
@@ -95,6 +97,7 @@ function stageItems(
         sound: !!p.screenSoundStream,
         mutedForYou: !!p.screenSoundStream && (volumes[screenSoundKey(p.userId)]?.muted ?? false),
         connecting: !p.connected,
+        reconnecting: !p.connected && !!p.reconnecting,
       });
   if (huddle.localScreenStream)
     items.push({
@@ -136,6 +139,7 @@ function stageItems(
       mutedForYou: volumes[p.userId]?.muted ?? false,
       connecting: !p.connected,
       stuck: !p.connected && !!p.trouble,
+      reconnecting: !p.connected && !!p.reconnecting,
     });
   return items;
 }
@@ -145,13 +149,14 @@ function describe(item: StageItem): string {
   const parts = [item.name];
   if (item.kind === "screen") {
     if (item.sound) parts.push(item.mutedForYou ? "sound muted for you" : "with sound");
-    if (item.connecting) parts.push("connecting");
+    if (item.connecting) parts.push(item.reconnecting ? "reconnecting" : "connecting");
     return parts.join(", ");
   }
   if (!item.stream) parts.push("camera off");
   if (item.muted) parts.push("muted");
   if (item.mutedForYou) parts.push("muted for you");
-  if (item.connecting) parts.push(item.stuck ? "can't connect" : "connecting");
+  if (item.connecting)
+    parts.push(item.stuck ? "can't connect" : item.reconnecting ? "reconnecting" : "connecting");
   return parts.join(", ");
 }
 
@@ -338,7 +343,11 @@ function TileBody({
             className="size-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white"
             aria-hidden="true"
           />
-          {item.stuck ? "Can't connect · trying again" : "Connecting…"}
+          {item.stuck
+            ? "Can't connect · trying again"
+            : item.reconnecting
+              ? "Reconnecting…"
+              : "Connecting…"}
         </span>
       )}
       {/* Dark on any picture and in either theme, so its red is Onyx's, which reads on it.

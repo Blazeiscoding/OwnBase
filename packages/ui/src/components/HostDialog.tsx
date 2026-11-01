@@ -544,6 +544,9 @@ function AutoBackupSettings(props: {
   );
 }
 
+/** The port a workspace starts on unless another is chosen or that one is busy. */
+const DEFAULT_PORT = 8543;
+
 /** A port as typed, or null when it is not one a workspace could use. */
 function portValue(text: string): number | null {
   const trimmed = text.trim();
@@ -2075,22 +2078,26 @@ export function HostDialog(props: {
                             {/* Room for the name first: the buttons go to the next line before it narrows. */}
                             <div className="min-w-[12rem] flex-1">
                               <p className="truncate text-sm text-ink">{w.name}</p>
-                              <p className="text-xs text-ink-dim">
+                              <p className="text-xs text-ink-dim empty:hidden">
                                 {w.missing
                                   ? "Its folder is missing, so it cannot start"
-                                  : `${w.restored ? "Restored, not in use yet · " : ""}Port ${w.port}${w.startsOnLaunch ? " · Starts with OwnBase" : ""}${
-                                      w.autoBackup
-                                        ? `${w.autoBackup.everyDays === 1 ? " · Backs up daily" : " · Backs up weekly"}${
-                                            w.restored ? " once back in use" : ""
-                                          }`
-                                        : ""
-                                    }${
-                                      backupFn
-                                        ? w.lastBackupAt === null
-                                          ? " · Not backed up yet"
-                                          : ` · Backed up ${backedUpWhen(w.lastBackupAt)}`
-                                        : ""
-                                    }`}
+                                  : [
+                                      w.restored && "Restored, not in use yet",
+                                      // The usual port is no news; one chosen, or taken
+                                      // because that one was busy, tells two apart.
+                                      w.port !== DEFAULT_PORT && `Port ${w.port}`,
+                                      w.startsOnLaunch && "Starts with OwnBase",
+                                      w.autoBackup &&
+                                        `${w.autoBackup.everyDays === 1 ? "Backs up daily" : "Backs up weekly"}${
+                                          w.restored ? " once back in use" : ""
+                                        }`,
+                                      backupFn &&
+                                        (w.lastBackupAt === null
+                                          ? "Not backed up yet"
+                                          : `Backed up ${backedUpWhen(w.lastBackupAt)}`),
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ")}
                               </p>
                               {/* The running one says so under Automatic backups, with Try again. */}
                               {w.autoBackupError && !w.running && (
@@ -2296,14 +2303,14 @@ export function HostDialog(props: {
                       value={portText}
                       disabled={!!busy}
                       onChange={(e) => setPortText(e.target.value)}
-                      placeholder="8543"
+                      placeholder={String(DEFAULT_PORT)}
                       aria-describedby="host-port-hint"
                       className={`${inputCls} mt-1 max-w-32 font-mono`}
                     />
                   </label>
                   <p id="host-port-hint" className="mt-1 text-xs text-ink-faint">
-                    Leave it empty to use 8543, or a free port if another program has that one. A
-                    port you choose is kept, or the workspace does not start.
+                    Leave it empty to use {DEFAULT_PORT}, or a free port if another program has that
+                    one. A port you choose is kept, or the workspace does not start.
                   </p>
                 </details>
                 {sameName && (

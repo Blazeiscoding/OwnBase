@@ -2739,6 +2739,51 @@
       "concepts": ["offline"]
     },
     {
+      "path": "packages/ui/src/components/AddPeople.tsx",
+      "plain": "The box in a channel's Members tab that finds someone by name and adds them.",
+      "summary": "AddPeople: a combobox over the people not yet in the channel, ranked by matchTier.",
+      "details": [
+        "Up to six matches show; arrows choose, Enter adds, and the box clears and keeps focus for the next person. A notice names who was added; ChannelDetailsDialog reports a refusal by name."
+      ],
+      "concepts": ["channels", "keyboard"]
+    },
+    {
+      "path": "packages/ui/src/components/CallAnnouncer.tsx",
+      "plain": "Tells a screen reader who joins and leaves the huddle.",
+      "summary": "CallAnnouncer, a log region portalled to the body beside the notices.",
+      "details": [
+        "On the body with data-ownbase-call, so a dialog's inert layer does not silence it. Someone who drops and comes back within LEAVE_GRACE_MS (a reconnect) is not announced."
+      ],
+      "concepts": ["calls", "accessibility"]
+    },
+    {
+      "path": "packages/ui/src/lib/recentConversations.ts",
+      "plain": "Remembers which conversations were open lately on this device, for Ctrl+K.",
+      "summary": "useRecentConversations keeps up to 12 ids, newest first, in workspace storage.",
+      "details": [
+        "Scoped to the workspace and account like the last conversation; anything opened while the stored list is read goes in front of it."
+      ],
+      "concepts": ["keyboard", "storage"]
+    },
+    {
+      "path": "packages/ui/src/lib/switcherRank.ts",
+      "plain": "Decides the order Ctrl+K lists matches in.",
+      "summary": "matchTier (whole name, start, word start, anywhere) and rankPlaces.",
+      "details": [
+        "Ties go to what was open recently, then conversations this account is in, then unread ones, then the latest message. AddPeople ranks people with the same matchTier."
+      ],
+      "concepts": ["keyboard", "search"]
+    },
+    {
+      "path": "packages/ui/src/lib/useLongPress.ts",
+      "plain": "Turns holding a finger on something into its right-click menu, on iOS too.",
+      "summary": "useLongPress: 450 ms hold, 10 px drift allowed, swallows the click that ends it.",
+      "details": [
+        "Only where nothing hovers. Sidebar rows use it to open their menu; iOS Safari never sends a contextmenu event for a hold."
+      ],
+      "concepts": ["touch", "sidebar"]
+    },
+    {
       "path": "packages/ui/src/lib/readAll.ts",
       "plain": "Marks every conversation and followed thread read, for Shift+Esc and Activity's Mark all read.",
       "summary": "unreadEverywhere, markEverythingRead and unreadSummary.",

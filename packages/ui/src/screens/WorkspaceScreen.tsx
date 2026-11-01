@@ -70,6 +70,7 @@ import { hasOpenModal } from "../components/Modal.js";
 import { loadTooltipBubble } from "../components/Tooltip.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useLastConversation } from "../lib/lastConversation.js";
+import { useRecentConversations } from "../lib/recentConversations.js";
 import { useRememberWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
 import {
@@ -657,11 +658,24 @@ function WorkspaceInner({
     }
   }, [channels, activeChannelId, status, lastConversation.remembered]);
 
-  const { remember } = lastConversation;
+  // A closed conversation opened again, from Ctrl+K or a link, is back in the
+  // sidebar. Only on arriving: closing the open one leaves it closed.
   useEffect(() => {
-    if (activeChannelId && status === "online" && channels[activeChannelId])
+    if (!activeChannelId) return;
+    const hidden = clientFromCtx.state.prefs[activeChannelId]?.hiddenSeq;
+    if (hidden !== null && hidden !== undefined)
+      clientFromCtx.setChannelPrefs(activeChannelId, { hiddenSeq: null });
+  }, [activeChannelId, clientFromCtx]);
+
+  const { remember } = lastConversation;
+  const recentConversations = useRecentConversations();
+  const rememberRecent = recentConversations.remember;
+  useEffect(() => {
+    if (activeChannelId && status === "online" && channels[activeChannelId]) {
       remember(activeChannelId);
-  }, [activeChannelId, channels, status, remember]);
+      rememberRecent(activeChannelId);
+    }
+  }, [activeChannelId, channels, status, remember, rememberRecent]);
 
   // The address follows the conversation and the thread or panel beside it,
   // so Back, Forward and a reload return to them, and Back closes a panel.
@@ -1839,6 +1853,7 @@ function WorkspaceInner({
         <SwitcherDialog
           onClose={closeDialog}
           onOpen={openChannel}
+          recent={recentConversations.recent}
           commands={paletteCommands}
           onSearch={(query) => setDialog({ kind: "search", query })}
         />

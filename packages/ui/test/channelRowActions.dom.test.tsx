@@ -1,10 +1,11 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
+import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
@@ -72,33 +73,35 @@ function sidebar(self: User) {
   const onInvite = vi.fn();
   const onChannelDetails = vi.fn();
   render(
-    <ClientContext.Provider value={client}>
-      <Sidebar
-        activeChannelId={general.id}
-        onSelect={vi.fn()}
-        onBrowseChannels={vi.fn()}
-        onNewChannel={vi.fn()}
-        onNewDm={vi.fn()}
-        onFriends={vi.fn()}
-        onSearch={vi.fn()}
-        onSaved={vi.fn()}
-        onActivity={vi.fn()}
-        onThreads={vi.fn()}
-        onEditProfile={vi.fn()}
-        onInvite={onInvite}
-        onChannelDetails={onChannelDetails}
-        onSwitchWorkspace={vi.fn()}
-        onAccountSettings={vi.fn()}
-        connectionLabel={null}
-      />
-    </ClientContext.Provider>,
+    <ToastProvider>
+      <ClientContext.Provider value={client}>
+        <Sidebar
+          activeChannelId={general.id}
+          onSelect={vi.fn()}
+          onBrowseChannels={vi.fn()}
+          onNewChannel={vi.fn()}
+          onNewDm={vi.fn()}
+          onFriends={vi.fn()}
+          onSearch={vi.fn()}
+          onSaved={vi.fn()}
+          onActivity={vi.fn()}
+          onThreads={vi.fn()}
+          onEditProfile={vi.fn()}
+          onInvite={onInvite}
+          onChannelDetails={onChannelDetails}
+          onSwitchWorkspace={vi.fn()}
+          onAccountSettings={vi.fn()}
+          connectionLabel={null}
+        />
+      </ClientContext.Provider>
+    </ToastProvider>,
   );
   /** The buttons in the row of the channel or conversation named. */
   const row = (name: RegExp) =>
     within(screen.getByRole("button", { name }).closest("li")!)
       .getAllByRole("button")
       .map((button) => button.getAttribute("aria-label") ?? button.textContent);
-  return { onInvite, onChannelDetails, row, user: userEvent.setup() };
+  return { client, onInvite, onChannelDetails, row, user: userEvent.setup() };
 }
 
 describe("a channel's row in the sidebar", () => {
@@ -175,6 +178,103 @@ describe("the stylesheet", () => {
     expect(css).toMatch(
       /@media \(hover: none\) \{\s*\.channel-item\[data-active\] \.channel-actions \{\s*display: flex;/,
     );
+  });
+});
+
+describe("closing a direct conversation", () => {
+  const prefs = (hiddenSeq: number | null) => ({
+    notifyLevel: "all" as const,
+    muted: false,
+    starred: false,
+    sectionId: null,
+    hiddenSeq,
+  });
+  const dmRow = () => screen.queryByRole("button", { name: /^Maya$/ });
+
+  it("takes it out of the sidebar until someone writes, with Undo", async () => {
+    const { client, user } = sidebar(person("member"));
+    const save = vi.spyOn(client, "setChannelPrefs");
+    // The workspace takes each change as sent.
+    vi.spyOn(client.api, "setChannelPrefs").mockImplementation(async (id, patch) => ({
+      prefs: { ...client.state.prefs[id]!, ...patch } as never,
+    }));
+    act(() => client.store.setState({ prefs: { C_DM: prefs(null) }, channelLastSeq: { C_DM: 9 } }));
+    await user.click(screen.getByRole("button", { name: "More options for Maya" }));
+    await user.click(screen.getByRole("menuitem", { name: "Close conversation" }));
+    expect(save).toHaveBeenCalledWith("C_DM", { hiddenSeq: 9 });
+    expect(dmRow()).toBeNull();
+    expect(
+      await screen.findByText(
+        "Closed your conversation with Maya. It comes back when someone writes.",
+      ),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Undo" }));
+    expect(save).toHaveBeenLastCalledWith("C_DM", { hiddenSeq: null });
+    expect(dmRow()).not.toBeNull();
+  });
+
+  it("brings it back when a newer message arrives", () => {
+    const { client } = sidebar(person("member"));
+    act(() => client.store.setState({ prefs: { C_DM: prefs(9) }, channelLastSeq: { C_DM: 9 } }));
+    expect(dmRow()).toBeNull();
+    act(() => client.store.setState({ channelLastSeq: { C_DM: 10 } }));
+    expect(dmRow()).not.toBeNull();
+  });
+
+  it("is not offered by a server that keeps no such thing", async () => {
+    const { client, user } = sidebar(person("member"));
+    act(() =>
+      client.store.setState({
+        prefs: { C_DM: { notifyLevel: "all", muted: false } },
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "More options for Maya" }));
+    expect(screen.queryByRole("menuitem", { name: "Close conversation" })).toBeNull();
+  });
+});
+
+describe("holding a row on a touchscreen", () => {
+  const touchscreen = () =>
+    vi.stubGlobal("matchMedia", (query: string) => ({
+      matches: query.includes("hover: none"),
+      addEventListener: () => {},
+      removeEventListener: () => {},
+    }));
+
+  it("opens its menu, as iOS gives no right-click, and does not open the channel too", () => {
+    vi.useFakeTimers();
+    try {
+      touchscreen();
+      sidebar(person("member"));
+      const row = screen.getByRole("button", { name: /^#\s*general$/ });
+      // A drag would start from the hold on iOS, and take it.
+      expect(row).not.toHaveAttribute("draggable");
+      fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(500));
+      fireEvent.touchEnd(row);
+      expect(screen.getByRole("menu", { name: "Options for general" })).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("leaves a scroll or a tap alone", () => {
+    vi.useFakeTimers();
+    try {
+      touchscreen();
+      sidebar(person("member"));
+      const row = screen.getByRole("button", { name: /^#\s*general$/ });
+      fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
+      fireEvent.touchMove(row, { touches: [{ clientX: 10, clientY: 40 }] });
+      act(() => vi.advanceTimersByTime(500));
+      fireEvent.touchStart(row, { touches: [{ clientX: 10, clientY: 10 }] });
+      act(() => vi.advanceTimersByTime(200));
+      fireEvent.touchEnd(row);
+      act(() => vi.advanceTimersByTime(500));
+      expect(screen.queryByRole("menu")).toBeNull();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -175,6 +175,7 @@ type PrefsRow = {
   muted: number;
   starred: number;
   section_id: string | null;
+  hidden_seq: number | null;
 };
 
 function toPrefs(r: PrefsRow): ChannelPrefs {
@@ -183,6 +184,7 @@ function toPrefs(r: PrefsRow): ChannelPrefs {
     muted: r.muted === 1,
     starred: r.starred === 1,
     sectionId: r.section_id,
+    hiddenSeq: r.hidden_seq,
   };
 }
 
@@ -1119,7 +1121,7 @@ export class Store {
     const rows = this.db
       .prepare(
         `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, muted, starred,
-                section_id
+                section_id, hidden_seq
          FROM channel_members WHERE user_id = ?`,
       )
       .all(userId) as ({
@@ -1138,7 +1140,7 @@ export class Store {
   getChannelPrefs(channelId: ID, userId: ID): ChannelPrefs | null {
     const r = this.db
       .prepare(
-        `SELECT notify_level, muted, starred, section_id FROM channel_members
+        `SELECT notify_level, muted, starred, section_id, hidden_seq FROM channel_members
          WHERE channel_id = ? AND user_id = ?`,
       )
       .get(channelId, userId) as PrefsRow | undefined;
@@ -1153,6 +1155,7 @@ export class Store {
       muted?: boolean;
       starred?: boolean;
       sectionId?: ID | null;
+      hiddenSeq?: number | null;
     },
   ): ChannelPrefs | null {
     const sets: string[] = [];
@@ -1176,6 +1179,10 @@ export class Store {
     if (sectionId !== undefined) {
       sets.push("section_id = ?");
       params.push(sectionId);
+    }
+    if (patch.hiddenSeq !== undefined) {
+      sets.push("hidden_seq = ?");
+      params.push(patch.hiddenSeq);
     }
     if (sets.length > 0) {
       this.db

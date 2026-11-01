@@ -7,6 +7,7 @@ import { isImeKey } from "../lib/textInput.js";
 import { Icon, type IconName } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { useListbox } from "../lib/useListbox.js";
+import { matchTier, rankPlaces, type PlaceStanding } from "../lib/switcherRank.js";
 
 /** Something to do from the palette rather than somewhere to go. */
 export interface PaletteCommand {
@@ -20,10 +21,17 @@ export interface PaletteCommand {
   run: () => void;
 }
 
-type PlaceRow =
+type PlaceRow = (
   | { kind: "public" | "private" | "conversation"; id: ID; label: string }
   /** `channelId` is set when a direct conversation with this person already exists. */
-  | { kind: "person"; id: ID; label: string; channelId?: ID };
+  | { kind: "person"; id: ID; label: string; channelId?: ID }
+) & {
+  /** Opened lately, listed under Recent while nothing is typed. */
+  recent?: boolean;
+};
+
+/** A place while it is ranked: how well it matched, and what else counts. */
+type Ranked = PlaceRow & { tier: number; standing: PlaceStanding };
 
 type SwitcherRow =
   | PlaceRow
@@ -72,6 +80,14 @@ function Matched({ label, query }: { label: string; query: string }) {
   );
 }
 
+/** The heading a row is listed under. */
+function sectionOf(row: SwitcherRow, query: string): string {
+  if (row.kind === "command") return "Actions";
+  if (row.kind === "search") return "Messages";
+  if (query) return "Matches";
+  return "recent" in row && row.recent ? "Recent" : "Channels and people";
+}
+
 /**
  * Ctrl+K — jump to any channel, DM, or person; and, where the workspace
  * passes them, run a command or search messages for what was typed.
@@ -79,6 +95,8 @@ function Matched({ label, query }: { label: string; query: string }) {
 export function QuickSwitcher(props: {
   onClose: () => void;
   onOpen: (channelId: ID) => void;
+  /** Conversations open lately on this device, newest first. */
+  recent?: readonly ID[];
   commands?: PaletteCommand[];
   onSearch?: (query: string) => void;
 }) {
@@ -86,6 +104,8 @@ export function QuickSwitcher(props: {
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
+  const memberships = useWorkspace((s) => s.memberships);
+  const lastSeq = useWorkspace((s) => s.channelLastSeq);
   const [q, setQ] = useState("");
   /** A person whose new direct conversation is being started, or failed to start. */
   const [opening, setOpening] = useState<SwitcherRow | null>(null);
@@ -102,15 +122,32 @@ export function QuickSwitcher(props: {
     // "#des" and "@al" are how people write names here; the sign is not part of one.
     const query = needle(q);
     const matches = (text: string) => text.toLowerCase().includes(query);
-    const rows: SwitcherRow[] = [];
+    const standing = (channelId: ID | undefined): PlaceStanding => {
+      const read = channelId === undefined ? undefined : memberships[channelId];
+      const activity = (channelId && lastSeq[channelId]) || 0;
+      return {
+        channelId,
+        member: read !== undefined,
+        unread: read !== undefined && activity > read,
+        activity,
+      };
+    };
+    const ranked: Ranked[] = [];
     // A conversation with one other person is that person, and is listed once,
     // as them. It opens directly rather than asking the server for it again.
     const directWith = new Map<ID, ID>();
     for (const c of Object.values(channels)) {
       if (c.archived) continue;
       if (c.type === "public" || c.type === "private") {
-        if (matches(c.name))
-          rows.push({ kind: c.type === "private" ? "private" : "public", id: c.id, label: c.name });
+        const tier = matchTier(c.name, query);
+        if (tier >= 0)
+          ranked.push({
+            kind: c.type === "private" ? "private" : "public",
+            id: c.id,
+            label: c.name,
+            tier,
+            standing: standing(c.id),
+          });
         continue;
       }
       const others = (c.memberIds ?? []).filter((id) => id !== selfId);
@@ -120,30 +157,63 @@ export function QuickSwitcher(props: {
         continue;
       }
       const label = channelTitle(c, users, selfId);
-      if (matches(label)) rows.push({ kind: "conversation", id: c.id, label });
+      const tier = matchTier(label, query);
+      if (tier >= 0)
+        ranked.push({ kind: "conversation", id: c.id, label, tier, standing: standing(c.id) });
     }
     for (const u of Object.values(users)) {
       if (u.id === selfId || u.deactivated) continue;
-      if (!u.handle.includes(query) && !matches(u.displayName)) continue;
-      rows.push({
+      const tiers = [matchTier(u.displayName, query), matchTier(u.handle, query)].filter(
+        (tier) => tier >= 0,
+      );
+      if (tiers.length === 0) continue;
+      const channelId = directWith.get(u.id);
+      ranked.push({
         kind: "person",
         id: u.id,
         label: u.displayName,
-        channelId: directWith.get(u.id),
+        channelId,
+        tier: Math.min(...tiers),
+        standing: standing(channelId),
       });
     }
+    const recent = new Set(props.recent ?? []);
+    const rows: PlaceRow[] = rankPlaces(ranked, props.recent ?? []).map(
+      ({ tier: _tier, standing: place, ...row }) =>
+        !query && place.channelId !== undefined && recent.has(place.channelId)
+          ? { ...row, recent: true }
+          : row,
+    );
     const commands = props.commands ?? [];
     if (commands.length === 0 && !props.onSearch) return rows.slice(0, 12);
     // Places first, as before; then what can be done; then searching messages.
     const places: SwitcherRow[] = rows.slice(0, query ? 8 : 6);
+    // By the same measure as places, a match in an action's other words last.
+    const commandTier = (c: PaletteCommand) => {
+      const tier = matchTier(c.label, query);
+      return tier >= 0 ? tier : matches(c.keywords ?? "") ? 4 : -1;
+    };
     const actions: SwitcherRow[] = commands
-      .filter((c) => !query || matches(`${c.label} ${c.keywords ?? ""}`))
+      .map((c) => ({ c, tier: commandTier(c) }))
+      .filter(({ tier }) => tier >= 0)
+      .sort((a, b) => a.tier - b.tier)
+      .map(({ c }) => c)
       .slice(0, query ? 5 : 8)
       .map((c) => ({ kind: "command", id: c.id, label: c.label, command: c }));
     const search: SwitcherRow[] =
       props.onSearch && q.trim() ? [{ kind: "search", id: "search", label: q.trim() }] : [];
     return [...places, ...actions, ...search];
-  }, [q, channels, users, selfId, props.commands, props.onSearch]);
+  }, [
+    q,
+    channels,
+    users,
+    selfId,
+    memberships,
+    lastSeq,
+    props.recent,
+    props.commands,
+    props.onSearch,
+  ]);
   const list = useListbox(results.length);
 
   async function open(r: SwitcherRow) {
@@ -240,24 +310,9 @@ export function QuickSwitcher(props: {
         {/* Options, not buttons: the box keeps focus, and the arrow keys move the choice. */}
         <ul {...list.listProps} aria-label="Matches">
           {results.map((r, i) => {
-            const section =
-              r.kind === "command"
-                ? "Actions"
-                : r.kind === "search"
-                  ? "Messages"
-                  : query
-                    ? "Matches"
-                    : "Channels and people";
+            const section = sectionOf(r, query);
             const previous = results[i - 1];
-            const previousSection =
-              previous &&
-              (previous.kind === "command"
-                ? "Actions"
-                : previous.kind === "search"
-                  ? "Messages"
-                  : query
-                    ? "Matches"
-                    : "Channels and people");
+            const previousSection = previous && sectionOf(previous, query);
             return (
               <Fragment key={`${r.kind}:${r.id}`}>
                 {section !== previousSection && (

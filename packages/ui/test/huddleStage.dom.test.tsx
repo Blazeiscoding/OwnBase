@@ -461,6 +461,22 @@ describe("the huddle bar", () => {
     expect(document.querySelector("audio")).toBe(sound);
   });
 
+  it("says reconnecting for someone whose connection dropped, connecting for someone arriving", () => {
+    bar({ peers: [peer("U_PRIYA", { connected: false, reconnecting: true })] });
+    expect(screen.getByRole("status")).toHaveTextContent("With Priya Shah · Reconnecting…");
+    cleanup();
+    bar({ peers: [peer("U_PRIYA", { connected: false })] });
+    expect(screen.getByRole("status")).toHaveTextContent("With Priya Shah · Connecting…");
+  });
+
+  it("puts Reconnecting on the tile of someone whose connection dropped", () => {
+    stage({ peers: [peer("U_PRIYA", { connected: false, reconnecting: true })] });
+    expect(within(region()).getByText("Reconnecting…")).toBeVisible();
+    expect(
+      within(region()).getByRole("group", { name: "Priya Shah, camera off, reconnecting" }),
+    ).toBeInTheDocument();
+  });
+
   it("says who is sharing, in the status a screen reader announces", () => {
     bar({ peers: [peer("U_PRIYA", { screenStream: stream() })] });
     expect(screen.getByRole("status")).toHaveTextContent(

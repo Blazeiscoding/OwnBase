@@ -5962,9 +5962,12 @@ async function startWorkspaceServer(
 
   app.patch<{ Params: { id: string } }>("/api/channels/:id/prefs", async (req) => {
     const me = requireUser(req);
-    requireChannelAccess(req.params.id, me);
+    const channel = requireChannelAccess(req.params.id, me);
     if (!store.isMember(req.params.id, me.id)) throw new HttpError(400, "not_a_member");
     const body = channelPrefsBody.parse(req.body ?? {});
+    // A channel is left rather than closed; only a direct conversation hides.
+    if (typeof body.hiddenSeq === "number" && channel.type !== "dm" && channel.type !== "group_dm")
+      throw new HttpError(400, "not_direct", "Only a direct conversation can be closed.");
     if (body.sectionId && !store.ownsSidebarSection(me.id, body.sectionId))
       throw new HttpError(404, "section_not_found", "That section is not in your sidebar.");
     const prefs = store.setChannelPrefs(req.params.id, me.id, body);

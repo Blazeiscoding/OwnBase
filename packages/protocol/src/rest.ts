@@ -111,6 +111,8 @@ export const channelPrefsBody = z.object({
   starred: z.boolean().optional(),
   /** The sidebar section to keep it in, or null for none (E8). */
   sectionId: z.string().min(1).max(64).nullable().optional(),
+  /** Closes a direct conversation until something newer than this seq; null shows it (v52). */
+  hiddenSeq: z.number().int().min(0).nullable().optional(),
 });
 
 /** A sidebar section's name: no control characters, 1 to 80 characters once trimmed (E8). */
