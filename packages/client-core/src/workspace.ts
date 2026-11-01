@@ -172,7 +172,7 @@ function isRefusal(error: unknown): boolean {
 /** Turns a send failure into something the author can act on. */
 function sendFailureReason(error: unknown): string {
   if (!(error instanceof ApiError)) {
-    return "Could not reach the workspace. It will be sent when you try again.";
+    return "Could not reach the workspace. It is sent again once you're back online.";
   }
   switch (error.code) {
     case "channel_archived":
@@ -965,7 +965,31 @@ export class WorkspaceClient {
     this.openSocket(this.state.lastSeq > 0 ? this.state.lastSeq : null);
     this.typingSweep ??= setInterval(() => this.sweepTyping(), 2000);
     this.readRetryTimer ??= setInterval(() => this.flushReads(), 5000);
+    if (typeof window !== "undefined" && !this.listeningOnline) {
+      window.addEventListener("online", this.onNetworkBack);
+      this.listeningOnline = true;
+    }
   }
+
+  private listeningOnline = false;
+  /**
+   * The device's network is back. A socket that never noticed it was gone
+   * sends what was lost on the way now; one waiting out its backoff, up to
+   * half a minute, tries at once.
+   */
+  private onNetworkBack = (): void => {
+    if (this.stopped) return;
+    if (this.state.status === "online") {
+      this.retryLostSends();
+      return;
+    }
+    if (this.reconnectTimer && !this.ws) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+      this.reconnectDelay = 1000;
+      this.openSocket(this.state.lastSeq > 0 ? this.state.lastSeq : null);
+    }
+  };
 
   destroy(): void {
     this.stopped = true;
@@ -985,6 +1009,8 @@ export class WorkspaceClient {
     // Release the microphone before the socket goes, so no call is left open.
     this.leaveHuddle();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.listeningOnline) window.removeEventListener("online", this.onNetworkBack);
+    this.listeningOnline = false;
     if (this.typingSweep) clearInterval(this.typingSweep);
     this.typingSweep = null;
     this.ws?.close();
@@ -1067,10 +1093,12 @@ export class WorkspaceClient {
       case "ready":
         this.applyReady(msg);
         this.afterReady(msg);
+        if (this.state.status === "online") this.retryLostSends();
         break;
       case "synced":
         this.store.setState((s) => ({ lastSeq: Math.max(s.lastSeq, msg.seq), status: "online" }));
         this.flushReads();
+        this.retryLostSends();
         break;
       case "event":
         this.applyEvent(msg.envelope);
@@ -2743,6 +2771,20 @@ export class WorkspaceClient {
           : p,
       ),
     }));
+  }
+
+  /**
+   * Sends that were lost on the way go again once the workspace answers, as
+   * their notice promised. One the server refused waits for its author, and
+   * one whose files this window no longer holds would go without them.
+   */
+  private retryLostSends(): void {
+    for (const p of this.state.pending) {
+      if (!p.failed || p.refused) continue;
+      const files = this.retryFiles.get(p.nonce) ?? [];
+      if (p.attachments.length > 0 && files.length !== p.attachments.length) continue;
+      this.retrySend(p.nonce);
+    }
   }
 
   retrySend(nonce: string): void {

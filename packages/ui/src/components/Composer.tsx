@@ -19,6 +19,8 @@ import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
 import { lastEditable, requestEdit } from "../lib/editRequest.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
+import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
+import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { whenKeptLocally } from "../lib/localWork.js";
@@ -108,6 +110,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   /** A word typed after a colon, such as ":rock", offering emoji to finish it. */
   const [emojiQuery, setEmojiQuery] = useState<{ start: number; query: string } | null>(null);
   const [attached, setAttached] = useState<File[]>([]);
+  const maxFileBytes = useMaxFileBytes(client);
   const [dragging, setDragging] = useState(false);
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const scheduleButton = useRef<HTMLButtonElement>(null);
@@ -281,6 +284,19 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       if (incoming.length > 0)
         setAttachmentNote("Guests cannot attach files. Create an account to share them.");
       return;
+    }
+    // One over the workspace's limit would only fail once uploaded.
+    const { ok, over } = withinLimit(incoming, maxFileBytes);
+    if (over.length > 0 && maxFileBytes !== null) {
+      const names = over.map((f) => f.name).join(", ");
+      note = [
+        note,
+        `${names} ${over.length === 1 ? "is" : "are"} over this workspace's ${formatBytes(maxFileBytes)} limit per file and ${over.length === 1 ? "was" : "were"} not attached.`,
+      ]
+        .filter(Boolean)
+        .join(" ");
+      incoming.splice(0, incoming.length, ...ok);
+      if (incoming.length === 0) setAttachmentNote(note);
     }
     if (incoming.length > 0) {
       const notes = [
@@ -906,6 +922,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           </div>
         </div>
       )}
+      <ConnectionNotice />
       {archived && (
         <p role="status" className="mb-3 rounded-lg border border-edge p-3 text-sm text-ink-dim">
           This channel is archived. New posts and replies are paused; your draft is kept. A channel
@@ -1398,6 +1415,42 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
  * A file waiting to be sent: a picture shows itself, so the right one is
  * attached before it goes, and anything else shows its kind.
  */
+/** How long the connection may be down before the message box says so: a blip says nothing. */
+export const CONNECTION_NOTICE_MS = 3000;
+
+/**
+ * Says above the message box that the workspace cannot be reached, where
+ * someone writing looks, rather than only in the sidebar, which a phone keeps
+ * in its drawer. What is sent meanwhile waits and goes once it is back.
+ */
+function ConnectionNotice() {
+  const down = useConnectionDown();
+  const [shown, setShown] = useState(false);
+  useEffect(() => {
+    if (!down) {
+      setShown(false);
+      return;
+    }
+    const timer = setTimeout(() => setShown(true), CONNECTION_NOTICE_MS);
+    return () => clearTimeout(timer);
+  }, [down]);
+  if (!down || !shown) return null;
+  return (
+    <p
+      role="status"
+      className="mb-2 flex items-center gap-2 rounded-lg bg-copper/10 px-3 py-2 text-[13px] text-ink-dim"
+    >
+      <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
+      <span>
+        <span className="font-medium text-ink">
+          {down === "offline" ? "You're offline." : "Reconnecting to the workspace…"}
+        </span>{" "}
+        What you send now goes once you're back.
+      </span>
+    </p>
+  );
+}
+
 function StagedFile({ file, onRemove }: { file: File; onRemove: () => void }) {
   const [url, setUrl] = useState<string | null>(null);
   useEffect(() => {

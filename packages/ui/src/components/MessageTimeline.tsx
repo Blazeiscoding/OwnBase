@@ -14,6 +14,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { Swap } from "./Motion.js";
+import { PendingStatus } from "./PendingStatus.js";
 import { useRovingMessages } from "../lib/useRovingMessages.js";
 import {
   rememberReadingPosition,
@@ -885,7 +886,6 @@ function ChannelIntro({
 }
 
 function PendingRow({ pending }: { pending: PendingMessage }) {
-  const client = useClient();
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
@@ -914,20 +914,7 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
               selfId={selfId}
             />
           )}
-          {pending.failed ? (
-            <span className="ml-2 text-[12px] text-alert">
-              {pending.failureReason ?? "Not sent."}{" "}
-              <button className="underline" onClick={() => client.retrySend(pending.nonce)}>
-                Retry
-              </button>{" "}
-              ·{" "}
-              <button className="underline" onClick={() => client.discardSend(pending.nonce)}>
-                Discard
-              </button>
-            </span>
-          ) : (
-            <span className="ml-2 text-[12px] text-ink-faint">Sending…</span>
-          )}
+          <PendingStatus pending={pending} />
         </div>
       </div>
     </div>

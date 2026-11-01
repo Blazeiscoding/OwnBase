@@ -1,6 +1,6 @@
 import { fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";
@@ -391,5 +391,23 @@ describe("Up in an empty box", () => {
     await user.type(box, "hello");
     await user.keyboard("{ArrowUp}");
     expect(asked).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("a file over the workspace's limit", () => {
+  it("is turned away as it is attached, saying why, while the others stay", async () => {
+    const user = userEvent.setup();
+    const storageUsage = vi
+      .spyOn(Api.prototype, "storageUsage")
+      .mockResolvedValue({ usedBytes: 0, limitBytes: null, availableBytes: null, maxFileBytes: 4 });
+    const { filePicker } = await renderComposer();
+    await waitFor(() => expect(storageUsage).toHaveBeenCalled());
+    await user.upload(filePicker, [new File(["123456"], "big.bin"), new File(["12"], "small.txt")]);
+    expect(
+      await screen.findByText(/big\.bin is over this workspace's 4 B limit per file/),
+    ).toBeVisible();
+    expect(screen.getByText("small.txt")).toBeVisible();
+    expect(screen.queryByText("big.bin")).toBeNull();
+    storageUsage.mockRestore();
   });
 });
