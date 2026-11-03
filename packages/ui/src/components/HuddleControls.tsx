@@ -1,10 +1,16 @@
 import { useEffect, useState } from "react";
 import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
-import { canChooseSpeaker, captureFailure, type MediaDeviceOption } from "@ownbase/client-core";
+import {
+  canChooseSpeaker,
+  captureFailure,
+  type MediaDeviceOption,
+  type ScreenShareQuality,
+} from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices } from "../lib/mediaDevices.js";
+import { FRAME_RATES, RESOLUTIONS, useScreenShareQuality } from "../lib/screenShareQuality.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Swap } from "./Motion.js";
@@ -118,6 +124,7 @@ export function HuddleControls({
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const choosingScreen = useStore(picker, (s) => s.open);
+  const [savedQuality, keepQuality] = useScreenShareQuality();
   // The picker goes with the huddle, and does not open again with the next
   // one. Moving between the bar and the call keeps it open.
   useEffect(
@@ -167,7 +174,9 @@ export function HuddleControls({
   const shareScreen = () => {
     // A browser shows its own picker, and stopping needs none.
     if (huddle.sharingScreen || !platform.screenShare) {
-      void guarded("screen", () => client.toggleScreenShare());
+      void guarded("screen", () =>
+        huddle.sharingScreen ? client.toggleScreenShare() : client.toggleScreenShare(savedQuality),
+      );
       return;
     }
     setFailure(null);
@@ -240,6 +249,50 @@ export function HuddleControls({
     />
   );
 
+  // Discord's stream quality: sharper or smoother while the share goes, kept
+  // for the next share on this device too.
+  const shown = huddle.screenQuality ?? savedQuality;
+  const changeQuality = (patch: Partial<ScreenShareQuality>) => {
+    const next = { ...shown, ...patch };
+    void guarded("screen", async () => {
+      if (await client.setScreenShareQuality(next)) keepQuality(next);
+      else if (client.store.getState().huddle?.sharingScreen)
+        setFailure("The share's quality was not changed. It goes on as it was.");
+    });
+  };
+  const shareMenu = !overlay && huddle.sharingScreen && (
+    <DeviceMenu
+      label="Screen share options"
+      disabled={busy !== null}
+      inCall={inCall}
+      items={[
+        ...RESOLUTIONS.map((height, i) => ({
+          id: `share-${height}`,
+          label: `${height}p`,
+          hint: height === 1080 ? "Sharper" : "Lighter",
+          ...(i === 0 ? { section: "Resolution" } : {}),
+          checked: shown.height === height,
+          onSelect: () => changeQuality({ height }),
+        })),
+        ...FRAME_RATES.map((frameRate, i) => ({
+          id: `share-${frameRate}fps`,
+          label: `${frameRate} fps`,
+          hint: frameRate === 15 ? "Text" : frameRate === 60 ? "Video, games" : undefined,
+          ...(i === 0 ? { section: "Frame rate" } : {}),
+          checked: shown.frameRate === frameRate,
+          onSelect: () => changeQuality({ frameRate }),
+        })),
+        {
+          id: "share-stop",
+          label: "Stop sharing",
+          icon: "screen",
+          section: true,
+          onSelect: () => void guarded("screen", () => client.toggleScreenShare()),
+        },
+      ]}
+    />
+  );
+
   return (
     <>
       <div
@@ -294,6 +347,7 @@ export function HuddleControls({
             </button>
           </Tooltip>
         )}
+        {shareMenu}
         {/* Leave keeps its word: an arrow out of a door reads as signing out just as easily. */}
         <button
           onClick={() => client.leaveHuddle()}

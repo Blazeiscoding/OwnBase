@@ -184,6 +184,8 @@ describe("the huddle bar", () => {
       "Camera",
       "Camera options",
       "Share screen",
+      // While sharing, its resolution and frame rate, as Discord's stream quality.
+      "Screen share options",
       "Leave",
     ]);
   });

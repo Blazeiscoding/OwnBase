@@ -451,7 +451,11 @@ describe("in a browser", () => {
     const user = userEvent.setup();
     const { share } = picker({ desktop: false });
     await user.click(screen.getByRole("button", { name: "Share screen" }));
-    expect(share).toHaveBeenCalledWith();
+    // At the quality kept on this device, or the default where none is.
+    expect(share).toHaveBeenCalledWith({
+      height: expect.any(Number),
+      frameRate: expect.any(Number),
+    });
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 });

@@ -1,11 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
 import { HuddleControls } from "../src/components/HuddleControls.js";
+import { QUALITY_KEY } from "../src/lib/screenShareQuality.js";
 
 /** Where call preferences are kept, as in the app. */
 const platform = webPlatform();
@@ -146,5 +147,77 @@ describe("talking with the microphone off", () => {
   it("says nothing while not talking", () => {
     controls();
     expect(screen.queryByText(/nobody hears you/)).toBeNull();
+  });
+});
+
+describe("the share's quality while sharing, as Discord's stream quality", () => {
+  function sharing(sharingScreen = true) {
+    const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
+    client.store.setState({
+      self: sam,
+      users: { U_SAM: sam },
+      status: "online",
+      huddle: {
+        channelId: "C_GENERAL",
+        micMuted: false,
+        cameraOn: false,
+        sharingScreen,
+        ...(sharingScreen ? { screenQuality: { height: 1080, frameRate: 15 } as const } : {}),
+        localCameraStream: null,
+        localScreenStream: null,
+        speaking: false,
+        micLost: false,
+        peers: [],
+      },
+    });
+    const setQuality = vi.spyOn(client, "setScreenShareQuality").mockResolvedValue(true);
+    const share = vi.spyOn(client, "toggleScreenShare").mockResolvedValue();
+    render(
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <HuddleControls />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
+    );
+    return { setQuality, share, user: userEvent.setup() };
+  }
+
+  it("changes the resolution and frame rate without stopping, and keeps them for next time", async () => {
+    await platform.storage.set(QUALITY_KEY, null);
+    const { setQuality, share, user } = sharing();
+    const options = () => screen.getByRole("button", { name: "Screen share options" });
+    await user.click(options());
+    expect(screen.getByRole("menuitemradio", { name: /^1080p/ })).toBeChecked();
+    expect(screen.getByRole("menuitemradio", { name: /^15 fps/ })).toBeChecked();
+    await user.click(screen.getByRole("menuitemradio", { name: /^720p/ }));
+    expect(setQuality).toHaveBeenLastCalledWith({ height: 720, frameRate: 15 });
+    await waitFor(async () =>
+      expect(await platform.storage.get(QUALITY_KEY)).toEqual({ height: 720, frameRate: 15 }),
+    );
+    expect(share).not.toHaveBeenCalled();
+
+    // Refused by the browser, the share goes on as it was, and says so.
+    setQuality.mockResolvedValueOnce(false);
+    await user.click(options());
+    await user.click(screen.getByRole("menuitemradio", { name: /^60 fps/ }));
+    expect(setQuality).toHaveBeenLastCalledWith({ height: 1080, frameRate: 60 });
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "The share's quality was not changed. It goes on as it was.",
+    );
+
+    await user.click(options());
+    await user.click(screen.getByRole("menuitem", { name: "Stop sharing" }));
+    expect(share).toHaveBeenCalledWith();
+  });
+
+  it("is not offered before a share, which a browser starts at the quality kept here", async () => {
+    await platform.storage.set(QUALITY_KEY, { height: 720, frameRate: 60 });
+    const { share, user } = sharing(false);
+    expect(screen.queryByRole("button", { name: "Screen share options" })).toBeNull();
+    // Read ahead, so the browser's picker is asked for at the press itself.
+    await waitFor(async () => {
+      await user.click(screen.getByRole("button", { name: "Share screen" }));
+      expect(share).toHaveBeenLastCalledWith({ height: 720, frameRate: 60 });
+    });
   });
 });

@@ -10,28 +10,16 @@ import { useTabs } from "../lib/useTabs.js";
 import { Button } from "./Button.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { Icon } from "./Icon.js";
+import { FRAME_RATES, QUALITY_KEY, qualityOf, RESOLUTIONS } from "../lib/screenShareQuality.js";
 
 const TABS = ["windows", "screens"] as const;
 type Tab = (typeof TABS)[number];
 
 /** How long the pictures stay before they are taken again, while the picker is open. */
 export const REFRESH_MS = 3000;
-/** Where the last resolution and frame rate chosen are kept on this device. */
-export const QUALITY_KEY = "screen-share-quality";
 /** Where Share sound, when turned off, is kept off on this device. */
 export const SOUND_KEY = "screen-share-sound";
-const RESOLUTIONS = [720, 1080] as const;
-const FRAME_RATES = [15, 30, 60] as const;
-
-/** A saved quality, each part that is not one on offer replaced by the default. */
-function qualityOf(saved: unknown): ScreenShareQuality {
-  const value = (saved ?? {}) as Record<string, unknown>;
-  return {
-    height: RESOLUTIONS.find((height) => height === value.height) ?? SCREEN_SHARE_QUALITY.height,
-    frameRate:
-      FRAME_RATES.find((rate) => rate === value.frameRate) ?? SCREEN_SHARE_QUALITY.frameRate,
-  };
-}
+export { QUALITY_KEY };
 
 /**
  * The desktop app's screen picker, in the manner of Discord's: every window
