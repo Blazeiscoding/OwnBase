@@ -1,4 +1,4 @@
-import { memo, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import type { FileMeta, ID } from "@ownbase/protocol";
 import type { EphemeralMessage, PendingMessage } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
@@ -103,7 +103,11 @@ export const MessageTimeline = memo(function MessageTimeline({
   const historyAnchor = useRef<{ ticket: object; anchor: Anchor } | null>(null);
   const [loadingHistory, setLoadingHistory] = useState<"initial" | "older" | "newer" | null>(null);
   const [historyError, setHistoryError] = useState<"initial" | "older" | "newer" | null>(null);
-  const [lightboxFile, setLightboxFile] = useState<FileMeta | null>(null);
+  const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
+  const openImage = useCallback(
+    (file: FileMeta, gallery?: FileMeta[]) => setLightbox({ file, gallery }),
+    [],
+  );
   const highlightRef = useRef<HTMLDivElement>(null);
   const lastScrollTop = useRef(0);
   /** Suppresses paging while a jump's programmatic scroll settles. */
@@ -608,7 +612,7 @@ export const MessageTimeline = memo(function MessageTimeline({
                 compact={compact}
                 onOpenThread={onOpenThread}
                 onChannelClick={onChannelClick}
-                onOpenImage={setLightboxFile}
+                onOpenImage={openImage}
                 onOpenProfile={onOpenProfile}
                 highlighted={msg.id === highlightMessageId}
               />
@@ -668,7 +672,13 @@ export const MessageTimeline = memo(function MessageTimeline({
           </button>
         </div>
       )}
-      {lightboxFile && <Lightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
+      {lightbox && (
+        <Lightbox
+          file={lightbox.file}
+          gallery={lightbox.gallery}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </div>
   );
 });

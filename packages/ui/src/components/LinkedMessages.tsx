@@ -17,7 +17,7 @@ import { useOwnAddress } from "./ShareableServer.js";
  */
 export function LinkedMessages(props: {
   message: Pick<Message, "id" | "text">;
-  onOpenImage?: (file: FileMeta) => void;
+  onOpenImage?: (file: FileMeta, gallery?: FileMeta[]) => void;
   onChannelClick?: (id: ID) => void;
 }) {
   const ours = useOwnAddress();
@@ -43,7 +43,7 @@ export function LinkedMessages(props: {
 
 function LinkedMessageCard(props: {
   target: LinkedMessage;
-  onOpenImage?: (file: FileMeta) => void;
+  onOpenImage?: (file: FileMeta, gallery?: FileMeta[]) => void;
   onChannelClick?: (id: ID) => void;
 }) {
   const message = useLinkedMessage(props.target);
@@ -57,7 +57,7 @@ function LinkedMessageCard(props: {
 
 function Card(props: {
   message: Message;
-  onOpenImage?: (file: FileMeta) => void;
+  onOpenImage?: (file: FileMeta, gallery?: FileMeta[]) => void;
   onChannelClick?: (id: ID) => void;
 }) {
   const { message } = props;

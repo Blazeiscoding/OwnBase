@@ -28,7 +28,7 @@ export function ForwardCard(props: {
   users: Record<ID, User>;
   channels: Record<ID, Channel>;
   selfId: ID | undefined;
-  onOpenImage?: (file: FileMeta) => void;
+  onOpenImage?: (file: FileMeta, gallery?: FileMeta[]) => void;
   onChannelClick?: (id: ID) => void;
   /** Offers View original; a preview, which would open it behind its dialog, does not. */
   linked?: boolean;
@@ -90,7 +90,7 @@ export function QuotedMessage(props: {
   selfId: ID | undefined;
   /** How its time reads; the hour alone unless the card says otherwise. */
   when?: (ts: number) => string;
-  onOpenImage?: (file: FileMeta) => void;
+  onOpenImage?: (file: FileMeta, gallery?: FileMeta[]) => void;
   onChannelClick?: (id: ID) => void;
 }) {
   const { message, author } = props;
@@ -118,7 +118,10 @@ export function QuotedMessage(props: {
           />
         </div>
       )}
-      <MessageAttachments files={message.files} onOpenImage={(f) => props.onOpenImage?.(f)} />
+      <MessageAttachments
+        files={message.files}
+        onOpenImage={(f, gallery) => props.onOpenImage?.(f, gallery)}
+      />
     </>
   );
 }

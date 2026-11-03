@@ -73,7 +73,7 @@ interface Props {
   inThread?: boolean;
   onOpenThread?: (rootId: ID) => void;
   onChannelClick?: (id: ID) => void;
-  onOpenImage?: (file: FileMeta) => void;
+  onOpenImage?: (file: FileMeta, gallery?: FileMeta[]) => void;
   onOpenProfile?: (userId: ID) => void;
   /** Briefly flagged after jumping here from search, pins or a link. */
   highlighted?: boolean;
@@ -705,7 +705,10 @@ const MessageRow = memo(function MessageRow({
           )}
           {/* An edit changes only the words, so the files and a forwarded
               message stay in view under the editor. */}
-          <MessageAttachments files={message.files} onOpenImage={(f) => onOpenImage?.(f)} />
+          <MessageAttachments
+            files={message.files}
+            onOpenImage={(f, gallery) => onOpenImage?.(f, gallery)}
+          />
           {!editing && (
             <>
               <LinkPreviews message={message} canRemove={!!selfId && message.userId === selfId} />
