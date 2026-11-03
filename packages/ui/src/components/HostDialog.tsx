@@ -22,6 +22,7 @@ import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
 import { EarlierCopies } from "./EarlierCopies.js";
 import { Icon } from "./Icon.js";
+import { JoinPolicyChoice } from "./JoinPolicyChoice.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
@@ -1613,11 +1614,16 @@ export function HostDialog(props: {
                               </button>
                             </div>
                             {guestsSupported && livePolicy ? (
-                              <JoinPolicy
-                                policy={livePolicy}
-                                disabled={!!busy}
-                                onChange={(next) => void changeAccessPolicy(next)}
-                              />
+                              <div className="mt-3">
+                                <JoinPolicyChoice
+                                  compact
+                                  legend="Who can join"
+                                  hint="Who can join through the public link. Changes as soon as you choose."
+                                  value={livePolicy}
+                                  disabled={!!busy}
+                                  onChange={(next) => void changeAccessPolicy(next)}
+                                />
+                              </div>
                             ) : (
                               <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
                                 <input
@@ -1637,7 +1643,7 @@ export function HostDialog(props: {
                             )}
                             <p className="mt-2 text-xs text-ink-dim">
                               {livePolicy === "guest_allowed"
-                                ? "Anyone with this address can join as a guest for a day and post in public channels. Requiring an account again signs every guest out."
+                                ? "Anyone with this address can join as a guest for a day and post in public channels. Choosing either of the others signs every guest out."
                                 : status.inviteOnly
                                   ? "To bring someone in, open the workspace menu in the workspace, choose Invite people and copy the link."
                                   : "Anyone with this address can create an account. Send the address only to people you trust."}
@@ -1799,11 +1805,16 @@ export function HostDialog(props: {
                             ) : (
                               <>
                                 {guestsSupported ? (
-                                  <JoinPolicy
-                                    policy={openPolicy}
-                                    disabled={!!busy}
-                                    onChange={setOpenPolicy}
-                                  />
+                                  <div className="mt-3">
+                                    <JoinPolicyChoice
+                                      compact
+                                      legend="Who can join"
+                                      hint="Who can join through the public link, once it is open."
+                                      value={openPolicy}
+                                      disabled={!!busy}
+                                      onChange={setOpenPolicy}
+                                    />
+                                  </div>
                                 ) : (
                                   <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
                                     <input
@@ -2430,54 +2441,5 @@ function InstallCloudflared(props: {
       )}
       <p className="mt-3">Or install it yourself, then check again.</p>
     </>
-  );
-}
-
-/**
- * Who may join, as two choices: whether joining needs an account at all, and,
- * where it does, whether creating one needs an invite. Turning accounts back
- * on goes back to the account rule last in use here, or to invites.
- */
-function JoinPolicy(props: {
-  policy: AccessPolicy;
-  disabled: boolean;
-  onChange: (policy: AccessPolicy) => void;
-}) {
-  const lastAccountPolicy = useRef<AccessPolicy>("invite_only");
-  if (props.policy !== "guest_allowed") lastAccountPolicy.current = props.policy;
-  const accountRequired = props.policy !== "guest_allowed";
-  return (
-    <div className="mt-3 space-y-2 text-xs text-ink-dim">
-      <label className="flex items-start gap-2">
-        <input
-          type="checkbox"
-          checked={accountRequired}
-          disabled={props.disabled}
-          onChange={(event) =>
-            props.onChange(event.target.checked ? lastAccountPolicy.current : "guest_allowed")
-          }
-          className="mt-0.5"
-        />
-        <span>Require an account to join.</span>
-      </label>
-      {accountRequired ? (
-        <label className="ml-6 flex items-start gap-2">
-          <input
-            type="checkbox"
-            checked={props.policy === "invite_only"}
-            disabled={props.disabled}
-            onChange={(event) =>
-              props.onChange(event.target.checked ? "invite_only" : "account_required")
-            }
-            className="mt-0.5"
-          />
-          <span>
-            Require an invite link to create an account. Recommended for every public workspace.
-          </span>
-        </label>
-      ) : (
-        <p className="ml-6">Visitors can join as guests. Creating an account is optional.</p>
-      )}
-    </div>
   );
 }

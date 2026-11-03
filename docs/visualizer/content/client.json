@@ -2757,6 +2757,24 @@
       "concepts": ["calls", "accessibility"]
     },
     {
+      "path": "packages/ui/src/components/CallDock.tsx",
+      "plain": "Mute, camera and Leave at the foot of the window while a dialog covers the huddle bar.",
+      "summary": "CallDock, portalled to the body with data-ownbase-call while useDialogOpen is true.",
+      "details": [
+        "useDialogOpen (Modal.tsx) counts only layers drawn on .dialog-backdrop: menus and popovers are Modal layers too and do not bring it up. Settings stops short of it (theme.css .call-dock)."
+      ],
+      "concepts": ["calls", "accessibility"]
+    },
+    {
+      "path": "packages/ui/src/components/JoinPolicyChoice.tsx",
+      "plain": "The three choices for who can join, used by Workspace settings and Manage hosting.",
+      "summary": "JoinPolicyChoice: radio cards over JOIN_POLICIES; compact in the hosting dialog.",
+      "details": [
+        "What a choice does is the caller's: Workspace settings and a live public link save at once, before Open to all it waits. Hosts without setAccessPolicy keep a single invite checkbox."
+      ],
+      "concepts": ["hosting", "settings"]
+    },
+    {
       "path": "packages/ui/src/lib/recentConversations.ts",
       "plain": "Remembers which conversations were open lately on this device, for Ctrl+K.",
       "summary": "useRecentConversations keeps up to 12 ids, newest first, in workspace storage.",

@@ -11,6 +11,7 @@ import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { buttonClass } from "./Button.js";
 import { useConfirm } from "./Confirm.js";
 import { Icon } from "./Icon.js";
+import { JoinPolicyChoice } from "./JoinPolicyChoice.js";
 import { SettingsWindow } from "./SettingsWindow.js";
 import { ExtensionPanels, useExtensionPanels } from "./ExtensionPanels.js";
 import { TextField } from "./TextField.js";
@@ -27,25 +28,6 @@ type Section = (typeof SECTIONS)[number]["id"];
 
 /** How long "Saved" stays after a choice is kept. */
 const SAVED_FOR_MS = 2000;
-
-/** Who may join, each said plainly: what it lets in, and what it keeps out. */
-const POLICIES: { id: AccessPolicy; title: string; hint: string }[] = [
-  {
-    id: "invite_only",
-    title: "People with an invite",
-    hint: "Someone new creates an account with an invite link or code. Owners and admins make them, and so can members they allow.",
-  },
-  {
-    id: "account_required",
-    title: "Anyone who creates an account",
-    hint: "Anyone who can reach this workspace's address can create an account and join, without an invite.",
-  },
-  {
-    id: "guest_allowed",
-    title: "Anyone, guests included",
-    hint: "Visitors can also join with only a display name, as guests for a day. Guests see public channels only, and can still create an account.",
-  },
-];
 
 /** Whether this view is still on screen, for work that finishes after it may have closed. */
 function useAlive() {
@@ -661,49 +643,13 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
   }
 
   return (
-    <section aria-labelledby="workspace-joining-title">
-      <fieldset aria-describedby="workspace-joining-hint">
-        {/* The section's title says it on screen; the group still needs its name. */}
-        <legend id="workspace-joining-title" className="sr-only">
-          Who can join
-        </legend>
-        <p id="workspace-joining-hint" className="mb-3 text-sm text-ink-dim">
-          Changes as soon as you choose. People already in the workspace stay either way.
-        </p>
-        <div className="space-y-2">
-          {POLICIES.map((policy) => (
-            <label
-              key={policy.id}
-              className={`flex cursor-pointer items-start gap-3 rounded-xl border px-3.5 py-3 transition-colors has-[:focus-visible]:outline has-[:focus-visible]:outline-2 has-[:focus-visible]:outline-offset-2 has-[:focus-visible]:outline-copper ${
-                shown === policy.id
-                  ? "border-ink/30 bg-ink/[0.04]"
-                  : "border-edge hover:border-ink/20"
-              }`}
-            >
-              <input
-                type="radio"
-                name="workspace-access-policy"
-                value={policy.id}
-                checked={shown === policy.id}
-                onChange={() => void choose(policy.id)}
-                className="sr-only"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-medium text-ink">{policy.title}</span>
-                <span className="block text-[13px] text-ink-dim">{policy.hint}</span>
-              </span>
-              <span
-                aria-hidden="true"
-                className={`mt-1 flex size-4 shrink-0 items-center justify-center rounded-full border ${
-                  shown === policy.id ? "border-copper" : "border-edge"
-                }`}
-              >
-                {shown === policy.id && <span className="size-2 rounded-full bg-copper" />}
-              </span>
-            </label>
-          ))}
-        </div>
-      </fieldset>
+    <section aria-label="Who can join">
+      <JoinPolicyChoice
+        legend="Who can join"
+        hint="Changes as soon as you choose. People already in the workspace stay either way."
+        value={shown}
+        onChange={(next) => void choose(next)}
+      />
       {current === "guest_allowed" && (
         <p className="mt-3 flex items-start gap-2 text-[13px] text-ink-dim">
           <Icon name="alert" size={14} className="mt-0.5 shrink-0 text-copper" />
