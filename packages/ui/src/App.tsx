@@ -443,9 +443,9 @@ export function App({ platform }: { platform: Platform }) {
                       ? // The sidebar names the workspace just above, and the
                         // line has room for about 22 characters beside Manage.
                         hostingStatus?.openToAll?.phase === "open"
-                        ? "Hosting · open to all"
+                        ? "Hosting · public link"
                         : "Hosting here"
-                      : `Hosting ${hostingStatus?.workspaceName ?? "a workspace"} on this computer${hostingStatus?.openToAll?.phase === "open" ? " · open to all" : ""}`,
+                      : `Hosting ${hostingStatus?.workspaceName ?? "a workspace"} on this computer${hostingStatus?.openToAll?.phase === "open" ? " · public link" : ""}`,
           state:
             hosting.error || hostingStatus?.warning || hostingStatus?.openToAllError
               ? "trouble"

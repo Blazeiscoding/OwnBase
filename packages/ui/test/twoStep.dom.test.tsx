@@ -344,7 +344,7 @@ describe("signing in with two-step sign-in", () => {
     await user.type(screen.getByLabelText("Code"), "123456");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
     expect(await screen.findByLabelText("New password")).toBeVisible();
-    expect(screen.getByText(/That password was issued to you by someone else/)).toBeVisible();
+    expect(screen.getByText(/Someone else set that password for you/)).toBeVisible();
     expect(onConnected).not.toHaveBeenCalled();
   });
 

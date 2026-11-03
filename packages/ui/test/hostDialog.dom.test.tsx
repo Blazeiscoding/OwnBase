@@ -641,7 +641,7 @@ describe("hosting a workspace from the host dialog", () => {
     });
     expect(inviteRequired).toBeChecked();
 
-    await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
+    await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
     expect(hosting.openToAll).toHaveBeenCalledWith({ inviteOnly: true });
     expect(await within(dialog).findByRole("link", { name: publicUrl })).toHaveAttribute(
       "href",
@@ -649,7 +649,7 @@ describe("hosting a workspace from the host dialog", () => {
     );
     expect(within(dialog).getByText("Public")).toBeVisible();
     // The workspace is not on screen here, so the dialog says where to make one.
-    expect(within(dialog).getByText(/The address alone lets nobody in/)).toBeVisible();
+    expect(within(dialog).getByText(/This address alone will not let anyone in/)).toBeVisible();
     expect(within(dialog).getByText(/choose Invite people from its menu/)).toBeVisible();
     expect(within(dialog).queryByRole("button", { name: "Get an invite link" })).toBeNull();
 
@@ -677,7 +677,7 @@ describe("hosting a workspace from the host dialog", () => {
 
     await user.click(within(dialog).getByRole("button", { name: "Close public link" }));
     expect(hosting.endOpenToAll).toHaveBeenCalledOnce();
-    expect(await within(dialog).findByRole("button", { name: "Open to all" })).toBeEnabled();
+    expect(await within(dialog).findByRole("button", { name: "Get a public link" })).toBeEnabled();
     expect(within(dialog).queryByRole("link", { name: publicUrl })).not.toBeInTheDocument();
   });
 
@@ -691,9 +691,9 @@ describe("hosting a workspace from the host dialog", () => {
 
     // Nothing to invite to before there is a public address.
     expect(within(dialog).queryByRole("button", { name: "Get an invite link" })).toBeNull();
-    await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
+    await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
     await within(dialog).findByRole("link", { name: publicUrl });
-    expect(within(dialog).getByText(/it carries this address and the invite/)).toBeVisible();
+    expect(within(dialog).getByText(/It has this address and an invite code/)).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "Get an invite link" }));
     expect(onInvite).toHaveBeenCalledOnce();
 
@@ -714,7 +714,7 @@ describe("hosting a workspace from the host dialog", () => {
     render(<Harness hosting={hosting} initialSection="internet" />);
     const tab = await screen.findByRole("tab", { name: "Share on the internet" });
     expect(tab).toHaveAttribute("aria-selected", "true");
-    expect(screen.getByRole("button", { name: "Open to all" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Get a public link" })).toBeVisible();
   });
 
   it("chooses who can join with the cards Workspace settings uses, before and after opening", async () => {
@@ -731,18 +731,18 @@ describe("hosting a workspace from the host dialog", () => {
     const rule = (name: RegExp) => within(group()).getByRole("radio", { name });
     // Before opening, invites are asked for, and guests are a choice to make.
     expect(rule(/People with an invite/)).toBeChecked();
-    expect(group()).toHaveAccessibleDescription(/once it is open/);
+    expect(group()).toHaveAccessibleDescription(/once the link is open/);
     await user.click(rule(/Anyone, guests included/));
     expect(rule(/Anyone, guests included/)).toBeChecked();
     expect(hosting.setAccessPolicy).not.toHaveBeenCalled();
-    await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
+    await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
     expect(hosting.openToAll).toHaveBeenCalledWith({
       inviteOnly: false,
       accessPolicy: "guest_allowed",
     });
     await within(dialog).findByRole("link", { name: publicUrl });
     expect(rule(/Anyone, guests included/)).toBeChecked();
-    expect(group()).toHaveAccessibleDescription(/Changes as soon as you choose/);
+    expect(group()).toHaveAccessibleDescription(/A change applies right away/);
     expect(within(dialog).getByText(/join as a guest for a day/)).toBeVisible();
     expect(await accessibilityProblems(dialog)).toEqual([]);
 
@@ -763,8 +763,12 @@ describe("hosting a workspace from the host dialog", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    expect(within(dialog).getByText(/Install Cloudflare’s cloudflared tool/)).toBeVisible();
-    expect(within(dialog).queryByRole("button", { name: "Open to all" })).not.toBeInTheDocument();
+    expect(
+      within(dialog).getByText(/Install cloudflared, a free program from Cloudflare/),
+    ).toBeVisible();
+    expect(
+      within(dialog).queryByRole("button", { name: "Get a public link" }),
+    ).not.toBeInTheDocument();
     const callsBeforeCheck = hosting.status.mock.calls.length;
     await user.click(within(dialog).getByRole("button", { name: "Check again" }));
     await waitFor(() => expect(hosting.status).toHaveBeenCalledTimes(callsBeforeCheck + 1));
@@ -807,7 +811,7 @@ describe("hosting a workspace from the host dialog", () => {
     expect(installCloudflared).toHaveBeenCalledTimes(1);
 
     act(() => finish());
-    const open = await within(dialog).findByRole("button", { name: "Open to all" });
+    const open = await within(dialog).findByRole("button", { name: "Get a public link" });
     expect(open).toHaveFocus();
     expect(within(dialog).queryByRole("button", { name: /Install cloudflared/ })).toBeNull();
   });
@@ -860,7 +864,7 @@ describe("hosting a workspace from the host dialog", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    expect(within(dialog).getByText(/downloads it from Cloudflare’s releases/)).toBeVisible();
+    expect(within(dialog).getByText(/downloads it from Cloudflare's page on GitHub/)).toBeVisible();
     await user.click(within(dialog).getByRole("button", { name: "Install cloudflared" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
@@ -879,13 +883,13 @@ describe("hosting a workspace from the host dialog", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
+    await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      /public link could not be opened/,
+      /public link did not open/,
     );
     expect(screen.getByRole("dialog", { name: "Workspace is live" })).toBe(dialog);
-    expect(within(dialog).getByRole("button", { name: "Open to all" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "Get a public link" })).toBeEnabled();
     expect(hosting.stop).not.toHaveBeenCalled();
   });
 
@@ -1160,7 +1164,7 @@ describe("starting with the computer", () => {
     await user.click(login);
     expect(hosting.openAtLogin.set).toHaveBeenCalledWith(true);
     await waitFor(() => expect(login).toBeChecked());
-    expect(group).toHaveTextContent(/With both on, Rocket Team is back for teammates/);
+    expect(group).toHaveTextContent(/With both on, Rocket Team comes back by itself/);
 
     await user.click(start);
     expect(hosting.setStartOnLaunch).toHaveBeenLastCalledWith(null);
@@ -1187,7 +1191,7 @@ describe("starting with the computer", () => {
     await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     const reopen = within(group).getByRole("checkbox", {
-      name: /Also reopen https:\/\/chat\.example\.org when Rocket Team starts with OwnBase/,
+      name: /Also reopen the public link at https:\/\/chat\.example\.org when Rocket Team starts/,
     });
     expect(reopen).toBeDisabled();
 
@@ -1214,7 +1218,7 @@ describe("starting with the computer", () => {
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     await waitFor(() => expect(hosting.openAtLogin.get).toHaveBeenCalled());
     expect(within(group).queryByRole("checkbox", { name: /sign in/ })).toBeNull();
-    expect(group).toHaveTextContent("Rocket Team starts once OwnBase is opened.");
+    expect(group).toHaveTextContent("Rocket Team starts whenever OwnBase opens.");
   });
 
   it("says why a choice could not be saved", async () => {
@@ -1353,7 +1357,7 @@ describe("a workspace restored from a backup", () => {
       "role",
       "status",
     );
-    expect(within(dialog).queryByRole("heading", { name: "Open to all" })).toBeNull();
+    expect(within(dialog).queryByRole("heading", { name: "Public link" })).toBeNull();
     expect(within(dialog).queryByRole("tab", { name: "Share on the internet" })).toBeNull();
     // Only this computer reaches it, so it gives no address to share.
     expect(within(dialog).queryByText("192.168.1.20:8543")).toBeNull();
@@ -1382,9 +1386,9 @@ describe("a workspace restored from a backup", () => {
     await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
     expect(group).toHaveTextContent(
-      "Rocket Team is not backed up by itself until it is back in use, and nothing already in D:\\Backups is removed. Then it is backed up every day, keeping the newest 7.",
+      "Automatic backups of Rocket Team are paused until it is back in use. Nothing in D:\\Backups is deleted. After that, OwnBase backs it up every day and keeps the newest 7.",
     );
-    expect(group).not.toHaveTextContent(/Rocket Team is backed up every day/);
+    expect(group).not.toHaveTextContent(/OwnBase backs up Rocket Team every day/);
   });
 
   it("offers no schedule to set up while looking inside", async () => {
@@ -1509,7 +1513,9 @@ describe("who is connected, and which port", () => {
     await user.type(await screen.findByRole("textbox", { name: "Workspace name" }), "Rocket Team");
     await user.click(screen.getByText("Choose a port"));
     const port = screen.getByRole("textbox", { name: "Port" });
-    expect(port).toHaveAccessibleDescription(/Leave it empty to use 8543/);
+    expect(port).toHaveAccessibleDescription(
+      /Most people leave this empty. OwnBase then uses 8543/,
+    );
     await user.type(port, "70000");
     await user.click(screen.getByRole("button", { name: "Start hosting" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
@@ -1617,7 +1623,7 @@ describe("automatic backups", () => {
     render(<Harness hosting={hosting} />);
     await showSection("Backups");
     const group = await screen.findByRole("group", { name: "Automatic backups" });
-    expect(group).toHaveTextContent(/Back Rocket Team up by itself every day/);
+    expect(group).toHaveTextContent(/OwnBase can back up Rocket Team every day/);
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
 
     hosting.list!.mockResolvedValue({
@@ -1633,7 +1639,7 @@ describe("automatic backups", () => {
     ).toHaveAttribute("role", "status");
     await waitFor(() =>
       expect(screen.getByRole("group", { name: "Automatic backups" })).toHaveTextContent(
-        "Rocket Team is backed up every day, keeping the newest 7, into D:\\Backups",
+        "OwnBase backs up Rocket Team every day to D:\\Backups and keeps the newest 7.",
       ),
     );
   });
@@ -1684,7 +1690,7 @@ describe("automatic backups", () => {
     expect(hosting.setAutoBackup).toHaveBeenLastCalledWith("team-a", null, false);
     expect(
       await screen.findByText(
-        "Rocket Team will no longer be backed up by itself. Backups already made stay where they are.",
+        "Automatic backups of Rocket Team are off. Backups already made stay where they are.",
       ),
     ).toBeVisible();
   });
@@ -1809,7 +1815,7 @@ describe("a stable public address configured for the desktop app", () => {
     expect(within(dialog).getByText(configured)).toBeVisible();
     expect(within(dialog).getByText("http://127.0.0.1:8543")).toBeVisible();
     expect(within(dialog).queryByText(/Create a temporary HTTPS address/)).not.toBeInTheDocument();
-    expect(within(dialog).getByRole("button", { name: "Open to all" })).toBeEnabled();
+    expect(within(dialog).getByRole("button", { name: "Get a public link" })).toBeEnabled();
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 
@@ -1824,9 +1830,7 @@ describe("a stable public address configured for the desktop app", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    expect(
-      within(dialog).getByText(/empty to use the configured Cloudflare address/),
-    ).toBeVisible();
+    expect(within(dialog).getByText(/uses the Cloudflare address set up for it/)).toBeVisible();
     expect(
       within(dialog).queryByText(/empty to create a temporary address/),
     ).not.toBeInTheDocument();
@@ -1848,10 +1852,10 @@ describe("a stable public address configured for the desktop app", () => {
       "href",
       configured,
     );
-    expect(within(dialog).getByText(/stays the same when you reopen it/)).toBeVisible();
+    expect(within(dialog).getByText(/stays the same each time you open the link/)).toBeVisible();
     expect(within(dialog).queryByText(/This temporary address/)).not.toBeInTheDocument();
     expect(
-      within(dialog).getByText(/only you can stop its external tunnel or proxy/),
+      within(dialog).getByText(/turning off the tunnel or proxy behind it is up to you/),
     ).toBeVisible();
     expect(within(dialog).getByRole("button", { name: "Stop using address" })).toBeEnabled();
   });
@@ -1868,7 +1872,7 @@ describe("a stable public address configured for the desktop app", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByRole("alert")).toHaveTextContent(/Set both OWNBASE_TUNNEL_URL/);
-    const open = within(dialog).getByRole("button", { name: "Open to all" });
+    const open = within(dialog).getByRole("button", { name: "Get a public link" });
     expect(open).toBeDisabled();
 
     await user.click(open);
@@ -1940,8 +1944,8 @@ describe("an address the host already has", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    expect(within(dialog).getByText(/may already make this workspace reachable/)).toBeVisible();
-    expect(within(dialog).getByText(/stop the carrier separately/)).toBeVisible();
+    expect(within(dialog).getByText(/may already let people reach the workspace/)).toBeVisible();
+    expect(within(dialog).getByText(/turn off that tunnel or proxy yourself/)).toBeVisible();
     expect(within(dialog).getByRole("checkbox", { name: /Require an invite/ })).toBeChecked();
   });
 
@@ -1961,9 +1965,10 @@ describe("an address the host already has", () => {
     // Saving it would also turn invites back on, so the same address is not sent again.
     await user.click(within(dialog).getByRole("button", { name: "Save" }));
     expect(hosting.setPublicAddress).not.toHaveBeenCalled();
-    expect(
-      within(dialog).getByText("Nothing to save: that is the address already saved."),
-    ).toHaveAttribute("role", "status");
+    expect(within(dialog).getByText("That address is already saved.")).toHaveAttribute(
+      "role",
+      "status",
+    );
     expect(address).not.toHaveAttribute("aria-invalid", "true");
 
     // Emptied, it is a change: the saved address goes.
@@ -1987,7 +1992,7 @@ describe("an address the host already has", () => {
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByLabelText("Your own address")).toBeDisabled();
     expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
-    expect(within(dialog).getByText(/comes from an environment variable/)).toBeVisible();
+    expect(within(dialog).getByText(/An environment variable sets this address/)).toBeVisible();
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 });

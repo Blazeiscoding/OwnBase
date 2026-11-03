@@ -354,7 +354,7 @@ describe("inviting someone", () => {
     );
     const dialog = screen.getByRole("dialog", { name: "Invite people" });
     expect(dialog).toHaveTextContent(
-      "Anyone joining needs this workspace's address, and an invite code as well if the workspace is invite-only.",
+      "To join, people need this workspace's address. If it takes invites only, they need an invite code too.",
     );
     expect(dialog).not.toHaveTextContent(/Send someone an invite link/);
     expect(within(dialog).getByText("192.168.1.20:8543")).toBeVisible();

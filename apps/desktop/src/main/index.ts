@@ -699,7 +699,7 @@ const hosting = createHostingController({
     const command = cloudflared();
     if (!command)
       throw new Error(
-        "Open to all needs Cloudflare's free cloudflared tool. Install it, then try again.",
+        "A public link needs cloudflared, a free program from Cloudflare. Install it, then try again.",
       );
     if (configured)
       return openNamedTunnel({ ...configured, command, port, signal, instanceId: instanceId! });

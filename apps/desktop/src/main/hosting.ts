@@ -2326,7 +2326,7 @@ export function createHostingController(options: HostingOptions) {
         if (wasExternal) target.setInviteOnly?.(true);
         openError = configured.url
           ? `The public link stopped working (${reason}). Fix its connection, then open to all again at the same address.`
-          : `The public link stopped working (${reason}). Open to all again for a new link.`;
+          : `The public link stopped working (${reason}). Press Get a public link for a new one.`;
         changed();
       });
       changed();

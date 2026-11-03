@@ -157,15 +157,15 @@ function StartWithComputer(props: {
             }}
           />
           <span>
-            Also reopen {props.publicAddress} when {props.name} starts with OwnBase, once it is
-            checked to reach this workspace. New accounts need an invite.
+            Also reopen the public link at {props.publicAddress} when {props.name} starts. New
+            accounts will need an invite.
           </span>
         </label>
       )}
       <p className="text-xs text-ink-faint">
         {atLogin === null
-          ? `${props.name} starts once OwnBase is opened.`
-          : `With both on, ${props.name} is back for teammates once this computer restarts and someone signs in. OwnBase then waits in the tray.`}
+          ? `${props.name} starts whenever OwnBase opens.`
+          : `With both on, ${props.name} comes back by itself after this computer restarts, as soon as you sign in. OwnBase waits in the tray.`}
       </p>
     </fieldset>
   );
@@ -416,16 +416,16 @@ function AutoBackupSettings(props: {
         <>
           {props.held ? (
             <p className="text-ink">
-              {props.name} is not backed up by itself until it is back in use, and nothing already
-              in <span className="break-all font-mono text-xs">{schedule.destination}</span> is
-              removed. Then it is backed up {often(schedule.everyDays)}, keeping the newest{" "}
-              {schedule.keep}.
+              Automatic backups of {props.name} are paused until it is back in use. Nothing in{" "}
+              <span className="break-all font-mono text-xs">{schedule.destination}</span> is
+              deleted. After that, OwnBase backs it up {often(schedule.everyDays)} and keeps the
+              newest {schedule.keep}.
             </p>
           ) : (
             <p className="text-ink">
-              {props.name} is backed up {often(schedule.everyDays)}, keeping the newest{" "}
-              {schedule.keep}, into{" "}
-              <span className="break-all font-mono text-xs">{schedule.destination}</span>
+              OwnBase backs up {props.name} {often(schedule.everyDays)} to{" "}
+              <span className="break-all font-mono text-xs">{schedule.destination}</span> and keeps
+              the newest {schedule.keep}.
             </p>
           )}
           {schedule.lastAt !== undefined && (
@@ -498,7 +498,7 @@ function AutoBackupSettings(props: {
                   null,
                   false,
                   () =>
-                    `${props.name} will no longer be backed up by itself. Backups already made stay where they are.`,
+                    `Automatic backups of ${props.name} are off. Backups already made stay where they are.`,
                 )
               }
             >
@@ -509,8 +509,8 @@ function AutoBackupSettings(props: {
       ) : (
         <>
           <p className="text-xs text-ink-faint">
-            Back {props.name} up by itself every day into a folder you choose, such as one on
-            another drive, keeping the newest seven. Older ones there are removed.
+            OwnBase can back up {props.name} every day to a folder you choose, ideally on another
+            drive. It keeps the newest seven and deletes older ones from that folder.
           </p>
           <button
             type="button"
@@ -1156,7 +1156,7 @@ export function HostDialog(props: {
     } catch {
       setError({
         message:
-          "The workspace could not be stopped. Check its current status; Quit OwnBase offers recovery options if stopping keeps failing.",
+          "The workspace did not stop. If it keeps failing, quitting OwnBase offers ways to recover.",
       });
     } finally {
       await refresh();
@@ -1189,7 +1189,7 @@ export function HostDialog(props: {
         message:
           err instanceof Error && /Create your own account/i.test(err.message)
             ? "Open the workspace and create its owner account first, then try again."
-            : "The public link could not be opened. Check that cloudflared is installed and that this computer is online, then try again.",
+            : "The public link did not open. Check that cloudflared is installed and this computer is online, then try again.",
       });
     } finally {
       await refresh();
@@ -1441,9 +1441,9 @@ export function HostDialog(props: {
                     {status.isolated && (
                       <p role="status" className="card-warm rounded-xl p-3 text-sm">
                         You are looking inside {status.workspaceName ?? "a restored workspace"}.
-                        Only this computer can reach it, nothing it had waiting is sent, and no app
-                        is called. Stop it, then choose Put back in use from the list when it is
-                        ready.
+                        Only this computer can reach it. It sends nothing it had waiting and calls
+                        no apps. When you are ready, stop it and choose Put back in use from the
+                        list.
                       </p>
                     )}
                     {/* Only this computer reaches a workspace being looked inside. */}
@@ -1544,7 +1544,7 @@ export function HostDialog(props: {
                         {status.backgroundAvailable === true
                           ? "Closing this window keeps the workspace running in the system tray. Use the tray to reopen OwnBase or stop hosting."
                           : status.backgroundAvailable === false
-                            ? "Closing this window minimizes OwnBase while hosting. Keep the app running so teammates can stay connected."
+                            ? "Closing this window only minimizes OwnBase. Keep it running, or people lose their connection."
                             : "Keep OwnBase running so teammates can stay connected."}
                       </p>
                     )}
@@ -1559,15 +1559,15 @@ export function HostDialog(props: {
                         </h3>
                         <p className="mt-1 text-ink-dim">
                           {publicUrl
-                            ? "People anywhere can reach this workspace at its public address while it is open. Messages and files still stay on this computer."
-                            : "Only people on the same network as this computer can join now. Give the workspace an address on the internet so people at home or on mobile data can join too. Messages and files stay on this computer."}
+                            ? "The workspace has a public link now, so people can join from anywhere. Messages and files still stay on this computer."
+                            : "Right now only people on the same Wi-Fi or network as this computer can join. A public link lets people join from home or on mobile data too. Messages and files still stay on this computer."}
                         </p>
                       </div>
                     )}
                     {props.hosting.openToAll && !status.isolated && (
                       <div className="card-warm rounded-xl p-3">
                         <div className="mb-1 flex items-center justify-between gap-3">
-                          <h3 className="font-semibold text-ink">Open to all</h3>
+                          <h3 className="font-semibold text-ink">Public link</h3>
                           {publicUrl && (
                             <span className="rounded-full bg-copper/15 px-2 py-0.5 text-xs text-copper">
                               Public
@@ -1590,10 +1590,10 @@ export function HostDialog(props: {
                           <>
                             <p className="mb-2 text-xs text-ink-dim">
                               {!status.publicAddress
-                                ? "This temporary address works from anywhere while OwnBase and cloudflared stay running."
+                                ? "This link works from anywhere while OwnBase is running. You get a new one each time you open it."
                                 : status.publicAddressManaged
-                                  ? "This configured address stays the same when you reopen the public link. Keep OwnBase and its Cloudflare connector running so teammates can connect."
-                                  : "This configured address stays the same when you reopen it. OwnBase can stop publishing the address, but only you can stop its external tunnel or proxy and make it unreachable."}
+                                  ? "This address stays the same each time you open the link. Keep OwnBase and its Cloudflare connector running so people can connect."
+                                  : "This address stays the same each time you open the link. OwnBase can stop using it, but turning off the tunnel or proxy behind it is up to you."}
                             </p>
                             <div className="flex items-center justify-between gap-2 rounded-lg border border-edge bg-raised p-2">
                               <a
@@ -1624,7 +1624,7 @@ export function HostDialog(props: {
                                 <JoinPolicyChoice
                                   compact
                                   legend="Who can join"
-                                  hint="Who can join through the public link. Changes as soon as you choose."
+                                  hint="Who can join through the public link. A change applies right away."
                                   value={livePolicy}
                                   disabled={!!busy}
                                   onChange={(next) => void changeAccessPolicy(next)}
@@ -1653,8 +1653,8 @@ export function HostDialog(props: {
                                 : !status.inviteOnly
                                   ? "Anyone with this address can create an account. Send the address only to people you trust."
                                   : invitesHere
-                                    ? "The address alone lets nobody in. Send an invite link instead: it carries this address and the invite, so one click brings someone in."
-                                    : "The address alone lets nobody in. To bring someone in, open the workspace, choose Invite people from its menu and send that link."}
+                                    ? "This address alone will not let anyone in. Send an invite link instead. It has this address and an invite code, so people join in one click."
+                                    : "This address alone will not let anyone in. To bring someone in, open the workspace, choose Invite people from its menu and send them that link."}
                             </p>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
                               {status.inviteOnly &&
@@ -1690,7 +1690,7 @@ export function HostDialog(props: {
                             {status.publicAddress ? (
                               <div className="space-y-2 text-xs text-ink-dim">
                                 <p>
-                                  Open this workspace at your own address, which does not change:
+                                  The public link will use your own address, which never changes.
                                 </p>
                                 <p className="break-all font-mono text-ink">
                                   {status.publicAddress}
@@ -1706,18 +1706,87 @@ export function HostDialog(props: {
                                 <p>Keep OwnBase running so teammates can connect.</p>
                                 {externallyCarried && (
                                   <p>
-                                    Its external tunnel or proxy may already make this workspace
-                                    reachable. OwnBase requires invites when you save the address;
-                                    stop the carrier separately when you want the address itself to
-                                    become unreachable.
+                                    The tunnel or proxy behind this address may already let people
+                                    reach the workspace, so saving it turned on invites. To make the
+                                    address stop working, turn off that tunnel or proxy yourself.
                                   </p>
                                 )}
                               </div>
                             ) : (
                               <p className="text-xs text-ink-dim">
-                                Create a temporary HTTPS address through Cloudflare Tunnel. No
-                                router setup or Cloudflare account is needed.
+                                OwnBase asks Cloudflare for a free web address that leads to this
+                                computer. You do not need a Cloudflare account or any router
+                                settings. The address changes each time you open the link.
                               </p>
+                            )}
+                            {status.tunnelAvailable === false ? (
+                              <div className="mt-3 text-xs text-ink-dim">
+                                {status.cloudflaredInstall && props.hosting.installCloudflared ? (
+                                  <InstallCloudflared
+                                    install={status.cloudflaredInstall}
+                                    onInstall={props.hosting.installCloudflared}
+                                    onDone={() => void refresh()}
+                                    disabled={!!busy}
+                                  />
+                                ) : (
+                                  <p>
+                                    Install cloudflared, a free program from Cloudflare, then press
+                                    Check again.
+                                  </p>
+                                )}
+                                <button
+                                  type="button"
+                                  disabled={!!busy}
+                                  onClick={() => void refresh()}
+                                  className="mt-2 font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40"
+                                >
+                                  Check again
+                                </button>
+                              </div>
+                            ) : (
+                              <>
+                                {guestsSupported ? (
+                                  <div className="mt-3">
+                                    <JoinPolicyChoice
+                                      compact
+                                      legend="Who can join"
+                                      hint="Who can join once the link is open."
+                                      value={openPolicy}
+                                      disabled={!!busy}
+                                      onChange={setOpenPolicy}
+                                    />
+                                  </div>
+                                ) : (
+                                  <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
+                                    <input
+                                      type="checkbox"
+                                      checked={requireInvite}
+                                      disabled={!!busy}
+                                      onChange={(event) => setRequireInvite(event.target.checked)}
+                                      className="mt-0.5"
+                                    />
+                                    <span>
+                                      Require an invite link to create an account. Recommended and
+                                      enabled by default.
+                                    </span>
+                                  </label>
+                                )}
+                                <button
+                                  ref={openButton}
+                                  type="button"
+                                  disabled={
+                                    unavailable ||
+                                    !!status.publicAddressError ||
+                                    status.openToAll?.phase === "opening"
+                                  }
+                                  onClick={() => void openToAll()}
+                                  className={buttonClass("primary", "mt-3 w-full")}
+                                >
+                                  {busy === "opening" || status.openToAll?.phase === "opening"
+                                    ? "Opening public link…"
+                                    : "Get a public link"}
+                                </button>
+                              </>
                             )}
                             {props.hosting.setPublicAddress && (
                               <div className="mt-3 border-t border-edge pt-3">
@@ -1728,12 +1797,12 @@ export function HostDialog(props: {
                                   Your own address
                                 </label>
                                 <p id="public-address-help" className="mt-1 text-xs text-ink-dim">
-                                  Already have a Tailscale Funnel, reverse proxy, or tunnel of your
-                                  own pointing here? Enter its address to reuse the same link every
-                                  time. Leave it empty to{" "}
+                                  Only if you already run Tailscale Funnel, a reverse proxy or a
+                                  tunnel of your own to this computer. Enter its address to keep the
+                                  same link every time. Most people leave this empty, and OwnBase{" "}
                                   {status.publicAddressManaged
-                                    ? "use the configured Cloudflare address"
-                                    : "create a temporary address"}
+                                    ? "uses the Cloudflare address set up for it"
+                                    : "gets a new address each time"}
                                   .
                                 </p>
                                 <form
@@ -1783,8 +1852,8 @@ export function HostDialog(props: {
                                 </form>
                                 {status.publicAddressLocked && (
                                   <p className="mt-2 text-xs text-ink-dim">
-                                    This address comes from an environment variable, so it cannot be
-                                    changed here.
+                                    An environment variable sets this address, so you cannot change
+                                    it here.
                                   </p>
                                 )}
                                 {addressError && (
@@ -1797,77 +1866,9 @@ export function HostDialog(props: {
                                   </p>
                                 )}
                                 <p role="status" className="mt-2 text-xs text-ink-dim empty:hidden">
-                                  {addressUnchanged
-                                    ? "Nothing to save: that is the address already saved."
-                                    : ""}
+                                  {addressUnchanged ? "That address is already saved." : ""}
                                 </p>
                               </div>
-                            )}
-                            {status.tunnelAvailable === false ? (
-                              <div className="mt-3 text-xs text-ink-dim">
-                                {status.cloudflaredInstall && props.hosting.installCloudflared ? (
-                                  <InstallCloudflared
-                                    install={status.cloudflaredInstall}
-                                    onInstall={props.hosting.installCloudflared}
-                                    onDone={() => void refresh()}
-                                    disabled={!!busy}
-                                  />
-                                ) : (
-                                  <p>Install Cloudflare’s cloudflared tool, then check again.</p>
-                                )}
-                                <button
-                                  type="button"
-                                  disabled={!!busy}
-                                  onClick={() => void refresh()}
-                                  className="mt-2 font-medium text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink disabled:opacity-40"
-                                >
-                                  Check again
-                                </button>
-                              </div>
-                            ) : (
-                              <>
-                                {guestsSupported ? (
-                                  <div className="mt-3">
-                                    <JoinPolicyChoice
-                                      compact
-                                      legend="Who can join"
-                                      hint="Who can join through the public link, once it is open."
-                                      value={openPolicy}
-                                      disabled={!!busy}
-                                      onChange={setOpenPolicy}
-                                    />
-                                  </div>
-                                ) : (
-                                  <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
-                                    <input
-                                      type="checkbox"
-                                      checked={requireInvite}
-                                      disabled={!!busy}
-                                      onChange={(event) => setRequireInvite(event.target.checked)}
-                                      className="mt-0.5"
-                                    />
-                                    <span>
-                                      Require an invite link to create an account. Recommended and
-                                      enabled by default.
-                                    </span>
-                                  </label>
-                                )}
-                                <button
-                                  ref={openButton}
-                                  type="button"
-                                  disabled={
-                                    unavailable ||
-                                    !!status.publicAddressError ||
-                                    status.openToAll?.phase === "opening"
-                                  }
-                                  onClick={() => void openToAll()}
-                                  className={buttonClass("primary", "mt-3 w-full")}
-                                >
-                                  {busy === "opening" || status.openToAll?.phase === "opening"
-                                    ? "Opening public link…"
-                                    : "Open to all"}
-                                </button>
-                              </>
                             )}
                           </>
                         )}
@@ -2041,8 +2042,8 @@ export function HostDialog(props: {
           {!loading && !statusError && status ? (
             <>
               <p className="mb-4 text-sm text-ink-dim">
-                Your computer becomes the server. Teammates on your network can connect while
-                OwnBase is running. Messages, files and accounts are stored on this machine.
+                This computer runs the workspace. People on the same Wi-Fi or network can join while
+                OwnBase is open. Messages, files and accounts are saved on this computer.
               </p>
               <LaunchProblem
                 hosting={props.hosting}
@@ -2342,14 +2343,15 @@ export function HostDialog(props: {
                     />
                   </label>
                   <p id="host-port-hint" className="mt-1 text-xs text-ink-faint">
-                    Leave it empty to use {DEFAULT_PORT}, or a free port if another program has that
-                    one. A port you choose is kept, or the workspace does not start.
+                    Most people leave this empty. OwnBase then uses {DEFAULT_PORT}, or another free
+                    port if something else has it. If you type a port and it is taken, the workspace
+                    will not start.
                   </p>
                 </details>
                 {sameName && (
                   <p className="text-xs text-ink-dim">
-                    {sameName.name} is already hosted here. Start it from the list to keep its
-                    messages; this starts a separate, empty workspace.
+                    {sameName.name} is already hosted here. To keep its messages, start it from the
+                    list. This button starts a separate, empty workspace.
                   </p>
                 )}
                 <button
@@ -2422,7 +2424,10 @@ function InstallCloudflared(props: {
 
   return (
     <>
-      <p>Open to all needs Cloudflare’s cloudflared tool, which this computer does not have yet.</p>
+      <p>
+        A public link needs cloudflared, a free program from Cloudflare. This computer does not have
+        it yet.
+      </p>
       {/* Kept in place while it installs, so focus stays where it was. */}
       <button
         type="button"
@@ -2436,7 +2441,7 @@ function InstallCloudflared(props: {
       <p role="status" className="mt-2">
         {!installing
           ? via === "download"
-            ? "OwnBase downloads it from Cloudflare’s releases on GitHub, and keeps it only if it matches what Cloudflare published."
+            ? "OwnBase downloads it from Cloudflare's page on GitHub and checks that it matches what Cloudflare published."
             : `OwnBase installs it with ${INSTALLED_WITH[via]}, which this computer already has.`
           : via === "download"
             ? "Downloading from Cloudflare…"
@@ -2461,7 +2466,7 @@ function InstallCloudflared(props: {
           {failure}
         </p>
       )}
-      <p className="mt-3">Or install it yourself, then check again.</p>
+      <p className="mt-3">Or install it yourself, then press Check again.</p>
     </>
   );
 }

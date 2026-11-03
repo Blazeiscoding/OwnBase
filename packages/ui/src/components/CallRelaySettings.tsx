@@ -257,8 +257,9 @@ export function CallRelaySettings(props: { relay: RelayApi; disabled?: boolean }
         )}
       </div>
       <p className="text-xs text-ink-dim">
-        Calls go straight between people. Some networks, like mobile data, do not allow that, so a
-        call from one never gets past Connecting. A TURN relay carries those calls instead.
+        Calls usually go straight from one person to another. Some networks, mobile data most often,
+        block that, and the call gets stuck on Connecting. A relay passes those calls along instead.
+        If everyone is on the same network, you do not need one.
       </p>
       {saved?.error && (
         <p role="alert" className="mt-2 text-xs text-alert">

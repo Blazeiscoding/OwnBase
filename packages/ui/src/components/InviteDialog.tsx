@@ -181,7 +181,7 @@ export function InviteDialog(props: {
     <Dialog title={props.welcome ? "Invite your people" : "Invite people"} onClose={props.onClose}>
       <p className="mb-4 text-sm text-ink-dim">
         {!canInvite
-          ? "Anyone joining needs this workspace's address, and an invite code as well if the workspace is invite-only."
+          ? "To join, people need this workspace's address. If it takes invites only, they need an invite code too."
           : props.welcome
             ? `Your workspace is ready. Send this link to the people you want in it${
                 shareable.localOnly ? "." : ", or let them scan the code with a phone."
