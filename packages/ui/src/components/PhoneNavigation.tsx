@@ -29,6 +29,7 @@ export interface AccountActions {
   onScheduled?: () => void;
   onShortcuts?: () => void;
   onDiagnostics?: () => void;
+  onSignOut?: () => void;
 }
 
 /**

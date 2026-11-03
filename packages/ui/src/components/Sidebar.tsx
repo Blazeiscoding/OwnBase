@@ -79,6 +79,8 @@ interface Props {
   onSwitchWorkspace: () => void;
   onEditProfile: () => void;
   onAccountSettings: () => void;
+  /** Asks, then signs this device out of the workspace. */
+  onSignOut?: () => void;
   /** Guests only: keeping this identity as an account. */
   onCreateAccount?: () => void;
   onShortcuts?: () => void;
@@ -880,6 +882,7 @@ export function Sidebar(props: Props) {
             onScheduled={guest ? undefined : props.onScheduled}
             onShortcuts={props.onShortcuts}
             onDiagnostics={props.onDiagnostics}
+            onSignOut={props.onSignOut}
           />
           {!snoozed && <SnoozeControl />}
           {!guest && (
@@ -1163,6 +1166,7 @@ export function AccountMenu(props: {
   onScheduled?: () => void;
   onShortcuts?: () => void;
   onDiagnostics?: () => void;
+  onSignOut?: () => void;
   /** Another button to open it, drawn by its owner; on a phone it opens as a sheet. */
   trigger?: { label: string; className: string; content: ReactNode };
 }) {
@@ -1277,6 +1281,15 @@ export function AccountMenu(props: {
       icon: "gauge",
       section: props.onShortcuts ? undefined : true,
       onSelect: props.onDiagnostics,
+    });
+  // Where people look for it, rather than at the foot of Settings > Security only.
+  if (props.onSignOut)
+    items.push({
+      id: "sign-out",
+      label: "Sign out",
+      icon: "leave",
+      section: true,
+      onSelect: props.onSignOut,
     });
   const heading = <AccountHeading guest={props.guest} snoozed={props.snoozed} away={selfAway} />;
   if (props.trigger)

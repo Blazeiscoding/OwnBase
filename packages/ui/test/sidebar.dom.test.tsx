@@ -56,6 +56,7 @@ function sidebar(options: { admin: boolean; others?: OtherWorkspace[] }) {
         otherWorkspaces={options.others}
         onOpenWorkspace={(url) => calls.push(`open ${url}`)}
         onAccountSettings={call("account")}
+        onSignOut={call("sign out")}
         {...(options.admin
           ? {
               onManagePeople: call("people"),
@@ -144,8 +145,17 @@ describe("the account menu", () => {
       "Profile and status",
       "Account settings",
       "Scheduled messages",
+      // Where people look for it, not only at the foot of Settings > Security.
+      "Sign out",
     ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
+  });
+
+  it("signs out from the menu, which leaves the asking to the workspace screen", async () => {
+    const { calls, user } = sidebar({ admin: false });
+    await accountMenu(user);
+    await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
+    expect(calls).toEqual(["sign out"]);
   });
 
   it("sets a common status for as long as it usually lasts in two clicks, and clears it the same way", async () => {

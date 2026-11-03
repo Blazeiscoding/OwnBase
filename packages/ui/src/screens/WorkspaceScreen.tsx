@@ -904,6 +904,31 @@ function WorkspaceInner({
   activeChannelRef.current = activeChannelId;
   const toast = useOptionalToast();
   const confirm = useOptionalConfirm();
+  /** The account menu's Sign out: asks, as Settings > Security does, then ends this device's session. */
+  async function signOut() {
+    const guestNow = clientFromCtx.state.self?.role === "guest";
+    const ok = confirm
+      ? await confirm({
+          title: "Sign out of this workspace?",
+          body: guestNow
+            ? "You joined as a guest, without a password. Signing out ends this visit; coming back takes a new invite link."
+            : "You will need your password to sign in again. Your account's saved drafts stay on this device.",
+          confirmLabel: "Sign out",
+          destructive: guestNow,
+        })
+      : true;
+    if (!ok) return;
+    try {
+      await clientFromCtx.api.logout();
+    } catch {
+      toast?.({
+        message: "You are still signed in. Check your connection and try again.",
+        kind: "error",
+      });
+      return;
+    }
+    onSignedOut();
+  }
   /** Shift+Esc: everything read, after asking when it is more than a couple of places. */
   const markAllReadRef = useRef(async () => {});
   markAllReadRef.current = async () => {
@@ -1448,6 +1473,7 @@ function WorkspaceInner({
         onAccountSettings={() => setDialog({ kind: "account" })}
         onCreateAccount={() => setDialog({ kind: "guest-account" })}
         onShortcuts={() => setDialog({ kind: "shortcuts" })}
+        onSignOut={() => void signOut()}
         gettingStarted={
           self?.role === "owner" && (
             <ErrorBoundary fallback={<span hidden />}>
@@ -1813,6 +1839,7 @@ function WorkspaceInner({
             onScheduled: () => setPanel({ kind: "scheduled" }),
             onShortcuts: () => setDialog({ kind: "shortcuts" }),
             onDiagnostics: () => setDialog({ kind: "diagnostics" }),
+            onSignOut: () => void signOut(),
           }}
         />
       )}
