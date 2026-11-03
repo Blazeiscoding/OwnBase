@@ -77,3 +77,28 @@ export function caretToRestore(
   const end = Math.max(start, Math.min(limit, pending.end));
   return { start, end };
 }
+
+/** A pasted web address and nothing else, as a link over selected words wants. */
+const PASTED_URL = /^https?:\/\/[^\s<>|]+$/i;
+
+/**
+ * Pasting a web address over selected words makes them a link to it, as
+ * Slack does, rather than replacing them: `<https://example.com|the docs>`.
+ * Null when it is ordinary pasting: nothing selected, more than an address
+ * on the clipboard, or words a link's label cannot hold (a mention, a new
+ * line, the link's own brackets), or the selection is in code.
+ */
+export function linkOverSelection(
+  stored: string,
+  start: number,
+  end: number,
+  pasted: string,
+): { text: string; caret: number } | null {
+  const url = pasted.trim();
+  const label = stored.slice(start, end);
+  if (start === end || !PASTED_URL.test(url)) return null;
+  if (!label.trim() || /[<>|\n]/.test(label) || label.includes("`")) return null;
+  if (insideCodeBlock(stored, start)) return null;
+  const link = `<${url}|${label}>`;
+  return { text: stored.slice(0, start) + link + stored.slice(end), caret: start + link.length };
+}

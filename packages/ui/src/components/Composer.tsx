@@ -13,7 +13,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { Tooltip } from "./Tooltip.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { MentionTags } from "./MentionTags.js";
-import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
+import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
 import { lastEditable, requestEdit } from "../lib/editRequest.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
@@ -996,7 +996,15 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                       .filter((item) => item.kind === "file")
                       .map((item) => item.getAsFile())
                       .filter((file): file is File => file !== null);
-              if (files.length === 0) return;
+              if (files.length === 0) {
+                const { start, end } = field.selection();
+                const linked = linkOverSelection(text, start, end, data.getData("text/plain"));
+                if (linked) {
+                  e.preventDefault();
+                  rewrite(linked.text, linked.caret);
+                }
+                return;
+              }
               // A clipboard holding a file is pasted as the file, even when it
               // holds text as well, as a copy from an office app does (a
               // picture of the selection beside its text). Saying so keeps the

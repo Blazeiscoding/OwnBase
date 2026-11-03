@@ -108,4 +108,20 @@ describe("pasting into the composer", () => {
     expect(screen.queryByRole("list")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
+
+  it("makes selected words a link to a web address pasted over them", async () => {
+    const box = await composer();
+    fireEvent.change(box, { target: { value: "read the docs please" } });
+    box.setSelectionRange(9, 13);
+    const pasted = fireEvent.paste(box, {
+      clipboardData: clipboard({ text: "https://example.com/docs" }),
+    });
+    expect(pasted).toBe(false);
+    expect(box).toHaveValue("read the <https://example.com/docs|docs> please");
+    // An address pasted with nothing selected goes in as it is.
+    box.setSelectionRange(0, 0);
+    expect(
+      fireEvent.paste(box, { clipboardData: clipboard({ text: "https://example.com" }) }),
+    ).toBe(true);
+  });
 });
