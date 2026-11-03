@@ -227,11 +227,6 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
       <p className="text-sm text-ink-dim">
         These apply to huddles in every workspace on this device, and to a huddle you are in now.
       </p>
-      {calls.saving && (
-        <p role="status" className="text-sm text-ink-dim">
-          Saving preference…
-        </p>
-      )}
       {calls.error && (
         <p role="alert" className="text-sm text-alert">
           {calls.error}

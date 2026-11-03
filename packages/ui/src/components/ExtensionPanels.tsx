@@ -3,6 +3,7 @@ import type { SettingsField, SettingsPanel } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient } from "../context.js";
 import { useSaved } from "../lib/savedNote.js";
+import { UnsavedGuard } from "../lib/dismissGuard.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 import { TextField } from "./TextField.js";
@@ -101,8 +102,14 @@ function ExtensionPanelForm({ panel, onSaved }: { panel: SettingsPanel; onSaved:
     }
   }
 
+  // Typed settings wait for Save, as the workspace's name does, so closing
+  // with a change still here asks first. A secret typed is a change.
+  const dirty = panel.fields.some((f) =>
+    f.kind === "secret" ? values[f.key] !== "" : values[f.key] !== f.value,
+  );
   return (
     <section aria-labelledby={`${id}-title`} className="mb-8">
+      <UnsavedGuard dirty={dirty && !busy} what={`changes to ${panel.title}`} />
       <h4 id={`${id}-title`} className="mb-1.5 text-[13px] font-medium text-ink-dim">
         {panel.title}
       </h4>
