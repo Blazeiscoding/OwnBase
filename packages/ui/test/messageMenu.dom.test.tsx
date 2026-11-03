@@ -3,11 +3,18 @@ import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";
-import { ClientContext } from "../src/context.js";
+import { ClientContext, PlatformContext } from "../src/context.js";
+import type { Platform } from "../src/platform.js";
 import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { accessibilityProblems } from "./accessibility.js";
+
+const platform: Platform = {
+  kind: "web",
+  storage: { get: async () => null, set: async () => {} },
+  notify: () => {},
+};
 
 const person = (id: string, displayName: string, role: User["role"] = "member"): User => ({
   id,
@@ -69,13 +76,15 @@ function messageFrom(author: User, self: User) {
   render(
     <ToastProvider>
       <ConfirmProvider>
-        <ClientContext.Provider value={client}>
-          <MessageItem
-            message={{ ...message, userId: author.id }}
-            compact={false}
-            onOpenThread={onOpenThread}
-          />
-        </ClientContext.Provider>
+        <PlatformContext.Provider value={platform}>
+          <ClientContext.Provider value={client}>
+            <MessageItem
+              message={{ ...message, userId: author.id }}
+              compact={false}
+              onOpenThread={onOpenThread}
+            />
+          </ClientContext.Provider>
+        </PlatformContext.Provider>
       </ConfirmProvider>
     </ToastProvider>,
   );
@@ -224,18 +233,20 @@ describe("a message's reactions", () => {
     render(
       <ToastProvider>
         <ConfirmProvider>
-          <ClientContext.Provider value={client}>
-            <MessageItem
-              message={{
-                ...message,
-                reactions: [
-                  { emoji: "👍", userIds: [sam.id, priya.id] },
-                  { emoji: "🎉", userIds: [priya.id] },
-                ],
-              }}
-              compact={false}
-            />
-          </ClientContext.Provider>
+          <PlatformContext.Provider value={platform}>
+            <ClientContext.Provider value={client}>
+              <MessageItem
+                message={{
+                  ...message,
+                  reactions: [
+                    { emoji: "👍", userIds: [sam.id, priya.id] },
+                    { emoji: "🎉", userIds: [priya.id] },
+                  ],
+                }}
+                compact={false}
+              />
+            </ClientContext.Provider>
+          </PlatformContext.Provider>
         </ConfirmProvider>
       </ToastProvider>,
     );

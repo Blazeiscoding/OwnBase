@@ -15,6 +15,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey } from "../lib/textInput.js";
 import { useMentionField } from "../lib/useMentionField.js";
+import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";
 
 export function MessageEditor({ message, onClose }: { message: Message; onClose: () => void }) {
@@ -66,6 +67,19 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
 
   // The box shows mentions as names; `draft` keeps them as ids, as saved.
   const field = useMentionField(draft, box, (text) => change(text), users, channels);
+  const room = useWorkspace((s) => {
+    const type = s.channels[message.channelId]?.type;
+    return type === "public" || type === "private";
+  });
+  // Names, channels and emoji finish here as they do in the composer.
+  const suggestions = useSuggestions({
+    field,
+    box,
+    apply: (text, caret) => {
+      if (!saving.current) field.edit(text, caret);
+    },
+    room,
+  });
 
   function format(marker: string, placeholder: string, block = false) {
     if (!box.current || saving.current) return;
@@ -150,98 +164,114 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           </blockquote>
         </div>
       )}
-      <fieldset
-        disabled={busy}
-        className="min-w-0 overflow-hidden rounded-lg border border-copper/60 bg-ground"
-      >
-        <FormattingToolbar
-          onFormat={format}
-          onList={list}
-          onInsert={(emoji) => {
-            const next = field.replaceSelection(emoji);
-            field.edit(next.stored, next.caret);
-          }}
-          preview={preview}
-          onTogglePreview={() => setPreview((v) => !v)}
-        />
-        {preview && (
-          <div
-            aria-label="Edit preview"
-            className="max-h-36 overflow-y-auto border-b border-edge px-3 py-2 text-sm"
-          >
-            <Mrkdwn text={draft} users={users} channels={channels} selfId={client.state.self?.id} />
-          </div>
-        )}
-        <div className="relative">
-          <MentionTags doc={field.doc} box={box} />
-          <textarea
-            ref={box}
-            value={field.doc.shown}
-            autoFocus
-            aria-label="Edit message"
-            onChange={(e) => change(field.fromInput(e).stored)}
-            onKeyDown={(e) => {
-              // Enter confirms an IME candidate rather than saving the edit.
-              if (isImeKey(e.nativeEvent)) return;
-              field.onKeyDown(e);
-              if ((e.ctrlKey || e.metaKey) && !e.altKey) {
-                const marker = formattingShortcut(e.key, e.shiftKey);
-                if (marker) {
-                  e.preventDefault();
-                  format(marker, "text");
-                  return;
+      <div className="relative">
+        {/* Outside the fieldset, which clips what overflows its rounded corners. */}
+        <SuggestionList suggestions={suggestions} className="left-0 right-0" />
+        <fieldset
+          disabled={busy}
+          className="min-w-0 overflow-hidden rounded-lg border border-copper/60 bg-ground"
+        >
+          <FormattingToolbar
+            onFormat={format}
+            onList={list}
+            onInsert={(emoji) => {
+              const next = field.replaceSelection(emoji);
+              field.edit(next.stored, next.caret);
+            }}
+            preview={preview}
+            onTogglePreview={() => setPreview((v) => !v)}
+          />
+          {preview && (
+            <div
+              aria-label="Edit preview"
+              className="max-h-36 overflow-y-auto border-b border-edge px-3 py-2 text-sm"
+            >
+              <Mrkdwn
+                text={draft}
+                users={users}
+                channels={channels}
+                selfId={client.state.self?.id}
+              />
+            </div>
+          )}
+          <div className="relative">
+            <MentionTags doc={field.doc} box={box} />
+            <textarea
+              ref={box}
+              value={field.doc.shown}
+              autoFocus
+              aria-label="Edit message"
+              {...suggestions.list.ownerProps}
+              onChange={(e) => {
+                const next = field.fromInput(e);
+                change(next.stored);
+                suggestions.update(e.target.value, e.target.selectionStart, next);
+              }}
+              onBlur={suggestions.close}
+              onKeyDown={(e) => {
+                // Enter confirms an IME candidate rather than saving the edit.
+                if (isImeKey(e.nativeEvent)) return;
+                if (suggestions.keyDown(e)) return;
+                field.onKeyDown(e);
+                if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+                  const marker = formattingShortcut(e.key, e.shiftKey);
+                  if (marker) {
+                    e.preventDefault();
+                    format(marker, "text");
+                    return;
+                  }
+                  const listed = listShortcut(e);
+                  if (listed) {
+                    e.preventDefault();
+                    list(listed);
+                    return;
+                  }
+                  // Saves from anywhere, a code block included, as it sends in the composer.
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    if (!changedElsewhere) void save();
+                    return;
+                  }
                 }
-                const listed = listShortcut(e);
-                if (listed) {
-                  e.preventDefault();
-                  list(listed);
-                  return;
-                }
-                // Saves from anywhere, a code block included, as it sends in the composer.
-                if (e.key === "Enter") {
+                if (
+                  e.key === "Enter" &&
+                  !e.shiftKey &&
+                  // A new line of the code, not half a code block saved.
+                  !insideCodeBlock(e.currentTarget.value, e.currentTarget.selectionStart)
+                ) {
                   e.preventDefault();
                   if (!changedElsewhere) void save();
-                  return;
                 }
-              }
-              if (
-                e.key === "Enter" &&
-                !e.shiftKey &&
-                // A new line of the code, not half a code block saved.
-                !insideCodeBlock(e.currentTarget.value, e.currentTarget.selectionStart)
-              ) {
-                e.preventDefault();
-                if (!changedElsewhere) void save();
-              }
-              if (e.key === "Escape") {
-                e.preventDefault();
-                e.stopPropagation();
-                cancel();
-              }
-            }}
-            rows={Math.min(8, Math.max(2, draft.split("\n").length))}
-            className="relative block max-h-64 w-full resize-y bg-transparent px-3 py-2 text-[15px] outline-none"
-          />
-        </div>
-        <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs">
-          <span className={draft.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}>
-            {draft.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()}
-          </span>
-          <div className="flex gap-3">
-            <button type="button" className="text-ink-dim" onClick={cancel}>
-              Cancel
-            </button>
-            <button
-              type="button"
-              className="btn-shape bg-copper px-3 py-1 font-medium text-ground disabled:opacity-40"
-              disabled={!draft.trim() || draft.length > MESSAGE_LIMIT}
-              onClick={() => void save()}
-            >
-              {busy ? "Saving…" : changedElsewhere ? "Save my version" : "Save"}
-            </button>
+                if (e.key === "Escape") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  cancel();
+                }
+              }}
+              rows={Math.min(8, Math.max(2, draft.split("\n").length))}
+              className="relative block max-h-64 w-full resize-y bg-transparent px-3 py-2 text-[15px] outline-none"
+            />
           </div>
-        </div>
-      </fieldset>
+          <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs">
+            <span className={draft.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}>
+              {draft.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()}
+            </span>
+            <div className="flex gap-3">
+              <button type="button" className="text-ink-dim" onClick={cancel}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="btn-shape bg-copper px-3 py-1 font-medium text-ground disabled:opacity-40"
+                disabled={!draft.trim() || draft.length > MESSAGE_LIMIT}
+                onClick={() => void save()}
+              >
+                {busy ? "Saving…" : changedElsewhere ? "Save my version" : "Save"}
+              </button>
+            </div>
+          </div>
+        </fieldset>
+      </div>
       {error && (
         <p role="alert" className="mt-1 text-xs text-alert">
           {error}

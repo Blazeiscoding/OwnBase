@@ -90,9 +90,10 @@ describe("the composer's suggestions", () => {
     await user.type(box, "Hi @sa");
     const mentions = screen.getByRole("listbox", { name: "Mentions" });
     const options = within(mentions).getAllByRole("option");
+    // Both names start with what was typed, so they come alphabetically.
     expect(options.map((o) => o.textContent)).toEqual([
-      expect.stringContaining("Sam Rivera"),
       expect.stringContaining("Sadia Khan"),
+      expect.stringContaining("Sam Rivera"),
     ]);
     // A button inside an option is announced twice, or not at all.
     expect(within(mentions).queryAllByRole("button")).toEqual([]);
@@ -110,11 +111,11 @@ describe("the composer's suggestions", () => {
 
     await user.keyboard("{Enter}");
     // The box reads as the name; what is sent names the person by id.
-    expect(box).toHaveValue("Hi @Sadia Khan ");
+    expect(box).toHaveValue("Hi @Sam Rivera ");
     expect(screen.queryByRole("listbox")).not.toBeInTheDocument();
     expect(box).not.toHaveAttribute("aria-activedescendant");
     await user.type(box, "ready?{Enter}");
-    expect(send).toHaveBeenCalledWith(design.id, `Hi <@${sadia.id}> ready?`, expect.anything());
+    expect(send).toHaveBeenCalledWith(design.id, `Hi <@${sam.id}> ready?`, expect.anything());
   });
 
   it("take a click without taking focus from the text box", async () => {
@@ -127,7 +128,7 @@ describe("the composer's suggestions", () => {
 
   it("finds people by Japanese, Devanagari, Arabic, and combining-mark names beyond the first six", async () => {
     const fillers = Array.from({ length: 6 }, (_, i) =>
-      person(`U_FILLER_${i}`, `filler${i}`, `Filler ${i}`),
+      person(`U_FILLER_${i}`, `abe${i}`, `Abe ${i}`),
     );
     const targets = [
       person("U_JAPANESE", "yamada", "山田 花子"),

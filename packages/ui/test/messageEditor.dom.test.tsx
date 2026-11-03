@@ -7,7 +7,14 @@ import { MessageEditor } from "../src/components/MessageEditor.js";
 import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
-import { ClientContext } from "../src/context.js";
+import { ClientContext, PlatformContext } from "../src/context.js";
+import type { Platform } from "../src/platform.js";
+
+const platform: Platform = {
+  kind: "web",
+  storage: { get: async () => null, set: async () => {} },
+  notify: () => {},
+};
 
 /**
  * Editing a message in place: what saving, cancelling and failing do to the
@@ -58,15 +65,19 @@ function renderEditor(message = original) {
     .mockImplementation(async (_id, text) => ({ message: { ...message, text } }));
   const onClose = vi.fn();
   const view = render(
-    <ClientContext.Provider value={client}>
-      <MessageEditor message={message} onClose={onClose} />
-    </ClientContext.Provider>,
+    <PlatformContext.Provider value={platform}>
+      <ClientContext.Provider value={client}>
+        <MessageEditor message={message} onClose={onClose} />
+      </ClientContext.Provider>
+    </PlatformContext.Provider>,
   );
   const rerender = (next: Message) =>
     view.rerender(
-      <ClientContext.Provider value={client}>
-        <MessageEditor message={next} onClose={onClose} />
-      </ClientContext.Provider>,
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <MessageEditor message={next} onClose={onClose} />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
     );
   const box = screen.getByRole("textbox", { name: "Edit message" });
   return { client, edit, onClose, box, rerender };
@@ -193,9 +204,11 @@ describe("editing a message", () => {
     client.store.setState({ self: sam, users: { [sam.id]: sam } });
     client.setDraft(draftKey, "Half an edit");
     render(
-      <ClientContext.Provider value={client}>
-        <MessageEditor message={original} onClose={() => {}} />
-      </ClientContext.Provider>,
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <MessageEditor message={original} onClose={() => {}} />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
     );
     expect(screen.getByRole("textbox", { name: "Edit message" })).toHaveValue("Half an edit");
   });
@@ -291,9 +304,11 @@ describe("an edit picked up after a restart", () => {
       .spyOn(client.api, "editMessage")
       .mockImplementation(async (_id, text) => ({ message: { ...message, text } }));
     render(
-      <ClientContext.Provider value={client}>
-        <MessageEditor message={message} onClose={() => {}} />
-      </ClientContext.Provider>,
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <MessageEditor message={message} onClose={() => {}} />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
     );
     return { edit, box: screen.getByRole("textbox", { name: "Edit message" }) };
   }
@@ -368,22 +383,24 @@ describe("a message with files, being edited", () => {
     render(
       <ToastProvider>
         <ConfirmProvider>
-          <ClientContext.Provider value={client}>
-            <MessageItem
-              message={
-                {
-                  ...original,
-                  text: "adad",
-                  broadcast: false,
-                  nonce: null,
-                  actions: [],
-                  files: [picture],
-                  forwardedFrom: forwarded,
-                } as Message
-              }
-              compact={false}
-            />
-          </ClientContext.Provider>
+          <PlatformContext.Provider value={platform}>
+            <ClientContext.Provider value={client}>
+              <MessageItem
+                message={
+                  {
+                    ...original,
+                    text: "adad",
+                    broadcast: false,
+                    nonce: null,
+                    actions: [],
+                    files: [picture],
+                    forwardedFrom: forwarded,
+                  } as Message
+                }
+                compact={false}
+              />
+            </ClientContext.Provider>
+          </PlatformContext.Provider>
         </ConfirmProvider>
       </ToastProvider>,
     );

@@ -1,11 +1,8 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ID, User, ScheduleMessageBody } from "@ownbase/protocol";
+import type { ID, ScheduleMessageBody } from "@ownbase/protocol";
 import { ApiError, OUTBOX_LIMIT, quoteOf } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
-import { Avatar } from "./Avatar.js";
 import { formatBytes } from "../lib/format.js";
-import { useEmoji } from "../lib/emoji.js";
-import type { Emoji } from "../lib/emojiSet.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import { formatScheduleShort, formatScheduleTime, schedulePresets } from "../lib/schedule.js";
 import { cancelReply, conversationKey, setReplyPing, useReplyTarget } from "../lib/replyTarget.js";
@@ -23,6 +20,7 @@ import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
 import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
+import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { whenKeptLocally } from "../lib/localWork.js";
 import {
   readWorkspaceStorage,
@@ -58,16 +56,6 @@ interface Props {
   placeholder: string;
   autoFocus?: boolean;
 }
-
-/** Something the @ picker can insert: a person, or the whole room. */
-type Candidate =
-  | { kind: "user"; user: User }
-  | { kind: "broadcast"; token: "channel" | "here"; description: string };
-
-const BROADCASTS = [
-  { token: "channel" as const, description: "Everyone in this channel" },
-  { token: "here" as const, description: "Everyone who is around now" },
-];
 
 /** Enter follows the device preference; @ opens mention autocomplete. */
 export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Props) {
@@ -106,9 +94,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   const recoveryBlocksSend = !scheduleReady || pendingSchedule !== null;
   const savedDraft = useWorkspace((s) => s.drafts[draftKey] ?? "");
   const [text, setText] = useState(savedDraft);
-  const [mentionQuery, setMentionQuery] = useState<{ start: number; query: string } | null>(null);
-  /** A word typed after a colon, such as ":rock", offering emoji to finish it. */
-  const [emojiQuery, setEmojiQuery] = useState<{ start: number; query: string } | null>(null);
   const [attached, setAttached] = useState<File[]>([]);
   const maxFileBytes = useMaxFileBytes(client, !guest);
   const [dragging, setDragging] = useState(false);
@@ -158,8 +143,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     synced.current = client.state.drafts[draftKey] ?? "";
     setText(synced.current);
     setAttached([]);
-    setMentionQuery(null);
-    setEmojiQuery(null);
+    suggestions.close();
     setPreview(false);
     setAttachmentNote(null);
     setSendRefusal(null);
@@ -375,12 +359,17 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     users,
     channels,
   );
+  const suggestions = useSuggestions({
+    field,
+    box,
+    apply: (next, caret) => rewrite(next, caret),
+    room: isRoom,
+  });
 
   /** Rewrites the draft, selecting `start..end` of the new text. */
   function rewrite(next: string, start?: number, end = start) {
     if (scheduleLock.current || recoveryBlocksSend || held) return;
-    setMentionQuery(null);
-    setEmojiQuery(null);
+    suggestions.close();
     field.edit(next, start, end);
   }
 
@@ -431,24 +420,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     if (!now || now === document.body || now === before) box.current?.focus();
   }, [blocked]);
 
-  const candidates = useMemo((): Candidate[] => {
-    if (!mentionQuery) return [];
-    // Input methods can produce decomposed characters while a saved display name
-    // uses composed characters (or vice versa).
-    const q = mentionQuery.query.toLowerCase().normalize("NFC");
-    // A room-wide mention has no meaning in a DM, so it is not offered there.
-    const rooms: Candidate[] = isRoom
-      ? BROADCASTS.filter((b) => b.token.startsWith(q)).map((b) => ({ kind: "broadcast", ...b }))
-      : [];
-    const people: Candidate[] = Object.values(users)
-      .filter((u) => !u.deactivated)
-      .filter(
-        (u) => u.handle.includes(q) || u.displayName.toLowerCase().normalize("NFC").includes(q),
-      )
-      .map((user) => ({ kind: "user", user }));
-    return [...rooms, ...people].slice(0, 6);
-  }, [mentionQuery, users, isRoom]);
-
   /**
    * Commands are offered only while the first word is still being typed —
    * once there is an argument the list would just be in the way.
@@ -460,91 +431,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     return commands.filter((c) => c.command.startsWith(q)).slice(0, 6);
   }, [text, commands, guest]);
   const commandList = useListbox(commandCandidates.length);
-  const mentionList = useListbox(mentionQuery ? candidates.length : 0);
-  // Every emoji arrives on first use; usually the workspace has fetched it already.
-  const emoji = useEmoji(emojiQuery !== null);
-  const emojiCandidates = useMemo(
-    () =>
-      emoji && emojiQuery
-        ? emoji.emojiStartingWith(
-            emojiQuery.query,
-            emoji.likedBy(emoji.emojiPreferences(platform).getState().used),
-          )
-        : [],
-    [emoji, emojiQuery, platform],
-  );
-  const emojiList = useListbox(emojiCandidates.length);
-
   function insertCommand(command: string) {
     const next = `/${command} `;
     rewrite(next, next.length);
-  }
-
-  function refreshMentionState(value: string, caret: number, shown = field.doc) {
-    const upToCaret = value.slice(0, caret);
-    const m = /(^|\s)@([\p{L}\p{N}\p{M}._-]*)$/u.exec(upToCaret);
-    // A mention already made is not one being typed.
-    if (m && !field.startsMention(caret - m[2]!.length - 1, shown)) {
-      setMentionQuery({ start: caret - m[2]!.length - 1, query: m[2]! });
-      mentionList.choose(0);
-    } else {
-      setMentionQuery(null);
-    }
-    // Two letters after a colon, as Slack waits for, so a time such as 10:30
-    // or a ":)" is left alone; and none inside a code block.
-    const colon = /(^|\s):([\p{L}\p{N}_+-]{2,})$/u.exec(upToCaret);
-    if (!m && colon && !insideCodeBlock(value, caret)) {
-      setEmojiQuery({ start: caret - colon[2]!.length - 1, query: colon[2]! });
-      emojiList.choose(0);
-    } else {
-      setEmojiQuery(null);
-    }
-  }
-
-  /** Finishes ":rock" as 🚀, in place of the word typed, in this device's skin tone. */
-  function completeEmoji(chosen: Emoji) {
-    if (scheduleLock.current || recoveryBlocksSend) return;
-    if (!emojiQuery || !box.current || !emoji) return;
-    const next = field.replaceSelection(
-      `${emoji.writeEmoji(platform, chosen)} `,
-      emojiQuery.start,
-      box.current.selectionStart,
-    );
-    rewrite(next.stored, next.caret);
-  }
-
-  /**
-   * Turns a shortcode written out in full, as ":tada:", into its emoji when
-   * its closing colon is typed, as Slack does. Not in code, where colons are
-   * code. Says whether it did.
-   */
-  function finishShortcode(value: string, caret: number): boolean {
-    if (!emoji || scheduleLock.current || recoveryBlocksSend) return false;
-    const line = value.slice(value.lastIndexOf("\n", caret - 1) + 1, caret);
-    const typed = /(^|\s):([a-z0-9_+-]+):$/i.exec(line);
-    if (!typed || insideCodeBlock(value, caret) || line.split("`").length % 2 === 0) return false;
-    const named = emoji.emojiNamed(typed[2]!);
-    if (!named) return false;
-    const next = field.replaceSelection(
-      emoji.writeEmoji(platform, named),
-      caret - typed[2]!.length - 2,
-      caret,
-    );
-    rewrite(next.stored, next.caret);
-    return true;
-  }
-
-  function insertMention(candidate: Candidate) {
-    if (scheduleLock.current || recoveryBlocksSend) return;
-    if (!mentionQuery || !box.current) return;
-    const token = candidate.kind === "user" ? `<@${candidate.user.id}>` : `<!${candidate.token}>`;
-    // Shown as the name at once; sent as the id it stands for.
-    const next = field.replaceSelection(
-      `${token} `,
-      mentionQuery.start,
-      box.current.selectionStart,
-    );
-    rewrite(next.stored, next.caret);
   }
 
   const chooseCommand = commandList.choose;
@@ -588,8 +477,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     setAlsoToChannel(false);
     cancelReply(client, draftKey);
     setAttached([]);
-    setMentionQuery(null);
-    setEmojiQuery(null);
+    suggestions.close();
     setAttachmentNote(null);
     // The words stay here, and in the saved draft, until the device keeps the
     // send itself: until then a closed window would lose them (GL-02).
@@ -822,34 +710,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       }
       // Enter follows the send preference, rather than choosing a command.
     }
-    if (mentionQuery && candidates.length > 0) {
-      if (mentionList.move(e)) return;
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        insertMention(candidates[mentionList.active]!);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        setMentionQuery(null);
-        return;
-      }
-    }
-    if (emojiQuery && emojiCandidates.length > 0) {
-      if (emojiList.move(e)) return;
-      if (e.key === "Enter" || e.key === "Tab") {
-        e.preventDefault();
-        completeEmoji(emojiCandidates[emojiList.active]!);
-        return;
-      }
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopPropagation();
-        setEmojiQuery(null);
-        return;
-      }
-    }
+    if (suggestions.keyDown(e)) return;
     if (
       e.key === "ArrowUp" &&
       !e.shiftKey &&
@@ -953,67 +814,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
           ))}
         </ul>
       )}
-      {!scheduling && mentionQuery && candidates.length > 0 && (
-        <ul
-          {...mentionList.listProps}
-          aria-label="Mentions"
-          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
-        >
-          {candidates.map((c, i) => (
-            <li
-              key={c.kind === "user" ? c.user.id : c.token}
-              {...mentionList.optionProps(i)}
-              onClick={() => insertMention(c)}
-              className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm ${
-                i === mentionList.active ? "bg-ink/[0.07]" : ""
-              }`}
-            >
-              {c.kind === "user" ? (
-                <>
-                  <Avatar user={c.user} size={22} />
-                  <span className="font-medium">{c.user.displayName}</span>
-                  <span className="font-mono text-xs text-ink-faint">@{c.user.handle}</span>
-                  {c.user.id === selfId && <span className="text-xs text-ink-faint">(you)</span>}
-                </>
-              ) : (
-                <>
-                  <span className="flex size-[22px] items-center justify-center rounded-md bg-ink/[0.08] text-ink-dim">
-                    <Icon name="at" size={14} />
-                  </span>
-                  <span className="font-medium">@{c.token}</span>
-                  <span className="text-xs text-ink-faint">{c.description}</span>
-                </>
-              )}
-            </li>
-          ))}
-        </ul>
-      )}
-      {!scheduling && emojiQuery && emojiCandidates.length > 0 && (
-        <ul
-          {...emojiList.listProps}
-          aria-label="Emoji"
-          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
-        >
-          {emojiCandidates.map((candidate, i) => (
-            <li
-              key={candidate.id}
-              {...emojiList.optionProps(i)}
-              onClick={() => completeEmoji(candidate)}
-              className={`flex w-full cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm ${
-                i === emojiList.active ? "bg-ink/[0.07]" : ""
-              }`}
-            >
-              <span
-                aria-hidden="true"
-                className="font-emoji w-[22px] text-center text-lg leading-none"
-              >
-                {emoji?.inTone(candidate, emoji.emojiPreferences(platform).getState().tone)}
-              </span>
-              <span className="font-medium">:{candidate.id}:</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      {!scheduling && <SuggestionList suggestions={suggestions} />}
       {scheduleError && (
         <p role="alert" className="mb-2 text-sm text-ink-dim">
           {scheduleError}
@@ -1184,12 +985,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             rows={1}
             placeholder={dragging ? "Drop files to attach" : placeholder}
             aria-label={placeholder}
-            {...(mentionQuery && candidates.length
-              ? mentionList
-              : emojiQuery && emojiCandidates.length
-                ? emojiList
-                : commandList
-            ).ownerProps}
+            {...(suggestions.open ? suggestions.list : commandList).ownerProps}
             onPaste={(e) => {
               const data = e.clipboardData;
               // Some browsers offer a pasted image only as an item, not among the files.
@@ -1221,8 +1017,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               // What was scheduled has been said; the next message starts afresh.
               setScheduleNote(null);
               setText(next.stored);
-              refreshMentionState(e.target.value, e.target.selectionStart, next);
-              finishShortcode(e.target.value, e.target.selectionStart);
+              if (!scheduleLock.current && !recoveryBlocksSend)
+                suggestions.update(e.target.value, e.target.selectionStart, next);
               const now = Date.now();
               if (now - lastTypingSent.current > 3000 && e.target.value.trim()) {
                 lastTypingSent.current = now;
@@ -1230,10 +1026,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               }
             }}
             onKeyDown={onKeyDown}
-            onBlur={() => {
-              setMentionQuery(null);
-              setEmojiQuery(null);
-            }}
+            onBlur={suggestions.close}
             className="relative block max-h-[220px] w-full resize-none bg-transparent px-4 pb-1 pt-3 text-[15px] leading-normal outline-none placeholder:text-ink-faint"
           />
         </div>
