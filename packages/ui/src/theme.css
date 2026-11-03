@@ -391,6 +391,18 @@ body:has(> .settings-under-titlebar[data-ownbase-modal]) > [data-ownbase-toasts]
 }
 
 /*
+ * A call's buttons over a dialog (CallDock) sit at the foot of the window,
+ * clear of the notices at its top. Settings, the one dialog that reaches the
+ * foot, stops short of them while they are there.
+ */
+.call-dock {
+  bottom: calc(0.75rem + env(safe-area-inset-bottom));
+}
+body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
+  padding-bottom: calc(4.25rem + env(safe-area-inset-bottom));
+}
+
+/*
  * A notice on its way out fades as its row folds to nothing, taking the gap
  * beside it too, so the notices after it slide up rather than jump.
  */

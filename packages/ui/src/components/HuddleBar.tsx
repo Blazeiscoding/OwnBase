@@ -16,6 +16,7 @@ import { useCallPreferences } from "../lib/callPreferences.js";
 import { useCallVolumes } from "../lib/callVolumes.js";
 import { PersonVolume } from "./PersonVolume.js";
 import { CallAnnouncer } from "./CallAnnouncer.js";
+import { CallDock } from "./CallDock.js";
 
 /** Someone in the call, as the bar and its roster need them. */
 interface Person {
@@ -281,6 +282,7 @@ export function HuddleBar({
       <HuddleAudio peers={huddle.peers} speakerId={speakerId} volumes={volumes} />
       <CallAnnouncer peerIds={huddle.peers.map((p) => p.userId)} users={users} />
       <BigCallNotice huddle={huddle} />
+      <CallDock where={where} />
       {!calling && (
         <>
           {/* The minimum width is what sends the controls to a line of their own on a phone. */}
