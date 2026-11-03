@@ -1656,30 +1656,34 @@ export function HostDialog(props: {
                                     ? "The address alone lets nobody in. Send an invite link instead: it carries this address and the invite, so one click brings someone in."
                                     : "The address alone lets nobody in. To bring someone in, open the workspace, choose Invite people from its menu and send that link."}
                             </p>
-                            {status.inviteOnly && livePolicy !== "guest_allowed" && invitesHere && (
+                            <div className="mt-3 flex flex-wrap items-center gap-2">
+                              {status.inviteOnly &&
+                                livePolicy !== "guest_allowed" &&
+                                invitesHere && (
+                                  <button
+                                    type="button"
+                                    disabled={!!busy}
+                                    onClick={props.onInvite}
+                                    className={buttonClass("primary", "h-8 px-3 text-[13px]")}
+                                  >
+                                    Get an invite link
+                                  </button>
+                                )}
                               <button
                                 type="button"
                                 disabled={!!busy}
-                                onClick={props.onInvite}
-                                className={buttonClass("primary", "mt-3 h-8 px-3 text-[13px]")}
+                                onClick={() => void endOpenToAll()}
+                                className="h-8 rounded-lg border border-edge px-3 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
                               >
-                                Get an invite link
+                                {busy === "closing"
+                                  ? externallyCarried
+                                    ? "Stopping use of address…"
+                                    : "Closing public link…"
+                                  : externallyCarried
+                                    ? "Stop using address"
+                                    : "Close public link"}
                               </button>
-                            )}
-                            <button
-                              type="button"
-                              disabled={!!busy}
-                              onClick={() => void endOpenToAll()}
-                              className="mt-3 rounded-lg border border-edge px-3 py-2 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
-                            >
-                              {busy === "closing"
-                                ? externallyCarried
-                                  ? "Stopping use of address…"
-                                  : "Closing public link…"
-                                : externallyCarried
-                                  ? "Stop using address"
-                                  : "Close public link"}
-                            </button>
+                            </div>
                           </>
                         ) : (
                           <>
