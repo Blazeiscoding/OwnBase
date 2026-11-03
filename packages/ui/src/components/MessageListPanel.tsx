@@ -35,6 +35,8 @@ interface Props {
   headerExtra?: ReactNode;
   /** Extra detail beside a row's channel, such as an unread count. */
   itemBadge?: (message: Message) => ReactNode;
+  /** More about a row under its message, such as a thread's newest reply. */
+  itemFooter?: (message: Message) => ReactNode;
   /** Overrides the row's action wording when "Open message" is wrong. */
   jumpLabel?: (message: Message) => string;
   /**
@@ -204,6 +206,7 @@ export function MessageListPanel(props: Props) {
                       </div>
                     </div>
                   </div>
+                  {props.itemFooter?.(m)}
                   <button
                     data-list-open=""
                     className="ml-[38px] mt-1.5 inline-flex items-center gap-1 rounded-md text-[12px] font-medium text-ink-faint transition-colors hover:text-ink"
@@ -392,6 +395,10 @@ export function ThreadsPanel(props: {
   const client = useClient();
   const [unreadOnly, setUnreadOnly] = useState(false);
   const [unread, setUnread] = useState<Record<ID, number>>({});
+  const [latest, setLatest] = useState<Record<ID, Message | null>>({});
+  const users = useWorkspace((s) => s.users);
+  const channels = useWorkspace((s) => s.channels);
+  const selfId = useWorkspace((s) => s.self?.id);
   // Following, unfollowing, reading and a new reply all change what belongs in
   // this list, or where, or what it says about a thread.
   const followSignature = useWorkspace((s) =>
@@ -428,11 +435,16 @@ export function ThreadsPanel(props: {
       }
       load={async (cursor, signal) => {
         const result = await client.api.listFollowedThreads({ cursor, unreadOnly }, signal);
-        if (!signal.aborted)
+        if (!signal.aborted) {
           setUnread((known) => ({
             ...known,
             ...Object.fromEntries(result.threads.map((t) => [t.root.id, t.unreadCount])),
           }));
+          setLatest((known) => ({
+            ...known,
+            ...Object.fromEntries(result.threads.map((t) => [t.root.id, t.latestReply ?? null])),
+          }));
+        }
         return { messages: result.threads.map((t) => t.root), nextCursor: result.nextCursor };
       }}
       listKey={`threads:${unreadOnly}`}
@@ -445,6 +457,40 @@ export function ThreadsPanel(props: {
         ) : null
       }
       // As the conversation says it under the thread's first message.
+      // Where the thread has got to: its newest reply, who wrote it and when.
+      itemFooter={(m) => {
+        const reply = latest[m.id];
+        if (!reply) return null;
+        return (
+          <div className="ml-[38px] mt-2 flex gap-2 border-l-2 border-edge pl-2.5 text-[13px]">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-baseline gap-2 text-[12px]">
+                <span className="truncate font-semibold text-ink-dim">
+                  {reply.userId === selfId
+                    ? "You"
+                    : (users[reply.userId]?.displayName ?? "unknown")}
+                </span>
+                <time
+                  dateTime={new Date(reply.createdAt).toISOString()}
+                  title={formatFull(reply.createdAt)}
+                  className="shrink-0 text-ink-faint"
+                >
+                  {formatWhen(reply.createdAt)}
+                </time>
+              </div>
+              <div className="line-clamp-2 text-ink-dim">
+                {reply.text ? (
+                  <Mrkdwn text={reply.text} users={users} channels={channels} selfId={selfId} />
+                ) : (
+                  <span className="italic">
+                    {reply.files.length} {reply.files.length === 1 ? "file" : "files"}
+                  </span>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      }}
       jumpLabel={(m) =>
         m.replyCount > 0
           ? `${m.replyCount} ${m.replyCount === 1 ? "reply" : "replies"}`

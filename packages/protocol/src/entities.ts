@@ -758,6 +758,11 @@ export interface FollowedThread {
   root: Message;
   lastSeq: number;
   unreadCount: number;
+  /**
+   * The thread's newest reply, for the list to show where it has got to; null
+   * with none. Absent from servers before it was sent.
+   */
+  latestReply?: Message | null;
 }
 
 export const PROTOCOL_VERSION = 1;

@@ -2797,7 +2797,11 @@ async function startWorkspaceServer(
 
   app.get("/api/channels", async (req) => {
     const me = requireUser(req);
-    return { channels: store.listChannelsVisibleTo(me.id) };
+    // How many active people each channel holds, for the channel browser.
+    return {
+      channels: store.listChannelsVisibleTo(me.id),
+      memberCounts: store.roomMemberCounts(me.id),
+    };
   });
 
   app.post("/api/channels", async (req, reply) => {

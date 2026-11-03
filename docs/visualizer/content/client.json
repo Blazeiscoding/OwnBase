@@ -1435,7 +1435,9 @@
         "The generic panel renders a PagedList of server-loaded messages with row context, loading/empty/refusal state and a LoadMore end. listKey names a different list; a change of refreshKey, or of changedContent for a conversation it shows, reads it again in place (UX-08).",
         "Pins are channel-specific, Saved spans readable conversations, and Threads represents followed conversations with unread counts and opens the thread rather than a single message. Saved refreshes on the saved set, Threads on follow state including each thread's lastSeq, so a new reply shows at once.",
         "Since Q08 PinsPanel also passes its channel's changedContent marker in refreshKey, so a pin, edit or deletion outside the loaded timeline is seen.",
-        "keep hides a row this device already knows no longer belongs, before the list is read again. remove gives each row one action that takes it out, shown on hover or focus and always where there is no hover, as Activity's and Drafts' are. Focus then goes to the next row's Open button, or the heading when none is left, and the row drops the second click of a double-click (dropRepeatClick), since the next row's button slides up under the pointer. SavedPanel uses both: Remove from Saved unsaves at once with an Undo notice, and a refusal puts the row back with Try again."
+        "keep hides a row this device already knows no longer belongs, before the list is read again. remove gives each row one action that takes it out, shown on hover or focus and always where there is no hover, as Activity's and Drafts' are. Focus then goes to the next row's Open button, or the heading when none is left, and the row drops the second click of a double-click (dropRepeatClick), since the next row's button slides up under the pointer. SavedPanel uses both: Remove from Saved unsaves at once with an Undo notice, and a refusal puts the row back with Try again.",
+        "PinsPanel uses them too: Unpin from channel (not for guests) goes through client.togglePin with Undo, and a refusal puts the row back.",
+        "ThreadsPanel's rows say \"3 replies\" (jumpLabel) and, through itemFooter, the thread's newest reply from FollowedThread.latestReply: who, when and its first two lines."
       ],
       "concepts": [
         "shared panels",
@@ -1812,7 +1814,7 @@
       "plain": "Windows for making and browsing channels, starting a direct message and turning a guest into an account.",
       "summary": "Groups channel creation/browsing, new conversations and guest account forms.",
       "details": [
-        "NewChannelDialog creates public/private channels; BrowseChannelsDialog lists and joins available channels; NewDmDialog chooses participants and opens a direct/group conversation.",
+        "NewChannelDialog creates public/private channels; BrowseChannelsDialog lists and joins available channels, with each one's member count from GET /api/channels' memberCounts, read on opening and left out by older servers; NewDmDialog chooses participants and opens a direct/group conversation.",
         "These occasional forms are lazy-loaded by the workspace screen rather than required for every returning conversation view. Invite people moved to InviteDialog.tsx, so its QR encoder loads with it alone.",
         "GuestAccountDialog keeps a guest's identity as an account; the new session token reopens the workspace as the same person. Its Username and Password are TextFields checked on submit with the server's rules (2 to 32 lowercase letters, digits, . _ or -, and at least 8 characters): the button is never off until filled in, each problem is said under its field, the first gets focus, and a taken username comes back under the username.",
         "Browse channels and New message say an empty or filtered-out list with EmptyState; New message's sits after its list of people rather than inside it."

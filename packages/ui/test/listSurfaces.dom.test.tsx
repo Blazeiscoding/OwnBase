@@ -83,7 +83,19 @@ describe("the threads list", () => {
     vi.spyOn(client.api, "listFollowedThreads").mockImplementation(async (opts) => ({
       threads: opts?.unreadOnly
         ? []
-        : [{ root: { ...message, replyCount: 3 }, lastSeq: 7, unreadCount: 0 }],
+        : [
+            {
+              root: { ...message, replyCount: 3 },
+              lastSeq: 7,
+              unreadCount: 0,
+              latestReply: {
+                ...message,
+                id: "M_REPLY",
+                threadRootId: message.id,
+                text: "Added the numbers too.",
+              },
+            },
+          ],
       nextCursor: null,
     }));
     render(
@@ -95,6 +107,8 @@ describe("the threads list", () => {
     expect(await within(panel).findByText("Standup notes are in the doc.")).toBeVisible();
     // Its way in says how many replies, as the conversation does.
     expect(within(panel).getByRole("button", { name: "3 replies" })).toBeVisible();
+    // And where it has got to: its newest reply.
+    expect(within(panel).getByText("Added the numbers too.")).toBeVisible();
 
     await user.click(within(panel).getByRole("button", { name: "Unread only" }));
     const hint = await within(panel).findByText(

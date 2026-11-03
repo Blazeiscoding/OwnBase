@@ -1058,6 +1058,25 @@ export class Store {
     return rows.map((r) => this.toChannel(r, { managers, members }));
   }
 
+  /**
+   * How many active people are in each channel (public or private) this
+   * account can see, for the channel browser to say how big each one is.
+   */
+  roomMemberCounts(userId: ID): Record<ID, number> {
+    const rows = this.db
+      .prepare(
+        `SELECT c.id AS channel_id, COUNT(u.id) AS n FROM channels c
+         JOIN channel_members m ON m.channel_id = c.id
+         JOIN users u ON u.id = m.user_id AND u.deactivated = 0
+         WHERE c.type = 'public' OR (c.type = 'private' AND EXISTS (
+           SELECT 1 FROM channel_members mine
+           WHERE mine.channel_id = c.id AND mine.user_id = ?) AND NOT ${GUEST_SQL})
+         GROUP BY c.id`,
+      )
+      .all(userId, userId) as { channel_id: ID; n: number }[];
+    return Object.fromEntries(rows.map((r) => [r.channel_id, Number(r.n)]));
+  }
+
   listPublicChannelIds(): ID[] {
     const rows = this.db.prepare("SELECT id FROM channels WHERE type = 'public'").all() as {
       id: string;
@@ -3134,11 +3153,26 @@ export class Store {
     const page = rows.slice(0, limit);
     const roots = this.hydrateMessages(page);
     const last = page.at(-1);
+    // Each thread's newest reply, for the list to show where it has got to;
+    // not one deleted, nor one by someone this account blocked.
+    const newest = this.db.prepare(
+      `SELECT r.* FROM messages r
+       WHERE r.thread_root_id = ? AND r.deleted_at IS NULL
+         AND NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.user_id = ? AND ub.blocked_id = r.user_id)
+       ORDER BY r.id DESC LIMIT 1`,
+    );
+    const replyRows = page.flatMap((row) =>
+      (newest.all(row.id, userId) as unknown as MessageRow[]).slice(0, 1),
+    );
+    const replies = new Map(
+      this.hydrateMessages(replyRows).map((reply) => [reply.threadRootId, reply]),
+    );
     return {
       threads: roots.map((root, index) => ({
         root,
         lastSeq: page[index]!.last_seq,
         unreadCount: page[index]!.unread_count,
+        latestReply: replies.get(root.id) ?? null,
       })),
       nextCursor: rows.length > limit && last ? `${last.last_seq}:${last.id}` : null,
     };
