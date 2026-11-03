@@ -946,16 +946,23 @@ function WorkspaceInner({
 
   /**
    * Opens a thread from the Threads list. The row already names its root, so
-   * unlike a jump there is nothing to resolve before showing it.
+   * unlike a jump the thread shows at once. The conversation beside it is
+   * anchored on the root, and a timeline anchored on a message does not read
+   * its own history, so the history around the root is read here; it costs
+   * nothing when the root is already on screen. Should that fail, the anchor
+   * goes and the conversation reads its newest, with its own way to retry.
    */
   function openThreadInChannel(channelId: ID, rootId: ID) {
-    navigation.current++;
+    const ticket = ++navigation.current;
     setNavigationError(null);
     setNavigating(false);
     setDialog({ kind: "none" });
     setActiveChannelId(channelId);
     setHighlightMessageId(rootId);
     setPanel({ kind: "thread", rootId });
+    clientFromCtx.jumpToMessage(channelId, rootId).catch(() => {
+      if (ticket === navigation.current) setHighlightMessageId(null);
+    });
   }
 
   /** Opens a channel scrolled to one message, from search, pins or Saved. */

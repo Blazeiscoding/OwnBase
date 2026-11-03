@@ -360,12 +360,27 @@ describe("opening a draft from the Drafts panel", () => {
   });
 
   it("opens a thread's draft in the thread", async () => {
-    const { user } = screenWith();
+    const { user, jump } = screenWith();
     await user.click(within(await openDrafts(user)).getByRole("button", { name: /^Thread in/ }));
     const thread = await screen.findByRole("complementary", { name: "Thread" });
     expect(within(thread).getByRole("textbox", { name: "Reply…" })).toHaveValue(
       "Agreed, @Priya Shah has the numbers",
     );
+    // The conversation beside it is anchored on the root, which it reads around:
+    // one never opened before stayed a skeleton otherwise.
+    expect(jump).toHaveBeenCalledWith(general.id, root.id);
+  });
+
+  it("reads a thread's conversation from its newest when its root cannot be read", async () => {
+    const { client, user, jump } = screenWith();
+    jump.mockRejectedValue(new Error("offline"));
+    const panel = await openDrafts(user);
+    const load = vi.mocked(client.loadTimeline);
+    const before = load.mock.calls.length;
+    await user.click(within(panel).getByRole("button", { name: /^Thread in/ }));
+    await screen.findByRole("complementary", { name: "Thread" });
+    await waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(before));
+    expect(load).toHaveBeenLastCalledWith(general.id, { older: false });
   });
 
   it("opens an unsaved edit in the message's editor", async () => {
