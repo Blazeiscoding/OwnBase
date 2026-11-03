@@ -477,6 +477,65 @@ describe("the search dialog", () => {
   }
 
   describe("its results", () => {
+    it("name who wrote one in a direct message, unless the conversation's name already does", async () => {
+      const user = userEvent.setup();
+      const alex: User = { ...sam, id: "U_ALEX", handle: "alex", displayName: "Alex Kim" };
+      const dm: Channel = {
+        ...design,
+        id: "C_DM",
+        type: "dm",
+        name: "",
+        memberIds: [sam.id, priya.id],
+      };
+      const group: Channel = {
+        ...design,
+        id: "C_GROUP",
+        type: "group_dm",
+        name: "",
+        memberIds: [sam.id, priya.id, alex.id],
+      };
+      const from = (id: string, text: string, channelId: string, userId: string) => ({
+        ...message(id, text, 5, channelId),
+        userId,
+      });
+      const { client, dialog, box } = renderSearch(async () => ({
+        messages: [
+          from("M_THEIRS", "theirs about the launch", dm.id, priya.id),
+          from("M_MINE", "mine about the launch", dm.id, sam.id),
+          from("M_GROUP", "group about the launch", group.id, alex.id),
+        ],
+        nextCursor: null,
+      }));
+      act(() =>
+        client.store.setState((s) => ({
+          users: { ...s.users, [alex.id]: alex },
+          channels: { ...s.channels, [dm.id]: dm, [group.id]: group },
+        })),
+      );
+      await user.type(box, "launch{Enter}");
+      const line = async (text: RegExp) =>
+        (await within(dialog).findByText(text)).closest("li")!.firstElementChild!.textContent;
+      // Priya's own message sits under her name already; Sam's does not.
+      expect(await line(/theirs about/)).not.toMatch(/Priya Shah.*Priya Shah/);
+      expect(await line(/mine about/)).toMatch(/^Priya Shah\s*Sam Rivera/);
+      expect(await line(/group about/)).toMatch(/Alex Kim.*Alex Kim/);
+    });
+
+    it("are reached from the field with Down", async () => {
+      const user = userEvent.setup();
+      const { dialog, box } = renderSearch(async () => ({
+        messages: [message("M5", "first launch", 5), message("M4", "second launch", 4)],
+        nextCursor: null,
+      }));
+      await user.type(box, "launch{Enter}");
+      await within(dialog).findByText(/second/);
+      await user.keyboard("{ArrowDown}");
+      const opens = within(dialog).getAllByRole("button", { name: /Open in conversation/ });
+      expect(opens[0]).toHaveFocus();
+      await user.keyboard("{ArrowDown}");
+      expect(opens[1]).toHaveFocus();
+    });
+
     it("asks for them again when a conversation in them changes, dropping what was deleted (Q07)", async () => {
       const user = userEvent.setup();
       let answer = [
