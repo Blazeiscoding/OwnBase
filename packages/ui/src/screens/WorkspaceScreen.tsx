@@ -1847,7 +1847,18 @@ function WorkspaceInner({
             />
           )}
           {dialog.kind === "invite" && (
-            <InviteDialog welcome={dialog.welcome} onClose={closeDialog} />
+            <InviteDialog
+              welcome={dialog.welcome}
+              onClose={closeDialog}
+              onShareOnline={
+                hosting && hostedHere
+                  ? () => {
+                      closeDialog();
+                      hosting.onManage("internet");
+                    }
+                  : undefined
+              }
+            />
           )}
         </LazyDialog>
       )}

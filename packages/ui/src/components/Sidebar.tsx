@@ -110,15 +110,20 @@ export interface HostingLine {
   state: "live" | "busy" | "trouble";
   /** Something wrong that a screen reader says at once. */
   alert?: boolean;
-  onManage: () => void;
+  /** Opens Manage hosting, on Share on the internet when that is what was asked for. */
+  onManage: (section?: "internet") => void;
 }
 
-/** The hosting line: a dot for how it is going, what is happening, and Manage. */
+/**
+ * The hosting line: a dot for how it is going, what is happening, and Manage.
+ * Manage stretches over the whole line, so any part of it opens Manage hosting;
+ * the word alone was too small a target.
+ */
 export function HostingStatus(props: { hosting: HostingLine; className?: string }) {
   const { hosting } = props;
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] ${props.className ?? ""}`}
+      className={`relative flex items-center gap-2 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] transition-colors hover:bg-ink/[0.07] ${props.className ?? ""}`}
     >
       <span
         aria-hidden="true"
@@ -132,16 +137,17 @@ export function HostingStatus(props: { hosting: HostingLine; className?: string 
       />
       <span
         role={hosting.alert ? "alert" : "status"}
-        title={hosting.text}
         className="min-w-0 flex-1 truncate text-ink-faint"
       >
         {hosting.text}
       </span>
       <button
         type="button"
-        onClick={hosting.onManage}
+        onClick={() => hosting.onManage()}
         aria-label="Manage hosting"
-        className="shrink-0 font-medium text-ink hover:underline"
+        // The button covers the line, so it carries the line's full text too.
+        title={hosting.text}
+        className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-ink before:absolute before:inset-0 before:rounded-lg before:content-['']"
       >
         Manage
       </button>

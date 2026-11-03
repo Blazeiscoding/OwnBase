@@ -169,6 +169,7 @@ function Harness(props: {
   onStarted?: (status: HostingStatus) => void;
   onClose?: () => void;
   onInvite?: () => void;
+  initialSection?: "internet";
 }) {
   const state = useHostingStatus(props.hosting);
   return (
@@ -180,6 +181,7 @@ function Harness(props: {
           state={state}
           viewingHosted={props.viewingHosted}
           onInvite={props.onInvite}
+          initialSection={props.initialSection}
           onClose={props.onClose ?? (() => {})}
           onStarted={props.onStarted ?? (() => {})}
         />
@@ -646,7 +648,10 @@ describe("hosting a workspace from the host dialog", () => {
       publicUrl,
     );
     expect(within(dialog).getByText("Public")).toBeVisible();
-    expect(within(dialog).getByText(/choose Invite people and copy the link/)).toBeVisible();
+    // The workspace is not on screen here, so the dialog says where to make one.
+    expect(within(dialog).getByText(/The address alone lets nobody in/)).toBeVisible();
+    expect(within(dialog).getByText(/choose Invite people from its menu/)).toBeVisible();
+    expect(within(dialog).queryByRole("button", { name: "Get an invite link" })).toBeNull();
 
     await user.click(within(dialog).getByRole("button", { name: "Copy address" }));
     expect(await navigator.clipboard.readText()).toBe(publicUrl);
@@ -674,6 +679,42 @@ describe("hosting a workspace from the host dialog", () => {
     expect(hosting.endOpenToAll).toHaveBeenCalledOnce();
     expect(await within(dialog).findByRole("button", { name: "Open to all" })).toBeEnabled();
     expect(within(dialog).queryByRole("link", { name: publicUrl })).not.toBeInTheDocument();
+  });
+
+  it("offers an invite link beside the public address when an invite is needed", async () => {
+    const user = userEvent.setup();
+    const onInvite = vi.fn();
+    const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });
+    render(<Harness hosting={hosting} viewingHosted onInvite={onInvite} />);
+    await showSection("Share on the internet");
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+
+    // Nothing to invite to before there is a public address.
+    expect(within(dialog).queryByRole("button", { name: "Get an invite link" })).toBeNull();
+    await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
+    await within(dialog).findByRole("link", { name: publicUrl });
+    expect(within(dialog).getByText(/it carries this address and the invite/)).toBeVisible();
+    await user.click(within(dialog).getByRole("button", { name: "Get an invite link" }));
+    expect(onInvite).toHaveBeenCalledOnce();
+
+    // Without invites the address is all anyone needs.
+    await user.click(
+      within(dialog).getByRole("checkbox", {
+        name: /Require an invite link to create an account/,
+      }),
+    );
+    await waitFor(() =>
+      expect(within(dialog).queryByRole("button", { name: "Get an invite link" })).toBeNull(),
+    );
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+  });
+
+  it("opens on Share on the internet when asked for it", async () => {
+    const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });
+    render(<Harness hosting={hosting} initialSection="internet" />);
+    const tab = await screen.findByRole("tab", { name: "Share on the internet" });
+    expect(tab).toHaveAttribute("aria-selected", "true");
+    expect(screen.getByRole("button", { name: "Open to all" })).toBeVisible();
   });
 
   it("chooses who can join with the cards Workspace settings uses, before and after opening", async () => {

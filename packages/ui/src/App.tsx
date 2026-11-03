@@ -89,6 +89,8 @@ export function App({ platform }: { platform: Platform }) {
   const savedServersRef = useRef<SavedServer[]>([]);
   const [session, setSession] = useState<Session>({ view: "loading" });
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
+  /** The tab Manage hosting opens on, when something asked for one. */
+  const [hostSection, setHostSection] = useState<"internet" | undefined>(undefined);
   const [inviteAsk, setInviteAsk] = useState(0);
   const hosting = useHostingStatus(platform.hosting);
   const savedIcons = useCachedWorkspaceIcons(
@@ -443,7 +445,10 @@ export function App({ platform }: { platform: Platform }) {
                 ? "live"
                 : "busy",
           alert: !!(hostingStatus?.warning || hostingStatus?.openToAllError),
-          onManage: () => setHostDialogOpen(true),
+          onManage: (section) => {
+            setHostSection(section);
+            setHostDialogOpen(true);
+          },
         }
       : undefined;
 
@@ -552,7 +557,14 @@ export function App({ platform }: { platform: Platform }) {
                       );
                     }}
                     onForget={forgetServer}
-                    onHostClick={platform.hosting ? () => setHostDialogOpen(true) : undefined}
+                    onHostClick={
+                      platform.hosting
+                        ? () => {
+                            setHostSection(undefined);
+                            setHostDialogOpen(true);
+                          }
+                        : undefined
+                    }
                     hostingStatus={hosting.status}
                     hostingStatusError={hosting.error}
                     hostingStatusLoading={hosting.loading}
@@ -608,6 +620,7 @@ export function App({ platform }: { platform: Platform }) {
                   hosting={platform.hosting}
                   state={hosting}
                   viewingHosted={viewingHosted}
+                  initialSection={hostSection}
                   onClose={() => setHostDialogOpen(false)}
                   onInvite={() => {
                     setHostDialogOpen(false);

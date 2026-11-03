@@ -43,8 +43,15 @@ const quietButton =
  *
  * `welcome` is the step that ends founding a workspace (UX-42): the same link,
  * said as the next thing to do, with what it takes to reach people elsewhere.
+ *
+ * `onShareOnline` opens Manage hosting on Share on the internet, offered when
+ * this computer hosts the workspace and the link reaches only its network.
  */
-export function InviteDialog(props: { onClose: () => void; welcome?: boolean }) {
+export function InviteDialog(props: {
+  onClose: () => void;
+  welcome?: boolean;
+  onShareOnline?: () => void;
+}) {
   const client = useClient();
   // Optional: a test may draw the dialog without the app around it.
   const hostsHere = !!useContext(PlatformContext)?.hosting;
@@ -315,12 +322,32 @@ export function InviteDialog(props: { onClose: () => void; welcome?: boolean }) 
           {error}
         </p>
       )}
-      {props.welcome && canInvite && onlyOnItsNetwork(serverUrl) && (
-        <p className="mb-4 text-sm text-ink-dim">
-          {hostsHere
-            ? "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage under the workspace's name and share the workspace on the internet."
-            : "This link works for people on the same network as the workspace's server."}
-        </p>
+      {canInvite && props.onShareOnline && (onlyOnItsNetwork(serverUrl) || shareable.localOnly) ? (
+        <div className="card-warm mb-4 flex items-center gap-3 rounded-xl px-4 py-3">
+          <p className="min-w-0 flex-1 text-[13px] text-ink-dim">
+            {shareable.localOnly
+              ? "This link works only on this computer."
+              : "This link works only on this computer's network."}{" "}
+            Share the workspace on the internet so people at home or on mobile data can join too.
+          </p>
+          <button
+            type="button"
+            onClick={props.onShareOnline}
+            className={buttonClass("secondary", "h-8 shrink-0 px-3 text-[13px]")}
+          >
+            Share on the internet
+          </button>
+        </div>
+      ) : (
+        props.welcome &&
+        canInvite &&
+        onlyOnItsNetwork(serverUrl) && (
+          <p className="mb-4 text-sm text-ink-dim">
+            {hostsHere
+              ? "This link works for people on the same network as this computer. To let people elsewhere join, choose Manage under the workspace's name and share the workspace on the internet."
+              : "This link works for people on the same network as the workspace's server."}
+          </p>
+        )
       )}
       <div className="card-warm rounded-xl px-4 py-3">
         <div className="mb-1.5 text-[13px] font-medium text-ink-dim">Server address</div>

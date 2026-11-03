@@ -218,7 +218,7 @@ describe("Invite people, asked for by Manage hosting", () => {
 });
 
 describe("the welcome step", () => {
-  function welcome(baseUrl: string, platform: Platform) {
+  function welcome(baseUrl: string, platform: Platform, onShareOnline?: () => void) {
     const client = new WorkspaceClient(baseUrl, "test-token-not-a-credential");
     clients.push(client);
     client.store.setState({ self: owner, users: { [owner.id]: owner }, status: "online" });
@@ -229,7 +229,7 @@ describe("the welcome step", () => {
       <ConfirmProvider>
         <PlatformContext.Provider value={platform}>
           <ClientContext.Provider value={client}>
-            <InviteDialog welcome onClose={onClose} />
+            <InviteDialog welcome onClose={onClose} onShareOnline={onShareOnline} />
           </ClientContext.Provider>
         </PlatformContext.Provider>
       </ConfirmProvider>,
@@ -251,6 +251,25 @@ describe("the welcome step", () => {
     expect(await accessibilityProblems(dialog)).toEqual([]);
     await userEvent.setup().click(within(dialog).getByRole("button", { name: "Done" }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("offers to share the workspace on the internet when this computer hosts it", async () => {
+    const onShareOnline = vi.fn();
+    const { dialog } = welcome("http://192.168.1.20:8543", desktopPlatform, onShareOnline);
+    expect(await within(dialog).findByText(/#\/join\/WELC0ME1$/)).toBeVisible();
+    expect(dialog).toHaveTextContent("This link works only on this computer's network.");
+    expect(dialog).not.toHaveTextContent(/choose Manage under the workspace's name/);
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+    await userEvent
+      .setup()
+      .click(within(dialog).getByRole("button", { name: "Share on the internet" }));
+    expect(onShareOnline).toHaveBeenCalledOnce();
+    cleanup();
+
+    // A link anyone can reach needs no sharing further.
+    const open = welcome("https://chat.team.dev", desktopPlatform, onShareOnline);
+    expect(await within(open.dialog).findByText(/#\/join\/WELC0ME1$/)).toBeVisible();
+    expect(within(open.dialog).queryByRole("button", { name: "Share on the internet" })).toBeNull();
   });
 
   it("says the network part only of a server elsewhere, and nothing of an address anyone can reach", async () => {

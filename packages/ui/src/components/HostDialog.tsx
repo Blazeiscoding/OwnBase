@@ -838,6 +838,8 @@ export function HostDialog(props: {
   onStarted: (status: HostingStatus) => void;
   /** Opens Invite people in the hosted workspace, which is on screen. */
   onInvite?: () => void;
+  /** The tab to open on, once the workspace is running and has it. */
+  initialSection?: Section;
 }) {
   const { status, loading, error: statusError, refresh } = props.state;
   const confirm = useOptionalConfirm();
@@ -859,7 +861,7 @@ export function HostDialog(props: {
     | null
   >(null);
   const operationPending = useRef(false);
-  const [section, setSection] = useState<Section>("overview");
+  const [section, setSection] = useState<Section>(props.initialSection ?? "overview");
   const [error, setError] = useState<{ message: string; tunnel?: boolean } | null>(null);
   /** Null while the saved address is shown; a string while it is being edited. */
   const [addressDraft, setAddressDraft] = useState<string | null>(null);
@@ -887,6 +889,8 @@ export function HostDialog(props: {
   const changing = phase === "starting" || phase === "stopping";
   const unavailable = loading || statusError || !status || changing || !!busy;
   const publicUrl = status?.openToAll?.phase === "open" ? status.openToAll.url : null;
+  // Invite people opens in the hosted workspace, so only while it is on screen.
+  const invitesHere = !!(props.viewingHosted && props.onInvite);
   const externallyCarried = !!status?.publicAddress && !status.publicAddressManaged;
   const tunnelError = status?.publicAddressError ?? status?.openToAllError;
   const savedAddress = status?.publicAddressSetting ?? "";
@@ -1448,7 +1452,9 @@ export function HostDialog(props: {
                         <div className="min-w-0 flex-1 space-y-3">
                           {publicUrl && (
                             <div>
-                              <p className="mb-1 text-ink-dim">Anyone can join at</p>
+                              <p className="mb-1 text-ink-dim">
+                                {status.inviteOnly ? "Public address" : "Anyone can join at"}
+                              </p>
                               <AddressRow
                                 url={publicUrl}
                                 id={`${addressId}-public`}
@@ -1644,10 +1650,22 @@ export function HostDialog(props: {
                             <p className="mt-2 text-xs text-ink-dim">
                               {livePolicy === "guest_allowed"
                                 ? "Anyone with this address can join as a guest for a day and post in public channels. Choosing either of the others signs every guest out."
-                                : status.inviteOnly
-                                  ? "To bring someone in, open the workspace menu in the workspace, choose Invite people and copy the link."
-                                  : "Anyone with this address can create an account. Send the address only to people you trust."}
+                                : !status.inviteOnly
+                                  ? "Anyone with this address can create an account. Send the address only to people you trust."
+                                  : invitesHere
+                                    ? "The address alone lets nobody in. Send an invite link instead: it carries this address and the invite, so one click brings someone in."
+                                    : "The address alone lets nobody in. To bring someone in, open the workspace, choose Invite people from its menu and send that link."}
                             </p>
+                            {status.inviteOnly && livePolicy !== "guest_allowed" && invitesHere && (
+                              <button
+                                type="button"
+                                disabled={!!busy}
+                                onClick={props.onInvite}
+                                className={buttonClass("primary", "mt-3 h-8 px-3 text-[13px]")}
+                              >
+                                Get an invite link
+                              </button>
+                            )}
                             <button
                               type="button"
                               disabled={!!busy}
