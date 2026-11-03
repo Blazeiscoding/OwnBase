@@ -176,6 +176,20 @@ describe("the composer's suggestions", () => {
     expect(box).toHaveValue("@Sadia Khan ");
   });
 
+  it("run the app's own commands here, keeping the words when one fails", async () => {
+    const { box, client, user } = await renderComposer();
+    const send = vi.spyOn(client, "send");
+    const update = vi.spyOn(client.api, "updateChannel").mockRejectedValueOnce(new Error("down"));
+    await user.type(box, "/topic Ship it{Enter}");
+    expect(await screen.findByRole("alert")).toHaveTextContent(/The topic was not changed/);
+    expect(box).toHaveValue("/topic Ship it");
+    update.mockResolvedValueOnce({} as never);
+    await user.keyboard("{Enter}");
+    await waitFor(() => expect(box).toHaveValue(""));
+    expect(update).toHaveBeenLastCalledWith(design.id, { topic: "Ship it" });
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it("offer commands the same way, and Tab completes the one chosen", async () => {
     const { box, user } = await renderComposer();
     await user.type(box, "/re");

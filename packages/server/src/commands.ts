@@ -54,4 +54,26 @@ export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
       inApp: "Polls are made in the poll window. Update OwnBase to open it with /poll.",
     },
   ],
+  // Run by the app itself, as Slack's own are (U4): listed and reserved here,
+  // so no app can claim them.
+  ...(
+    [
+      ["away", "Show yourself as away", ""],
+      ["active", "Show yourself as active", ""],
+      ["status", "Set your status, or clear it", "[emoji] [what you're doing] | clear"],
+      ["topic", "Set this channel's topic", "[topic]"],
+      ["invite", "Add people to this channel", "@person [@person…]"],
+      ["leave", "Leave this channel", ""],
+      ["mute", "Mute this conversation", ""],
+      ["unmute", "Unmute this conversation", ""],
+    ] as const
+  ).map(([command, description, usageHint]): [string, BuiltinCommand] => [
+    command,
+    {
+      description,
+      usageHint,
+      run: () => null,
+      inApp: `Update OwnBase to use /${command}.`,
+    },
+  ]),
 ]);

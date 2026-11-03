@@ -21,6 +21,8 @@ import { useConnectionDown } from "../lib/online.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
+import { appCommand, runAppCommand, withAppCommands } from "../lib/appCommands.js";
+import { useOptionalToast } from "./Toast.js";
 import { whenKeptLocally } from "../lib/localWork.js";
 import {
   readWorkspaceStorage,
@@ -55,10 +57,12 @@ interface Props {
   threadRootId?: ID;
   placeholder: string;
   autoFocus?: boolean;
+  /** After /leave: somewhere else to be, as leaving from channel details goes. */
+  onLeft?: () => void;
 }
 
 /** Enter follows the device preference; @ opens mention autocomplete. */
-export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Props) {
+export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLeft }: Props) {
   const client = useClient();
   const platform = usePlatform();
   const { enterSends } = useComposerPreferences();
@@ -134,6 +138,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
   /** The conversation this box writes to now, for a send that settles later. */
   const currentDraftKey = useRef(draftKey);
   currentDraftKey.current = draftKey;
+  const toast = useOptionalToast();
+  /** A command the app runs, still running: Enter again waits for it. */
+  const runningCommand = useRef(false);
   /** The saved draft as this composer last wrote or took it; typing since is unsaved. */
   const synced = useRef(savedDraft);
 
@@ -428,8 +435,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     const m = /^\/([a-zA-Z0-9_-]*)$/.exec(text);
     if (!m || guest) return [];
     const q = m[1]!.toLowerCase();
-    return commands.filter((c) => c.command.startsWith(q)).slice(0, 6);
-  }, [text, commands, guest]);
+    return withAppCommands(commands, isRoom).filter((c) => c.command.startsWith(q));
+  }, [text, commands, guest, isRoom]);
   const commandList = useListbox(commandCandidates.length);
   function insertCommand(command: string) {
     const next = `/${command} `;
@@ -453,6 +460,29 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       }
       setSendRefusal(null);
       setPollQuestion(asked[1]?.trim() ?? "");
+      return;
+    }
+    // /away, /topic and the like the app runs itself (U4).
+    const ours = attached.length === 0 && !guest ? appCommand(trimmed, commands) : null;
+    if (ours) {
+      if (runningCommand.current) return;
+      runningCommand.current = true;
+      setSendRefusal(null);
+      const key = draftKey;
+      void runAppCommand(ours.name, ours.args, { client, channelId })
+        .then((outcome) => {
+          if (!outcome.ok) {
+            setSendRefusal(outcome.said);
+            return;
+          }
+          toast?.({ message: outcome.said, kind: "success" });
+          if (key === currentDraftKey.current) {
+            suggestions.close();
+            clearSent(key);
+          } else client.setDraft(key, "");
+          if (ours.name === "leave") onLeft?.();
+        })
+        .finally(() => (runningCommand.current = false));
       return;
     }
     let queued: string | null = null;
@@ -794,7 +824,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         <ul
           {...commandList.listProps}
           aria-label="Commands"
-          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 origin-bottom-left animate-menu-in overflow-hidden rounded-xl p-1"
+          // Every command, scrolling past eight or so, so "/" shows what there is.
+          className="surface-float absolute bottom-full left-5 right-5 z-10 mb-2 max-h-80 origin-bottom-left animate-menu-in overflow-y-auto rounded-xl p-1"
         >
           {commandCandidates.map((c, i) => (
             <li

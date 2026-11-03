@@ -1713,6 +1713,7 @@ function WorkspaceInner({
                       channelId={activeChannelId}
                       placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
                       autoFocus
+                      onLeft={() => setActiveChannelId(null)}
                     />
                   )}
                 </div>
