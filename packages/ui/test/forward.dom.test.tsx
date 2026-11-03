@@ -135,6 +135,50 @@ describe("forwarding a message", () => {
     expect(await screen.findByText("Forwarded to #design.")).toBeVisible();
   });
 
+  it("sends to someone there is no conversation with yet, starting one", async () => {
+    const { client, send, user } = shown(message());
+    const alex = person("U_ALEX", "Alex Kim");
+    const dm = { ...room("C_DM_ALEX", "dm", ""), memberIds: [sam.id, alex.id] };
+    client.store.setState((s) => ({ users: { ...s.users, [alex.id]: alex } }));
+    const open = vi.spyOn(client, "openDm").mockResolvedValue(dm);
+    const dialog = await openForward(user);
+    // Found by handle too; Sam, who is forwarding, is not offered.
+    await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "@ale");
+    expect(
+      within(dialog)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Alex Kim@alex"]);
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Forward" }));
+    expect(open).toHaveBeenCalledWith([alex.id]);
+    expect(send).toHaveBeenCalledWith("C_DM_ALEX", "", {
+      forward: expect.objectContaining({ id: "M_1", hidden: false }),
+    });
+    expect(await screen.findByText("Forwarded to Alex Kim.")).toBeVisible();
+  });
+
+  it("says so when the conversation with someone cannot be started", async () => {
+    const { client, send, user } = shown(message());
+    vi.spyOn(client, "openDm").mockRejectedValue(new Error("offline"));
+    const dialog = await openForward(user);
+    await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "Priya");
+    await user.keyboard("{Enter}");
+    await user.click(within(dialog).getByRole("button", { name: "Forward" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Could not start a conversation with Priya Shah. Try again.",
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
+  it("offers a guest no one to start a conversation with", async () => {
+    const { client, user } = shown(message());
+    client.store.setState({ self: { ...sam, role: "guest" } });
+    const dialog = await openForward(user);
+    await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "Priya");
+    expect(within(dialog).queryAllByRole("option")).toEqual([]);
+  });
+
   it("asks where before it sends anything", async () => {
     const { send, user } = shown(message());
     const dialog = await openForward(user);
