@@ -12,6 +12,7 @@ import fastifyStatic from "@fastify/static";
 import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import {
+  DEFAULT_WORKSPACE_NAME,
   PROTOCOL_VERSION,
   channelPermissions,
   canRemoveChannelMember,
@@ -713,7 +714,7 @@ async function startWorkspaceServer(
   const unowned = store.userCount() === 0;
   if (opts.workspaceName && (unowned || !store.getMeta("workspace_name")))
     store.setMeta("workspace_name", opts.workspaceName);
-  if (!store.getMeta("workspace_name")) store.setMeta("workspace_name", "My Workspace");
+  if (!store.getMeta("workspace_name")) store.setMeta("workspace_name", DEFAULT_WORKSPACE_NAME);
   // Slack payloads carry a team id; ours is generated once and never changes.
   if (!store.getMeta("workspace_id")) store.setMeta("workspace_id", ulid());
   // Before guest access, invite_only alone said who could join: on, invited

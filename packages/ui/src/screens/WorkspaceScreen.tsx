@@ -1482,6 +1482,7 @@ function WorkspaceInner({
                   onNewChannel={() => setDialog({ kind: "new-channel" })}
                   onInvite={() => setDialog({ kind: "invite" })}
                   onNotifications={() => setDialog({ kind: "account", section: "notifications" })}
+                  onNameWorkspace={() => setDialog({ kind: "workspace" })}
                   activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
                   onTryHuddle={() => {
                     if (!activeChannelId) return;

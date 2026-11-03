@@ -104,7 +104,12 @@ describe("creating an account", () => {
     if (create) await user.click(create);
     await user.type(screen.getByLabelText("Username"), "olu");
     await user.type(screen.getByLabelText("Password"), "password123");
-    await user.click(screen.getByRole("button", { name: "Join workspace" }));
+    // Nobody to join yet: the first account's button sets the workspace up.
+    await user.click(
+      screen.getByRole("button", {
+        name: serverInfo.userCount === 0 ? "Create workspace" : "Join workspace",
+      }),
+    );
     await waitFor(() => expect(onConnected).toHaveBeenCalled());
     return onConnected;
   }

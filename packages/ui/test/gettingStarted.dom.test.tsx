@@ -41,7 +41,13 @@ afterEach(() => {
 const SLOT = "local:v1:W_ROCKET:U_OWNER:getting-started";
 
 function checklist(
-  options: { role?: User["role"]; saved?: unknown; kind?: Platform["kind"] } = {},
+  options: {
+    role?: User["role"];
+    saved?: unknown;
+    kind?: Platform["kind"];
+    /** What the workspace is called; named by its owner unless said. */
+    workspaceName?: string;
+  } = {},
 ) {
   globalThis.Notification = { permission: "default" } as unknown as typeof Notification;
   const values = new Map<string, unknown>(options.saved ? [[SLOT, options.saved]] : []);
@@ -58,6 +64,7 @@ function checklist(
   client.store.setState({
     self: owner,
     workspaceId: "W_ROCKET",
+    workspaceName: options.workspaceName ?? "Rocket Team",
     users: { U_OWNER: owner },
     channels: { C_GENERAL: room("C_GENERAL", "general") },
     status: "online",
@@ -70,6 +77,7 @@ function checklist(
           onNewChannel={() => calls.push("new channel")}
           onInvite={() => calls.push("invite")}
           onNotifications={() => calls.push("notifications")}
+          onNameWorkspace={() => calls.push("name")}
           activeChannelName="#general"
           onTryHuddle={() => calls.push("huddle")}
         />
@@ -142,6 +150,19 @@ describe("getting started, for whoever set the workspace up", () => {
     const card = await section();
     expect(allSteps(card)).toHaveAttribute("aria-expanded", "true");
     expect(stepNames(card)).toHaveLength(4);
+  });
+
+  it("asks first for a name while the workspace has the one it started with", async () => {
+    const { client, calls, user } = checklist({ workspaceName: "My Workspace" });
+    const card = await section();
+    expect(card).toHaveTextContent("5 of 5 left");
+    expect(stepNames(card)).toEqual(["Name your workspace"]);
+    await user.click(within(card).getByRole("button", { name: "Name it: Name your workspace" }));
+    expect(calls).toEqual(["name"]);
+    // Once named, the step has gone rather than sit there ticked.
+    act(() => client.store.setState({ workspaceName: "Rocket Team" }));
+    expect(card).toHaveTextContent("4 of 4 left");
+    expect(stepNames(card)).toEqual(["Create a channel"]);
   });
 
   it("is not shown to anyone else", async () => {
