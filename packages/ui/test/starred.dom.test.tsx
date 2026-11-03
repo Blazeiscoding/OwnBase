@@ -144,7 +144,7 @@ describe("starring from a row's More menu", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Star channel", "Mute channel"]);
+    ).toEqual(["Invite people", "Star channel", "Mute channel"]);
     expect(await accessibilityProblems(menu)).toEqual([]);
     await user.click(within(menu).getByRole("menuitem", { name: "Star channel" }));
 
@@ -175,18 +175,16 @@ describe("starring from a row's More menu", () => {
   it("is reached from the keyboard, and right-click opens the same menu", async () => {
     const { client, user } = workspace();
     renderSidebar(client);
-    // Tab onto the row, then along its buttons to More.
+    // Tab onto the row, then to its More: the row's other buttons are in the menu.
     const zetaRow = screen.getByRole("button", { name: /^#\s*zeta$/ });
     zetaRow.focus();
-    await user.tab();
-    expect(document.activeElement).toBe(
-      within(zetaRow.closest("li")!).getByRole("button", { name: "Invite people" }),
-    );
     await user.tab();
     expect(document.activeElement).toBe(
       screen.getByRole("button", { name: "More options for zeta" }),
     );
     await user.keyboard("{Enter}");
+    expect(screen.getByRole("menuitem", { name: "Invite people" })).toHaveFocus();
+    await user.keyboard("{ArrowDown}");
     expect(screen.getByRole("menuitem", { name: "Star channel" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(section("Starred")).toEqual(["zeta"]);
@@ -343,7 +341,7 @@ describe("a server from before stars", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Unmute channel"]);
+    ).toEqual(["Invite people", "Unmute channel"]);
   });
 });
 

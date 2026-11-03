@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { caretToRestore, insideCodeBlock, isImeKey, linkOverSelection } from "../src/lib/textInput.js";
+import {
+  caretToRestore,
+  insideCodeBlock,
+  isImeKey,
+  linkOverSelection,
+} from "../src/lib/textInput.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = (file: string) => readFileSync(resolve(here, "../src", file), "utf8");
