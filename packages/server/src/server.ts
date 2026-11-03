@@ -6122,6 +6122,16 @@ async function startWorkspaceServer(
     return store.followedThreads(me.id, query.limit, query.cursor, query.unreadOnly === "true");
   });
 
+  /**
+   * The newest message in each direct conversation the caller is in, newest
+   * first, so a list of direct messages can say who said what last. Replies
+   * in a thread count only when also sent to the conversation.
+   */
+  app.get("/api/conversations/latest", async (req) => {
+    const me = requireUser(req);
+    return { messages: store.latestDirectMessages(me.id) };
+  });
+
   app.get("/api/saved", async (req) => {
     const me = requireUser(req);
     const query = savedMessagesQuery.parse(req.query);

@@ -899,6 +899,17 @@ export class Api {
     });
   }
 
+  /**
+   * The newest message in each direct conversation this account is in, for
+   * the list of direct messages. An older server has no such list: 404.
+   */
+  latestDirectMessages(signal?: AbortSignal): Promise<{ messages: Message[] }> {
+    return this.request("GET", "/api/conversations/latest", undefined, {
+      signal,
+      timeoutMs: 10_000,
+    });
+  }
+
   // ---------- apps and integrations (admin only) ----------
 
   /** The bot token comes back once here and is never retrievable again. */

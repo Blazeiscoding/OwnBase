@@ -1876,6 +1876,31 @@ export class Store {
     return this.hydrateMessages(rows);
   }
 
+  /**
+   * The newest message each direct conversation this account is in shows,
+   * for the list of direct messages to say who said what last. One per
+   * conversation that has any, leaving out what someone blocked wrote; read
+   * through the channel index, newest first, so it costs one step each.
+   */
+  latestDirectMessages(userId: ID): Message[] {
+    const rows = this.db
+      .prepare(
+        `SELECT m.* FROM channel_members cm
+         JOIN channels c ON c.id = cm.channel_id
+         JOIN messages m ON m.id = (
+           SELECT n.id FROM messages n
+           WHERE n.channel_id = c.id AND (n.thread_root_id IS NULL OR n.broadcast = 1)
+             AND n.deleted_at IS NULL
+             AND NOT EXISTS (SELECT 1 FROM user_blocks ub
+               WHERE ub.user_id = cm.user_id AND ub.blocked_id = n.user_id)
+           ORDER BY n.id DESC LIMIT 1)
+         WHERE cm.user_id = ? AND c.type IN ('dm', 'group_dm') AND c.archived = 0
+         ORDER BY m.id DESC LIMIT 500`,
+      )
+      .all(userId) as unknown as MessageRow[];
+    return this.hydrateMessages(rows);
+  }
+
   /** Thread pages are oldest-first and contain only direct replies to this root. */
   threadHistory(
     channelId: ID,
