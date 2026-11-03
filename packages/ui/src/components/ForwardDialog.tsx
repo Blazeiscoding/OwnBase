@@ -3,6 +3,7 @@ import type { ID } from "@ownbase/protocol";
 import { forwardOf, type ForwardSource } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { blockedPartner } from "../lib/blocking.js";
+import { matchTier } from "../lib/switcherRank.js";
 import { useListbox } from "../lib/useListbox.js";
 import { buttonClass } from "./Button.js";
 import { Dialog } from "./Dialog.js";
@@ -65,16 +66,22 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
         places.push({ key: `person:${u.id}`, label: u.displayName, userId: u.id });
   places.sort((a, b) => a.label.localeCompare(b.label));
   const typed = query.trim().toLowerCase().replace(/^[#@]/, "");
+  // Ranked as Ctrl+K ranks them: the whole name, its start, a word's start,
+  // anywhere; so "al" finds Alex before #general.
+  const tierOf = (place: Target) => {
+    const tiers = [matchTier(place.label.replace(/^#/, ""), typed)];
+    if (place.userId) tiers.push(matchTier(users[place.userId]?.handle ?? "", typed));
+    const found = tiers.filter((tier) => tier >= 0);
+    return found.length ? Math.min(...found) : -1;
+  };
   const results =
     target !== null
       ? []
       : places
-          .filter(
-            (place) =>
-              !typed ||
-              place.label.toLowerCase().replace(/^#/, "").includes(typed) ||
-              (!!place.userId && !!users[place.userId]?.handle.toLowerCase().includes(typed)),
-          )
+          .map((place) => ({ place, tier: tierOf(place) }))
+          .filter(({ tier }) => tier >= 0)
+          .sort((a, b) => a.tier - b.tier)
+          .map(({ place }) => place)
           .slice(0, SHOWN);
   const list = useListbox(results.length);
   const fromPublic = channels[source.channelId]?.type === "public";

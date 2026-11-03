@@ -158,6 +158,19 @@ describe("forwarding a message", () => {
     expect(await screen.findByText("Forwarded to Alex Kim.")).toBeVisible();
   });
 
+  it("lists a name that starts with what is typed before one that only contains it", async () => {
+    const { client, user } = shown(message());
+    const alex = person("U_ALEX", "Alex Kim");
+    client.store.setState((s) => ({ users: { ...s.users, [alex.id]: alex } }));
+    const dialog = await openForward(user);
+    await user.type(within(dialog).getByRole("combobox", { name: "Forward to" }), "al");
+    expect(
+      within(dialog)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual(["Alex Kim@alex", "#general"]);
+  });
+
   it("says so when the conversation with someone cannot be started", async () => {
     const { client, send, user } = shown(message());
     vi.spyOn(client, "openDm").mockRejectedValue(new Error("offline"));
