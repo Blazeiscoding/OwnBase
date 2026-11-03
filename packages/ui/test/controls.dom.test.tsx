@@ -7,6 +7,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
 import { HuddleBar } from "../src/components/HuddleBar.js";
 import { MessageItem } from "../src/components/MessageItem.js";
+import { Modal } from "../src/components/Modal.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -216,6 +217,42 @@ describe("the huddle bar", () => {
     expect(calls.leave).toHaveBeenCalledOnce();
     expect(region).not.toHaveTextContent(PICTOGRAPH);
     expect(await accessibilityProblems(region)).toEqual([]);
+  });
+
+  it("keeps mute and Leave in reach while a dialog covers the bar, though not under a menu", async () => {
+    const { calls, user } = huddleBar();
+    const dock = () => screen.queryByRole("group", { name: "Huddle in #general" });
+    expect(dock()).toBeNull();
+
+    // A menu sits beside what opened it and closes at the next click.
+    const menu = render(
+      <Modal title="Message actions" onClose={() => {}} backdropClassName="">
+        <button>Reply</button>
+      </Modal>,
+    );
+    expect(dock()).toBeNull();
+    menu.unmount();
+
+    const dialog = render(
+      <Modal title="Settings" onClose={() => {}} backdropClassName="dialog-backdrop">
+        <button autoFocus>Close</button>
+      </Modal>,
+    );
+    const group = dock()!;
+    expect(group).not.toBeNull();
+    expect(group.closest("[data-ownbase-call]")).not.toHaveAttribute("inert");
+    // The bar itself is under the dialog, out of reach.
+    expect(
+      screen.getByRole("region", { name: "Active huddle", hidden: true }).closest("[inert]"),
+    ).not.toBeNull();
+    await user.click(within(group).getByRole("button", { name: "Mute microphone" }));
+    expect(calls.mic).toHaveBeenCalledOnce();
+    await user.click(within(group).getByRole("button", { name: "Leave" }));
+    expect(calls.leave).toHaveBeenCalledOnce();
+    expect(await accessibilityProblems(group)).toEqual([]);
+
+    dialog.unmount();
+    expect(dock()).toBeNull();
   });
 });
 

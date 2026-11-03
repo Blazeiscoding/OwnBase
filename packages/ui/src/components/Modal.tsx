@@ -1,4 +1,10 @@
-import { useLayoutEffect, useRef, type CSSProperties, type ReactNode } from "react";
+import {
+  useLayoutEffect,
+  useRef,
+  useSyncExternalStore,
+  type CSSProperties,
+  type ReactNode,
+} from "react";
 import { GuardContext, useGuardRegistry, type GuardRegistry } from "../lib/dismissGuard.js";
 import { createPortal } from "react-dom";
 import { isImeKey } from "../lib/textInput.js";
@@ -33,6 +39,29 @@ function activeLayer(): Layer | null {
 
 export function hasOpenModal(): boolean {
   return activeLayer() !== null;
+}
+
+const openListeners = new Set<() => void>();
+
+function announceLayers() {
+  for (const listener of openListeners) listener();
+}
+
+/**
+ * Whether a dialog is open, for what stays usable over one (CallDock). Menus
+ * and popovers are layers too, but not dialogs here: they sit beside what
+ * opened them and close at the next click, as the notices treat them
+ * (theme.css). A dialog draws the dialog backdrop.
+ */
+export function useDialogOpen(): boolean {
+  return useSyncExternalStore(
+    (listener) => {
+      openListeners.add(listener);
+      return () => openListeners.delete(listener);
+    },
+    () => [...layers].some((layer) => layer.root.classList.contains("dialog-backdrop")),
+    () => false,
+  );
 }
 
 /**
@@ -438,6 +467,7 @@ export function Modal({
     if (layers.size === 0) install();
     layers.add(current);
     reconcile();
+    announceLayers();
     return () => {
       left.current = leaveBehind(current.root);
       const wasActive = activeLayer() === current;
@@ -446,6 +476,7 @@ export function Modal({
       layer.current = null;
       if (layers.size === 0) uninstall();
       else reconcile();
+      announceLayers();
       if (wasActive) {
         const target = returnTarget(current, activeLayer());
         if (target) focus(target);

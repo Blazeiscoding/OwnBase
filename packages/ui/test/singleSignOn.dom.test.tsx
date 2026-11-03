@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { webcrypto } from "node:crypto";
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerInfo, SettingsPanel, User } from "@ownbase/protocol";
@@ -285,6 +285,11 @@ describe("single sign-on in Workspace settings", () => {
     await user.click(screen.getByLabelText("Require single sign-on"));
     await user.clear(screen.getByLabelText("Name on the button"));
     await user.type(screen.getByLabelText("Name on the button"), "Acme ID");
+    // Typed and not saved, closing asks first, as the workspace's name does.
+    await user.keyboard("{Escape}");
+    const ask = await screen.findByRole("dialog", { name: "Discard changes to Single sign-on?" });
+    await user.click(within(ask).getByRole("button", { name: "Cancel" }));
+    expect(screen.getByLabelText("Name on the button")).toHaveValue("Acme ID");
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(save).toHaveBeenCalled());
     // The secret left empty is not sent, so the one saved stays.

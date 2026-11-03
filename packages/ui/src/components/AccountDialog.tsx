@@ -380,11 +380,6 @@ export function AccountDialog({
               Applies to channels and threads across workspaces on this device. Ctrl+Enter or
               Cmd+Enter always sends; Shift+Enter adds a new line.
             </p>
-            {composer.saving && (
-              <p role="status" className="mt-2 text-sm text-ink-dim">
-                Saving preference…
-              </p>
-            )}
             {composer.error && (
               <p role="alert" className="mt-2 text-sm text-alert">
                 {composer.error}
