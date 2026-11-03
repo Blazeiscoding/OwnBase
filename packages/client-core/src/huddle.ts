@@ -62,6 +62,20 @@ export interface ScreenShareQuality {
 
 export const SCREEN_SHARE_QUALITY: ScreenShareQuality = { height: 1080, frameRate: 15 };
 
+/** What to ask a screen's capture for, at a quality: no taller or quicker than it. */
+function shareVideo(quality: ScreenShareQuality): MediaTrackConstraints {
+  return {
+    width: { max: (quality.height * 16) / 9 },
+    height: { max: quality.height },
+    frameRate: { ideal: quality.frameRate, max: quality.frameRate },
+  };
+}
+
+/** Text stays sharp as detail; sixty frames a second is asked for motion. */
+function shareHint(quality: ScreenShareQuality): string {
+  return quality.frameRate === 60 ? "motion" : "detail";
+}
+
 /**
  * What the camera sends each of the others: a share of its 960 by 540, at
  * most so many frames a second and bits a second; no limits where absent.
@@ -316,6 +330,8 @@ export interface HuddleState {
   sharingScreen: boolean;
   /** Your share sends its sound too. */
   sharingScreenSound?: boolean;
+  /** How sharp and smooth your share goes, while you share. */
+  screenQuality?: ScreenShareQuality;
   /** Your own camera, for the self-view tile. */
   localCameraStream: MediaStream | null;
   /** Your own share, so you can see what everyone else is seeing. */
@@ -401,6 +417,8 @@ export class HuddleSession {
   private cameraId: string | undefined;
   private cameraTrack: MediaStreamTrack | null = null;
   private screenTrack: MediaStreamTrack | null = null;
+  /** What the share was last asked for, while it goes. */
+  private screenQuality: ScreenShareQuality | null = null;
   /** The share's sound, sent apart from the microphone so each mutes alone. */
   private screenSoundTrack: MediaStreamTrack | null = null;
   private localCameraStream: MediaStream | null = null;
@@ -833,6 +851,7 @@ export class HuddleSession {
       cameraOn: this.cameraOn,
       sharingScreen: this.sharingScreen,
       sharingScreenSound: this.screenSoundTrack !== null,
+      ...(this.screenQuality ? { screenQuality: this.screenQuality } : {}),
       localCameraStream: this.localCameraStream,
       localScreenStream: this.localScreenStream,
       peers: [...this.peers.entries()].map(([userId, peer]) => ({
@@ -1485,11 +1504,7 @@ export class HuddleSession {
     let display: MediaStream;
     try {
       const request: ShareRequest = {
-        video: {
-          width: { max: (quality.height * 16) / 9 },
-          height: { max: quality.height },
-          frameRate: { ideal: quality.frameRate, max: quality.frameRate },
-        },
+        video: shareVideo(quality),
         audio: withSound ? SCREEN_SOUND : false,
         // Chrome's defaults, said because they matter here: sound is offered
         // for a screen and a window as well as a tab, and this page's own tab
@@ -1525,8 +1540,9 @@ export class HuddleSession {
     // frames. Without the hint the encoder treats a screen like a camera and
     // blurs the text first. Sixty frames a second is asked for motion, a game
     // or a video, which keeps moving and softens instead.
-    track.contentHint = quality.frameRate === 60 ? "motion" : "detail";
+    track.contentHint = shareHint(quality);
     this.screenTrack = track;
+    this.screenQuality = quality;
     this.localScreenStream = display;
     // Stopping from the browser's own bar must clean up too.
     track.onended = () => this.stopScreenShare();
@@ -1534,10 +1550,37 @@ export class HuddleSession {
     await this.publish("screen", track);
   }
 
+  /**
+   * Changes how sharp and smooth the share goes while it goes, as Discord's
+   * stream quality does: the same capture is asked for another size and
+   * frame rate, so nobody's picture stops and nothing is offered again. False
+   * where there is no share, or the browser would not change it.
+   */
+  async setScreenShareQuality(quality: ScreenShareQuality): Promise<boolean> {
+    const track = this.screenTrack;
+    if (!track || this.destroyed) return false;
+    try {
+      await track.applyConstraints(shareVideo(quality));
+    } catch (err) {
+      this.note(`The share's quality was not changed: ${describeError(err)}`);
+      return false;
+    }
+    // Stopped, or another share started, while the browser was changing it.
+    if (this.screenTrack !== track || this.destroyed) return false;
+    track.contentHint = shareHint(quality);
+    this.screenQuality = quality;
+    this.note(`Sharing the screen at ${quality.height}p, ${quality.frameRate} frames a second.`);
+    // A taller or shorter picture is scaled anew for whoever shows it small.
+    this.sizeSenders();
+    this.onChange?.();
+    return true;
+  }
+
   private stopScreenShare(): void {
     if (!this.screenTrack) return;
     this.screenTrack.stop();
     this.screenTrack = null;
+    this.screenQuality = null;
     this.localScreenStream = null;
     this.stopScreenSound(false);
     void this.publish("screen", null);

@@ -2766,6 +2766,15 @@
       "concepts": ["keyboard", "storage"]
     },
     {
+      "path": "packages/ui/src/lib/screenShareQuality.ts",
+      "plain": "Remembers the screen share's resolution and frame rate on this device.",
+      "summary": "QUALITY_KEY, the 720/1080p and 15/30/60 fps on offer, and useScreenShareQuality.",
+      "details": [
+        "Read ahead of the press, so a browser's share asks getDisplayMedia for it with nothing awaited between. HuddleControls' Screen share options menu changes a live share through setScreenShareQuality (applyConstraints on the same track) and keeps the choice."
+      ],
+      "concepts": ["calls", "storage"]
+    },
+    {
       "path": "packages/ui/src/lib/switcherRank.ts",
       "plain": "Decides the order Ctrl+K lists matches in.",
       "summary": "matchTier (whole name, start, word start, anywhere) and rankPlaces.",

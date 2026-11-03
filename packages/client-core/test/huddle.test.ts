@@ -301,6 +301,48 @@ describe("HuddleSession", () => {
     session.destroy();
   });
 
+  it("changes the share's quality while it goes, on the same capture", async () => {
+    const { session } = makeSession("A");
+    const applyConstraints = vi.fn(() => Promise.resolve());
+    const track: {
+      kind: string;
+      stop(): void;
+      contentHint?: string;
+      applyConstraints: typeof applyConstraints;
+    } = { kind: "video", stop() {}, applyConstraints };
+    const capture = vi
+      .spyOn(navigator.mediaDevices, "getDisplayMedia")
+      .mockResolvedValue(new FakeMediaStream([track]) as unknown as MediaStream);
+    const changed = vi.fn();
+    session.onChange = changed;
+    expect(await session.setScreenShareQuality({ height: 720, frameRate: 60 })).toBe(false);
+    await session.toggleScreenShare();
+    expect(session.state().screenQuality).toEqual({ height: 1080, frameRate: 15 });
+
+    changed.mockClear();
+    expect(await session.setScreenShareQuality({ height: 720, frameRate: 60 })).toBe(true);
+    // Asked of the capture already going: no second picker, nothing offered again.
+    expect(capture).toHaveBeenCalledOnce();
+    expect(applyConstraints).toHaveBeenCalledWith({
+      width: { max: 1280 },
+      height: { max: 720 },
+      frameRate: { ideal: 60, max: 60 },
+    });
+    expect(track.contentHint).toBe("motion");
+    expect(session.state().screenQuality).toEqual({ height: 720, frameRate: 60 });
+    expect(changed).toHaveBeenCalled();
+
+    // Refused, it stays as it was, and says why in the call's log.
+    applyConstraints.mockRejectedValueOnce(new DOMException("no", "OverconstrainedError"));
+    expect(await session.setScreenShareQuality({ height: 1080, frameRate: 30 })).toBe(false);
+    expect(track.contentHint).toBe("motion");
+    expect(session.state().screenQuality).toEqual({ height: 720, frameRate: 60 });
+
+    await session.toggleScreenShare();
+    expect(session.state().screenQuality).toBeUndefined();
+    session.destroy();
+  });
+
   it("deduplicates camera permission requests", async () => {
     const { session } = makeSession("A");
     const capture = vi.spyOn(navigator.mediaDevices, "getUserMedia");

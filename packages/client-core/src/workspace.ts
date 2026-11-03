@@ -3908,6 +3908,14 @@ export class WorkspaceClient {
     await this.session?.toggleScreenShare(quality, sound);
   }
 
+  /**
+   * Changes the share's resolution and frame rate while it goes; false where
+   * nothing is shared or the browser would not change it.
+   */
+  async setScreenShareQuality(quality: ScreenShareQuality): Promise<boolean> {
+    return (await this.session?.setScreenShareQuality(quality)) ?? false;
+  }
+
   async toggleCamera(): Promise<void> {
     await this.session?.toggleCamera();
   }
