@@ -676,7 +676,7 @@ describe("hosting a workspace from the host dialog", () => {
     expect(within(dialog).queryByRole("link", { name: publicUrl })).not.toBeInTheDocument();
   });
 
-  it("lets visitors join as guests once an account is not required, and asks for one again", async () => {
+  it("chooses who can join with the cards Workspace settings uses, before and after opening", async () => {
     const user = userEvent.setup();
     const { hosting } = fakeHosting(
       { ...running, tunnelAvailable: true, accessPolicy: "account_required", inviteOnly: false },
@@ -686,36 +686,32 @@ describe("hosting a workspace from the host dialog", () => {
     render(<Harness hosting={hosting} />);
     await showSection("Share on the internet");
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    const account = () =>
-      within(dialog).getByRole("checkbox", { name: "Require an account to join." });
-    const invite = () => within(dialog).queryByRole("checkbox", { name: /Require an invite link/ });
+    const group = () => within(dialog).getByRole("group", { name: "Who can join" });
+    const rule = (name: RegExp) => within(group()).getByRole("radio", { name });
     // Before opening, invites are asked for, and guests are a choice to make.
-    expect(account()).toBeChecked();
-    expect(invite()).toBeChecked();
-    await user.click(account());
-    expect(invite()).toBeNull();
-    expect(
-      within(dialog).getByText("Visitors can join as guests. Creating an account is optional."),
-    ).toBeVisible();
+    expect(rule(/People with an invite/)).toBeChecked();
+    expect(group()).toHaveAccessibleDescription(/once it is open/);
+    await user.click(rule(/Anyone, guests included/));
+    expect(rule(/Anyone, guests included/)).toBeChecked();
+    expect(hosting.setAccessPolicy).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole("button", { name: "Open to all" }));
     expect(hosting.openToAll).toHaveBeenCalledWith({
       inviteOnly: false,
       accessPolicy: "guest_allowed",
     });
     await within(dialog).findByRole("link", { name: publicUrl });
-    expect(account()).not.toBeChecked();
+    expect(rule(/Anyone, guests included/)).toBeChecked();
+    expect(group()).toHaveAccessibleDescription(/Changes as soon as you choose/);
     expect(within(dialog).getByText(/join as a guest for a day/)).toBeVisible();
     expect(await accessibilityProblems(dialog)).toEqual([]);
 
-    // Requiring an account again goes back to invites, and says so once the
-    // workspace has taken it.
-    await user.click(account());
+    // Once open, a choice is the workspace's at once.
+    await user.click(rule(/People with an invite/));
     expect(hosting.setAccessPolicy).toHaveBeenCalledWith("invite_only");
-    await waitFor(() => expect(account()).toBeChecked());
-    expect(invite()).toBeChecked();
-    await user.click(invite()!);
+    await waitFor(() => expect(rule(/People with an invite/)).toBeChecked());
+    await user.click(rule(/Anyone who creates an account/));
     expect(hosting.setAccessPolicy).toHaveBeenLastCalledWith("account_required");
-    await waitFor(() => expect(invite()).not.toBeChecked());
+    await waitFor(() => expect(rule(/Anyone who creates an account/)).toBeChecked());
     expect(hosting.setInviteOnly).not.toHaveBeenCalled();
   });
 
