@@ -1483,7 +1483,8 @@
         "Each row is a button at least 48 px tall with the first other person's avatar and presence, the conversation's name, and Draft, Muted, a red mention count or an Unread dot; the one open is marked. Choosing one opens it, which closes the panel. The header has Friends (with a dot for requests waiting) and New message, which a guest does not get. The count, the dot and Friends' dot are Badges, always drawn so one that comes while the panel is open pops in.",
         "Empty, it says how to start one and offers New message; a guest is told direct messages are for members. While the connection is down a line says the list may be out of date, and what this device knows stays listed.",
         "Someone away shows a ring rather than a filled dot (E9).",
-        "Leaves out a one-to-one DM with someone blocked (E12)."
+        "Leaves out a one-to-one DM with someone blocked (E12).",
+        "Under each name, the last message and its time, \"You:\" before your own and a first name before one in a group, through notificationBody. useLatestDirectMessages reads GET /api/conversations/latest on opening and again 250 ms after a DM's channelLastSeq or changedContent moves; a 404 from an older server stops it asking, leaving the names alone."
       ],
       "concepts": ["direct messages", "side panel", "live state", "UX-70"]
     },
@@ -1539,6 +1540,7 @@
       "plain": "The full-size view of a picture, with Save and Close, loaded the first time a picture is opened.",
       "summary": "Shows one image full size over the conversation through the shared file resource.",
       "details": [
+        "Opened from a message, it gets the message's pictures as gallery (MessageAttachments' onOpenImage passes them; MessageTimeline and ThreadPanel keep both): arrows either side and the Left and Right keys step through them, \"2 of 3\" says where, and the ends wrap so a focused arrow never disables.",
         "Reads the image through Attachments' useFileResource, so loading, failure, retry and a file taken away behave as in inline previews; a picture that will not decode says so and can still be saved.",
         "Kept out of the entry every visit downloads: Attachments' Lightbox loads it on first use, shows nothing new while it loads, and says the viewer could not load if its chunk fails."
       ],
@@ -1642,7 +1644,8 @@
       "plain": "The window for forwarding a message: pick where it goes, add a few words if you like, and see what the others will see.",
       "summary": "Chooses a conversation and an optional comment, previews the card and sends the forward.",
       "details": [
-        "The list holds the conversations the person is in and every public channel, since posting joins one. Typing filters it by name, at most eight rows show, and useListbox drives it as in the switcher. Enter picks the active row.",
+        "The list holds the conversations the person is in and every public channel, since posting joins one, and every other active person without a one-to-one DM (not for a guest, not someone blocked). Typing ranks it by name or handle with switcherRank's matchTier, at most eight rows show, and useListbox drives it as in the switcher. Enter picks the active row.",
+        "Forwarding to a person with no DM yet opens one first through client.openDm; a failure says so in the dialog and sends nothing.",
         "MessageItem passes a ForwardSource: the message itself, or the original of a forward with no words or files of its own. The preview is forwardOf for the chosen conversation, so it hides a private original going elsewhere as the server will.",
         "Forward goes through client.send, so the forward waits in the outbox like any message. Without a conversation it asks where and focuses the field; a full outbox keeps the dialog open and says why."
       ],
