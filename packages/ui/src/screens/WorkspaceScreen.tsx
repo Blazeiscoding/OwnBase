@@ -26,6 +26,7 @@ import { channelTitle } from "../lib/format.js";
 import {
   HostingStatus,
   Sidebar,
+  type HostingEntry,
   type HostingLine,
   type OtherWorkspace,
 } from "../components/Sidebar.js";
@@ -291,6 +292,8 @@ interface Props {
   hosting?: HostingLine;
   /** This computer hosts the workspace on screen, so Manage hosting can change it too. */
   hostedHere?: boolean;
+  /** Manage hosting, for the workspace menu and Ctrl+K, in the desktop app. */
+  hostingEntry?: HostingEntry;
 }
 
 type DialogKind =
@@ -379,6 +382,7 @@ export function WorkspaceScreen({
   banner,
   hosting,
   hostedHere,
+  hostingEntry,
 }: Props) {
   return (
     <ClientContext.Provider value={client}>
@@ -412,6 +416,7 @@ export function WorkspaceScreen({
                 banner={banner}
                 hosting={hosting}
                 hostedHere={hostedHere}
+                hostingEntry={hostingEntry}
               />
             </ShareableServerProvider>
           </WorkspaceStorageGate>
@@ -434,6 +439,7 @@ function WorkspaceInner({
   banner,
   hosting,
   hostedHere,
+  hostingEntry,
 }: {
   platform: Platform;
   initialTarget: { channelId: ID; messageId: ID } | null;
@@ -447,6 +453,7 @@ function WorkspaceInner({
   banner?: ReactNode;
   hosting?: HostingLine;
   hostedHere?: boolean;
+  hostingEntry?: HostingEntry;
 }) {
   const status = useWorkspace((s) => s.status);
   // So the saved workspaces show this one's icon while its server is off.
@@ -1208,6 +1215,35 @@ function WorkspaceInner({
                 },
               ]
             : []),
+          // This computer's hosting, in the desktop app: for a member or a guest alike.
+          ...(hostingEntry
+            ? hostingEntry.running
+              ? [
+                  {
+                    id: "hosting",
+                    label: "Manage hosting",
+                    icon: "screen" as const,
+                    keywords: "host server backup port stop computer",
+                    run: () => hostingEntry.open(),
+                  },
+                  {
+                    id: "hosting-internet",
+                    label: "Share on the internet",
+                    icon: "link" as const,
+                    keywords: "host public open to all tunnel cloudflare address online",
+                    run: () => hostingEntry.open("internet"),
+                  },
+                ]
+              : [
+                  {
+                    id: "hosting",
+                    label: "Host a workspace",
+                    icon: "screen" as const,
+                    keywords: "host server start new computer manage hosting",
+                    run: () => hostingEntry.open(),
+                  },
+                ]
+            : []),
           {
             id: "shortcuts",
             label: "Keyboard shortcuts",
@@ -1492,6 +1528,7 @@ function WorkspaceInner({
         onWorkspaceSettings={isAdmin ? () => setDialog({ kind: "workspace" }) : undefined}
         connectionLabel={connectionLabel}
         hosting={hosting}
+        hostingEntry={hostingEntry}
       />
 
       <main className="workspace-main flex min-w-0 flex-1 flex-col">

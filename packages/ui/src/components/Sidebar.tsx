@@ -95,6 +95,8 @@ interface Props {
   connectionLabel: string | null;
   /** This computer's hosting, while it hosts or something is wrong with it. */
   hosting?: HostingLine;
+  /** Manage hosting, in the desktop app, whether or not anything is hosted yet. */
+  hostingEntry?: HostingEntry;
   /** This device's other saved sign-ins, most recently used first. */
   otherWorkspaces?: OtherWorkspace[];
   onOpenWorkspace?: (url: string) => void;
@@ -112,6 +114,17 @@ export interface HostingLine {
   alert?: boolean;
   /** Opens Manage hosting, on Share on the internet when that is what was asked for. */
   onManage: (section?: "internet") => void;
+}
+
+/**
+ * Manage hosting wherever this app can host, for the workspace menu and Ctrl+K.
+ * The hosting line is there only while something is hosted; this is there
+ * before anything is, so hosting is not found only from the join screen.
+ */
+export interface HostingEntry {
+  /** A workspace is hosted here now, so the entry manages it rather than starting one. */
+  running: boolean;
+  open: (section?: "internet") => void;
 }
 
 /**
@@ -621,6 +634,7 @@ export function Sidebar(props: Props) {
                 onReviewReports={props.onReviewReports}
                 onManageApps={props.onManageApps}
                 onWorkspaceSettings={props.onWorkspaceSettings}
+                hostingEntry={props.hostingEntry}
               />
             </h1>
           </header>
@@ -1075,6 +1089,7 @@ function WorkspaceMenu(props: {
   onReviewReports?: () => void;
   onManageApps?: () => void;
   onWorkspaceSettings?: () => void;
+  hostingEntry?: HostingEntry;
 }) {
   const items: MenuItem[] = props.onCreateAccount
     ? [
@@ -1110,6 +1125,17 @@ function WorkspaceMenu(props: {
       icon: "settings",
       onSelect: props.onWorkspaceSettings,
     });
+  // This computer's, not the workspace's: it goes with the workspace's own
+  // settings, before the other workspaces.
+  if (props.hostingEntry) {
+    const entry = props.hostingEntry;
+    items.push({
+      id: "hosting",
+      label: entry.running ? "Manage hosting" : "Host a workspace",
+      icon: "screen",
+      onSelect: () => entry.open(),
+    });
+  }
   // Reports waiting for an admin, which the menu's trigger shows as a dot.
   const waiting = props.onReviewReports ? (props.reportsWaiting ?? 0) : 0;
   const names = props.others.map((w) => w.name);

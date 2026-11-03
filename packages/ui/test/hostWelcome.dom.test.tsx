@@ -8,6 +8,7 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { InviteDialog } from "../src/components/InviteDialog.js";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
+import type { HostingEntry } from "../src/components/Sidebar.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { HostingStatus, Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -156,7 +157,11 @@ function ownersWorkspace() {
   vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
   const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
-  const screenOf = (props: { welcome?: boolean; inviteAsk?: number }) => (
+  const screenOf = (props: {
+    welcome?: boolean;
+    inviteAsk?: number;
+    hostingEntry?: HostingEntry;
+  }) => (
     <ConfirmProvider>
       <PlatformContext.Provider value={webPlatform}>
         <ClientContext.Provider value={client}>
@@ -214,6 +219,37 @@ describe("Invite people, asked for by Manage hosting", () => {
     expect(
       await screen.findByRole("dialog", { name: "Invite people" }, { timeout: 3_000 }),
     ).toBeVisible();
+  });
+});
+
+describe("Manage hosting from Ctrl+K", () => {
+  it("opens Manage hosting, or straight on Share on the internet", async () => {
+    const { screenOf } = ownersWorkspace();
+    const open = vi.fn();
+    render(screenOf({ hostingEntry: { running: true, open } }));
+    await screen.findByRole("textbox", { name: /Message/ });
+    const user = userEvent.setup();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("internet");
+    await user.click(await screen.findByRole("option", { name: /Share on the internet/ }));
+    expect(open).toHaveBeenLastCalledWith("internet");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("hosting");
+    await user.click(await screen.findByRole("option", { name: /Manage hosting/ }));
+    expect(open).toHaveBeenLastCalledWith();
+  });
+
+  it("offers Host a workspace while nothing is hosted", async () => {
+    const { screenOf } = ownersWorkspace();
+    render(screenOf({ hostingEntry: { running: false, open: vi.fn() } }));
+    await screen.findByRole("textbox", { name: /Message/ });
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("host");
+    expect(await screen.findByRole("option", { name: /Host a workspace/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /Share on the internet/ })).toBeNull();
   });
 });
 

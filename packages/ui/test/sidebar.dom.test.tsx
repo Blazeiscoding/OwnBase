@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
-import { Sidebar, type OtherWorkspace } from "../src/components/Sidebar.js";
+import { Sidebar, type HostingEntry, type OtherWorkspace } from "../src/components/Sidebar.js";
 import { statusUntil } from "../src/lib/status.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -25,7 +25,12 @@ const sam: User = {
  * The sidebar over a workspace client that never connects. The workspace
  * screen passes People and Apps only to administrators.
  */
-function sidebar(options: { admin: boolean; others?: OtherWorkspace[] }) {
+function sidebar(options: {
+  admin: boolean;
+  others?: OtherWorkspace[];
+  /** The desktop app's way to Manage hosting. */
+  hostingEntry?: HostingEntry;
+}) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   const self = { ...sam, role: options.admin ? ("admin" as const) : ("member" as const) };
   client.store.setState({
@@ -64,6 +69,7 @@ function sidebar(options: { admin: boolean; others?: OtherWorkspace[] }) {
             }
           : {})}
         connectionLabel={null}
+        hostingEntry={options.hostingEntry}
       />
     </ClientContext.Provider>,
   );
@@ -115,6 +121,35 @@ describe("the workspace menu", () => {
     const { user } = sidebar({ admin: false });
     const { items } = await workspaceMenu(user);
     expect(items).toEqual(["Invite people", "Add or join a workspace…"]);
+  });
+
+  it("offers Manage hosting in the desktop app, or Host a workspace before anything is hosted", async () => {
+    const open = vi.fn();
+    const { user } = sidebar({ admin: false, hostingEntry: { running: false, open } });
+    expect((await workspaceMenu(user)).items).toEqual([
+      "Invite people",
+      "Host a workspace",
+      "Add or join a workspace…",
+    ]);
+    await user.click(screen.getByRole("menuitem", { name: "Host a workspace" }));
+    expect(open).toHaveBeenCalledWith();
+  });
+
+  it("calls it Manage hosting while this computer hosts a workspace", async () => {
+    const open = vi.fn();
+    const { user } = sidebar({ admin: true, hostingEntry: { running: true, open } });
+    const { menu, items } = await workspaceMenu(user);
+    expect(items).toEqual([
+      "Invite people",
+      "People",
+      "Apps and integrations",
+      "Workspace settings",
+      "Manage hosting",
+      "Add or join a workspace…",
+    ]);
+    expect(await accessibilityProblems(menu)).toEqual([]);
+    await user.click(within(menu).getByRole("menuitem", { name: "Manage hosting" }));
+    expect(open).toHaveBeenCalledOnce();
   });
 
   it("does what each item names", async () => {

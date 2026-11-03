@@ -12,7 +12,7 @@ import { useHostingStatus, useLastHosted } from "./lib/hosting.js";
 import { useApplyAppearance } from "./lib/appearance.js";
 import { buttonClass } from "./components/Button.js";
 import { Banner, BannerAction } from "./components/Banner.js";
-import type { HostingLine } from "./components/Sidebar.js";
+import type { HostingEntry, HostingLine } from "./components/Sidebar.js";
 
 // Joining is the first screen once per device; someone returning opens straight
 // into their workspace, so it loads on first use and stays out of every start.
@@ -414,6 +414,14 @@ export function App({ platform }: { platform: Platform }) {
         ];
   const viewingHosted =
     viewedUrl !== null && hostedUrls.some((url) => normalizeServerUrlSafe(url) === viewedUrl);
+  /** Opens Manage hosting, on one tab when something asked for it. */
+  const openHosting = (section?: "internet") => {
+    setHostSection(section);
+    setHostDialogOpen(true);
+  };
+  const hostingEntry: HostingEntry | undefined = platform.hosting
+    ? { running: !!hostingStatus?.running, open: openHosting }
+    : undefined;
   const hostingLine: HostingLine | undefined =
     platform.hosting &&
     (hostingStatus?.running ||
@@ -445,10 +453,7 @@ export function App({ platform }: { platform: Platform }) {
                 ? "live"
                 : "busy",
           alert: !!(hostingStatus?.warning || hostingStatus?.openToAllError),
-          onManage: (section) => {
-            setHostSection(section);
-            setHostDialogOpen(true);
-          },
+          onManage: openHosting,
         }
       : undefined;
 
@@ -557,14 +562,7 @@ export function App({ platform }: { platform: Platform }) {
                       );
                     }}
                     onForget={forgetServer}
-                    onHostClick={
-                      platform.hosting
-                        ? () => {
-                            setHostSection(undefined);
-                            setHostDialogOpen(true);
-                          }
-                        : undefined
-                    }
+                    onHostClick={platform.hosting ? () => openHosting() : undefined}
                     hostingStatus={hosting.status}
                     hostingStatusError={hosting.error}
                     hostingStatusLoading={hosting.loading}
@@ -611,6 +609,7 @@ export function App({ platform }: { platform: Platform }) {
                   ) : undefined
                 }
                 hosting={hostingLine}
+                hostingEntry={hostingEntry}
                 hostedHere={viewingHosted && !!hostingStatus?.running}
               />
             )}
