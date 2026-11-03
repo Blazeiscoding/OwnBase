@@ -252,6 +252,40 @@ export function PinsPanel(props: {
   onJump: (channelId: ID, messageId: ID) => void;
 }) {
   const client = useClient();
+  const toast = useOptionalToast();
+  // Pinning changes the channel for everyone, which a guest may not.
+  const guest = useWorkspace((s) => s.self?.role === "guest");
+  /** Unpinned from here, so gone at once rather than when the list is next read. */
+  const [unpinned, setUnpinned] = useState<ReadonlySet<ID>>(() => new Set());
+
+  /** As Saved's own Remove: the row goes at once, with Undo, and comes back if refused. */
+  function setPinned(message: Message, pin: boolean) {
+    const mark = (gone: boolean) =>
+      setUnpinned((before) => {
+        const next = new Set(before);
+        if (gone) next.add(message.id);
+        else next.delete(message.id);
+        return next;
+      });
+    mark(!pin);
+    const hideUndo = pin
+      ? undefined
+      : toast?.({
+          message: "Unpinned.",
+          kind: "success",
+          action: { label: "Undo", run: () => setPinned(message, true) },
+        });
+    void client.togglePin({ ...message, pinned: !pin }).then((ok) => {
+      if (ok) return;
+      hideUndo?.();
+      mark(pin);
+      toast?.({
+        message: pin ? "Could not pin that message again." : "Could not unpin that message.",
+        kind: "error",
+        action: { label: "Try again", run: () => setPinned(message, pin) },
+      });
+    });
+  }
   // Re-fetch whenever the set of pinned messages in view changes.
   const pinSignature = useWorkspace((s) =>
     (s.timelines[props.channelId]?.items ?? [])
@@ -270,6 +304,12 @@ export function PinsPanel(props: {
       load={(cursor, signal) => client.api.listPins(props.channelId, signal, cursor)}
       listKey={props.channelId}
       refreshKey={`${pinSignature}:${changed}`}
+      keep={(m) => !unpinned.has(m.id)}
+      remove={
+        guest
+          ? undefined
+          : { label: "Unpin from channel", icon: "pin", run: (m) => setPinned(m, false) }
+      }
       onClose={props.onClose}
       onJump={props.onJump}
     />
@@ -404,14 +444,18 @@ export function ThreadsPanel(props: {
           </span>
         ) : null
       }
-      jumpLabel={() => "Open thread"}
+      // As the conversation says it under the thread's first message.
+      jumpLabel={(m) =>
+        m.replyCount > 0
+          ? `${m.replyCount} ${m.replyCount === 1 ? "reply" : "replies"}`
+          : "Open thread"
+      }
       onClose={props.onClose}
       onJump={props.onJump}
     />
   );
 }
 
-/** A step to a neighbouring panel, beside a panel's name. */
 /**
  * A way across to a neighbouring panel. Its arrow and name say where it goes:
  * a bare "Scheduled" pill under a "Saved" title read as this list's status.
