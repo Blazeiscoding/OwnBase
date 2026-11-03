@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FileMeta, ID, ReplyReference } from "@ownbase/protocol";
 import type { PollDraft } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
@@ -57,7 +57,11 @@ export function ThreadPanel({
     const title = channelTitle(channel, s.users, s.self?.id);
     return channel.type === "public" || channel.type === "private" ? `#${title}` : title;
   });
-  const [lightboxFile, setLightboxFile] = useState<FileMeta | null>(null);
+  const [lightbox, setLightbox] = useState<{ file: FileMeta; gallery?: FileMeta[] } | null>(null);
+  const openImage = useCallback(
+    (file: FileMeta, gallery?: FileMeta[]) => setLightbox({ file, gallery }),
+    [],
+  );
   const scroller = useRef<HTMLDivElement>(null);
   // The root and its replies are one Tab stop, as the channel's messages are.
   const roving = useRovingMessages(scroller);
@@ -279,7 +283,7 @@ export function ThreadPanel({
             compact={false}
             inThread
             onChannelClick={onChannelClick}
-            onOpenImage={setLightboxFile}
+            onOpenImage={openImage}
             onOpenProfile={onOpenProfile}
           />
         )}
@@ -334,7 +338,7 @@ export function ThreadPanel({
                 compact={compact}
                 inThread
                 onChannelClick={onChannelClick}
-                onOpenImage={setLightboxFile}
+                onOpenImage={openImage}
                 onOpenProfile={onOpenProfile}
               />
             </div>
@@ -362,7 +366,13 @@ export function ThreadPanel({
       {root && (
         <Composer channelId={channelId} threadRootId={rootId} placeholder="Reply…" autoFocus />
       )}
-      {lightboxFile && <Lightbox file={lightboxFile} onClose={() => setLightboxFile(null)} />}
+      {lightbox && (
+        <Lightbox
+          file={lightbox.file}
+          gallery={lightbox.gallery}
+          onClose={() => setLightbox(null)}
+        />
+      )}
     </aside>
   );
 }

@@ -26,14 +26,16 @@ export function MessageAttachments({
   onOpenImage,
 }: {
   files: FileMeta[];
-  onOpenImage: (file: FileMeta) => void;
+  /** Opens one picture, with the message's others to step through beside it. */
+  onOpenImage: (file: FileMeta, gallery: FileMeta[]) => void;
 }) {
   if (files.length === 0) return null;
+  const pictures = files.filter(opensAsPicture);
   return (
     <div className="mt-1.5 flex flex-wrap gap-2">
       {files.map((f) =>
         opensAsPicture(f) ? (
-          <ImageAttachment key={f.id} file={f} onOpen={() => onOpenImage(f)} />
+          <ImageAttachment key={f.id} file={f} onOpen={() => onOpenImage(f, pictures)} />
         ) : (
           <FileCard key={f.id} file={f} />
         ),
@@ -362,7 +364,7 @@ const LightboxView = lazy(() =>
  * Full-size image viewer. Opening a picture is now and then, so the viewer
  * loads on first use; the moment that takes shows nothing new.
  */
-export function Lightbox(props: { file: FileMeta; onClose: () => void }) {
+export function Lightbox(props: { file: FileMeta; gallery?: FileMeta[]; onClose: () => void }) {
   return (
     <ErrorBoundary
       fallback={

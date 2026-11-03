@@ -36,6 +36,10 @@
       "description": "Slash commands, and the URL an app answers one through later."
     },
     {
+      "name": "conversations",
+      "description": "What the list of direct messages shows under each name."
+    },
+    {
       "name": "files",
       "description": "Uploads, downloads and the files shared in conversations."
     },
@@ -4832,6 +4836,30 @@
                 "false"
               ]
             }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/conversations/latest": {
+      "get": {
+        "operationId": "getConversationsLatest",
+        "tags": [
+          "conversations"
+        ],
+        "summary": "The newest message in each direct conversation the caller is in, newest first, so a list of direct messages can say who said what last.",
+        "description": "The newest message in each direct conversation the caller is in, newest first, so a list of direct messages can say who said what last. Replies in a thread count only when also sent to the conversation.\n\nNeeds a signed-in account.",
+        "x-access": "member",
+        "security": [
+          {
+            "session": []
           }
         ],
         "responses": {

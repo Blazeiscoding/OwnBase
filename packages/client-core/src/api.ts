@@ -493,8 +493,14 @@ export class Api {
     return this.request("GET", "/api/users");
   }
 
-  listChannels(): Promise<{ channels: Channel[] }> {
-    return this.request("GET", "/api/channels");
+  /**
+   * Every channel this account can see. `memberCounts` (how many active
+   * people each room holds) is absent from older servers.
+   */
+  listChannels(
+    signal?: AbortSignal,
+  ): Promise<{ channels: Channel[]; memberCounts?: Record<ID, number> }> {
+    return this.request("GET", "/api/channels", undefined, { signal, timeoutMs: 10_000 });
   }
 
   createChannel(body: CreateChannelBody): Promise<{ channel: Channel }> {
@@ -894,6 +900,17 @@ export class Api {
     if (opts.cursor) query.set("cursor", opts.cursor);
     if (opts.unreadOnly) query.set("unreadOnly", "true");
     return this.request("GET", `/api/threads/followed?${query}`, undefined, {
+      signal,
+      timeoutMs: 10_000,
+    });
+  }
+
+  /**
+   * The newest message in each direct conversation this account is in, for
+   * the list of direct messages. An older server has no such list: 404.
+   */
+  latestDirectMessages(signal?: AbortSignal): Promise<{ messages: Message[] }> {
+    return this.request("GET", "/api/conversations/latest", undefined, {
       signal,
       timeoutMs: 10_000,
     });

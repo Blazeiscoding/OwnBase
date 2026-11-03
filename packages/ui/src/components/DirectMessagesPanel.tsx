@@ -1,8 +1,9 @@
-import { useMemo } from "react";
-import type { Channel, ID } from "@ownbase/protocol";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ApiError, notificationBody } from "@ownbase/client-core";
+import type { Channel, ID, Message } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
-import { useWorkspace } from "../context.js";
-import { channelTitle } from "../lib/format.js";
+import { useClient, useWorkspace } from "../context.js";
+import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { AvatarWithPresence } from "./Avatar.js";
 import { Badge } from "./Badge.js";
@@ -15,7 +16,9 @@ import { Tooltip } from "./Tooltip.js";
  * bar opens under DMs, so a conversation with someone is two taps away without
  * the drawer. The list is the sidebar's own (the conversations this account is
  * in, from the workspace's live state), so it keeps itself current and needs
- * no loading of its own once the workspace has arrived.
+ * no loading of its own once the workspace has arrived. Under each name, as
+ * Slack's list does, the last thing said there and when, read from the server
+ * in one request and again whenever one of these conversations changes.
  */
 export function DirectMessagesPanel(props: {
   activeChannelId: ID | null;
@@ -24,6 +27,7 @@ export function DirectMessagesPanel(props: {
   onNewMessage: () => void;
   onFriends: () => void;
 }) {
+  const client = useClient();
   const channels = useWorkspace((s) => s.channels);
   const memberships = useWorkspace((s) => s.memberships);
   const channelLastSeq = useWorkspace((s) => s.channelLastSeq);
@@ -40,6 +44,7 @@ export function DirectMessagesPanel(props: {
   );
   const guest = self?.role === "guest";
   const { panel, heading } = usePanelFocus({ takeFocus: true });
+  const latest = useLatestDirectMessages(status === "online" && !guest);
 
   const dms = useMemo(() => {
     const list: Channel[] = [];
@@ -141,6 +146,16 @@ export function DirectMessagesPanel(props: {
             const mentions = mentionCounts[channel.id] ?? 0;
             const unread =
               !active && (channelLastSeq[channel.id] ?? 0) > (memberships[channel.id] ?? 0);
+            const last = latest[channel.id];
+            // Who said it, where the conversation's name does not already:
+            // you, or one of a group.
+            const lastBy = !last
+              ? null
+              : last.userId === self?.id
+                ? "You"
+                : others.length > 1
+                  ? (users[last.userId]?.displayName.split(" ")[0] ?? null)
+                  : null;
             return (
               <li key={channel.id}>
                 <button
@@ -162,7 +177,30 @@ export function DirectMessagesPanel(props: {
                     size={32}
                     ring="var(--color-ground)"
                   />
-                  <span className="min-w-0 flex-1 truncate">{title}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-baseline gap-2">
+                      <span className="min-w-0 flex-1 truncate">{title}</span>
+                      {last && (
+                        <time
+                          dateTime={new Date(last.createdAt).toISOString()}
+                          title={formatFull(last.createdAt)}
+                          className="shrink-0 text-[12px] font-normal text-ink-faint"
+                        >
+                          {formatWhen(last.createdAt)}
+                        </time>
+                      )}
+                    </span>
+                    {last && (
+                      <span
+                        className={`block truncate text-[13px] font-normal ${
+                          unread && !muted ? "text-ink-dim" : "text-ink-faint"
+                        }`}
+                      >
+                        {lastBy && `${lastBy}: `}
+                        {notificationBody(client.state, last)}
+                      </span>
+                    )}
+                  </span>
                   {drafts[channel.id] && !active && (
                     <span role="img" aria-label="Draft" title="Draft" className="text-ink-faint">
                       <Icon name="edit" size={13} />
@@ -192,4 +230,51 @@ export function DirectMessagesPanel(props: {
       </div>
     </aside>
   );
+}
+
+/** How long a burst of changes waits before the list is read again. */
+const LATEST_DELAY_MS = 250;
+
+/**
+ * The newest message in each direct conversation, by conversation, read
+ * while `active` and again (once a burst settles) whenever one of them gets a
+ * message or has one edited or deleted. What was read stays on show while the
+ * next read is out. A server without the list says so once, and is not asked
+ * again: the names stand alone, as they did.
+ */
+function useLatestDirectMessages(active: boolean): Record<ID, Message> {
+  const client = useClient();
+  const [latest, setLatest] = useState<Record<ID, Message>>({});
+  const unsupported = useRef(false);
+  const read = useRef(false);
+  const signature = useWorkspace((s) =>
+    Object.values(s.channels)
+      .filter((c) => (c.type === "dm" || c.type === "group_dm") && c.id in s.memberships)
+      .map((c) => `${c.id}:${s.channelLastSeq[c.id] ?? 0}:${s.changedContent[c.id] ?? 0}`)
+      .sort()
+      .join(","),
+  );
+  useEffect(() => {
+    if (!active || unsupported.current) return;
+    const controller = new AbortController();
+    const timer = setTimeout(
+      () => {
+        client.api
+          .latestDirectMessages(controller.signal)
+          .then(({ messages }) => {
+            read.current = true;
+            setLatest(Object.fromEntries(messages.map((m) => [m.channelId, m])));
+          })
+          .catch((error: unknown) => {
+            if (error instanceof ApiError && error.status === 404) unsupported.current = true;
+          });
+      },
+      read.current ? LATEST_DELAY_MS : 0,
+    );
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [client, active, signature]);
+  return latest;
 }

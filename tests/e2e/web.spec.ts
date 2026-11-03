@@ -4610,7 +4610,7 @@ test("reading a thread on a phone leaves an unseen mention in its channel unread
     await expect(nav.getByLabel("Threads with unread replies", { exact: true })).toHaveText("1");
     await nav.getByRole("button", { name: /^Threads\b/ }).click();
     const threads = page.getByRole("complementary", { name: "Threads", exact: true });
-    await threads.getByRole("button", { name: "Open thread", exact: true }).click();
+    await threads.getByRole("button", { name: "1 reply", exact: true }).click();
     const thread = page.getByRole("complementary", { name: "Thread", exact: true });
     await expect(thread.getByText("Friday works for me", { exact: true })).toBeVisible();
     await expect(page).toHaveURL(`${origin}/#/c/${general.id}/t/${root.id}`);

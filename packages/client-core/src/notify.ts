@@ -177,5 +177,7 @@ export function notificationBody(state: WorkspaceState, message: Message): strin
   if (words.trim()) return words;
   if (text.trim()) return text;
   const count = message.files.length;
+  // A forward with no words of its own carries neither words nor files.
+  if (count === 0) return message.forwardedFrom ? "Forwarded a message" : "Sent a message";
   return count === 1 ? "Sent a file" : `Sent ${count} files`;
 }

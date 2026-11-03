@@ -301,6 +301,17 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
   const [tab, setTab] = useState<(typeof BROWSE_TABS)[number]>("active");
   const [joining, setJoining] = useState<ID | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // How many people each channel holds, read once on opening. Without it (an
+  // older server, or no connection) the rows simply leave the count out.
+  const [counts, setCounts] = useState<Record<ID, number>>({});
+  useEffect(() => {
+    const controller = new AbortController();
+    client.api
+      .listChannels(controller.signal)
+      .then((answer) => setCounts(answer.memberCounts ?? {}))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [client]);
   // Active and archived are two lists, not one with more in it, so they are
   // tabs as in Friends rather than a checkbox that quietly swaps the list.
   const tabs = useTabs({
@@ -407,6 +418,11 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
                           <span className="truncate font-medium">{ch.name}</span>
                           {joined && (
                             <span className="shrink-0 text-xs text-ink-faint">Joined</span>
+                          )}
+                          {counts[ch.id] !== undefined && (
+                            <span className="ml-auto shrink-0 text-xs text-ink-faint">
+                              {counts[ch.id]} {counts[ch.id] === 1 ? "member" : "members"}
+                            </span>
                           )}
                         </div>
                         {(ch.description || ch.topic) && (

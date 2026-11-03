@@ -324,6 +324,23 @@ describe("notificationBody", () => {
     });
     expect(notificationBody(state(), withFile)).toBe("Sent a file");
   });
+
+  it("says a forward with no words of its own forwarded something, not that it sent 0 files", () => {
+    const forward = message({
+      text: "",
+      forwardedFrom: {
+        id: "M0",
+        channelId: "C1",
+        userId: "U_SAM",
+        text: "Original",
+        files: [],
+        createdAt: 0,
+        deleted: false,
+        hidden: false,
+      },
+    });
+    expect(notificationBody(state(), forward)).toBe("Forwarded a message");
+  });
   it("treats @channel as addressed to you, even on a mentions-only channel", () => {
     const s = state({ prefs: { C1: { notifyLevel: "mentions", muted: false } } });
     expect(decideNotification(s, message({ text: "<!channel> standup in five" }))).toEqual({

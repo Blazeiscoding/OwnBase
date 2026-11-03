@@ -189,6 +189,7 @@ export const TAG_WORDS: Record<string, string> = {
   auth: "Accounts, signing in and out, guests and sessions.",
   channels: "Conversations, their members, messages, threads and read state.",
   commands: "Slash commands, and the URL an app answers one through later.",
+  conversations: "What the list of direct messages shows under each name.",
   files: "Uploads, downloads and the files shared in conversations.",
   friends: "Friend requests between members.",
   health: "Whether the server is up.",

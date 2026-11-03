@@ -1,7 +1,9 @@
 import { useId, useRef, useState, type FormEvent } from "react";
-import type { Channel, ID } from "@ownbase/protocol";
+import type { ID } from "@ownbase/protocol";
 import { forwardOf, type ForwardSource } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { blockedPartner } from "../lib/blocking.js";
+import { matchTier } from "../lib/switcherRank.js";
 import { useListbox } from "../lib/useListbox.js";
 import { buttonClass } from "./Button.js";
 import { Dialog } from "./Dialog.js";
@@ -11,6 +13,17 @@ import { useToast } from "./Toast.js";
 
 /** How many conversations the list shows at once; typing narrows it. */
 const SHOWN = 8;
+
+/**
+ * Where a forward can go: a conversation, or a person there is no direct
+ * conversation with yet, which sending starts.
+ */
+interface Target {
+  key: string;
+  label: string;
+  channelId?: ID;
+  userId?: ID;
+}
 
 /**
  * Forwards a message (E1): choose a conversation, as the switcher matches
@@ -26,51 +39,90 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
   const [query, setQuery] = useState("");
-  const [target, setTarget] = useState<ID | null>(null);
+  const [target, setTarget] = useState<Target | null>(null);
+  const [sending, setSending] = useState(false);
   const [comment, setComment] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const problemId = useId();
 
-  const name = (c: Channel) => conversationName(c, users, selfId);
+  const guest = useWorkspace((s) => s.self?.role === "guest");
+  const blocked = useWorkspace((s) => s.blocked);
   // Where this person can post: what they are in, and any public channel,
-  // which posting joins.
-  const places = Object.values(channels)
-    .filter((c) => !c.archived && (c.id in memberships || c.type === "public"))
-    .sort((a, b) => name(a).localeCompare(name(b)));
+  // which posting joins; and anyone else, as the switcher offers them, in a
+  // direct conversation that sending starts. Guests have no direct messages.
+  const directWith = new Set<ID>();
+  const places: Target[] = [];
+  for (const c of Object.values(channels)) {
+    if (c.archived || !(c.id in memberships || c.type === "public")) continue;
+    if (blockedPartner(c, selfId, blocked)) continue;
+    const others = (c.memberIds ?? []).filter((id) => id !== selfId);
+    if (c.type === "dm" && others.length === 1) directWith.add(others[0]!);
+    places.push({ key: c.id, label: conversationName(c, users, selfId), channelId: c.id });
+  }
+  if (!guest)
+    for (const u of Object.values(users))
+      if (u.id !== selfId && !u.deactivated && !directWith.has(u.id) && !blocked?.includes(u.id))
+        places.push({ key: `person:${u.id}`, label: u.displayName, userId: u.id });
+  places.sort((a, b) => a.label.localeCompare(b.label));
   const typed = query.trim().toLowerCase().replace(/^[#@]/, "");
+  // Ranked as Ctrl+K ranks them: the whole name, its start, a word's start,
+  // anywhere; so "al" finds Alex before #general.
+  const tierOf = (place: Target) => {
+    const tiers = [matchTier(place.label.replace(/^#/, ""), typed)];
+    if (place.userId) tiers.push(matchTier(users[place.userId]?.handle ?? "", typed));
+    const found = tiers.filter((tier) => tier >= 0);
+    return found.length ? Math.min(...found) : -1;
+  };
   const results =
     target !== null
       ? []
       : places
-          .filter((c) => !typed || name(c).toLowerCase().replace(/^#/, "").includes(typed))
+          .map((place) => ({ place, tier: tierOf(place) }))
+          .filter(({ tier }) => tier >= 0)
+          .sort((a, b) => a.tier - b.tier)
+          .map(({ place }) => place)
           .slice(0, SHOWN);
   const list = useListbox(results.length);
   const fromPublic = channels[source.channelId]?.type === "public";
-  const card = forwardOf(source, target ?? source.channelId, fromPublic);
+  // A direct conversation still to start is somewhere else than the message's own.
+  const card = forwardOf(source, target ? (target.channelId ?? "") : source.channelId, fromPublic);
 
-  function pick(channel: Channel) {
-    setTarget(channel.id);
-    setQuery(name(channel));
+  function pick(place: Target) {
+    setTarget(place);
+    setQuery(place.label);
     setProblem(null);
   }
 
-  function send(event: FormEvent) {
+  async function send(event: FormEvent) {
     event.preventDefault();
+    if (sending) return;
     if (target === null) {
       setProblem("Choose where to forward it.");
       field.current?.focus();
       return;
     }
-    const sent = client.send(target, comment.trim(), {
-      forward: forwardOf(source, target, fromPublic),
+    let channelId = target.channelId;
+    if (!channelId) {
+      setSending(true);
+      try {
+        channelId = (await client.openDm([target.userId!])).id;
+      } catch {
+        setSending(false);
+        setProblem(`Could not start a conversation with ${target.label}. Try again.`);
+        return;
+      }
+      setSending(false);
+    }
+    const sent = client.send(channelId, comment.trim(), {
+      forward: forwardOf(source, channelId, fromPublic),
     });
     if (!sent) {
       setProblem("Too many messages are waiting to send. Try again once they have gone.");
       return;
     }
     onClose();
-    toast({ message: `Forwarded to ${name(channels[target]!)}.`, kind: "success" });
+    toast({ message: `Forwarded to ${target.label}.`, kind: "success" });
   }
 
   return (
@@ -82,7 +134,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
             ref={field}
             autoFocus
             value={query}
-            placeholder="Search conversations"
+            placeholder="Search conversations and people"
             aria-invalid={problem !== null && target === null ? true : undefined}
             aria-errormessage={problem !== null ? problemId : undefined}
             aria-describedby={problem !== null ? problemId : undefined}
@@ -105,19 +157,24 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
         {results.length > 0 && (
           <ul
             {...list.listProps}
-            aria-label="Conversations"
+            aria-label="Conversations and people"
             className="max-h-64 overflow-y-auto rounded-lg border border-edge p-1"
           >
-            {results.map((channel, i) => (
+            {results.map((place, i) => (
               <li
-                key={channel.id}
+                key={place.key}
                 {...list.optionProps(i)}
-                onClick={() => pick(channel)}
-                className={`cursor-pointer truncate rounded-md px-2 py-1.5 text-sm ${
+                onClick={() => pick(place)}
+                className={`flex cursor-pointer items-baseline gap-2 rounded-md px-2 py-1.5 text-sm ${
                   i === list.active ? "bg-lifted text-ink" : "text-ink-dim"
                 }`}
               >
-                {name(channel)}
+                <span className="truncate">{place.label}</span>
+                {place.userId && (
+                  <span className="shrink-0 text-xs text-ink-faint">
+                    @{users[place.userId]?.handle}
+                  </span>
+                )}
               </li>
             ))}
           </ul>
@@ -150,8 +207,12 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
           <button type="button" onClick={onClose} className={buttonClass("secondary")}>
             Cancel
           </button>
-          <button type="submit" className={buttonClass("primary")}>
-            Forward
+          <button
+            type="submit"
+            aria-disabled={sending || undefined}
+            className={buttonClass("primary")}
+          >
+            {sending ? "Forwarding…" : "Forward"}
           </button>
         </div>
       </form>

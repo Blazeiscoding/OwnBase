@@ -44,7 +44,7 @@ const old = room("C_OLD", "old-project", { archived: true });
 
 afterEach(() => vi.restoreAllMocks());
 
-function browse() {
+function browse(memberCounts?: Record<string, number>) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
@@ -54,6 +54,7 @@ function browse() {
     status: "online",
   });
   const join = vi.spyOn(client.api, "joinChannel");
+  vi.spyOn(client.api, "listChannels").mockResolvedValue({ channels: [], memberCounts });
   const onOpen = vi.fn();
   render(
     <ClientContext.Provider value={client}>
@@ -67,6 +68,16 @@ function browse() {
 }
 
 describe("browse channels", () => {
+  it("says how many people each channel holds, where the server says", async () => {
+    const { dialog } = browse({ [general.id]: 12, [design.id]: 1 });
+    const row = (name: string) =>
+      dialog.getByRole("button", { name: new RegExp(`#${name}$`) }).closest("li")!;
+    expect(await within(row("general")).findByText("12 members")).toBeInTheDocument();
+    expect(within(row("design")).getByText("1 member")).toBeInTheDocument();
+    // An older server sends none, and the row leaves it out.
+    expect(row("launch").textContent).not.toMatch(/member/);
+  });
+
   it("lists active channels, and archived ones on a tab of their own", async () => {
     const { dialog, names, user } = browse();
     expect(dialog.getByRole("tab", { name: "Active" })).toHaveAttribute("aria-selected", "true");

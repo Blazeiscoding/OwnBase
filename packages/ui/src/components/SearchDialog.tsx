@@ -551,6 +551,13 @@ export function SearchDialog(props: {
               // A form submits on Enter from a text field, which would run the
               // search on the Enter that picked an input method's candidate.
               if (e.key === "Enter" && isImeKey(e.nativeEvent)) e.preventDefault();
+              // Down goes on to the results, which Up and Down then walk.
+              if (e.key === "ArrowDown" && !e.altKey) {
+                const first = list.current?.querySelector<HTMLButtonElement>("[data-search-open]");
+                if (!first) return;
+                e.preventDefault();
+                first.focus();
+              }
             }}
             placeholder="Search messages and file names"
             className={inputCls}
@@ -777,6 +784,12 @@ export function SearchDialog(props: {
                     ))
                   : messages.map((m) => {
                       const ch = channels[m.channelId];
+                      // A one-to-one conversation is named by its other person:
+                      // their own message needs no author, but one of yours does,
+                      // as does every message in a group.
+                      const others = (ch?.memberIds ?? []).filter((id) => id !== selfId);
+                      const namedAbove =
+                        ch?.type === "dm" && others.length === 1 && others[0] === m.userId;
                       return (
                         <li
                           key={m.id}
@@ -786,7 +799,7 @@ export function SearchDialog(props: {
                             <span className="font-semibold text-ink-dim">
                               {conversationName(m.channelId)}
                             </span>
-                            {(!ch || ch.name) && <span>{users[m.userId]?.displayName}</span>}
+                            {!namedAbove && <span>{users[m.userId]?.displayName}</span>}
                             <time
                               dateTime={new Date(m.createdAt).toISOString()}
                               title={formatFull(m.createdAt)}

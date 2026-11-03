@@ -10,8 +10,8 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { WorkspaceClient } from "@ownbase/client-core";
-import type { Channel, User } from "@ownbase/protocol";
+import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import type { Channel, Message, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { DirectMessagesPanel } from "../src/components/DirectMessagesPanel.js";
@@ -450,9 +450,13 @@ describe("the on-screen keyboard", () => {
 });
 
 describe("the Direct messages panel", () => {
-  function panel(state: Partial<WorkspaceClient["state"]> = {}) {
+  function panel(
+    state: Partial<WorkspaceClient["state"]> = {},
+    latest: () => Promise<{ messages: Message[] }> = async () => ({ messages: [] }),
+  ) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "synthetic-test-token");
     clients.push(client);
+    const read = vi.spyOn(client.api, "latestDirectMessages").mockImplementation(latest);
     client.store.setState({
       self: owner,
       users: { [owner.id]: owner, [bobby.id]: bobby },
@@ -474,6 +478,7 @@ describe("the Direct messages panel", () => {
     );
     return {
       client,
+      read,
       ...props,
       aside: screen.getByRole("complementary", { name: "Direct messages" }),
     };
@@ -513,6 +518,50 @@ describe("the Direct messages panel", () => {
     const { aside } = panel({ status: "reconnecting" });
     expect(within(aside).getByText(/Not connected/)).toHaveAttribute("role", "status");
     // What this device knows is still listed.
+    expect(within(aside).getByRole("button", { name: /Bobby/ })).toBeInTheDocument();
+  });
+
+  const said = (text: string, userId: string, channelId = dm.id): Message =>
+    ({
+      id: `M_${text.length}`,
+      channelId,
+      userId,
+      text,
+      threadRootId: null,
+      broadcast: false,
+      seq: 2,
+      createdAt: Date.UTC(2026, 9, 20, 9, 30),
+      editedAt: null,
+      nonce: null,
+      replyCount: 0,
+      reactions: [],
+      files: [],
+      pinned: false,
+      actions: [],
+    }) as Message;
+
+  it("shows the last thing said under each name, and who said it when it was you", async () => {
+    let answer = [said("Lunch at noon?", bobby.id)];
+    const { aside, client, read } = panel({}, async () => ({ messages: answer }));
+    const row = within(aside).getByRole("button", { name: /Bobby/ });
+    expect(await within(row).findByText("Lunch at noon?")).toBeInTheDocument();
+    expect(row.querySelector("time")).not.toBeNull();
+
+    // A new message there reads the list again, once the burst settles.
+    answer = [said("Sounds good", owner.id)];
+    act(() => client.store.setState({ channelLastSeq: { [dm.id]: 3 } }));
+    expect(await within(row).findByText(/^You: /)).toHaveTextContent("You: Sounds good");
+    expect(read).toHaveBeenCalledTimes(2);
+  });
+
+  it("stands on the names alone on a server without the list, and stops asking", async () => {
+    const { aside, client, read } = panel({}, async () => {
+      throw new ApiError(404, "not_found");
+    });
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
+    act(() => client.store.setState({ channelLastSeq: { [dm.id]: 3 } }));
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(read).toHaveBeenCalledTimes(1);
     expect(within(aside).getByRole("button", { name: /Bobby/ })).toBeInTheDocument();
   });
 });

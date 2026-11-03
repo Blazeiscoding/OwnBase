@@ -6,6 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { PinsPanel } from "../src/components/MessageListPanel.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { ToastProvider } from "../src/components/Toast.js";
 
 /**
  * The Pinned panel holds its own copy of a conversation's pinned messages. A
@@ -58,10 +59,10 @@ const pinned = (id: string, text: string, seq: number): Message =>
 type Page = { messages: Message[]; nextCursor: string | null };
 
 /** The panel on #design, with none of that conversation's history loaded. */
-function renderPins(listPins: (cursor?: string) => Promise<Page>) {
+function renderPins(listPins: (cursor?: string) => Promise<Page>, self: User = sam) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
-    self: sam,
+    self,
     workspaceId: "W1",
     users: { [sam.id]: sam },
     channels: { [design.id]: design, [other.id]: other },
@@ -77,11 +78,13 @@ function renderPins(listPins: (cursor?: string) => Promise<Page>) {
     .spyOn(client.api, "listPins")
     .mockImplementation((_channel, _signal, cursor) => listPins(cursor));
   render(
-    <PlatformContext.Provider value={platform}>
-      <ClientContext.Provider value={client}>
-        <PinsPanel channelId={design.id} onClose={() => {}} onJump={() => {}} />
-      </ClientContext.Provider>
-    </PlatformContext.Provider>,
+    <ToastProvider>
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <PinsPanel channelId={design.id} onClose={() => {}} onJump={() => {}} />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>
+    </ToastProvider>,
   );
   return { client, spy, panel: screen.getByRole("complementary", { name: "Pinned" }) };
 }
@@ -150,5 +153,45 @@ describe("the Pinned panel", () => {
     expect(spy).toHaveBeenCalledTimes(4);
     expect(spy.mock.calls.slice(2).map((call) => call[2])).toEqual([undefined, "M5"]);
     expect(within(panel).getByText("Newer pin")).toBeVisible();
+  });
+
+  it("unpins a message at once, with Undo", async () => {
+    const user = userEvent.setup();
+    const { client, panel } = renderPins(async () => ({
+      messages: [pinned("M1", "House rules", 2), pinned("M2", "Release dates", 3)],
+      nextCursor: null,
+    }));
+    const pin = vi.spyOn(client.api, "pinMessage").mockResolvedValue(undefined as never);
+    const unpin = vi.spyOn(client.api, "unpinMessage").mockResolvedValue(undefined as never);
+    const row = (await within(panel).findByText("House rules")).closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "Unpin from channel" }));
+    expect(within(panel).queryByText("House rules")).toBeNull();
+    expect(within(panel).getByText("Release dates")).toBeTruthy();
+    await waitFor(() => expect(unpin).toHaveBeenCalledWith("M1"));
+    await user.click(await screen.findByRole("button", { name: "Undo" }));
+    await within(panel).findByText("House rules");
+    await waitFor(() => expect(pin).toHaveBeenCalledWith("M1"));
+  });
+
+  it("puts a message back when unpinning it is refused", async () => {
+    const user = userEvent.setup();
+    const { client, panel } = renderPins(async () => ({
+      messages: [pinned("M1", "House rules", 2)],
+      nextCursor: null,
+    }));
+    vi.spyOn(client.api, "unpinMessage").mockRejectedValue(new Error("forbidden"));
+    const row = (await within(panel).findByText("House rules")).closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "Unpin from channel" }));
+    expect(await screen.findByText("Could not unpin that message.")).toBeTruthy();
+    expect(within(panel).getByText("House rules")).toBeTruthy();
+  });
+
+  it("offers a guest no Unpin", async () => {
+    const { panel } = renderPins(
+      async () => ({ messages: [pinned("M1", "House rules", 2)], nextCursor: null }),
+      { ...sam, role: "guest" },
+    );
+    await within(panel).findByText("House rules");
+    expect(within(panel).queryByRole("button", { name: "Unpin from channel" })).toBeNull();
   });
 });
