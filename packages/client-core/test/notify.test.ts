@@ -71,6 +71,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     threadMutes: true,
     sharedFiles: true,
     sidebarSections: [],
+    notifyDefault: null,
     profiles: true,
     reminders: {},
     pollChoices: {},
@@ -284,6 +285,33 @@ describe("decideNotification", () => {
       channels: { C1: channel("dm") },
     });
     expect(decideNotification(expired, message(), { now }).notify).toBe(true);
+  });
+
+  it("follows the account's default where a conversation has no level of its own (v53)", () => {
+    const following = { notifyLevel: "mentions" as const, notifyChosen: false, muted: false };
+    const everything = state({ notifyDefault: "all", prefs: { C1: following } });
+    expect(decideNotification(everything, message())).toEqual({ notify: true, reason: "all" });
+    const quiet = state({ notifyDefault: "nothing", prefs: { C1: following } });
+    expect(decideNotification(quiet, message({ text: `<@${me.id}> ping` })).notify).toBe(false);
+    // A DM at "nothing" stays quiet too, as Slack's Nothing is.
+    const dm = state({
+      notifyDefault: "nothing",
+      channels: { C1: channel("dm") },
+      prefs: { C1: following },
+    });
+    expect(decideNotification(dm, message()).notify).toBe(false);
+  });
+
+  it("keeps a level chosen for one conversation, whatever the default", () => {
+    const own = { notifyLevel: "all" as const, notifyChosen: true, muted: false };
+    const s = state({ notifyDefault: "nothing", prefs: { C1: own } });
+    expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
+    // An older server says nothing of choosing: its level is the conversation's own.
+    const older = state({
+      notifyDefault: null,
+      prefs: { C1: { notifyLevel: "all", muted: false } },
+    });
+    expect(decideNotification(older, message()).notify).toBe(true);
   });
 
   it("falls back to mentions-only when a channel has no stored preference", () => {

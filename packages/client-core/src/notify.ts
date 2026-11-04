@@ -1,4 +1,10 @@
-import { broadcastLabel, broadcastsIn, type ID, type Message } from "@ownbase/protocol";
+import {
+  broadcastLabel,
+  broadcastsIn,
+  effectiveNotifyLevel,
+  type ID,
+  type Message,
+} from "@ownbase/protocol";
 import type { WorkspaceState } from "./workspace.js";
 
 export type NotifyDecision =
@@ -47,9 +53,11 @@ export function decideNotification(
     return { notify: false, reason: "not-a-member" };
   }
 
-  const prefs = state.prefs[message.channelId] ?? { notifyLevel: "mentions", muted: false };
-  if (prefs.muted) return { notify: false, reason: "muted" };
-  if (prefs.notifyLevel === "nothing") return { notify: false, reason: "level" };
+  const prefs = state.prefs[message.channelId];
+  if (prefs?.muted) return { notify: false, reason: "muted" };
+  // Its own level, or the account's default where it follows that (v53).
+  const level = effectiveNotifyLevel(prefs, state.notifyDefault);
+  if (level === "nothing") return { notify: false, reason: "level" };
 
   // A reply that chose to notify the author of what it answers names them.
   const named =
@@ -70,7 +78,7 @@ export function decideNotification(
     return { notify: false, reason: "thread-muted" };
   }
 
-  if (prefs.notifyLevel === "mentions" && !addressed && !isDm) {
+  if (level === "mentions" && !addressed && !isDm) {
     return { notify: false, reason: "level" };
   }
 

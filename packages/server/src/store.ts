@@ -172,6 +172,7 @@ function toUser(r: UserRow): User {
 /** One member's own choices for a conversation, as `channel_members` keeps them. */
 type PrefsRow = {
   notify_level: string;
+  notify_chosen: number;
   muted: number;
   starred: number;
   section_id: string | null;
@@ -181,6 +182,7 @@ type PrefsRow = {
 function toPrefs(r: PrefsRow): ChannelPrefs {
   return {
     notifyLevel: r.notify_level as NotifyLevel,
+    notifyChosen: r.notify_chosen === 1,
     muted: r.muted === 1,
     starred: r.starred === 1,
     sectionId: r.section_id,
@@ -1141,8 +1143,8 @@ export class Store {
   }[] {
     const rows = this.db
       .prepare(
-        `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, muted, starred,
-                section_id, hidden_seq
+        `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, notify_chosen, muted,
+                starred, section_id, hidden_seq
          FROM channel_members WHERE user_id = ?`,
       )
       .all(userId) as ({
@@ -1161,8 +1163,8 @@ export class Store {
   getChannelPrefs(channelId: ID, userId: ID): ChannelPrefs | null {
     const r = this.db
       .prepare(
-        `SELECT notify_level, muted, starred, section_id, hidden_seq FROM channel_members
-         WHERE channel_id = ? AND user_id = ?`,
+        `SELECT notify_level, notify_chosen, muted, starred, section_id, hidden_seq
+         FROM channel_members WHERE channel_id = ? AND user_id = ?`,
       )
       .get(channelId, userId) as PrefsRow | undefined;
     return r ? toPrefs(r) : null;
@@ -1173,6 +1175,7 @@ export class Store {
     userId: ID,
     patch: {
       notifyLevel?: NotifyLevel;
+      notifyChosen?: boolean;
       muted?: boolean;
       starred?: boolean;
       sectionId?: ID | null;
@@ -1184,6 +1187,13 @@ export class Store {
     if (patch.notifyLevel !== undefined) {
       sets.push("notify_level = ?");
       params.push(patch.notifyLevel);
+    }
+    // A level chosen here is this conversation's own, unless it is put back on
+    // the default in the same change.
+    const chosen = patch.notifyChosen ?? (patch.notifyLevel !== undefined ? true : undefined);
+    if (chosen !== undefined) {
+      sets.push("notify_chosen = ?");
+      params.push(chosen ? 1 : 0);
     }
     if (patch.muted !== undefined) {
       sets.push("muted = ?");
@@ -1213,6 +1223,41 @@ export class Store {
         .run(...params, channelId, userId);
     }
     return this.getChannelPrefs(channelId, userId);
+  }
+
+  /** What this account's conversations notify about unless one is set on its own (v53). */
+  notifyDefault(userId: ID): NotifyLevel {
+    const row = this.db.prepare("SELECT notify_default FROM users WHERE id = ?").get(userId) as
+      { notify_default: string } | undefined;
+    return (row?.notify_default as NotifyLevel | undefined) ?? "mentions";
+  }
+
+  setNotifyDefault(userId: ID, level: NotifyLevel): void {
+    this.db.prepare("UPDATE users SET notify_default = ? WHERE id = ?").run(level, userId);
+  }
+
+  /**
+   * What waits for this account, for another of its devices showing a
+   * different workspace: unread mentions as the badge counts them, and
+   * whether any conversation it has not muted has something unread, by the
+   * rule the sidebar uses (a closed DM or one with someone blocked aside).
+   */
+  unreadSummary(userId: ID): { mentions: number; unread: boolean } {
+    const mentions = Object.values(this.unreadMentionCounts(userId)).reduce((a, n) => a + n, 0);
+    const row = this.db
+      .prepare(
+        `SELECT 1 FROM channel_members cm JOIN channels c ON c.id = cm.channel_id
+         WHERE cm.user_id = ? AND cm.muted = 0 AND c.archived = 0
+           AND c.last_msg_seq > cm.last_read_seq
+           AND (cm.hidden_seq IS NULL OR c.last_msg_seq > cm.hidden_seq)
+           AND NOT (c.type = 'dm' AND EXISTS (
+             SELECT 1 FROM channel_members other JOIN user_blocks ub
+               ON ub.user_id = cm.user_id AND ub.blocked_id = other.user_id
+             WHERE other.channel_id = c.id AND other.user_id <> cm.user_id))
+         LIMIT 1`,
+      )
+      .get(userId);
+    return { mentions, unread: !!row };
   }
 
   // ---------- sidebar sections (E8) ----------

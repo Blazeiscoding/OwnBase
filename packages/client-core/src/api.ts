@@ -6,6 +6,8 @@ import type {
   Channel,
   ChannelPrefs,
   ChannelPrefsBody,
+  NotifyLevel,
+  UnreadSummary,
   CreateChannelBody,
   CreateInviteBody,
   FileKind,
@@ -773,6 +775,16 @@ export class Api {
 
   setChannelPrefs(channelId: ID, body: ChannelPrefsBody): Promise<{ prefs: ChannelPrefs }> {
     return this.request("PATCH", `/api/channels/${channelId}/prefs`, body);
+  }
+
+  /** What conversations notify about unless one is set on its own (v53). */
+  setNotifyDefault(level: NotifyLevel): Promise<{ level: NotifyLevel }> {
+    return this.request("PUT", "/api/me/notify-default", { level }, { timeoutMs: 10_000 });
+  }
+
+  /** What waits in this workspace, for a device showing another one. 404 from older servers. */
+  unreadSummary(): Promise<UnreadSummary> {
+    return this.request("GET", "/api/me/unread", undefined, { timeoutMs: 10_000 });
   }
 
   pinMessage(id: ID): Promise<{ ok: true }> {
