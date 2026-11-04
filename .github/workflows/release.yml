@@ -335,9 +335,12 @@ jobs:
           s3() { aws s3 --endpoint-url "$ENDPOINT" "$@"; }
           mapfile -t names < <(sed -E 's/^[0-9a-f]{64}  //' release/SHA256SUMS)
           names+=(SHA256SUMS)
+          # Each under the name GitHub gives it, which has dots for spaces
+          # ("OwnBase Setup 0.1.0.exe" is OwnBase.Setup.0.1.0.exe there), since
+          # the website matches the copies to GitHub's files by name.
           for name in "${names[@]}"; do
-            s3 cp "release/$name" "s3://$BUCKET/$TAG/$name" --only-show-errors \
-              --content-disposition "attachment; filename=\"$name\"" \
+            s3 cp "release/$name" "s3://$BUCKET/$TAG/${name// /.}" --only-show-errors \
+              --content-disposition "attachment; filename=\"${name// /.}\"" \
               --cache-control "public, max-age=31536000, immutable"
           done
           node -e '
@@ -345,8 +348,9 @@ jobs:
             const tag = process.env.TAG;
             const files = {};
             for (const name of process.argv.slice(1)) {
-              files[name] = {
-                url: `https://dl.ownbase.site/${tag}/${encodeURIComponent(name)}`,
+              const key = name.replaceAll(" ", ".");
+              files[key] = {
+                url: `https://dl.ownbase.site/${tag}/${encodeURIComponent(key)}`,
                 size: fs.statSync(`release/${name}`).size,
               };
             }
