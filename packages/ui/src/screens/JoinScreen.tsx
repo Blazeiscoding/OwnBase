@@ -448,6 +448,12 @@ function BrowseCard(props: {
       ),
     [props.lanServers, props.savedServers],
   );
+  // Signed in there already, it is listed once, with the account, under Your workspaces.
+  const selfServed =
+    props.selfServed &&
+    !props.savedServers.some((s) => s.url === normalizeSafe(props.selfServed!.url))
+      ? props.selfServed
+      : null;
 
   return (
     <div className="space-y-6">
@@ -476,17 +482,17 @@ function BrowseCard(props: {
         onOpenSaved={props.onOpenSaved}
       />
 
-      {props.selfServed && (
+      {selfServed && (
         <section>
           <SectionLabel>This workspace</SectionLabel>
           <ul className="card-warm overflow-hidden rounded-2xl">
             <ServerRow
-              title={props.selfServed.info.workspaceName}
+              title={selfServed.info.workspaceName}
               icon={selfIcon}
-              subtitle={host(props.selfServed.url)}
+              subtitle={host(selfServed.url)}
               meta="serving this page"
-              busy={props.probing === props.selfServed.url}
-              onClick={() => props.onSelect(props.selfServed!.url)}
+              busy={props.probing === selfServed.url}
+              onClick={() => props.onSelect(selfServed.url)}
             />
           </ul>
         </section>
