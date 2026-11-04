@@ -73,9 +73,9 @@ jobs:
     if: needs.plan.outputs.build == 'true'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
@@ -103,7 +103,7 @@ jobs:
           cp apps/server-cli/dist/web/build.json release/web.build.json
           # What this job tested, bound by SHA-256 here, where it was built.
           node scripts/release-manifest.mjs bind release server "release/ownbase-server-$version.tar.gz"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-server
           path: release/
@@ -114,14 +114,14 @@ jobs:
     if: needs.plan.outputs.build == 'true'
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
       - name: Cache Electron and packaging tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/AppData/Local/electron/Cache
@@ -170,7 +170,7 @@ jobs:
           node --input-type=module -e "import { readAsarFile } from './scripts/build-identity.mjs'; import { writeFileSync } from 'node:fs'; writeFileSync('release/desktop.build.json', readAsarFile('apps/desktop/release/win-unpacked/resources/app.asar', 'out/build.json'));"
           # Every installer here is bound, so a second one is refused, not chosen between.
           node scripts/release-manifest.mjs bind release desktop @((Get-ChildItem "release/*Setup*.exe").FullName)
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-desktop
           path: release/
@@ -185,14 +185,14 @@ jobs:
     if: needs.plan.outputs.build == 'true'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: pnpm
       - name: Cache Electron and packaging tools
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             ~/Library/Caches/electron
@@ -230,7 +230,7 @@ jobs:
           cp apps/desktop/release/*-universal.dmg release/
           node --input-type=module -e "import { readAsarFile } from './scripts/build-identity.mjs'; import { writeFileSync } from 'node:fs'; writeFileSync('release/mac.build.json', readAsarFile('apps/desktop/release/mac-universal/OwnBase.app/Contents/Resources/app.asar', 'out/build.json'));"
           node scripts/release-manifest.mjs bind release mac release/*-universal.dmg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-mac
           path: release/
@@ -244,8 +244,8 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release
@@ -270,7 +270,7 @@ jobs:
       - run: node scripts/release-manifest.mjs release --revision "$GITHUB_SHA" --tag "$TAG" --notes release/notes.md
         env:
           TAG: ${{ steps.tag.outputs.tag }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-manifest
           path: |
@@ -285,7 +285,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           pattern: release-*
           path: release
