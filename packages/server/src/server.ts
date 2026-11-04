@@ -2338,7 +2338,6 @@ async function startWorkspaceServer(
     try {
       valid =
         !!auth &&
-        !auth.deactivated &&
         // A guest has no password: it resumes its session or joins again.
         auth.role !== "guest" &&
         (await verifyPassword(body.password, auth.salt, auth.passwordHash));
@@ -2350,12 +2349,19 @@ async function startWorkspaceServer(
       !auth ||
       !valid ||
       !latest ||
-      latest.deactivated ||
       latest.passwordHash !== auth.passwordHash ||
       latest.salt !== auth.salt
     ) {
       throw new HttpError(401, "invalid_credentials");
     }
+    // Said only to someone who knows the password, so it tells a stranger
+    // nothing; the person themselves learns why, rather than doubting it.
+    if (latest.deactivated)
+      throw new HttpError(
+        403,
+        "account_deactivated",
+        "This account is deactivated. Ask an admin of the workspace to reactivate it.",
+      );
     // Asked only once the password is right, so it says nothing of who has an
     // account. The owner always may: the way back in (P9).
     if (latest.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");

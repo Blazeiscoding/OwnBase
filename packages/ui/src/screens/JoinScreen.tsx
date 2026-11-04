@@ -1558,6 +1558,8 @@ function errorMessage(err: unknown, mode: Mode): string {
         return "This workspace has no owner yet, so guests cannot join it.";
       case "invalid_credentials":
         return "Wrong username or password.";
+      case "account_deactivated":
+        return "This account is deactivated. Ask an admin of the workspace to reactivate it.";
       case "handle_taken":
         return "That username is taken. Did you mean to sign in?";
       case "invite_required":
