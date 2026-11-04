@@ -1629,9 +1629,10 @@ export class WorkspaceClient {
       case "member.joined": {
         patch.memberChanges = { ...s.memberChanges, [event.channelId]: seq };
         if (event.userId === s.self?.id) {
+          // Joined with what was there read, as the server keeps it.
           patch.memberships = {
             ...s.memberships,
-            [event.channelId]: s.memberships[event.channelId] ?? 0,
+            [event.channelId]: s.memberships[event.channelId] ?? seq,
           };
           if (!(event.channelId in s.memberships))
             patch.repliesRead = joined(s.repliesRead, event.channelId, seq);

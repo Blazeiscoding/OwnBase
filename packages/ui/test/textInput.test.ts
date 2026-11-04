@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { caretToRestore, insideCodeBlock, isImeKey } from "../src/lib/textInput.js";
+import {
+  caretToRestore,
+  insideCodeBlock,
+  isImeKey,
+  linkOverSelection,
+} from "../src/lib/textInput.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const source = (file: string) => readFileSync(resolve(here, "../src", file), "utf8");
@@ -118,5 +123,28 @@ describe("a caret inside a code block (UX-04)", () => {
   it("counts only the fences before the caret, as the message is read", () => {
     expect(at("```a``` and ```b|")).toBe(true);
     expect(at("```a|``` more")).toBe(true);
+  });
+});
+
+describe("a web address pasted over selected words", () => {
+  const url = "https://example.com/docs";
+
+  it("links them rather than replacing them, the caret after the link", () => {
+    expect(linkOverSelection("read the docs please", 9, 13, ` ${url}\n`)).toEqual({
+      text: `read the <${url}|docs> please`,
+      caret: 9 + `<${url}|docs>`.length,
+    });
+  });
+
+  it("pastes as usual otherwise", () => {
+    // Nothing selected, more than an address, or not a web address.
+    expect(linkOverSelection("read the docs", 9, 9, url)).toBeNull();
+    expect(linkOverSelection("read the docs", 9, 13, `${url} and more`)).toBeNull();
+    expect(linkOverSelection("read the docs", 9, 13, "ftp://example.com")).toBeNull();
+    // Words a label cannot hold: a mention, a line break, code.
+    expect(linkOverSelection("hi <@U1> there", 3, 8, url)).toBeNull();
+    expect(linkOverSelection("one\ntwo", 0, 7, url)).toBeNull();
+    expect(linkOverSelection("```\ncode\n```", 4, 8, url)).toBeNull();
+    expect(linkOverSelection("`code`", 0, 6, url)).toBeNull();
   });
 });

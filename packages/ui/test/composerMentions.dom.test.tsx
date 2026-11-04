@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";
@@ -233,6 +233,50 @@ describe("a mention in the composer", () => {
   });
 });
 
+describe("a channel named after #", () => {
+  const designReview: Channel = { ...design, id: "C_REVIEW", name: "design-review", topic: "" };
+  const uxDesign: Channel = { ...design, id: "C_UX", name: "ux-design", topic: "" };
+  const archived: Channel = { ...design, id: "C_OLD", name: "design-old", archived: true };
+  const dm: Channel = { ...design, id: "D_SAM", type: "dm", name: "design-dm" };
+
+  it("offers open channels, best match first, and sends the channel's id", async () => {
+    const { box, client, send, user } = await renderComposer();
+    act(() =>
+      client.store.setState({
+        channels: Object.fromEntries(
+          [design, uxDesign, designReview, archived, dm].map((c) => [c.id, c]),
+        ),
+        memberships: { [design.id]: 0 },
+      }),
+    );
+    await user.type(box, "See #des");
+    const list = screen.getByRole("listbox", { name: "Channels" });
+    // Whole name first, then a name starting so (one not joined says so), then a word inside.
+    expect(
+      within(list)
+        .getAllByRole("option")
+        .map((o) => o.textContent),
+    ).toEqual([
+      expect.stringMatching(/^design$/),
+      expect.stringMatching(/^design-reviewNot joined/),
+      expect.stringMatching(/^ux-designNot joined/),
+    ]);
+    await user.keyboard("{ArrowDown}{Tab}");
+    expect(box).toHaveValue("See #design-review ");
+    await user.keyboard("{Enter}");
+    expect(sent(send)).toBe(`See <#${designReview.id}>`);
+  });
+
+  it("leaves # alone in code and where no channel matches", async () => {
+    const { box, user } = await renderComposer();
+    await user.type(box, "issue #42");
+    expect(screen.queryByRole("listbox")).toBeNull();
+    await user.clear(box);
+    await user.type(box, "`#des");
+    expect(screen.queryByRole("listbox")).toBeNull();
+  });
+});
+
 describe("a mention in a message being edited", () => {
   const message = {
     id: "M1",
@@ -256,15 +300,19 @@ describe("a mention in a message being edited", () => {
       .spyOn(client.api, "editMessage")
       .mockImplementation(async (_id, text) => ({ message: { ...message, text } }));
     const view = render(
-      <ClientContext.Provider value={client}>
-        <MessageEditor message={message} onClose={() => {}} />
-      </ClientContext.Provider>,
+      <PlatformContext.Provider value={platform}>
+        <ClientContext.Provider value={client}>
+          <MessageEditor message={message} onClose={() => {}} />
+        </ClientContext.Provider>
+      </PlatformContext.Provider>,
     );
     const rerender = (next: Message) =>
       view.rerender(
-        <ClientContext.Provider value={client}>
-          <MessageEditor message={next} onClose={() => {}} />
-        </ClientContext.Provider>,
+        <PlatformContext.Provider value={platform}>
+          <ClientContext.Provider value={client}>
+            <MessageEditor message={next} onClose={() => {}} />
+          </ClientContext.Provider>
+        </PlatformContext.Provider>,
       );
     const box = screen.getByRole("textbox", { name: "Edit message" }) as HTMLTextAreaElement;
     return { client, edit, box, rerender };
@@ -281,6 +329,23 @@ describe("a mention in a message being edited", () => {
     });
     await user.keyboard("{Enter}");
     expect(edit).toHaveBeenCalledWith("M1", `Ship it <@${sadia.id}> <!here> today`, message.text);
+  });
+
+  it("finishes a name typed while editing, as the composer does", async () => {
+    const user = userEvent.setup();
+    const { edit, box } = renderEditor();
+    await user.type(box, " and @ka");
+    const list = screen.getByRole("listbox", { name: "Mentions" });
+    expect(within(list).getAllByRole("option")).toHaveLength(1);
+    // Tab takes the name; the list closes, so Enter saves.
+    await user.keyboard("{Tab}");
+    expect(box).toHaveValue("Ship it @Sadia Khan @here and @Kai ");
+    await user.keyboard("{Enter}");
+    expect(edit).toHaveBeenCalledWith(
+      "M1",
+      `Ship it <@${sadia.id}> <!here> and <@${kai.id}>`,
+      message.text,
+    );
   });
 
   it("draws its mentions as tags too", () => {

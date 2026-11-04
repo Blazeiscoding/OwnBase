@@ -1454,7 +1454,14 @@ function AuthCard(props: {
                 )}
                 <button type="submit" disabled={busy} className={submitCls}>
                   <Swap text>
-                    {busy ? "Connecting…" : mode === "login" ? "Sign in" : "Join workspace"}
+                    {busy
+                      ? "Connecting…"
+                      : mode === "login"
+                        ? "Sign in"
+                        : // Nobody to join yet: the first account sets it up.
+                          isFirstUser
+                          ? "Create workspace"
+                          : "Join workspace"}
                   </Swap>
                 </button>
               </form>

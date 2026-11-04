@@ -2799,6 +2799,26 @@
       "concepts": ["calls", "storage"]
     },
     {
+      "path": "packages/ui/src/components/Suggestions.tsx",
+      "plain": "Offers people after @, channels after # and emoji after : while you type a message or edit one.",
+      "summary": "useSuggestions and SuggestionList, shared by the Composer and the MessageEditor.",
+      "details": [
+        "People and channels rank with switcherRank's matchTier: whole name, start, word start; yourself after others, joined channels before the rest. DMs and archived channels are never offered.",
+        "A choice goes in as the stored token (<@id>, <#id>, <!here>) through useMentionField, so the box shows the name. A finished :shortcode: becomes its emoji. Not inside code."
+      ],
+      "concepts": ["autocomplete", "ARIA listbox", "mentions"]
+    },
+    {
+      "path": "packages/ui/src/lib/appCommands.ts",
+      "plain": "Runs the slash commands the app handles itself, such as /away, /status, /topic, /invite, /leave and /mute.",
+      "summary": "APP_COMMANDS, appCommand (is this one ours?) and runAppCommand.",
+      "details": [
+        "The server's BUILTIN_COMMANDS reserves and lists the same names with inApp, so no app can claim them; an app command of the same name kept from before still wins.",
+        "A failure keeps the words in the composer and says why; /topic, /invite and /leave refuse in a DM."
+      ],
+      "concepts": ["slash commands", "composer"]
+    },
+    {
       "path": "packages/ui/src/lib/switcherRank.ts",
       "plain": "Decides the order Ctrl+K lists matches in.",
       "summary": "matchTier (whole name, start, word start, anywhere) and rankPlaces.",

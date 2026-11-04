@@ -79,6 +79,8 @@ interface Props {
   onSwitchWorkspace: () => void;
   onEditProfile: () => void;
   onAccountSettings: () => void;
+  /** Asks, then signs this device out of the workspace. */
+  onSignOut?: () => void;
   /** Guests only: keeping this identity as an account. */
   onCreateAccount?: () => void;
   onShortcuts?: () => void;
@@ -211,6 +213,7 @@ export function Sidebar(props: Props) {
       )
         actions.push({
           label: `Add people to ${ch.name}`,
+          menuLabel: "Add people",
           icon: "userPlus",
           onClick: () => props.onChannelDetails?.(ch.id, "members"),
         });
@@ -220,6 +223,7 @@ export function Sidebar(props: Props) {
     if (props.onChannelDetails)
       actions.push({
         label: `Channel settings for ${ch.name}`,
+        menuLabel: "Channel settings",
         icon: "settings",
         onClick: () => props.onChannelDetails?.(ch.id),
       });
@@ -900,6 +904,7 @@ export function Sidebar(props: Props) {
             onScheduled={guest ? undefined : props.onScheduled}
             onShortcuts={props.onShortcuts}
             onDiagnostics={props.onDiagnostics}
+            onSignOut={props.onSignOut}
           />
           {!snoozed && <SnoozeControl />}
           {!guest && (
@@ -1195,6 +1200,7 @@ export function AccountMenu(props: {
   onScheduled?: () => void;
   onShortcuts?: () => void;
   onDiagnostics?: () => void;
+  onSignOut?: () => void;
   /** Another button to open it, drawn by its owner; on a phone it opens as a sheet. */
   trigger?: { label: string; className: string; content: ReactNode };
 }) {
@@ -1310,6 +1316,15 @@ export function AccountMenu(props: {
       icon: "gauge",
       section: props.onShortcuts ? undefined : true,
       onSelect: props.onDiagnostics,
+    });
+  // Where people look for it, rather than at the foot of Settings > Security only.
+  if (props.onSignOut)
+    items.push({
+      id: "sign-out",
+      label: "Sign out",
+      icon: "leave",
+      section: true,
+      onSelect: props.onSignOut,
     });
   const heading = <AccountHeading guest={props.guest} snoozed={props.snoozed} away={selfAway} />;
   if (props.trigger)
@@ -1498,6 +1513,8 @@ function SectionHeader(props: {
 /** One of the small buttons at the end of a channel's row. */
 interface RowAction {
   label: string;
+  /** What the row's More menu calls it, where the row's name goes without saying. */
+  menuLabel?: string;
   icon: IconName;
   onClick: () => void;
 }
@@ -1548,6 +1565,22 @@ function ChannelRow(props: {
   const [menuOpen, setMenuOpen] = useState(false);
   const actions = props.actions ?? [];
   const count = actions.length + (props.menu ? 1 : 0);
+  // The row's buttons are in its More menu too, so Tab passes the row and its
+  // More alone, not every button on every row; a pointer still has them.
+  const menu: RowMenu | undefined = props.menu && {
+    ...props.menu,
+    items: [
+      ...actions.map((action): MenuItem => ({
+        id: `action:${action.label}`,
+        label: action.menuLabel ?? action.label,
+        icon: action.icon,
+        onSelect: action.onClick,
+      })),
+      ...props.menu.items.map((item, i) =>
+        i === 0 && actions.length > 0 && !item.section ? { ...item, section: true as const } : item,
+      ),
+    ],
+  };
   // Holding the row opens its menu, on iOS too, where there is no right-click.
   const hold = useLongPress(props.menu && (() => setMenuOpen(true)));
   // A finger's hold is for the menu; iOS would start a drag with it instead.
@@ -1641,21 +1674,22 @@ function ChannelRow(props: {
                 type="button"
                 aria-label={action.label}
                 onClick={action.onClick}
+                tabIndex={menu ? -1 : undefined}
                 className={ROW_ACTION}
               >
                 <Icon name={action.icon} size={15} />
               </button>
             </Tooltip>
           ))}
-          {props.menu && (
+          {menu && (
             <Menu
-              label={`Options for ${props.menu.label}`}
-              items={props.menu.items}
+              label={`Options for ${menu.label}`}
+              items={menu.items}
               sheet
               open={menuOpen}
               onOpenChange={setMenuOpen}
               tooltip="More"
-              triggerLabel={`More options for ${props.menu.label}`}
+              triggerLabel={`More options for ${menu.label}`}
               triggerContent={<Icon name="dots" size={15} strokeWidth={2} />}
               triggerClassName={`icon-live ${ROW_ACTION}`}
             />

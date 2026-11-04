@@ -443,3 +443,24 @@ describe("the /poll command", () => {
     expect((await history()).some((m) => m.text.includes("Lunch?"))).toBe(false);
   });
 });
+
+describe("commands the app runs itself", () => {
+  it("are listed, and an older client that sends one is told to update", async () => {
+    const listed = (await request("/api/commands", undefined, "GET")).body.commands;
+    for (const command of [
+      "away",
+      "active",
+      "status",
+      "topic",
+      "invite",
+      "leave",
+      "mute",
+      "unmute",
+    ])
+      expect(listed).toContainEqual(expect.objectContaining({ command, builtin: true }));
+    const sent = await request(`/api/channels/${channelId}/commands`, { text: "/away" });
+    expect(sent.status).toBe(400);
+    expect(sent.body.error).toBe("in_app_command");
+    expect(sent.body.message).toBe("Update OwnBase to use /away.");
+  });
+});

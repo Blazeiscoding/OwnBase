@@ -911,6 +911,21 @@ describe("one read rule for a channel and its threads", () => {
     expect(await unread(newcomer.token)).toEqual(["<!here> new news"]);
   });
 
+  it("starts a new member with the channel read, as Slack does: history is not news", async () => {
+    await post("<!here> the last big announcement", peer.token);
+    await post("an ordinary day", peer.token);
+    // Registration joins #general, and nothing there is unread for them yet.
+    const newcomer = await register("newcomer");
+    expect(await unread(newcomer.token)).toEqual([]);
+    expect(server.store.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
+    const snapshot = (await connect(newcomer.token)).frames.find((f) => f.type === "ready") as any;
+    const general = snapshot.memberships.find((m: any) => m.channelId === channelId);
+    expect(general.lastReadSeq).toBeGreaterThanOrEqual(server.store.currentSeq() - 1);
+
+    await post("welcome aboard", peer.token);
+    expect(await unread(newcomer.token)).toEqual(["welcome aboard"]);
+  });
+
   it("gives each membership's replies floor in the handshake and access events", async () => {
     const snapshot = (await connect(owner.token)).frames.find((f) => f.type === "ready") as any;
     const general = snapshot.memberships.find((m: any) => m.channelId === channelId);

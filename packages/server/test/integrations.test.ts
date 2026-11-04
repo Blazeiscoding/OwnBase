@@ -443,6 +443,12 @@ describe("slash commands", () => {
       body: { command: "/shrug", url: stub.url("/x") },
     });
     expect(builtin.status).toBe(409);
+    // So are the commands the app runs itself.
+    const ours = await api<{ error: string }>(`/api/apps/${other.id}/commands`, {
+      token: aliceToken,
+      body: { command: "topic", url: stub.url("/x") },
+    });
+    expect(ours.status).toBe(409);
   });
 
   it("keeps command management to admins", async () => {

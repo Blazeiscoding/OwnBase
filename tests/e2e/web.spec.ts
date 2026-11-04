@@ -163,12 +163,12 @@ async function register(page: Page, handle: string, claim?: string) {
   await page.getByLabel("Password", { exact: true }).fill("password123");
   if (claim) {
     await page.getByLabel("Workspace claim code", { exact: true }).fill("incorrect-code");
-    await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+    await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(page.getByRole("alert")).toContainText("not accepted");
     await expect(page.getByLabel("Username", { exact: true })).toHaveValue(handle);
     await page.getByLabel("Workspace claim code", { exact: true }).fill(claim);
   }
-  await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+  await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
   // The claim makes this account the workspace's first, its owner.
   if (claim) await dismissWelcome(page);
@@ -2809,7 +2809,7 @@ test("an invite link lets someone into an invite-only workspace from a browser, 
     await guestPage.getByLabel("Username", { exact: true }).fill("ivy");
     await guestPage.getByLabel("Display name", { exact: true }).fill("Ivy");
     await guestPage.getByLabel("Password", { exact: true }).fill("password123");
-    await guestPage.getByRole("button", { name: "Join workspace", exact: true }).click();
+    await guestPage.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(guestPage.locator("textarea")).toBeVisible();
     await expect(
       guestPage.getByText("Latest update before the invite", { exact: true }),
