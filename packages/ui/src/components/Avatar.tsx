@@ -66,8 +66,18 @@ export function Avatar({ user, size = 36 }: { user: User | undefined; size?: num
 }
 
 /**
- * Whether someone is here: filled when active, a ring of the same colour when
- * away (E9), as Slack draws it, and a faint ring when not here.
+ * Away (E9) as a crescent moon: the dot with a bite out of its upper left, as
+ * Discord draws idle. Amber and shaped, so it is never taken for the green
+ * online dot, by colour or, for those who cannot tell the two apart, by shape.
+ */
+function moon(size: number) {
+  const bite = Math.round(size * 0.375 * 10) / 10;
+  return `radial-gradient(circle at 25% 25%, transparent ${bite}px, #000 ${bite + 0.5}px)`;
+}
+
+/**
+ * Whether someone is here: a green dot when active, an amber moon when away,
+ * and a faint ring when not here.
  */
 export function PresenceDot({
   online,
@@ -78,18 +88,17 @@ export function PresenceDot({
   away?: boolean;
   size?: number;
 }) {
+  const moonMask = !online && away ? moon(size) : undefined;
   return (
     <span
       className="inline-block shrink-0 rounded-full"
       style={{
         width: size,
         height: size,
-        background: online ? "var(--color-online)" : "transparent",
-        border: online
-          ? "none"
-          : away
-            ? "2px solid var(--color-online)"
-            : "1.5px solid var(--color-ink-faint)",
+        background: online ? "var(--color-online)" : away ? "var(--color-away)" : "transparent",
+        border: online || away ? "none" : "1.5px solid var(--color-ink-faint)",
+        maskImage: moonMask,
+        WebkitMaskImage: moonMask,
       }}
     />
   );
@@ -108,7 +117,7 @@ export function AvatarWithPresence({
 }: {
   user: User | undefined;
   online: boolean;
-  /** Here but away (E9): the dot is a ring rather than filled. */
+  /** Here but away (E9): the dot is an amber moon rather than green. */
   away?: boolean;
   size?: number;
   /** The colour behind the avatar, so the dot reads as cut out of it. */
@@ -130,13 +139,22 @@ export function AvatarWithPresence({
           right: overhang,
           bottom: overhang,
           background: online ? "var(--color-online)" : away ? ring : "var(--color-ink-faint)",
-          border:
-            !online && away
-              ? `${Math.max(2, Math.round(dot / 4))}px solid var(--color-online)`
-              : undefined,
           boxShadow: `0 0 0 ${cut}px ${ring}`,
         }}
-      />
+      >
+        {!online && away && (
+          // The moon sits on the ring's colour, so its bite shows what is
+          // behind the avatar rather than the picture.
+          <span
+            className="block h-full w-full rounded-full"
+            style={{
+              background: "var(--color-away)",
+              maskImage: moon(dot),
+              WebkitMaskImage: moon(dot),
+            }}
+          />
+        )}
+      </span>
     </span>
   );
 }

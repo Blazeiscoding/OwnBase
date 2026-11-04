@@ -77,6 +77,7 @@
   --color-copper: #f97316; /* accent */
   --color-copper-deep: #e96800; /* accent, pressed and hovered */
   --color-online: #50dd7f; /* present, live huddles */
+  --color-away: #f3ba25; /* here but idle */
   --color-alert: #fa706a; /* mentions, errors, leaving, destructive */
   --color-mention: rgba(249, 115, 22, 0.08); /* a message that names you */
 
@@ -532,6 +533,7 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
   --color-copper: #a34600;
   --color-copper-deep: #903d00;
   --color-online: #0d6b34;
+  --color-away: #b08400;
   --color-alert: #c52b30;
   --color-mention: rgba(163, 70, 0, 0.06);
   --card-edge: rgba(15, 15, 19, 0.09);
@@ -556,6 +558,7 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
     --color-copper: #a34600;
     --color-copper-deep: #903d00;
     --color-online: #0d6b34;
+    --color-away: #b08400;
     --color-alert: #c52b30;
     --color-mention: rgba(163, 70, 0, 0.06);
     --card-edge: rgba(15, 15, 19, 0.09);
@@ -609,6 +612,7 @@ body:has(> .call-dock) > .settings-backdrop[data-ownbase-modal] {
   --color-copper: #f97316;
   --color-copper-deep: #e96800;
   --color-online: #50dd7f;
+  --color-away: #f3ba25;
   --color-alert: #fa706a;
   --color-mention: rgba(249, 115, 22, 0.08);
   --sheen: inset 0 1px 0 rgb(255 255 255 / 0.06);
