@@ -3,8 +3,8 @@
 // OwnBase's palette, generated in OKLCH from the inputs below (UX-11). Each
 // colour is a point on one scale: a lightness from 0 (black) to 1 (white), a
 // chroma (how much colour) and a hue. Surfaces and inks share one graphite
-// hue; the accent is OwnBase's own orange, kept on purpose; online and alert
-// each have a hue of their own. Where a
+// hue; the accent is OwnBase's own orange, kept on purpose; online, away and
+// alert each have a hue of their own. Where a
 // colour falls outside what a screen shows (sRGB), its chroma is lowered until
 // it fits, keeping its lightness and hue, and it is written as hex.
 //
@@ -20,7 +20,7 @@ export const INPUTS = {
   accent: "#f97316",
   /** Surfaces and inks: one graphite hue, this much colour at middle lightness, less toward black and white. */
   neutral: { hue: 282, chroma: 0.014 },
-  hues: { online: 151, alert: 25 },
+  hues: { online: 151, away: 85, alert: 25 },
   /** Where each colour sits in each theme, as [lightness, chroma]; chroma is lowered to fit. */
   themes: {
     dark: {
@@ -36,6 +36,8 @@ export const INPUTS = {
       copper: null,
       "copper-deep": [0.665, 0.187],
       online: [0.8, 0.18],
+      // Amber, as Discord and Teams show idle: never mistaken for online.
+      away: [0.82, 0.16],
       alert: [0.71, 0.17],
     },
     light: {
@@ -51,6 +53,7 @@ export const INPUTS = {
       copper: [0.51, 0.187],
       "copper-deep": [0.465, 0.187],
       online: [0.465, 0.12],
+      away: [0.64, 0.14],
       alert: [0.54, 0.19],
     },
   },
@@ -126,6 +129,7 @@ const ROLE_HUE = {
   copper: "accent",
   "copper-deep": "accent",
   online: "online",
+  away: "away",
   alert: "alert",
 };
 

@@ -446,7 +446,7 @@ describe("pausing notifications", () => {
 });
 
 describe("a direct message's row", () => {
-  it("rings the picture of someone away, and fills the dot of someone here (E9)", () => {
+  it("puts an amber moon on the picture of someone away, and a green dot on someone here (E9)", () => {
     const { client } = sidebar({ admin: false });
     const maya = { ...sam, id: "U_MAYA", handle: "maya", displayName: "Maya Chen" };
     const lee = { ...sam, id: "U_LEE", handle: "lee", displayName: "Lee Park" };
@@ -474,9 +474,12 @@ describe("a direct message's row", () => {
       document.querySelector<HTMLElement>(
         `[data-conversation="${id}"] span.absolute.rounded-full`,
       )!;
-    expect(dot("C_MAYA").style.border).toBe("2px solid var(--color-online)");
+    // Away is never green: an amber moon on the sidebar's colour.
     expect(dot("C_MAYA").style.background).toBe("var(--color-deep)");
-    expect(dot("C_LEE").style.border).toBe("");
+    const moon = dot("C_MAYA").firstElementChild as HTMLElement;
+    expect(moon.style.background).toBe("var(--color-away)");
+    expect(moon.style.maskImage).toContain("radial-gradient");
     expect(dot("C_LEE").style.background).toBe("var(--color-online)");
+    expect(dot("C_LEE").childElementCount).toBe(0);
   });
 });
