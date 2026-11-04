@@ -596,7 +596,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
         autoBackupError: null,
       });
     await expect(automatic).toContainText(
-      "Launch Test is backed up every day, keeping the newest 7",
+      /OwnBase backs up Launch Test every day to .+ and keeps the newest 7\./,
     );
     // Keep an enabled backup destination present until the app has quit;
     // verification, pruning and later launches may still need the folder.
