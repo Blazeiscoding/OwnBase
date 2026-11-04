@@ -63,7 +63,12 @@
       // Rate limited or down: the GitHub links stay.
       if (!res.ok) return null;
       const list = await res.json();
-      const published = Array.isArray(list) ? list.filter((r) => !r.draft) : [];
+      // GitHub does not list them newest first (beta.9 came before beta.10),
+      // so they are put in the order they were published.
+      const when = (r) => Date.parse(r.published_at ?? r.created_at ?? "") || 0;
+      const published = Array.isArray(list)
+        ? list.filter((r) => !r.draft).sort((a, b) => when(b) - when(a))
+        : [];
       const data = published.find((r) => !r.prerelease) ?? published[0];
       if (!data) {
         remember({ none: true });
