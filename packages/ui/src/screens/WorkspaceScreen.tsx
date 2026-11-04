@@ -94,6 +94,7 @@ import type { DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { signOutOnPurpose, signedOutHow, type SignedOutHow } from "../lib/signOut.js";
+import { railTarget } from "../lib/workspaceRail.js";
 
 const ActivityPanel = lazy(() =>
   import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
@@ -284,6 +285,8 @@ interface Props {
   onAccountCreated?: (token: string, handle: string) => void;
   /** This device's other saved workspaces, for the sidebar's switcher. */
   otherWorkspaces?: OtherWorkspace[];
+  /** Where this workspace sits among `otherWorkspaces` on the rail; first when absent. */
+  railPlace?: number;
   onOpenWorkspace?: (url: string) => void;
   /**
    * A banner from outside this workspace, such as sign-ins this device could
@@ -380,6 +383,7 @@ export function WorkspaceScreen({
   onSignedOut,
   onAccountCreated,
   otherWorkspaces,
+  railPlace,
   onOpenWorkspace,
   banner,
   hosting,
@@ -414,6 +418,7 @@ export function WorkspaceScreen({
                 onSignedOut={onSignedOut}
                 onAccountCreated={onAccountCreated}
                 otherWorkspaces={otherWorkspaces}
+                railPlace={railPlace}
                 onOpenWorkspace={onOpenWorkspace}
                 banner={banner}
                 hosting={hosting}
@@ -437,6 +442,7 @@ function WorkspaceInner({
   onSignedOut,
   onAccountCreated,
   otherWorkspaces,
+  railPlace,
   onOpenWorkspace,
   banner,
   hosting,
@@ -452,6 +458,8 @@ function WorkspaceInner({
   onSignedOut: (how?: SignedOutHow) => void;
   onAccountCreated?: (token: string, handle: string) => void;
   otherWorkspaces?: OtherWorkspace[];
+  /** Where this workspace sits among `otherWorkspaces` on the rail; first when absent. */
+  railPlace?: number;
   onOpenWorkspace?: (url: string) => void;
   banner?: ReactNode;
   hosting?: HostingLine;
@@ -825,6 +833,13 @@ function WorkspaceInner({
     return () => clientFromCtx.focusConversation(null);
   }, [clientFromCtx, activeChannelId]);
 
+  const railRef = useRef({ others: otherWorkspaces ?? [], place: 0, open: onOpenWorkspace });
+  railRef.current = {
+    others: otherWorkspaces ?? [],
+    place: Math.min(railPlace ?? 0, otherWorkspaces?.length ?? 0),
+    open: onOpenWorkspace,
+  };
+
   // Global shortcuts.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -871,6 +886,23 @@ function WorkspaceInner({
         void markAllReadRef.current();
         return;
       }
+      // Ctrl/Cmd+1–9 open the workspace at that place on the rail, as in
+      // Slack's app. A browser keeps those keys for its own tabs.
+      if (
+        platform.kind === "desktop" &&
+        (e.ctrlKey || e.metaKey) &&
+        !e.shiftKey &&
+        !e.altKey &&
+        /^Digit[1-9]$/.test(e.code)
+      ) {
+        const rail = railRef.current;
+        const target = railTarget(rail.others, rail.place, Number(e.code.slice(5)));
+        if (target) {
+          e.preventDefault();
+          if (target !== "here") rail.open?.(target.url);
+        }
+        return;
+      }
       if ((e.ctrlKey || e.metaKey) && e.key === "/") {
         e.preventDefault();
         setDialog((d) => (d.kind === "shortcuts" ? { kind: "none" } : { kind: "shortcuts" }));
@@ -884,7 +916,7 @@ function WorkspaceInner({
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [closeDrawer, clientFromCtx]);
+  }, [closeDrawer, clientFromCtx, platform.kind]);
 
   const activeChannel = activeChannelId ? channels[activeChannelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
@@ -1512,6 +1544,7 @@ function WorkspaceInner({
         onChannelDetails={detailsFromRow}
         onSwitchWorkspace={onLeaveWorkspace}
         otherWorkspaces={otherWorkspaces}
+        railPlace={railPlace}
         onOpenWorkspace={onOpenWorkspace}
         onEditProfile={() => setDialog({ kind: "account", section: "profile" })}
         onAccountSettings={() => setDialog({ kind: "account" })}

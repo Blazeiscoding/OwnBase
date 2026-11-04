@@ -31,6 +31,7 @@ import { changeSavedServers, parseSavedServers, type SignInChange } from "./lib/
 import { hostedButStopped } from "./lib/resume.js";
 import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.js";
 import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
+import { railOrder } from "./lib/workspaceRail.js";
 
 type Session =
   | { view: "loading" }
@@ -55,6 +56,15 @@ type Session =
       /** This account just founded the workspace: open on inviting people. */
       welcome?: boolean;
     };
+
+/** Where the open workspace sits on the rail, among this device's saved ones. */
+function railPlace(saved: SavedServer[], open: SavedServer): number {
+  const order = railOrder(saved.some((s) => s.url === open.url) ? saved : [...saved, open]);
+  return Math.max(
+    0,
+    order.findIndex((s) => s.url === open.url),
+  );
+}
 
 /** What shows while the app starts, or while a screen it needs arrives. */
 function Starting() {
@@ -598,7 +608,7 @@ export function App({ platform }: { platform: Platform }) {
                   // the new session, which the guest one has given way to.
                   openWorkspace({ ...session.server, token, handle }, savedServersRef.current)
                 }
-                otherWorkspaces={savedServers
+                otherWorkspaces={railOrder(savedServers)
                   .filter((saved) => saved.url !== session.server.url)
                   .map((saved) => ({
                     url: saved.url,
@@ -606,6 +616,7 @@ export function App({ platform }: { platform: Platform }) {
                     handle: saved.handle,
                     icon: savedIcons[saved.url],
                   }))}
+                railPlace={railPlace(savedServers, session.server)}
                 onOpenWorkspace={(url) => {
                   const saved = savedServersRef.current.find((s) => s.url === url);
                   if (saved) openWorkspace(saved, savedServersRef.current);

@@ -99,8 +99,10 @@ interface Props {
   hosting?: HostingLine;
   /** Manage hosting, in the desktop app, whether or not anything is hosted yet. */
   hostingEntry?: HostingEntry;
-  /** This device's other saved sign-ins, most recently used first. */
+  /** This device's other saved sign-ins, in the rail's order (`railOrder`). */
   otherWorkspaces?: OtherWorkspace[];
+  /** Where this workspace sits among them on the rail; first when absent. */
+  railPlace?: number;
   onOpenWorkspace?: (url: string) => void;
 }
 
@@ -620,6 +622,7 @@ export function Sidebar(props: Props) {
           name={name}
           unread={totalMentions}
           others={others}
+          place={props.railPlace ?? 0}
           onOpen={props.onOpenWorkspace}
           onAdd={props.onSwitchWorkspace}
         />
@@ -994,26 +997,31 @@ function WorkspaceRail(props: {
   name: string;
   unread: number;
   others: OtherWorkspace[];
+  /** Where this workspace sits among the others. */
+  place: number;
   onOpen?: (url: string) => void;
   onAdd: () => void;
 }) {
   const icon = useCurrentWorkspaceIcon();
+  const place = Math.min(props.place, props.others.length);
+  const other = (w: OtherWorkspace) => (
+    <RailItem
+      key={w.url}
+      label={`${w.name} · @${w.handle}`}
+      title={w.name}
+      icon={w.icon}
+      onClick={() => props.onOpen?.(w.url)}
+    />
+  );
   return (
     <div
       role="group"
       aria-label="Workspaces"
       className="workspace-rail titlebar-drag flex w-[72px] shrink-0 flex-col items-center gap-2 overflow-y-auto pb-3 pt-3"
     >
+      {props.others.slice(0, place).map(other)}
       <RailItem label={props.name} current badge={props.unread} icon={icon} />
-      {props.others.map((w) => (
-        <RailItem
-          key={w.url}
-          label={`${w.name} · @${w.handle}`}
-          title={w.name}
-          icon={w.icon}
-          onClick={() => props.onOpen?.(w.url)}
-        />
-      ))}
+      {props.others.slice(place).map(other)}
       <span aria-hidden="true" className="h-0.5 w-8 shrink-0 rounded-full bg-edge" />
       <div className="group relative flex w-full justify-center">
         <Tooltip label="Add or join a workspace" side="right">
