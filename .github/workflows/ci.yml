@@ -40,9 +40,9 @@ jobs:
     outputs:
       leftovers: ${{ steps.leftovers.outputs.ids }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         id: node
         with:
           node-version: 24
@@ -79,7 +79,7 @@ jobs:
       # of the same PR.
       - name: Restore task cache
         id: task-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-${{ github.sha }}
@@ -111,7 +111,7 @@ jobs:
       - run: node scripts/check-product-name.mjs apps/web/dist apps/desktop/out/renderer apps/server-cli/dist
       - name: Save successful task cache
         if: steps.task-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .turbo/cache
           key: ${{ steps.task-cache.outputs.cache-primary-key }}
@@ -151,9 +151,9 @@ jobs:
             key: ui-2
             run: pnpm exec turbo run test --filter=@ownbase/ui --only -- --shard=2/2
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         id: node
         with:
           node-version: 24
@@ -163,7 +163,7 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - name: Restore task cache
         id: task-cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-unit-${{ matrix.key }}-${{ github.sha }}
@@ -175,7 +175,7 @@ jobs:
           VITEST_MAX_FORKS: "2"
       - name: Save successful task cache
         if: steps.task-cache.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .turbo/cache
           key: ${{ steps.task-cache.outputs.cache-primary-key }}
@@ -206,9 +206,9 @@ jobs:
             key: visual
             run: pnpm test:visual
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         id: node
         with:
           node-version: 24
@@ -217,7 +217,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - name: Restore task cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: .turbo/cache
           key: turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-${{ github.sha }}
@@ -228,13 +228,13 @@ jobs:
       # Chromium comes from a cache caches.yml fills on main, and is only
       # downloaded when the lockfile has moved on without it. Restoring alone
       # leaves no cache behind that only this pull request could use.
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
       - run: pnpm exec playwright install --with-deps chromium
       - run: ${{ matrix.run }}
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: browser-test-results-${{ matrix.key }}

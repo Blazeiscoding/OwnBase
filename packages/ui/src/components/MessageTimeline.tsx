@@ -567,6 +567,7 @@ export const MessageTimeline = memo(function MessageTimeline({
             empty={items.length === 0}
             onInvite={onInvite}
             onDetails={onDetails}
+            onOpenProfile={onOpenProfile}
           />
         )}
         {items.map((msg, i) => {
@@ -828,11 +829,13 @@ function ChannelIntro({
   empty,
   onInvite,
   onDetails,
+  onOpenProfile,
 }: {
   channelId: ID;
   empty: boolean;
   onInvite?: () => void;
   onDetails?: () => void;
+  onOpenProfile?: (userId: ID) => void;
 }) {
   const channel = useWorkspace((s) => s.channels[channelId]);
   const users = useWorkspace((s) => s.users);
@@ -844,10 +847,24 @@ function ChannelIntro({
     ? `#${channel.name}`
     : others.map((id) => users[id]?.displayName ?? "unknown").join(", ") || "Just you";
   const person = !isRoom && others.length === 1 ? users[others[0]!] : undefined;
+  // A direct message opens with the person it is with, so both their
+  // picture and their name open their profile, as an author's do.
+  const openPerson = person && onOpenProfile ? () => onOpenProfile(person.id) : undefined;
+  const profileLabel = person ? `View ${person.displayName}'s profile` : "";
   return (
     <div className="animate-message-in px-4 pb-2 pt-8">
       <div className="mb-3 flex items-center gap-3">
-        {person ? (
+        {person && openPerson ? (
+          <Tooltip label={profileLabel}>
+            <button
+              aria-label={profileLabel}
+              onClick={openPerson}
+              className="rounded-full transition-opacity hover:opacity-80"
+            >
+              <Avatar user={person} size={68} />
+            </button>
+          </Tooltip>
+        ) : person ? (
           <Avatar user={person} size={68} />
         ) : (
           <span className="intro-tile flex size-[68px] items-center justify-center rounded-2xl">
@@ -858,7 +875,15 @@ function ChannelIntro({
           </span>
         )}
       </div>
-      <h2 className="text-3xl font-semibold tracking-tight">{name}</h2>
+      <h2 className="text-3xl font-semibold tracking-tight">
+        {openPerson ? (
+          <button onClick={openPerson} className="text-left hover:underline">
+            {name}
+          </button>
+        ) : (
+          name
+        )}
+      </h2>
       <p className="mt-1.5 max-w-xl text-[16px] leading-relaxed text-ink-dim">
         {isRoom
           ? channel.description || (
