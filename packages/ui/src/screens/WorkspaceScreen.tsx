@@ -93,6 +93,7 @@ import { PartnerTime } from "../components/PartnerTime.js";
 import type { DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
+import { signOutOnPurpose, signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 
 const ActivityPanel = lazy(() =>
   import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
@@ -277,7 +278,8 @@ interface Props {
   /** Another number each time Invite people is asked for from outside, by Manage hosting. */
   inviteAsk?: number;
   onLeaveWorkspace: () => void;
-  onSignedOut: () => void;
+  /** "ended": the server ended this sign-in, nobody here chose to. */
+  onSignedOut: (how?: SignedOutHow) => void;
   /** A guest kept its identity as an account; carry on with this token. */
   onAccountCreated?: (token: string, handle: string) => void;
   /** This device's other saved workspaces, for the sidebar's switcher. */
@@ -446,7 +448,8 @@ function WorkspaceInner({
   welcome?: boolean;
   inviteAsk?: number;
   onLeaveWorkspace: () => void;
-  onSignedOut: () => void;
+  /** "ended": the server ended this sign-in, nobody here chose to. */
+  onSignedOut: (how?: SignedOutHow) => void;
   onAccountCreated?: (token: string, handle: string) => void;
   otherWorkspaces?: OtherWorkspace[];
   onOpenWorkspace?: (url: string) => void;
@@ -926,7 +929,7 @@ function WorkspaceInner({
       : true;
     if (!ok) return;
     try {
-      await clientFromCtx.api.logout();
+      await signOutOnPurpose(clientFromCtx, () => clientFromCtx.api.logout());
     } catch {
       toast?.({
         message: "You are still signed in. Check your connection and try again.",
@@ -1448,8 +1451,9 @@ function WorkspaceInner({
   useEffect(() => {
     // Signing out is what leads back to the screen that can replace a password:
     // signing in again lands on it, holding the password it needs to replace.
-    if (status === "auth_failed" || status === "password_change_required") onSignedOut();
-  }, [status, onSignedOut]);
+    if (status === "auth_failed" || status === "password_change_required")
+      onSignedOut(signedOutHow(clientFromCtx, status));
+  }, [status, onSignedOut, clientFromCtx]);
 
   const screen = (
     <div className={`workspace-shell relative flex h-full ${sidebarOpen ? "sidebar-open" : ""}`}>

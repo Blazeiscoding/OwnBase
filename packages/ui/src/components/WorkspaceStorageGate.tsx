@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import type { Platform } from "../platform.js";
+import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import {
   checkWorkspaceAddress,
   trustWorkspaceAddress,
@@ -14,7 +15,7 @@ interface Props {
   platform: Platform;
   client: WorkspaceClient;
   onLeaveWorkspace: () => void;
-  onSignedOut: () => void;
+  onSignedOut: (how?: SignedOutHow) => void;
   children: ReactNode;
   /** Shown across the top while it waits, as the workspace would in its banner place. */
   banner?: ReactNode;
@@ -57,8 +58,9 @@ export function WorkspaceStorageGate({
   const approve = useRef<(() => void) | null>(null);
 
   useEffect(() => {
-    if (status === "auth_failed" || status === "password_change_required") onSignedOut();
-  }, [status, onSignedOut]);
+    if (status === "auth_failed" || status === "password_change_required")
+      onSignedOut(signedOutHow(client, status));
+  }, [status, onSignedOut, client]);
 
   useEffect(() => {
     if (!scope) return;

@@ -3,6 +3,7 @@ import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
+import { signOutOnPurpose } from "../lib/signOut.js";
 import { accountError, deviceLabel } from "../lib/account.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import {
@@ -195,7 +196,7 @@ export function AccountDialog({
     setNotice(null);
     try {
       if (confirmation.kind === "signout") {
-        await client.api.logout();
+        await signOutOnPurpose(client, () => client.api.logout());
         onSignedOut();
         return;
       }

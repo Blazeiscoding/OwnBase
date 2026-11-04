@@ -21,6 +21,7 @@ import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
 import { beginSingleSignOn, redeemSingleSignOn } from "../lib/singleSignOn.js";
 import { useOptionalConfirm } from "../components/Confirm.js";
+import type { SignedOutFrom } from "../lib/signOut.js";
 
 /** How long the network is looked through before the join screen suggests other ways in. */
 export const SCAN_PATIENCE_MS = 10_000;
@@ -44,6 +45,8 @@ interface Props {
   claimCode?: string;
   /** Back from the workspace's single sign-on: the code that signs in (P9). */
   ssoCode?: string;
+  /** The workspace ended this sign-in: its sign-in form opens, saying so. */
+  signedOut?: SignedOutFrom;
   onConnected: (server: SavedServer, how?: Connected) => void;
   onForget: (url: string) => void;
   onHostClick?: () => void;
@@ -80,6 +83,7 @@ export function JoinScreen({
   inviteCode,
   claimCode,
   ssoCode,
+  signedOut,
   onConnected,
   onForget,
   onHostClick,
@@ -91,6 +95,8 @@ export function JoinScreen({
   const [stage, setStage] = useState<Stage>({ view: "browse" });
   const [lanServers, setLanServers] = useState<DiscoveredServer[]>([]);
   const [error, setError] = useState<Notice | null>(null);
+  /** A sign-in that ended without anyone here giving it up, told on its form. */
+  const [ended, setEnded] = useState<SignedOutFrom | null>(signedOut ?? null);
   const [selfServed, setSelfServed] = useState<{ url: string; info: ServerInfo } | null>(null);
   // Web only: whether the question "is this page served by a workspace?" has
   // been answered yet. Rendering the full list before it is answered shows a
@@ -137,13 +143,19 @@ export function JoinScreen({
 
   // With nowhere else to go, the workspace serving this page is the answer.
   useEffect(() => {
-    if (!selfServed || savedServers.length > 0 || autoProbe) return;
+    if (!selfServed || savedServers.length > 0 || autoProbe || signedOut) return;
     setStage((current) =>
       current.view === "browse"
         ? { view: "auth", url: selfServed.url, info: selfServed.info }
         : current,
     );
-  }, [selfServed, savedServers.length, autoProbe]);
+  }, [selfServed, savedServers.length, autoProbe, signedOut]);
+
+  // Signed out by the workspace: back to its form, where a password carries on.
+  useEffect(() => {
+    if (signedOut) void probe(signedOut.url);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!platform.discoverLan) return;
@@ -174,6 +186,7 @@ export function JoinScreen({
     } catch (err) {
       if (probeAttempt.current !== attempt) return;
       if (err instanceof ApiError && err.status === 401) {
+        setEnded({ url: saved.url, handle: saved.handle, workspaceName: saved.workspaceName });
         await probe(saved.url);
       } else {
         setError({
@@ -230,6 +243,7 @@ export function JoinScreen({
   }
 
   const authing = stage.view === "auth";
+  const endedHere = authing && ended?.url === stage.url ? ended : null;
   return (
     <div className="relative flex h-full flex-col overflow-hidden bg-deep">
       {platform.kind === "desktop" && <div className="titlebar-drag relative h-10 shrink-0" />}
@@ -264,12 +278,19 @@ export function JoinScreen({
             <AuthCard
               url={stage.url}
               info={stage.info}
-              savedHandle={savedServers.find((s) => s.url === stage.url)?.handle}
+              savedHandle={
+                savedServers.find((s) => s.url === stage.url)?.handle ??
+                (endedHere?.handle.startsWith("guest-") ? undefined : endedHere?.handle)
+              }
+              endedNote={endedHere ? endedNote(endedHere) : undefined}
               presetInviteCode={inviteCode}
               presetClaimCode={claimCode}
               presetSsoCode={ssoCode}
               platform={platform}
-              onBack={() => setStage({ view: "browse" })}
+              onBack={() => {
+                setEnded(null);
+                setStage({ view: "browse" });
+              }}
               onConnected={onConnected}
             />
           ) : !selfChecked && savedServers.length === 0 && !autoProbe ? (
@@ -776,10 +797,20 @@ function FoundServerRow(props: {
   );
 }
 
+/** What the sign-in form says when the workspace ended the sign-in it replaces. */
+function endedNote(ended: SignedOutFrom): string {
+  const name = ended.workspaceName || host(ended.url);
+  return ended.handle.startsWith("guest-")
+    ? `Your guest visit to ${name} has ended. Join again to carry on.`
+    : `You were signed out of ${name}, perhaps from another device. Sign in again to carry on. Your drafts are kept.`;
+}
+
 function AuthCard(props: {
   url: string;
   info: ServerInfo;
   savedHandle?: string;
+  /** Why this form is back: the workspace ended the sign-in before it. */
+  endedNote?: string;
   presetInviteCode?: string;
   presetClaimCode?: string;
   presetSsoCode?: string;
@@ -860,7 +891,12 @@ function AuthCard(props: {
   /** The desktop app sent the person to their browser to sign in there. */
   const [ssoAway, setSsoAway] = useState(false);
 
-  useEffect(() => firstField.current?.focus(), []);
+  // A remembered username leaves only the password to type.
+  useEffect(() => {
+    const password = mode === "login" && handle ? document.getElementById(`${id}-password`) : null;
+    (password ?? firstField.current)?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Back from single sign-on with a code: it signs in with the secret this
   // device began with, so a code someone else passed on signs nobody in.
@@ -1238,6 +1274,15 @@ function AuthCard(props: {
         </>
       ) : (
         <>
+          {props.endedNote && !isFirstUser && (
+            <p
+              role="status"
+              className="mb-5 flex items-start gap-2.5 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim"
+            >
+              <Icon name="info" size={16} className="mt-0.5 shrink-0 text-ink-faint" />
+              <span>{props.endedNote}</span>
+            </p>
+          )}
           {isFirstUser && (
             <p className="mb-5 flex items-start gap-2.5 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim">
               <Icon name="info" size={16} className="mt-0.5 shrink-0 text-ink-faint" />
