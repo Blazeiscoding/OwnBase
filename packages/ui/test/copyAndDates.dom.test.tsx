@@ -213,4 +213,30 @@ describe("the start of a direct message", () => {
     await waitFor(() => expect(intro).toHaveTextContent("Your direct messages start here."));
     expect(within(intro).getAllByText(/Omar Haddad/)).toHaveLength(1);
   });
+
+  it("opens the person's profile from their picture and their name", async () => {
+    const client = samsClient();
+    vi.spyOn(client.api, "listMessages").mockResolvedValue({ messages: [], readThroughSeq: 0 });
+    const onOpenProfile = vi.fn();
+    render(
+      <ToastProvider>
+        <ConfirmProvider>
+          <ClientContext.Provider value={client}>
+            <MessageTimeline
+              channelId={dm.id}
+              onOpenThread={vi.fn()}
+              onChannelClick={vi.fn()}
+              onOpenProfile={onOpenProfile}
+            />
+          </ClientContext.Provider>
+        </ConfirmProvider>
+      </ToastProvider>,
+    );
+    const heading = await screen.findByRole("heading", { name: "Omar Haddad" });
+    await userEvent.click(within(heading).getByRole("button", { name: "Omar Haddad" }));
+    expect(onOpenProfile).toHaveBeenLastCalledWith(omar.id);
+    onOpenProfile.mockClear();
+    await userEvent.click(screen.getByRole("button", { name: "View Omar Haddad's profile" }));
+    expect(onOpenProfile).toHaveBeenLastCalledWith(omar.id);
+  });
 });
