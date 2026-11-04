@@ -1,4 +1,5 @@
 import { useEffect, useId, useMemo, useState } from "react";
+import { DEFAULT_WORKSPACE_NAME } from "@ownbase/protocol";
 import { useOptionalToast } from "./Toast.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import {
@@ -37,6 +38,8 @@ export function GettingStarted(props: {
   onNewChannel: () => void;
   onInvite: () => void;
   onNotifications: () => void;
+  /** Workspace settings, where it is named. */
+  onNameWorkspace: () => void;
   activeChannelName: string | null;
   onTryHuddle: () => void;
 }) {
@@ -47,6 +50,7 @@ export function GettingStarted(props: {
   const workspaceId = useWorkspace((s) => s.workspaceId);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
+  const workspaceName = useWorkspace((s) => s.workspaceName);
   const inHuddle = useWorkspace((s) => s.huddle !== null);
   const key = useMemo(() => {
     const scoped = workspaceStorageKey(client.baseUrl, workspaceId, self?.id, "getting-started");
@@ -94,7 +98,22 @@ export function GettingStarted(props: {
     (c) => (c.type === "public" || c.type === "private") && !c.archived,
   );
   const others = Object.values(users).filter((u) => u.id !== self.id && !u.isBot && !u.deactivated);
+  // Asked only while it still has the name it started with: one started
+  // with its own name, or since named, has nothing to tick off. First, as an
+  // invite says the workspace's name.
+  const naming =
+    workspaceName === DEFAULT_WORKSPACE_NAME
+      ? [
+          {
+            label: "Name your workspace",
+            done: false,
+            action: "Name it",
+            onClick: props.onNameWorkspace,
+          },
+        ]
+      : [];
   const steps = [
+    ...naming,
     {
       label: "Create a channel",
       done: rooms.some((c) => c.name !== "general"),

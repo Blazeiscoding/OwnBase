@@ -115,7 +115,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await page.getByLabel("Username", { exact: true }).fill("desktopowner");
   await page.getByLabel("Display name", { exact: true }).fill("Desktop Owner");
   await page.getByLabel("Password", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+  await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
   await dismissWelcome(page);
   const status = await page.evaluate(() => (window as any).ownbase.hostingStatus());
@@ -333,7 +333,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     await page.getByLabel("Username", { exact: true }).fill("resumeowner");
     await page.getByLabel("Display name", { exact: true }).fill("Resume Owner");
     await page.getByLabel("Password", { exact: true }).fill("password123");
-    await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+    await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(page.locator("textarea")).toBeVisible();
     await dismissWelcome(page);
 
@@ -533,7 +533,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     await page.getByLabel("Username", { exact: true }).fill("launchowner");
     await page.getByLabel("Display name", { exact: true }).fill("Launch Owner");
     await page.getByLabel("Password", { exact: true }).fill("password123");
-    await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+    await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(page.locator("textarea")).toBeVisible();
     await dismissWelcome(page);
     const hosted = await page.evaluate(() => (window as any).ownbase.hostingStatus());
@@ -762,7 +762,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     await page.getByLabel("Username", { exact: true }).fill("draftowner");
     await page.getByLabel("Display name", { exact: true }).fill("Draft Owner");
     await page.getByLabel("Password", { exact: true }).fill("password123");
-    await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+    await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(page.locator("textarea")).toBeVisible();
     await dismissWelcome(page);
     // Only the hosting confirmation is accepted automatically. A saving failure
@@ -910,7 +910,7 @@ test("a window that keeps crashing comes back where it was, Try again included (
   await page.getByLabel("Username", { exact: true }).fill("placeowner");
   await page.getByLabel("Display name", { exact: true }).fill("Place Owner");
   await page.getByLabel("Password", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+  await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
   await dismissWelcome(page);
   const saved = page.getByRole("navigation").getByRole("button", { name: "Saved", exact: true });
@@ -988,7 +988,7 @@ test("packaged Mac app boots with sandbox, hosts a workspace, serves the web cli
   await page.getByLabel("Username", { exact: true }).fill("macowner");
   await page.getByLabel("Display name", { exact: true }).fill("Mac Owner");
   await page.getByLabel("Password", { exact: true }).fill("password123");
-  await page.getByRole("button", { name: "Join workspace", exact: true }).click();
+  await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
   await dismissWelcome(page);
   const status = await page.evaluate(() => (window as any).ownbase.hostingStatus());

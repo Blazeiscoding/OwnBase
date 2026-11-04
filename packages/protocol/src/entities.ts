@@ -23,6 +23,9 @@ export type Role = "owner" | "admin" | "member" | "guest";
  *   account stays open and optional.
  */
 export type AccessPolicy = "invite_only" | "account_required" | "guest_allowed";
+/** What a workspace is called until its owner names it. */
+export const DEFAULT_WORKSPACE_NAME = "My Workspace";
+
 export const ACCESS_POLICIES: readonly AccessPolicy[] = [
   "invite_only",
   "account_required",

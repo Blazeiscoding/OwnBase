@@ -211,6 +211,8 @@ describe("moving a conversation", () => {
         .getAllByRole("menuitem")
         .map((item) => item.getAttribute("aria-label") ?? item.textContent),
     ).toEqual([
+      // The row's own buttons first, so the keyboard reaches them here (U6).
+      "Invite people",
       "Unstar channel",
       "Move to Work",
       "Move to Reading",
@@ -218,6 +220,13 @@ describe("moving a conversation", () => {
       "Mute channel",
     ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
+    // Tab passes a row and its More, not each of its buttons too.
+    const row = document.querySelector('[data-conversation] [aria-label="Invite people"]');
+    expect(row).toHaveAttribute("tabindex", "-1");
+    expect(screen.getByRole("button", { name: "More options for launch" })).not.toHaveAttribute(
+      "tabindex",
+      "-1",
+    );
     await user.click(within(menu).getByRole("menuitem", { name: "Move to Work" }));
     expect(sent).toHaveBeenLastCalledWith(launch.id, { sectionId: work.id, starred: false });
     expect(rows("Work")).toEqual(["launch"]);
