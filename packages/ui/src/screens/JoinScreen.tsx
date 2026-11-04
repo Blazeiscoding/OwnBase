@@ -1121,8 +1121,8 @@ function AuthCard(props: {
       {mustReplace ? (
         <>
           <p className="mb-4 rounded-xl border border-edge bg-ink/[0.04] px-3.5 py-3 text-sm text-ink-dim">
-            That password was issued to you by someone else. Choose your own to finish signing in —
-            the workspace stays closed until you do.
+            Someone else set that password for you. Choose your own to finish signing in. The
+            workspace stays closed until you do.
           </p>
           <form onSubmit={replacePassword} className={`space-y-4 ${shake}`}>
             <div>
@@ -1420,7 +1420,7 @@ function AuthCard(props: {
                       className={`${fieldCls} font-mono`}
                     />
                     <p id={`${id}-invite-code-hint`} className={hintCls}>
-                      From whoever invited you. This workspace takes new accounts only with one.
+                      Whoever invited you has it. You need one to create an account here.
                     </p>
                   </div>
                 )}
@@ -1443,7 +1443,7 @@ function AuthCard(props: {
                     <p id="workspace-claim-help" className="mt-1 text-xs text-ink-dim">
                       {props.presetClaimCode && claimCode === props.presetClaimCode
                         ? "Filled in from your link. It makes this account the workspace's owner."
-                        : "Enter the code shown when the host started this workspace to create its owner account."}
+                        : "The person who started this workspace was shown a claim code. Enter it here to become the owner."}
                     </p>
                   </div>
                 )}
@@ -1508,7 +1508,7 @@ function errorMessage(err: unknown, mode: Mode): string {
       case "invalid_credentials":
         return "Wrong username or password.";
       case "handle_taken":
-        return "That username is taken — sign in instead?";
+        return "That username is taken. Did you mean to sign in?";
       case "invite_required":
         return "This workspace needs an invite code to join.";
       case "claim_required":

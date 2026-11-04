@@ -12,7 +12,7 @@ import { useHostingStatus, useLastHosted } from "./lib/hosting.js";
 import { useApplyAppearance } from "./lib/appearance.js";
 import { buttonClass } from "./components/Button.js";
 import { Banner, BannerAction } from "./components/Banner.js";
-import type { HostingLine } from "./components/Sidebar.js";
+import type { HostingEntry, HostingLine } from "./components/Sidebar.js";
 
 // Joining is the first screen once per device; someone returning opens straight
 // into their workspace, so it loads on first use and stays out of every start.
@@ -89,6 +89,8 @@ export function App({ platform }: { platform: Platform }) {
   const savedServersRef = useRef<SavedServer[]>([]);
   const [session, setSession] = useState<Session>({ view: "loading" });
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
+  /** The tab Manage hosting opens on, when something asked for one. */
+  const [hostSection, setHostSection] = useState<"internet" | undefined>(undefined);
   const [inviteAsk, setInviteAsk] = useState(0);
   const hosting = useHostingStatus(platform.hosting);
   const savedIcons = useCachedWorkspaceIcons(
@@ -384,10 +386,10 @@ export function App({ platform }: { platform: Platform }) {
     }
   }
 
-  const saveErrorText = `Could not save changes to sign-ins on this device. This session can continue.${
+  const saveErrorText = `Could not save your sign-ins on this device. You can keep working.${
     platform.kind === "desktop"
-      ? " Unlock your system key store and retry; new sign-ins are never saved as plain text."
-      : " Check browser storage and retry before closing."
+      ? " Unlock your computer's password store, then press Retry saving. OwnBase never saves a sign-in without protecting it."
+      : " Check that your browser lets this site store data, then press Retry saving before you close the tab."
   }`;
   // Shown only while a change is unsaved, which it makes again.
   const retrySaving = () => {
@@ -412,6 +414,14 @@ export function App({ platform }: { platform: Platform }) {
         ];
   const viewingHosted =
     viewedUrl !== null && hostedUrls.some((url) => normalizeServerUrlSafe(url) === viewedUrl);
+  /** Opens Manage hosting, on one tab when something asked for it. */
+  const openHosting = (section?: "internet") => {
+    setHostSection(section);
+    setHostDialogOpen(true);
+  };
+  const hostingEntry: HostingEntry | undefined = platform.hosting
+    ? { running: !!hostingStatus?.running, open: openHosting }
+    : undefined;
   const hostingLine: HostingLine | undefined =
     platform.hosting &&
     (hostingStatus?.running ||
@@ -433,9 +443,9 @@ export function App({ platform }: { platform: Platform }) {
                       ? // The sidebar names the workspace just above, and the
                         // line has room for about 22 characters beside Manage.
                         hostingStatus?.openToAll?.phase === "open"
-                        ? "Hosting · open to all"
+                        ? "Hosting · public link"
                         : "Hosting here"
-                      : `Hosting ${hostingStatus?.workspaceName ?? "a workspace"} on this computer${hostingStatus?.openToAll?.phase === "open" ? " · open to all" : ""}`,
+                      : `Hosting ${hostingStatus?.workspaceName ?? "a workspace"} on this computer${hostingStatus?.openToAll?.phase === "open" ? " · public link" : ""}`,
           state:
             hosting.error || hostingStatus?.warning || hostingStatus?.openToAllError
               ? "trouble"
@@ -443,7 +453,7 @@ export function App({ platform }: { platform: Platform }) {
                 ? "live"
                 : "busy",
           alert: !!(hostingStatus?.warning || hostingStatus?.openToAllError),
-          onManage: () => setHostDialogOpen(true),
+          onManage: openHosting,
         }
       : undefined;
 
@@ -483,12 +493,12 @@ export function App({ platform }: { platform: Platform }) {
                     <Icon name="alert" size={22} />
                   </span>
                   <h1 className="text-xl font-semibold tracking-tight">
-                    Saved sign-ins could not be opened
+                    OwnBase could not open your saved sign-ins
                   </h1>
                   <p role="alert" className="mt-3 text-sm leading-relaxed text-ink-dim">
                     {platform.kind === "desktop"
-                      ? "Unlock your system key store, or use the OS account that saved these sign-ins, and try again. The saved data is still on this device."
-                      : "Browser storage could not be read. The saved data is kept; try again after resolving the storage problem."}
+                      ? "Unlock your computer's password store, or sign in to the computer account that saved them. Then press Try again. Your sign-ins are still on this device."
+                      : "Your browser would not let OwnBase read what it saved. Nothing was deleted. Check that your browser lets this site store data, then press Try again."}
                   </p>
                   <div className="mt-7 flex flex-wrap justify-center gap-2">
                     <button
@@ -552,7 +562,7 @@ export function App({ platform }: { platform: Platform }) {
                       );
                     }}
                     onForget={forgetServer}
-                    onHostClick={platform.hosting ? () => setHostDialogOpen(true) : undefined}
+                    onHostClick={platform.hosting ? () => openHosting() : undefined}
                     hostingStatus={hosting.status}
                     hostingStatusError={hosting.error}
                     hostingStatusLoading={hosting.loading}
@@ -599,6 +609,7 @@ export function App({ platform }: { platform: Platform }) {
                   ) : undefined
                 }
                 hosting={hostingLine}
+                hostingEntry={hostingEntry}
                 hostedHere={viewingHosted && !!hostingStatus?.running}
               />
             )}
@@ -608,6 +619,7 @@ export function App({ platform }: { platform: Platform }) {
                   hosting={platform.hosting}
                   state={hosting}
                   viewingHosted={viewingHosted}
+                  initialSection={hostSection}
                   onClose={() => setHostDialogOpen(false)}
                   onInvite={() => {
                     setHostDialogOpen(false);
@@ -635,12 +647,13 @@ export function App({ platform }: { platform: Platform }) {
                 dismissible={!forgetBusy}
               >
                 <p className="text-sm text-ink-dim">
-                  Remove saved sign-ins on this device and sign in again. Drafts, queued messages
-                  and hosted workspaces stay on this device.
+                  This removes the sign-ins saved on this device. Then you sign in again. Drafts,
+                  messages waiting to send and workspaces you host stay on this device.
                 </p>
                 {forgetError && (
                   <p role="alert" className="mt-3 text-sm text-alert">
-                    Could not update saved sign-ins. Check access to the settings file and retry.
+                    Could not remove the saved sign-ins. Check that OwnBase can save to this device,
+                    then try again.
                   </p>
                 )}
                 <div className="mt-5 flex justify-end gap-2">

@@ -185,7 +185,7 @@ describe("a store that makes each change in one step", () => {
     await switchTo("Design Guild");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not save changes to sign-ins on this device.",
+      "Could not save your sign-ins on this device.",
     );
     expect(device.servers).toBe(before);
 
@@ -205,7 +205,7 @@ describe("saved sign-ins that cannot be read", () => {
     await switchTo("Design Guild");
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not save changes to sign-ins on this device.",
+      "Could not save your sign-ins on this device.",
     );
     expect(device.servers).toBe(before);
     expect(device.writes).toBe(1);

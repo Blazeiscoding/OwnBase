@@ -177,7 +177,7 @@ export function AccountDialog({
       setNewPassword("");
       setRepeatPassword("");
       setNotice(
-        "Password changed. Your other devices have been signed out; this device stays signed in.",
+        "Password changed. Your other devices are signed out. This device stays signed in.",
       );
       setSessions((current) => current.filter((session) => session.current));
       await load();
@@ -377,8 +377,8 @@ export function AccountDialog({
               <option value="newline">Start a new line</option>
             </Select>
             <p className="mt-2 text-sm text-ink-dim">
-              Applies to channels and threads across workspaces on this device. Ctrl+Enter or
-              Cmd+Enter always sends; Shift+Enter adds a new line.
+              Applies to messages and thread replies in every workspace on this device. Ctrl+Enter
+              or Cmd+Enter always sends. Shift+Enter always starts a new line.
             </p>
             {composer.error && (
               <p role="alert" className="mt-2 text-sm text-alert">
@@ -506,7 +506,7 @@ export function AccountDialog({
               </button>
             </div>
             <p className="mt-1 text-sm text-ink-dim">
-              Each sign-in appears separately. Remove a device you no longer use.
+              Each sign-in shows as its own row. Sign out of any you no longer use.
             </p>
             <ListStatus
               className="mt-3"
@@ -517,7 +517,7 @@ export function AccountDialog({
               onRetry={() => void load()}
               empty={
                 loaded && !loadError && sessions.length === 0
-                  ? "No active devices were returned. Refresh to check your session."
+                  ? "No signed-in devices found. Press Refresh to check again."
                   : null
               }
             />
@@ -593,7 +593,9 @@ export function AccountDialog({
             <p className="mt-2 text-sm text-ink-dim">
               {confirmation.kind === "signout"
                 ? "You will need your password to sign in again. Your account's saved drafts stay on this device."
-                : "Affected devices will need to sign in again. Your current device stays connected."}
+                : confirmation.kind === "others"
+                  ? "They will need to sign in again. This device stays signed in."
+                  : "It will need to sign in again. This device stays signed in."}
             </p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
@@ -653,14 +655,14 @@ function NotificationSettings() {
         </h3>
         <p className="mt-1 text-sm text-ink-dim">
           {platform.kind === "desktop"
-            ? "The desktop app shows notifications for mentions and direct messages itself."
+            ? "The desktop app shows its own notifications for mentions and direct messages."
             : permission === "granted"
               ? "Notifications are on in this browser."
               : permission === "denied"
                 ? "This browser blocks notifications from OwnBase. Allow them in the browser's site settings, then reload the page."
                 : permission === "unsupported"
                   ? "This browser cannot show notifications."
-                  : "Notifications are off in this browser. Turn them on to hear about mentions while OwnBase is in the background."}
+                  : "Notifications are off in this browser. Turn them on to hear about mentions while another window or tab is in front."}
         </p>
         {platform.kind !== "desktop" && permission === "default" && (
           <button
@@ -679,7 +681,7 @@ function NotificationSettings() {
         <p role="status" className="mt-1 text-sm text-ink-dim">
           {paused
             ? `Paused until ${resumeTime(dndUntil, now)}, on every device you use.`
-            : "Pausing holds notifications on every device you use."}
+            : "A pause stops notifications on every device you use."}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {paused ? (
@@ -712,7 +714,7 @@ function NotificationSettings() {
       </section>
       <PreviewSettings />
       <p className="mt-6 border-t border-edge pt-5 text-sm text-ink-dim">
-        What each channel notifies you about is in its details, under Notifications.
+        To choose what a channel notifies you about, open its details and go to Notifications.
       </p>
     </>
   );
@@ -765,9 +767,12 @@ function PreviewSettings() {
 }
 
 const THEME_LABELS: Record<Theme, { label: string; hint: string }> = {
-  system: { label: "Match this device", hint: "Onyx or White, as the device is set" },
-  dark: { label: "Onyx", hint: "Near-black, easy on the eyes" },
-  light: { label: "White", hint: "Clean and bright, for well-lit rooms" },
+  system: {
+    label: "Match this device",
+    hint: "Onyx or White, following your device's dark or light setting",
+  },
+  dark: { label: "Onyx", hint: "A dark, near-black theme" },
+  light: { label: "White", hint: "A light theme, for bright rooms" },
 };
 
 /** How OwnBase looks on this device: its theme, and how much it fits in. */
@@ -866,8 +871,8 @@ function WorkspaceStorage() {
         if (!controller.signal.aborted)
           setError(
             err instanceof ApiError && err.status === 404
-              ? "This server does not report storage usage yet."
-              : "Could not load workspace storage. Try again.",
+              ? "This server is too old to show storage use."
+              : "Could not load storage use. Try again.",
           );
       })
       .finally(() => {
@@ -881,7 +886,8 @@ function WorkspaceStorage() {
         Workspace attachment storage
       </h3>
       <p className="mt-1 text-sm text-ink-dim">
-        Shared by everyone, including unfinished uploads. The host controls the limit.
+        Files everyone in this workspace has uploaded, including uploads still in progress. The
+        person who hosts the workspace sets the limit.
       </p>
       {usage && (
         <div className="my-3 text-sm">
@@ -895,7 +901,8 @@ function WorkspaceStorage() {
           <p>{formatBytes(usage.maxFileBytes)} maximum per file</p>
           {usage.availableBytes === 0 && (
             <p role="status" className="mt-2 text-alert">
-              Storage is full. New uploads need space to be freed or a higher limit.
+              Storage is full. Nobody can upload files until someone deletes some or the host raises
+              the limit.
             </p>
           )}
         </div>

@@ -608,7 +608,7 @@ describe("hosting a workspace from the desktop app", () => {
     };
     // Said in words, its code kept at the end: a system error's own message names paths.
     await expect(h.controller.start({ workspaceName: "Rocket Team" })).rejects.toThrow(
-      "The workspace could not start: this computer did not allow OwnBase to use its data folder or port (EACCES).",
+      /^The workspace could not start because this computer did not let OwnBase use its data folder or port\. .* Error code EACCES\.$/,
     );
     // Not retried elsewhere, not remembered, and no lasting warning to repeat
     // what the caller has already been told.
@@ -630,7 +630,7 @@ describe("hosting a workspace from the desktop app", () => {
     expect(status).toMatchObject({
       running: true,
       phase: "running",
-      warning: expect.stringMatching(/could not be saved/),
+      warning: expect.stringMatching(/could not save its hosting settings/),
     });
     expect(h.servers[0]!.stop).not.toHaveBeenCalled();
 
@@ -708,14 +708,14 @@ describe("hosting a workspace from the desktop app", () => {
     const status = await h.controller.start({ workspaceName: "Rocket Team" });
     // Two independent things are wrong, and neither replaces the other.
     expect(status.warning).toMatch(/8543 was already in use/);
-    expect(status.warning).toMatch(/could not be saved/);
+    expect(status.warning).toMatch(/could not save its hosting settings/);
 
     // Saving succeeding says nothing about which port this run is listening
     // on, so it must not take that notice away.
     h.saveFails = false;
     const again = await h.controller.start({ workspaceName: "Rocket Team" });
     expect(again.warning).toMatch(/8543 was already in use/);
-    expect(again.warning).not.toMatch(/could not be saved/);
+    expect(again.warning).not.toMatch(/could not save its hosting settings/);
 
     // Stopping ends the run the notice was about.
     await h.controller.stop();
@@ -1069,7 +1069,7 @@ describe("hosting a workspace from the desktop app", () => {
       );
       expect(h.controller.status()).toMatchObject({
         inviteOnly: true,
-        openToAllError: expect.stringMatching(/retry cleanup/),
+        openToAllError: expect.stringMatching(/try closing it again/),
       });
       await expect(h.controller.openToAll({})).rejects.toThrow(/finish closing/);
       await h.controller.shutdown();
@@ -1087,7 +1087,7 @@ describe("hosting a workspace from the desktop app", () => {
       await expect(h.controller.openToAll({})).rejects.toThrow("process still running");
       expect(h.controller.status()).toMatchObject({
         inviteOnly: true,
-        openToAllError: expect.stringMatching(/setup failed/),
+        openToAllError: expect.stringMatching(/Setting up the public link failed/),
       });
       await expect(h.controller.openToAll({})).rejects.toThrow(/finish closing/);
       await h.controller.shutdown();
@@ -1529,8 +1529,8 @@ describe("the list of workspaces hosted on this computer", () => {
     expect(() => parseRegistry({ version: 2, workspaces: [entry] })).toThrow(
       /newer version of OwnBase/,
     );
-    expect(() => parseRegistry(null)).toThrow(/invalid/);
-    expect(() => parseRegistry({ version: 1, workspaces: "not a list" })).toThrow(/invalid/);
+    expect(() => parseRegistry(null)).toThrow(/damaged/);
+    expect(() => parseRegistry({ version: 1, workspaces: "not a list" })).toThrow(/damaged/);
     expect(parseRegistry(undefined)).toEqual([]);
   });
 
@@ -1572,9 +1572,9 @@ describe("the list of workspaces hosted on this computer", () => {
     const before = structuredClone([...h.settings]);
 
     await expect(h.controller.list()).rejects.toThrow(
-      /hosted workspace list in settings is invalid/,
+      /list of hosted workspaces in OwnBase's settings file is damaged/,
     );
-    await expect(h.controller.start({ workspaceName: "New Team" })).rejects.toThrow(/invalid/);
+    await expect(h.controller.start({ workspaceName: "New Team" })).rejects.toThrow(/damaged/);
     expect([...h.settings]).toEqual(before);
     expect(h.starts).toEqual([]);
     expect(readdirSync(h.dataRoot)).toEqual(["old-team"]);
@@ -1954,7 +1954,7 @@ describe("restoring a backup in the desktop app", () => {
     const looking = await later.controller.start({ folder: "rocket-team" });
     expect(looking.isolated).toBe(true);
     expect(later.starts.at(-1)).toMatchObject({ isolated: true });
-    await expect(later.controller.openToAll({})).rejects.toThrow(/cannot be opened to all/);
+    await expect(later.controller.openToAll({})).rejects.toThrow(/cannot have a public link/);
     await expect(later.controller.start({ folder: "rocket-team", activate: true })).rejects.toThrow(
       /Stop looking inside/,
     );
@@ -2059,8 +2059,8 @@ describe("restoring a backup in the desktop app", () => {
     workspaceDb(join(h.dataRoot, "held-copy"), "held-id", "Restored Team");
     const saved = { version: 1, workspaces: [{ id: 42, folder: "held-copy", restoredHold: 2 }] };
     h.settings.set("hostedWorkspaces", saved);
-    await expect(h.controller.list()).rejects.toThrow(/invalid/);
-    await expect(h.controller.start({ folder: "held-copy" })).rejects.toThrow(/invalid/);
+    await expect(h.controller.list()).rejects.toThrow(/damaged/);
+    await expect(h.controller.start({ folder: "held-copy" })).rejects.toThrow(/damaged/);
     expect(h.settings.get("hostedWorkspaces")).toEqual(saved);
     expect(h.starts).toEqual([]);
   });
@@ -2538,7 +2538,7 @@ describe("a stable public address configured for this computer", () => {
     const h = harness({ publicAccess: true });
     await h.controller.start({ workspaceName: "Rocket Team" });
     await expect(h.controller.setReopenPublicOnLaunch(true)).rejects.toThrow(
-      /Only a stable address/,
+      /only if it keeps the same address/,
     );
     expect(await h.controller.setReopenPublicOnLaunch(false)).toBe(false);
   });

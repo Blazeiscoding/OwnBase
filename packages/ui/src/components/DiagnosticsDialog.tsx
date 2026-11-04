@@ -121,12 +121,12 @@ export function DiagnosticsDialog({
   return (
     <Dialog title="Diagnostics" onClose={onClose} width={560}>
       <p className="text-sm text-ink-dim">
-        Send this to whoever is helping you. It says which versions are running and how this device
-        is connected
-        {admin ? ", and how the server is keeping up: sizes, queues and timings" : ""}. A call log
-        says each step of the last huddle
-        {admin ? ", and the server's says what happened in huddles lately" : ""}, by username and
-        kind of network route. It never includes messages, files or network addresses.
+        Send this to whoever is helping you. It shows which versions are running and how this device
+        is connected.
+        {admin ? " It also shows how the server is keeping up: sizes, queues and timings." : ""} The
+        call log lists each step of your last huddle
+        {admin ? ", and the server's call log lists recent huddles" : ""}. People appear by
+        username. The report never includes messages, files or network addresses.
       </p>
       {report ? (
         <pre
@@ -151,7 +151,7 @@ export function DiagnosticsDialog({
       )}
       {saved && (
         <p role="status" className="mt-3 text-xs text-ink-dim">
-          Handed to your browser or device as {saved}. Check its downloads or save dialog.
+          Saving as {saved}. Look in your downloads folder, or in the save dialog if one opened.
         </p>
       )}
       <div className="mt-4 flex justify-end gap-2">

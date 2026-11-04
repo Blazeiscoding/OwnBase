@@ -65,9 +65,7 @@ export function parsePublicUrl(raw: string, flag = "--public-url"): string {
     throw new ConfigError(`${flag} must start with http:// or https://, not "${url.protocol}//"`);
   }
   if (url.username || url.password) {
-    throw new ConfigError(
-      `${flag} must not contain a username or password; it is shown to every app`,
-    );
+    throw new ConfigError(`${flag} must not contain a username or password. Every app sees it`);
   }
   if (url.search || url.hash) {
     throw new ConfigError(`${flag} must not contain a query or a #fragment`);
@@ -151,10 +149,10 @@ export function describeStartupError(
     case "EADDRINUSE":
       return `Port ${port} is already in use, probably by another server. Choose another with --port, or stop the other one.`;
     case "EACCES":
-      return `This account is not allowed to listen on port ${port}. Ports below 1024 usually need administrator rights; choose a higher one with --port.`;
+      return `This account is not allowed to listen on port ${port}. Ports below 1024 usually need administrator rights. Choose a higher one with --port.`;
     case "ENOTFOUND":
     case "EADDRNOTAVAIL":
-      return `Cannot listen on --host ${settings.host ?? ""}: this machine has no such address. Use 0.0.0.0 for every address, or 127.0.0.1 for this machine only.`;
+      return `Cannot listen on --host ${settings.host ?? ""} because this machine has no such address. Use 0.0.0.0 for every address, or 127.0.0.1 for this machine only.`;
     default:
       return err instanceof Error ? err.message : String(err);
   }

@@ -26,6 +26,7 @@ import { channelTitle } from "../lib/format.js";
 import {
   HostingStatus,
   Sidebar,
+  type HostingEntry,
   type HostingLine,
   type OtherWorkspace,
 } from "../components/Sidebar.js";
@@ -291,6 +292,8 @@ interface Props {
   hosting?: HostingLine;
   /** This computer hosts the workspace on screen, so Manage hosting can change it too. */
   hostedHere?: boolean;
+  /** Manage hosting, for the workspace menu and Ctrl+K, in the desktop app. */
+  hostingEntry?: HostingEntry;
 }
 
 type DialogKind =
@@ -379,6 +382,7 @@ export function WorkspaceScreen({
   banner,
   hosting,
   hostedHere,
+  hostingEntry,
 }: Props) {
   return (
     <ClientContext.Provider value={client}>
@@ -412,6 +416,7 @@ export function WorkspaceScreen({
                 banner={banner}
                 hosting={hosting}
                 hostedHere={hostedHere}
+                hostingEntry={hostingEntry}
               />
             </ShareableServerProvider>
           </WorkspaceStorageGate>
@@ -434,6 +439,7 @@ function WorkspaceInner({
   banner,
   hosting,
   hostedHere,
+  hostingEntry,
 }: {
   platform: Platform;
   initialTarget: { channelId: ID; messageId: ID } | null;
@@ -447,6 +453,7 @@ function WorkspaceInner({
   banner?: ReactNode;
   hosting?: HostingLine;
   hostedHere?: boolean;
+  hostingEntry?: HostingEntry;
 }) {
   const status = useWorkspace((s) => s.status);
   // So the saved workspaces show this one's icon while its server is off.
@@ -649,7 +656,7 @@ function WorkspaceInner({
       }
       if (activeChannelId) {
         setNavigationError(
-          "That conversation is not available. It may have been deleted, or you may not have access to it.",
+          "That conversation is not available. Someone may have deleted it, or you may not have access to it.",
         );
         setPanel((p) => (p.kind === "thread" ? { kind: "none" } : p));
       }
@@ -942,7 +949,7 @@ function WorkspaceInner({
     if (count > 2 && confirm) {
       const go = await confirm({
         title: "Mark everything as read?",
-        body: `${summary} will be marked as read.`,
+        body: `This marks ${summary} as read.`,
         confirmLabel: "Mark as read",
       });
       if (!go) return;
@@ -1008,7 +1015,7 @@ function WorkspaceInner({
       .catch(() => {
         if (ticket === navigation.current)
           setNavigationError(
-            "Could not open this message. It may have been deleted, access may have changed, or the workspace may be offline.",
+            "Could not open this message. Someone may have deleted it, or you may no longer have access to it. If you are offline, try again once you reconnect.",
           );
       })
       .finally(() => {
@@ -1233,6 +1240,35 @@ function WorkspaceInner({
                 },
               ]
             : []),
+          // This computer's hosting, in the desktop app: for a member or a guest alike.
+          ...(hostingEntry
+            ? hostingEntry.running
+              ? [
+                  {
+                    id: "hosting",
+                    label: "Manage hosting",
+                    icon: "screen" as const,
+                    keywords: "host server backup port stop computer",
+                    run: () => hostingEntry.open(),
+                  },
+                  {
+                    id: "hosting-internet",
+                    label: "Share on the internet",
+                    icon: "link" as const,
+                    keywords: "host public open to all tunnel cloudflare address online",
+                    run: () => hostingEntry.open("internet"),
+                  },
+                ]
+              : [
+                  {
+                    id: "hosting",
+                    label: "Host a workspace",
+                    icon: "screen" as const,
+                    keywords: "host server start new computer manage hosting",
+                    run: () => hostingEntry.open(),
+                  },
+                ]
+            : []),
           {
             id: "shortcuts",
             label: "Keyboard shortcuts",
@@ -1404,7 +1440,7 @@ function WorkspaceInner({
         : status === "auth_failed"
           ? "signed out"
           : status === "protocol_mismatch"
-            ? "Server version incompatible — update OwnBase"
+            ? "Different OwnBase version. Update to connect."
             : status === "password_change_required"
               ? "Choose a new password to carry on"
               : "offline";
@@ -1519,6 +1555,7 @@ function WorkspaceInner({
         onWorkspaceSettings={isAdmin ? () => setDialog({ kind: "workspace" }) : undefined}
         connectionLabel={connectionLabel}
         hosting={hosting}
+        hostingEntry={hostingEntry}
       />
 
       <main className="workspace-main flex min-w-0 flex-1 flex-col">
@@ -1639,7 +1676,10 @@ function WorkspaceInner({
                       role="alert"
                       className="flex w-64 shrink-0 flex-col justify-center gap-3 border-r border-edge p-5 text-sm text-ink-dim"
                     >
-                      <p>The call could not load. It carries on; reload the app to see it.</p>
+                      <p>
+                        The call could not load here, but you are still in it. Reload the app to see
+                        it.
+                      </p>
                       <button
                         type="button"
                         onClick={() => setHuddleView("chat")}
@@ -1876,7 +1916,18 @@ function WorkspaceInner({
             />
           )}
           {dialog.kind === "invite" && (
-            <InviteDialog welcome={dialog.welcome} onClose={closeDialog} />
+            <InviteDialog
+              welcome={dialog.welcome}
+              onClose={closeDialog}
+              onShareOnline={
+                hosting && hostedHere
+                  ? () => {
+                      closeDialog();
+                      hosting.onManage("internet");
+                    }
+                  : undefined
+              }
+            />
           )}
         </LazyDialog>
       )}

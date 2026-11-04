@@ -30,7 +30,7 @@ const NAMES: Record<ActivityMode, string> = {
 };
 const ABOUT: Record<ActivityMode, string> = {
   all: "Unread messages in conversations you joined.",
-  mentions: "Direct and room-wide mentions in conversations you joined.",
+  mentions: "Messages that mention you or everyone, in conversations you joined.",
   threads: "Unread replies in threads you follow.",
   reminders: "Messages you asked to be reminded about.",
 };

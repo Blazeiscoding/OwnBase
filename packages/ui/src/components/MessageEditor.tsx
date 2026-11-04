@@ -123,10 +123,10 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
       if (alive.current)
         setError(
           failure instanceof ApiError && failure.status === 404
-            ? "This message is no longer available. Your unsaved edit is kept."
+            ? "This message is no longer available. Your edit is still here."
             : failure instanceof ApiError && failure.code === "message_changed"
-              ? "This message changed before your edit was saved. Your text is kept; nothing was overwritten."
-              : "Could not save this edit. Your text is kept; try again when connected.",
+              ? "This message changed before your edit was saved. Nothing was overwritten, and your text is still here."
+              : "Could not save this edit. Your text is still here. Try again when you're back online.",
         );
     } finally {
       saving.current = false;

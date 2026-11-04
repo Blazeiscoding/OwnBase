@@ -75,7 +75,7 @@ describe("signing in", () => {
     );
     expect(screen.getByLabelText("Password")).toHaveAccessibleDescription("At least 8 characters.");
     expect(screen.getByLabelText("Invite code")).toHaveAccessibleDescription(
-      "From whoever invited you. This workspace takes new accounts only with one.",
+      "Whoever invited you has it. You need one to create an account here.",
     );
     for (const field of ["Username", "Display name", "Password", "Invite code"]) {
       expect(screen.getByText(field, { selector: "label" })).toBeVisible();

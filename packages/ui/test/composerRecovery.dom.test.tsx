@@ -72,8 +72,10 @@ describe("a scheduling request kept from before the app closed", () => {
       nonce: "test-nonce-not-a-credential",
       sendAt: Date.now() + 60 * 60 * 1000,
     });
-    expect(await screen.findByText(/A scheduling request needs confirmation/)).toBeVisible();
-    expect(screen.getByRole("button", { name: "Retry confirmation" })).toBeVisible();
+    expect(
+      await screen.findByText(/OwnBase could not tell if this message was scheduled/),
+    ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Check again" })).toBeVisible();
     expect(screen.getByRole("textbox")).toHaveValue("Ship the release notes");
   });
 
@@ -81,8 +83,8 @@ describe("a scheduling request kept from before the app closed", () => {
     // It carries a nonce, so only the request schema can tell it apart.
     composerWithSaved({ text: 42, nonce: "test-nonce-not-a-credential", sendAt: "soon" });
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not read the saved scheduling request. Your draft is kept; check Scheduled before sending it again.",
+      "Could not read a message you were scheduling. Your draft is still here. Look in Scheduled before you send it again.",
     );
-    expect(screen.queryByText(/A scheduling request needs confirmation/)).toBeNull();
+    expect(screen.queryByText(/OwnBase could not tell if this message was scheduled/)).toBeNull();
   });
 });

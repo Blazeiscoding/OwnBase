@@ -15,8 +15,8 @@ export function backupTrayItems(
       // Menu labels read "&" as an access key.
       label:
         attention.length === 1
-          ? `Backup of ${first.name.replaceAll("&", "&&")} did not finish: see why…`
-          : `${attention.length} scheduled backups did not finish: see why…`,
+          ? `See why the backup of ${first.name.replaceAll("&", "&&")} did not finish…`
+          : `See why ${attention.length} scheduled backups did not finish…`,
       action: "show",
     },
   ];

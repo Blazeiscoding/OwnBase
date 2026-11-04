@@ -45,8 +45,8 @@ const PAGE_SIZE = 30;
 const MODIFIER_HELP = [
   { token: "from:@name", what: "by one person" },
   { token: "in:#channel", what: "in one channel" },
-  { token: "has:link", what: "contains a link" },
-  { token: "has:file", what: "has an attachment" },
+  { token: "has:link", what: "has a link" },
+  { token: "has:file", what: "has a file" },
   { token: "type:pdf", what: "has one kind of file" },
   { token: "after:2026-01-01", what: "after a day" },
   { token: "before:2026-02-01", what: "before a day" },
@@ -562,10 +562,10 @@ export function SearchDialog(props: {
             placeholder="Search messages and file names"
             className={inputCls}
           />
-          <Tooltip label="Search syntax">
+          <Tooltip label="Search tips">
             <button
               type="button"
-              aria-label="Search syntax"
+              aria-label="Search tips"
               aria-expanded={help}
               aria-controls={helpId}
               onClick={() => setHelp((open) => !open)}
@@ -670,7 +670,7 @@ export function SearchDialog(props: {
           hidden={!help}
           className="rounded-xl border border-edge p-3 text-[12px] text-ink-faint"
         >
-          <p className="mb-2">Type a filter, then a space, and it becomes a chip.</p>
+          <p className="mb-2">Type a filter, then press Space to add it.</p>
           <ul className="flex flex-wrap gap-x-3 gap-y-1">
             {MODIFIER_HELP.map((m) => (
               <li key={m.token}>

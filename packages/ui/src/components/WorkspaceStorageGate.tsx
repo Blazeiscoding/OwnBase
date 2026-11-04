@@ -84,8 +84,8 @@ export function WorkspaceStorageGate({
             phase: "error",
             access,
             error: explicitApproval
-              ? "Could not save your address approval on this device. Retry to continue."
-              : "Could not check saved workspace addresses on this device. Retry to continue.",
+              ? "Could not save your answer on this device. Press Retry to try again."
+              : "Could not read the workspace addresses saved on this device. Press Retry to try again.",
           });
         })
         .finally(() => {
@@ -111,11 +111,11 @@ export function WorkspaceStorageGate({
   const asking = current?.phase === "approval" || current?.phase === "saving";
   const waiting =
     status === "protocol_mismatch"
-      ? "Server version incompatible. Update OwnBase to connect."
+      ? "This app and the workspace run different versions of OwnBase. Update OwnBase to connect."
       : signedOut
-        ? "Returning to sign in…"
+        ? "Going back to sign in…"
         : userId
-          ? "Checking saved workspace access…"
+          ? "Checking the workspace address…"
           : "Connecting to the workspace…";
 
   return (
@@ -126,12 +126,12 @@ export function WorkspaceStorageGate({
           <Dialog title="Confirm workspace address" onClose={onLeaveWorkspace} width={520}>
             <div className="space-y-4 text-sm">
               <p>
-                This address claims to be a workspace you have used before. Check that you recognize
-                it before sharing work saved on this device.
+                A workspace you have used before now answers at a different address. Continue only
+                if you know this address.
               </p>
               <div className="space-y-3 rounded-lg border border-edge bg-ground p-3">
                 <div>
-                  <p className="mb-1 font-semibold">Previously trusted</p>
+                  <p className="mb-1 font-semibold">Addresses you used before</p>
                   <ul className="max-h-32 space-y-1 overflow-y-auto text-ink-dim">
                     {access.addresses.map((address) => (
                       <li key={address} className="break-all font-mono text-xs">
@@ -141,14 +141,13 @@ export function WorkspaceStorageGate({
                   </ul>
                 </div>
                 <div>
-                  <p className="mb-1 font-semibold">Connecting to</p>
+                  <p className="mb-1 font-semibold">New address</p>
                   <p className="break-all font-mono text-xs">{access.address}</p>
                 </div>
               </div>
               <p className="text-ink-dim">
-                Continuing gives this address access to your saved drafts and recent searches.
-                Queued messages may be sent automatically, and scheduling recovery becomes
-                available.
+                If you continue, this address gets the drafts and recent searches saved on this
+                device. Messages waiting to send, and any message you were scheduling, may go to it.
               </p>
               <div className="flex flex-wrap justify-end gap-2 pt-1">
                 <button type="button" className={buttonClass("quiet")} onClick={onLeaveWorkspace}>
@@ -160,7 +159,7 @@ export function WorkspaceStorageGate({
                   disabled={current?.phase === "saving"}
                   onClick={() => approve.current?.()}
                 >
-                  {current?.phase === "saving" ? "Saving approval…" : "Trust address and continue"}
+                  {current?.phase === "saving" ? "Saving…" : "Trust address and continue"}
                 </button>
               </div>
             </div>

@@ -39,14 +39,14 @@ export async function prepareIcon(
   try {
     picture = await createImageBitmap(file);
   } catch {
-    throw new IconProblem("That picture could not be read. Choose another PNG, JPEG or WebP.");
+    throw new IconProblem("OwnBase could not open that picture. Choose another PNG, JPEG or WebP.");
   }
   try {
     const canvas = squareCanvas(picture, WORKSPACE_ICON_PIXELS);
-    if (!canvas) throw new IconProblem("This browser can't prepare pictures. Try another one.");
+    if (!canvas) throw new IconProblem("This browser can't resize pictures. Try another browser.");
     const webp = await encoded(canvas, "image/webp", 0.9);
     const image = webp?.type === "image/webp" ? webp : await encoded(canvas, "image/png");
-    if (!image) throw new IconProblem("That picture could not be prepared. Try another one.");
+    if (!image) throw new IconProblem("Could not resize that picture. Try another one.");
     if (image.size > WORKSPACE_ICON_MAX_BYTES)
       throw new IconProblem(`That picture is too detailed for ${noun}. Choose a simpler one.`);
     return image;

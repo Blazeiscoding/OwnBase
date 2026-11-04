@@ -105,7 +105,7 @@ describe("reopening a workspace this computer hosted", () => {
         port: 9,
         warning: "The last-used hosting settings could not be saved.",
         openToAllError:
-          "The public link stopped working (edge connection lost). Open to all again for a new link.",
+          "The public link stopped working (edge connection lost). Press Get a public link for a new one.",
       }),
       lastHosted: async () => ({ workspaceName: "Rocket Team", port: 9 }),
     });

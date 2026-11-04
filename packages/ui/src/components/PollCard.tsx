@@ -62,7 +62,8 @@ export function PollCard({
     void client.vote(message, next).then((ok) => {
       if (!ok)
         toast({
-          message: "Your vote did not go through. The poll may have closed; check and try again.",
+          message:
+            "Your vote did not go through. The poll may have closed. Check it and try again.",
         });
     });
   }

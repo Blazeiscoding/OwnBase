@@ -81,7 +81,7 @@ export function MembersPanel(props: {
           loading={loaded === null && !failed}
           placeholder={loaded === null}
           loadingLabel="Loading members…"
-          error={failed ? "Could not load who is here." : null}
+          error={failed ? "Could not load the members. Check your connection and try again." : null}
           onRetry={() => setAttempt((n) => n + 1)}
         />
         {loaded !== null && (

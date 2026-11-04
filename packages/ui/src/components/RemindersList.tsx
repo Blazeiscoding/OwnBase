@@ -201,7 +201,7 @@ function ReminderRow(props: {
       </button>
       <span className="absolute right-1.5 top-1 flex gap-0.5 rounded-lg bg-raised p-0.5 opacity-0 shadow-[0_1px_3px_rgb(0_0_0/0.18)] transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:top-2 [@media(hover:none)]:opacity-100">
         {props.due && (
-          <Tooltip label="Done: take it off the list">
+          <Tooltip label="Mark done and take it off the list">
             <button
               type="button"
               aria-label="Mark done"

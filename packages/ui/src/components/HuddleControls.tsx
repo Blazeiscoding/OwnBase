@@ -257,7 +257,7 @@ export function HuddleControls({
     void guarded("screen", async () => {
       if (await client.setScreenShareQuality(next)) keepQuality(next);
       else if (client.store.getState().huddle?.sharingScreen)
-        setFailure("The share's quality was not changed. It goes on as it was.");
+        setFailure("Could not change the share's quality. Your screen is still shared as before.");
     });
   };
   const shareMenu = !overlay && huddle.sharingScreen && (
@@ -269,7 +269,7 @@ export function HuddleControls({
         ...RESOLUTIONS.map((height, i) => ({
           id: `share-${height}`,
           label: `${height}p`,
-          hint: height === 1080 ? "Sharper" : "Lighter",
+          hint: height === 1080 ? "Sharper" : "Uses less data",
           ...(i === 0 ? { section: "Resolution" } : {}),
           checked: shown.height === height,
           onSelect: () => changeQuality({ height }),
@@ -277,7 +277,7 @@ export function HuddleControls({
         ...FRAME_RATES.map((frameRate, i) => ({
           id: `share-${frameRate}fps`,
           label: `${frameRate} fps`,
-          hint: frameRate === 15 ? "Text" : frameRate === 60 ? "Video, games" : undefined,
+          hint: frameRate === 15 ? "Best for text" : frameRate === 60 ? "Video, games" : undefined,
           ...(i === 0 ? { section: "Frame rate" } : {}),
           checked: shown.frameRate === frameRate,
           onSelect: () => changeQuality({ frameRate }),
@@ -370,7 +370,7 @@ export function HuddleControls({
               : "justify-end text-ink-dim"
           }`}
         >
-          The connection to the workspace dropped. You stay in the call while it comes back.
+          The connection to the workspace dropped. You stay in the call while OwnBase reconnects.
         </p>
       )}
       {huddle.talkingWhileMuted && huddle.micMuted && !huddle.micLost && (
@@ -403,8 +403,8 @@ export function HuddleControls({
           }`}
         >
           <span>
-            Your microphone stopped, so nobody can hear you. Connect one, and it is used as soon as
-            it is found.
+            Your microphone stopped, so nobody can hear you. Connect a microphone and the call
+            starts using it.
           </span>
           <button
             type="button"

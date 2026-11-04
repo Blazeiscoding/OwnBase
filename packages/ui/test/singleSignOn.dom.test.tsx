@@ -279,7 +279,7 @@ describe("single sign-on in Workspace settings", () => {
     expect(screen.getByText("3 of 12 people can sign in with Okta.")).toBeVisible();
     const secret = screen.getByLabelText("Client secret");
     expect(secret).toHaveValue("");
-    expect(secret).toHaveAccessibleDescription(/Saved\. Leave it empty to keep it/);
+    expect(secret).toHaveAccessibleDescription(/Already saved\. Leave this empty to keep it/);
     expect(await accessibilityProblems()).toEqual([]);
 
     await user.click(screen.getByLabelText("Require single sign-on"));

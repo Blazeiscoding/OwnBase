@@ -8,6 +8,7 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { InviteDialog } from "../src/components/InviteDialog.js";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
+import type { HostingEntry } from "../src/components/Sidebar.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { HostingStatus, Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
@@ -161,7 +162,11 @@ function ownersWorkspace() {
   vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
   const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
-  const screenOf = (props: { welcome?: boolean; inviteAsk?: number }) => (
+  const screenOf = (props: {
+    welcome?: boolean;
+    inviteAsk?: number;
+    hostingEntry?: HostingEntry;
+  }) => (
     <ConfirmProvider>
       <PlatformContext.Provider value={webPlatform}>
         <ClientContext.Provider value={client}>
@@ -222,8 +227,39 @@ describe("Invite people, asked for by Manage hosting", () => {
   });
 });
 
+describe("Manage hosting from Ctrl+K", () => {
+  it("opens Manage hosting, or straight on Share on the internet", async () => {
+    const { screenOf } = ownersWorkspace();
+    const open = vi.fn();
+    render(screenOf({ hostingEntry: { running: true, open } }));
+    await screen.findByRole("textbox", { name: /Message/ });
+    const user = userEvent.setup();
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("internet");
+    await user.click(await screen.findByRole("option", { name: /Share on the internet/ }));
+    expect(open).toHaveBeenLastCalledWith("internet");
+
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("hosting");
+    await user.click(await screen.findByRole("option", { name: /Manage hosting/ }));
+    expect(open).toHaveBeenLastCalledWith();
+  });
+
+  it("offers Host a workspace while nothing is hosted", async () => {
+    const { screenOf } = ownersWorkspace();
+    render(screenOf({ hostingEntry: { running: false, open: vi.fn() } }));
+    await screen.findByRole("textbox", { name: /Message/ });
+    const user = userEvent.setup();
+    await user.keyboard("{Control>}k{/Control}");
+    await user.keyboard("host");
+    expect(await screen.findByRole("option", { name: /Host a workspace/ })).toBeVisible();
+    expect(screen.queryByRole("option", { name: /Share on the internet/ })).toBeNull();
+  });
+});
+
 describe("the welcome step", () => {
-  function welcome(baseUrl: string, platform: Platform) {
+  function welcome(baseUrl: string, platform: Platform, onShareOnline?: () => void) {
     const client = new WorkspaceClient(baseUrl, "test-token-not-a-credential");
     clients.push(client);
     client.store.setState({ self: owner, users: { [owner.id]: owner }, status: "online" });
@@ -234,7 +270,7 @@ describe("the welcome step", () => {
       <ConfirmProvider>
         <PlatformContext.Provider value={platform}>
           <ClientContext.Provider value={client}>
-            <InviteDialog welcome onClose={onClose} />
+            <InviteDialog welcome onClose={onClose} onShareOnline={onShareOnline} />
           </ClientContext.Provider>
         </PlatformContext.Provider>
       </ConfirmProvider>,
@@ -256,6 +292,25 @@ describe("the welcome step", () => {
     expect(await accessibilityProblems(dialog)).toEqual([]);
     await userEvent.setup().click(within(dialog).getByRole("button", { name: "Done" }));
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("offers to share the workspace on the internet when this computer hosts it", async () => {
+    const onShareOnline = vi.fn();
+    const { dialog } = welcome("http://192.168.1.20:8543", desktopPlatform, onShareOnline);
+    expect(await within(dialog).findByText(/#\/join\/WELC0ME1$/)).toBeVisible();
+    expect(dialog).toHaveTextContent("This link works only on this computer's network.");
+    expect(dialog).not.toHaveTextContent(/choose Manage under the workspace's name/);
+    expect(await accessibilityProblems(dialog)).toEqual([]);
+    await userEvent
+      .setup()
+      .click(within(dialog).getByRole("button", { name: "Share on the internet" }));
+    expect(onShareOnline).toHaveBeenCalledOnce();
+    cleanup();
+
+    // A link anyone can reach needs no sharing further.
+    const open = welcome("https://chat.team.dev", desktopPlatform, onShareOnline);
+    expect(await within(open.dialog).findByText(/#\/join\/WELC0ME1$/)).toBeVisible();
+    expect(within(open.dialog).queryByRole("button", { name: "Share on the internet" })).toBeNull();
   });
 
   it("says the network part only of a server elsewhere, and nothing of an address anyone can reach", async () => {

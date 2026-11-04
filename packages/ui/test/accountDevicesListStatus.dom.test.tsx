@@ -95,12 +95,12 @@ describe("Signed-in devices list status", () => {
     const status = within(devices).getByRole("status");
 
     expect(status).toHaveTextContent("Loading devices…");
-    expect(within(devices).queryByText(/No active devices were returned/)).not.toBeInTheDocument();
+    expect(within(devices).queryByText(/No signed-in devices found/)).not.toBeInTheDocument();
     await act(async () => firstLoad.reject(new Error("offline")));
     expect(within(devices).getByRole("alert")).toHaveTextContent(
       "Could not load signed-in devices. Check your connection and try again.",
     );
-    expect(within(devices).queryByText(/No active devices were returned/)).not.toBeInTheDocument();
+    expect(within(devices).queryByText(/No signed-in devices found/)).not.toBeInTheDocument();
 
     const retry = within(devices).getByRole("button", { name: "Retry" });
     retry.focus();
@@ -113,9 +113,7 @@ describe("Signed-in devices list status", () => {
 
     await act(async () => retryLoad.resolve({ sessions: [] }));
     expect(within(devices).getByRole("status")).toBe(status);
-    expect(status).toHaveTextContent(
-      "No active devices were returned. Refresh to check your session.",
-    );
+    expect(status).toHaveTextContent("No signed-in devices found. Press Refresh to check again.");
     expect(within(devices).queryByRole("alert")).not.toBeInTheDocument();
     expect(status.parentElement).toHaveFocus();
     expect(await accessibilityProblems(dialog)).toEqual([]);
@@ -142,7 +140,7 @@ describe("Signed-in devices list status", () => {
       "Could not load signed-in devices.",
     );
     expect(within(list).getByText("Firefox · macOS")).toBeVisible();
-    expect(within(devices).queryByText(/No active devices were returned/)).not.toBeInTheDocument();
+    expect(within(devices).queryByText(/No signed-in devices found/)).not.toBeInTheDocument();
 
     await user.click(within(devices).getByRole("button", { name: "Retry" }));
     expect(listSessions).toHaveBeenCalledTimes(3);
@@ -175,7 +173,7 @@ describe("Signed-in devices list status", () => {
     await user.click(within(dialog).getByRole("button", { name: "Update password" }));
     expect(
       await within(dialog).findByText(
-        "Password changed. Your other devices have been signed out; this device stays signed in.",
+        "Password changed. Your other devices are signed out. This device stays signed in.",
       ),
     ).toHaveAttribute("role", "status");
     await waitFor(() => expect(listSessions).toHaveBeenCalledTimes(2));

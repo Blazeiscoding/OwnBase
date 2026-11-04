@@ -317,10 +317,10 @@ async function prepareLocalWrites(win: BrowserWindow | null, forQuit: boolean): 
       }
       const choice = await dialog.showMessageBox({
         type: "warning",
-        title: "Local work could not finish saving",
-        message: "Keep OwnBase open to protect your final words?",
+        title: "Some of your writing is not saved",
+        message: "Keep OwnBase open so you can copy what you wrote?",
         detail:
-          "Some drafts or queued messages could not finish saving. Retry saving, or keep the window open to copy your words. Leaving without saving may lose that unfinished work.",
+          "OwnBase could not save some drafts or messages waiting to send. Retry saving, or keep the window open and copy your words. If you leave without saving, that writing may be lost.",
         buttons: [
           "Retry saving",
           "Keep open to copy",
@@ -628,7 +628,7 @@ function inWorker<T>(job: BackupJob): Promise<T> {
     worker.once("exit", (code) => {
       if (settled) return;
       settled = true;
-      reject(new Error(`The backup stopped before it finished (exit code ${code}).`));
+      reject(new Error(`The backup stopped before it finished. Try again. Exit code ${code}.`));
     });
   });
 }
@@ -691,7 +691,9 @@ const hosting = createHostingController({
     const configured = publicAddressConfig();
     if (configured && "error" in configured) throw new Error(configured.error);
     if (configured && !instanceId)
-      throw new Error("The hosted workspace cannot verify its public address. Restart hosting.");
+      throw new Error(
+        "OwnBase cannot check that the public address leads to this workspace. Stop hosting, then start it again.",
+      );
     // Nothing to install or start when something else already carries the
     // address here; the workspace only has to answer at it.
     if (configured?.carrier === "elsewhere")
@@ -699,7 +701,7 @@ const hosting = createHostingController({
     const command = cloudflared();
     if (!command)
       throw new Error(
-        "Open to all needs Cloudflare's free cloudflared tool. Install it, then try again.",
+        "A public link needs cloudflared, a free program from Cloudflare. Install it, then try again.",
       );
     if (configured)
       return openNamedTunnel({ ...configured, command, port, signal, instanceId: instanceId! });
@@ -981,7 +983,7 @@ async function confirmStopAndQuit(): Promise<boolean> {
     title: "Stop hosting and quit?",
     message: "Quit OwnBase and stop the hosted workspace?",
     detail:
-      "Teammates will be disconnected until you start hosting again. Stored messages and files stay on this computer.",
+      "Teammates lose their connection until you start hosting again. Messages and files stay on this computer.",
     buttons: ["Cancel", "Stop hosting and quit"],
     defaultId: 0,
     cancelId: 0,
@@ -1001,7 +1003,7 @@ async function stopFromTray(): Promise<void> {
     showMainWindow();
     await dialog.showMessageBox({
       type: "error",
-      message: "The workspace could not be stopped. Open hosting controls and try again.",
+      message: "OwnBase could not stop the workspace. Open Manage hosting and try again.",
     });
   } finally {
     trayStopPending = false;
@@ -1018,7 +1020,7 @@ function updateTray(): void {
       : status.phase === "stopping"
         ? "Stopping workspace…"
         : status.running
-          ? `Hosting ${status.workspaceName} · ${status.openToAll?.phase === "open" ? "open to all" : `port ${status.port}`}${
+          ? `Hosting ${status.workspaceName} · ${status.openToAll?.phase === "open" ? "public link open" : `port ${status.port}`}${
               status.connected !== undefined ? ` · ${status.connected} connected` : ""
             }`
           : "Not hosting";
@@ -1027,7 +1029,7 @@ function updateTray(): void {
   // sign-in, so it says so too.
   const backups = backupTrayItems(hosting.backupAttention());
   const attention = status.launchError || backups.length ? " · needs attention" : "";
-  tray.setToolTip(`OwnBase — ${label}${attention}`.slice(0, 127));
+  tray.setToolTip(`OwnBase · ${label}${attention}`.slice(0, 127));
   tray.setContextMenu(
     Menu.buildFromTemplate([
       {
@@ -1042,8 +1044,8 @@ function updateTray(): void {
             {
               label:
                 status.launchErrorPart === "public-address"
-                  ? "Public address not reopened: see why…"
-                  : "Did not start with OwnBase: see why…",
+                  ? "See why the public link did not reopen…"
+                  : "See why the workspace did not start…",
               click: () => {
                 showMainWindow();
               },
@@ -1247,8 +1249,8 @@ function createWindow(): void {
     const { response } = await dialog.showMessageBox(win, {
       type: "error",
       title: "OwnBase",
-      message: "OwnBase's window keeps stopping.",
-      detail: `${what} A hosted workspace keeps running, and messages saved on this computer come back with the window. If it stops again where you were, open it from the start.`,
+      message: "OwnBase's window stopped working several times.",
+      detail: `${what} A workspace you host keeps running, and messages saved on this computer come back with the window. If it stops again at the same place, choose Open from the start.`,
       buttons: ["Try again", "Open from the start", "Quit OwnBase"],
       defaultId: 0,
       cancelId: 0,
@@ -1272,7 +1274,7 @@ function createWindow(): void {
   win.webContents.on("render-process-gone", (_event, details) => {
     if (details.reason === "clean-exit") return;
     console.error(`OwnBase: the window's page stopped (${details.reason}).`);
-    void recover("The window stopped unexpectedly.", false);
+    void recover("The window crashed.", false);
   });
   win.webContents.on("did-fail-load", (_event, code, description, _url, isMainFrame) => {
     if (!isRendererLoadFailure(code, isMainFrame)) return;
@@ -1394,7 +1396,7 @@ function quitOwnBase(stopConfirmed: boolean): void {
         title: "The workspace could not finish stopping",
         message: "Keep OwnBase open, or quit without waiting for the remaining work?",
         detail:
-          "Shutdown failed. Quitting anyway ends the process immediately and may lose unfinished changes. Existing workspace data is not deleted.",
+          "If you quit anyway, OwnBase closes at once and may lose changes it has not saved yet. Nothing already saved in the workspace is deleted.",
         buttons: ["Keep open", "Quit anyway"],
         defaultId: 0,
         cancelId: 0,

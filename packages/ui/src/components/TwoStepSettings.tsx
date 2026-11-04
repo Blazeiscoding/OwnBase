@@ -157,7 +157,7 @@ export function TwoStepSettings() {
       <p className="mt-1 text-sm text-ink-dim">
         {status?.enabled
           ? "On. Each sign-in asks for a code from your authenticator app after your password."
-          : "Ask for a code from an authenticator app on your phone after your password, each time you sign in."}
+          : "When it is on, each sign-in asks for your password and then a code from an authenticator app on your phone."}
       </p>
       {loadError && (
         <p role="alert" className="mt-3 text-sm text-alert">
@@ -224,10 +224,10 @@ export function TwoStepSettings() {
         <form noValidate onSubmit={(event) => void withPassword(event)} className="mt-3 space-y-3">
           <p className="text-sm text-ink-dim">
             {stage.purpose === "setup"
-              ? "First your password, to show it is you."
+              ? "Enter your password to show it is you."
               : stage.purpose === "codes"
                 ? "Your old recovery codes stop working once the new ones are made."
-                : "Without it, your password alone signs you in."}
+                : "Once it is off, your password alone signs you in."}
           </p>
           <label className="block text-sm" htmlFor={`${id}-password`}>
             Current password

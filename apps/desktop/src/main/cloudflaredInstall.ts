@@ -167,7 +167,7 @@ const MISMATCH =
 const CANNOT_SAVE =
   "OwnBase could not save cloudflared in its folder. Check that this computer has free space, then try again.";
 const NO_RELEASE =
-  "Cloudflare publishes no cloudflared for this computer. Install it yourself, then check again.";
+  "Cloudflare does not offer cloudflared for this kind of computer. Install it yourself, then press Check again.";
 const CANCELLED = "Installing cloudflared was cancelled.";
 
 /** The release file to download, with what it must turn out to be. */
@@ -198,7 +198,7 @@ function pickAsset(release: unknown, name: string): { url: string; size: number;
     size > MAX_DOWNLOAD_BYTES
   )
     throw new InstallFailure(
-      "Cloudflare's latest release has no cloudflared OwnBase can check for this computer. Install it yourself, then check again.",
+      "OwnBase could not find a cloudflared download it can check for this computer. Install it yourself, then press Check again.",
     );
   return { url: url.href, size, sha256 };
 }
@@ -334,7 +334,7 @@ export async function downloadCloudflared(options: DownloadOptions): Promise<str
     if (signal.aborted) throw new InstallFailure(CANCELLED);
     if (!(await (options.check ?? cloudflaredRuns)(staged)))
       throw new InstallFailure(
-        "The downloaded cloudflared does not run on this computer. Install it yourself from Cloudflare, then check again.",
+        "The downloaded cloudflared does not run on this computer. Install it yourself from Cloudflare, then press Check again.",
       );
     await saving(rename(staged, target));
     return target;
@@ -457,7 +457,7 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
     if (already) return already;
     if (env.OWNBASE_CLOUDFLARED)
       throw new Error(
-        "OWNBASE_CLOUDFLARED names the cloudflared to use, and it is not there. Correct it, then check again.",
+        "OWNBASE_CLOUDFLARED names the cloudflared to use, but there is no file there. Correct it, then press Check again.",
       );
     const manager = findPackageManager(env, options.exists, platform);
     let failed: string | null = null;

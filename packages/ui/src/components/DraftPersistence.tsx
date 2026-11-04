@@ -243,7 +243,7 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
         if (!disposed)
           setError(
             failing.size
-              ? "Could not save drafts and queued messages on this device. Keep it open and retry."
+              ? "Could not save your drafts and unsent messages on this device. Keep OwnBase open and press Retry."
               : null,
           );
         if (loaded) keepUnstored();
@@ -382,7 +382,7 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
         }
       }
       if (conflicted)
-        setNotice("Another window changed this draft too, so both versions are kept in it.");
+        setNotice("This draft changed in another window too. OwnBase kept both versions in it.");
       for (const key of new Set([...Object.keys(stored), ...Object.keys(baseDrafts)])) {
         if (mine.has(key) || stored[key] === baseDrafts[key]) continue;
         // A change of this window's own not yet written keeps the text it was
@@ -638,7 +638,7 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
         .catch(() => {
           if (!disposed)
             setError(
-              "Could not restore drafts and queued messages on this device. Saved work is kept; retry before closing.",
+              "Could not load your drafts and unsent messages on this device. They are still saved. Press Retry before you close OwnBase.",
             );
         })
         .finally(() => {
@@ -674,7 +674,7 @@ export function DraftPersistence({ platform }: { platform: Platform }) {
         remaining.remove.length
       ) {
         setError(
-          "Could not save drafts and queued messages on this device. Keep it open and retry.",
+          "Could not save your drafts and unsent messages on this device. Keep OwnBase open and press Retry.",
         );
         throw new Error("Local work could not be saved. Keep the window open and retry.");
       }

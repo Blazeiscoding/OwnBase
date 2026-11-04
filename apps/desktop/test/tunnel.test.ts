@@ -414,7 +414,9 @@ describe("a stable address configured for this app", () => {
       "https://[2001:db8::1]",
       42,
     ])
-      expect(() => validateNamedTunnelConfig(address, tokenFile)).toThrow(/public HTTPS hostname/);
+      expect(() => validateNamedTunnelConfig(address, tokenFile)).toThrow(
+        /public address that starts with https/,
+      );
   });
 
   it("refuses a token file that is not an absolute path", () => {
@@ -476,7 +478,7 @@ describe("reading the configured stable address", () => {
         },
         present(tokenFile),
       ),
-    ).toEqual({ error: expect.stringMatching(/public HTTPS hostname/) });
+    ).toEqual({ error: expect.stringMatching(/public address that starts with https/) });
   });
 });
 
@@ -569,12 +571,12 @@ describe("opening a configured stable tunnel", () => {
     const base = { command: "cloudflared", port: 8543, publicUrl, tokenFile, launch };
     await expect(
       openNamedTunnel({ ...base, publicUrl: "http://chat.example.org", instanceId: "run" }),
-    ).rejects.toThrow(/public HTTPS hostname/);
+    ).rejects.toThrow(/public address that starts with https/);
     await expect(openNamedTunnel({ ...base, port: 70000, instanceId: "run" })).rejects.toThrow(
       /valid listening port/,
     );
     await expect(openNamedTunnel({ ...base, instanceId: "" })).rejects.toThrow(
-      /cannot verify its public address/,
+      /cannot check that the public address leads/,
     );
     expect(started).toBe(false);
   });
@@ -620,10 +622,10 @@ describe("choosing which stable address to publish", () => {
 
   it("reports a saved address that cannot be published, rather than ignoring it", () => {
     expect(resolvePublicAddress("http://box.tail1234.ts.net", named, present(tokenFile))).toEqual({
-      error: expect.stringMatching(/public HTTPS hostname/),
+      error: expect.stringMatching(/public address that starts with https/),
     });
     expect(resolvePublicAddress(42, {}, present())).toEqual({
-      error: expect.stringMatching(/public HTTPS hostname/),
+      error: expect.stringMatching(/public address that starts with https/),
     });
   });
 });
@@ -670,12 +672,12 @@ describe("publishing an address something else carries", () => {
     };
     await expect(
       openConfiguredAddress({ ...base, publicUrl: "http://box.tail1234.ts.net" }),
-    ).rejects.toThrow(/public HTTPS hostname/);
+    ).rejects.toThrow(/public address that starts with https/);
     await expect(openConfiguredAddress({ ...base, port: 0 })).rejects.toThrow(
       /valid listening port/,
     );
     await expect(openConfiguredAddress({ ...base, instanceId: "" })).rejects.toThrow(
-      /cannot verify its public address/,
+      /cannot check that the public address leads/,
     );
   });
 

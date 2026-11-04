@@ -33,7 +33,7 @@ describe("a screen share that did not start", () => {
 
   it("tells an insecure page from a browser that cannot share at all", () => {
     expect(captureFailure("screen", failure("NotSupportedError"), false)).toBe(
-      "Screen sharing needs the desktop app or a browser connection over HTTPS.",
+      "Screen sharing needs the desktop app, or a workspace address that starts with https://.",
     );
     expect(captureFailure("screen", failure("NotSupportedError"), true)).toBe(
       "This browser cannot share a screen.",
@@ -68,13 +68,13 @@ describe("a camera that did not start", () => {
     expect(
       captureFailure("camera", failure("NotReadableError", "Could not start video source")),
     ).toBe(
-      "Your camera could not start. Another app may be using it; close that app, then try again.",
+      "Your camera could not start. Another app may be using it. Close that app, then try again.",
     );
   });
 
   it("names the page as the reason where it cannot ask", () => {
     expect(captureFailure("camera", failure("NotSupportedError"), false)).toBe(
-      "Camera access needs the desktop app or a browser connection over HTTPS.",
+      "Camera access needs the desktop app, or a workspace address that starts with https://.",
     );
   });
 });
@@ -88,7 +88,7 @@ describe("a microphone that did not start", () => {
       "No microphone was found. Connect one, then try again.",
     );
     expect(captureFailure("microphone", failure("NotSupportedError"), false)).toBe(
-      "Microphone access needs the desktop app or a browser connection over HTTPS.",
+      "Microphone access needs the desktop app, or a workspace address that starts with https://.",
     );
   });
 });

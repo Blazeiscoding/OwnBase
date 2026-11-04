@@ -144,7 +144,7 @@ export function KeepAccountOffer(props: {
         </Tooltip>
       </div>
       <p className="mt-1 text-[12.5px] leading-snug text-ink-dim">
-        An account keeps your name and your messages, and gives you a place in private
+        Make an account to keep your name and your messages. With one, you can also join private
         conversations.
       </p>
       <button

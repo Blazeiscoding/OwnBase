@@ -99,8 +99,8 @@ export function WorkspaceSettings({
             role="note"
             className="mb-4 rounded-lg border border-edge bg-raised p-3 text-sm text-ink-dim"
           >
-            This workspace's server runs an older version of OwnBase, so its name and who can join
-            are changed where it is hosted, not here.
+            This workspace's server runs an older version of OwnBase. Change its name and who can
+            join where it is hosted, not here.
           </p>
         )}
         {section === "general" && (
@@ -200,8 +200,8 @@ function IconSection() {
         />
         <div className="min-w-0 flex-1">
           <p id={`${id}-hint`} className="text-[13px] text-ink-dim">
-            Shown beside the workspace&rsquo;s name in the sidebar, and to anyone who finds it to
-            join. A PNG, JPEG or WebP picture, cut to a square.
+            Shown next to the workspace&rsquo;s name in the sidebar and on the screen where people
+            join. Use a PNG, JPEG or WebP picture. OwnBase crops it to a square.
           </p>
           <div className="mt-3 flex flex-wrap gap-2">
             <button
@@ -295,7 +295,7 @@ function NameSection({ editable }: { editable: boolean }) {
     const found = !next
       ? "Give the workspace a name."
       : /\p{Cc}/u.test(draft)
-        ? "Take out the tab or line break: a workspace name is one line."
+        ? "Remove the tab or line break. A workspace name must fit on one line."
         : null;
     setProblem(found);
     if (found) {
@@ -325,7 +325,7 @@ function NameSection({ editable }: { editable: boolean }) {
         <TextField
           ref={field}
           label="Workspace name"
-          hint="Everyone in the workspace sees it, and so does anyone who finds it to join."
+          hint="Everyone in the workspace sees it, and so do people about to join."
           error={problem}
           value={draft}
           maxLength={WORKSPACE_NAME_MAX}
@@ -395,9 +395,10 @@ function PreviewsSection() {
         <span>
           Show a preview of web pages linked in messages
           <span className="block text-[13px] text-ink-dim">
-            The server reads the page and its picture, so nobody's device contacts the site. Private
-            and local addresses are never read. Turning this off adds no previews to new messages;
-            ones already shown stay until their sender removes them.
+            The workspace's server fetches the page and its picture, so nobody's device contacts the
+            site. It never fetches addresses on a private or local network. If you turn this off,
+            new messages get no previews. Previews already shown stay until their sender removes
+            them.
           </span>
         </span>
       </label>
@@ -544,15 +545,16 @@ function CopySection() {
         Download a copy
       </h4>
       <p className="text-sm text-ink-dim">
-        Everything in this workspace as one zip file: messages, channels, people, files and
-        settings. It starts on your own server with <code>restore --from</code> and the file. It
-        also holds the secrets apps use and the sign-ins in use now, so keep it somewhere safe.
+        Everything in this workspace in one zip file: messages, channels, people, files and
+        settings. To start it on your own server, run <code>restore --from</code> with the file. The
+        file also holds the secret keys apps use and everyone's current sign-ins, so keep it
+        somewhere safe.
       </p>
       <div role="status" className="mt-3 text-sm text-ink">
         {copy?.state === "making" && (
           <p>
-            Making a copy. This can take a few minutes for a large workspace, and carries on if you
-            close this window.
+            Making a copy. A large workspace can take a few minutes. It keeps going if you close
+            this window.
           </p>
         )}
         {copy?.state === "ready" && (
@@ -618,7 +620,7 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
     if (current === "guest_allowed" && next !== "guest_allowed" && guests > 0) {
       const sure = await confirm({
         title: "Sign every guest out?",
-        body: `${guests === 1 ? "A guest has" : `${guests} guests have`} joined this workspace. Whoever is signed in as a guest is signed out now, and nobody new can join as one. What guests wrote stays.`,
+        body: `${guests === 1 ? "A guest has" : `${guests} guests have`} joined this workspace. Every guest is signed out right away, and nobody new can join as a guest. Messages from guests stay.`,
         confirmLabel: "Sign guests out",
         destructive: true,
       });
@@ -646,7 +648,7 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
     <section aria-label="Who can join">
       <JoinPolicyChoice
         legend="Who can join"
-        hint="Changes as soon as you choose. People already in the workspace stay either way."
+        hint="Your choice applies right away. People already in the workspace stay."
         value={shown}
         onChange={(next) => void choose(next)}
       />
@@ -654,8 +656,8 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
         <p className="mt-3 flex items-start gap-2 text-[13px] text-ink-dim">
           <Icon name="alert" size={14} className="mt-0.5 shrink-0 text-copper" />
           <span>
-            Choosing either of the others signs every guest out at once, and nobody new can join as
-            a guest.
+            Choosing either of the other options signs every guest out right away. Nobody new can
+            join as a guest.
           </span>
         </p>
       )}
@@ -668,9 +670,9 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
         <p className="mt-4 flex items-start gap-2 text-[13px] text-ink-faint">
           <Icon name="server" size={14} className="mt-0.5 shrink-0" />
           <span>
-            You host this workspace on this computer. Opening it to all from Manage hosting chooses
-            who can join for the public link, and while the link is open Manage hosting shows and
-            changes this same setting.
+            You host this workspace on this computer. When you get a public link in Manage hosting,
+            you choose there who can join through it. While the public link is open, Manage hosting
+            shows this same setting and can change it.
           </span>
         </p>
       )}

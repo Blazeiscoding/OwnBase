@@ -91,7 +91,7 @@ export function ProfileDialog(props: {
     if (!blockedThem && confirm) {
       const go = await confirm({
         title: `Block ${name}?`,
-        body: `Nothing ${name} writes will notify you, their messages fold away for you, and your direct messages with them close. They are not told. You can unblock them here or in Account settings.`,
+        body: `You get no notifications from ${name}. Their messages stay hidden until you press Show, and your direct messages with them close. They are not told. You can unblock them here or in Account settings.`,
         confirmLabel: "Block",
         destructive: true,
       });
@@ -340,7 +340,7 @@ export function ProfileForm() {
         err instanceof ApiError && err.code === "invalid_request"
           ? "Your profile was not saved. A display name can be up to 80 characters and a status up to 120."
           : err instanceof ApiError && err.code === "unauthorized"
-            ? "Your session has ended. Sign in again to change your profile."
+            ? "You were signed out. Sign in again to change your profile."
             : "Your profile was not saved. Check your connection and try again.",
       );
     } finally {
@@ -443,7 +443,7 @@ export function ProfileForm() {
             ))}
           </select>
           <p className="mt-1.5 text-[13px] text-ink-faint">
-            Others see your local time from it.
+            Others see your local time on your profile.
             {!onThisDevice && (
               <>
                 {" "}

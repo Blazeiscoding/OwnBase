@@ -212,8 +212,8 @@ export function ThreadPanel({
           <Tooltip
             label={
               follows
-                ? "Stop following: new replies stop appearing in Threads"
-                : "Follow: new replies appear in Threads"
+                ? "Stop following. New replies will no longer show in Threads."
+                : "Follow to see new replies in Threads"
             }
             side="bottom"
           >
@@ -235,8 +235,8 @@ export function ThreadPanel({
           <Tooltip
             label={
               muted
-                ? "Muted: replies notify you only when they mention you"
-                : "Mute: replies notify you only when they mention you, even after you reply"
+                ? "Muted. Replies notify you only if they mention you."
+                : "Mute so replies notify you only if they mention you, even after you reply"
             }
             side="bottom"
           >

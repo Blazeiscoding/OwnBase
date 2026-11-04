@@ -241,7 +241,7 @@ describe("a send's words before the device keeps it (GL-02)", () => {
         .getAllByRole("alert")
         .map((a) => a.textContent)
         .join(" "),
-    ).toMatch(/could not be saved on this device\. Keep this window open/);
+    ).toMatch(/this device could not save a copy\. Keep this window open/);
     // Sent once, not queued twice.
     expect(client.state.pending).toHaveLength(1);
   });
@@ -282,7 +282,7 @@ describe("a send's words before the device keeps it (GL-02)", () => {
         .getAllByRole("alert")
         .map((a) => a.textContent)
         .join(" "),
-    ).toMatch(/could not be saved on this device/);
+    ).toMatch(/this device could not save a copy/);
   });
 
   it("let another conversation send while one waits to be kept", async () => {
@@ -364,7 +364,7 @@ describe("two windows writing the same draft (GL-03)", () => {
         .getAllByRole("status")
         .map((s) => s.textContent)
         .join(" "),
-    ).toMatch(/both versions are kept/);
+    ).toMatch(/OwnBase kept both versions/);
   });
 
   it("keeps a draft typed in one window when another, still showing it, clears it", async () => {

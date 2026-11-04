@@ -224,7 +224,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       await action();
     } catch {
       setRotateError(
-        "Could not confirm whether it was replaced. Check the integration before trying again.",
+        "Could not confirm whether it was replaced. Check that the app still works before you try again.",
       );
     }
   }
@@ -232,7 +232,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
   const replaceToken = (a: AppDetail) =>
     replace(
       `Replace ${a.name}'s bot token?`,
-      "The current token stops working immediately.",
+      "The current token stops working immediately. Whatever uses it fails until you give it the new one.",
       async () => {
         const r = await client.api.replaceAppToken(a.id);
         setSecrets((s) => ({ ...s, [a.id]: r.token }));
@@ -274,7 +274,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     <Dialog title="Apps and integrations" onClose={onClose} width={620}>
       <OnceGuard shown={[...Object.values(secrets), ...Object.values(hookUrls)]} />
       <p className="mb-4 text-sm text-ink-dim">
-        Start from what you want to happen. Each app you make posts as its own bot.
+        Connect your own scripts and tools to this workspace. Pick what you want to happen. Each app
+        you make posts messages under its own name, as a bot.
       </p>
 
       <AppTemplates
@@ -377,7 +378,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                     void client.loadCommands();
                   } catch {
                     setRotateError(
-                      "Could not confirm whether the app was deleted. Refreshing the app list; check it before trying again.",
+                      "Could not confirm whether the app was deleted. OwnBase is loading the list again. Check it before you try again.",
                     );
                     load();
                     void client.loadCommands();
@@ -631,14 +632,15 @@ function webhookTestError(err: unknown, channelName: string): string {
     return "Could not reach the workspace at this URL. Check your connection and try again.";
   }
   if (err.code === "invalid_webhook") {
-    return "This URL no longer works: it was replaced or removed. Create the webhook again.";
+    return "This URL no longer works because it was replaced or removed. Create the webhook again.";
   }
-  if (err.code === "channel_not_found") return `#${channelName} is gone or archived.`;
+  if (err.code === "channel_not_found")
+    return `#${channelName} was deleted or archived. Choose another channel.`;
   if (err.code === "not_in_channel") {
     return `The app is no longer in #${channelName}. Add it back, then try again.`;
   }
   if (err.code === "too_many_requests") return "Too many posts to this webhook. Try again shortly.";
-  return `The workspace refused the test (${err.code}).`;
+  return `The workspace refused the test. Error code: ${err.code}.`;
 }
 
 /**
@@ -678,7 +680,7 @@ function WebhookTemplate({
     e.preventDefault();
     if (busy) return;
     if (!channel) {
-      setError("A webhook posts to a channel. Create one first.");
+      setError("A webhook needs a channel to post to. Create a channel first.");
       return;
     }
     if (!app && !choice.newName.trim()) {
@@ -716,7 +718,7 @@ function WebhookTemplate({
       <p className="mb-3 text-[13px] text-ink-dim">
         {ci
           ? "Tell a channel how each build went. Add the step below to the end of a GitHub Actions job."
-          : "Post to a channel from a script, a scheduled job, or any tool that can send a web request."}
+          : "A webhook is a private web address. Anything that sends a request to it posts a message in the channel, such as a script, a scheduled job or another tool."}
       </p>
       <form onSubmit={create} noValidate className="flex flex-wrap items-end gap-2">
         {choice.channelField("Channel")}
@@ -770,7 +772,7 @@ function WebhookTemplate({
         <p className="mt-2 text-[12px] text-ink-faint">
           {ci
             ? "Create the webhook to get the URL the step posts to."
-            : "Create the webhook to fill in its URL."}
+            : "Create the webhook to fill in its URL in the example."}
         </p>
       )}
     </>
@@ -874,8 +876,9 @@ function CommandTemplate({
   return (
     <>
       <p className="mb-3 text-[13px] text-ink-dim">
-        Run your own service when someone types a command. Start the example below where the
-        workspace can reach it, then add the command with its address.
+        A slash command, such as /deploy, runs your own service when someone types it. Start the
+        example service below on a computer the workspace can reach. Then add the command with the
+        service&rsquo;s web address.
       </p>
       <form onSubmit={add} noValidate className="flex flex-wrap items-end gap-2">
         <TextField
@@ -903,8 +906,9 @@ function CommandTemplate({
         </button>
       </form>
       <p className="mt-1.5 text-[12px] text-ink-faint">
-        The server calls this address itself. It refuses a private or loopback one unless it was
-        started with <code className="whitespace-nowrap font-mono">--allow-private-hooks</code>.
+        The workspace's server sends requests to this address. It refuses addresses on a private
+        network or on the server's own computer, unless the server was started with{" "}
+        <code className="whitespace-nowrap font-mono">--allow-private-hooks</code>.
       </p>
       {error && (
         <p role="alert" className="mt-2 text-[12px] text-alert">
@@ -939,7 +943,7 @@ function CommandTemplate({
       />
       {!app && (
         <p className="mt-2 text-[12px] text-ink-faint">
-          The app&rsquo;s signing secret goes in once the app exists.
+          The example gets the app&rsquo;s signing secret once the app exists.
         </p>
       )}
     </>
@@ -1010,10 +1014,10 @@ function SlackDifferences() {
           <code className="font-mono">chat.postMessage</code> take the shapes Slack&rsquo;s do.
         </p>
         <p>
-          Not everything carries over. There is no OAuth or Socket Mode: an app gets a bot token and
-          a signing secret here, with the scopes ticked below, and receives events and button
-          presses over HTTP. A message&rsquo;s <code className="font-mono">ts</code> is an id rather
-          than a time.
+          Not everything carries over. There is no OAuth or Socket Mode. An app here gets a bot
+          token and a signing secret, with the scopes ticked below. It receives events and button
+          presses over HTTP. A message&rsquo;s <code className="font-mono">ts</code> is an id, not a
+          time.
         </p>
         <p>
           <a
@@ -1359,9 +1363,9 @@ function DeliveryStatus({ delivery }: { delivery: EventSubscription["delivery"] 
   if (pending === 0 && failed === 0 && dropped === 0 && retrying === 0) return null;
   const parts = [
     pending > 0 ? `${pending} waiting` : null,
-    retrying > 0 ? `${retrying} to retry as room frees up` : null,
+    retrying > 0 ? `${retrying} to retry once the app catches up` : null,
     failed > 0 ? `${failed} given up on` : null,
-    dropped > 0 ? `${dropped} dropped while behind` : null,
+    dropped > 0 ? `${dropped} dropped because the app fell behind` : null,
     failed > 0 && lastError ? lastError : null,
   ].filter(Boolean);
   const bad = failed > 0 || dropped > 0;
@@ -1439,7 +1443,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
                 {sub.url}
               </span>
               <span className="shrink-0 text-[11px] text-ink-dim">
-                {sub.eventTypes.length > 0 ? `${sub.eventTypes.length} types` : "everything"}
+                {sub.eventTypes.length > 0 ? `${sub.eventTypes.length} types` : "all events"}
               </span>
               {(sub.delivery?.failed ?? 0) > 0 && (
                 <button
@@ -1535,9 +1539,9 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           ))}
         </div>
         <p className="mt-1 text-[11px] text-ink-faint">
-          None selected sends everything. The URL must answer the{" "}
-          <code className="font-mono">url_verification</code> challenge, and the app&rsquo;s bot
-          only receives events from channels it has been added to.
+          With none selected, the app gets every event. The URL must answer the{" "}
+          <code className="font-mono">url_verification</code> check. The app only gets events from
+          channels it has been added to.
         </p>
       </form>
       {error && (
@@ -1597,9 +1601,9 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
           label="Request URL"
           hint={
             <>
-              Buttons in this app&apos;s messages post Slack&apos;s{" "}
-              <code className="font-mono">block_actions</code> payload here. Leave empty to turn
-              them off.
+              When someone presses a button in this app&apos;s messages, the workspace sends
+              Slack&apos;s <code className="font-mono">block_actions</code> payload here. Leave it
+              empty to turn buttons off.
             </>
           }
           error={problem}
@@ -1644,7 +1648,7 @@ function OnceGuard({ shown }: { shown: string[] }) {
     shown.some((value) => !wasCopied(value))
       ? {
           title: "Close before copying?",
-          body: "Bot tokens and webhook addresses made here are shown only once. Copy them first, unless you already have.",
+          body: "You can see the bot tokens and webhook addresses made here only once. Copy them first if you have not already.",
           confirmLabel: "Close anyway",
         }
       : null,

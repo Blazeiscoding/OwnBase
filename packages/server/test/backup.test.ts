@@ -188,7 +188,7 @@ describe("backup and restore", () => {
       sha256: createHash("sha256").update(bytes).digest("hex"),
     };
     writeFileSync(join(out, "manifest.json"), JSON.stringify(manifest));
-    await expect(verifyBackup(out)).rejects.toThrow(/newer server/);
+    await expect(verifyBackup(out)).rejects.toThrow(/newer version of OwnBase/);
   });
 
   it("rejects overlapping directories without moving the workspace", async () => {
@@ -267,7 +267,7 @@ describe("backup and restore", () => {
       join(out, "manifest.json"),
       JSON.stringify({ ...manifest, schemaVersion: manifest.schemaVersion + 5 }),
     );
-    await expect(verifyBackup(out)).rejects.toThrow(/newer server/);
+    await expect(verifyBackup(out)).rejects.toThrow(/newer version of OwnBase/);
   });
 
   it("keeps the superseded workspace rather than deleting it", async () => {

@@ -129,7 +129,7 @@ export function DirectMessagesPanel(props: {
             arriving || dms.length > 0
               ? null
               : guest
-                ? "Direct messages are for members. As a guest you have the public channels."
+                ? "Direct messages are for members. As a guest, you can use the public channels."
                 : "No direct messages yet. Start one with anyone in this workspace."
           }
           emptyAction={guest ? undefined : { label: "New message", run: props.onNewMessage }}

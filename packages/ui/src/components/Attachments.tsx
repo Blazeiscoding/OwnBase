@@ -222,8 +222,8 @@ function FileCard({ file }: { file: FileMeta }) {
       )}
       {handedOff && (
         <p role="status" className="mt-1 max-w-[300px] text-xs text-ink-dim">
-          Download handed to your browser or device. Check its downloads or save dialog; click again
-          if it did not start.
+          Your browser or device took over the download. Look in its downloads or save window. If
+          nothing started, click again.
         </p>
       )}
     </div>
@@ -248,12 +248,12 @@ export function saveUrl(url: string, name: string) {
   a.click();
 }
 
-const UNAVAILABLE = "File unavailable or you no longer have access.";
+const UNAVAILABLE = "This file is gone, or you no longer have access to it.";
 
 function fileError(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.code === "download_upgrade_required")
-      return "Update the workspace server and app to download large files.";
+      return "Large files need a newer OwnBase. Update this app, and ask the host to update the workspace server.";
     if (err.status === 401) return "Sign in again to download this file.";
     if (err.status === 403 || err.status === 404) return UNAVAILABLE;
   }

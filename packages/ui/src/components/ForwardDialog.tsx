@@ -118,7 +118,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
       forward: forwardOf(source, channelId, fromPublic),
     });
     if (!sent) {
-      setProblem("Too many messages are waiting to send. Try again once they have gone.");
+      setProblem("Too many messages are waiting to send. Try again after they go out.");
       return;
     }
     onClose();

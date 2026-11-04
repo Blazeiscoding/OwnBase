@@ -77,8 +77,8 @@ export function ScheduledPanel(props: {
       if (alive.current)
         setEditError(
           err instanceof ApiError && err.code === "scheduled_changed"
-            ? "The text changed on another device, so this edit was not saved. Your draft is kept."
-            : "Could not confirm the edit. Your draft is kept. Check the list for whether this message has already sent or changed.",
+            ? "The text changed on another device, so this edit was not saved. Your edit is still here."
+            : "Could not tell if your edit was saved. Your edit is still here. Check the list to see if the message has already sent or changed.",
         );
     } finally {
       mutating.current = false;
@@ -177,7 +177,7 @@ export function ScheduledPanel(props: {
     } catch {
       if (alive.current)
         setError(
-          "Could not confirm this change. Refresh the list before trying again; it may already have been sent or changed on another device.",
+          "Could not tell if this change went through. The message may already have sent, or changed on another device. Refresh the list before you try again.",
         );
     } finally {
       mutating.current = false;
@@ -217,7 +217,7 @@ export function ScheduledPanel(props: {
           empty={
             items?.length === 0 ? (
               <>
-                Nothing queued. Write a message, then choose{" "}
+                Nothing scheduled. Write a message, then choose{" "}
                 <Icon name="clock" size={13} className="inline align-[-2px]" /> Send later beside
                 the send button.
               </>
@@ -253,11 +253,15 @@ export function ScheduledPanel(props: {
             <p
               className={`text-xs ${editText.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}`}
             >
-              {editText.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()} characters ·{" "}
-              {editing.fileIds.length} attachments kept
+              {editText.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()} characters
+              {editing.fileIds.length === 1
+                ? " · 1 file stays attached"
+                : editing.fileIds.length > 1
+                  ? ` · ${editing.fileIds.length} files stay attached`
+                  : ""}
             </p>
             <p className="text-xs text-ink-faint">
-              The delivery time stays the same. Editing does not pause delivery.
+              It still sends at the same time, even while you edit it.
             </p>
             {editError && (
               <p role="alert" className="text-sm text-alert">
@@ -266,12 +270,12 @@ export function ScheduledPanel(props: {
             )}
             {!currentEdit && (
               <p role="status" className="text-sm text-ink-dim">
-                This message is no longer in the queue. You can copy your draft before closing it.
+                This message is no longer scheduled. Copy your text first if you want to keep it.
               </p>
             )}
             {currentEdit && currentEdit.text !== editing.text && (
               <div className="text-sm text-ink-dim">
-                The queued text has changed. Your draft is kept.
+                The scheduled text changed somewhere else. Your edit is still here.
                 <button
                   type="button"
                   disabled={busy !== null}
@@ -285,7 +289,7 @@ export function ScheduledPanel(props: {
                     setEditError(null);
                   }}
                 >
-                  Replace draft with current text
+                  Use the newer text instead
                 </button>
               </div>
             )}
@@ -360,7 +364,7 @@ export function ScheduledPanel(props: {
                     <span className="font-medium">
                       {s.status === "failed" ? "Not sent" : "Waiting"}
                     </span>
-                    {s.failureReason ? ` — ${s.failureReason}` : ""}
+                    {s.failureReason ? `. ${s.failureReason}` : ""}
                   </p>
                 )}
                 <div className="text-sm text-ink-dim">
@@ -417,7 +421,7 @@ export function ScheduledPanel(props: {
                     <p>
                       {confirmation.kind === "cancel"
                         ? "Remove this scheduled message?"
-                        : "Queue this message to send now?"}
+                        : "Send this message now?"}
                     </p>
                     <div className="mt-2 flex gap-3">
                       <button

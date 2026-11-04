@@ -612,7 +612,7 @@ test("a call says which route it connected on, and one that cannot connect says 
     await expect(bobReport).toContainText("Call settings: 0 STUN and 0 TURN servers");
     await expect(bobReport).toContainText("[@alice] Received their call setup.");
     await expect(bobReport).toContainText(
-      /\[@alice\] Still not connected after 15 s \(routes here: none; from them: \d+ host\)\. This device was given no STUN or TURN server/,
+      /\[@alice\] Still not connected after 15 s \(routes here: none; from them: \d+ host\)\. The workspace gave this device no STUN or TURN server/,
     );
     // Each kind of route is named once, however many of it there are.
     expect(
@@ -1980,7 +1980,7 @@ test("unsent words outlast two tabs typing at once, and a tab closed straight af
     await expect(composer(first)).toHaveValue(both);
     await expect(composer(second)).toHaveValue(both);
     // The tab whose change was made second says so.
-    const told = "Another window changed this draft too, so both versions are kept in it.";
+    const told = "This draft changed in another window too. OwnBase kept both versions in it.";
     await expect
       .poll(
         async () => (await first.getByText(told).count()) + (await second.getByText(told).count()),
@@ -2054,7 +2054,7 @@ test("database failure keeps saved work private and retries without an empty fal
   }, servers);
   await page.reload();
   await expect(
-    page.getByRole("heading", { name: "Saved sign-ins could not be opened" }),
+    page.getByRole("heading", { name: "OwnBase could not open your saved sign-ins" }),
   ).toBeVisible();
   await expect(composer(page)).toHaveCount(0);
   expect(
@@ -5259,14 +5259,14 @@ test("Activity, Threads and Scheduled keep themselves current while open (UX-08)
     await page.getByRole("button", { name: /, your account$/ }).click();
     await page.getByRole("menuitem", { name: "Scheduled messages", exact: true }).click();
     const scheduled = page.getByRole("complementary", { name: "Scheduled messages", exact: true });
-    await expect(scheduled.getByText(/Nothing queued/)).toBeVisible();
+    await expect(scheduled.getByText(/Nothing scheduled/)).toBeVisible();
     const { scheduled: queued } = await call(hana.token, `/api/channels/${general.id}/scheduled`, {
       text: "Reminder from the phone",
       sendAt: Date.now() + 3_600_000,
     });
     await expect(scheduled.getByText("Reminder from the phone", { exact: true })).toBeVisible();
     await call(hana.token, `/api/scheduled/${queued.id}`, undefined, "DELETE");
-    await expect(scheduled.getByText(/Nothing queued/)).toBeVisible();
+    await expect(scheduled.getByText(/Nothing scheduled/)).toBeVisible();
   } finally {
     await context.close().catch(() => {});
     if (liveServer.exitCode === null) {
@@ -5775,9 +5775,7 @@ test("blocking folds someone away and closes their DM, and a reported message re
       .getByRole("dialog", { name: "Profile", exact: true })
       .getByRole("button", { name: "Message bobby", exact: true })
       .click();
-    await expect(
-      alice.getByText(/You blocked bobby\. Their messages are folded away/),
-    ).toBeVisible();
+    await expect(alice.getByText(/You blocked bobby\. OwnBase hides their messages/)).toBeVisible();
     await expect(alice.locator("textarea")).toHaveCount(0);
     await alice.getByRole("button", { name: "Unblock", exact: true }).click();
     await expect(alice.locator("textarea")).toBeVisible();

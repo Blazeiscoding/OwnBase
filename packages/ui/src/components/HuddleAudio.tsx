@@ -239,8 +239,8 @@ export function HuddleAudio({
         <div className="flex flex-wrap items-center gap-2">
           <span role={heldBack ? "alert" : "status"} className="text-xs text-ink-dim">
             {heldBack
-              ? "Your browser is holding back the huddle's sound."
-              : "Call audio could not start."}
+              ? "Your browser is blocking the huddle's sound."
+              : "The huddle's sound could not start."}
           </span>
           <button
             type="button"

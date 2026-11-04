@@ -56,7 +56,7 @@ describe("an open image that is taken away (F07)", () => {
     act(() => client.files.invalidate(file.id));
     expect(screen.queryByRole("img", { name: "plan.png" })).toBeNull();
     expect((await screen.findByRole("alert")).textContent).toMatch(
-      /unavailable or you no longer have access/i,
+      /gone, or you no longer have access/i,
     );
     expect(urls.size).toBe(0);
   });
@@ -117,7 +117,7 @@ describe("an open image that is taken away (F07)", () => {
     );
     expect(screen.queryByRole("img", { name: "plan.png" })).toBeNull();
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /unavailable or you no longer have access/i,
+      /gone, or you no longer have access/i,
     );
     expect(urls.size).toBe(0);
     expect(client.files.peek(file.id)).toBeUndefined();

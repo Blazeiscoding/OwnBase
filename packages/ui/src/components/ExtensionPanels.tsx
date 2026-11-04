@@ -176,7 +176,7 @@ function PanelField({
       label={field.label}
       hint={
         field.kind === "secret" && field.isSet
-          ? `Saved. Leave it empty to keep it, or enter a new one.${field.help ? ` ${field.help}` : ""}`
+          ? `Already saved. Leave this empty to keep it, or type a new one to replace it.${field.help ? ` ${field.help}` : ""}`
           : field.help
       }
       type={field.kind === "secret" ? "password" : "text"}

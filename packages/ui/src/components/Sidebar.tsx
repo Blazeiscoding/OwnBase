@@ -97,6 +97,8 @@ interface Props {
   connectionLabel: string | null;
   /** This computer's hosting, while it hosts or something is wrong with it. */
   hosting?: HostingLine;
+  /** Manage hosting, in the desktop app, whether or not anything is hosted yet. */
+  hostingEntry?: HostingEntry;
   /** This device's other saved sign-ins, most recently used first. */
   otherWorkspaces?: OtherWorkspace[];
   onOpenWorkspace?: (url: string) => void;
@@ -112,15 +114,31 @@ export interface HostingLine {
   state: "live" | "busy" | "trouble";
   /** Something wrong that a screen reader says at once. */
   alert?: boolean;
-  onManage: () => void;
+  /** Opens Manage hosting, on Share on the internet when that is what was asked for. */
+  onManage: (section?: "internet") => void;
 }
 
-/** The hosting line: a dot for how it is going, what is happening, and Manage. */
+/**
+ * Manage hosting wherever this app can host, for the workspace menu and Ctrl+K.
+ * The hosting line is there only while something is hosted; this is there
+ * before anything is, so hosting is not found only from the join screen.
+ */
+export interface HostingEntry {
+  /** A workspace is hosted here now, so the entry manages it rather than starting one. */
+  running: boolean;
+  open: (section?: "internet") => void;
+}
+
+/**
+ * The hosting line: a dot for how it is going, what is happening, and Manage.
+ * Manage stretches over the whole line, so any part of it opens Manage hosting;
+ * the word alone was too small a target.
+ */
 export function HostingStatus(props: { hosting: HostingLine; className?: string }) {
   const { hosting } = props;
   return (
     <div
-      className={`flex items-center gap-2 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] ${props.className ?? ""}`}
+      className={`relative flex items-center gap-2 rounded-lg bg-ink/[0.04] px-2.5 py-1.5 text-[12px] transition-colors hover:bg-ink/[0.07] ${props.className ?? ""}`}
     >
       <span
         aria-hidden="true"
@@ -134,16 +152,17 @@ export function HostingStatus(props: { hosting: HostingLine; className?: string 
       />
       <span
         role={hosting.alert ? "alert" : "status"}
-        title={hosting.text}
         className="min-w-0 flex-1 truncate text-ink-faint"
       >
         {hosting.text}
       </span>
       <button
         type="button"
-        onClick={hosting.onManage}
+        onClick={() => hosting.onManage()}
         aria-label="Manage hosting"
-        className="shrink-0 font-medium text-ink hover:underline"
+        // The button covers the line, so it carries the line's full text too.
+        title={hosting.text}
+        className="shrink-0 rounded-md px-1.5 py-0.5 font-medium text-ink before:absolute before:inset-0 before:rounded-lg before:content-['']"
       >
         Manage
       </button>
@@ -463,7 +482,7 @@ export function Sidebar(props: Props) {
       const ids = list.map((s) => s.id).filter((id) => id !== section.id);
       ids.splice(to, 0, section.id);
       void client.orderSidebarSections(ids).then((ok) => {
-        if (!ok) toast?.({ message: "Could not move that section. Its order is as it was." });
+        if (!ok) toast?.({ message: "Could not move that section. The order did not change." });
       });
     };
     const items: MenuItem[] = [
@@ -502,7 +521,7 @@ export function Sidebar(props: Props) {
             title: `Delete ${section.name}?`,
             body:
               count === 0
-                ? "The section goes from your sidebar."
+                ? "This removes the section from your sidebar."
                 : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
             confirmLabel: "Delete section",
             destructive: true,
@@ -619,6 +638,7 @@ export function Sidebar(props: Props) {
                 onReviewReports={props.onReviewReports}
                 onManageApps={props.onManageApps}
                 onWorkspaceSettings={props.onWorkspaceSettings}
+                hostingEntry={props.hostingEntry}
               />
             </h1>
           </header>
@@ -762,7 +782,7 @@ export function Sidebar(props: Props) {
                   />
                   {inIt.length === 0 && !collapsed.has(place) && (
                     <p className="mb-3 px-2 text-[13px] text-ink-faint">
-                      Move conversations here from their menu.
+                      Drag a conversation here, or choose Move to in its menu.
                     </p>
                   )}
                   <ul
@@ -1074,6 +1094,7 @@ function WorkspaceMenu(props: {
   onReviewReports?: () => void;
   onManageApps?: () => void;
   onWorkspaceSettings?: () => void;
+  hostingEntry?: HostingEntry;
 }) {
   const items: MenuItem[] = props.onCreateAccount
     ? [
@@ -1109,6 +1130,17 @@ function WorkspaceMenu(props: {
       icon: "settings",
       onSelect: props.onWorkspaceSettings,
     });
+  // This computer's, not the workspace's: it goes with the workspace's own
+  // settings, before the other workspaces.
+  if (props.hostingEntry) {
+    const entry = props.hostingEntry;
+    items.push({
+      id: "hosting",
+      label: entry.running ? "Manage hosting" : "Host a workspace",
+      icon: "screen",
+      onSelect: () => entry.open(),
+    });
+  }
   // Reports waiting for an admin, which the menu's trigger shows as a dot.
   const waiting = props.onReviewReports ? (props.reportsWaiting ?? 0) : 0;
   const names = props.others.map((w) => w.name);
@@ -1183,7 +1215,7 @@ export function AccountMenu(props: {
   const setStatus = (statusEmoji: string, statusText: string, statusExpiresAt: number | null) => {
     client.api.updateMe({ statusEmoji, statusText, statusExpiresAt }).catch(() => {
       toast?.({
-        message: "Your status was not changed. Check your connection and try again.",
+        message: "Could not change your status. Check your connection and try again.",
         kind: "error",
       });
     });
@@ -1231,7 +1263,8 @@ export function AccountMenu(props: {
         void client.setAway(!awayByHand).then((ok) => {
           if (!ok)
             toast?.({
-              message: "Your presence was not changed. Check your connection and try again.",
+              message:
+                "Could not change whether you show as away. Check your connection and try again.",
               kind: "error",
             });
         }),

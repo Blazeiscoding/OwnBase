@@ -80,7 +80,7 @@ export function LinkedSignIns() {
       const now = await client.api.disconnectSignIn(method.connect!);
       if (alive.current) setLinks((current) => ({ ...current, [method.id]: now }));
     } catch (err) {
-      if (alive.current) setError(problem(err, "It is still linked."));
+      if (alive.current) setError(problem(err, "Could not unlink it."));
     } finally {
       if (alive.current) setBusy(false);
     }

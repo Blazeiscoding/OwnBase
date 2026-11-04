@@ -207,7 +207,7 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     body = (
       <div role="alert" className="flex flex-col items-center gap-3 py-16 text-center text-sm">
         <p className="text-ink-dim">
-          The screens and windows on this computer could not be listed.
+          OwnBase could not list the screens and windows on this computer.
         </p>
         <Button
           ref={retryRef}

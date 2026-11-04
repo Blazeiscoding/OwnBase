@@ -376,7 +376,7 @@ describe("when sharing does not go as chosen", () => {
     });
     const dialog = await open(user);
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "The screens and windows on this computer could not be listed.",
+      "OwnBase could not list the screens and windows on this computer.",
     );
     fail = false;
     await user.click(within(dialog).getByRole("button", { name: "Try again" }));

@@ -146,20 +146,20 @@ export function MicrophoneCheck({
           <p className="text-sm">
             Listening to {check.label ? <strong>{check.label}</strong> : "your default microphone"}.
             {check.metered
-              ? " Say something: the bar should move."
+              ? " Say something and the bar should move."
               : " It opened, but this browser cannot show how loud it is."}{" "}
             Nothing is sent to anyone.
           </p>
           {check.system && (
             <p className="text-sm text-ink-dim">
-              OwnBase hears it as other apps on this computer do, with any sound effects set up in
-              Windows.
+              OwnBase hears it the same way other apps on this computer do, including any sound
+              effects set up in Windows.
             </p>
           )}
           {wantsNoiseFilter(settings) && !check.filtered && (
             <p className="text-sm text-ink-dim">
-              Strong noise suppression could not start here, so this is your browser's own. A huddle
-              does the same.
+              Strong noise suppression could not start on this device, so this test uses Standard
+              instead. Huddles do too.
             </p>
           )}
           {check.metered && (
@@ -184,7 +184,7 @@ export function MicrophoneCheck({
           </label>
           {playback && (
             <p className="text-xs text-ink-dim">
-              Use headphones, or the speakers feed back into the microphone.
+              Use headphones. With speakers, your voice feeds back into the microphone.
             </p>
           )}
           <button type="button" className={buttonClass("secondary")} onClick={stop}>

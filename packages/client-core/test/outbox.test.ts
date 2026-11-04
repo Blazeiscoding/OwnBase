@@ -85,7 +85,7 @@ describe("a send that does not go through", () => {
     expect(failed(state)).toMatchObject({
       text: "The spreadsheet",
       failureReason:
-        "Workspace attachment storage is full. Ask the host to free space or raise the limit, then retry.",
+        "The workspace has no room left for files. Ask whoever hosts it to free space or raise the limit, then press Retry.",
       attachments: [{ name: "too-big.bin", size: 200 }],
       uploadProgress: null,
     });

@@ -349,7 +349,7 @@ function FileRow({
       )}
       {download.handedOff && (
         <p role="status" className="mx-2 mb-1 text-[12px] text-ink-dim">
-          Download handed to your browser or device. Check its downloads.
+          Your browser or device is saving the file. Look in its downloads.
         </p>
       )}
     </li>

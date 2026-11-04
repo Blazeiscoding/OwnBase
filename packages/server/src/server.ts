@@ -2088,7 +2088,12 @@ async function startWorkspaceServer(
   // memory. Do the expensive work off the event loop so calls/chat stay responsive.
   let authJobs = 0;
   const beginAuth = () => {
-    if (authJobs >= 2) throw new HttpError(429, "auth_busy", "Please retry in a moment");
+    if (authJobs >= 2)
+      throw new HttpError(
+        429,
+        "auth_busy",
+        "The workspace is handling other sign-ins. Try again in a moment.",
+      );
     authJobs++;
   };
 
@@ -2192,7 +2197,7 @@ async function startWorkspaceServer(
           throw new HttpError(
             403,
             "claim_required",
-            "this workspace has no owner yet; enter the claim code its host printed at startup",
+            "This workspace has no owner yet. Enter the claim code its host showed when it started.",
           );
         }
       }
@@ -2202,7 +2207,11 @@ async function startWorkspaceServer(
 
       if (!isFirstUser && inviteOnly()) {
         if (!body.inviteCode || !store.consumeInvite(body.inviteCode)) {
-          throw new HttpError(403, "invite_required", "a valid invite code is required to join");
+          throw new HttpError(
+            403,
+            "invite_required",
+            "This workspace needs a valid invite code to join.",
+          );
         }
       }
       const { hash, salt } = credentials;
@@ -2491,7 +2500,7 @@ async function startWorkspaceServer(
       authJobs--;
     }
     if (!valid)
-      throw new HttpError(403, "invalid_credentials", "that is not your current password");
+      throw new HttpError(403, "invalid_credentials", "That is not your current password.");
     authSucceeded(me.handle);
     beginAuth();
     let credentials: Awaited<ReturnType<typeof hashPassword>>;
@@ -3305,7 +3314,7 @@ async function startWorkspaceServer(
             new HttpError(
               507,
               "storage_quota_exceeded",
-              "Workspace attachment storage is full. Ask the host to free space or raise the limit.",
+              "The workspace has no room left for files. Ask whoever hosts it to free space or raise the limit.",
             ),
           );
           return;
@@ -3322,7 +3331,11 @@ async function startWorkspaceServer(
     try {
       await pipeline(part.file, meter, createWriteStream(blobPath(id), { flags: "wx" }));
       if (part.file.truncated)
-        throw new HttpError(413, "file_too_large", `files must be under ${maxFileSize} bytes`);
+        throw new HttpError(
+          413,
+          "file_too_large",
+          `Files must be smaller than ${maxFileSize} bytes.`,
+        );
       // Upload streaming yields; access may have been revoked while bytes arrived.
       requireUser(req);
       requireChannelAccess(channel.id, me);
@@ -4547,7 +4560,8 @@ async function startWorkspaceServer(
     if (builtin) {
       if (builtin.inApp) throw new HttpError(400, "in_app_command", builtin.inApp);
       const text = builtin.run(argText, me);
-      if (text === null) throw new HttpError(400, "usage", `usage: /${name} ${builtin.usageHint}`);
+      if (text === null)
+        throw new HttpError(400, "usage", `Use it like this: /${name} ${builtin.usageHint}`);
       // Built-ins create ordinary messages, so they spend the sender's post budget.
       ration("post", me.id);
       postMessage({
@@ -4698,7 +4712,7 @@ async function startWorkspaceServer(
     if (target.id === me.id) throw new HttpError(400, "cannot_change_self");
     if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
     if (target.role === "admin" && me.role !== "owner") {
-      throw new HttpError(403, "admins_are_equals", "only the owner can change another admin");
+      throw new HttpError(403, "admins_are_equals", "Only the owner can change another admin.");
     }
     if (body.role !== undefined && target.isBot) {
       throw new HttpError(400, "bots_have_no_role");
@@ -4784,7 +4798,11 @@ async function startWorkspaceServer(
     if (target.role === "guest") throw new HttpError(400, "guest_account");
     if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
     if (target.role === "admin" && me.role !== "owner") {
-      throw new HttpError(403, "admins_are_equals", "only the owner can reset another admin");
+      throw new HttpError(
+        403,
+        "admins_are_equals",
+        "Only the owner can reset another admin's password.",
+      );
     }
     return { me, target };
   };
@@ -4878,7 +4896,7 @@ async function startWorkspaceServer(
       if (author.id === me.id) throw new HttpError(400, "cannot_change_self");
       if (author.role === "owner") throw new HttpError(403, "owner_is_protected");
       if (author.role === "admin" && me.role !== "owner") {
-        throw new HttpError(403, "admins_are_equals", "only the owner can change another admin");
+        throw new HttpError(403, "admins_are_equals", "Only the owner can change another admin.");
       }
     }
     mutate((emit, afterCommit) => {
@@ -5532,7 +5550,7 @@ async function startWorkspaceServer(
       throw new HttpError(
         400,
         "challenge_failed",
-        "the endpoint did not echo the url_verification challenge",
+        "The URL did not answer the url_verification check with the challenge it was sent.",
       );
     }
   };
@@ -5787,14 +5805,14 @@ async function startWorkspaceServer(
             throw new HttpError(
               410,
               "scheduled_removed",
-              "This scheduling request was already accepted, but its queue record has been removed. It will not be recreated.",
+              "This message was already scheduled, and has since been removed. OwnBase will not schedule it again.",
             );
           return { scheduled, replayed: true };
         }
       }
       if (channel.archived) throw new HttpError(400, "channel_archived");
       if (body.sendAt <= Date.now()) {
-        throw new HttpError(400, "send_at_in_past", "pick a time in the future");
+        throw new HttpError(400, "send_at_in_past", "Choose a time in the future.");
       }
       // Queuing validates what sending validates, so a message cannot sit in the
       // queue for hours only to be rejected when it comes due.

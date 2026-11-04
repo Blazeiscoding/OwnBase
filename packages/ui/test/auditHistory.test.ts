@@ -75,7 +75,7 @@ describe("an entry, as an administrator would say it", () => {
         }),
       ),
     ).toBe(
-      "Alice changed what Deploy Bot may do: allowed channels:history; took away chat:write.public",
+      "Alice changed what Deploy Bot may do: allowed channels:history and took away chat:write.public",
     );
   });
 

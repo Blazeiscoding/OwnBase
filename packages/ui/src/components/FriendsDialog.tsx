@@ -23,7 +23,7 @@ export function FriendActions({ userId }: { userId: ID }) {
       const result = await client.api.updateFriend(userId, action);
       client.store.setState({ friends: result.friends });
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update friendship");
+      setError(err instanceof Error ? err.message : "Could not update this friendship. Try again.");
     } finally {
       setBusy(false);
     }
@@ -104,7 +104,8 @@ export function FriendsDialog({
   return (
     <Dialog title="Friends" onClose={onClose} ownScroll>
       <p className="mb-4 shrink-0 px-6 text-sm text-ink-dim">
-        Connect with people in this workspace. Your friends and requests stay on this server.
+        Connect with people in this workspace. Your friends list and requests stay in this
+        workspace.
       </p>
       <div
         {...tabs.listProps}

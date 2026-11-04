@@ -21,7 +21,7 @@ describe("connectionFailure", () => {
       error: new ApiError(401, "unauthorized"),
       name: "Rocket Team",
     });
-    expect(message).toMatch(/credentials/);
+    expect(message).toMatch(/did not accept your sign-in/);
     expect(message).not.toMatch(/same network/);
   });
 
@@ -74,6 +74,6 @@ describe("incompatibleWorkspace", () => {
         "http://a:8543",
         workspace({ app: "something-else" as ServerInfo["app"] }),
       ),
-    ).toMatch(/not a workspace/);
+    ).toMatch(/not an OwnBase workspace/);
   });
 });

@@ -730,8 +730,8 @@ function DroppedEphemeralsNotice({ channelId, count }: { channelId: ID; count: n
         <span className="font-medium">Only visible to you</span>
         <span>
           {count === 1
-            ? "1 older private answer here was cleared to make room."
-            : `${count} older private answers here were cleared to make room.`}
+            ? "OwnBase cleared 1 older private answer here to make room."
+            : `OwnBase cleared ${count} older private answers here to make room.`}
         </span>
         <button
           onClick={() => client.dismissDroppedEphemerals(channelId)}
@@ -783,7 +783,7 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
     <div className="flex flex-col items-center gap-1 px-5 pb-1">
       {error && (
         <p role="alert" className="text-xs text-ink-dim">
-          Could not load the latest messages. Your current history is kept.
+          Could not load the latest messages. The ones you were reading are still here.
         </p>
       )}
       <button

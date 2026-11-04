@@ -52,8 +52,8 @@ export function DeviceCheckDialog() {
     >
       <DialogScroll>
         <p id={descriptionId} className="text-sm text-ink-dim">
-          You have more than one to choose from. Pick the ones huddles use; you can change them any
-          time in Voice &amp; video settings.
+          This device has more than one microphone or camera. Pick the ones huddles should use. You
+          can change them any time in Voice &amp; video settings.
         </p>
 
         {/* Side by side, so there is little to scroll; Join stays in sight either way. */}

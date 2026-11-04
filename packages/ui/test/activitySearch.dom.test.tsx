@@ -1042,7 +1042,7 @@ describe("the search dialog", () => {
     it("shows the modifiers it reads behind the ? button", async () => {
       const user = userEvent.setup();
       const { dialog } = renderSearch(ready());
-      const help = within(dialog).getByRole("button", { name: "Search syntax" });
+      const help = within(dialog).getByRole("button", { name: "Search tips" });
       const list = document.getElementById(help.getAttribute("aria-controls")!)!;
       expect(help).toHaveAttribute("aria-expanded", "false");
       expect(list).not.toBeVisible();
@@ -1127,7 +1127,7 @@ describe("the search dialog", () => {
       const { dialog, box } = renderSearch(ready());
       await user.type(box, "from:@priya in:#design mockups{Enter}");
       await within(dialog).findByText(/are ready/);
-      await user.click(within(dialog).getByRole("button", { name: "Search syntax" }));
+      await user.click(within(dialog).getByRole("button", { name: "Search tips" }));
       expect(chips(dialog)).toEqual(["From Priya Shah", "In #design"]);
       expect(await accessibilityProblems(dialog)).toEqual([]);
     });

@@ -91,7 +91,7 @@ describe("private answers in the timeline", () => {
     expect(screen.queryByText("Private answer number 3")).toBeNull();
     expect(screen.getByText("Private answer number 23")).toBeVisible();
     expect(
-      screen.getByText("3 older private answers here were cleared to make room."),
+      screen.getByText("OwnBase cleared 3 older private answers here to make room."),
     ).toBeVisible();
     expect(await accessibilityProblems(screen.getByLabelText("Message history"))).toEqual([]);
 
@@ -109,6 +109,8 @@ describe("private answers in the timeline", () => {
     act(() => {
       for (let n = 1; n <= 21; n++) answer(n);
     });
-    expect(screen.getByText("1 older private answer here was cleared to make room.")).toBeVisible();
+    expect(
+      screen.getByText("OwnBase cleared 1 older private answer here to make room."),
+    ).toBeVisible();
   });
 });

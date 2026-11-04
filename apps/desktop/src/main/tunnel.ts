@@ -220,7 +220,9 @@ export function validatePublicAddress(publicUrl: unknown): string {
       throw new Error();
     return url.origin;
   } catch {
-    throw new Error("Use a public HTTPS hostname without a path, credentials, query, or fragment.");
+    throw new Error(
+      "Enter a public address that starts with https://, such as https://chat.example.com, with nothing after the name. IP addresses and local names do not work.",
+    );
   }
 }
 
@@ -368,7 +370,9 @@ function validateInstanceId(instanceId: unknown): void {
     instanceId.length > 200 ||
     /\s|\p{Cc}/u.test(instanceId)
   )
-    throw new Error("The hosted workspace cannot verify its public address. Restart hosting.");
+    throw new Error(
+      "OwnBase cannot check that the public address leads to this workspace. Stop hosting, then start it again.",
+    );
 }
 
 /**
@@ -393,7 +397,7 @@ export async function openConfiguredAddress(options: {
   const address = validatePublicAddress(options.publicUrl);
   validateHostedPort(options.port);
   validateInstanceId(options.instanceId);
-  if (options.signal?.aborted) throw new Error("Opening to all was cancelled.");
+  if (options.signal?.aborted) throw new Error("Getting a public link was cancelled.");
 
   const probe = options.healthProbe ?? ownBaseIsReachable;
   const health = `${address}/api/health`;
@@ -415,12 +419,12 @@ export async function openConfiguredAddress(options: {
   const deadline = Date.now() + (options.timeoutMs ?? 30_000);
   try {
     for (;;) {
-      if (options.signal?.aborted) throw new Error("Opening to all was cancelled.");
+      if (options.signal?.aborted) throw new Error("Getting a public link was cancelled.");
       if (await reachable()) break;
-      if (options.signal?.aborted) throw new Error("Opening to all was cancelled.");
+      if (options.signal?.aborted) throw new Error("Getting a public link was cancelled.");
       if (Date.now() >= deadline)
         throw new Error(
-          `${address} did not answer as this workspace. Check that whatever carries it is running and sending it to http://127.0.0.1:${options.port}.`,
+          `${address} did not answer as this workspace. Check that the tunnel or proxy behind it is running and sends it to http://127.0.0.1:${options.port}.`,
         );
       await wait(1_000, lifecycle.signal);
     }
@@ -472,7 +476,8 @@ function openTunnel(
   options: TunnelOptions,
   named?: { publicUrl: string; tokenFile: string },
 ): Promise<Tunnel> {
-  if (options.signal?.aborted) return Promise.reject(new Error("Opening to all was cancelled."));
+  if (options.signal?.aborted)
+    return Promise.reject(new Error("Getting a public link was cancelled."));
   const timeoutMs = options.timeoutMs ?? 75_000;
   const namedFailure =
     "Cloudflare could not connect the saved tunnel. Check its token file, your internet connection, and that cloudflared is version 2025.4.0 or later.";
@@ -483,7 +488,9 @@ function openTunnel(
   try {
     configDir = mkdtempSync(join(tmpdir(), "ownbase-cloudflared-"));
   } catch {
-    return Promise.reject(new Error("Could not create a temporary Cloudflare configuration."));
+    return Promise.reject(
+      new Error("OwnBase could not create a settings file for cloudflared. Try again."),
+    );
   }
   const configFile = join(configDir, "config.yml");
   let configCleaned = false;
@@ -500,7 +507,9 @@ function openTunnel(
     writeFileSync(configFile, "no-autoupdate: true\n", { mode: 0o600 });
   } catch {
     cleanupConfig();
-    return Promise.reject(new Error("Could not write the temporary Cloudflare configuration."));
+    return Promise.reject(
+      new Error("OwnBase could not write a settings file for cloudflared. Try again."),
+    );
   }
   let child: ChildProcess;
   try {
@@ -595,7 +604,7 @@ function openTunnel(
   return new Promise<Tunnel>((resolve, reject) => {
     let probeStarted = false;
     const healthProbe = options.healthProbe ?? ownBaseIsReachable;
-    const onAbort = () => fail("Opening to all was cancelled.");
+    const onAbort = () => fail("Getting a public link was cancelled.");
     const cleanupOpening = () => {
       clearTimeout(timer);
       options.signal?.removeEventListener("abort", onAbort);

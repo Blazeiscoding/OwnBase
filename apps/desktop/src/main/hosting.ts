@@ -324,15 +324,15 @@ function startFailure(error: unknown): Error {
   // The usual causes, said plainly; the code stays at the end for whoever helps.
   if (code === "EACCES" || code === "EPERM")
     return new Error(
-      `The workspace could not start: this computer did not allow OwnBase to use its data folder or port (${code}). Choose another port, or check the folder's permissions, then try again.`,
+      `The workspace could not start because this computer did not let OwnBase use its data folder or port. Choose another port, or check that OwnBase may change files in that folder, then try again. Error code ${code}.`,
     );
   if (code === "ENOSPC")
     return new Error(
-      "The workspace could not start: this computer's disk is full. Free some space, then try again.",
+      "The workspace could not start because this computer's disk is full. Free some space, then try again.",
     );
   if (typeof code === "string" && /^E[A-Z]+$/.test(code))
     return new Error(
-      `The workspace could not start (${code}). Check that its data folder is writable and its port is free, then try again.`,
+      `The workspace could not start. Check that OwnBase may change files in its data folder and that no other program uses its port, then try again. Error code ${code}.`,
     );
   return error instanceof Error ? error : new Error("The workspace could not start.");
 }
@@ -352,7 +352,7 @@ function workspaceNameOf(value: unknown): string {
     value.trim().length > 80 ||
     /\p{Cc}/u.test(value)
   )
-    throw new Error("Use a workspace name of 1 to 80 characters without control characters.");
+    throw new Error("Use a workspace name of 1 to 80 characters, without line breaks or tabs.");
   return value.trim();
 }
 
@@ -756,7 +756,7 @@ export function createHostingController(options: HostingOptions) {
       metadataDirty = true;
       if (!stopFailed)
         warning =
-          "The workspace is running, but its last-used hosting settings could not be saved.";
+          "The workspace is running, but OwnBase could not save its hosting settings for next time.";
     }
     changed();
   }
@@ -1618,8 +1618,7 @@ export function createHostingController(options: HostingOptions) {
           const retry = {
             attempts,
             nextAt: attempt + Math.min(3600_000 * 2 ** (attempts - 1), 24 * 3600_000),
-            error:
-              "The previous scheduled backup did not finish. It will be tried again after its retry delay.",
+            error: "The last scheduled backup did not finish. OwnBase will try it again later.",
           };
           // Reserve before taking any snapshot. A killed worker/app must not
           // restart into an immediate expensive retry, or erase the failure.
@@ -1867,7 +1866,7 @@ export function createHostingController(options: HostingOptions) {
       launchError = {
         part: "public-address",
         folder,
-        message: `${name} started, but ${wanted.address} was not reopened, because the stable address OwnBase is set up with has changed${current.url ? ` to ${current.url}` : ""}. Open it to all again, then choose to reopen it.`,
+        message: `${name} started, but the public link at ${wanted.address} was not reopened. The address OwnBase uses has changed${current.url ? ` to ${current.url}` : ""}. Press Get a public link, then turn on reopening it again.`,
       };
       changed();
       return started;
@@ -1909,7 +1908,7 @@ export function createHostingController(options: HostingOptions) {
         const address = publicAddress();
         if (!address.url || address.error)
           throw new Error(
-            "Only a stable address can be reopened when OwnBase starts. Set one up first; a temporary address changes every time.",
+            "OwnBase can reopen the public link only if it keeps the same address. Without your own address, the link changes every time. Enter your own address first.",
           );
       }
       const next = value ? { folder: workspace!.folder, address: publicAddress().url! } : null;
@@ -2106,7 +2105,7 @@ export function createHostingController(options: HostingOptions) {
       phase = "running";
       stopFailed = true;
       warning =
-        "The workspace could not finish stopping. Use Quit OwnBase to review recovery options.";
+        "The workspace could not finish stopping. Quit OwnBase to see what you can do next.";
       changed();
       throw error;
     }
@@ -2192,21 +2191,21 @@ export function createHostingController(options: HostingOptions) {
     const run = runs;
     return serialized(async () => {
       if (closing || request !== publicRequest || run !== runs)
-        throw new Error("Opening to all was cancelled.");
+        throw new Error("Getting a public link was cancelled.");
       const target = server;
       if (!target || phase !== "running")
-        throw new Error("Start hosting the workspace before opening it to all.");
+        throw new Error("Start hosting the workspace before getting a public link.");
       if (isolatedRun)
         throw new Error(
-          "A restored copy you are looking inside cannot be opened to all. Put it back in use first.",
+          "A restored copy you are looking inside cannot have a public link. Put it back in use first.",
         );
       if (stopFailed)
-        throw new Error("Finish stopping the workspace before changing its public access.");
+        throw new Error("Finish stopping the workspace before changing its public link.");
       if (cleanupTunnel)
         throw new Error(
-          "Stop hosting to finish closing the previous public link before opening another.",
+          "Stop hosting to finish closing the previous public link, then get a new one.",
         );
-      if (!options.openTunnel) throw new Error("Opening to all is not available in this app.");
+      if (!options.openTunnel) throw new Error("Public links are not available in this app.");
       // A configured stable address that cannot be used has to be corrected.
       // Falling back would publish a temporary link nobody was given. An
       // already open link keeps working, so its policy can still be changed.
@@ -2219,11 +2218,11 @@ export function createHostingController(options: HostingOptions) {
         !target.inviteOnly ||
         !target.setInviteOnly
       )
-        throw new Error("This hosted workspace cannot change its public access settings.");
+        throw new Error("This hosted workspace cannot have a public link.");
       // Through a tunnel nothing counts as this computer's own, so the owner
       // would need the claim code to create their account. Theirs comes first.
       if (target.accountCount && target.accountCount() === 0)
-        throw new Error("Create your own account in the workspace first, then open it to all.");
+        throw new Error("Create your own account in the workspace first, then get a public link.");
       const previousPolicy = policyOf(target);
       const closedPolicy: AccessPolicy = carriedElsewhere ? "invite_only" : previousPolicy;
       if (!tunnel) policyBeforeOpen = previousPolicy;
@@ -2258,7 +2257,7 @@ export function createHostingController(options: HostingOptions) {
           target.setInviteOnly(true);
           closeReach(target);
           openError =
-            "The public link could not finish closing. Stop hosting to retry cleanup before opening another.";
+            "The public link could not finish closing. Stop hosting to try closing it again, then get a new one.";
           if (opening === attempt) opening = null;
           changed();
           throw error;
@@ -2283,13 +2282,13 @@ export function createHostingController(options: HostingOptions) {
           await endTunnel();
         } catch (error) {
           openError =
-            "The cancelled public link could not finish closing. Stop hosting to retry cleanup before opening another.";
+            "The cancelled public link could not finish closing. Stop hosting to try closing it again, then get a new one.";
           changed();
           throw error;
         }
         putBackPolicy();
         changed();
-        throw new Error("Opening to all was cancelled.");
+        throw new Error("Getting a public link was cancelled.");
       }
       try {
         // Only a connector OwnBase starts is known to replace Cloudflare's
@@ -2304,12 +2303,13 @@ export function createHostingController(options: HostingOptions) {
           await endTunnel();
         } catch (cleanupError) {
           openError =
-            "The public link could not finish closing after setup failed. Stop hosting to retry cleanup before opening another.";
+            "Setting up the public link failed, and the link could not finish closing. Stop hosting to try closing it again, then get a new one.";
           changed();
           throw cleanupError;
         }
         putBackPolicy();
-        openError = "The workspace could not take its public address. Try opening it to all again.";
+        openError =
+          "The workspace could not use its public link. Press Get a public link to try again.";
         changed();
         throw error;
       }
@@ -2325,8 +2325,8 @@ export function createHostingController(options: HostingOptions) {
         closeReach(target);
         if (wasExternal) target.setInviteOnly?.(true);
         openError = configured.url
-          ? `The public link stopped working (${reason}). Fix its connection, then open to all again at the same address.`
-          : `The public link stopped working (${reason}). Open to all again for a new link.`;
+          ? `The public link stopped working (${reason}). Fix its connection, then press Get a public link to open it at the same address.`
+          : `The public link stopped working (${reason}). Press Get a public link for a new one.`;
         changed();
       });
       changed();

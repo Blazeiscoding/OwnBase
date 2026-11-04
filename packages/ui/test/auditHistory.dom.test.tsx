@@ -85,13 +85,13 @@ describe("Audit history list status", () => {
     const status = within(region).getByRole("status");
     expect(region).toHaveFocus();
     expect(status).toHaveTextContent("Loading recent changes…");
-    expect(within(region).queryByText("Nothing has been changed yet.")).not.toBeInTheDocument();
+    expect(within(region).queryByText("No changes yet.")).not.toBeInTheDocument();
 
     await act(async () => firstLoad.reject(new Error("offline")));
     expect(within(region).getByRole("alert")).toHaveTextContent(
       "Could not load recent changes. Check your connection and try again.",
     );
-    expect(within(region).queryByText("Nothing has been changed yet.")).not.toBeInTheDocument();
+    expect(within(region).queryByText("No changes yet.")).not.toBeInTheDocument();
 
     const retry = within(region).getByRole("button", { name: "Retry" });
     retry.focus();
@@ -105,7 +105,7 @@ describe("Audit history list status", () => {
 
     await act(async () => retryLoad.resolve({ entries: [], nextCursor: null }));
     expect(within(region).getByRole("status")).toBe(status);
-    expect(status).toHaveTextContent("Nothing has been changed yet.");
+    expect(status).toHaveTextContent("No changes yet.");
     expect(within(region).queryByRole("alert")).not.toBeInTheDocument();
     expect(status.parentElement).toHaveFocus();
     expect(await accessibilityProblems(region)).toEqual([]);
