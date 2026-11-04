@@ -179,9 +179,11 @@ function commandFailure(err: unknown): string {
 
 /** Turns a send failure into something the author can act on. */
 function sendFailureReason(error: unknown): string {
-  if (!(error instanceof ApiError)) {
+  // Status 0: an upload that never had an answer (no connection, timed out).
+  if (!(error instanceof ApiError) || error.status === 0) {
     return "Could not reach the workspace. It is sent again once you're back online.";
   }
+  if (error.status === 429) return "Too much sent at once. Press Retry in a moment.";
   switch (error.code) {
     case "channel_archived":
       return "This conversation is archived.";
