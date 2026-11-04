@@ -1,6 +1,8 @@
 // Offers the download that fits the visitor's system: the installer on
 // Windows, the server on Linux, and on a Mac or a phone, what they can use
-// instead. The files come from the latest published GitHub release. Without
+// instead. The files come from the latest published GitHub release, and
+// from Cloudflare (dl.ownbase.site) when that release has been copied there,
+// which is several times faster than GitHub's servers in some places. Without
 // this script, or when GitHub cannot be reached, every button still goes to
 // GitHub; when nothing has been released yet, the page says so.
 
@@ -8,6 +10,9 @@
   const REPO = "Blazeiscoding/OwnBase";
   const SOURCE = `https://github.com/${REPO}#try-it`;
   const KEY = "ownbase:release";
+  // The release workflow copies each published release's files here, then
+  // writes latest.json naming them, last, so it never names a missing file.
+  const MIRROR = "https://dl.ownbase.site/latest.json";
 
   /** windows, mac, linux, phone or other. */
   function system() {
@@ -55,6 +60,10 @@
     if (known) return known;
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 5000);
+    // Asked alongside GitHub; without it, the files come from GitHub.
+    const mirror = fetch(MIRROR, { signal: controller.signal })
+      .then((res) => (res.ok ? res.json() : null))
+      .catch(() => null);
     try {
       const res = await fetch(`https://api.github.com/repos/${REPO}/releases?per_page=20`, {
         headers: { Accept: "application/vnd.github+json" },
@@ -74,9 +83,16 @@
         remember({ none: true });
         return { none: true };
       }
+      // Only a copy of this same release, so the buttons never offer an older one.
+      const copied = await mirror;
+      const copies = copied && copied.tag === data.tag_name ? (copied.files ?? {}) : {};
       const pick = (pattern) => {
         const asset = (data.assets ?? []).find((a) => pattern.test(a.name));
-        return asset ? { url: asset.browser_download_url, size: asset.size } : null;
+        if (!asset) return null;
+        const copy = copies[asset.name];
+        const fast =
+          copy && /^https:\/\/dl\.ownbase\.site\//.test(copy.url) && copy.size === asset.size;
+        return { url: fast ? copy.url : asset.browser_download_url, size: asset.size };
       };
       const release = {
         version: String(data.tag_name ?? "").replace(/^v/, ""),
