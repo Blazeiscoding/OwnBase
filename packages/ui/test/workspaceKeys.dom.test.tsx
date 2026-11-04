@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
@@ -92,8 +92,12 @@ function workspace(kind: Platform["kind"]) {
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
-  const ready = () =>
-    screen.findByRole("group", { name: "Workspaces" }, { timeout: 3_000 }).then(() => {});
+  // The rail is on screen before the effect that listens for keys has run:
+  // a busy machine shows the gap, so wait out the effects as well.
+  const ready = async () => {
+    await screen.findByRole("group", { name: "Workspaces" }, { timeout: 3_000 });
+    await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
+  };
   const press = (digit: number, extra: Partial<KeyboardEventInit> = {}) =>
     fireEvent.keyDown(window, {
       key: String(digit),
