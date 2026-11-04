@@ -13,11 +13,13 @@
 # beacon to every page there (not on ownbase.pages.dev or previews). The
 # script comes from static.cloudflareinsights.com, under a versioned path, and
 # reports to /cdn-cgi/rum on the site itself, which 'self' already allows.
+# download.js also reads https://dl.ownbase.site/latest.json, the copy of the
+# newest release on Cloudflare R2 (the ownbase-downloads bucket).
 /*
   X-Content-Type-Options: nosniff
   Referrer-Policy: strict-origin-when-cross-origin
   Permissions-Policy: camera=(), microphone=(), geolocation=()
-  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; font-src 'self'; connect-src 'self' https://api.github.com; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'self'; img-src 'self' data:; style-src 'self'; script-src 'self' https://static.cloudflareinsights.com; font-src 'self'; connect-src 'self' https://api.github.com https://dl.ownbase.site; base-uri 'none'; form-action 'none'; frame-ancestors 'none'
 
 /fonts/*
   Cache-Control: public, max-age=604800
