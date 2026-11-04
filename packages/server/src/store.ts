@@ -1087,15 +1087,17 @@ export class Store {
   // ---------- membership ----------
 
   addMember(channelId: ID, userId: ID, notifyLevel: NotifyLevel = "mentions"): boolean {
-    // Replies written before joining are not this member's to catch up on,
-    // any more than they were theirs to be told about.
+    // What was written before joining is history to read, not news to catch
+    // up on, any more than it was this member's to be told about: a new
+    // member starts with the channel read, as in Slack, replies and all.
+    const seq = this.currentSeq();
     const res = this.db
       .prepare(
         `INSERT OR IGNORE INTO channel_members
-           (channel_id, user_id, joined_at, notify_level, replies_read_seq)
-         VALUES (?, ?, ?, ?, ?)`,
+           (channel_id, user_id, joined_at, notify_level, last_read_seq, replies_read_seq)
+         VALUES (?, ?, ?, ?, ?, ?)`,
       )
-      .run(channelId, userId, Date.now(), notifyLevel, this.currentSeq());
+      .run(channelId, userId, Date.now(), notifyLevel, seq, seq);
     if (res.changes > 0) this.wakeHeldScheduled({ channelId, userId });
     return res.changes > 0;
   }

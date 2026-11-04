@@ -688,3 +688,18 @@ describe("agreeing with the server about replies", () => {
     }
   });
 });
+
+describe("joining a channel", () => {
+  it("starts with what was already there read, as the server keeps it", async () => {
+    const { channel } = await owner.createChannel({ name: "launch", type: "public" });
+    await expect.poll(() => channel.id in client.state.memberships).toBe(true);
+    await client.api.leaveChannel(channel.id);
+    await expect.poll(() => channel.id in client.state.memberships).toBe(false);
+    const { message } = await owner.sendMessage(channel.id, { text: "Before your time" });
+    // Joined again from Browse channels, which the socket says as member.joined alone.
+    await client.api.joinChannel(channel.id);
+    await expect.poll(() => channel.id in client.state.memberships).toBe(true);
+    expect(client.state.memberships[channel.id]).toBeGreaterThanOrEqual(message.seq);
+    expect(isMessageRead(message, client.state)).toBe(true);
+  });
+});
