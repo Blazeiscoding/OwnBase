@@ -199,7 +199,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             (parsed.data.threadRootId ?? null) !== (threadRootId ?? null))
         ) {
           setScheduleError(
-            "Could not read the saved scheduling request. Your draft is kept; check Scheduled before sending it again.",
+            "Could not read a message you were scheduling. Your draft is still here. Look in Scheduled before you send it again.",
           );
           return;
         }
@@ -214,7 +214,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       .catch(() => {
         if (active)
           setScheduleError(
-            "Could not restore scheduling recovery. Retry before sending this draft.",
+            "Could not load a message you were scheduling. Press Try again before you send this draft.",
           );
       });
     return () => {
@@ -578,8 +578,8 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       // Nothing was taken, so the words stay here rather than only in memory.
       setSendRefusal(
         client.outboxFull()
-          ? `${OUTBOX_LIMIT} messages are already waiting to send. Once they go, or you discard some, this one can be sent.`
-          : "This message could not be queued. It is still here; try again.",
+          ? `${OUTBOX_LIMIT} messages are already waiting to send. You can send this one once they go out, or after you discard some.`
+          : "Could not send this message. Your text is still here. Try again.",
       );
       return;
     }
@@ -608,7 +608,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       clearSent(sending.draftKey);
       if (outcome === "unsaved")
         setSendRefusal(
-          "Your message is sending but could not be saved on this device. Keep this window open until it has gone.",
+          "Your message is sending, but this device could not save a copy. Keep this window open until it has sent.",
         );
     });
   }
@@ -700,21 +700,21 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
         } catch {
           // The record stays, and confirming it again gives the same answer.
         }
-        if (current()) setScheduleError(`${error.message} Your draft is kept.`);
+        if (current()) setScheduleError(`${error.message} Your draft is still here.`);
         return;
       }
       setScheduleError(
         savingRecovery
-          ? "Could not save scheduling recovery on this device. Nothing was submitted; your draft is kept."
+          ? "Nothing was scheduled because this device could not save a copy first. Your draft is still here."
           : error instanceof ApiError && error.code === "scheduling_upgrade_required"
-            ? "Update this workspace server to support safe scheduling retries. Your draft is kept."
+            ? "The workspace server needs an update before it can schedule messages. Ask the host to update OwnBase. Your draft is still here."
             : submitted
-              ? "Could not confirm scheduling. Retry confirmation to check the same request safely."
+              ? "Could not finish scheduling. Press Check again to see if the message was scheduled."
               : error instanceof ApiError && error.code === "storage_quota_exceeded"
-                ? "Workspace attachment storage is full. Your draft is kept. Ask the host to free space or raise the limit, then retry."
+                ? "The workspace has no room left for files. Your draft is still here. Ask the host to free space or raise the limit, then try again."
                 : error instanceof ApiError && error.code === "file_too_large"
-                  ? "One of these files exceeds the workspace upload limit. Remove it and try again."
-                  : "Could not upload the attachments. Your draft is kept; try again when connected.",
+                  ? "One of these files is bigger than this workspace allows. Remove it and try again."
+                  : "Could not upload the files. Your draft is still here. Try again when you're back online.",
       );
     } finally {
       if (current()) {
@@ -748,7 +748,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
     setScheduleError(null);
     setScheduleNote(
       scheduled.status === "sent"
-        ? "This scheduling request was already delivered."
+        ? "This message was already sent."
         : `Scheduled for ${formatScheduleTime(scheduled.sendAt)}. Change or remove it in Scheduled.`,
     );
   }
@@ -773,14 +773,14 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       if (scheduleContext.current === context)
         setScheduleError(
           error instanceof ApiError && error.code === "scheduling_upgrade_required"
-            ? "Update this workspace server to support safe scheduling retries. Your draft is kept."
+            ? "The workspace server needs an update before it can schedule messages. Ask the host to update OwnBase. Your draft is still here."
             : error instanceof ApiError && error.code === "scheduled_removed"
-              ? "This request was already accepted, but its queue record has been removed. It was not recreated."
+              ? "This message was scheduled, then removed from Scheduled. OwnBase did not schedule it again."
               : error instanceof ApiError && error.code === "send_at_in_past"
-                ? "The original time has passed and this request was not queued. Keep the draft to choose a new time."
+                ? "The time you picked has passed, so the message was not scheduled. Keep the draft and pick a new time."
                 : error instanceof ApiError && error.code === "scheduled_limit"
-                  ? `${error.message} Your original request is kept.`
-                  : "Could not confirm recovery. Your original request is kept; retry when connected.",
+                  ? `${error.message} Your message is still saved here.`
+                  : "Could not check if the message was scheduled. Your message is still saved here. Try again when you're back online.",
         );
     } finally {
       if (scheduleContext.current === context) {
@@ -925,7 +925,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       <ConnectionNotice />
       {archived && (
         <p role="status" className="mb-3 rounded-lg border border-edge p-3 text-sm text-ink-dim">
-          This channel is archived. New posts and replies are paused; your draft is kept. A channel
+          This channel is archived, so nobody can post or reply. Your draft is still here. A channel
           manager can reopen it in channel details.
         </p>
       )}
@@ -1027,16 +1027,20 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
       {pendingSchedule && (
         <div className="mb-2 space-y-2 rounded-lg border border-edge p-3 text-sm text-ink-dim">
           <p>
-            A scheduling request needs confirmation. Retrying uses its original text,{" "}
-            {pendingSchedule.fileIds?.length ?? 0} attachments and time; it cannot queue a second
-            copy.
+            OwnBase could not tell if this message was scheduled. Check again uses the same{" "}
+            {!pendingSchedule.fileIds?.length
+              ? "text and time"
+              : pendingSchedule.fileIds.length === 1
+                ? "text, time and file"
+                : `text, time and ${pendingSchedule.fileIds.length} files`}
+            . It cannot schedule the message twice.
           </p>
           <button
             disabled={scheduling}
             className="mr-3 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
             onClick={() => void recoverSchedule()}
           >
-            Retry confirmation
+            Check again
           </button>
           <details className="group">
             <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
@@ -1048,15 +1052,15 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               Keep this draft instead
             </summary>
             <p className="my-2">
-              Check Scheduled first. Keeping this draft does not cancel any message already queued;
-              sending it again could create a duplicate.
+              Look in Scheduled first. Keeping the draft does not cancel a message that is already
+              scheduled. If you send it again, it could go out twice.
             </p>
             <button
               disabled={scheduling}
               className="font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
               onClick={() => void recoverSchedule(true)}
             >
-              Keep draft and dismiss recovery
+              Keep the draft and stop checking
             </button>
           </details>
         </div>
@@ -1067,7 +1071,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
             className="mr-3 font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
             onClick={() => setRestoreAttempt((attempt) => attempt + 1)}
           >
-            Retry restoring request
+            Try again
           </button>
           <details className="group">
             <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
@@ -1076,18 +1080,18 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
                 size={14}
                 className="-rotate-90 transition-transform group-open:rotate-0"
               />
-              Discard unreadable recovery record
+              Keep this draft instead
             </summary>
             <p>
-              Check Scheduled before sending this draft again. Discarding recovery does not cancel a
-              queued message.
+              Look in Scheduled before you send this draft again. Keeping it does not cancel a
+              message that is already scheduled.
             </p>
             <button
               disabled={scheduling}
               className="font-medium text-ink underline decoration-ink-faint/60 hover:decoration-ink"
               onClick={() => void recoverSchedule(true)}
             >
-              Keep draft and discard recovery
+              Keep the draft and stop checking
             </button>
           </details>
         </div>
@@ -1209,7 +1213,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus }: Pr
               addFiles(
                 files,
                 data.getData("text/plain").trim()
-                  ? "The clipboard's file was attached; the text copied with it was not pasted."
+                  ? "The file from the clipboard is attached. The text copied with it was not pasted."
                   : undefined,
               );
             }}
@@ -1447,7 +1451,7 @@ function ConnectionNotice() {
         <span className="font-medium text-ink">
           {down === "offline" ? "You're offline." : "Reconnecting to the workspace…"}
         </span>{" "}
-        What you send now goes once you're back.
+        Anything you send now goes out once you're connected again.
       </span>
     </p>
   );

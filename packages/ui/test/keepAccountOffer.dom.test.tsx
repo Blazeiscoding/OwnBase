@@ -174,7 +174,7 @@ describe("offering a guest to keep their account", () => {
     );
     const offer = await screen.findByRole("region", OFFER);
     expect(offer).toHaveTextContent(
-      /keeps your name and your messages, and gives you a place in private conversations/,
+      /keep your name and your messages\. With one, you can also join private conversations/,
     );
     expect(screen.getByRole("button", { name: "Keep this account" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Dismiss" })).toBeEnabled();

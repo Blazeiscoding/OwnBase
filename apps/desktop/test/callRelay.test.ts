@@ -43,7 +43,7 @@ describe("keeping the relay", () => {
 
   it("refuses to keep a secret without the OS key store, rather than in plain text", () => {
     expect(() => encodeRelay(cloudflare, keyStore(7, false))).toThrow(
-      /credential protection is unavailable/,
+      /password store is locked or unavailable/,
     );
   });
 

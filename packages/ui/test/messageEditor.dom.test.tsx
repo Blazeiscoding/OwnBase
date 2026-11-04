@@ -132,7 +132,7 @@ describe("editing a message", () => {
     await user.clear(box);
     await user.type(box, "Ship it on Monday{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Could not save this edit. Your text is kept; try again when connected.",
+      "Could not save this edit. Your text is still here. Try again when you're back online.",
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(box).toHaveValue("Ship it on Monday");
@@ -149,7 +149,7 @@ describe("editing a message", () => {
     edit.mockRejectedValueOnce(new ApiError(404, "message_not_found"));
     await user.type(box, "!{Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This message is no longer available. Your unsaved edit is kept.",
+      "This message is no longer available. Your edit is still here.",
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(box).toHaveValue("Ship it on Friday!");
@@ -251,7 +251,7 @@ describe("an edit the server refuses because the message changed first", () => {
     edit.mockRejectedValueOnce(new ApiError(409, "message_changed"));
     await user.type(box, " (mine){Enter}");
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "This message changed before your edit was saved. Your text is kept; nothing was overwritten.",
+      "This message changed before your edit was saved. Nothing was overwritten, and your text is still here.",
     );
     expect(onClose).not.toHaveBeenCalled();
     expect(box).toHaveValue("Ship it on Friday (mine)");

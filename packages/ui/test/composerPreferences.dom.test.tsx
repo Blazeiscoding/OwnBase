@@ -153,7 +153,7 @@ describe("the Composing settings", () => {
     const { dialog, choice } = renderSettings(platform);
 
     expect(await dialog.findByRole("alert")).toHaveTextContent(
-      "Could not load your preference. Enter inserts a new line until you choose again.",
+      "Could not load your choice for Enter. Enter starts a new line until you choose again.",
     );
     expect(choice()).toHaveValue("newline");
 

@@ -202,7 +202,7 @@ describe("the share's quality while sharing, as Discord's stream quality", () =>
     await user.click(screen.getByRole("menuitemradio", { name: /^60 fps/ }));
     expect(setQuality).toHaveBeenLastCalledWith({ height: 1080, frameRate: 60 });
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "The share's quality was not changed. It goes on as it was.",
+      "Could not change the share's quality. Your screen is still shared as before.",
     );
 
     await user.click(options());

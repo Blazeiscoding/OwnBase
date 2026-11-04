@@ -176,7 +176,7 @@ describe("sections in the sidebar", () => {
     // Channels and people together, by name, as in Starred.
     expect(rows("Work")).toEqual(["design", "Maya"]);
     expect(rows("Reading")).toEqual([]);
-    expect(within(zone("Reading")).getByText(/Move conversations here/)).toBeVisible();
+    expect(within(zone("Reading")).getByText(/Drag a conversation here/)).toBeVisible();
     expect(rows("Channels")).toEqual(["general"]);
     expect(rows("Starred")).toEqual(["launch"]);
     expect(await accessibilityProblems(nav())).toEqual([]);

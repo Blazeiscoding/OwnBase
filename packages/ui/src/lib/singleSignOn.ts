@@ -41,7 +41,8 @@ export async function beginSingleSignOn(
   serverUrl: string,
   method: SignInMethod,
 ): Promise<void> {
-  if (!canSignInWithSso()) throw new Error("Single sign-on needs this page opened over https.");
+  if (!canSignInWithSso())
+    throw new Error("Single sign-on works only when this page's address starts with https.");
   const verifier = base64url(crypto.getRandomValues(new Uint8Array(32)));
   const challenge = base64url(
     new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier))),

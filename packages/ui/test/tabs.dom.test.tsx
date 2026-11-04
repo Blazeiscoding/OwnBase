@@ -236,7 +236,7 @@ describe("views that were pressed buttons", () => {
     expect(mentions).toHaveFocus();
     expect(mentions).toHaveAttribute("aria-selected", "true");
     expect(within(panel).getByRole("tabpanel", { name: "Mentions" })).toHaveTextContent(
-      "Direct and room-wide mentions in conversations you joined.",
+      "Messages that mention you or everyone, in conversations you joined.",
     );
     await waitFor(() => expect(activity).toHaveBeenLastCalledWith("mentions", expect.anything()));
     expect(await within(panel).findByText("No mentions yet.")).toBeVisible();

@@ -6,17 +6,17 @@ export const JOIN_POLICIES: { id: AccessPolicy; title: string; hint: string }[] 
   {
     id: "invite_only",
     title: "People with an invite",
-    hint: "Someone new creates an account with an invite link or code. Owners and admins make them, and so can members they allow.",
+    hint: "New people need an invite link or code to create an account. Owners and admins make invites, and so can members they allow.",
   },
   {
     id: "account_required",
     title: "Anyone who creates an account",
-    hint: "Anyone who can reach this workspace's address can create an account and join, without an invite.",
+    hint: "Anyone with a link to the workspace, such as a public link, can create an account and join. No invite needed.",
   },
   {
     id: "guest_allowed",
     title: "Anyone, guests included",
-    hint: "Visitors can also join with only a display name, as guests for a day. Guests see public channels only, and can still create an account.",
+    hint: "People can also join as a guest with only a name. A guest stays for a day and sees only public channels. Guests can still create an account.",
   },
 ];
 

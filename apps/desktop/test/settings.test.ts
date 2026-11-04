@@ -100,7 +100,7 @@ describe("saved sign-ins in the settings file", () => {
     locked.available = false;
     const settings = createSettingsStorage(file, locked);
     await expect(settings.set("servers", [server])).rejects.toThrow(
-      "OS credential protection is unavailable. Unlock your system key store and try again.",
+      "This computer's password store is locked or unavailable. Unlock it and try again.",
     );
     expect(() => onDisk()).toThrow();
 
@@ -128,10 +128,10 @@ describe("saved sign-ins in the settings file", () => {
     // Another system account, or a reinstalled OS, has a different key.
     const elsewhere = createSettingsStorage(file, keyStore(9));
     await expect(elsewhere.get("servers")).rejects.toThrow(
-      "Could not unlock saved workspace credentials. Use the original system account and key store, then try again.",
+      "OwnBase could not unlock your saved sign-ins. Sign in to this computer with the account that saved them, then try again.",
     );
     await expect(elsewhere.set("servers", [{ ...server, token: "another" }])).rejects.toThrow(
-      /Could not unlock/,
+      /could not unlock/,
     );
     expect(onDisk()).toBe(saved);
 
@@ -180,10 +180,12 @@ describe("the rest of the settings file", () => {
     writeRaw(`{"servers": [{"token": "${TOKEN}"`);
     const settings = createSettingsStorage(file, keyStore());
     const error = await settings.get("servers").catch((e: Error) => e);
-    expect((error as Error).message).toBe("Could not read settings: the JSON file is invalid.");
+    expect((error as Error).message).toBe(
+      "OwnBase could not read its settings file because the file is damaged.",
+    );
     // Ordinary settings fall back to nothing, unless the caller must know.
     expect(await settings.get("theme")).toBeNull();
-    await expect(settings.get("theme", { strict: true })).rejects.toThrow(/JSON file is invalid/);
+    await expect(settings.get("theme", { strict: true })).rejects.toThrow(/file is damaged/);
   });
 
   it("returns nothing for a setting never saved, and for a file not yet made", async () => {
@@ -213,7 +215,7 @@ describe("the rest of the settings file", () => {
     const cyclic: Record<string, unknown> = {};
     cyclic.self = cyclic;
     await expect(settings.set("layout", cyclic)).rejects.toThrow(
-      "Could not save settings: a value cannot be stored as JSON.",
+      "OwnBase could not save its settings because one value cannot be stored.",
     );
     expect(await settings.get("theme")).toBe("light");
   });

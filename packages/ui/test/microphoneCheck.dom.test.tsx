@@ -65,7 +65,7 @@ describe("testing the microphone", () => {
 
   it("says when it hears the microphone as other apps do, sound effects included", async () => {
     const user = userEvent.setup();
-    const effects = /OwnBase hears it as other apps on this computer do/;
+    const effects = /OwnBase hears it the same way other apps on this computer do/;
     render(check());
     await user.click(screen.getByRole("button", { name: "Test microphone" }));
     await screen.findByText("USB Headset");

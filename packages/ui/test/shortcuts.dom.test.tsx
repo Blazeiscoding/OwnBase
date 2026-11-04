@@ -82,7 +82,7 @@ describe("finding a shortcut", () => {
     sheet(true);
     const messages = screen.getByRole("heading", { name: "Messages" }).closest("section")!;
     expect(messages).toHaveTextContent("Previous message");
-    expect(messages).toHaveTextContent("Into the message's actions");
+    expect(messages).toHaveTextContent("Go to the message's buttons");
     expect(messages).not.toHaveTextContent("Hover");
   });
 });

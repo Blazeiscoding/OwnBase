@@ -83,7 +83,7 @@ describe("sound the browser holds back", () => {
     play.mockImplementationOnce(refused).mockResolvedValue();
     bar();
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your browser is holding back the huddle's sound.",
+      "Your browser is blocking the huddle's sound.",
     );
     await user.click(screen.getByRole("button", { name: "Turn on sound" }));
     expect(play.mock.calls.length).toBeGreaterThanOrEqual(2);
@@ -172,7 +172,7 @@ describe("recovering huddle audio", () => {
     await act(async () => {});
     expect(play).toHaveBeenCalledTimes(2);
     expect(retry).toBeInTheDocument();
-    expect(screen.getByRole("status")).toHaveTextContent("Call audio could not start.");
+    expect(screen.getByRole("status")).toHaveTextContent("The huddle's sound could not start.");
   });
 
   it("ignores a removed peer's late rejection and detaches its stream", async () => {
@@ -295,7 +295,7 @@ describe("as loud as you chose each person to be", () => {
     vi.stubGlobal("AudioContext", Stopped);
     render(<HuddleAudio peers={[peer("A")]} volumes={{ A: { volume: 180, muted: false } }} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your browser is holding back the huddle's sound.",
+      "Your browser is blocking the huddle's sound.",
     );
   });
 });
@@ -407,7 +407,7 @@ describe("the sound of a shared screen", () => {
     play.mockImplementationOnce(refused).mockImplementationOnce(refused).mockResolvedValue();
     render(<HuddleAudio peers={[sharing("A")]} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Your browser is holding back the huddle's sound.",
+      "Your browser is blocking the huddle's sound.",
     );
     await user.click(screen.getByRole("button", { name: "Turn on sound" }));
     // Both elements tried again from the one press.

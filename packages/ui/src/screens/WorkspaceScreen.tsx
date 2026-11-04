@@ -656,7 +656,7 @@ function WorkspaceInner({
       }
       if (activeChannelId) {
         setNavigationError(
-          "That conversation is not available. It may have been deleted, or you may not have access to it.",
+          "That conversation is not available. Someone may have deleted it, or you may not have access to it.",
         );
         setPanel((p) => (p.kind === "thread" ? { kind: "none" } : p));
       }
@@ -924,7 +924,7 @@ function WorkspaceInner({
     if (count > 2 && confirm) {
       const go = await confirm({
         title: "Mark everything as read?",
-        body: `${summary} will be marked as read.`,
+        body: `This marks ${summary} as read.`,
         confirmLabel: "Mark as read",
       });
       if (!go) return;
@@ -990,7 +990,7 @@ function WorkspaceInner({
       .catch(() => {
         if (ticket === navigation.current)
           setNavigationError(
-            "Could not open this message. It may have been deleted, access may have changed, or the workspace may be offline.",
+            "Could not open this message. Someone may have deleted it, or you may no longer have access to it. If you are offline, try again once you reconnect.",
           );
       })
       .finally(() => {
@@ -1415,7 +1415,7 @@ function WorkspaceInner({
         : status === "auth_failed"
           ? "signed out"
           : status === "protocol_mismatch"
-            ? "Server version incompatible — update OwnBase"
+            ? "Different OwnBase version. Update to connect."
             : status === "password_change_required"
               ? "Choose a new password to carry on"
               : "offline";
@@ -1649,7 +1649,10 @@ function WorkspaceInner({
                       role="alert"
                       className="flex w-64 shrink-0 flex-col justify-center gap-3 border-r border-edge p-5 text-sm text-ink-dim"
                     >
-                      <p>The call could not load. It carries on; reload the app to see it.</p>
+                      <p>
+                        The call could not load here, but you are still in it. Reload the app to see
+                        it.
+                      </p>
                       <button
                         type="button"
                         onClick={() => setHuddleView("chat")}

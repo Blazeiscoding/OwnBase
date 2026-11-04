@@ -120,7 +120,7 @@ describe("changing a password", () => {
     await fill(dialog, user, "old-password", "new-password-1", "new-password-1");
     expect(api.password).toHaveBeenCalledWith("old-password", "new-password-1");
     expect(await dialog.findByRole("status")).toHaveTextContent(
-      "Password changed. Your other devices have been signed out; this device stays signed in.",
+      "Password changed. Your other devices are signed out. This device stays signed in.",
     );
     expect(dialog.getByLabelText("Current password")).toHaveValue("");
     expect(dialog.getByLabelText("New password")).toHaveValue("");

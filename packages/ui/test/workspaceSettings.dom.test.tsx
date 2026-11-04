@@ -263,7 +263,7 @@ describe("who can join", () => {
       others: [guest],
     });
     expect(dialog).toHaveTextContent(
-      "Choosing either of the others signs every guest out at once, and nobody new can join as a guest.",
+      "Choosing either of the other options signs every guest out right away. Nobody new can join as a guest.",
     );
     const group = within(dialog).getByRole("group", { name: "Who can join" });
 
@@ -292,7 +292,7 @@ describe("who can join", () => {
   it("says Manage hosting has the same setting, where this computer hosts it", async () => {
     const { dialog } = await joining({ hostedHere: true });
     expect(dialog).toHaveTextContent(
-      "while the link is open Manage hosting shows and changes this same setting.",
+      "While the public link is open, Manage hosting shows this same setting and can change it.",
     );
   });
 });
@@ -304,7 +304,7 @@ describe("a workspace whose server is older", () => {
       accessPolicy: null,
     });
     expect(within(dialog).getByRole("note")).toHaveTextContent(
-      "changed where it is hosted, not here",
+      "Change its name and who can join where it is hosted, not here.",
     );
     expect(within(within(dialog).getByRole("tabpanel")).getByText("Rocket Team")).toBeVisible();
     expect(within(dialog).queryByRole("textbox")).toBeNull();

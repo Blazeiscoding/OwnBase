@@ -244,7 +244,7 @@ describe("the notifications section", () => {
   it("leaves the desktop app's own notifications alone", () => {
     const requestPermission = browserNotifications("default");
     const { dialog } = settings("notifications", "desktop");
-    expect(dialog).toHaveTextContent("The desktop app shows notifications");
+    expect(dialog).toHaveTextContent("The desktop app shows its own notifications");
     expect(within(dialog).queryByRole("button", { name: "Turn on notifications" })).toBeNull();
     expect(requestPermission).not.toHaveBeenCalled();
   });
@@ -257,7 +257,7 @@ describe("the notifications section", () => {
     const snooze = vi.spyOn(client, "snoozeNotificationsUntil").mockImplementation((until) => {
       client.store.setState({ self: { ...sam, dndUntil: until } });
     });
-    const status = within(dialog).getByText(/Pausing holds notifications/);
+    const status = within(dialog).getByText(/A pause stops notifications/);
     expect(status).toHaveAttribute("role", "status");
 
     const before = Date.now();
@@ -270,12 +270,12 @@ describe("the notifications section", () => {
 
     // Ending by itself reads as not paused, with nothing pressed.
     await act(async () => vi.advanceTimersByTime(30 * 60_000 + 100));
-    expect(status).toHaveTextContent("Pausing holds notifications");
+    expect(status).toHaveTextContent("A pause stops notifications");
 
     await user.click(within(dialog).getByRole("button", { name: /^Pause until tomorrow at / }));
     expect(snooze).toHaveBeenLastCalledWith(new Date(2026, 8, 27, 9, 0).getTime());
     await user.click(within(dialog).getByRole("button", { name: "Resume notifications" }));
     expect(snooze).toHaveBeenLastCalledWith(null);
-    expect(status).toHaveTextContent("Pausing holds notifications");
+    expect(status).toHaveTextContent("A pause stops notifications");
   });
 });

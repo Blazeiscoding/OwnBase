@@ -458,8 +458,9 @@ describe("the diagnostics dialog", () => {
     expect(lines.find((line) => line.startsWith("09:30:16.250"))).toBe(
       "09:30:16.250 #general: @lee still not connected to @sam after 15 s. " +
         "routes here 2 host, 1 srflx; from them 1 host, 1 srflx; 1 STUN, 0 TURN; ICE checking, tried again 1×. " +
-        "Both of you found public addresses, but your networks will not let you reach each other directly. " +
-        "A call between them needs a TURN relay. The host adds one in Manage hosting, under Calls from other networks.",
+        "Both devices found their internet addresses, but your networks block a direct connection. " +
+        "A call between these networks needs a TURN relay, a server that passes the call between you. " +
+        "The host adds one in Manage hosting, under Calls from other networks.",
     );
     expect(report).not.toHaveTextContent("Lee Park");
   });
@@ -506,9 +507,7 @@ describe("the diagnostics dialog", () => {
     const blob = blobs.get(href)!;
     expect(blob.type).toBe("text/plain;charset=utf-8");
     expect(await blob.text()).toBe(report.textContent);
-    expect(screen.getByRole("status")).toHaveTextContent(
-      `Handed to your browser or device as ${download}.`,
-    );
+    expect(screen.getByRole("status")).toHaveTextContent(`Saving as ${download}.`);
   });
 });
 

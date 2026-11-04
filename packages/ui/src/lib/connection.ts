@@ -23,20 +23,22 @@ export function connectionFailure(opts: {
   pageProtocol?: string;
 }): string {
   const who = opts.name ?? `the workspace at ${host(opts.url)}`;
+  // At the start of a sentence.
+  const Who = who.charAt(0).toUpperCase() + who.slice(1);
   if (opts.error instanceof ApiError) {
     if (opts.error.status === 401 || opts.error.status === 403) {
-      return `${who} did not accept these credentials. Sign in again.`;
+      return `${Who} did not accept your sign-in. Sign in again.`;
     }
-    return `${who} answered with an error (${opts.error.status}).`;
+    return `${Who} sent back error ${opts.error.status}. Try again in a moment.`;
   }
   // A page on https cannot open http; the browser stops it before the network.
   if (opts.pageProtocol === "https:" && opts.url.startsWith("http://")) {
-    return `This page is on https, so the browser will not open ${host(opts.url)} over plain http. Use an https address, or open the desktop app.`;
+    return `This page uses https, so your browser will not open ${host(opts.url)}, which uses plain http. Use an https address, or use the desktop app.`;
   }
   if (opts.error instanceof DOMException && opts.error.name === "TimeoutError") {
-    return `${who} did not answer in time. It may be asleep or behind a firewall.`;
+    return `${Who} did not answer in time. The computer it runs on may be asleep, or a firewall may be blocking it.`;
   }
-  return `Could not reach ${who}. Check that it is running and on the same network.`;
+  return `Could not reach ${who}. Check that it is running and that you are on its network.`;
 }
 
 /**
@@ -45,13 +47,13 @@ export function connectionFailure(opts: {
  */
 export function incompatibleWorkspace(url: string, info: ServerInfo): string | null {
   if (info.app !== "ownbase") {
-    return `Something is answering at ${host(url)}, but it is not a workspace.`;
+    return `Something answers at ${host(url)}, but it is not an OwnBase workspace. Check the address.`;
   }
   if (info.protocolVersion > PROTOCOL_VERSION) {
-    return `${info.workspaceName} runs a newer version of OwnBase (server v${info.serverVersion}). Update this app to join it.`;
+    return `${info.workspaceName} runs OwnBase server v${info.serverVersion}, which is newer than this app. Update this app to join it.`;
   }
   if (info.protocolVersion < PROTOCOL_VERSION) {
-    return `${info.workspaceName} runs an older version of OwnBase (server v${info.serverVersion}). Its host needs to update the server.`;
+    return `${info.workspaceName} runs OwnBase server v${info.serverVersion}, which is older than this app. The person who runs it needs to update the server.`;
   }
   return null;
 }

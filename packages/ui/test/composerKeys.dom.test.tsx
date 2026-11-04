@@ -207,7 +207,7 @@ describe("a scheduled send that cannot upload its files", () => {
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Workspace attachment storage is full. Your draft is kept. Ask the host to free space or raise the limit, then retry.",
+      "The workspace has no room left for files. Your draft is still here. Ask the host to free space or raise the limit, then try again.",
     );
     expect(schedule).not.toHaveBeenCalled();
     expect(box).toHaveValue("The quarterly numbers");
@@ -225,7 +225,7 @@ describe("a send the outbox cannot take", () => {
     expect(send).toHaveBeenCalledOnce();
     expect(box).toHaveValue("one more thing");
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "50 messages are already waiting to send. Once they go, or you discard some, this one can be sent.",
+      "50 messages are already waiting to send. You can send this one once they go out, or after you discard some.",
     );
 
     full.mockReturnValue(false);
@@ -307,11 +307,11 @@ describe("a scheduled send past the queue's limit", () => {
     await user.click(screen.getByRole("button", { name: /^Schedule for .*2099 at / }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "You already have 200 messages waiting to be sent. Send or cancel some before scheduling more. Your draft is kept.",
+      "You already have 200 messages waiting to be sent. Send or cancel some before scheduling more. Your draft is still here.",
     );
     expect(schedule).toHaveBeenCalledOnce();
     expect(box).toHaveValue("One more for Friday");
-    expect(screen.queryByRole("button", { name: "Retry confirmation" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Check again" })).toBeNull();
   });
 });
 

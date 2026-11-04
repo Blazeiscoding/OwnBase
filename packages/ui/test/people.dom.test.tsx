@@ -94,7 +94,7 @@ describe("people actions", () => {
     const menu = screen.getByRole("menu", { name: "Actions for Alex Chen" });
     for (const item of [
       "Make admin",
-      "Stop inviting",
+      "Stop them inviting people",
       "Deactivate",
       "Reset password",
       "Transfer ownership",

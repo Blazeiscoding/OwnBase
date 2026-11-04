@@ -386,10 +386,10 @@ export function App({ platform }: { platform: Platform }) {
     }
   }
 
-  const saveErrorText = `Could not save changes to sign-ins on this device. This session can continue.${
+  const saveErrorText = `Could not save your sign-ins on this device. You can keep working.${
     platform.kind === "desktop"
-      ? " Unlock your system key store and retry; new sign-ins are never saved as plain text."
-      : " Check browser storage and retry before closing."
+      ? " Unlock your computer's password store, then press Retry saving. OwnBase never saves a sign-in without protecting it."
+      : " Check that your browser lets this site store data, then press Retry saving before you close the tab."
   }`;
   // Shown only while a change is unsaved, which it makes again.
   const retrySaving = () => {
@@ -493,12 +493,12 @@ export function App({ platform }: { platform: Platform }) {
                     <Icon name="alert" size={22} />
                   </span>
                   <h1 className="text-xl font-semibold tracking-tight">
-                    Saved sign-ins could not be opened
+                    OwnBase could not open your saved sign-ins
                   </h1>
                   <p role="alert" className="mt-3 text-sm leading-relaxed text-ink-dim">
                     {platform.kind === "desktop"
-                      ? "Unlock your system key store, or use the OS account that saved these sign-ins, and try again. The saved data is still on this device."
-                      : "Browser storage could not be read. The saved data is kept; try again after resolving the storage problem."}
+                      ? "Unlock your computer's password store, or sign in to the computer account that saved them. Then press Try again. Your sign-ins are still on this device."
+                      : "Your browser would not let OwnBase read what it saved. Nothing was deleted. Check that your browser lets this site store data, then press Try again."}
                   </p>
                   <div className="mt-7 flex flex-wrap justify-center gap-2">
                     <button
@@ -647,12 +647,13 @@ export function App({ platform }: { platform: Platform }) {
                 dismissible={!forgetBusy}
               >
                 <p className="text-sm text-ink-dim">
-                  Remove saved sign-ins on this device and sign in again. Drafts, queued messages
-                  and hosted workspaces stay on this device.
+                  This removes the sign-ins saved on this device. Then you sign in again. Drafts,
+                  messages waiting to send and workspaces you host stay on this device.
                 </p>
                 {forgetError && (
                   <p role="alert" className="mt-3 text-sm text-alert">
-                    Could not update saved sign-ins. Check access to the settings file and retry.
+                    Could not remove the saved sign-ins. Check that OwnBase can save to this device,
+                    then try again.
                   </p>
                 )}
                 <div className="mt-5 flex justify-end gap-2">

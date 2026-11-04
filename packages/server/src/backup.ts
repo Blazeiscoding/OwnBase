@@ -116,7 +116,9 @@ function snapshotDetails(db: DatabaseSync) {
   const schemaVersion = (db.prepare("PRAGMA user_version").get() as { user_version: number })
     .user_version;
   if (schemaVersion > SCHEMA_VERSION)
-    throw new Error("This backup was written by a newer server. Upgrade before restoring it.");
+    throw new Error(
+      "A newer version of OwnBase made this backup. Update OwnBase before restoring it.",
+    );
   const row = db.prepare("SELECT value FROM meta WHERE key = 'workspace_name'").get() as
     { value: string } | undefined;
   const files = db.prepare("SELECT id, size FROM files ORDER BY id").all() as unknown as {
@@ -313,7 +315,7 @@ async function captureWorkspace(dataDir: string, out: string): Promise<BackupMan
     await copyFile(from, join(out, FILES, name));
     const entry = { ...(await checksum(join(out, FILES, name))), name };
     if (entry.bytes !== file.size)
-      throw new Error(`Backup is incomplete: ${name} has the wrong size.`);
+      throw new Error(`This backup is incomplete. ${name} has the wrong size.`);
     files.push(entry);
   }
 
@@ -339,7 +341,7 @@ export async function verifyBackup(backupDir: string): Promise<BackupManifest> {
     await regularFile(join(dir, MANIFEST));
     raw = JSON.parse(await readFile(join(dir, MANIFEST), "utf8"));
   } catch {
-    throw new Error(`${dir} does not look like a backup: no readable ${MANIFEST}.`);
+    throw new Error(`${dir} is not a backup. OwnBase found no ${MANIFEST} it could read there.`);
   }
   const parsed = manifestSchema.safeParse(raw);
   if (!parsed.success) throw new Error("Backup manifest is invalid or uses an unsupported format.");
@@ -351,19 +353,19 @@ export async function verifyBackup(backupDir: string): Promise<BackupManifest> {
   }
   if (manifest.schemaVersion > SCHEMA_VERSION) {
     throw new Error(
-      `This backup was written by a newer server (schema ${manifest.schemaVersion}, this build understands ${SCHEMA_VERSION}). Upgrade before restoring it.`,
+      `A newer version of OwnBase made this backup. It uses schema ${manifest.schemaVersion}, and this version reads up to ${SCHEMA_VERSION}. Update OwnBase before restoring it.`,
     );
   }
   for (const entry of [manifest.database, ...manifest.files]) {
     const path = entry === manifest.database ? join(dir, DATABASE) : join(dir, FILES, entry.name);
-    if (!existsSync(path)) throw new Error(`Backup is incomplete: ${entry.name} is missing.`);
+    if (!existsSync(path)) throw new Error(`This backup is incomplete. ${entry.name} is missing.`);
     await regularFile(path);
     // Reject a files directory redirected through a symlink or junction as well.
     if (!contains(await realpath(dir), await realpath(path)))
       throw new Error("Backup file escapes its directory.");
     const actual = await checksum(path);
     if (actual.sha256 !== entry.sha256 || actual.bytes !== entry.bytes) {
-      throw new Error(`Backup is damaged: ${entry.name} does not match its checksum.`);
+      throw new Error(`This backup is damaged. ${entry.name} does not match its checksum.`);
     }
   }
 
@@ -396,7 +398,7 @@ export async function verifyBackup(backupDir: string): Promise<BackupManifest> {
     for (const file of actual.files) {
       if (inventory.get(file.id)?.bytes !== file.size) {
         throw new Error(
-          `Backup is incomplete: attachment ${file.id} is missing or has the wrong size.`,
+          `This backup is incomplete. The attachment ${file.id} is missing or has the wrong size.`,
         );
       }
     }

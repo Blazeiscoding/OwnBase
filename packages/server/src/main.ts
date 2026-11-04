@@ -106,17 +106,14 @@ Usage: ownbase-server [options]
   --name <name>     Workspace name, until the workspace has an owner. After
                     that it keeps its own; owners and admins rename it in
                     Workspace settings
-  --invite-only     Require an invite code to register (as --access-policy
-                    invite_only)
+  --invite-only     Require an invite code to register. The same as
+                    --access-policy invite_only
   --access-policy <invite_only|account_required|guest_allowed>
                     Who may join: invited accounts, any account, or guests
-                    with a display name too (overrides --invite-only). Sets
-                    a new workspace's rule, until it has an owner. After that
+                    with a display name too. Overrides --invite-only. Sets a
+                    new workspace's rule until it has an owner. After that
                     the workspace keeps its own, which owners and admins
                     change in Workspace settings
-                    The code that claims a new workspace is made here and
-                    printed below, or given in OWNBASE_CLAIM_CODE by a host
-                    that sends the link to claim it
   --no-mdns         Do not advertise on the local network
   --storage-limit-mb <n>
                     Attachment storage cap in MiB; 0 is unlimited (default).
@@ -197,6 +194,14 @@ Usage: ownbase-server [options]
                     this server can reach your whole LAN, and an admin-typed
                     URL should not become a way to probe it. Turn it on when
                     your bots really do run on the same network.
+
+Claiming a new workspace
+
+  A new workspace has no owner. The first account made in it becomes the
+  owner. Made from another computer, or with --public-url set, that account
+  needs the claim code. The server makes the code when it starts and prints
+  it, unless OWNBASE_CLAIM_CODE gives one. A host that sends people the link
+  to claim the workspace sets that.
 
 Backups
 
@@ -542,7 +547,7 @@ const server = await createWorkspaceServer({
 console.log(`\n  OwnBase server v${SERVER_VERSION} is running`);
 console.log(`  Data: ${resolve(values.data)}`);
 if (server.upgradeBackup) {
-  console.log(`  Upgraded this workspace; the copy from before is at ${server.upgradeBackup}`);
+  console.log(`  Upgraded this workspace. The copy from before is at ${server.upgradeBackup}`);
 }
 console.log(`  Local:   http://localhost:${server.port}`);
 if (values.isolated) {
@@ -576,7 +581,7 @@ for (const extension of extensions) {
 if (memberNotice) {
   const plan = memberNotice.planName ? `the ${memberNotice.planName} plan` : "the plan";
   console.log(
-    `  Members: ${plan} includes ${memberNotice.members}; past that, the owner and admins are told`,
+    `  Members: ${plan} includes ${memberNotice.members}. Past that, the owner and admins are told`,
   );
 }
 for (const addr of loopbackOnly ? [] : lanAddresses()) {

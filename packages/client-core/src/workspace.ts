@@ -152,8 +152,8 @@ interface Choice<V> {
 const CLOSED = new Error("The workspace client was closed.");
 
 const STALE_SEND =
-  `Not sent again on its own: this was written more than ${SEND_RETRY_WINDOW_MS / 86_400_000} days ago ` +
-  "and may have been posted already. Retry to send it anyway, or discard it.";
+  `Not sent. You wrote this more than ${SEND_RETRY_WINDOW_MS / 86_400_000} days ago, ` +
+  "so it may already be posted. Press Retry to send it anyway.";
 
 /**
  * Whether a failed send was answered and refused by the server, as opposed to
@@ -167,6 +167,14 @@ function isRefusal(error: unknown): boolean {
     error.status < 500 &&
     ![401, 408, 429].includes(error.status)
   );
+}
+
+/** Why a slash command did not run, as a sentence: the server's words when it gave some. */
+function commandFailure(err: unknown): string {
+  if (!(err instanceof ApiError)) return "The workspace did not answer. Check your connection.";
+  const text = err.message && err.message !== err.code && /\s/.test(err.message) ? err.message : "";
+  if (!text) return "The workspace turned it down.";
+  return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
 
 /** Turns a send failure into something the author can act on. */
@@ -192,7 +200,7 @@ function sendFailureReason(error: unknown): string {
     case "forward_unavailable":
       return "What this forwards is private or deleted, so it cannot be passed on.";
     case "storage_quota_exceeded":
-      return "Workspace attachment storage is full. Ask the host to free space or raise the limit, then retry.";
+      return "The workspace has no room left for files. Ask whoever hosts it to free space or raise the limit, then press Retry.";
     case "nonce_conflict":
     case "message_deleted":
       return "This was already sent once. Discard it to clear it.";
@@ -200,7 +208,7 @@ function sendFailureReason(error: unknown): string {
       return "This account is deactivated.";
     default:
       return error.status >= 500
-        ? "The workspace had a problem saving this."
+        ? "The workspace could not save this. Press Retry to try again."
         : "This message was refused.";
   }
 }
@@ -4125,7 +4133,7 @@ export class WorkspaceClient {
       const message =
         err instanceof ApiError && err.code === "unknown_command"
           ? `\`/${name}\` is not a command here.`
-          : `\`/${name}\` could not run: ${err instanceof ApiError ? err.message : "the server did not answer"}.`;
+          : `\`/${name}\` could not run. ${commandFailure(err)}`;
       this.addEphemeral({
         id: `local-${Date.now()}-${++this.nonceCounter}`,
         channelId,

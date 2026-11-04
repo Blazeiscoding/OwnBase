@@ -20,27 +20,27 @@ describe("scheduled backups in the tray", () => {
 
   it("names the one that did not finish, and offers to try again", () => {
     expect(backupTrayItems([failed("Rocket Team")])).toEqual([
-      { label: "Backup of Rocket Team did not finish: see why…", action: "show" },
+      { label: "See why the backup of Rocket Team did not finish…", action: "show" },
       { label: "Try the backup again", action: "retry" },
     ]);
   });
 
   it("counts several, rather than listing them", () => {
     expect(backupTrayItems([failed("Rocket Team"), failed("Design Guild")])[0]).toEqual({
-      label: "2 scheduled backups did not finish: see why…",
+      label: "See why 2 scheduled backups did not finish…",
       action: "show",
     });
   });
 
   it("offers no retry when each backup was made and only removing older ones failed", () => {
     expect(backupTrayItems([failed("Rocket Team", false)])).toEqual([
-      { label: "Backup of Rocket Team did not finish: see why…", action: "show" },
+      { label: "See why the backup of Rocket Team did not finish…", action: "show" },
     ]);
   });
 
   it("keeps an ampersand in a name from becoming an access key", () => {
     expect(backupTrayItems([failed("R&D")])[0]!.label).toBe(
-      "Backup of R&&D did not finish: see why…",
+      "See why the backup of R&&D did not finish…",
     );
   });
 });

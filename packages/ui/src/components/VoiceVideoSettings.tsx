@@ -25,13 +25,13 @@ const NOISE = [
   {
     level: "standard",
     label: "Standard",
-    hint: "Your browser's own: takes out steady sound such as fans and hum.",
+    hint: "Uses your browser's built-in filter. Takes out steady sound such as fans and hum.",
     patch: { noiseSuppression: true, noiseFilter: false },
   },
   {
     level: "off",
     label: "Off",
-    hint: "Sends your microphone as it is, for music or a microphone that cleans up its own sound.",
+    hint: "Sends your microphone's sound as it is. Good for music, or a microphone that removes noise itself.",
     patch: { noiseSuppression: false, noiseFilter: false },
   },
 ] as const;
@@ -108,7 +108,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
 
       {devices.listed && !devices.named && (
         <div className="rounded-lg border border-edge p-3 text-sm text-ink-dim">
-          <p>Your browser keeps devices' names back until it is allowed to use one.</p>
+          <p>Your browser hides device names until you let OwnBase use your microphone.</p>
           <button
             type="button"
             className={buttonClass("secondary", "mt-2")}
@@ -225,7 +225,8 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
       </div>
 
       <p className="text-sm text-ink-dim">
-        These apply to huddles in every workspace on this device, and to a huddle you are in now.
+        These settings apply to huddles in every workspace on this device, including a huddle you
+        are in now.
       </p>
       {calls.error && (
         <p role="alert" className="text-sm text-alert">

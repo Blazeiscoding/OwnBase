@@ -108,7 +108,7 @@ export function PollDialog({
       poll: { options: given, multiple, anonymous },
     });
     if (!sent)
-      return say("send", "Too many messages are waiting to send. Try again once they have gone.");
+      return say("send", "Too many messages are waiting to send. Try again after they go out.");
     onSent?.();
     onClose();
   }
@@ -231,7 +231,8 @@ export function PollDialog({
                 <span className="text-sm">
                   <span className="block font-medium text-ink">Anonymous</span>
                   <span className="block text-[13px] text-ink-dim">
-                    Show the counts but not who chose what, to anyone, you included.
+                    Everyone sees the vote counts. Nobody sees who picked what, and that includes
+                    you.
                   </span>
                 </span>
               </label>

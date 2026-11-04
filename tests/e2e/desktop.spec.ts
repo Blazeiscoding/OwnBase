@@ -775,7 +775,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
         return {
           response:
             (options.title === "Stop hosting and quit?" && closing === "app quit") ||
-            options.title === "Local work could not finish saving"
+            options.title === "Some of your writing is not saved"
               ? 1
               : 0,
           checkboxChecked: false,

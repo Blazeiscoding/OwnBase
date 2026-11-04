@@ -457,7 +457,7 @@ describe("hosting a workspace from the host dialog", () => {
     const note = await screen.findByText(/^Restored Rocket Team\. Until you put it back in use/);
     expect(note).toHaveAttribute("role", "status");
     expect(note).toHaveTextContent(
-      "Put back in use, it brings 2 sign-ins it still accepts, 1 scheduled message waiting, 0 app events not yet delivered, apps it calls at https://bot.example.",
+      "Once back in use, it will accept 2 earlier sign-ins, send 1 waiting scheduled message, deliver 0 waiting app events and call apps at https://bot.example.",
     );
     expect(hosting.start).not.toHaveBeenCalled();
     await waitFor(() => expect(hosting.list!.mock.calls.length).toBeGreaterThan(listReads));
@@ -885,9 +885,7 @@ describe("hosting a workspace from the host dialog", () => {
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      /public link did not open/,
-    );
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(/public link did not open/);
     expect(screen.getByRole("dialog", { name: "Workspace is live" })).toBe(dialog);
     expect(within(dialog).getByRole("button", { name: "Get a public link" })).toBeEnabled();
     expect(hosting.stop).not.toHaveBeenCalled();
@@ -2070,13 +2068,13 @@ describe("earlier copies of a stopped workspace", () => {
     const [first, second] = within(copies).getAllByRole("listitem");
     expect(first).toHaveTextContent("2.0 MB");
     // A copy that failed its check says so, and cannot be chosen.
-    expect(second).toHaveTextContent("failed its check, so it cannot be restored");
+    expect(second).toHaveTextContent("damaged, so it cannot be restored");
     expect(within(second!).queryByRole("button")).toBeNull();
     expect(await accessibilityProblems(panel)).toEqual([]);
 
     await user.click(within(first!).getByRole("button", { name: /^Restore the copy from / }));
     expect(panel).toHaveTextContent(
-      /over Rocket Team\? What Rocket Team holds now is moved to a folder beside it, not deleted\. The copy does not start until you put it back in use\./,
+      /over Rocket Team\? OwnBase moves what Rocket Team holds now into a folder next to it\. Nothing is deleted\. The copy does not start until you put it back in use\./,
     );
     await user.click(within(panel).getByRole("button", { name: "Cancel" }));
     expect(restoreOver).not.toHaveBeenCalled();

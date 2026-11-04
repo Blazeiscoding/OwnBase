@@ -230,7 +230,7 @@ export function GuestAccountDialog(props: {
       }
       setError(
         err instanceof ApiError && err.code === "invalid_request"
-          ? "Usernames are lowercase letters and digits; passwords need 8+ characters."
+          ? "Usernames use lowercase letters and numbers. Passwords need at least 8 characters."
           : err instanceof ApiError && err.code === "invite_required"
             ? "This workspace now needs an invite to create an account."
             : "Could not create the account. Try again.",
@@ -504,7 +504,7 @@ export function NewDmDialog(props: {
   async function start() {
     if (busy || picked.length < 1 || picked.length > 8) return;
     if (picked.some((id) => !users[id] || users[id]?.deactivated || users[id]?.isBot)) {
-      setError("Remove unavailable accounts from the selection before continuing.");
+      setError("Some people you chose cannot get direct messages. Remove them to continue.");
       return;
     }
     setBusy(true);
@@ -550,8 +550,8 @@ export function NewDmDialog(props: {
         <div className="shrink-0 px-6">
           {props.initialMemberIds && (
             <p className="mb-3 text-sm text-ink-dim">
-              History stays in the current conversation. A conversation originally started for the
-              selected people may reopen; otherwise a new one starts.
+              The messages so far stay in the current conversation. If you already have one with
+              exactly these people, it opens. If not, a new one starts.
             </p>
           )}
           <label

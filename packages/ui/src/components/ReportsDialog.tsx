@@ -63,8 +63,8 @@ export function ReportsDialog({ onClose }: { onClose: () => void }) {
         title: action === "remove" ? "Remove this message?" : `Remove it and deactivate ${name}?`,
         body:
           action === "remove"
-            ? "Everyone in the conversation stops seeing it, and its thread's replies go with it."
-            : `The message goes for everyone, and ${name} is signed out everywhere and cannot sign in again until an admin reactivates them in People.`,
+            ? "This removes it for everyone in the conversation, along with the replies in its thread."
+            : `This removes the message for everyone. ${name} is signed out everywhere and cannot sign in again until an admin reactivates them in People.`,
         confirmLabel: action === "remove" ? "Remove" : "Remove and deactivate",
         destructive: true,
       });
@@ -94,8 +94,8 @@ export function ReportsDialog({ onClose }: { onClose: () => void }) {
   return (
     <Dialog title="Reported messages" onClose={onClose} width={640} dismissible={!busy}>
       <p className="mb-3 text-sm text-ink-dim">
-        Messages people reported to the admins. Whoever wrote one is not told it was reported, or by
-        whom.
+        Messages people reported to the admins. OwnBase does not tell the writer that someone
+        reported their message, or who did.
       </p>
       {error && (
         <p

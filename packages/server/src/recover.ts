@@ -28,7 +28,9 @@ export interface RecoverableAccount {
 function openWorkspace(dataDir: string) {
   const path = join(dataDir, "workspace.db");
   if (!existsSync(path)) {
-    throw new Error(`No workspace found at ${path}. Check --data points at the data directory.`);
+    throw new Error(
+      `No workspace found at ${path}. Check that --data points at the data directory.`,
+    );
   }
   const hold = holdWorkspace(dataDir, "an account recovery");
   let db: DatabaseSync;

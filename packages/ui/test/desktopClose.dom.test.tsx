@@ -139,7 +139,7 @@ describe("ordinary desktop close with the visible composer", () => {
     expect(screen.getByRole("textbox")).toHaveValue("copy these words before leaving");
     expect(current.state.drafts[design.id]).toBe("copy these words before leaving");
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "Could not save drafts and queued messages",
+      "Could not save your drafts and unsent messages",
     );
     failing = false;
     await act(async () => {

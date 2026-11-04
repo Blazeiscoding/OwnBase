@@ -238,7 +238,7 @@ function AppForm(props: {
         setMessage(result.message ?? null);
       }
     } catch {
-      if (alive.current) setMessage("That did not go through.");
+      if (alive.current) setMessage("That did not go through. Try again.");
     } finally {
       submitting.current = false;
       if (alive.current) setBusy(false);

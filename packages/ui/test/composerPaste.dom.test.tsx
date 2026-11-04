@@ -82,7 +82,7 @@ describe("pasting into the composer", () => {
     expect(await screen.findByText("image.png")).toBeVisible();
     expect(box).toHaveValue("");
     expect(screen.getByRole("alert")).toHaveTextContent(
-      "The clipboard's file was attached; the text copied with it was not pasted.",
+      "The file from the clipboard is attached. The text copied with it was not pasted.",
     );
   });
 

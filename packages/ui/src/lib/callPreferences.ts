@@ -125,7 +125,7 @@ function createPreferences(platform: Platform) {
           store.setState({
             loaded: true,
             unreadable: !known || store.getState().unreadable,
-            error: "Could not save this preference. Please try again.",
+            error: "Could not save this setting. Try again.",
           });
         return false;
       })
@@ -252,7 +252,8 @@ function createPreferences(platform: Platform) {
           devices: {},
           loaded: true,
           unreadable: true,
-          error: "Could not load your preference. Huddles start with the microphone off.",
+          error:
+            "Could not load your call preferences. Until they load, huddles start with your microphone off.",
         });
       });
   }

@@ -109,7 +109,7 @@ const KEY = "notification-previews";
  */
 const UNKNOWN = "*";
 const UNREADABLE =
-  "Could not read your choice, so notifications show nothing about messages until you choose again.";
+  "Could not read your choice. Until you choose again, notifications show nothing about messages.";
 const isPreview = (value: unknown): value is NotificationPreview =>
   value === "full" || value === "sender" || value === "none";
 const stores = new WeakMap<Platform, ReturnType<typeof createPreviews>>();

@@ -478,7 +478,7 @@ export function Sidebar(props: Props) {
       const ids = list.map((s) => s.id).filter((id) => id !== section.id);
       ids.splice(to, 0, section.id);
       void client.orderSidebarSections(ids).then((ok) => {
-        if (!ok) toast?.({ message: "Could not move that section. Its order is as it was." });
+        if (!ok) toast?.({ message: "Could not move that section. The order did not change." });
       });
     };
     const items: MenuItem[] = [
@@ -517,7 +517,7 @@ export function Sidebar(props: Props) {
             title: `Delete ${section.name}?`,
             body:
               count === 0
-                ? "The section goes from your sidebar."
+                ? "This removes the section from your sidebar."
                 : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
             confirmLabel: "Delete section",
             destructive: true,
@@ -778,7 +778,7 @@ export function Sidebar(props: Props) {
                   />
                   {inIt.length === 0 && !collapsed.has(place) && (
                     <p className="mb-3 px-2 text-[13px] text-ink-faint">
-                      Move conversations here from their menu.
+                      Drag a conversation here, or choose Move to in its menu.
                     </p>
                   )}
                   <ul
@@ -1209,7 +1209,7 @@ export function AccountMenu(props: {
   const setStatus = (statusEmoji: string, statusText: string, statusExpiresAt: number | null) => {
     client.api.updateMe({ statusEmoji, statusText, statusExpiresAt }).catch(() => {
       toast?.({
-        message: "Your status was not changed. Check your connection and try again.",
+        message: "Could not change your status. Check your connection and try again.",
         kind: "error",
       });
     });
@@ -1257,7 +1257,8 @@ export function AccountMenu(props: {
         void client.setAway(!awayByHand).then((ok) => {
           if (!ok)
             toast?.({
-              message: "Your presence was not changed. Check your connection and try again.",
+              message:
+                "Could not change whether you show as away. Check your connection and try again.",
               kind: "error",
             });
         }),

@@ -223,7 +223,7 @@ describe("Apps and integrations' templates", () => {
     const send = await within(panel).findByRole("button", { name: "Send test message" });
     await user.click(send);
     expect(within(panel).getByRole("status")).toHaveTextContent(
-      "This URL no longer works: it was replaced or removed. Create the webhook again.",
+      "This URL no longer works because it was replaced or removed. Create the webhook again.",
     );
     await user.click(send);
     expect(within(panel).getByRole("status")).toHaveTextContent(

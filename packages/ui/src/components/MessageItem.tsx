@@ -734,8 +734,7 @@ const MessageRow = memo(function MessageRow({
               <MessageActions message={message} />
               {deleteError && (
                 <p role="alert" className="mt-2 text-xs text-alert">
-                  Could not confirm whether the message was deleted. Check your connection before
-                  trying again.
+                  Could not tell if the message was deleted. Check your connection, then try again.
                 </p>
               )}
             </>
@@ -1053,9 +1052,9 @@ function MessageActions({ message }: { message: Message }) {
     setPending(actionId);
     try {
       const res = await client.api.runMessageAction(message.id, actionId);
-      if (!res.ok) setError("That did not go through.");
+      if (!res.ok) setError("That did not go through. Try again.");
     } catch {
-      setError("That did not go through.");
+      setError("That did not go through. Try again.");
     } finally {
       setPending(null);
     }

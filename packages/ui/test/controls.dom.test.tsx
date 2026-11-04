@@ -107,7 +107,7 @@ describe("the huddle bar", () => {
     act(() => client.store.setState({ status: "reconnecting" }));
     expect(
       screen.getByText(
-        "The connection to the workspace dropped. You stay in the call while it comes back.",
+        "The connection to the workspace dropped. You stay in the call while OwnBase reconnects.",
       ),
     ).toHaveAttribute("role", "status");
     act(() => client.store.setState({ status: "online" }));
@@ -393,7 +393,7 @@ describe("message actions", () => {
       }),
     );
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      /Could not confirm whether the message was deleted/,
+      /Could not tell if the message was deleted/,
     );
     await user.click(screen.getByRole("button", { name: "More actions" }));
     expect(screen.getByRole("menuitem", { name: "Delete message" })).toBeEnabled();

@@ -115,7 +115,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     if (patch.deactivated === true && confirm) {
       const go = await confirm({
         title: `Deactivate ${person.displayName}?`,
-        body: `@${person.handle} is signed out on every device and cannot sign back in until reactivated. Their messages stay.`,
+        body: `@${person.handle} is signed out on every device and cannot sign back in until an admin reactivates them. Their messages stay.`,
         confirmLabel: "Deactivate",
         destructive: true,
       });
@@ -262,8 +262,8 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
         <div ref={actionPanel} tabIndex={-1} className="outline-none">
           <h3 className="font-semibold">Password reset for {issued.person.displayName}</h3>
           <p className="mt-2 text-sm text-ink-dim">
-            All of @{issued.person.handle}'s devices are signed out. Share this temporary password
-            privately and ask them to change it in Account settings after signing in.
+            @{issued.person.handle} is signed out on every device. Send them this temporary password
+            privately. Ask them to change it in Account settings after they sign in.
           </p>
           <label className="mt-4 block text-sm">
             Temporary password
@@ -288,15 +288,15 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                 {clipboard.label(
                   "Copy password",
                   "Copied",
-                  "Copy failed — select and copy manually",
+                  "Copy failed. Select it and copy it yourself",
                   issued.password,
                 )}
               </Swap>
             </button>
           </div>
           <p className="mt-3 text-xs text-ink-faint">
-            This password will no longer be visible after you dismiss this screen. It is not saved
-            on this device.
+            You cannot see this password again after you press Done. OwnBase does not save it on
+            this device.
           </p>
           <button
             className={buttonClass("primary", "mt-5")}
@@ -322,7 +322,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
             {action.kind === "reset"
               ? `This replaces @${action.person.handle}'s password and signs out all their devices. A temporary password will appear here for you to share privately.`
               : action.kind === "twoStep"
-                ? `For someone who lost their phone and their recovery codes. @${action.person.handle} then signs in with their password alone until they set it up again. Their devices stay signed in. Make sure it is really them asking.`
+                ? `Use this when someone has lost their phone and their recovery codes. @${action.person.handle} will sign in with only their password until they set up two-step sign-in again. Their devices stay signed in. Make sure the request really comes from them.`
                 : `@${action.person.handle} will become the workspace owner. You will remain an administrator. Only the new owner will be able to transfer ownership again.`}
           </p>
           {/* Transfer always answers: without the username typed, it says so under the field. */}
@@ -379,7 +379,9 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
         </div>
       ) : (
         <>
-          <p className="mb-3 text-sm text-ink-dim">Manage workspace access and account recovery.</p>
+          <p className="mb-3 text-sm text-ink-dim">
+            Change roles, deactivate accounts and reset passwords.
+          </p>
           <label className="mb-3 block text-sm">
             <span className="sr-only">Find a person</span>
             <input
@@ -496,8 +498,8 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
           </div>
 
           <p className="mt-4 text-[11px] text-ink-faint">
-            Deactivating signs someone out everywhere and stops them signing back in. Their messages
-            stay where they are, as the rest of the conversation still needs them.
+            Deactivating someone signs them out everywhere and stops them from signing back in.
+            Their messages stay, so conversations still make sense.
           </p>
         </>
       )}
@@ -545,7 +547,7 @@ function PersonMenu({
   ) {
     items.push({
       id: "invite",
-      label: person.canInvite ? "Stop inviting" : "Allow inviting",
+      label: person.canInvite ? "Stop them inviting people" : "Let them invite people",
       onSelect: () => onChange(person, { canInvite: !person.canInvite }),
     });
   }
@@ -604,6 +606,6 @@ function errorText(code: string, message?: string): string {
     case "admin_only":
       return "You do not have permission to do that.";
     default:
-      return message && message !== code ? message : "That did not work.";
+      return message && message !== code ? message : "That change did not go through. Try again.";
   }
 }

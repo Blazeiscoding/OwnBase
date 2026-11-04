@@ -91,7 +91,7 @@ describe("the Scheduled panel", () => {
     const { panel } = renderPanel(() => new Promise((resolve) => (finish = resolve)));
     expect(within(panel).getByRole("status")).toHaveTextContent("Loading scheduled messages…");
     finish({ scheduled: [] });
-    expect(await within(panel).findByText(/Nothing queued/)).toBeVisible();
+    expect(await within(panel).findByText(/Nothing scheduled/)).toBeVisible();
     // It keeps itself current, so there is no Refresh to press.
     expect(within(panel).queryByRole("button", { name: "Refresh" })).toBeNull();
     expect(await accessibilityProblems(panel)).toEqual([]);
@@ -118,12 +118,12 @@ describe("the Scheduled panel", () => {
     const every = vi.spyOn(globalThis, "setInterval");
     try {
       const live = renderPanel(async () => ({ scheduled: [] }));
-      await within(live.panel).findByText(/Nothing queued/);
+      await within(live.panel).findByText(/Nothing scheduled/);
       expect(every.mock.calls.some(([, ms]) => ms === 15_000)).toBe(false);
       cleanup();
 
       const older = renderPanel(async () => ({ scheduled: [] }), { scheduledEvents: false });
-      await within(older.panel).findByText(/Nothing queued/);
+      await within(older.panel).findByText(/Nothing scheduled/);
       expect(every.mock.calls.some(([, ms]) => ms === 15_000)).toBe(true);
     } finally {
       every.mockRestore();
@@ -189,7 +189,7 @@ describe("the Scheduled panel", () => {
     }));
     await within(panel).findByText("Standup notes");
     await user.click(within(panel).getByRole("button", { name: "Send now" }));
-    expect(within(panel).getByText("Queue this message to send now?")).toBeVisible();
+    expect(within(panel).getByText("Send this message now?")).toBeVisible();
     const before = Date.now();
     await user.click(within(panel).getAllByRole("button", { name: "Send now" }).at(-1)!);
     expect(api.reschedule).toHaveBeenCalledOnce();
@@ -209,7 +209,7 @@ describe("the Scheduled panel", () => {
     await user.click(within(panel).getByRole("button", { name: "Remove" }));
     await user.click(within(panel).getByRole("button", { name: "Remove message" }));
     expect(await within(panel).findByRole("alert")).toHaveTextContent(
-      "Could not confirm this change. Refresh the list before trying again; it may already have been sent or changed on another device.",
+      "Could not tell if this change went through. The message may already have sent, or changed on another device. Refresh the list before you try again.",
     );
     expect(within(panel).getByText("Standup notes")).toBeVisible();
   });
@@ -254,10 +254,12 @@ describe("the Scheduled panel", () => {
       expectedText: "Standup notes",
     });
     expect(await within(panel).findByRole("alert")).toHaveTextContent(
-      "The text changed on another device, so this edit was not saved. Your draft is kept.",
+      "The text changed on another device, so this edit was not saved. Your edit is still here.",
     );
     // It reads the queue again by itself, to show what the other device wrote.
-    expect(await within(panel).findByText(/The queued text has changed/)).toBeVisible();
+    expect(
+      await within(panel).findByText(/The scheduled text changed somewhere else/),
+    ).toBeVisible();
     expect(api.list).toHaveBeenCalledTimes(2);
     expect(box).toHaveValue("Standup moved to 10");
     expect(client.state.drafts["C_DESIGN:scheduled-edit:S1"]).toBe(

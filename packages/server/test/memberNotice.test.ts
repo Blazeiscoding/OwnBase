@@ -245,7 +245,7 @@ describe("the command line", () => {
         await vi.waitFor(
           () =>
             expect(run.output()).toContain(
-              `Members: ${said}; past that, the owner and admins are told`,
+              `Members: ${said}. Past that, the owner and admins are told`,
             ),
           { timeout: 20_000 },
         );

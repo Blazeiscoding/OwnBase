@@ -30,7 +30,7 @@ export function captureFailure(
   switch (name) {
     case "NotSupportedError":
       if (!secure) {
-        return `${kind === "screen" ? "Screen sharing" : `${device} access`} needs the desktop app or a browser connection over HTTPS.`;
+        return `${kind === "screen" ? "Screen sharing" : `${device} access`} needs the desktop app, or a workspace address that starts with https://.`;
       }
       return kind === "screen"
         ? "This browser cannot share a screen."
@@ -57,7 +57,7 @@ export function captureFailure(
     case "AbortError":
       return kind === "screen"
         ? `${start}. Try again.`
-        : `${start}. Another app may be using it; close that app, then try again.`;
+        : `${start}. Another app may be using it. Close that app, then try again.`;
     default:
       return `${start}. Try again.`;
   }

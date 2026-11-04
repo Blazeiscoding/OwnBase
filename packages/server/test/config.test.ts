@@ -130,7 +130,7 @@ describe("explaining a server that would not start", () => {
   it("names a host this machine does not have", () => {
     for (const code of ["ENOTFOUND", "EADDRNOTAVAIL"]) {
       expect(describeStartupError(failure(code), { host: "10.9.9.9" })).toMatch(
-        /--host 10\.9\.9\.9: this machine has no such address/,
+        /--host 10\.9\.9\.9 because this machine has no such address/,
       );
     }
   });

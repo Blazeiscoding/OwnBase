@@ -41,17 +41,19 @@ export function createSettingsStorage(
       raw = await readFile(filePath, "utf8");
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return {};
-      throw new Error("Could not read settings. Check access to your desktop settings file.");
+      throw new Error(
+        "OwnBase could not open its settings file. Check that your account may read it.",
+      );
     }
     let value: unknown;
     try {
       value = JSON.parse(raw);
     } catch {
       // JSON syntax errors can quote a plaintext credential from a legacy file.
-      throw new Error("Could not read settings: the JSON file is invalid.");
+      throw new Error("OwnBase could not read its settings file because the file is damaged.");
     }
     if (!value || typeof value !== "object" || Array.isArray(value))
-      throw new Error("Could not read settings: expected a JSON object.");
+      throw new Error("OwnBase could not read its settings file because the file is damaged.");
     return value as Record<string, unknown>;
   }
 
@@ -60,7 +62,7 @@ export function createSettingsStorage(
     try {
       contents = JSON.stringify(settings, null, 2);
     } catch {
-      throw new Error("Could not save settings: a value cannot be stored as JSON.");
+      throw new Error("OwnBase could not save its settings because one value cannot be stored.");
     }
     await mkdir(dirname(filePath), { recursive: true });
     const temporary = `${filePath}.tmp`;

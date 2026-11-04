@@ -64,7 +64,8 @@ function createPreferences(platform: Platform) {
         enterSends: false,
         loaded: true,
         unread: true,
-        error: "Could not load your preference. Enter inserts a new line until you choose again.",
+        error:
+          "Could not load your choice for Enter. Enter starts a new line until you choose again.",
       });
     }
   }

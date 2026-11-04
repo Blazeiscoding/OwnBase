@@ -229,9 +229,13 @@ describe("downloading cloudflared", () => {
     const elsewhere = fakeGitHub(binary, "cloudflared-linux-amd64", {
       url: "https://example.com/cloudflare/cloudflared/releases/download/1/cloudflared-linux-amd64",
     });
-    await expect(download(elsewhere)).rejects.toThrow("no cloudflared OwnBase can check");
+    await expect(download(elsewhere)).rejects.toThrow(
+      "could not find a cloudflared download it can check",
+    );
     const unsigned = fakeGitHub(binary, "cloudflared-linux-amd64", { digest: "" });
-    await expect(download(unsigned)).rejects.toThrow("no cloudflared OwnBase can check");
+    await expect(download(unsigned)).rejects.toThrow(
+      "could not find a cloudflared download it can check",
+    );
     expect(elsewhere).toHaveBeenCalledTimes(1);
     expect(unsigned).toHaveBeenCalledTimes(1);
   });

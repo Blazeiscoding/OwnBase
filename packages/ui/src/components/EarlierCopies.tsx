@@ -66,7 +66,7 @@ export function EarlierCopies(props: {
         text:
           `Restored an earlier copy of ${done.name}.` +
           (done.setAside ? ` What it held before is kept in ${done.setAside}.` : "") +
-          " Until you put it back in use, Look inside opens it on this computer only, sends nothing it had waiting and calls no app." +
+          " Until you put it back in use, Look inside opens it on this computer only. It sends nothing that was waiting and calls no apps." +
           (done.inventory ? ` ${inventorySummary(done.inventory)}` : ""),
       });
     } catch (error) {
@@ -89,8 +89,8 @@ export function EarlierCopies(props: {
             {asking === "chosen"
               ? `Restore a backup you choose over ${props.name}?`
               : `Restore the copy from ${when(asking.at)} over ${props.name}?`}{" "}
-            What {props.name} holds now is moved to a folder beside it, not deleted. The copy does
-            not start until you put it back in use.
+            OwnBase moves what {props.name} holds now into a folder next to it. Nothing is deleted.
+            The copy does not start until you put it back in use.
           </p>
           <div className="flex gap-3">
             <button
@@ -115,16 +115,17 @@ export function EarlierCopies(props: {
       ) : (
         <>
           <p>
-            An earlier copy takes the place of what {props.name} holds now, which is kept beside it.
+            Restoring an earlier copy replaces what {props.name} holds now. OwnBase keeps the
+            current data in a folder next to it.
           </p>
           {failed ? (
             <p role="alert" className="text-alert">
-              Its backups could not be read. {failed}
+              Could not read its backups. {failed}
             </p>
           ) : found === null ? (
             <p role="status">Checking its backups…</p>
           ) : found.length === 0 ? (
-            <p>No backups were found in its backup folder.</p>
+            <p>Its backup folder has no backups.</p>
           ) : (
             <ul aria-label={`Backups of ${props.name}`} className="space-y-1">
               {found.map((backup) => (
@@ -132,7 +133,7 @@ export function EarlierCopies(props: {
                   <span className={backup.damaged ? "text-ink-faint" : "text-ink"}>
                     {when(backup.at)}
                     {backup.damaged
-                      ? " · failed its check, so it cannot be restored"
+                      ? " · damaged, so it cannot be restored"
                       : backup.bytes !== null
                         ? ` · ${formatBytes(backup.bytes)}`
                         : ""}

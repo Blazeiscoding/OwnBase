@@ -74,7 +74,7 @@ function requireProtection(protector: CredentialProtector): void {
   }
   if (!available)
     throw new Error(
-      "OS credential protection is unavailable. Unlock your system key store and try again.",
+      "This computer's password store is locked or unavailable. Unlock it and try again.",
     );
 }
 
@@ -90,11 +90,11 @@ export function encodeSavedServers(
     ciphertext = protector.encryptString(JSON.stringify(servers));
   } catch {
     throw new Error(
-      "Could not protect saved workspace credentials. Unlock your system key store and try again.",
+      "OwnBase could not protect your saved sign-ins. Unlock this computer's password store and try again.",
     );
   }
   if (!Buffer.isBuffer(ciphertext) || ciphertext.length === 0)
-    throw new Error("Could not protect saved workspace credentials.");
+    throw new Error("OwnBase could not protect your saved sign-ins.");
   return {
     kind: "ownbase.saved-servers",
     version: 1,
@@ -115,7 +115,7 @@ export function decodeSavedServers(
     decrypted = JSON.parse(protector.decryptString(Buffer.from(envelope.ciphertext, "base64")));
   } catch {
     throw new Error(
-      "Could not unlock saved workspace credentials. Use the original system account and key store, then try again.",
+      "OwnBase could not unlock your saved sign-ins. Sign in to this computer with the account that saved them, then try again.",
     );
   }
   return validateSavedServers(decrypted);

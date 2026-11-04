@@ -110,7 +110,7 @@ export function AddPeople({
             : "Everyone in the workspace is already here."
           : matches.length > SHOWN
             ? `${matches.length} people match. Keep typing to narrow it down.`
-            : "Enter adds the highlighted person."}
+            : "Press Enter to add the highlighted person."}
       </p>
       {shown.length > 0 && (
         <ul {...list.listProps} aria-label="People to add" className="mt-1 space-y-0.5">

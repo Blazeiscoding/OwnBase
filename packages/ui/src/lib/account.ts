@@ -5,9 +5,9 @@ export function accountError(error: unknown): string {
     const messages: Record<string, string> = {
       invalid_credentials: "Your current password was not accepted.",
       credentials_changed: "Your password changed while this request was running. Sign in again.",
-      unauthorized: "Your session has ended. Sign in again to continue.",
+      unauthorized: "You were signed out. Sign in again to continue.",
       auth_busy: "The workspace is handling other sign-ins. Try again in a moment.",
-      invalid_request: "Check the fields. Passwords must contain 8 to 256 characters.",
+      invalid_request: "Check the fields. A password must be 8 to 256 characters long.",
       session_not_found: "That device is already signed out. Refresh the list.",
       admin_only: "You no longer have permission to manage accounts.",
       owner_only: "Only the current workspace owner can transfer ownership.",

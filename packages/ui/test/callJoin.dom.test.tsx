@@ -276,7 +276,7 @@ describe("preference-aware huddle admission (N04)", () => {
     );
     expect(
       await screen.findByText(
-        "Could not load your preference. Huddles start with the microphone off.",
+        "Could not load your call preferences. Until they load, huddles start with your microphone off.",
       ),
     ).toBeVisible();
     await userEvent.setup().click(screen.getByRole("button", { name: "Start a huddle" }));

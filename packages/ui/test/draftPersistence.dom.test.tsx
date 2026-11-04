@@ -196,7 +196,7 @@ describe("queued messages kept on this device", () => {
     client.send(design.id, "kept in memory for now");
     expect(
       await screen.findByText(
-        "Could not save drafts and queued messages on this device. Keep it open and retry.",
+        "Could not save your drafts and unsent messages on this device. Keep OwnBase open and press Retry.",
       ),
     ).toBeVisible();
 
@@ -669,7 +669,7 @@ describe("the moment a send is kept", () => {
     act(() => gate.fail());
     expect(
       await screen.findByText(
-        "Could not save drafts and queued messages on this device. Keep it open and retry.",
+        "Could not save your drafts and unsent messages on this device. Keep OwnBase open and press Retry.",
       ),
     ).toBeVisible();
     await pause(900);
@@ -787,7 +787,7 @@ describe("words sent before their draft was ever saved", () => {
     typeAndSend(client, design.id, "first words");
     expect(
       await screen.findByText(
-        "Could not save drafts and queued messages on this device. Keep it open and retry.",
+        "Could not save your drafts and unsent messages on this device. Keep OwnBase open and press Retry.",
       ),
     ).toBeVisible();
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 750)));

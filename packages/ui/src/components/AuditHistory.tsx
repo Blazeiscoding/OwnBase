@@ -47,9 +47,9 @@ export function describeAuditEntry(
         : `${actor} removed ${possessive(target)} message after ${reports}`;
     }
     case "user.invite_permission_granted":
-      return `${actor} allowed ${target} to create invite codes`;
+      return `${actor} let ${target} invite people`;
     case "user.invite_permission_removed":
-      return `${actor} stopped ${target} creating invite codes`;
+      return `${actor} stopped ${target} from inviting people`;
     case "account.recovered":
       return `The host recovered ${possessive(target)} account from the server's command line${
         d.madeOwner ? " and made them the owner" : ""
@@ -92,7 +92,7 @@ export function describeAuditEntry(
       // Scope names, as the app's own documentation gives them (E18c).
       const allowed = typeof d.added === "string" && d.added ? `allowed ${d.added}` : "";
       const taken = typeof d.removed === "string" && d.removed ? `took away ${d.removed}` : "";
-      const what = [allowed, taken].filter(Boolean).join("; ");
+      const what = [allowed, taken].filter(Boolean).join(" and ");
       return `${actor} changed what ${app} may do${what ? `: ${what}` : ""}`;
     }
     case "webhook.created":
@@ -216,7 +216,7 @@ export function AuditHistory() {
               : null
         }
         onRetry={error === "initial" ? () => void load() : undefined}
-        empty={entries?.length === 0 && !cursor && !error ? "Nothing has been changed yet." : null}
+        empty={entries?.length === 0 && !cursor && !error ? "No changes yet." : null}
       />
       {entries && entries.length > 0 && (
         <ul aria-busy={busy} className="max-h-64 space-y-1 overflow-y-auto text-[13px]">

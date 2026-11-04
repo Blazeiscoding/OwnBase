@@ -93,14 +93,14 @@ describe("Channel members list status", () => {
 
     expect(status).toHaveTextContent("Loading members…");
     expect(within(dialog).getByRole("tab", { name: "Members" })).toBeVisible();
-    expect(within(dialog).queryByText(/No members were returned/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/No members showed up/)).not.toBeInTheDocument();
 
     await act(async () => firstLoad.reject(new Error("offline")));
     expect(within(dialog).getByRole("alert")).toHaveTextContent(
       "Could not load members. Check your connection and try again.",
     );
     expect(within(dialog).getByRole("tab", { name: "Members" })).toBeVisible();
-    expect(within(dialog).queryByText(/No members were returned/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/No members showed up/)).not.toBeInTheDocument();
 
     const retry = within(dialog).getByRole("button", { name: "Retry" });
     retry.focus();
@@ -114,9 +114,7 @@ describe("Channel members list status", () => {
 
     await act(async () => retryLoad.resolve({ memberIds: [] }));
     expect(within(dialog).getByRole("status")).toBe(status);
-    expect(status).toHaveTextContent(
-      "No members were returned. Refresh to check this conversation.",
-    );
+    expect(status).toHaveTextContent("No members showed up. Press Refresh members to check again.");
     expect(within(dialog).getByRole("tab", { name: "Members (0)" })).toBeVisible();
     expect(within(dialog).queryByRole("alert")).not.toBeInTheDocument();
     expect(status.parentElement).toHaveFocus();
@@ -146,7 +144,7 @@ describe("Channel members list status", () => {
     expect(within(dialog).getByRole("alert")).toHaveTextContent("Could not load members.");
     expect(within(list).getByText("Alex Chen")).toBeVisible();
     expect(within(dialog).getByRole("tab", { name: "Members (2)" })).toBeVisible();
-    expect(within(dialog).queryByText(/No members were returned/)).not.toBeInTheDocument();
+    expect(within(dialog).queryByText(/No members showed up/)).not.toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: "Retry" }));
     expect(channelMembers).toHaveBeenCalledTimes(3);

@@ -37,7 +37,7 @@ function channelError(err: unknown, fallback: string): string {
     case "invalid_request":
       return "Check the name, topic and description, then try again.";
     case "channel_management_required":
-      return "Only this channel's creator, its managers and workspace administrators can change it.";
+      return "Only the person who made this channel, its managers and workspace admins can change it.";
     case "channel_invite_forbidden":
       return "You cannot add people to this channel.";
     case "channel_removal_forbidden":
@@ -188,7 +188,12 @@ export function ChannelDetailsDialog(props: {
       await client.api.updateChannel(props.channelId, { archived });
       setConfirmArchive(false);
     } catch (err) {
-      setError(channelError(err, "Could not change archive status."));
+      setError(
+        channelError(
+          err,
+          archived ? "Could not archive the channel." : "Could not reopen the channel.",
+        ),
+      );
     } finally {
       setBusy(false);
     }
@@ -298,8 +303,8 @@ export function ChannelDetailsDialog(props: {
               />
               {!permissions.manage && (
                 <p className="text-sm text-ink-faint">
-                  Channel details are managed by its creator, channel managers and workspace
-                  administrators.
+                  Only the person who made this channel, its managers and workspace admins can
+                  change these details.
                 </p>
               )}
               <TextField
@@ -365,14 +370,14 @@ export function ChannelDetailsDialog(props: {
                 {aboutNote === "saved"
                   ? "Saved."
                   : aboutNote === "unchanged"
-                    ? "Nothing to save: the name, topic and description are as they were."
+                    ? "Nothing to save. The name, topic and description have not changed."
                     : ""}
               </p>
               {confirmLeave && channel.type === "private" && (
                 <div className="rounded-lg border border-edge p-3 text-sm">
                   <p className="mb-2">
-                    Leave #{channel.name}? It is private, so you will lose its history and call
-                    until someone in it invites you back.
+                    Leave #{channel.name}? It is private, so you will not see its messages or join
+                    its call until someone in it invites you back.
                   </p>
                   <button
                     type="button"
@@ -395,8 +400,8 @@ export function ChannelDetailsDialog(props: {
               <div className="rounded-lg border border-edge p-3 text-sm">
                 <p className="mb-2 text-ink-dim">
                   {channel.archived
-                    ? "Archived. History remains available; new posts and replies are paused."
-                    : "Archiving keeps history and drafts. Scheduled messages wait until the channel is reopened."}
+                    ? "This channel is archived. You can still read it, but no one can post or reply until someone reopens it."
+                    : "Archiving stops new messages and keeps the history and drafts. Scheduled messages wait until someone reopens the channel."}
                 </p>
                 {permissions.manage &&
                   (channel.archived ? (
@@ -450,8 +455,8 @@ export function ChannelDetailsDialog(props: {
             {!isRoom && membership && (
               <div className="mb-3 text-sm">
                 <p className="mb-2 text-ink-dim">
-                  Changing participants opens a conversation for the selected people. This
-                  conversation's history stays here.
+                  Changing who is in it starts a conversation with the people you choose. The
+                  messages so far stay here.
                 </p>
                 <button
                   disabled={busy || membersLoading || membersError}
@@ -467,9 +472,9 @@ export function ChannelDetailsDialog(props: {
                 {confirmLeave ? (
                   <>
                     <p className="mb-2 text-ink-dim">
-                      Leave this group conversation? You will lose access to its history and call.
-                      Other participants keep their history. Starting again with these people will
-                      not restore access to this history.
+                      Leave this group conversation? You will no longer see its messages or join its
+                      call. The others still can. Starting a new conversation with the same people
+                      will not bring these messages back.
                     </p>
                     <button
                       disabled={busy}
@@ -513,7 +518,7 @@ export function ChannelDetailsDialog(props: {
               onRetry={() => setMembersAttempt((n) => n + 1)}
               empty={
                 membersLoaded && !membersError && memberIds.length === 0
-                  ? "No members were returned. Refresh to check this conversation."
+                  ? "No members showed up. Press Refresh members to check again."
                   : null
               }
             />
@@ -607,8 +612,8 @@ export function ChannelDetailsDialog(props: {
                       <div className="mb-2 mt-1 rounded-lg border border-edge p-3 text-sm">
                         <p className="mb-2">
                           {managerChange.manager
-                            ? `Make ${u?.displayName} a manager of #${channel.name}? They can edit, rename and archive this room and remove ordinary members. They cannot appoint other managers.`
-                            : `Remove ${u?.displayName}'s manager role? They remain a member of this channel.`}
+                            ? `Make ${u?.displayName} a manager of #${channel.name}? They can edit, rename and archive this channel and remove members. They cannot make anyone else a manager.`
+                            : `Remove ${u?.displayName}'s manager role? They stay a member of this channel.`}
                         </p>
                         <button
                           disabled={busy || membersLoading || membersError}
@@ -631,9 +636,9 @@ export function ChannelDetailsDialog(props: {
                         <p className="mb-2">
                           Remove {u?.displayName} from #{channel.name}?{" "}
                           {channel.type === "public"
-                            ? "This public channel remains readable, and they can rejoin."
-                            : "They will lose access to this private channel and its call until invited back."}{" "}
-                          Their messages remain.
+                            ? "They can still read this public channel and join it again."
+                            : "They will not see this private channel or join its call until someone invites them back."}{" "}
+                          Their messages stay.
                         </p>
                         <button
                           disabled={busy || membersLoading || membersError}
@@ -686,7 +691,7 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
       {failed ? (
         <div role="alert" className="rounded-lg border border-alert/40 bg-alert/10 p-3 text-sm">
           <p>
-            Your notification choice was not saved, so this shows what the workspace has.{" "}
+            Your notification choice was not saved. This shows the setting the workspace still has.{" "}
             <button
               type="button"
               onClick={() => client.retryChannelPrefs(channelId)}

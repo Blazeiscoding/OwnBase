@@ -33,8 +33,8 @@ export function BlockedComposer({ userId }: { userId: ID }) {
       <div className="flex flex-wrap items-center gap-3 rounded-xl border border-edge bg-ink/[0.03] px-4 py-3">
         <Icon name="ban" size={16} className="shrink-0 text-ink-faint" />
         <p className="min-w-0 flex-1 text-sm text-ink-dim">
-          You blocked {name}. Their messages are folded away, and you cannot write to them here
-          until you unblock them.
+          You blocked {name}. OwnBase hides their messages, and you cannot write to them here until
+          you unblock them.
         </p>
         <button
           type="button"
@@ -67,7 +67,7 @@ function BlockedRow({ userId }: { userId: ID }) {
         {user && <p className="truncate font-mono text-[11px] text-ink-faint">@{user.handle}</p>}
         {failed && (
           <p role="alert" className="text-xs text-alert">
-            Not unblocked. Try again.
+            Could not unblock. Try again.
           </p>
         )}
       </div>
@@ -97,8 +97,8 @@ export function BlockedPeople() {
         Blocked people
       </h3>
       <p className="mt-1 text-sm text-ink-dim">
-        You hear nothing from them: their messages fold away, they never notify you, and your direct
-        messages with them close. They are not told.
+        You stop hearing from people you block. OwnBase hides their messages, they never notify you,
+        and your direct messages with them close. They are not told.
       </p>
       {blocked.length === 0 ? (
         <p className="mt-3 text-sm text-ink-faint">

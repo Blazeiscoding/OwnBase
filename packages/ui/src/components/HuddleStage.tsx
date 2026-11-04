@@ -904,7 +904,7 @@ export function HuddleStage({
           {(firstShare || pinnedItem) && (
             <StageButton
               label="Grid view"
-              hint={grid ? "Back to the spotlight" : "Show everyone the same size"}
+              hint={grid ? "Show the shared screen large again" : "Show everyone the same size"}
               icon="grid"
               pressed={grid}
               onClick={() => {
@@ -925,7 +925,7 @@ export function HuddleStage({
           {!fullscreen && (
             <StageButton
               label="Hide call"
-              hint="Back to the chat; the huddle carries on"
+              hint="Back to the chat. The huddle keeps going."
               icon="chevronDown"
               onClick={onHide}
             />

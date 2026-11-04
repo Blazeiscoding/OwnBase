@@ -126,7 +126,7 @@ describe("channel details", () => {
     await user.click(save);
     expect(api.update).not.toHaveBeenCalled();
     expect(
-      dialog.getByText("Nothing to save: the name, topic and description are as they were."),
+      dialog.getByText("Nothing to save. The name, topic and description have not changed."),
     ).toHaveAttribute("role", "status");
     expect(dialog.queryByRole("alert")).toBeNull();
 
@@ -202,7 +202,7 @@ describe("channel details", () => {
     await user.click(screen.getByRole("menuitem", { name: "Remove from #design" }));
     expect(
       dialog.getByText(
-        "Remove Alex Chen from #design? This public channel remains readable, and they can rejoin. Their messages remain.",
+        "Remove Alex Chen from #design? They can still read this public channel and join it again. Their messages stay.",
       ),
     ).toBeVisible();
     await user.click(dialog.getByRole("button", { name: "Cancel" }));
