@@ -283,8 +283,11 @@ function MenuPanel({
       role="menu"
       aria-label={label}
       className={
+        // A sheet takes the screen's height above its header and a strip of
+        // the page, so a long menu (the account's) shows whole on a phone
+        // rather than stopping mid-item at 60%.
         asSheet
-          ? `${sheetCard} max-h-[60vh] overflow-y-auto p-1.5 outline-none`
+          ? `${sheetCard} max-h-[calc(100dvh-10rem)] overflow-y-auto p-1.5 outline-none`
           : "surface-float fixed max-h-[60vh] animate-menu-in overflow-y-auto rounded-xl p-1 outline-none"
       }
       onKeyDown={(event) => {
