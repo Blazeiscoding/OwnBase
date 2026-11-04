@@ -54,6 +54,26 @@ export function BlockedComposer({ userId }: { userId: ID }) {
   );
 }
 
+/**
+ * In place of the composer, in a direct message with someone whose account is
+ * deactivated: they read nothing new until an admin reactivates them.
+ */
+export function DeactivatedComposer({ userId }: { userId: ID }) {
+  const name = useWorkspace((s) => s.users[userId]?.displayName ?? "This person");
+  const admin = useWorkspace((s) => s.self?.role === "owner" || s.self?.role === "admin");
+  return (
+    <div className="shrink-0 px-4 pb-5">
+      <div className="flex items-center gap-3 rounded-xl border border-edge bg-ink/[0.03] px-4 py-3">
+        <Icon name="info" size={16} className="shrink-0 text-ink-faint" />
+        <p className="min-w-0 flex-1 text-sm text-ink-dim">
+          {name}'s account is deactivated, so they cannot read new messages here.{" "}
+          {admin ? "You can reactivate it in People." : "An admin can reactivate it."}
+        </p>
+      </div>
+    </div>
+  );
+}
+
 /** One blocked person in Account settings, with Unblock. */
 function BlockedRow({ userId }: { userId: ID }) {
   const user = useWorkspace((s) => s.users[userId]);

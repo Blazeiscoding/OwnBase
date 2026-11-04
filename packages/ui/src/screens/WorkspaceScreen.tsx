@@ -10,8 +10,8 @@ import {
   type ReactNode,
 } from "react";
 import type { ID, Message } from "@ownbase/protocol";
-import { blockedPartner } from "../lib/blocking.js";
-import { BlockedComposer } from "../components/Blocking.js";
+import { blockedPartner, deactivatedPartner } from "../lib/blocking.js";
+import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
   WorkspaceClient,
   decideNotification,
@@ -1075,6 +1075,10 @@ function WorkspaceInner({
   const blockedHere = useWorkspace((s) =>
     activeChannelId ? blockedPartner(s.channels[activeChannelId], s.self?.id, s.blocked) : null,
   );
+  /** Whom this conversation is with, when it is a DM with a deactivated account. */
+  const deactivatedHere = useWorkspace((s) =>
+    activeChannelId ? deactivatedPartner(s.channels[activeChannelId], s.self?.id, s.users) : null,
+  );
   // The server lists shared files (E7); an older one is offered no Files.
   const sharedFiles = useWorkspace((s) => s.sharedFiles);
   const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts" | "files") => {
@@ -1611,7 +1615,7 @@ function WorkspaceInner({
                     onToggle={() => togglePanel("members")}
                   />
                 )}
-                <HuddleButton channelId={activeChannelId} />
+                {!deactivatedHere && <HuddleButton channelId={activeChannelId} />}
                 <ConversationMenu
                   channelId={activeChannelId}
                   isRoom={isRoom}
@@ -1753,6 +1757,8 @@ function WorkspaceInner({
                   />
                   {blockedHere ? (
                     <BlockedComposer userId={blockedHere} />
+                  ) : deactivatedHere ? (
+                    <DeactivatedComposer userId={deactivatedHere} />
                   ) : (
                     <Composer
                       channelId={activeChannelId}
