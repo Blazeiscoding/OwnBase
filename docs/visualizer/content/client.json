@@ -1846,6 +1846,17 @@
       "concepts": ["QR code", "offline"]
     },
     {
+      "path": "packages/ui/src/components/BreakableAddress.tsx",
+      "plain": "Shows a web address or link so a narrow window wraps it between its parts, never in the middle of a name or an invite code.",
+      "summary": "Puts a <wbr> after each slash (not between the two of a scheme) and each =, and before each dot, ? and &; overflow-wrap: anywhere breaks a part only when it cannot fit on a line alone.",
+      "details": [
+        "Lines already break after a hyphen, so a tunnel name like planes-ton-orlando-newfoundland wraps at its hyphens.",
+        "The invite dialog's links and server address, and Manage hosting's addresses, use it in place of break-all, which cut words anywhere.",
+        "The text it shows, and so what a person selects and copies, is the address unchanged."
+      ],
+      "concepts": ["invite links", "wrapping"]
+    },
+    {
       "path": "packages/ui/src/components/ProfileDialog.tsx",
       "plain": "Shows someone's profile with a way to message them, and lets you edit your own name, status, picture and time zone.",
       "summary": "Displays a person's profile and provides the shared self-profile editor.",
