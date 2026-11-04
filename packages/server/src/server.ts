@@ -3637,6 +3637,14 @@ async function startWorkspaceServer(
       failures: status.failures,
       nextAt: status.nextAt,
       running: status.running,
+      ...(status.offsite
+        ? {
+            offsite: {
+              lastSuccessAt: status.offsite.lastSuccessAt,
+              failures: status.offsite.failures,
+            },
+          }
+        : {}),
     };
   };
 

@@ -12,6 +12,7 @@ import {
 import { createWorkspaceServer, SERVER_VERSION } from "./server.js";
 import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "./backup.js";
 import { backupInChildProcess, type ScheduledBackups } from "./backupSchedule.js";
+import { OffsiteBackups, parseOffsiteUrl } from "./offsite.js";
 import { withBackupFolder } from "./workspaceCopy.js";
 import { commandLineExtensions, type ServerExtension } from "./extensions.js";
 import { listAccounts, recoverAccount } from "./recover.js";
@@ -66,6 +67,8 @@ const { values, positionals } = (() => {
         "backup-dir": { type: "string" },
         "backup-every-hours": { type: "string" },
         "backup-keep": { type: "string" },
+        "backup-offsite": { type: "string" },
+        "backup-offsite-keep": { type: "string" },
         "member-notice": { type: "string" },
         "plan-name": { type: "string" },
         "upgrade-url": { type: "string" },
@@ -142,6 +145,19 @@ Usage: ownbase-server [options]
   --backup-keep <n> How many scheduled backups to keep (default 7). Older
                     ones in --backup-dir go; nothing else there is touched.
                     Also settable with OWNBASE_BACKUP_KEEP
+  --backup-offsite <url>
+                    Also send each scheduled backup, as one zip, to an
+                    S3-compatible bucket such as Cloudflare R2:
+                    https://<host>/<bucket>[/<folder>]. The keys come from
+                    OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID and
+                    OWNBASE_BACKUP_OFFSITE_SECRET_ACCESS_KEY, the region from
+                    OWNBASE_BACKUP_OFFSITE_REGION (default auto, for R2).
+                    Needs --backup-dir. Also settable with
+                    OWNBASE_BACKUP_OFFSITE_URL
+  --backup-offsite-keep <n>
+                    How many copies to keep in the bucket (default: as many
+                    as --backup-keep). Only names it wrote are removed. Also
+                    settable with OWNBASE_BACKUP_OFFSITE_KEEP
   --member-notice <n>
                     For a workspace you host for others on a plan: past this
                     many members, the owner and admins are told it has more
@@ -488,10 +504,16 @@ function scheduledBackupsOption(): ScheduledBackups | undefined {
   const dir = values["backup-dir"] ?? envSetting("BACKUP_DIR");
   const everyRaw = values["backup-every-hours"] ?? envSetting("BACKUP_EVERY_HOURS");
   const keepRaw = values["backup-keep"] ?? envSetting("BACKUP_KEEP");
+  const offsiteRaw = values["backup-offsite"] ?? envSetting("BACKUP_OFFSITE_URL");
+  const offsiteKeepRaw = values["backup-offsite-keep"] ?? envSetting("BACKUP_OFFSITE_KEEP");
   if (!dir) {
     if (everyRaw !== undefined || keepRaw !== undefined)
       throw new ConfigError(
         "--backup-every-hours and --backup-keep need --backup-dir, the place to put the backups",
+      );
+    if (offsiteRaw !== undefined || offsiteKeepRaw !== undefined)
+      throw new ConfigError(
+        "--backup-offsite needs --backup-dir: each backup is taken there first, then sent",
       );
     return undefined;
   }
@@ -499,7 +521,40 @@ function scheduledBackupsOption(): ScheduledBackups | undefined {
   const keep = parseWholeNumber(keepRaw, "--backup-keep", 7);
   if (everyHours < 1) throw new ConfigError("--backup-every-hours must be at least 1");
   if (keep < 1) throw new ConfigError("--backup-keep must be at least 1");
-  return { dir: resolve(dir), everyMs: everyHours * 3600_000, keep };
+  return {
+    dir: resolve(dir),
+    everyMs: everyHours * 3600_000,
+    keep,
+    offsite: offsiteOption(offsiteRaw, offsiteKeepRaw, keep),
+  };
+}
+
+/** --backup-offsite, its keys from the environment only, so they are not in a process list. */
+function offsiteOption(raw: string | undefined, keepRaw: string | undefined, fallbackKeep: number) {
+  if (raw === undefined) {
+    if (keepRaw !== undefined)
+      throw new ConfigError(
+        "--backup-offsite-keep needs --backup-offsite, the bucket to keep them in",
+      );
+    return undefined;
+  }
+  const accessKeyId = envSetting("BACKUP_OFFSITE_ACCESS_KEY_ID")?.trim();
+  const secretAccessKey = envSetting("BACKUP_OFFSITE_SECRET_ACCESS_KEY")?.trim();
+  if (!accessKeyId || !secretAccessKey)
+    throw new ConfigError(
+      "--backup-offsite needs OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID and OWNBASE_BACKUP_OFFSITE_SECRET_ACCESS_KEY",
+    );
+  const keep = parseWholeNumber(keepRaw, "--backup-offsite-keep", fallbackKeep);
+  if (keep < 1) throw new ConfigError("--backup-offsite-keep must be at least 1");
+  return new OffsiteBackups(
+    {
+      ...parseOffsiteUrl(raw),
+      region: envSetting("BACKUP_OFFSITE_REGION")?.trim() || "auto",
+      accessKeyId,
+      secretAccessKey,
+    },
+    keep,
+  );
 }
 
 const accessPolicy = values["access-policy"];
@@ -573,6 +628,11 @@ if (scheduledBackups && !values.isolated) {
     `  Backups: every ${scheduledBackups.everyMs / 3600_000} h to ${scheduledBackups.dir}, keeping ${scheduledBackups.keep}`,
   );
   if (status?.nextAt) console.log(`  Next backup: ${new Date(status.nextAt).toISOString()}`);
+  if (scheduledBackups.offsite) {
+    console.log(
+      `  Offsite: each backup also goes to ${scheduledBackups.offsite.where}, keeping ${scheduledBackups.offsite.keep}`,
+    );
+  }
 }
 for (const extension of extensions) {
   const status = extension.status?.();

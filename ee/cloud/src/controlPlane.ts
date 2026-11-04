@@ -56,6 +56,8 @@ const PASSED_ON = [
   /^OWNBASE_TURN_(URLS|SECRET)$/,
   /^OWNBASE_CLOUDFLARE_TURN_(KEY_ID|API_TOKEN)$/,
   /^OWNBASE_LICENSE(_FILE)?$/,
+  // The bucket itself is passed as --backup-offsite, a folder per workspace.
+  /^OWNBASE_BACKUP_OFFSITE_(ACCESS_KEY_ID|SECRET_ACCESS_KEY|REGION)$/,
 ];
 
 const createBody = z.object({
@@ -138,6 +140,7 @@ export class ControlPlane {
     for (const [key, value] of Object.entries(this.opts.env ?? process.env))
       if (PASSED_ON.some((pattern) => pattern.test(key))) env[key] = value;
     env.OWNBASE_CLAIM_CODE = workspace.claimCode;
+    const offsite = (this.opts.env ?? process.env).OWNBASE_BACKUP_OFFSITE_URL?.trim();
     return {
       slug: workspace.slug,
       port: workspace.port,
@@ -169,6 +172,10 @@ export class ControlPlane {
         "24",
         "--backup-keep",
         "7",
+        // Each workspace's backups also go to the operator's bucket, in its own folder.
+        ...(offsite
+          ? ["--backup-offsite", `${offsite.replace(/\/+$/, "")}/${workspace.slug}`]
+          : []),
       ],
     };
   }

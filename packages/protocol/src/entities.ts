@@ -519,6 +519,11 @@ export interface WorkspaceStatus {
         failures: number;
         nextAt: number | null;
         running: boolean;
+        /**
+         * Copies sent to a bucket elsewhere: when the backup in the newest
+         * one was taken, and failures since. Absent when not configured.
+         */
+        offsite?: { lastSuccessAt: number | null; failures: number };
       };
   /** Open sockets, and the people they belong to. */
   connections: { sockets: number; people: number };

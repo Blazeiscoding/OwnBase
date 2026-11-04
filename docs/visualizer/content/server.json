@@ -51,6 +51,18 @@
       "concepts": ["scheduled backup", "retention of copies", "child process", "P3"]
     },
     {
+      "path": "packages/server/src/offsite.ts",
+      "plain": "Sends each scheduled backup, as one zip, to a bucket somewhere else such as Cloudflare R2, so losing the server's disk does not lose the backups too.",
+      "summary": "Uploads verified backups to an S3-compatible bucket and keeps the newest few there.",
+      "details": [
+        "Requests are signed with AWS Signature Version 4 using node:crypto and sent with fetch, so no SDK is added. The signer is checked against AWS's own worked examples.",
+        "A backup up to 32 MiB is one PUT; a larger one is a multipart upload in equal 32 MiB parts, one held in memory at a time, aborted if any part fails. Every body's SHA-256 is signed, so the bucket rejects a corrupted one.",
+        "prune lists the folder and deletes only keys named <prefix>backup-YYYY-MM-DDTHH-MM-SSZ.zip past the number kept. Network failures, 5xx and 429 are tried again twice; a 4xx is reported with the bucket's code and message, never the secret.",
+        "BackupSchedule calls it after a local backup is verified. A failed send leaves the backup standing, counts in the status as offsite failures, and only the send is retried within the hour. The keys come from the environment only."
+      ],
+      "concepts": ["offsite backup", "S3 SigV4", "multipart upload", "Cloudflare R2"]
+    },
+    {
       "path": "packages/server/src/blockKit.ts",
       "plain": "Turns the text, buttons and forms that Slack-style apps send into what OwnBase can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into OwnBase's text, buttons and modal fields.",
@@ -1093,6 +1105,17 @@
             "packages/server/src/main.ts"
           ],
           "detail": "--backup-dir/--backup-every-hours/--backup-keep run BackupSchedule; the CLI's runner is a child `backup` process. File deletion flushes return early while a scheduled copy runs, and resume after it. Status reports enabled, interval, keep, last success, failures and next time."
+        },
+        {
+          "title": "And send each one somewhere else",
+          "description": "A host can also have every scheduled backup sent as one zip to a storage bucket elsewhere, such as Cloudflare R2, keeping the newest few there. If the server's disk is lost, the backups are not. A send that fails is tried again within the hour without taking a new backup.",
+          "files": [
+            "packages/server/src/offsite.ts",
+            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/main.ts",
+            "ee/cloud/src/controlPlane.ts"
+          ],
+          "detail": "--backup-offsite https://<host>/<bucket>[/<folder>] with OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID/_SECRET_ACCESS_KEY/_REGION. SigV4 PUT or multipart, then ListObjectsV2 and DELETE past --backup-offsite-keep. Status adds offsite.lastSuccessAt and failures. The control plane gives each hosted workspace <url>/<slug>."
         },
         {
           "title": "Or download a copy as the owner",
