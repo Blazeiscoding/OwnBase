@@ -14,6 +14,7 @@ import {
 } from "../lib/invites.js";
 import { PlatformContext, useClient, useWorkspace } from "../context.js";
 import { Swap } from "./Motion.js";
+import { BreakableAddress } from "./BreakableAddress.js";
 import { Dialog } from "./Dialog.js";
 import { useConfirm } from "./Confirm.js";
 import { useShareableServer } from "./ShareableServer.js";
@@ -194,8 +195,8 @@ export function InviteDialog(props: {
             <div className="px-4 pt-3">
               <div className="mb-1.5 text-[13px] font-medium text-ink-dim">Invite link</div>
               <div className="flex items-center justify-between gap-3">
-                <code className="min-w-0 break-all font-mono text-xs leading-5 text-ink">
-                  {links.browser}
+                <code className="min-w-0 font-mono text-xs leading-5 text-ink">
+                  <BreakableAddress text={links.browser} />
                 </code>
                 <button
                   onClick={() => void copyLink(links.browser)}
@@ -290,8 +291,8 @@ export function InviteDialog(props: {
             <div className="border-t border-edge px-4 py-3">
               <div className="mb-1.5 text-[12px] text-ink-faint">Desktop app link</div>
               <div className="flex items-center justify-between gap-3">
-                <code className="min-w-0 break-all font-mono text-xs leading-5 text-ink">
-                  {links.desktop}
+                <code className="min-w-0 font-mono text-xs leading-5 text-ink">
+                  <BreakableAddress text={links.desktop} />
                 </code>
                 <button onClick={() => void copy(links.desktop, "desktop")} className={quietButton}>
                   <Swap text>{label("Copy desktop link", "Copied", "Copy failed", "desktop")}</Swap>
@@ -366,7 +367,9 @@ export function InviteDialog(props: {
               ))}
             </select>
           ) : (
-            <code className="min-w-0 break-all font-mono text-[13px] text-ink">{host}</code>
+            <code className="min-w-0 font-mono text-[13px] text-ink">
+              <BreakableAddress text={host} />
+            </code>
           )}
           <button onClick={() => void copy(host, "host")} className={quietButton}>
             <Swap text>{label("Copy address", "Copied", "Copy failed", "host")}</Swap>
@@ -401,18 +404,21 @@ export function InviteDialog(props: {
                   key={inv.code}
                   className="flex items-center gap-3 rounded-xl border border-edge px-3 py-2 text-sm"
                 >
-                  <code className="font-mono text-[13px] tracking-[0.15em] text-ink">
-                    {inv.code}
-                  </code>
-                  <span className="min-w-0 flex-1 truncate text-xs text-ink-faint">
-                    by {creator} · {inv.uses}
-                    {inv.maxUses !== null ? ` of ${inv.maxUses}` : ""} used
-                    {inv.expiresAt !== null && status === "active"
-                      ? ` · ${describeExpiry(inv.expiresAt).toLowerCase()}`
-                      : ""}
-                  </span>
+                  {/* The details sit under the code so they wrap, never cut off. */}
+                  <div className="min-w-0 flex-1">
+                    <code className="block font-mono text-[13px] tracking-[0.15em] text-ink">
+                      {inv.code}
+                    </code>
+                    <span className="block text-xs text-ink-faint">
+                      by {creator} · {inv.uses}
+                      {inv.maxUses !== null ? ` of ${inv.maxUses}` : ""} used
+                      {inv.expiresAt !== null && status === "active"
+                        ? ` · ${describeExpiry(inv.expiresAt).toLowerCase()}`
+                        : ""}
+                    </span>
+                  </div>
                   <span
-                    className={`flex items-center gap-1.5 text-xs ${status === "active" ? "text-online" : "text-ink-faint"}`}
+                    className={`flex shrink-0 items-center gap-1.5 text-xs ${status === "active" ? "text-online" : "text-ink-faint"}`}
                   >
                     {status === "active" && (
                       <span aria-hidden="true" className="size-1.5 rounded-full bg-online" />
@@ -423,7 +429,7 @@ export function InviteDialog(props: {
                   {status !== "revoked" && status !== "expired" && status !== "used_up" && (
                     <button
                       onClick={() => void revoke(inv.code)}
-                      className="rounded-lg px-2 py-1 text-xs text-ink-dim transition-colors hover:bg-alert/10 hover:text-alert"
+                      className="shrink-0 rounded-lg px-2 py-1 text-xs text-ink-dim transition-colors hover:bg-alert/10 hover:text-alert"
                       aria-label={`Revoke invite ${inv.code}`}
                     >
                       Revoke

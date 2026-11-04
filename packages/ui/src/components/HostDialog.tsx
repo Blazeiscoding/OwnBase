@@ -27,6 +27,7 @@ import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { useOptionalConfirm } from "./Confirm.js";
+import { BreakableAddress } from "./BreakableAddress.js";
 
 type Hosting = NonNullable<Platform["hosting"]>;
 
@@ -808,8 +809,8 @@ function AddressRow(props: {
 }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span id={props.id} className="min-w-0 break-all font-mono text-ink">
-        {props.url}
+      <span id={props.id} className="min-w-0 font-mono text-ink">
+        <BreakableAddress text={props.url} />
       </span>
       <button
         type="button"
@@ -1600,9 +1601,9 @@ export function HostDialog(props: {
                                 href={publicUrl}
                                 target="_blank"
                                 rel="noreferrer"
-                                className="min-w-0 break-all font-mono text-xs text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
+                                className="min-w-0 font-mono text-xs text-ink underline decoration-ink-faint/60 underline-offset-2 hover:decoration-ink"
                               >
-                                {publicUrl}
+                                <BreakableAddress text={publicUrl} />
                               </a>
                               <button
                                 type="button"
@@ -1692,8 +1693,8 @@ export function HostDialog(props: {
                                 <p>
                                   The public link will use your own address, which never changes.
                                 </p>
-                                <p className="break-all font-mono text-ink">
-                                  {status.publicAddress}
+                                <p className="font-mono text-ink">
+                                  <BreakableAddress text={status.publicAddress} />
                                 </p>
                                 {status.port !== undefined && (
                                   <p>
