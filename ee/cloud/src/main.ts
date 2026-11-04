@@ -27,7 +27,9 @@ The operator's token: OWNBASE_CLOUD_TOKEN, or OWNBASE_CLOUD_TOKEN_FILE naming
 a file that holds it, at least 32 characters. Workspace servers are given
 OWNBASE_TURN_URLS / _SECRET, OWNBASE_CLOUDFLARE_TURN_KEY_ID / _API_TOKEN and
 OWNBASE_ICE_SERVERS from this process's environment, for calls between
-networks.
+networks. With OWNBASE_BACKUP_OFFSITE_URL set (https://<host>/<bucket>), each
+workspace's daily backups also go to that bucket, in a folder named after the
+workspace, signed with OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID / _SECRET_ACCESS_KEY.
 `;
 
 function fail(message: string): never {

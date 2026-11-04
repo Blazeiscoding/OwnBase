@@ -264,6 +264,16 @@ describe("the server's status in the report, for the owner and admins (OPS-10)",
     expect(report({ ...scheduled, everyMs: 90 * 60_000, running: true })).toContain(
       "Backups: every 1 h 30 min, keeping 7; one running now; next",
     );
+    expect(report({ ...scheduled, offsite: { lastSuccessAt: null, failures: 0 } })).toContain(
+      "Offsite copies: none sent yet",
+    );
+    expect(
+      report({
+        ...scheduled,
+        offsite: { lastSuccessAt: Date.parse("2026-09-25T03:00:00Z"), failures: 1 },
+      }),
+    ).toContain("Offsite copies: newest from 2026-09-25T03:00:00.000Z, 1 failure since");
+    expect(report(scheduled)).not.toContain("Offsite");
     expect(report({ enabled: false })).toContain("Backups: not scheduled");
     // A server from before them does not say, so neither does the report.
     expect(report(undefined)).not.toContain("Backups");

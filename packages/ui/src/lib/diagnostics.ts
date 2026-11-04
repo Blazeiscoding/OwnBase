@@ -189,6 +189,18 @@ function backupLine(backups: NonNullable<WorkspaceStatus["backups"]>): string {
   ].join("; ");
 }
 
+/** "Offsite copies: newest from …, 1 failure since", when backups also go elsewhere. */
+function offsiteLine(offsite: { lastSuccessAt: number | null; failures: number }): string {
+  return [
+    `Offsite copies: ${
+      offsite.lastSuccessAt === null
+        ? "none sent yet"
+        : `newest from ${new Date(offsite.lastSuccessAt).toISOString()}`
+    }`,
+    ...(offsite.failures ? [`${plural(offsite.failures, "failure")} since`] : []),
+  ].join(", ");
+}
+
 /**
  * The server's own account of itself (OPS-10): sizes, queues and timings, and
  * never what is in them. It holds no message, name, file, address or token.
@@ -231,6 +243,9 @@ function workspaceLines(status: WorkspaceStatus | { error: string }, now: number
     }`,
     // Servers before scheduled backups do not say, and a line would guess.
     ...(status.backups ? [backupLine(status.backups)] : []),
+    ...(status.backups?.enabled && status.backups.offsite
+      ? [offsiteLine(status.backups.offsite)]
+      : []),
     `Connections: ${plural(connections.sockets, "socket")} for ${plural(connections.people, "person", "people")}`,
     `Event loop delay: ${
       loop

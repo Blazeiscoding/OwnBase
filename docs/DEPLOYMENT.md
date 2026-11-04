@@ -1380,6 +1380,53 @@ removed by the next one. An `--isolated` copy takes no backups, since it would
 otherwise write into the original's directory and remove the original's older
 backups.
 
+### Backups somewhere else
+
+Backups on the same disk as the workspace go with it if that disk or machine is
+lost. `--backup-offsite` also sends each scheduled backup, as one `.zip`, to an
+S3-compatible bucket: Cloudflare R2, Amazon S3, Backblaze B2, MinIO and the like.
+
+```sh
+export OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID=...
+export OWNBASE_BACKUP_OFFSITE_SECRET_ACCESS_KEY=...
+ownbase-server --data ./data --backup-dir ./backups \
+  --backup-offsite https://<account-id>.r2.cloudflarestorage.com/ownbase-backups/acme
+```
+
+The address is the bucket's S3 endpoint, then the bucket, then an optional folder
+in it (`acme` above). The keys are read only from the environment, so they never
+show in a process list, and the region from `OWNBASE_BACKUP_OFFSITE_REGION`
+(`auto` unless set, which is what R2 wants). The address can also be given as
+`OWNBASE_BACKUP_OFFSITE_URL`. Each copy is named after its backup, such as
+`acme/backup-2026-11-04T03-00-00Z.zip`. Once one is sent, the oldest past
+`--backup-offsite-keep` (default: the same as `--backup-keep`) are removed from
+the bucket. As in `--backup-dir`, nothing named any other way is touched.
+
+A backup up to 32 MB goes in one request; a larger one goes in 32 MB parts,
+which never holds more than one part in memory. Every request is signed and its
+body's SHA-256 is checked by the bucket. A send that fails leaves the backup on
+disk as it is; the server log says why, the status counts the failures, and the
+same backup is sent again within the hour. A newer backup takes its place.
+
+To restore, download the zip and give it to `restore --from`, as with a copy the
+owner downloaded. For R2:
+
+```sh
+cf r2 buckets objects get acme/backup-2026-11-04T03-00-00Z.zip --bucket-name ownbase-backups > backup.zip
+ownbase-server restore --from backup.zip --data ./data
+```
+
+**Cloudflare R2.** Create a bucket (Standard storage, not Infrequent Access, which
+charges for every read), and an R2 API token with **Object Read & Write** on that
+bucket only. The token's Access Key ID and Secret Access Key are the two keys
+above, and the endpoint is shown on the bucket's settings page. R2's free tier is
+10 GB-month of storage, a million writes and ten million reads a month, and
+downloads cost nothing. A daily backup uses about five requests, plus one per
+32 MB above that, so with seven kept the storage is the only part that grows: seven
+times the size of a backup. A lifecycle rule that aborts unfinished multipart
+uploads after a day keeps a send cut short from being stored. R2 has no spending
+cap, so set a usage alert under **Notifications → Usage Based Billing** as well.
+
 ### A copy for the owner to download
 
 The workspace's owner can download the whole workspace from **Workspace settings →

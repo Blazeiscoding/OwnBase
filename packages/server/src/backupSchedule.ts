@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readdir, readFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import type { BackupManifest } from "./backup.js";
+import type { OffsiteUploader } from "./offsite.js";
 
 /**
  * Backups the server takes by itself on a timer (P3), into dated folders in
@@ -28,6 +29,8 @@ export interface ScheduledBackups {
    * second and a half for 300 MB, and chat waits that long.
    */
   run?: (out: string, signal: AbortSignal) => Promise<BackupManifest>;
+  /** Also sends each backup elsewhere, such as an R2 bucket, keeping the newest few there. */
+  offsite?: OffsiteUploader;
 }
 
 /** How scheduled backups are going, for the owner and admins. */
@@ -40,6 +43,8 @@ export interface BackupScheduleStatus {
   failures: number;
   nextAt: number | null;
   running: boolean;
+  /** Copies sent elsewhere, when configured: the backup time of the newest one sent, and failures since. */
+  offsite: { lastSuccessAt: number | null; lastError: string | null; failures: number } | null;
 }
 
 const NAME = /^backup-(\d{4})-(\d{2})-(\d{2})T(\d{2})-(\d{2})-(\d{2})Z$/;
@@ -139,6 +144,10 @@ export function backupInChildProcess(opts: {
  */
 export class BackupSchedule {
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /** Sends a backup offsite again after a failure, without taking a new one. */
+  private offsiteTimer: ReturnType<typeof setTimeout> | null = null;
+  /** The newest backup that did not reach offsite yet. */
+  private offsitePending: string | null = null;
   private running: Promise<void> | null = null;
   private readonly abort = new AbortController();
   private stopped = false;
@@ -165,6 +174,7 @@ export class BackupSchedule {
       failures: 0,
       nextAt: null,
       running: false,
+      offsite: opts.offsite ? { lastSuccessAt: null, lastError: null, failures: 0 } : null,
     };
   }
 
@@ -236,6 +246,7 @@ export class BackupSchedule {
       );
       this.arm(started + this.opts.everyMs);
     } catch (error) {
+      this.state.running = false;
       if (this.stopped) return;
       this.state.failures++;
       this.state.lastError = error instanceof Error ? error.message : String(error);
@@ -244,13 +255,77 @@ export class BackupSchedule {
         "scheduled backup failed; it will be tried again",
       );
       this.arm(this.now() + Math.min(RETRY_MS, this.opts.everyMs));
+      return;
+    }
+    this.offsitePending = name;
+    await this.sendOffsite();
+    this.state.running = false;
+  }
+
+  /**
+   * Sends the newest backup offsite and removes the oldest copies there. A
+   * failure leaves the backup itself standing, and only the sending is tried
+   * again within the hour; a newer backup goes in its place.
+   */
+  private async sendOffsite(): Promise<void> {
+    const offsite = this.opts.offsite;
+    const name = this.offsitePending;
+    if (!offsite || !name || this.stopped) return;
+    if (this.offsiteTimer) clearTimeout(this.offsiteTimer);
+    this.offsiteTimer = null;
+    const state = this.state.offsite!;
+    try {
+      const sent = await offsite.upload(join(this.dir, name), name, this.abort.signal);
+      const removed = await offsite.prune(this.abort.signal);
+      if (this.offsitePending === name) this.offsitePending = null;
+      state.lastSuccessAt = backupFolderTime(name);
+      state.lastError = null;
+      state.failures = 0;
+      this.opts.log.info(
+        { backup: name, key: sent.key, bytes: sent.bytes, removed },
+        "offsite copy sent",
+      );
+    } catch (error) {
+      if (this.stopped) return;
+      state.failures++;
+      state.lastError = error instanceof Error ? error.message : String(error);
+      this.opts.log.error(
+        { err: error, failures: state.failures, backup: name, where: offsite.where },
+        "offsite copy failed; it will be tried again",
+      );
+      this.offsiteTimer = setTimeout(
+        () => {
+          this.offsiteTimer = null;
+          if (this.running || this.stopped) return;
+          this.running = this.retryOffsite().finally(() => {
+            this.running = null;
+          });
+        },
+        Math.min(RETRY_MS, this.opts.everyMs),
+      );
+      this.offsiteTimer.unref();
+    }
+  }
+
+  /** The retry of a failed send, if its backup is still there to send. */
+  private async retryOffsite(): Promise<void> {
+    const name = this.offsitePending;
+    if (!name) return;
+    const kept = await listScheduledBackups(this.dir).catch(() => []);
+    if (!kept.some((backup) => backup.name === name)) {
+      this.offsitePending = null;
+      return;
+    }
+    this.state.running = true;
+    try {
+      await this.sendOffsite();
     } finally {
       this.state.running = false;
     }
   }
 
   status(): BackupScheduleStatus {
-    return { ...this.state };
+    return { ...this.state, offsite: this.state.offsite && { ...this.state.offsite } };
   }
 
   /** No more backups; one running in a child process is stopped, one in this process finishes. */
@@ -258,6 +333,8 @@ export class BackupSchedule {
     this.stopped = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
+    if (this.offsiteTimer) clearTimeout(this.offsiteTimer);
+    this.offsiteTimer = null;
     this.state.nextAt = null;
     this.abort.abort();
     await this.running?.catch(() => {});

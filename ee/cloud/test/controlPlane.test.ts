@@ -49,6 +49,10 @@ function startPlane() {
       // The relay each workspace's server is given for calls between networks.
       OWNBASE_TURN_URLS: "turn:turn.ownbase.test:3478",
       OWNBASE_TURN_SECRET: "the-shared-secret-16",
+      // Backups also go offsite. The first is a minute away, so none is sent here.
+      OWNBASE_BACKUP_OFFSITE_URL: "https://bucket.ownbase.test/backups/",
+      OWNBASE_BACKUP_OFFSITE_ACCESS_KEY_ID: "offsite-key-id",
+      OWNBASE_BACKUP_OFFSITE_SECRET_ACCESS_KEY: "offsite-secret",
     },
     caddyRetryMs: 200,
   });
@@ -212,6 +216,15 @@ describe("hosting workspaces", () => {
         credential: expect.any(String),
       },
     ]);
+
+    // And the bucket for its backups.
+    const status = await fetch(`http://127.0.0.1:${acmePort}/api/admin/status`, {
+      headers: { authorization: `Bearer ${owner.body.token}` },
+    });
+    expect(((await status.json()) as any).backups).toMatchObject({
+      enabled: true,
+      offsite: { lastSuccessAt: null, failures: 0 },
+    });
   }, 60_000);
 
   it("refuses an address that is wrong, kept or taken", async () => {
