@@ -2206,9 +2206,16 @@ export class WorkspaceClient {
     };
   }
 
+  /**
+   * Loads the newest page, or the page before what is loaded with `older`.
+   * `unreadAfter` is the seq the reader had read up to: when every message in
+   * the newest page is after it and there are older ones, the conversation
+   * opens instead on a window around the first unread, so it starts at its
+   * New line rather than with the rest of what was missed out of sight above.
+   */
   async loadTimeline(
     channelId: ID,
-    opts: { older?: boolean; latest?: boolean } = {},
+    opts: { older?: boolean; latest?: boolean; unreadAfter?: number } = {},
   ): Promise<void> {
     const epoch = this.historyEpoch;
     const tl = this.state.timelines[channelId];
@@ -2227,19 +2234,40 @@ export class WorkspaceClient {
 
   private async fetchTimeline(
     channelId: ID,
-    opts: { older?: boolean; latest?: boolean },
+    opts: { older?: boolean; latest?: boolean; unreadAfter?: number },
     tl: ChannelTimeline | undefined,
     epoch: number,
     ticket: TimelineLoad,
     before: ID | undefined,
   ): Promise<void> {
     let answer: Awaited<ReturnType<Api["listMessages"]>>;
+    let since: Awaited<ReturnType<Api["listMessagesSince"]>> | null = null;
     try {
       answer = await this.api.listMessages(channelId, {
         before,
         limit: 50,
         signal: ticket.controller.signal,
       });
+      const oldest = answer.messages.at(-1);
+      const missed = opts.unreadAfter;
+      if (
+        !opts.older &&
+        !opts.latest &&
+        missed !== undefined &&
+        missed > 0 &&
+        answer.messages.length === 50 &&
+        oldest &&
+        oldest.seq > missed
+      ) {
+        // Still held, so what happens meanwhile is replayed into whichever
+        // window is kept. A server without it, or a failure, keeps the newest.
+        since = await this.api
+          .listMessagesSince(channelId, missed, 50, ticket.controller.signal)
+          .catch((error: unknown) => {
+            if (stoppedOnPurpose(ticket.controller)) throw error;
+            return null;
+          });
+      }
     } catch (error) {
       if (stoppedOnPurpose(ticket.controller)) return;
       throw error;
@@ -2254,6 +2282,31 @@ export class WorkspaceClient {
       !this.state.channels[channelId]
     )
       return;
+    if (since) {
+      const window = this.timelineChoices(
+        windowTimeline(
+          stampTimeline(
+            updateTimeline(
+              snapshotTimeline(
+                {
+                  items: [...since.messages].reverse(),
+                  hasMore: since.hasMoreOlder,
+                  hasMoreNewer: since.hasMoreNewer,
+                  loaded: true,
+                },
+                since.seq,
+              ),
+              this.timelineEvents(ticket, since.seq),
+            ),
+            this.state.lastSeq,
+          ),
+          "oldest",
+        ),
+      );
+      this.store.setState((s) => ({ timelines: { ...s.timelines, [channelId]: window } }));
+      this.touchHistory("timeline", channelId);
+      return;
+    }
     const page = stampTimeline(
       updateTimeline(
         snapshotTimeline(

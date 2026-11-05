@@ -282,6 +282,7 @@ export const GUEST_ROUTES = new Set([
   "POST /api/channels/:id/messages",
   "GET /api/channels/:id/threads/:rootId",
   "GET /api/channels/:id/messages/around/:messageId",
+  "GET /api/channels/:id/messages/since/:seq",
   "GET /api/channels/:id/messages/after/:messageId",
   "GET /api/channels/:id/messages/:messageId",
   "PATCH /api/messages/:id",
@@ -3114,6 +3115,28 @@ async function startWorkspaceServer(
       return {
         ...store.listMessagesAround(req.params.id, rootId, limit),
         threadRootId: target.threadRootId,
+        seq: store.currentSeq(),
+      };
+    },
+  );
+
+  // A window of history centred on the first message after `seq`, where
+  // someone who had read up to it takes up reading again. A conversation with
+  // more unread than one page opens there, at its New line, not at the newest.
+  app.get<{ Params: { id: string; seq: string } }>(
+    "/api/channels/:id/messages/since/:seq",
+    async (req) => {
+      const me = requireUser(req);
+      requireChannelAccess(req.params.id, me);
+      const { limit } = messageHistoryQuery.parse(req.query);
+      const seq = Number(req.params.seq);
+      if (!/^\d{1,15}$/.test(req.params.seq) || !Number.isSafeInteger(seq))
+        throw new HttpError(400, "invalid_seq");
+      const target = store.firstMessageAfterSeq(req.params.id, seq);
+      if (!target) throw new HttpError(404, "message_not_found");
+      return {
+        ...store.listMessagesAround(req.params.id, target, limit),
+        targetId: target,
         seq: store.currentSeq(),
       };
     },

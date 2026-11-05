@@ -2062,6 +2062,22 @@ export class Store {
     return { messages: this.hydrateMessages(rows), hasMoreOlder, hasMoreNewer };
   }
 
+  /**
+   * The first message in a conversation's history after an event seq: where
+   * someone who had read up to that seq takes up reading again. Null when
+   * nothing has been said there since.
+   */
+  firstMessageAfterSeq(channelId: ID, seq: number): ID | null {
+    const row = this.db
+      .prepare(
+        `SELECT id FROM messages
+         WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND seq > ?
+         ORDER BY id ASC LIMIT 1`,
+      )
+      .get(channelId, seq) as { id: string } | undefined;
+    return row?.id ?? null;
+  }
+
   /** Page forward from a message, for scrolling back down toward the tail. */
   listMessagesAfter(channelId: ID, afterId: ID, limit: number): Message[] {
     const rows = this.db

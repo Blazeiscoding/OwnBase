@@ -1683,6 +1683,77 @@
         }
       }
     },
+    "/api/channels/{id}/messages/since/{seq}": {
+      "get": {
+        "operationId": "getChannelsByIdMessagesSinceBySeq",
+        "tags": [
+          "channels"
+        ],
+        "summary": "A window of history centred on the first message after `seq`, where someone who had read up to it takes up reading again.",
+        "description": "A window of history centred on the first message after `seq`, where someone who had read up to it takes up reading again. A conversation with more unread than one page opens there, at its New line, not at the newest.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "seq",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "type": "integer",
+              "minimum": 0,
+              "exclusiveMinimum": true,
+              "maximum": 200
+            }
+          },
+          {
+            "name": "threadRootId",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/channels/{id}/messages/{messageId}": {
       "get": {
         "operationId": "getChannelsByIdMessagesByMessageId",

@@ -716,6 +716,64 @@ describe("workspace server", () => {
     expect(after.data.messages.every((m) => m.id > middle)).toBe(true);
   });
 
+  it("loads a window from where someone stopped reading, past replies kept in their threads", async () => {
+    const room = await api<{ channel: Channel }>("/api/channels", {
+      token: aliceToken,
+      body: { type: "public", name: "catching-up" },
+    });
+    const channelId = room.data.channel.id;
+    const said: Message[] = [];
+    for (let i = 0; i < 30; i++) {
+      const posted = await api<{ message: Message }>(`/api/channels/${channelId}/messages`, {
+        token: aliceToken,
+        body: { text: `message ${i}` },
+      });
+      said.push(posted.data.message);
+    }
+    // A reply after the place read up to stays in its thread: not where reading resumes.
+    const read = said[11]!;
+    await api(`/api/channels/${channelId}/messages`, {
+      token: aliceToken,
+      body: { text: "a reply", threadRootId: said[3]!.id },
+    });
+
+    const since = await api<{
+      messages: Message[];
+      hasMoreOlder: boolean;
+      hasMoreNewer: boolean;
+      targetId: string;
+    }>(`/api/channels/${channelId}/messages/since/${read.seq}?limit=10`, { token: aliceToken });
+    expect(since.status).toBe(200);
+    expect(since.data.targetId).toBe(said[12]!.id);
+    // Some of what was read above it, for context, and more on either side.
+    expect(since.data.messages.map((m) => m.text)).toContain("message 12");
+    expect(since.data.messages.map((m) => m.text)).toContain("message 10");
+    expect(since.data.hasMoreOlder).toBe(true);
+    expect(since.data.hasMoreNewer).toBe(true);
+
+    const caughtUp = await api(
+      `/api/channels/${channelId}/messages/since/${said.at(-1)!.seq + 5}`,
+      { token: aliceToken },
+    );
+    expect(caughtUp.status).toBe(404);
+    for (const bad of ["-1", "1.5", "abc", "99999999999999999"]) {
+      const res = await api(`/api/channels/${channelId}/messages/since/${bad}`, {
+        token: aliceToken,
+      });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("will not load history from a place read in a hidden channel", async () => {
+    const secret = server.store.getChannelByName("secret-plans")!;
+    await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
+      token: aliceToken,
+      body: { text: "still classified" },
+    });
+    const res = await api(`/api/channels/${secret.id}/messages/since/0`, { token: bobToken });
+    expect(res.status).toBe(404);
+  });
+
   it("will not load history around a message in a hidden channel", async () => {
     const secret = server.store.getChannelByName("secret-plans")!;
     const posted = await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
