@@ -4,7 +4,8 @@ name: Checks
 # since its run. Ordinary documentation changes start nothing: run
 # `pnpm format` locally. Nor does the landing page in apps/site, which no app
 # loads; Cloudflare Pages builds a preview of it instead. The integration
-# contract document is read by tests, so it starts Checks. The packaged Windows app and the container image have
+# contract document is read by tests, so it starts Checks, and so do the
+# project atlas's own sources in docs/visualizer. The packaged Windows app and the container image have
 # workflows of their own, desktop.yml and container.yml, which start only when
 # what they check changes.
 #
@@ -22,6 +23,7 @@ on:
       - "!**/*.md"
       - "!LICENSE"
       - "docs/INTEGRATIONS.md"
+      - "docs/visualizer/**"
   workflow_dispatch:
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -70,6 +72,10 @@ jobs:
         run: node --test scripts/release-manifest.test.mjs
       - name: Test the product name check
         run: node --test scripts/check-product-name.test.mjs
+      # On an atlas it builds from this checkout; whether the copy in docs/ is
+      # current is a question for pnpm visualizer:check, not for every change.
+      - name: Test the project atlas generator
+        run: node --test scripts/generate-project-visualizer.test.mjs
       # No earlier product name anywhere in the repository (P2b).
       - name: Check the product name
         run: node scripts/check-product-name.mjs --repo
