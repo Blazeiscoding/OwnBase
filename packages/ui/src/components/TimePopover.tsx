@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type RefObject } from "react";
 import { localDateTime, type SchedulePreset } from "../lib/schedule.js";
+import { readerLocale } from "../lib/readerLocale.js";
 import { Icon } from "./Icon.js";
 import { Popover } from "./Popover.js";
 
@@ -35,7 +36,7 @@ export function TimePopover(props: {
             >
               <span>{p.label}</span>
               <span className="tabular text-[12px] text-ink-faint">
-                {p.at.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                {p.at.toLocaleTimeString(readerLocale(), { hour: "numeric", minute: "2-digit" })}
               </span>
             </button>
           </li>

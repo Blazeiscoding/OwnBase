@@ -16,6 +16,7 @@ import {
   shell,
   Tray,
 } from "electron";
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { statfs } from "node:fs/promises";
 import { join } from "node:path";
@@ -80,6 +81,7 @@ import { windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
 import { contextMenuItems } from "./contextMenu.js";
+import { READER_LOCALE_ARG, readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
   findCloudflared,
@@ -392,6 +394,8 @@ let savedWindowPlace: unknown = null;
 let saveWindowPlaceNow: (() => void) | null = null;
 /** The page's zoom level (zoomKeys.ts), read at startup and kept as the keys change it. */
 let savedZoom = 0;
+/** The locale the page writes dates and times in (regionalFormat.ts), worked out at startup. */
+let pageLocale: string | null = null;
 
 /**
  * The window's background and title bar overlay in the page's theme: when the
@@ -1147,6 +1151,7 @@ function createWindow(): void {
     },
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
+      ...(pageLocale ? { additionalArguments: [READER_LOCALE_ARG + pageLocale] } : {}),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -1370,6 +1375,17 @@ function loadRenderer(win: BrowserWindow): void {
 
 void app.whenReady().then(async () => {
   if (!primaryInstance) return;
+  // Asked of the system while the settings are read: whether it writes times
+  // on the 24-hour clock, which Chromium does not follow.
+  const hourCycle = systemHourCycle(
+    process.platform,
+    (command, args) =>
+      new Promise((resolve, reject) =>
+        execFile(command, args, { timeout: 3_000, windowsHide: true }, (error, stdout) =>
+          error ? reject(error) : resolve(stdout),
+        ),
+      ),
+  );
   // The installer gates ask which profile this process uses (F05).
   const gateReport = appEnv("RELEASE_GATE_REPORT");
   if (gateReport)
@@ -1390,6 +1406,11 @@ void app.whenReady().then(async () => {
   // Unreadable, the window opens at its usual size, centred.
   savedWindowPlace = await settings.get(WINDOW_PLACE_KEY).catch(() => null);
   savedZoom = savedZoomLevel(await settings.get(ZOOM_KEY).catch(() => null));
+  pageLocale = readerLocale({
+    appLocale: app.getLocale(),
+    systemLocale: app.getSystemLocale(),
+    hourCycle: await hourCycle,
+  });
   publicAddressLookup = null;
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;

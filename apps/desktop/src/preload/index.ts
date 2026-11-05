@@ -1,4 +1,5 @@
 import { contextBridge, ipcRenderer } from "electron";
+import { READER_LOCALE_ARG } from "../main/regionalFormat.js";
 import { screenSoundSupported } from "../main/screenShare.js";
 
 export interface OwnBaseBridge {
@@ -76,6 +77,7 @@ export interface OwnBaseBridge {
   chooseScreen: (id: string, sound: boolean) => Promise<void>;
   /** Whether a share can send the screen's sound here, as the main process decides it too. */
   screenSound: boolean;
+  readerLocale?: string;
   /**
    * Windows only: microphones the app opens itself, as other apps there do
    * (main/microphone.ts). An opened one's sound comes to the page on a port,
@@ -88,6 +90,11 @@ export interface OwnBaseBridge {
 
 /** What the page hears a microphone's port as; the renderer's platform names it too. */
 const MICROPHONE_PORT = "ownbase:microphone-port";
+
+/** The system's regional format for dates and times, when Chromium's differs (regionalFormat.ts). */
+const readerLocale = process.argv
+  .find((arg) => arg.startsWith(READER_LOCALE_ARG))
+  ?.slice(READER_LOCALE_ARG.length);
 
 const bridge: OwnBaseBridge = {
   downloadFile: (url) => ipcRenderer.invoke("file:download", url),
@@ -176,6 +183,7 @@ const bridge: OwnBaseBridge = {
   screenSources: (quick) => ipcRenderer.invoke("screen:sources", quick),
   chooseScreen: (id, sound) => ipcRenderer.invoke("screen:choose", id, sound),
   screenSound: screenSoundSupported(process.platform, process.getSystemVersion()),
+  ...(readerLocale ? { readerLocale } : {}),
   ...(process.platform === "win32"
     ? {
         microphones: () => ipcRenderer.invoke("microphone:list"),

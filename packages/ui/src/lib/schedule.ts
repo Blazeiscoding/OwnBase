@@ -1,3 +1,5 @@
+import { readerLocale } from "./readerLocale.js";
+
 /** Preset times offered when scheduling a message. */
 export interface SchedulePreset {
   label: string;
@@ -79,10 +81,10 @@ export function formatScheduleShort(ts: number, today = new Date()): string {
   const date = new Date(ts);
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = date.toLocaleTimeString(readerLocale(), { hour: "numeric", minute: "2-digit" });
   if (date.toDateString() === today.toDateString()) return `Today at ${time}`;
   if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${time}`;
-  const day = date.toLocaleDateString(undefined, {
+  const day = date.toLocaleDateString(readerLocale(), {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -97,8 +99,8 @@ export function formatScheduleTime(ts: number, today = new Date()): string {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
-  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = date.toLocaleTimeString(readerLocale(), { hour: "numeric", minute: "2-digit" });
   if (date.toDateString() === today.toDateString()) return `Today at ${time}`;
   if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${time}`;
-  return `${date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
+  return `${date.toLocaleDateString(readerLocale(), { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
 }
