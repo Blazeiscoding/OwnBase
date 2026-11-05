@@ -460,23 +460,30 @@ describe("a link to a message, written in a message", () => {
 
   it("leaves a click asking for a new tab, and any other link, to the browser", async () => {
     const openMessage = await renderText(
-      "http://192.168.1.20:8543/#/c/C_DESIGN/m/M_PLAN http://192.168.1.20:8543/#/c/C_ELSEWHERE/m/M_2 https://example.com/docs",
+      "http://192.168.1.20:8543/#/c/C_DESIGN/m/M_PLAN https://example.com/docs",
     );
     // Stops jsdom trying to open the windows a browser would.
     const noWindows = (event: Event) => event.preventDefault();
     document.addEventListener("click", noWindows);
     try {
-      const [here, notHere, otherSite] = screen.getAllByRole("link");
+      const [here, otherSite] = screen.getAllByRole("link");
       for (const modifier of ["ctrlKey", "metaKey", "shiftKey"]) {
         fireEvent.click(here!, { [modifier]: true });
       }
       fireEvent.click(here!, { button: 1 });
-      fireEvent.click(notHere!);
       fireEvent.click(otherSite!);
       expect(openMessage).not.toHaveBeenCalled();
     } finally {
       document.removeEventListener("click", noWindows);
     }
+  });
+
+  it("opens one in a conversation this account cannot see here too, where it says why", async () => {
+    // A private channel the reader is not in: a new window (the desktop app's
+    // is a browser, not signed in) only said "Could not open" after loading.
+    const openMessage = await renderText("http://192.168.1.20:8543/#/c/C_PRIVATE/m/M_2");
+    expect(fireEvent.click(screen.getByRole("link"))).toBe(false);
+    expect(openMessage.mock.calls).toEqual([["C_PRIVATE", "M_2"]]);
   });
 });
 

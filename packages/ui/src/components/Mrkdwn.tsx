@@ -285,11 +285,13 @@ function renderInline(
 /**
  * A web link. One to a message in this workspace opens it here, instead of in
  * a new window of the app; a click asking for a new tab or window still gets
- * one. Only a link to an address this workspace is known by: another server
- * can hold the same ids, as a restored copy of this workspace does, and its
- * link goes where it says. A label shows in place of the address, which the
- * link's title always names, and a label that reads as another site's address
- * has the real one beside it.
+ * one. That includes a conversation this account cannot see, where opening it
+ * here says why, rather than a new window (the desktop app's is a browser that
+ * is not signed in) saying the same after it loads. Only a link to an address
+ * this workspace is known by: another server can hold the same ids, as a
+ * restored copy of this workspace does, and its link goes where it says. A
+ * label shows in place of the address, which the link's title always names,
+ * and a label that reads as another site's address has the real one beside it.
  */
 function renderLink(
   url: string,
@@ -300,10 +302,7 @@ function renderLink(
   const link = parseDeepLink(url);
   const { openMessage } = ctx;
   const openHere =
-    openMessage &&
-    link?.kind === "message" &&
-    !!ctx.ours?.(link.serverUrl) &&
-    ctx.channels[link.channelId]
+    openMessage && link?.kind === "message" && !!ctx.ours?.(link.serverUrl)
       ? (event: React.MouseEvent) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
           event.preventDefault();
