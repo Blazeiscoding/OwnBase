@@ -2063,18 +2063,20 @@ export class Store {
   }
 
   /**
-   * The first message in a conversation's history after an event seq: where
-   * someone who had read up to that seq takes up reading again. Null when
-   * nothing has been said there since.
+   * The first message someone else wrote in a conversation's history after an
+   * event seq: where `readerId`, who had read up to that seq, takes up reading
+   * again. Their own messages are not news to them, as the New line skips
+   * them. Null when nobody else has said anything there since.
    */
-  firstMessageAfterSeq(channelId: ID, seq: number): ID | null {
+  firstMessageAfterSeq(channelId: ID, seq: number, readerId: ID): ID | null {
     const row = this.db
       .prepare(
         `SELECT id FROM messages
          WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND seq > ?
+           AND user_id != ?
          ORDER BY id ASC LIMIT 1`,
       )
-      .get(channelId, seq) as { id: string } | undefined;
+      .get(channelId, seq, readerId) as { id: string } | undefined;
     return row?.id ?? null;
   }
 

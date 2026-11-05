@@ -1690,7 +1690,7 @@
           "channels"
         ],
         "summary": "A window of history centred on the first message after `seq`, where someone who had read up to it takes up reading again.",
-        "description": "A window of history centred on the first message after `seq`, where someone who had read up to it takes up reading again. A conversation with more unread than one page opens there, at its New line, not at the newest.\n\nNeeds a signed-in account. Guests may call it too.",
+        "description": "A window of history centred on the first message after `seq`, where someone who had read up to it takes up reading again. A conversation with more unread than one page opens there, at its New line, not at the newest. Their own messages are skipped: 404 when nobody else has written since.\n\nNeeds a signed-in account. Guests may call it too.",
         "x-access": "member",
         "x-guests": true,
         "security": [

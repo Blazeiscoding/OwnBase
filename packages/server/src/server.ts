@@ -3123,6 +3123,7 @@ async function startWorkspaceServer(
   // A window of history centred on the first message after `seq`, where
   // someone who had read up to it takes up reading again. A conversation with
   // more unread than one page opens there, at its New line, not at the newest.
+  // Their own messages are skipped: 404 when nobody else has written since.
   app.get<{ Params: { id: string; seq: string } }>(
     "/api/channels/:id/messages/since/:seq",
     async (req) => {
@@ -3132,7 +3133,7 @@ async function startWorkspaceServer(
       const seq = Number(req.params.seq);
       if (!/^\d{1,15}$/.test(req.params.seq) || !Number.isSafeInteger(seq))
         throw new HttpError(400, "invalid_seq");
-      const target = store.firstMessageAfterSeq(req.params.id, seq);
+      const target = store.firstMessageAfterSeq(req.params.id, seq, me.id);
       if (!target) throw new HttpError(404, "message_not_found");
       return {
         ...store.listMessagesAround(req.params.id, target, limit),

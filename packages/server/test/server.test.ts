@@ -716,26 +716,34 @@ describe("workspace server", () => {
     expect(after.data.messages.every((m) => m.id > middle)).toBe(true);
   });
 
-  it("loads a window from where someone stopped reading, past replies kept in their threads", async () => {
+  it("loads a window from where someone stopped reading, past replies and their own messages", async () => {
     const room = await api<{ channel: Channel }>("/api/channels", {
       token: aliceToken,
       body: { type: "public", name: "catching-up" },
     });
     const channelId = room.data.channel.id;
+    await api(`/api/channels/${channelId}/join`, { token: bobToken, method: "POST" });
     const said: Message[] = [];
     for (let i = 0; i < 30; i++) {
+      if (i === 12) {
+        // After the place read up to, before Bob's next message: a reply kept
+        // in its thread, and Alice's own words, neither of them news to her.
+        await api(`/api/channels/${channelId}/messages`, {
+          token: bobToken,
+          body: { text: "a reply", threadRootId: said[3]!.id },
+        });
+        await api(`/api/channels/${channelId}/messages`, {
+          token: aliceToken,
+          body: { text: "Alice's own note" },
+        });
+      }
       const posted = await api<{ message: Message }>(`/api/channels/${channelId}/messages`, {
-        token: aliceToken,
+        token: bobToken,
         body: { text: `message ${i}` },
       });
       said.push(posted.data.message);
     }
-    // A reply after the place read up to stays in its thread: not where reading resumes.
     const read = said[11]!;
-    await api(`/api/channels/${channelId}/messages`, {
-      token: aliceToken,
-      body: { text: "a reply", threadRootId: said[3]!.id },
-    });
 
     const since = await api<{
       messages: Message[];
@@ -751,10 +759,14 @@ describe("workspace server", () => {
     expect(since.data.hasMoreOlder).toBe(true);
     expect(since.data.hasMoreNewer).toBe(true);
 
-    const caughtUp = await api(
-      `/api/channels/${channelId}/messages/since/${said.at(-1)!.seq + 5}`,
-      { token: aliceToken },
-    );
+    // Only her own words since: nothing to take up again.
+    await api(`/api/channels/${channelId}/messages`, {
+      token: aliceToken,
+      body: { text: "Alice again" },
+    });
+    const caughtUp = await api(`/api/channels/${channelId}/messages/since/${said.at(-1)!.seq}`, {
+      token: aliceToken,
+    });
     expect(caughtUp.status).toBe(404);
     for (const bad of ["-1", "1.5", "abc", "99999999999999999"]) {
       const res = await api(`/api/channels/${channelId}/messages/since/${bad}`, {

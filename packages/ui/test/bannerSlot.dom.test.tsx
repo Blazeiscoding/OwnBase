@@ -108,7 +108,8 @@ const opened = () => screen.findByRole("button", { name: /^Members/ }, { timeout
 describe("the banner place", () => {
   it("asks about notifications under the header when nothing more pressing is there", async () => {
     workspace();
-    const ask = await screen.findByRole("region", { name: "Notifications" });
+    // Loaded on first use, while the screen also fetches Ctrl+K and search.
+    const ask = await screen.findByRole("region", { name: "Notifications" }, { timeout: 3_000 });
     // Under the header, not above it.
     const header = document.querySelector("header.channel-header")!;
     expect(header.compareDocumentPosition(ask) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
