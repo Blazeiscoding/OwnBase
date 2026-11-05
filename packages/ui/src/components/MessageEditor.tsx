@@ -14,6 +14,7 @@ import {
 import { Mrkdwn } from "./Mrkdwn.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
+import { pasteRich } from "../lib/richPaste.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";
@@ -212,12 +213,9 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
               onPaste={(e) => {
                 if (e.clipboardData.files.length > 0) return;
                 const { start, end } = field.selection();
-                const linked = linkOverSelection(
-                  draft,
-                  start,
-                  end,
-                  e.clipboardData.getData("text/plain"),
-                );
+                const linked =
+                  linkOverSelection(draft, start, end, e.clipboardData.getData("text/plain")) ??
+                  pasteRich(draft, start, end, e.clipboardData.getData("text/html"));
                 if (!linked || saving.current) return;
                 e.preventDefault();
                 field.edit(linked.text, linked.caret);

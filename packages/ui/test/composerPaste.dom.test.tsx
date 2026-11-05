@@ -64,11 +64,12 @@ async function composer() {
 const picture = () => new File([new Uint8Array(64)], "image.png", { type: "image/png" });
 
 /** A clipboard as a paste event carries it: its files, its items and its text. */
-function clipboard(opts: { files?: File[]; items?: File[]; text?: string }) {
+function clipboard(opts: { files?: File[]; items?: File[]; text?: string; html?: string }) {
   return {
     files: opts.files ?? [],
     items: (opts.items ?? []).map((file) => ({ kind: "file", getAsFile: () => file })),
-    getData: (type: string) => (type === "text/plain" ? (opts.text ?? "") : ""),
+    getData: (type: string) =>
+      type === "text/plain" ? (opts.text ?? "") : type === "text/html" ? (opts.html ?? "") : "",
   };
 }
 
@@ -122,6 +123,28 @@ describe("pasting into the composer", () => {
     box.setSelectionRange(0, 0);
     expect(
       fireEvent.paste(box, { clipboardData: clipboard({ text: "https://example.com" }) }),
+    ).toBe(true);
+  });
+
+  it("keeps the links and marks of formatted text, where the browser would paste only words", async () => {
+    const box = await composer();
+    fireEvent.change(box, { target: { value: "Before: X after" } });
+    box.setSelectionRange(8, 9);
+    const pasted = fireEvent.paste(box, {
+      clipboardData: clipboard({
+        text: "See the plan by Friday.",
+        html: '<p>See <a href="https://docs.example.com/d/1">the plan</a> by <b>Friday</b>.</p>',
+      }),
+    });
+    expect(pasted).toBe(false);
+    expect(box).toHaveValue(
+      "Before: See <https://docs.example.com/d/1|the plan> by *Friday*. after",
+    );
+    // Formatting that adds nothing, as most copies of words: the browser pastes them.
+    expect(
+      fireEvent.paste(box, {
+        clipboardData: clipboard({ text: "plain", html: "<p>plain</p>" }),
+      }),
     ).toBe(true);
   });
 });

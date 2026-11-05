@@ -14,6 +14,7 @@ import { Tooltip } from "./Tooltip.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
+import { pasteRich } from "../lib/richPaste.js";
 import { lastEditable, requestEdit } from "../lib/editRequest.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
@@ -1034,7 +1035,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
                       .filter((file): file is File => file !== null);
               if (files.length === 0) {
                 const { start, end } = field.selection();
-                const linked = linkOverSelection(text, start, end, data.getData("text/plain"));
+                const linked =
+                  linkOverSelection(text, start, end, data.getData("text/plain")) ??
+                  pasteRich(text, start, end, data.getData("text/html"));
                 if (linked) {
                   e.preventDefault();
                   rewrite(linked.text, linked.caret);
