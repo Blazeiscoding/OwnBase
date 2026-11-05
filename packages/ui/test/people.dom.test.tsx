@@ -104,6 +104,16 @@ describe("people actions", () => {
     expect(await accessibilityProblems(root)).toEqual([]);
   });
 
+  it("lists people by the name shown, and two of one name by handle", async () => {
+    const zed: User = { ...member, id: "U_ZED", handle: "aaron", displayName: "Zed Park" };
+    const alex2: User = { ...member, id: "U_ALEX2", handle: "alex2", displayName: "alex chen" };
+    const { root } = await people(undefined, [owner, zed, alex2, member]);
+    const handles = [...root.querySelectorAll("li")].map(
+      (row) => row.textContent?.match(/@[a-z0-9]+/)?.[0],
+    );
+    expect(handles).toEqual(["@alex", "@alex2", "@sam", "@aaron"]);
+  });
+
   it("deactivates through the menu, and shows it before the socket says so", async () => {
     const update = vi.fn().mockResolvedValue({ user: { ...member, deactivated: true } });
     const { dialog, user } = await people((api) => {

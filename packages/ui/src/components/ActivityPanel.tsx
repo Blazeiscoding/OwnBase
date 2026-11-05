@@ -405,7 +405,7 @@ function ActivityRow(props: {
       {props.unread && (
         <span
           aria-hidden="true"
-          className="absolute left-0.5 top-4 size-1.5 rounded-full bg-copper"
+          className="fc-fill absolute left-0.5 top-4 size-1.5 rounded-full bg-copper"
         />
       )}
       <button

@@ -88,7 +88,7 @@ export function JoinPolicyChoice(props: {
                   chosen ? "border-copper" : "border-edge"
                 }`}
               >
-                {chosen && <span className="size-2 rounded-full bg-copper" />}
+                {chosen && <span className="fc-fill size-2 rounded-full bg-copper" />}
               </span>
             </label>
           );

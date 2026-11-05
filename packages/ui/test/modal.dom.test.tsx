@@ -97,6 +97,32 @@ describe("modal keyboard and focus ownership", () => {
     expect(screen.getByRole("button", { name: "Open settings" })).toHaveFocus();
   });
 
+  it("gives focus to what holds the opener when the opener went out of sight", async () => {
+    // A message's toolbar shows only while the pointer is over the message.
+    function Message() {
+      const [picking, setPicking] = useState(false);
+      return (
+        <div role="article" aria-label="Message from Sam" tabIndex={-1}>
+          <div hidden={picking}>
+            <button onClick={() => setPicking(true)}>Add a reaction</button>
+          </div>
+          {picking && (
+            <Modal title="Add a reaction" onClose={() => setPicking(false)}>
+              <input aria-label="Search emoji" autoFocus />
+            </Modal>
+          )}
+        </div>
+      );
+    }
+    render(<Message />);
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Add a reaction" }));
+    expect(screen.getByRole("textbox", { name: "Search emoji" })).toHaveFocus();
+    await user.keyboard("{Escape}");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByRole("article", { name: "Message from Sam" })).toHaveFocus();
+  });
+
   it("moves focus into the layer underneath when the closed one has nothing to return to", async () => {
     function OpenedTogether() {
       const [notice, setNotice] = useState(true);

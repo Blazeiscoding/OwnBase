@@ -232,9 +232,11 @@ const SCROLL_KEYS: Record<string, number> = {
  */
 function scrollFromOutside(event: KeyboardEvent, panel: HTMLElement): boolean {
   const from = event.target as Element;
+  // In a short window settings scroll as a whole, and the browser's own keys do.
   const scroller = panel.querySelector(".dialog-scroll");
   const by = SCROLL_KEYS[event.key];
   if (!by || !scroller || scroller.contains(from)) return false;
+  if (/auto|scroll/.test(getComputedStyle(panel).overflowY)) return false;
   if (event.ctrlKey || event.altKey || event.metaKey) return false;
   // In a control an arrow, Home or End is the control's, and so is a page in a box of lines.
   const paging = event.key.startsWith("Page");
@@ -338,16 +340,23 @@ function returnTarget(layer: Layer, active: Layer | null): HTMLElement | null {
       !layers.has(record.owner) &&
       !!record.opener &&
       record.owner.panel.contains(record.opener);
-    if (
-      !removedOwner &&
-      record.opener &&
-      available(record.opener) &&
-      (!active || active.panel.contains(record.opener))
-    ) {
-      return record.opener;
-    }
+    const target = removedOwner ? null : reachable(record.opener);
+    if (target && (!active || active.panel.contains(target))) return target;
   }
   return null;
+}
+
+/**
+ * The opener, or, when it has gone out of sight since, the nearest thing
+ * around it that takes focus: a message's toolbar shows only while the
+ * pointer is over the message, so a picker opened from it gives focus back to
+ * the message rather than to the page.
+ */
+function reachable(opener: HTMLElement | null): HTMLElement | null {
+  if (!opener?.isConnected) return null;
+  if (available(opener)) return opener;
+  const around = opener.parentElement?.closest<HTMLElement>("[tabindex]");
+  return around && available(around) ? around : null;
 }
 
 /**

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { keepInSight } from "../lib/keepInSight.js";
 import {
   channelPermissions,
   SIDEBAR_SECTIONS_MAX,
@@ -653,7 +654,7 @@ export function Sidebar(props: Props) {
               role="status"
               className="mx-2 mt-2 flex items-center gap-2 rounded-lg bg-copper/10 px-2.5 py-1.5 text-[12px] font-medium text-copper"
             >
-              <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
+              <span className="fc-fill size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
               <Swap on={props.connectionLabel} text className="min-w-0">
                 <span className="block truncate first-letter:uppercase">
                   {props.connectionLabel}
@@ -1609,8 +1610,15 @@ function ChannelRow(props: {
   // A finger's hold is for the menu; iOS would start a drag with it instead.
   const touch = useMediaQuery("(hover: none)");
   const dragStart = touch ? undefined : props.onDragStart;
+  // The open conversation stays in sight, however it was opened: Alt+Down
+  // through a long list went past the bottom of the sidebar and on unseen.
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (props.active && row.current) keepInSight(row.current, ".sidebar-scroll");
+  }, [props.active]);
   return (
     <li
+      ref={row}
       className="channel-item relative"
       data-conversation={props.id}
       data-active={props.active || undefined}
@@ -1623,7 +1631,7 @@ function ChannelRow(props: {
       {showUnread && (
         <span
           aria-hidden="true"
-          className={`absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-ink ${
+          className={`fc-fill absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-ink ${
             unreadCame ? "animate-badge-in" : ""
           }`}
         />

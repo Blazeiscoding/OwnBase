@@ -1278,7 +1278,10 @@ function ConnectionNotice() {
       role="status"
       className="mb-2 flex items-center gap-2 rounded-lg bg-copper/10 px-3 py-2 text-[13px] text-ink-dim"
     >
-      <span aria-hidden="true" className="size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
+      <span
+        aria-hidden="true"
+        className="fc-fill size-1.5 shrink-0 animate-pulse rounded-full bg-copper"
+      />
       <span>
         <span className="font-medium text-ink">
           {down === "offline" ? "You're offline." : "Reconnecting to the workspace…"}

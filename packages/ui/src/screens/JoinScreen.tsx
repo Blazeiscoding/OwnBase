@@ -534,7 +534,7 @@ function BrowseCard(props: {
         <SectionLabel>
           On your network
           {props.lanSupported && !scanGaveUp && (
-            <span className="ml-2 inline-block size-1.5 animate-pulse rounded-full bg-online align-middle" />
+            <span className="fc-fill ml-2 inline-block size-1.5 animate-pulse rounded-full bg-online align-middle" />
           )}
         </SectionLabel>
         {lanNotSaved.length > 0 ? (
@@ -653,7 +653,7 @@ function BrowseCard(props: {
           <div className="card-warm flex items-center gap-3 rounded-2xl px-4 py-3 text-sm">
             {/* Steady while it runs, as the sidebar's is; it pulses only on the way up or down. */}
             <span
-              className={`size-2 shrink-0 rounded-full bg-online ${
+              className={`fc-fill size-2 shrink-0 rounded-full bg-online ${
                 props.hostingStatus.phase === "starting" || props.hostingStatus.phase === "stopping"
                   ? "animate-pulse"
                   : ""

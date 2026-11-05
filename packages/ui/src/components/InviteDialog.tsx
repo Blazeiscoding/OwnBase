@@ -421,7 +421,10 @@ export function InviteDialog(props: {
                     className={`flex shrink-0 items-center gap-1.5 text-xs ${status === "active" ? "text-online" : "text-ink-faint"}`}
                   >
                     {status === "active" && (
-                      <span aria-hidden="true" className="size-1.5 rounded-full bg-online" />
+                      <span
+                        aria-hidden="true"
+                        className="fc-fill size-1.5 rounded-full bg-online"
+                      />
                     )}
                     {INVITE_STATUS[status]}
                   </span>

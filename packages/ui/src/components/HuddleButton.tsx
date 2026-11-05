@@ -100,7 +100,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
       <span className="mr-1 flex h-8 items-center gap-1.5 rounded-full bg-online/12 px-3 text-[13px] font-medium text-online">
         {/* Still: an animation that never ends has the page drawn sixty times a
             second for as long as the call lasts, every video and effect on it again. */}
-        <span className="size-1.5 rounded-full bg-online" />
+        <span className="fc-fill size-1.5 rounded-full bg-online" />
         <span className="header-secondary">In huddle</span>
       </span>
     );
