@@ -103,6 +103,7 @@ describe("a starred conversation", () => {
     expect(starred.status).toBe(200);
     expect(starred.body.prefs).toEqual({
       notifyLevel: "mentions",
+      notifyChosen: false,
       muted: false,
       starred: true,
       sectionId: null,
@@ -124,6 +125,7 @@ describe("a starred conversation", () => {
     const muted = await ctx.star(general, owner.token, { muted: true });
     expect(muted.body.prefs).toEqual({
       notifyLevel: "mentions",
+      notifyChosen: false,
       muted: true,
       starred: true,
       sectionId: null,
@@ -132,6 +134,7 @@ describe("a starred conversation", () => {
     const unstarred = await ctx.star(general, owner.token, { starred: false });
     expect(unstarred.body.prefs).toEqual({
       notifyLevel: "mentions",
+      notifyChosen: false,
       muted: true,
       starred: false,
       sectionId: null,
@@ -236,6 +239,7 @@ describe("upgrading a workspace to stars (v40)", () => {
       const store = new Store(db);
       expect(store.getChannelPrefs("C1", "U1")).toEqual({
         notifyLevel: "all",
+        notifyChosen: true,
         muted: true,
         starred: false,
         sectionId: null,
@@ -243,6 +247,7 @@ describe("upgrading a workspace to stars (v40)", () => {
       });
       expect(store.memberships("U2")[0]?.prefs).toEqual({
         notifyLevel: "mentions",
+        notifyChosen: false,
         muted: false,
         starred: false,
         sectionId: null,

@@ -279,3 +279,35 @@ describe("the notifications section", () => {
     expect(status).toHaveTextContent("A pause stops notifications");
   });
 });
+
+describe("the account's default for what notifies (v53)", () => {
+  it("is chosen on Notifications, saved at once for every device, and says when it was not", async () => {
+    browserNotifications("granted");
+    const { client, dialog } = settings("notifications");
+    act(() => client.store.setState({ notifyDefault: "mentions" }));
+    const user = userEvent.setup();
+    const save = vi
+      .spyOn(client.api, "setNotifyDefault")
+      .mockResolvedValueOnce({ level: "all" })
+      .mockRejectedValueOnce(new Error("offline"));
+    const group = within(dialog).getByRole("group", { name: "Notify me about" });
+    expect(
+      within(group).getByRole("radio", { name: /Direct messages and mentions/ }),
+    ).toBeChecked();
+
+    await user.click(within(group).getByRole("radio", { name: /Every message/ }));
+    expect(save).toHaveBeenLastCalledWith("all");
+    expect(within(group).getByRole("radio", { name: /Every message/ })).toBeChecked();
+
+    await user.click(within(group).getByRole("radio", { name: /^Nothing/ }));
+    expect(await within(group).findByRole("alert")).toHaveTextContent("Your choice was not saved.");
+    expect(within(group).getByRole("radio", { name: /Every message/ })).toBeChecked();
+  });
+
+  it("is not offered by a server without one, which points to each channel instead", () => {
+    browserNotifications("granted");
+    const { dialog } = settings("notifications");
+    expect(within(dialog).queryByRole("group", { name: "Notify me about" })).toBeNull();
+    expect(within(dialog).getByText(/open its details and go to Notifications/)).toBeVisible();
+  });
+});

@@ -30,6 +30,9 @@ import { ToastProvider } from "./components/Toast.js";
 import { changeSavedServers, parseSavedServers, type SignInChange } from "./lib/savedServers.js";
 import { hostedButStopped } from "./lib/resume.js";
 import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.js";
+import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
+import { railOrder } from "./lib/workspaceRail.js";
+import { useOtherWorkspacesUnread } from "./lib/otherUnread.js";
 
 type Session =
   | { view: "loading" }
@@ -41,6 +44,8 @@ type Session =
       claimCode?: string;
       /** Back from the workspace's single sign-on, with the code that signs in (P9). */
       ssoCode?: string;
+      /** The workspace ended this sign-in: say so, and offer to sign in there again. */
+      signedOut?: SignedOutFrom;
     }
   | {
       view: "workspace";
@@ -52,6 +57,15 @@ type Session =
       /** This account just founded the workspace: open on inviting people. */
       welcome?: boolean;
     };
+
+/** Where the open workspace sits on the rail, among this device's saved ones. */
+function railPlace(saved: SavedServer[], open: SavedServer): number {
+  const order = railOrder(saved.some((s) => s.url === open.url) ? saved : [...saved, open]);
+  return Math.max(
+    0,
+    order.findIndex((s) => s.url === open.url),
+  );
+}
 
 /** What shows while the app starts, or while a screen it needs arrives. */
 function Starting() {
@@ -98,6 +112,13 @@ export function App({ platform }: { platform: Platform }) {
     savedServers.map((s) => s.url),
   );
   const lastHosted = useLastHosted(platform.hosting, hosting.status);
+  // What waits in the workspaces not open, for their places on the rail.
+  const openUrl = session.view === "workspace" ? session.server.url : null;
+  const otherUnread = useOtherWorkspacesUnread(
+    openUrl === null
+      ? []
+      : savedServers.filter((s) => s.url !== openUrl).map((s) => ({ url: s.url, token: s.token })),
+  );
   const clientRef = useRef<WorkspaceClient | null>(null);
   const connectionId = useRef(0);
   const navigation = useRef(0);
@@ -329,12 +350,15 @@ export function App({ platform }: { platform: Platform }) {
     return platform.deepLinks.subscribe(handleDeepLink);
   }, [platform, handleDeepLink]);
 
-  const leaveWorkspace = useCallback(() => {
-    navigation.current++;
-    pendingTarget.current = null;
-    closeWorkspace();
-    setSession({ view: "join" });
-  }, [closeWorkspace]);
+  const leaveWorkspace = useCallback(
+    (signedOut?: SignedOutFrom) => {
+      navigation.current++;
+      pendingTarget.current = null;
+      closeWorkspace();
+      setSession({ view: "join", signedOut });
+    },
+    [closeWorkspace],
+  );
 
   const forgetServer = useCallback(
     (url: string) => {
@@ -345,10 +369,15 @@ export function App({ platform }: { platform: Platform }) {
   );
 
   const endSession = useCallback(
-    (server: SavedServer, client: WorkspaceClient) => {
+    (server: SavedServer, client: WorkspaceClient, how?: SignedOutHow) => {
       // A late logout response must not remove a newer sign-in to the same workspace.
       void changeServers({ kind: "signOut", url: server.url, token: server.token });
-      if (clientRef.current === client) leaveWorkspace();
+      if (clientRef.current !== client) return;
+      leaveWorkspace(
+        how === "ended"
+          ? { url: server.url, handle: server.handle, workspaceName: server.workspaceName }
+          : undefined,
+      );
     },
     [changeServers, leaveWorkspace],
   );
@@ -549,6 +578,7 @@ export function App({ platform }: { platform: Platform }) {
                     inviteCode={session.inviteCode}
                     claimCode={session.claimCode}
                     ssoCode={session.ssoCode}
+                    signedOut={session.signedOut}
                     onConnected={(server, how) => {
                       const pending = pendingTarget.current;
                       pendingTarget.current = null;
@@ -579,21 +609,23 @@ export function App({ platform }: { platform: Platform }) {
                 initialTarget={session.target ?? null}
                 welcome={session.welcome}
                 inviteAsk={inviteAsk}
-                onLeaveWorkspace={leaveWorkspace}
-                onSignedOut={() => endSession(session.server, session.client)}
+                onLeaveWorkspace={() => leaveWorkspace()}
+                onSignedOut={(how) => endSession(session.server, session.client, how)}
                 onAccountCreated={(token, handle) =>
                   // The same person, now with an account: open it again with
                   // the new session, which the guest one has given way to.
                   openWorkspace({ ...session.server, token, handle }, savedServersRef.current)
                 }
-                otherWorkspaces={savedServers
+                otherWorkspaces={railOrder(savedServers)
                   .filter((saved) => saved.url !== session.server.url)
                   .map((saved) => ({
                     url: saved.url,
                     name: saved.workspaceName,
                     handle: saved.handle,
                     icon: savedIcons[saved.url],
+                    waiting: otherUnread[saved.url],
                   }))}
+                railPlace={railPlace(savedServers, session.server)}
                 onOpenWorkspace={(url) => {
                   const saved = savedServersRef.current.find((s) => s.url === url);
                   if (saved) openWorkspace(saved, savedServersRef.current);

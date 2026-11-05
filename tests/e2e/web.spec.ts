@@ -2395,8 +2395,10 @@ test("deactivating someone signs them out of the app they already have open", as
         .first(),
     ).toBeVisible({ timeout: 20_000 });
     await expect(leaverPage.locator("textarea")).toHaveCount(0);
+    // It says why rather than leaving a blank form.
+    await expect(leaverPage.getByText(/^You were signed out of /)).toBeVisible();
 
-    // And signing back in from that same screen is refused.
+    // And signing back in from that same screen is refused, saying why.
     await openAuthCard(leaverPage);
     await expect(leaverPage.getByLabel("Username", { exact: true })).toBeVisible();
     const signInTab = leaverPage.getByRole("tab", { name: "Sign in", exact: true }).first();
@@ -2404,7 +2406,9 @@ test("deactivating someone signs them out of the app they already have open", as
     await leaverPage.getByLabel("Username", { exact: true }).fill("frank");
     await leaverPage.getByLabel("Password", { exact: true }).fill("password123");
     await leaverPage.getByRole("button", { name: "Sign in", exact: true }).last().click();
-    await leaverPage.waitForTimeout(1000);
+    await expect(leaverPage.getByRole("alert")).toHaveText(
+      "This account is deactivated. Ask an admin of the workspace to reactivate it.",
+    );
     await expect(leaverPage.locator("textarea")).toHaveCount(0);
     await expect(leaverPage.getByLabel("Username", { exact: true })).toBeVisible();
   } finally {

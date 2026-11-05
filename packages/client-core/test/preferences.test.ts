@@ -95,6 +95,7 @@ describe("a notification choice for a channel", () => {
       .poll(() => stored())
       .toEqual({
         notifyLevel: "nothing",
+        notifyChosen: true,
         muted: true,
         starred: false,
         sectionId: null,
@@ -102,7 +103,10 @@ describe("a notification choice for a channel", () => {
       });
     // What was chosen meanwhile went as one request.
     expect(sent).toHaveBeenCalledTimes(2);
-    expect(sent.mock.calls[1]).toEqual([channelId, { notifyLevel: "nothing", muted: true }]);
+    expect(sent.mock.calls[1]).toEqual([
+      channelId,
+      { notifyLevel: "nothing", notifyChosen: true, muted: true },
+    ]);
     await expect.poll(() => client.state.prefsWrites[channelId]).toBeUndefined();
   });
 
@@ -137,6 +141,7 @@ describe("a notification choice for a channel", () => {
       .poll(() => shown())
       .toEqual({
         notifyLevel: "nothing",
+        notifyChosen: true,
         muted: true,
         starred: false,
         sectionId: null,
@@ -159,6 +164,7 @@ describe("a notification choice for a channel", () => {
         .poll(() => stored())
         .toEqual({
           notifyLevel: "nothing",
+          notifyChosen: true,
           muted: false,
           starred: false,
           sectionId: null,
@@ -210,6 +216,7 @@ describe("a star on a conversation", () => {
     await expect.poll(() => client.state.prefsWrites[channelId]).toBeUndefined();
     expect(shown()).toEqual({
       notifyLevel: "mentions",
+      notifyChosen: false,
       muted: false,
       starred: true,
       sectionId: null,

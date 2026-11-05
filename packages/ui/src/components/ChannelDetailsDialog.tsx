@@ -5,6 +5,7 @@ import {
   canRemoveChannelMember,
   canSetChannelManager,
   type ID,
+  type ChannelPrefs,
   type NotifyLevel,
 } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
@@ -18,11 +19,12 @@ import { buttonClass } from "./Button.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Icon } from "./Icon.js";
 import { AddPeople } from "./AddPeople.js";
+import { NOTIFY_LEVELS, notifyLevelLabel } from "../lib/notifyLevels.js";
 
 type Tab = "about" | "members" | "notifications";
 const TABS: readonly Tab[] = ["about", "members", "notifications"];
 
-const DEFAULT_PREFS = { notifyLevel: "mentions" as NotifyLevel, muted: false };
+const DEFAULT_PREFS: ChannelPrefs = { notifyLevel: "mentions", muted: false };
 
 /**
  * Why a change to the channel did not happen, in words. The server's refusals
@@ -55,11 +57,16 @@ function channelError(err: unknown, fallback: string): string {
   }
 }
 
-const LEVELS: { value: NotifyLevel; label: string; hint: string }[] = [
-  { value: "all", label: "Every message", hint: "Notify me whenever anyone posts here." },
-  { value: "mentions", label: "Mentions only", hint: "Only when someone @-mentions me." },
-  { value: "nothing", label: "Nothing", hint: "Never notify me about this channel." },
-];
+/** A conversation's own levels, named as the account's default names them, said of it. */
+const LEVELS: { value: NotifyLevel; label: string; hint: string }[] = NOTIFY_LEVELS.map((l) => ({
+  ...l,
+  hint:
+    l.value === "all"
+      ? "Whenever anyone posts here."
+      : l.value === "nothing"
+        ? "Never notify me about this conversation."
+        : l.hint,
+}));
 
 /** Channel topic and description, plus who's in it. */
 export function ChannelDetailsDialog(props: {
@@ -684,7 +691,26 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
   const prefs = stored ?? DEFAULT_PREFS;
   const write = useWorkspace((s) => s.prefsWrites[channelId]);
   // A refused star says so where it was chosen; this speaks for these choices only.
-  const failed = write?.failed && ("notifyLevel" in write.failed || "muted" in write.failed);
+  const failed =
+    write?.failed &&
+    ("notifyLevel" in write.failed || "notifyChosen" in write.failed || "muted" in write.failed);
+  // Where the server keeps a default (v53), a conversation not set on its own follows it.
+  const notifyDefault = useWorkspace((s) => s.notifyDefault);
+  const following = notifyDefault !== null && prefs.notifyChosen === false;
+  const options: { value: NotifyLevel | "default"; label: string; hint: string }[] = [
+    ...(notifyDefault !== null
+      ? [
+          {
+            value: "default" as const,
+            label: "Use my default",
+            hint: `Now: ${notifyLevelLabel(notifyDefault).toLowerCase()}. Change it in Account settings, under Notifications.`,
+          },
+        ]
+      : []),
+    ...LEVELS,
+  ];
+  const isChosen = (value: NotifyLevel | "default") =>
+    value === "default" ? following : !following && prefs.notifyLevel === value;
 
   return (
     <div className="space-y-4">
@@ -708,11 +734,11 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
       )}
       <fieldset className="space-y-1.5" disabled={prefs.muted}>
         <legend className="mb-1.5 text-[13px] font-semibold text-ink">Notify me about</legend>
-        {LEVELS.map((level) => (
+        {options.map((level) => (
           <label
             key={level.value}
             className={`flex cursor-pointer gap-2.5 rounded-lg border px-3 py-2.5 transition-colors ${
-              prefs.notifyLevel === level.value
+              isChosen(level.value)
                 ? "border-copper bg-copper/10"
                 : "border-edge hover:border-ink-faint"
             } ${prefs.muted ? "cursor-not-allowed opacity-50" : ""}`}
@@ -720,8 +746,15 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
             <input
               type="radio"
               name="notify-level"
-              checked={prefs.notifyLevel === level.value}
-              onChange={() => client.setChannelPrefs(channelId, { notifyLevel: level.value })}
+              checked={isChosen(level.value)}
+              onChange={() =>
+                client.setChannelPrefs(
+                  channelId,
+                  level.value === "default"
+                    ? { notifyChosen: false }
+                    : { notifyLevel: level.value },
+                )
+              }
               className="mt-0.5 accent-copper"
             />
             <span>

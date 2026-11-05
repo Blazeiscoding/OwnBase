@@ -4368,6 +4368,66 @@
         }
       }
     },
+    "/api/me/notify-default": {
+      "put": {
+        "operationId": "putMeNotifyDefault",
+        "tags": [
+          "me"
+        ],
+        "summary": "What this account's conversations notify about unless one is set on its own (v53).",
+        "description": "What this account's conversations notify about unless one is set on its own (v53).\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotifyDefaultBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
+    "/api/me/unread": {
+      "get": {
+        "operationId": "getMeUnread",
+        "tags": [
+          "me"
+        ],
+        "summary": "What waits here, for a device of this account that has another workspace open.",
+        "description": "What waits here, for a device of this account that has another workspace open.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/sidebar-sections": {
       "post": {
         "operationId": "postSidebarSections",
@@ -6064,6 +6124,9 @@
               "nothing"
             ]
           },
+          "notifyChosen": {
+            "type": "boolean"
+          },
           "muted": {
             "type": "boolean"
           },
@@ -6083,6 +6146,22 @@
             "maximum": 9007199254740991
           }
         }
+      },
+      "NotifyDefaultBody": {
+        "type": "object",
+        "properties": {
+          "level": {
+            "type": "string",
+            "enum": [
+              "all",
+              "mentions",
+              "nothing"
+            ]
+          }
+        },
+        "required": [
+          "level"
+        ]
       },
       "SidebarSectionBody": {
         "type": "object",

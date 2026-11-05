@@ -36,6 +36,7 @@ const groups = (
       [`${ALT} ↓`, "Next conversation in the sidebar"],
       [`${ALT} Shift ↑`, "Previous unread conversation"],
       [`${ALT} Shift ↓`, "Next unread conversation"],
+      [`${MOD} 1–9`, "Go to the workspace at that place on the left, in the desktop app"],
       ["Shift Esc", "Mark everything as read"],
       ["Esc", "Close the open panel or dialog"],
       [`${MOD} /`, "Show this list"],

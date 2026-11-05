@@ -9,7 +9,8 @@ import { MessageItem } from "../src/components/MessageItem.js";
 import { ProfileDialog } from "../src/components/ProfileDialog.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { IncomingCall } from "../src/components/IncomingCall.js";
-import { BlockedComposer, BlockedPeople } from "../src/components/Blocking.js";
+import { BlockedComposer, BlockedPeople, DeactivatedComposer } from "../src/components/Blocking.js";
+import { deactivatedPartner } from "../src/lib/blocking.js";
 import { ReportsDialog } from "../src/components/ReportsDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -300,6 +301,34 @@ describe("a direct message with someone blocked", () => {
     expect(screen.queryByRole("region", { name: "Maya Chen is calling" })).toBeNull();
     act(() => client.store.setState({ blocked: [] }));
     expect(screen.getByRole("region", { name: "Maya Chen is calling" })).toBeVisible();
+  });
+});
+
+describe("a direct message with a deactivated account", () => {
+  const gone = { ...maya, deactivated: true };
+  const users = { U_SAM: sam, U_MAYA: gone, U_LEE: lee };
+
+  it("is told apart from a DM with someone active, and from a group", () => {
+    expect(deactivatedPartner(withMaya, "U_SAM", users)).toBe("U_MAYA");
+    expect(deactivatedPartner(withLee, "U_SAM", users)).toBeNull();
+    expect(deactivatedPartner(group, "U_SAM", users)).toBeNull();
+    expect(deactivatedPartner(general, "U_SAM", users)).toBeNull();
+  });
+
+  it("says so in place of the composer, pointing an admin to People", () => {
+    const { client, shown } = workspace([]);
+    act(() => client.store.setState({ users }));
+    shown(<DeactivatedComposer userId="U_MAYA" />);
+    expect(
+      screen.getByText(/Maya Chen's account is deactivated, so they cannot read new messages here/),
+    ).toHaveTextContent("You can reactivate it in People.");
+  });
+
+  it("tells a member that an admin can bring them back", () => {
+    const { client, shown } = workspace([], lee);
+    act(() => client.store.setState({ users }));
+    shown(<DeactivatedComposer userId="U_MAYA" />);
+    expect(screen.getByText(/An admin can reactivate it/)).toBeVisible();
   });
 });
 

@@ -20,6 +20,8 @@ import {
   channelManagerBody,
   createChannelBody,
   channelPrefsBody,
+  notifyDefaultBody,
+  type UnreadSummary,
   savedMessagesQuery,
   pinnedMessagesQuery,
   followedThreadsQuery,
@@ -294,6 +296,8 @@ export const GUEST_ROUTES = new Set([
   "PUT /api/messages/:id/save",
   "DELETE /api/messages/:id/save",
   "PATCH /api/channels/:id/prefs",
+  "PUT /api/me/notify-default",
+  "GET /api/me/unread",
   "POST /api/sidebar-sections",
   "PATCH /api/sidebar-sections/:id",
   "DELETE /api/sidebar-sections/:id",
@@ -2338,7 +2342,6 @@ async function startWorkspaceServer(
     try {
       valid =
         !!auth &&
-        !auth.deactivated &&
         // A guest has no password: it resumes its session or joins again.
         auth.role !== "guest" &&
         (await verifyPassword(body.password, auth.salt, auth.passwordHash));
@@ -2350,12 +2353,19 @@ async function startWorkspaceServer(
       !auth ||
       !valid ||
       !latest ||
-      latest.deactivated ||
       latest.passwordHash !== auth.passwordHash ||
       latest.salt !== auth.salt
     ) {
       throw new HttpError(401, "invalid_credentials");
     }
+    // Said only to someone who knows the password, so it tells a stranger
+    // nothing; the person themselves learns why, rather than doubting it.
+    if (latest.deactivated)
+      throw new HttpError(
+        403,
+        "account_deactivated",
+        "This account is deactivated. Ask an admin of the workspace to reactivate it.",
+      );
     // Asked only once the password is right, so it says nothing of who has an
     // account. The owner always may: the way back in (P9).
     if (latest.role !== "owner" && singleSignOnRequired()) throw ssoRequired("signs people in");
@@ -6006,6 +6016,21 @@ async function startWorkspaceServer(
     // Preferences are personal: only this user's own devices need to know.
     gateway.sendToUser(me.id, { type: "prefs", channelId: req.params.id, prefs });
     return { prefs };
+  });
+
+  /** What this account's conversations notify about unless one is set on its own (v53). */
+  app.put("/api/me/notify-default", async (req) => {
+    const me = requireUser(req);
+    const { level } = notifyDefaultBody.parse(req.body ?? {});
+    store.setNotifyDefault(me.id, level);
+    gateway.sendToUser(me.id, { type: "notify.default", level });
+    return { level };
+  });
+
+  /** What waits here, for a device of this account that has another workspace open. */
+  app.get("/api/me/unread", async (req): Promise<UnreadSummary> => {
+    const me = requireUser(req);
+    return store.unreadSummary(me.id);
   });
 
   // ---------- sidebar sections (E8) ----------

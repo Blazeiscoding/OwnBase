@@ -5,6 +5,7 @@ import {
   type AccessPolicy,
   type Channel,
   type ChannelPrefs,
+  type NotifyLevel,
   type EphemeralEvent,
   type EventEnvelope,
   type Friendship,
@@ -179,9 +180,11 @@ function commandFailure(err: unknown): string {
 
 /** Turns a send failure into something the author can act on. */
 function sendFailureReason(error: unknown): string {
-  if (!(error instanceof ApiError)) {
+  // Status 0: an upload that never had an answer (no connection, timed out).
+  if (!(error instanceof ApiError) || error.status === 0) {
     return "Could not reach the workspace. It is sent again once you're back online.";
   }
+  if (error.status === 429) return "Too much sent at once. Press Retry in a moment.";
   switch (error.code) {
     case "channel_archived":
       return "This conversation is archived.";
@@ -555,6 +558,12 @@ export interface WorkspaceState {
    */
   sidebarSections: SidebarSection[] | null;
   /**
+   * What this account's conversations notify about unless one was set on its
+   * own (v53). Null where the server keeps no default, so none is offered and
+   * each conversation's `notifyLevel` is what it does.
+   */
+  notifyDefault: NotifyLevel | null;
+  /**
    * The server keeps profile pictures, time zones and away by hand, and is
    * told when this device goes idle (E9); an older one offers none of them.
    */
@@ -722,6 +731,7 @@ const initialState: WorkspaceState = {
   threadMutes: false,
   sharedFiles: false,
   sidebarSections: null,
+  notifyDefault: null,
   profiles: false,
   reminders: null,
   pollChoices: null,
@@ -1196,6 +1206,7 @@ export class WorkspaceClient {
       threadMutes: snap.threadMutes === true,
       sharedFiles: snap.sharedFiles === true,
       sidebarSections: snap.sidebarSections ?? null,
+      notifyDefault: snap.notifyDefault ?? null,
       profiles: snap.profiles === true,
       reminders: snap.reminders
         ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
@@ -1982,6 +1993,8 @@ export class WorkspaceClient {
       const reminders = { ...s.reminders };
       delete reminders[event.messageId];
       this.store.setState({ reminders });
+    } else if (event.type === "notify.default") {
+      if (s.notifyDefault !== null) this.store.setState({ notifyDefault: event.level });
     } else if (event.type === "sidebar.sections") {
       this.heardSections = event.sections;
       // A reorder of this device's still on its way is not undone by an older word.
@@ -3506,6 +3519,10 @@ export class WorkspaceClient {
    */
   setChannelPrefs(channelId: ID, patch: Partial<ChannelPrefs>): void {
     if (this.stopped) return;
+    // A level chosen here is this conversation's own from now on, as the
+    // server will say; shown so at once.
+    if (patch.notifyLevel !== undefined && patch.notifyChosen === undefined)
+      patch = { ...patch, notifyChosen: true };
     let write = this.prefsWrites.get(channelId);
     if (!write) {
       write = {
@@ -4205,6 +4222,25 @@ export class WorkspaceClient {
       if (!this.stopped) this.store.setState({ blocked: result.blocked });
       return true;
     } catch {
+      return false;
+    }
+  }
+
+  /**
+   * What conversations notify about unless one was set on its own (v53),
+   * shown at once; put back, and false, when the server refused.
+   */
+  async setNotifyDefault(level: NotifyLevel): Promise<boolean> {
+    const before = this.state.notifyDefault;
+    if (before === null || this.stopped) return false;
+    this.store.setState({ notifyDefault: level });
+    try {
+      const answer = await this.api.setNotifyDefault(level);
+      if (!this.stopped) this.store.setState({ notifyDefault: answer.level });
+      return true;
+    } catch {
+      if (!this.stopped && this.state.notifyDefault === level)
+        this.store.setState({ notifyDefault: before });
       return false;
     }
   }

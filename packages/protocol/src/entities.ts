@@ -94,7 +94,14 @@ export interface Channel {
 export type NotifyLevel = "all" | "mentions" | "nothing";
 
 export interface ChannelPrefs {
+  /** Chosen for this conversation; see `notifyChosen` for whether it counts. */
   notifyLevel: NotifyLevel;
+  /**
+   * False: this conversation follows the account's default instead of
+   * `notifyLevel` (`ReadySnapshot.notifyDefault`). Absent from servers before
+   * schema v53, which have no default: there `notifyLevel` is what it does.
+   */
+  notifyChosen?: boolean;
   /** Muted channels never notify and stay quiet in the sidebar. */
   muted: boolean;
   /**
@@ -124,6 +131,18 @@ export interface ChannelPrefs {
 export interface SidebarSection {
   id: ID;
   name: string;
+}
+
+/**
+ * How loudly a conversation notifies: its own level when one was chosen for
+ * it, else the account's default (or "mentions", where the server keeps none).
+ */
+export function effectiveNotifyLevel(
+  prefs: Pick<ChannelPrefs, "notifyLevel" | "notifyChosen"> | undefined,
+  notifyDefault: NotifyLevel | null | undefined,
+): NotifyLevel {
+  if (prefs && prefs.notifyChosen !== false) return prefs.notifyLevel;
+  return notifyDefault ?? "mentions";
 }
 
 /** The most sections one account keeps, and the longest a name may be once trimmed. */

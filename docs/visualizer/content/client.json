@@ -700,11 +700,52 @@
       "concepts": ["routing", "history ownership", "deep linking", "reading position"]
     },
     {
+      "path": "packages/ui/src/lib/notifyLevels.ts",
+      "plain": "The names of the three notification levels, shared by the account's default in Settings and a conversation's own choice in its details.",
+      "summary": "NOTIFY_LEVELS and notifyLevelLabel (v53).",
+      "details": [
+        "NOTIFY_LEVELS words Every message, Direct messages and mentions, and Nothing. Account settings > Notifications offers them as Notify me about (client.setNotifyDefault); a channel's details add Use my default above them, chosen while ChannelPrefs.notifyChosen is false.",
+        "Which one counts for a message is effectiveNotifyLevel in the protocol: a conversation's own level once chosen, else the account's default, else mentions on a server without one."
+      ],
+      "concepts": ["notifications", "v53"]
+    },
+    {
+      "path": "packages/ui/src/lib/otherUnread.ts",
+      "plain": "Asks each of this device's other workspaces what waits there, so the rail can mark them while only one is open.",
+      "summary": "useOtherWorkspacesUnread, polling GET /api/me/unread.",
+      "details": [
+        "App passes the saved sign-ins other than the open one. Each is asked at once, every OTHER_UNREAD_EVERY_MS (30 s) while the window is seen, and again on focus, online and visibility. The answer (mentions, unread) goes to OtherWorkspace.waiting: the rail shows the count and the rail-pill unread state, and says it to a screen reader.",
+        "A workspace that cannot answer (404 from an older server, 401 for an ended sign-in, no connection) shows nothing. The same sign-ins re-rendered ask nothing new."
+      ],
+      "concepts": ["workspace switching", "unread"]
+    },
+    {
+      "path": "packages/ui/src/lib/signOut.ts",
+      "plain": "Tells a sign-in the workspace ended apart from one the person ended themselves, so the sign-in screen can say what happened.",
+      "summary": "signOutOnPurpose, signedOutHow and the SignedOutFrom the sign-in screen is given.",
+      "details": [
+        "Signing out closes the socket with 4003, which the client reads as auth_failed, often before the logout's own answer arrives. signOutOnPurpose marks the client (a WeakSet) for the account menu's and Settings' Sign out, and unmarks it when the sign-out fails.",
+        "signedOutHow answers \"ended\" for auth_failed on an unmarked client. WorkspaceScreen and WorkspaceStorageGate pass it to onSignedOut, and App opens JoinScreen with signedOut: that workspace's form, a note, the username filled and the cursor in Password. A saved sign-in refused with 401 says the same."
+      ],
+      "concepts": ["session end", "sign-in"]
+    },
+    {
+      "path": "packages/ui/src/lib/workspaceRail.ts",
+      "plain": "Keeps the workspaces on the left rail in one order, and works out which one Ctrl or Cmd with a number opens.",
+      "summary": "railOrder and railTarget.",
+      "details": [
+        "railOrder sorts saved sign-ins by workspace name, then account, then address, so opening one (which moves it first in what the device stores) does not move it on the rail. App passes the others in this order and the open one's railPlace.",
+        "railTarget turns Ctrl/Cmd+1-9 into the nth workspace on the rail, the open one counted in its place. WorkspaceScreen listens for it in the desktop app only; a browser keeps those keys for its tabs."
+      ],
+      "concepts": ["workspace switching", "keyboard"]
+    },
+    {
       "path": "packages/ui/src/lib/blocking.ts",
       "plain": "Small helpers for blocking and reporting, shared by the sidebar, the message list and the dialogs.",
-      "summary": "blockedPartner and REPORT_REASON_LABELS (E12).",
+      "summary": "blockedPartner, deactivatedPartner and REPORT_REASON_LABELS (E12).",
       "details": [
         "blockedPartner names whom a one-to-one DM is with when they are blocked; the sidebar, the DM list, the unread totals and the composer use it. A group DM is never hidden.",
+        "deactivatedPartner names whom a one-to-one DM is with when their account is deactivated: WorkspaceScreen shows DeactivatedComposer in place of the composer and leaves Huddle out of the header, since nobody reads what is written there.",
         "REPORT_REASON_LABELS words each report reason, for the report dialog and the admins' queue."
       ],
       "concepts": ["blocking", "reporting", "E12"]

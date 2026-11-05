@@ -272,6 +272,8 @@ describe("self-hosted product", () => {
     const db = new DatabaseSync(join(dir, "workspace.db"));
     const historical = openDbAtVersion(":memory:", 8);
     try {
+      db.exec("ALTER TABLE channel_members DROP COLUMN notify_chosen");
+      db.exec("ALTER TABLE users DROP COLUMN notify_default");
       db.exec("ALTER TABLE channel_members DROP COLUMN hidden_seq");
       db.exec("ALTER TABLE apps DROP COLUMN scopes");
       db.exec("DROP TABLE message_reports");
@@ -409,14 +411,23 @@ describe("self-hosted product", () => {
     expect(patched.data.user.deactivated).toBe(true);
 
     // The token in their hands stops working, the socket they already had is
-    // cut, and they cannot sign back in to get a new one.
+    // cut, and they cannot sign back in to get a new one. With the right
+    // password they are told why; a wrong one learns nothing of the account.
     expect((await request(base, "/api/channels", leaverToken)).status).toBe(401);
     expect(await closed).toBe(4003);
     const retry = await request(base, "/api/auth/login", undefined, "POST", {
       handle: "leaver",
       password: "password123",
     });
-    expect(retry.status).toBe(401);
+    expect(retry.status).toBe(403);
+    expect(retry.data.error).toBe("account_deactivated");
+    expect(retry.data.token).toBeUndefined();
+    const guess = await request(base, "/api/auth/login", undefined, "POST", {
+      handle: "leaver",
+      password: "not-their-password",
+    });
+    expect(guess.status).toBe(401);
+    expect(guess.data.error).toBe("invalid_credentials");
 
     // Reactivating lets them back in with a fresh sign-in.
     await request(base, `/api/admin/users/${leaver.data.user.id}`, owner.data.token, "PATCH", {

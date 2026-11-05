@@ -737,6 +737,14 @@ const MIGRATIONS: string[] = [
   `
   ALTER TABLE channel_members ADD COLUMN hidden_seq INTEGER;
   `,
+  // v53 — a default for what conversations notify about, per account, which a
+  // conversation follows until a level is chosen for it alone. "mentions" was
+  // the default before, so only a conversation set to something else was chosen.
+  `
+  ALTER TABLE users ADD COLUMN notify_default TEXT NOT NULL DEFAULT 'mentions';
+  ALTER TABLE channel_members ADD COLUMN notify_chosen INTEGER NOT NULL DEFAULT 0;
+  UPDATE channel_members SET notify_chosen = 1 WHERE notify_level <> 'mentions';
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

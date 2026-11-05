@@ -3,6 +3,7 @@ import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
+import { signOutOnPurpose } from "../lib/signOut.js";
 import { accountError, deviceLabel } from "../lib/account.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import {
@@ -13,6 +14,7 @@ import {
 } from "../lib/notificationPreview.js";
 import { ACCOUNT_SECTIONS, type AccountSection } from "../lib/accountSections.js";
 import { SavedContext, useSaved } from "../lib/savedNote.js";
+import { NOTIFY_LEVELS } from "../lib/notifyLevels.js";
 import { SECTION_LABELS, findSettings, type Setting } from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
@@ -195,7 +197,7 @@ export function AccountDialog({
     setNotice(null);
     try {
       if (confirmation.kind === "signout") {
-        await client.api.logout();
+        await signOutOnPurpose(client, () => client.api.logout());
         onSignedOut();
         return;
       }
@@ -712,11 +714,65 @@ function NotificationSettings() {
           )}
         </div>
       </section>
+      <DefaultLevelSettings />
       <PreviewSettings />
+    </>
+  );
+}
+
+/**
+ * What every conversation notifies about unless it was set on its own (v53).
+ * Saved at once, as the other choices on this page are; a server without a
+ * default keeps only each conversation's own, so this says where those are.
+ */
+function DefaultLevelSettings() {
+  const client = useClient();
+  const level = useWorkspace((s) => s.notifyDefault);
+  const saved = useSaved();
+  const [failed, setFailed] = useState(false);
+  if (level === null) {
+    return (
       <p className="mt-6 border-t border-edge pt-5 text-sm text-ink-dim">
         To choose what a channel notifies you about, open its details and go to Notifications.
       </p>
-    </>
+    );
+  }
+  return (
+    <fieldset className="mt-6 border-t border-edge pt-5">
+      <legend className="float-left w-full font-semibold">Notify me about</legend>
+      <p className="clear-both pt-1 text-sm text-ink-dim">
+        For every conversation in this workspace, on all your devices. To set one channel on its
+        own, open its details and go to Notifications.
+      </p>
+      <div className="mt-3 space-y-2">
+        {NOTIFY_LEVELS.map((option) => (
+          <label key={option.value} className="flex items-start gap-2 text-sm">
+            <input
+              type="radio"
+              name="notify-default"
+              className="mt-1"
+              checked={level === option.value}
+              onChange={() => {
+                setFailed(false);
+                void client.setNotifyDefault(option.value).then((kept) => {
+                  if (kept) saved();
+                  else setFailed(true);
+                });
+              }}
+            />
+            <span>
+              {option.label}
+              <span className="block text-xs text-ink-faint">{option.hint}</span>
+            </span>
+          </label>
+        ))}
+      </div>
+      {failed && (
+        <p role="alert" className="mt-2 text-sm text-alert">
+          Your choice was not saved. Check your connection and try again.
+        </p>
+      )}
+    </fieldset>
   );
 }
 

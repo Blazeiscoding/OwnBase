@@ -6,6 +6,7 @@ import type {
   ID,
   Message,
   ModalView,
+  NotifyLevel,
   User,
   ThreadFollow,
   Reminder,
@@ -129,6 +130,11 @@ export type EphemeralEvent =
    * them (E8). Private to their own sockets.
    */
   | { type: "sidebar.sections"; sections: SidebarSection[] }
+  /**
+   * What this account's conversations notify about unless one was set on its
+   * own, after a change (v53). Private to their own sockets.
+   */
+  | { type: "notify.default"; level: NotifyLevel }
   /**
    * This user's queue of messages to send later changed: one was queued,
    * edited, moved, cancelled, sent, held for a new reason or given up on. Read
@@ -267,6 +273,12 @@ export interface ReadySnapshot {
    * server that keeps none, so none is offered there.
    */
   sidebarSections?: SidebarSection[];
+  /**
+   * What this account's conversations notify about unless one was set on its
+   * own (v53). Absent from an older server, which keeps a level per
+   * conversation only, so no default is offered there.
+   */
+  notifyDefault?: NotifyLevel;
   /**
    * This server keeps profile pictures, time zones and away by hand, and
    * reads a socket's `idle` (E9). An older one offers none of them.

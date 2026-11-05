@@ -28,6 +28,7 @@ const sam: User = {
 function sidebar(options: {
   admin: boolean;
   others?: OtherWorkspace[];
+  railPlace?: number;
   /** The desktop app's way to Manage hosting. */
   hostingEntry?: HostingEntry;
 }) {
@@ -59,6 +60,7 @@ function sidebar(options: {
         onInvite={call("invite")}
         onSwitchWorkspace={call("switch")}
         otherWorkspaces={options.others}
+        railPlace={options.railPlace}
         onOpenWorkspace={(url) => calls.push(`open ${url}`)}
         onAccountSettings={call("account")}
         onSignOut={call("sign out")}
@@ -309,7 +311,7 @@ describe("the workspace switcher", () => {
     { url: "http://10.0.0.5:8543", name: "Rocket Team", handle: "sam.r" },
   ];
 
-  it("is the workspace's name, and lists the others on this device, most recent first", async () => {
+  it("is the workspace's name, and lists the others on this device", async () => {
     const { user } = sidebar({ admin: false, others });
     const trigger = screen.getByRole("button", { name: "Rocket Team, workspace menu" });
     expect(screen.getByRole("heading", { level: 1 })).toContainElement(trigger);
@@ -362,6 +364,43 @@ describe("the workspace switcher", () => {
     const rail = screen.getByRole("group", { name: "Workspaces" });
     await user.click(within(rail).getByRole("button", { name: "Design Guild · @sam" }));
     expect(calls).toEqual(["open https://design.example"]);
+  });
+
+  it("marks what waits in the workspaces not open: mentions counted, anything else a nub", () => {
+    sidebar({
+      admin: false,
+      others: [
+        { ...others[0]!, waiting: { mentions: 3, unread: true } },
+        { ...others[1]!, waiting: { mentions: 0, unread: true } },
+      ],
+    });
+    const rail = screen.getByRole("group", { name: "Workspaces" });
+    const design = within(rail).getByRole("button", { name: "Design Guild · @sam, 3 mentions" });
+    expect(design).toHaveTextContent("3");
+    const quiet = within(rail).getByRole("button", {
+      name: "Rocket Team · @sam.r, unread messages",
+    });
+    const nub = (button: HTMLElement) =>
+      button.closest(".group")!.querySelector(".rail-pill")!.getAttribute("data-state");
+    expect(nub(design)).toBe("unread");
+    expect(nub(quiet)).toBe("unread");
+    // The open one keeps its bar.
+    expect(nub(within(rail).getByRole("button", { name: "Rocket Team" }))).toBe("current");
+  });
+
+  it("keeps this workspace in its place on the rail, rather than first", () => {
+    sidebar({ admin: false, others, railPlace: 1 });
+    const rail = screen.getByRole("group", { name: "Workspaces" });
+    expect(
+      within(rail)
+        .getAllByRole("button")
+        .map((b) => b.getAttribute("aria-label")),
+    ).toEqual([
+      "Design Guild · @sam",
+      "Rocket Team",
+      "Rocket Team · @sam.r",
+      "Add or join a workspace",
+    ]);
   });
 
   it("folds a category away, keeping the conversation on screen in view", async () => {

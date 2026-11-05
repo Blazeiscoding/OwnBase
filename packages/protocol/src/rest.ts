@@ -105,7 +105,10 @@ export const updateMeBody = z.object({
 });
 
 export const channelPrefsBody = z.object({
+  /** Chosen for this conversation alone, which stops it following the default. */
   notifyLevel: z.enum(["all", "mentions", "nothing"]).optional(),
+  /** False puts it back on the account's default (v53); true keeps `notifyLevel`. */
+  notifyChosen: z.boolean().optional(),
   muted: z.boolean().optional(),
   /** A server before schema v40 drops this unread; see `ReadySnapshot.stars`. */
   starred: z.boolean().optional(),
@@ -114,6 +117,22 @@ export const channelPrefsBody = z.object({
   /** Closes a direct conversation until something newer than this seq; null shows it (v52). */
   hiddenSeq: z.number().int().min(0).nullable().optional(),
 });
+
+/** `PUT /api/me/notify-default`: what conversations notify about unless set on their own (v53). */
+export const notifyDefaultBody = z.object({
+  level: z.enum(["all", "mentions", "nothing"]),
+});
+
+/**
+ * `GET /api/me/unread`: what waits in this workspace, for a device showing
+ * another one, to mark it on its list of workspaces.
+ */
+export interface UnreadSummary {
+  /** Unread mentions, as the badge beside the workspace counts them. */
+  mentions: number;
+  /** Whether any conversation not muted has something unread. */
+  unread: boolean;
+}
 
 /** A sidebar section's name: no control characters, 1 to 80 characters once trimmed (E8). */
 export const sidebarSectionNameSchema = z
@@ -518,6 +537,7 @@ export type EditMessageBody = z.infer<typeof editMessageBody>;
 export type MarkReadBody = z.infer<typeof markReadBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;
 export type ChannelPrefsBody = z.infer<typeof channelPrefsBody>;
+export type NotifyDefaultBody = z.infer<typeof notifyDefaultBody>;
 export type ScheduleMessageBody = z.infer<typeof scheduleMessageBody>;
 export type RescheduleBody = z.infer<typeof rescheduleBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;

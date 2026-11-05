@@ -404,6 +404,7 @@ export class Gateway {
           pollChoices: this.store.anonymousPollChoices(user.id),
           sharedFiles: true,
           sidebarSections: this.store.sidebarSections(user.id),
+          notifyDefault: this.store.notifyDefault(user.id),
           profiles: true,
           stars: true,
           workspaceSettings: true,

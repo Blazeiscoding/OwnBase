@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
@@ -289,6 +289,46 @@ describe("notification settings", () => {
     );
     await user.click(dialog.getByRole("tab", { name: "Notifications" }));
     expect(dialog.queryByRole("alert")).toBeNull();
+  });
+});
+
+describe("the account's default, in a channel's notifications (v53)", () => {
+  it("is offered first, chosen while the channel follows it, and named as it is now", async () => {
+    const { client, dialog, user } = details();
+    act(() =>
+      client.store.setState({
+        notifyDefault: "all",
+        prefs: { C_DESIGN: { notifyLevel: "mentions", notifyChosen: false, muted: false } },
+      }),
+    );
+    const save = vi.spyOn(client.api, "setChannelPrefs").mockImplementation(async (_id, body) => ({
+      prefs: { notifyLevel: "mentions", notifyChosen: true, muted: false, ...body },
+    }));
+    await user.click(dialog.getByRole("tab", { name: "Notifications" }));
+    const radios = dialog.getAllByRole("radio").map((r) => r.closest("label")!.textContent);
+    expect(radios[0]).toMatch(/^Use my defaultNow: every message\./);
+    expect(dialog.getByRole("radio", { name: /Use my default/ })).toBeChecked();
+    // Following it, the channel's own stored level is not shown as chosen.
+    expect(dialog.getByRole("radio", { name: /Direct messages and mentions/ })).not.toBeChecked();
+
+    await user.click(dialog.getByRole("radio", { name: /^Nothing/ }));
+    expect(save).toHaveBeenLastCalledWith("C_DESIGN", {
+      notifyLevel: "nothing",
+      notifyChosen: true,
+    });
+    await vi.waitFor(() => expect(dialog.getByRole("radio", { name: /^Nothing/ })).toBeChecked());
+    await user.click(dialog.getByRole("radio", { name: /Use my default/ }));
+    expect(save).toHaveBeenLastCalledWith("C_DESIGN", { notifyChosen: false });
+    await vi.waitFor(() =>
+      expect(dialog.getByRole("radio", { name: /Use my default/ })).toBeChecked(),
+    );
+  });
+
+  it("is not offered by a server without one", async () => {
+    const { dialog, user } = details();
+    await user.click(dialog.getByRole("tab", { name: "Notifications" }));
+    expect(dialog.queryByRole("radio", { name: /Use my default/ })).toBeNull();
+    expect(dialog.getByRole("radio", { name: /Direct messages and mentions/ })).toBeChecked();
   });
 });
 
