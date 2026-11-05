@@ -21,6 +21,7 @@ import {
   rememberedReadingPosition,
   type ReadingPosition,
 } from "../lib/route.js";
+import { useToday } from "../lib/today.js";
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -728,7 +729,7 @@ function EphemeralRow({ message, channelId }: { message: EphemeralMessage; chann
             </button>
           </Tooltip>
         </div>
-        <div className="text-[15px] leading-relaxed text-ink-dim">
+        <div className="bidi-text text-[15px] leading-relaxed text-ink-dim">
           <Mrkdwn text={message.text} users={users} channels={channels} />
         </div>
       </div>
@@ -838,6 +839,8 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
 }
 
 function DayDivider({ ts }: { ts: number }) {
+  // "Today" over today's messages becomes "Yesterday" at midnight, open or not.
+  useToday();
   return (
     <div className="relative my-4 flex items-center gap-2 px-4" role="separator">
       <div className="h-px flex-1 bg-edge" />
@@ -959,7 +962,7 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
       {pending.replyTo && <ReplyQuote quote={pending.replyTo} users={users} channels={channels} />}
       <div className="flex gap-3.5">
         <div className="w-10 shrink-0" />
-        <div className="min-w-0 flex-1 text-[15px]">
+        <div className="bidi-text min-w-0 flex-1 text-[15px]">
           {pending.poll ? (
             <PendingPoll
               text={pending.text}

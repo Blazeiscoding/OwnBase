@@ -3,13 +3,14 @@ import { ApiError, notificationBody } from "@ownbase/client-core";
 import type { Channel, ID, Message } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { AvatarWithPresence } from "./Avatar.js";
 import { Badge } from "./Badge.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { Tooltip } from "./Tooltip.js";
+import { When } from "./When.js";
 
 /**
  * Your direct messages, newest first, as a side panel: what the phone's bottom
@@ -186,7 +187,7 @@ export function DirectMessagesPanel(props: {
                           title={formatFull(last.createdAt)}
                           className="shrink-0 text-[12px] font-normal text-ink-faint"
                         >
-                          {formatWhen(last.createdAt)}
+                          <When at={last.createdAt} />
                         </time>
                       )}
                     </span>

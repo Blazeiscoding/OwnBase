@@ -4,6 +4,7 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";
 import { App } from "../src/App.js";
 import type { SavedServer } from "../src/platform.js";
+import { FOCUSED_VIEW_KEY, writeFocusedView } from "../src/lib/focusedView.js";
 
 const rocket: SavedServer = {
   url: "http://127.0.0.1:9",
@@ -127,6 +128,62 @@ describe("notifying about a message in the conversation on screen", () => {
     arrive(mention({ id: "M_REPLY", threadRootId: "M_ROOT" }));
     expect(notify).toHaveBeenCalledTimes(1);
     expect(notify.mock.calls[0]![0]).toBe("Alex Chen in #general");
+  });
+
+  describe("with another window of this account focused", () => {
+    const account = `${rocket.url} ${sam.id}`;
+    /** This window in the background, and another focused on a place. */
+    async function behind(view: { channelId: string; threadRootId?: string }, at = Date.now()) {
+      const opened = await lookingAtGeneral();
+      vi.mocked(document.hasFocus).mockReturnValue(false);
+      act(() => window.dispatchEvent(new Event("blur")));
+      writeFocusedView(
+        {
+          account,
+          channelId: view.channelId,
+          threadRootId: view.threadRootId ?? null,
+          channelVisible: true,
+          threadVisible: true,
+        },
+        "W_OTHER",
+        at,
+      );
+      return opened;
+    }
+    afterEach(() => localStorage.removeItem(FOCUSED_VIEW_KEY));
+
+    it("stays quiet about a mention the other window is reading", async () => {
+      // Every window hears every message, and this one used to notify about
+      // what the focused one had on screen.
+      const { arrive, notify } = await behind({ channelId: general.id });
+      arrive(mention());
+      arrive(mention({ id: "M_REPLY", threadRootId: "M_ROOT" }));
+      expect(notify).toHaveBeenCalledTimes(1);
+      expect(notify.mock.calls[0]![1]).toContain("can you look at this?");
+      // The reply's thread is not open there, so that one was told.
+      arrive(mention({ id: "M_REPLY2", threadRootId: "M_OTHER" }));
+      expect(notify).toHaveBeenCalledTimes(2);
+    });
+
+    it("tells about one the other window is not showing, or when its record is stale", async () => {
+      const elsewhere = await behind({ channelId: "C_RANDOM" });
+      elsewhere.arrive(mention());
+      expect(elsewhere.notify).toHaveBeenCalledTimes(1);
+      cleanup();
+      // Left by a window that closed without saying, five minutes ago.
+      const stale = await behind({ channelId: general.id }, Date.now() - 5 * 60_000);
+      stale.arrive(mention({ id: "M_STALE" }));
+      expect(stale.notify).toHaveBeenCalledTimes(1);
+    });
+
+    it("keeps a record while this window is focused, and takes it back on blur", async () => {
+      await lookingAtGeneral();
+      const record = () => JSON.parse(localStorage.getItem(FOCUSED_VIEW_KEY) ?? "null");
+      expect(record()).toMatchObject({ account, channelId: general.id, channelVisible: true });
+      vi.mocked(document.hasFocus).mockReturnValue(false);
+      act(() => window.dispatchEvent(new Event("blur")));
+      expect(record()).toBeNull();
+    });
   });
 
   describe("showing only what this account chose (IMP-03)", () => {

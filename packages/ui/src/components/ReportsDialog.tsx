@@ -4,12 +4,13 @@ import type { ReportedMessage, ReportResolution, User } from "@ownbase/protocol"
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { REPORT_REASON_LABELS } from "../lib/blocking.js";
-import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog } from "./Dialog.js";
 import { ListStatus } from "./ListStatus.js";
 import { useConfirm } from "./Confirm.js";
 import { buttonClass } from "./Button.js";
+import { When } from "./When.js";
 
 /**
  * The admins' queue of reported messages (E12): each with where and when it
@@ -189,7 +190,7 @@ function Reported({
                 <>
                   {" · "}
                   <time title={formatFull(item.message.createdAt)}>
-                    {formatWhen(item.message.createdAt)}
+                    <When at={item.message.createdAt} />
                   </time>
                 </>
               )}

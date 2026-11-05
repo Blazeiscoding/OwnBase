@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -12,6 +12,7 @@ import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { usePagedList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
+import { When } from "./When.js";
 
 interface Props {
   title: string;
@@ -186,7 +187,7 @@ export function MessageListPanel(props: Props) {
                       title={formatFull(m.createdAt)}
                       className="ml-auto shrink-0"
                     >
-                      {formatWhen(m.createdAt)}
+                      <When at={m.createdAt} />
                     </time>
                   </div>
                   <div className="flex gap-2.5">
@@ -195,7 +196,7 @@ export function MessageListPanel(props: Props) {
                       <div className="text-[13px] font-semibold">
                         {users[m.userId]?.displayName ?? "unknown"}
                       </div>
-                      <div className="line-clamp-4 text-sm text-ink-dim">
+                      <div className="bidi-text line-clamp-4 text-sm text-ink-dim">
                         {m.text ? (
                           <Mrkdwn text={m.text} users={users} channels={channels} selfId={selfId} />
                         ) : (
@@ -475,10 +476,10 @@ export function ThreadsPanel(props: {
                   title={formatFull(reply.createdAt)}
                   className="shrink-0 text-ink-faint"
                 >
-                  {formatWhen(reply.createdAt)}
+                  <When at={reply.createdAt} />
                 </time>
               </div>
-              <div className="line-clamp-2 text-ink-dim">
+              <div className="bidi-text line-clamp-2 text-ink-dim">
                 {reply.text ? (
                   <Mrkdwn text={reply.text} users={users} channels={channels} selfId={selfId} />
                 ) : (

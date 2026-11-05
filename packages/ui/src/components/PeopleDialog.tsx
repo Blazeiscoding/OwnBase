@@ -7,7 +7,6 @@ import { inputCls, TextField } from "./TextField.js";
 import { Swap } from "./Motion.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Avatar } from "./Avatar.js";
-import { formatWhen } from "../lib/format.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
 import { AuditHistory } from "./AuditHistory.js";
@@ -15,6 +14,7 @@ import { buttonClass } from "./Button.js";
 import { ListStatus } from "./ListStatus.js";
 import { isImeKey } from "../lib/textInput.js";
 import { useOptionalConfirm } from "./Confirm.js";
+import { When } from "./When.js";
 
 /** What an account change did, in a sentence that names the person. */
 export function changeNotice(
@@ -468,7 +468,12 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
                         (presence[person.id] === "online" ? (
                           <> · active now</>
                         ) : (
-                          person.lastSeenAt && <> · last seen {formatWhen(person.lastSeenAt)}</>
+                          person.lastSeenAt && (
+                            <>
+                              {" "}
+                              · last seen <When at={person.lastSeenAt} />
+                            </>
+                          )
                         ))}
                     </div>
                   </div>

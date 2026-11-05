@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { escapeMrkdwn, type Channel, type ID, type User } from "@ownbase/protocol";
@@ -81,7 +83,7 @@ describe("Mrkdwn", () => {
     it("draws consecutive > lines as one quote, formatted, and leaves the rest as it was", () => {
       const html = render("Earlier:\n> it *does* ship\n>today\nAgreed.");
       expect(html).toContain(
-        '<blockquote class="my-0.5 block border-l-2 border-edge pl-2 text-ink-dim">it <strong>does</strong> ship\ntoday</blockquote>',
+        '<blockquote dir="auto" class="my-0.5 block border-s-2 border-edge ps-2 text-ink-dim">it <strong>does</strong> ship\ntoday</blockquote>',
       );
       // The quote is a block, so the breaks at its edges are not drawn twice.
       expect(html).toContain("Earlier:<blockquote");
@@ -105,7 +107,7 @@ describe("Mrkdwn", () => {
     it("draws lines starting -, * or • as one bulleted list, formatted, as a block", () => {
       const html = render("Bring:\n- *snacks*\n* a `cable`\n• @nobody's mug\nThanks.");
       expect(html).toContain(
-        '<ul class="my-0.5 block list-disc pl-5 marker:text-ink-dim"><li><strong>snacks</strong></li><li>a <code',
+        '<ul dir="auto" class="my-0.5 block list-disc ps-5 marker:text-ink-dim"><li><strong>snacks</strong></li><li>a <code',
       );
       expect(html).toContain("<li>@nobody&#x27;s mug</li></ul>");
       // A block, so the breaks at its edges are not drawn twice.
@@ -116,7 +118,7 @@ describe("Mrkdwn", () => {
     it("numbers lines starting 1. or 1), counting on from the first number", () => {
       const html = render("1. plan\n1) build\n7. ship");
       expect(html).toContain(
-        '<ol class="my-0.5 block list-decimal pl-6 marker:text-ink-dim"><li>plan</li><li>build</li><li>ship</li></ol>',
+        '<ol dir="auto" class="my-0.5 block list-decimal ps-6 marker:text-ink-dim"><li>plan</li><li>build</li><li>ship</li></ol>',
       );
       expect(render("3. third\n4. fourth")).toContain('<ol start="3"');
     });
@@ -177,5 +179,21 @@ describe("Mrkdwn", () => {
       expect(html).not.toContain("<a");
       expect(html).toContain("&lt;javascript:alert(1)|click me&gt;");
     });
+  });
+});
+
+describe("Mrkdwn in Hebrew or Arabic", () => {
+  it("lets each quote and list take its direction from its words, and keeps code left to right", () => {
+    const html = render("> ציטוט קצר\n- פריט ראשון\n1. أول\n```\nconst x = 1;\n```");
+    expect(html).toMatch(/<blockquote dir="auto"[^>]*border-s-2[^>]*ps-2/);
+    expect(html).toMatch(/<ul dir="auto"[^>]*ps-5/);
+    expect(html).toMatch(/<ol dir="auto"[^>]*ps-6/);
+    expect(html).toMatch(/<code dir="ltr"/);
+  });
+
+  it("lays each paragraph out in the direction of its first letter (theme.css)", () => {
+    // jsdom applies no stylesheet; what a browser would do is read from theme.css.
+    const css = readFileSync(join(process.cwd(), "src/theme.css"), "utf8");
+    expect(css).toMatch(/\.message-text,\s*\.bidi-text\s*\{\s*unicode-bidi: plaintext;/);
   });
 });

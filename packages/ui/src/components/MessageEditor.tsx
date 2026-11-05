@@ -14,6 +14,7 @@ import {
 import { Mrkdwn } from "./Mrkdwn.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
+import { pasteRich } from "../lib/richPaste.js";
 import { useMentionField } from "../lib/useMentionField.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { editDraftKey, readEditDraft, type EditDraft } from "../lib/drafts.js";
@@ -153,7 +154,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           , or save your version below.
           <blockquote
             aria-label="Current message"
-            className="mt-1 line-clamp-3 border-l-2 border-edge pl-2 whitespace-pre-wrap text-ink"
+            className="bidi-text mt-1 line-clamp-3 border-l-2 border-edge pl-2 whitespace-pre-wrap text-ink"
           >
             <Mrkdwn
               text={message.text}
@@ -184,7 +185,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           {preview && (
             <div
               aria-label="Edit preview"
-              className="max-h-36 overflow-y-auto border-b border-edge px-3 py-2 text-sm"
+              className="bidi-text max-h-36 overflow-y-auto border-b border-edge px-3 py-2 text-sm"
             >
               <Mrkdwn
                 text={draft}
@@ -197,6 +198,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           <div className="relative">
             <MentionTags doc={field.doc} box={box} />
             <textarea
+              dir="auto"
               ref={box}
               value={field.doc.shown}
               autoFocus
@@ -211,12 +213,9 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
               onPaste={(e) => {
                 if (e.clipboardData.files.length > 0) return;
                 const { start, end } = field.selection();
-                const linked = linkOverSelection(
-                  draft,
-                  start,
-                  end,
-                  e.clipboardData.getData("text/plain"),
-                );
+                const linked =
+                  linkOverSelection(draft, start, end, e.clipboardData.getData("text/plain")) ??
+                  pasteRich(draft, start, end, e.clipboardData.getData("text/html"));
                 if (!linked || saving.current) return;
                 e.preventDefault();
                 field.edit(linked.text, linked.caret);

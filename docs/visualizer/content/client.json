@@ -986,6 +986,36 @@
       "concepts": ["sidebar", "keyboard navigation"]
     },
     {
+      "path": "packages/ui/src/lib/focusedView.ts",
+      "plain": "Keeps other tabs of your account quiet about what the tab you are using shows, and lets one tab, not all of them, play a call's ring.",
+      "summary": "The focused window's view in localStorage, onScreenElsewhere, inOneWindow.",
+      "details": [
+        "Only one window of a browser has focus, so it keeps one record (ownbase-focused-view): the account, the conversation, the thread and whether each can be seen. Written on focus and every change, again every 30 s, taken back on blur, hide and close; a record over 75 s old is ignored. WorkspaceScreen counts a message there as on screen, so a background tab no longer notifies about what the focused one is reading.",
+        "inOneWindow(account, name, start) does something every window would otherwise do at once, the ring tone: the focused window does it when another has focus, otherwise the windows take turns through a Web Lock (ifAvailable). Plain http has no navigator.locks, so there every window does it."
+      ],
+      "concepts": ["several tabs", "notifications", "Web Locks"]
+    },
+    {
+      "path": "packages/ui/src/lib/richPaste.ts",
+      "plain": "Keeps the links, bold words and lists of text pasted from a web page or document, where the browser would paste only the words.",
+      "summary": "mrkdwnFromHtml(html) and pasteRich(text, start, end, html) for the composer and the message editor.",
+      "details": [
+        "Writes the clipboard's HTML as Mrkdwn: <url|words> for a link with words of its own, *bold*, _italic_, ~struck~, `code`, code blocks, > quotes, - and numbered lists, and Google Docs' bold and italic spans (its whole copy sits in a <b> that is not bold). Where blocks meet is one line break.",
+        "Gives null, leaving the browser's own paste, when the formatting adds nothing to the plain text, and for a code editor's copy (white-space: pre), whose indentation only the plain text keeps. A web address pasted over selected words still links them first (textInput linkOverSelection)."
+      ],
+      "concepts": ["paste", "rich text", "Mrkdwn"]
+    },
+    {
+      "path": "packages/ui/src/lib/today.ts",
+      "plain": "Makes \"Today\" become \"Yesterday\" at midnight in a window left open overnight.",
+      "summary": "useToday(): the start of the local day; the reader draws again when it turns.",
+      "details": [
+        "One timer for every reader, set for just after the next local midnight, and a look again when the window regains focus or is shown (a computer that slept through midnight) and every hour (a clock or time zone change).",
+        "The timeline's day dividers and When read it; a window used to keep yesterday's messages under \"Today\" until it was reloaded."
+      ],
+      "concepts": ["dates", "midnight"]
+    },
+    {
       "path": "packages/ui/src/lib/linkedMessages.ts",
       "plain": "Finds the links in a message that point at other messages in this workspace.",
       "summary": "Lists the workspace messages a message's words link to, for their cards.",
@@ -2882,6 +2912,15 @@
         "A choice goes in as the stored token (<@id>, <#id>, <!here>) through useMentionField, so the box shows the name. A finished :shortcode: becomes its emoji. Not inside code."
       ],
       "concepts": ["autocomplete", "ARIA listbox", "mentions"]
+    },
+    {
+      "path": "packages/ui/src/components/When.tsx",
+      "plain": "Says when something happened in lists (\"9:00 AM\", \"Yesterday 9:00 AM\", \"Mon 3:41 PM\") and says it again when the day turns.",
+      "summary": "<When at={ts} />: formatWhen's words, redrawn by useToday.",
+      "details": [
+        "Used by Activity, the DM list, Drafts, Files, Threads and Saved, search, People, Reports and the sign-ins list, so a list left open overnight moves its times on with the day."
+      ],
+      "concepts": ["dates", "lists"]
     },
     {
       "path": "packages/ui/src/lib/appCommands.ts",

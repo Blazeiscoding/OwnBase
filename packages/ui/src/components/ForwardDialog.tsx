@@ -10,6 +10,7 @@ import { Dialog } from "./Dialog.js";
 import { ForwardCard, conversationName } from "./ForwardCard.js";
 import { inputCls } from "./TextField.js";
 import { useToast } from "./Toast.js";
+import { isImeKey } from "../lib/textInput.js";
 
 /** How many conversations the list shows at once; typing narrows it. */
 const SHOWN = 8;
@@ -144,6 +145,8 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
               list.choose(0);
             }}
             onKeyDown={(event) => {
+              // An input method's Enter picks a candidate, not whom to send to.
+              if (isImeKey(event.nativeEvent)) return;
               if (list.move(event)) return;
               if (event.key === "Enter" && target === null && results[list.active]) {
                 event.preventDefault();
@@ -189,6 +192,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
             Add a message (optional)
           </span>
           <textarea
+            dir="auto"
             rows={2}
             value={comment}
             maxLength={12000}

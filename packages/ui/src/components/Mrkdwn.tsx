@@ -60,6 +60,7 @@ export function Mrkdwn({
         i % 2 === 1 ? (
           <code
             key={i}
+            dir="ltr"
             className="my-1 block overflow-x-auto rounded-lg border border-edge bg-ground px-3 py-2 font-mono text-[13px]"
           >
             {highlight(trimAtFences(block, true, true))}
@@ -82,14 +83,19 @@ export function Mrkdwn({
                   return (
                     <blockquote
                       key={j}
-                      className="my-0.5 block border-l-2 border-edge pl-2 text-ink-dim"
+                      dir="auto"
+                      className="my-0.5 block border-s-2 border-edge ps-2 text-ink-dim"
                     >
                       {inline(run.text)}
                     </blockquote>
                   );
                 case "bullets":
                   return (
-                    <ul key={j} className="my-0.5 block list-disc pl-5 marker:text-ink-dim">
+                    <ul
+                      key={j}
+                      dir="auto"
+                      className="my-0.5 block list-disc ps-5 marker:text-ink-dim"
+                    >
                       {run.items.map((item, k) => (
                         <li key={k}>{inline(item)}</li>
                       ))}
@@ -100,7 +106,8 @@ export function Mrkdwn({
                     <ol
                       key={j}
                       start={run.start === 1 ? undefined : run.start}
-                      className="my-0.5 block list-decimal pl-6 marker:text-ink-dim"
+                      dir="auto"
+                      className="my-0.5 block list-decimal ps-6 marker:text-ink-dim"
                     >
                       {run.items.map((item, k) => (
                         <li key={k}>{inline(item)}</li>
@@ -285,11 +292,13 @@ function renderInline(
 /**
  * A web link. One to a message in this workspace opens it here, instead of in
  * a new window of the app; a click asking for a new tab or window still gets
- * one. Only a link to an address this workspace is known by: another server
- * can hold the same ids, as a restored copy of this workspace does, and its
- * link goes where it says. A label shows in place of the address, which the
- * link's title always names, and a label that reads as another site's address
- * has the real one beside it.
+ * one. That includes a conversation this account cannot see, where opening it
+ * here says why, rather than a new window (the desktop app's is a browser that
+ * is not signed in) saying the same after it loads. Only a link to an address
+ * this workspace is known by: another server can hold the same ids, as a
+ * restored copy of this workspace does, and its link goes where it says. A
+ * label shows in place of the address, which the link's title always names,
+ * and a label that reads as another site's address has the real one beside it.
  */
 function renderLink(
   url: string,
@@ -300,10 +309,7 @@ function renderLink(
   const link = parseDeepLink(url);
   const { openMessage } = ctx;
   const openHere =
-    openMessage &&
-    link?.kind === "message" &&
-    !!ctx.ours?.(link.serverUrl) &&
-    ctx.channels[link.channelId]
+    openMessage && link?.kind === "message" && !!ctx.ours?.(link.serverUrl)
       ? (event: React.MouseEvent) => {
           if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey) return;
           event.preventDefault();

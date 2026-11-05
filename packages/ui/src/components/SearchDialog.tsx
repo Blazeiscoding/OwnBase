@@ -12,7 +12,7 @@ import type { FileMeta, FileType, ID, Message } from "@ownbase/protocol";
 import { parseSearchQuery } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { useRecentSearches, type RecentSearch } from "../lib/recentSearches.js";
-import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";
+import { channelTitle, formatBytes, formatFull } from "../lib/format.js";
 import { usePagedList } from "../lib/pagedList.js";
 import {
   DATE_PRESETS,
@@ -36,6 +36,7 @@ import { Menu, type MenuItem } from "./Menu.js";
 import { Popover } from "./Popover.js";
 import { Tooltip } from "./Tooltip.js";
 import { iconFor } from "./Attachments.js";
+import { When } from "./When.js";
 
 /** How long typing pauses before what is typed is searched. */
 const LIVE_DELAY = 250;
@@ -772,7 +773,7 @@ export function SearchDialog(props: {
                                 dateTime={new Date(m.createdAt).toISOString()}
                                 title={formatFull(m.createdAt)}
                               >
-                                {formatWhen(m.createdAt)}
+                                <When at={m.createdAt} />
                               </time>
                             </span>
                           </span>
@@ -805,10 +806,10 @@ export function SearchDialog(props: {
                               title={formatFull(m.createdAt)}
                               className="ml-auto text-right"
                             >
-                              {formatWhen(m.createdAt)}
+                              <When at={m.createdAt} />
                             </time>
                           </div>
-                          <div className="text-sm">
+                          <div className="bidi-text text-sm">
                             <Mrkdwn
                               text={m.text}
                               users={users}

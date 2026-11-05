@@ -106,6 +106,7 @@ export function ReportMessageDialog({
             Anything to add <span className="font-normal text-ink-faint">(optional)</span>
           </label>
           <textarea
+            dir="auto"
             id={`${id}-note`}
             value={note}
             onChange={(event) => setNote(event.target.value)}

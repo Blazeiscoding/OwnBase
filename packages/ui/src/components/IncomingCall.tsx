@@ -10,6 +10,7 @@ import { useCallPreferences } from "../lib/callPreferences.js";
 import { channelTitle } from "../lib/format.js";
 import { ringContent, type NotificationPreview } from "../lib/notificationPreview.js";
 import { startRingTone } from "../lib/ringTone.js";
+import { focusedElsewhere, inOneWindow } from "../lib/focusedView.js";
 import { confirmHuddleSwitch } from "./HuddleButton.js";
 import { useOptionalConfirm } from "./Confirm.js";
 
@@ -50,10 +51,12 @@ export function IncomingCall(props: {
   const loud = ringingMe.filter((ring) => !snoozed && !prefs[ring.channelId]?.muted);
   const ringing = loud.length > 0;
 
+  // One window rings, however many of this account's are open (lib/focusedView).
+  const account = props.tag;
   useEffect(() => {
     if (!ringing) return;
-    return startRingTone();
-  }, [ringing]);
+    return inOneWindow(account, "ring", startRingTone);
+  }, [ringing, account]);
 
   // Each ring once, while the window is behind something else.
   const told = useRef(new Set<string>());
@@ -62,7 +65,8 @@ export function IncomingCall(props: {
   useEffect(() => {
     for (const ring of loud) {
       const key = `${ring.channelId} ${ring.startedAt}`;
-      if (told.current.has(key) || document.hasFocus()) continue;
+      // In front, here or in another window of this account, the card says it.
+      if (told.current.has(key) || document.hasFocus() || focusedElsewhere(props.tag)) continue;
       told.current.add(key);
       const channel = channels[ring.channelId];
       const { title, body } = ringContent(props.preview, {

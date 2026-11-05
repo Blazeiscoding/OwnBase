@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { dueReminderCount, isMessageRead, notificationBody } from "@ownbase/client-core";
 import type { ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
@@ -14,6 +14,7 @@ import { usePagedList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { RemindersList } from "./RemindersList.js";
 import { markEverythingRead } from "../lib/readAll.js";
+import { When } from "./When.js";
 
 /**
  * Activity's tabs (UX-52), and what each asks the server for. Reminders (E4)
@@ -428,7 +429,7 @@ function ActivityRow(props: {
               title={formatFull(message.createdAt)}
               className="ml-auto shrink-0 text-[12px] text-ink-faint"
             >
-              {formatWhen(message.createdAt)}
+              <When at={message.createdAt} />
             </time>
           </span>
           <span className="block truncate text-[13px] text-ink-dim">{props.preview}</span>

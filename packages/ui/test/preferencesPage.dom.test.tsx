@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
@@ -178,6 +178,19 @@ describe("searching settings", () => {
     expect(within(settings).getByRole("tablist")).toBeVisible();
     await user.keyboard("{Escape}");
     expect(onClose).toHaveBeenCalledOnce();
+  });
+
+  it("leaves an input method's Enter and Escape to it", async () => {
+    // Typing Japanese or Chinese, Enter picks among the candidates and Escape
+    // lets go of them: neither jumps to a setting, clears the field or closes.
+    const { settings, search, onClose, user } = page();
+    await user.type(search, "pass");
+    fireEvent.keyDown(search, { key: "Enter", isComposing: true });
+    fireEvent.keyDown(search, { key: "Escape", keyCode: 229 });
+    expect(search).toHaveValue("pass");
+    expect(search).toHaveFocus();
+    expect(within(settings).getByRole("list", { name: "Settings found" })).toBeVisible();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("goes to every setting it can find, in the section that has it", async () => {

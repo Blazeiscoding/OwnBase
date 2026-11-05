@@ -14,6 +14,7 @@ import { Tooltip } from "./Tooltip.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { MentionTags } from "./MentionTags.js";
 import { insideCodeBlock, isImeKey, linkOverSelection } from "../lib/textInput.js";
+import { pasteRich } from "../lib/richPaste.js";
 import { lastEditable, requestEdit } from "../lib/editRequest.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { useMaxFileBytes, withinLimit } from "../lib/fileLimit.js";
@@ -990,7 +991,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
         {preview && (
           <div
             aria-label="Message preview"
-            className="max-h-36 overflow-y-auto border-b border-edge px-4 py-3 text-sm"
+            className="bidi-text max-h-36 overflow-y-auto border-b border-edge px-4 py-3 text-sm"
           >
             {text.trim() ? (
               <Mrkdwn text={text} users={users} channels={channels} selfId={selfId} />
@@ -1013,6 +1014,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
         <div className="relative">
           <MentionTags doc={field.doc} box={box} />
           <textarea
+            dir="auto"
             ref={box}
             value={field.doc.shown}
             aria-readonly={held}
@@ -1033,7 +1035,9 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
                       .filter((file): file is File => file !== null);
               if (files.length === 0) {
                 const { start, end } = field.selection();
-                const linked = linkOverSelection(text, start, end, data.getData("text/plain"));
+                const linked =
+                  linkOverSelection(text, start, end, data.getData("text/plain")) ??
+                  pasteRich(text, start, end, data.getData("text/html"));
                 if (linked) {
                   e.preventDefault();
                   rewrite(linked.text, linked.caret);
