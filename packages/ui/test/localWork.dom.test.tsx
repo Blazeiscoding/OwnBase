@@ -345,14 +345,11 @@ describe("two windows writing the same draft (GL-03)", () => {
       first.setDraft("C1", "first competing text");
       second.setDraft("C1", "second competing text");
     });
-    await waitFor(
-      () => {
-        const stored = (device.values.get(key) as Record<string, string>).C1 ?? "";
-        expect(stored).toContain("first competing text");
-        expect(stored).toContain("second competing text");
-      },
-      { timeout: 3000 },
-    );
+    await waitFor(() => {
+      const stored = (device.values.get(key) as Record<string, string>).C1 ?? "";
+      expect(stored).toContain("first competing text");
+      expect(stored).toContain("second competing text");
+    });
     await waitFor(() => {
       for (const client of [first, second]) {
         expect(client.state.drafts.C1).toContain("first competing text");
@@ -384,12 +381,10 @@ describe("two windows writing the same draft (GL-03)", () => {
       first.setDraft("C1", "start, and more typed here");
       second.setDraft("C1", "");
     });
-    await waitFor(
-      () =>
-        expect((device.values.get(key) as Record<string, string>).C1).toBe(
-          "start, and more typed here",
-        ),
-      { timeout: 3000 },
+    await waitFor(() =>
+      expect((device.values.get(key) as Record<string, string>).C1).toBe(
+        "start, and more typed here",
+      ),
     );
   });
 
@@ -409,16 +404,12 @@ describe("two windows writing the same draft (GL-03)", () => {
       first.setDraft("C1", "channel words");
       second.setDraft("C1:T1", "thread words");
     });
-    await waitFor(
-      () =>
-        expect(device.values.get(key)).toEqual({ C1: "channel words", "C1:T1": "thread words" }),
-      { timeout: 3000 },
+    await waitFor(() =>
+      expect(device.values.get(key)).toEqual({ C1: "channel words", "C1:T1": "thread words" }),
     );
     await waitFor(() => expect(second.state.drafts.C1).toBe("channel words"));
     act(() => first.setDraft("C1", ""));
-    await waitFor(() => expect(device.values.get(key)).toEqual({ "C1:T1": "thread words" }), {
-      timeout: 3000,
-    });
+    await waitFor(() => expect(device.values.get(key)).toEqual({ "C1:T1": "thread words" }));
     expect(screen.queryByRole("status")).toBeNull();
   });
 
@@ -455,17 +446,14 @@ describe("two windows writing the same draft (GL-03)", () => {
       first.setDraft("C1", "hello");
       second.setDraft("C1", "bye");
     });
-    await waitFor(() => expect(held).toBe(true), { timeout: 3000 });
-    await waitFor(() => expect((device.values.get(key) as Record<string, string>).C1).toBe("bye"), {
-      timeout: 3000,
-    });
+    await waitFor(() => expect(held).toBe(true));
+    await waitFor(() => expect((device.values.get(key) as Record<string, string>).C1).toBe("bye"));
     // Typed on in the first window while its write was out.
     act(() => first.setDraft("C1", "hello!"));
     act(() => release());
-    await waitFor(() => expect(first.state.drafts.C1).toBe("hello!\n\nbye"), { timeout: 3000 });
-    await waitFor(
-      () => expect((device.values.get(key) as Record<string, string>).C1).toBe("hello!\n\nbye"),
-      { timeout: 3000 },
+    await waitFor(() => expect(first.state.drafts.C1).toBe("hello!\n\nbye"));
+    await waitFor(() =>
+      expect((device.values.get(key) as Record<string, string>).C1).toBe("hello!\n\nbye"),
     );
   });
 });

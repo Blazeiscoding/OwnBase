@@ -1,7 +1,28 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
+import { cleanup, configure, getConfig } from "@testing-library/react";
 import { afterEach } from "vitest";
 import { loadTooltipBubble } from "../src/components/Tooltip.js";
+
+// A findBy or waitFor ends as soon as what it looks for is on the page. Outside
+// act, React draws that in one task of its scheduler and may run the effects of
+// that drawing in the next, and a busy machine can fire the timer that ends the
+// wait in between: the test then acts before an effect has, say, added the
+// listener it needs or moved focus. React's scheduler posts its tasks with
+// setImmediate, so one more turn of that queue lets the task already waiting
+// run first. The function is taken before any test fakes timers, as React's is.
+const realSetImmediate = globalThis.setImmediate;
+const { asyncWrapper } = getConfig();
+configure({
+  // Five seconds rather than one: a wait ends as soon as what it looks for is
+  // there, and a busy machine took longer than one second to draw some of it.
+  asyncUtilTimeout: 5_000,
+  asyncWrapper: (wait) =>
+    asyncWrapper(async () => {
+      const result = await wait();
+      await new Promise((resolve) => realSetImmediate(resolve));
+      return result;
+    }),
+});
 
 // A hint's floating text comes in a chunk of its own, which an open workspace
 // fetches at once. Have it from the start here too, so a hint opens in the same

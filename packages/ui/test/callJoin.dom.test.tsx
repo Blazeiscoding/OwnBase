@@ -85,9 +85,7 @@ function setup(read: () => Promise<unknown>) {
 
 /** Getting started shows only its next step; the huddle is in the whole list. */
 async function huddleStep() {
-  await userEvent
-    .setup()
-    .click(await screen.findByRole("button", { name: "Show all steps" }, { timeout: 3_000 }));
+  await userEvent.setup().click(await screen.findByRole("button", { name: "Show all steps" }));
   return screen.findByRole("button", { name: "Start: Try a huddle in #general" });
 }
 
