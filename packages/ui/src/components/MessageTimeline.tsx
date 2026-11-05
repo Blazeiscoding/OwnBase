@@ -728,7 +728,7 @@ function EphemeralRow({ message, channelId }: { message: EphemeralMessage; chann
             </button>
           </Tooltip>
         </div>
-        <div className="text-[15px] leading-relaxed text-ink-dim">
+        <div className="bidi-text text-[15px] leading-relaxed text-ink-dim">
           <Mrkdwn text={message.text} users={users} channels={channels} />
         </div>
       </div>
@@ -959,7 +959,7 @@ function PendingRow({ pending }: { pending: PendingMessage }) {
       {pending.replyTo && <ReplyQuote quote={pending.replyTo} users={users} channels={channels} />}
       <div className="flex gap-3.5">
         <div className="w-10 shrink-0" />
-        <div className="min-w-0 flex-1 text-[15px]">
+        <div className="bidi-text min-w-0 flex-1 text-[15px]">
           {pending.poll ? (
             <PendingPoll
               text={pending.text}

@@ -339,6 +339,7 @@ function AppForm(props: {
           </select>
         ) : field.type === "textarea" ? (
           <textarea
+            dir="auto"
             {...shared}
             value={answer as string}
             placeholder={field.placeholder}
@@ -444,7 +445,7 @@ function ShownBlock(props: {
   }
   return (
     <div
-      className={block.type === "context" ? "text-[12px] text-ink-faint" : "text-sm text-ink-dim"}
+      className={`bidi-text ${block.type === "context" ? "text-[12px] text-ink-faint" : "text-sm text-ink-dim"}`}
     >
       <Mrkdwn text={block.text} users={users} channels={channels} />
     </div>

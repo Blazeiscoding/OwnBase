@@ -808,7 +808,7 @@ export function SearchDialog(props: {
                               {formatWhen(m.createdAt)}
                             </time>
                           </div>
-                          <div className="text-sm">
+                          <div className="bidi-text text-sm">
                             <Mrkdwn
                               text={m.text}
                               users={users}

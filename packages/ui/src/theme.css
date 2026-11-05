@@ -1476,6 +1476,17 @@ textarea::placeholder {
   }
 }
 
+/*
+ * What someone wrote: each paragraph takes its direction from its own first
+ * letter, so a line of Hebrew or Arabic reads right to left, lines up on the
+ * right and ends with its own full stop, beside lines of English. A preserved
+ * line break starts a paragraph. Code stays left to right (Mrkdwn).
+ */
+.message-text,
+.bidi-text {
+  unicode-bidi: plaintext;
+}
+
 /* A message of a few emoji and nothing else shows them large, as Slack does. */
 .message-jumbo {
   font-size: 32px;

@@ -990,7 +990,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
         {preview && (
           <div
             aria-label="Message preview"
-            className="max-h-36 overflow-y-auto border-b border-edge px-4 py-3 text-sm"
+            className="bidi-text max-h-36 overflow-y-auto border-b border-edge px-4 py-3 text-sm"
           >
             {text.trim() ? (
               <Mrkdwn text={text} users={users} channels={channels} selfId={selfId} />
@@ -1013,6 +1013,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
         <div className="relative">
           <MentionTags doc={field.doc} box={box} />
           <textarea
+            dir="auto"
             ref={box}
             value={field.doc.shown}
             aria-readonly={held}

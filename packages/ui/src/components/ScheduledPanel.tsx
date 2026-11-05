@@ -236,6 +236,7 @@ export function ScheduledPanel(props: {
             <label className="block text-sm font-medium">
               Edit scheduled text
               <textarea
+                dir="auto"
                 autoFocus
                 value={editText}
                 disabled={busy !== null}
@@ -293,7 +294,7 @@ export function ScheduledPanel(props: {
                 </button>
               </div>
             )}
-            <details className="group text-sm text-ink-dim">
+            <details className="bidi-text group text-sm text-ink-dim">
               <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 hover:text-ink">
                 <Icon
                   name="chevronDown"
@@ -367,7 +368,7 @@ export function ScheduledPanel(props: {
                     {s.failureReason ? `. ${s.failureReason}` : ""}
                   </p>
                 )}
-                <div className="text-sm text-ink-dim">
+                <div className="bidi-text text-sm text-ink-dim">
                   {s.text ? (
                     <Mrkdwn text={s.text} users={users} channels={channels} selfId={selfId} />
                   ) : (

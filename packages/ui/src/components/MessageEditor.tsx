@@ -153,7 +153,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           , or save your version below.
           <blockquote
             aria-label="Current message"
-            className="mt-1 line-clamp-3 border-l-2 border-edge pl-2 whitespace-pre-wrap text-ink"
+            className="bidi-text mt-1 line-clamp-3 border-l-2 border-edge pl-2 whitespace-pre-wrap text-ink"
           >
             <Mrkdwn
               text={message.text}
@@ -184,7 +184,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           {preview && (
             <div
               aria-label="Edit preview"
-              className="max-h-36 overflow-y-auto border-b border-edge px-3 py-2 text-sm"
+              className="bidi-text max-h-36 overflow-y-auto border-b border-edge px-3 py-2 text-sm"
             >
               <Mrkdwn
                 text={draft}
@@ -197,6 +197,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
           <div className="relative">
             <MentionTags doc={field.doc} box={box} />
             <textarea
+              dir="auto"
               ref={box}
               value={field.doc.shown}
               autoFocus

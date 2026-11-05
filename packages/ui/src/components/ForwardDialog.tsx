@@ -192,6 +192,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
             Add a message (optional)
           </span>
           <textarea
+            dir="auto"
             rows={2}
             value={comment}
             maxLength={12000}

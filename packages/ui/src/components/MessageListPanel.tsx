@@ -195,7 +195,7 @@ export function MessageListPanel(props: Props) {
                       <div className="text-[13px] font-semibold">
                         {users[m.userId]?.displayName ?? "unknown"}
                       </div>
-                      <div className="line-clamp-4 text-sm text-ink-dim">
+                      <div className="bidi-text line-clamp-4 text-sm text-ink-dim">
                         {m.text ? (
                           <Mrkdwn text={m.text} users={users} channels={channels} selfId={selfId} />
                         ) : (
@@ -478,7 +478,7 @@ export function ThreadsPanel(props: {
                   {formatWhen(reply.createdAt)}
                 </time>
               </div>
-              <div className="line-clamp-2 text-ink-dim">
+              <div className="bidi-text line-clamp-2 text-ink-dim">
                 {reply.text ? (
                   <Mrkdwn text={reply.text} users={users} channels={channels} selfId={selfId} />
                 ) : (

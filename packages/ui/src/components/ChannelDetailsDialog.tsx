@@ -333,6 +333,7 @@ export function ChannelDetailsDialog(props: {
                   Description
                 </label>
                 <textarea
+                  dir="auto"
                   id={`${fieldId}-description`}
                   maxLength={500}
                   value={description}
