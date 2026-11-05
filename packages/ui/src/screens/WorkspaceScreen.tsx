@@ -1066,10 +1066,14 @@ function WorkspaceInner({
         setRouteRequest((n) => n + 1);
       })
       .catch(() => {
-        if (ticket === navigation.current)
-          setNavigationError(
-            "Could not open this message. Someone may have deleted it, or you may no longer have access to it. If you are offline, try again once you reconnect.",
-          );
+        if (ticket !== navigation.current) return;
+        // A link opened at start anchors the conversation on its message
+        // before the jump, and an anchored timeline never reads its own
+        // history. Without the message it reads its newest instead.
+        setHighlightMessageId((id) => (id === messageId ? null : id));
+        setNavigationError(
+          "Could not open this message. Someone may have deleted it, or you may no longer have access to it. If you are offline, try again once you reconnect.",
+        );
       })
       .finally(() => {
         if (ticket === navigation.current) setNavigating(false);
