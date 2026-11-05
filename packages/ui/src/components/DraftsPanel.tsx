@@ -10,6 +10,7 @@ import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
 import { Tooltip } from "./Tooltip.js";
 import { useToast } from "./Toast.js";
+import { writeClipboard } from "../lib/useCopy.js";
 import { When } from "./When.js";
 
 /**
@@ -33,7 +34,23 @@ export function DraftsPanel(props: {
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
-  const entries = useMemo(() => listDrafts(drafts, times, channels), [drafts, times, channels]);
+  // Once the conversations are the server's, a draft in one not among them
+  // is somewhere this account can no longer go: listed so its words can be copied.
+  const settled = useWorkspace((s) => s.status === "online");
+  const entries = useMemo(
+    () => listDrafts(drafts, times, channels, settled),
+    [drafts, times, channels, settled],
+  );
+
+  function copy(entry: DraftEntry) {
+    void writeClipboard(readableText(client.state, entry.text)).then((ok) =>
+      toast(
+        ok
+          ? { message: "Draft copied.", kind: "success" }
+          : { message: "Could not copy the draft.", kind: "error" },
+      ),
+    );
+  }
 
   function remove(entry: DraftEntry) {
     const kept = client.state.drafts[entry.key];
@@ -88,6 +105,17 @@ export function DraftsPanel(props: {
         {entries.length > 0 && (
           <ul aria-label="Drafts on this device" className="space-y-px">
             {entries.map((entry) => {
+              if (entry.gone)
+                return (
+                  <GoneDraftRow
+                    key={entry.key}
+                    where={goneLabel(entry.place)}
+                    at={entry.at}
+                    text={readableText(client.state, entry.text)}
+                    onCopy={() => copy(entry)}
+                    onDelete={() => remove(entry)}
+                  />
+                );
               const channel = channels[entry.place.channelId]!;
               const name =
                 channel.type === "public" || channel.type === "private"
@@ -122,6 +150,66 @@ function whereLabel(place: DraftPlace, name: string): string {
     case "scheduled-edit":
       return `Editing a scheduled message in ${name}`;
   }
+}
+
+/** Where a draft was written, once this account can no longer go there. */
+function goneLabel(place: DraftPlace): string {
+  switch (place.kind) {
+    case "conversation":
+      return "A conversation you can no longer open";
+    case "thread":
+      return "A thread you can no longer open";
+    case "edit":
+    case "scheduled-edit":
+      return "An edit you can no longer save";
+  }
+}
+
+/**
+ * A draft written somewhere this account can no longer open, such as a
+ * private channel it was removed from. Nothing opens it, so its words show in
+ * full, with Copy text to take them elsewhere and Delete to let them go.
+ */
+function GoneDraftRow(props: {
+  where: string;
+  at: number | undefined;
+  text: string;
+  onCopy: () => void;
+  onDelete: () => void;
+}) {
+  return (
+    <li className="flex flex-col gap-1 rounded-lg py-2 pl-3 pr-2" onClickCapture={dropRepeatClick}>
+      <span className="flex w-full items-baseline gap-1.5 text-[13px]">
+        <span className="truncate font-semibold">{props.where}</span>
+        {props.at !== undefined && (
+          <time
+            dateTime={new Date(props.at).toISOString()}
+            title={formatFull(props.at)}
+            className="ml-auto shrink-0 text-[12px] text-ink-faint"
+          >
+            <When at={props.at} />
+          </time>
+        )}
+      </span>
+      <span className="whitespace-pre-line break-words text-[13px] text-ink-dim">{props.text}</span>
+      <span className="flex gap-1">
+        <button
+          type="button"
+          onClick={props.onCopy}
+          className="rounded-md px-2 py-1 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink"
+        >
+          Copy text
+        </button>
+        <button
+          type="button"
+          onClick={props.onDelete}
+          className="rounded-md px-2 py-1 text-[12px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-alert"
+        >
+          Delete draft
+        </button>
+      </span>
+    </li>
+  );
 }
 
 /**

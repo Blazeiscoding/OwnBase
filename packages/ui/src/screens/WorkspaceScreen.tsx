@@ -95,7 +95,7 @@ import { useOptionalToast } from "../components/Toast.js";
 import { useOptionalConfirm } from "../components/Confirm.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
-import type { DraftPlace } from "../lib/drafts.js";
+import { draftPlace, type DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { signOutOnPurpose, signedOutHow, type SignedOutHow } from "../lib/signOut.js";
@@ -680,6 +680,21 @@ function WorkspaceInner({
   const lastConversation = useLastConversation();
   const restoring = useRef(!initialTarget && !initialRoute);
 
+  /**
+   * What each conversation seen here was called, kept after it goes: the
+   * note on moving away from one this account just lost can then name it.
+   */
+  const seenTitles = useRef(new Map<ID, string>());
+  for (const channel of Object.values(channels))
+    seenTitles.current.set(
+      channel.id,
+      channel.type === "public" || channel.type === "private"
+        ? `#${channel.name}`
+        : channelTitle(channel, users, self?.id),
+    );
+  /** The note that also points to Drafts, while it is the one on show. */
+  const [lostDraftsNote, setLostDraftsNote] = useState<string | null>(null);
+
   // Pick #general (or the first channel) once the snapshot lands, and move
   // there from a conversation this account cannot see or that has gone.
   useEffect(() => {
@@ -698,9 +713,17 @@ function WorkspaceInner({
         }
       }
       if (activeChannelId) {
-        setNavigationError(
-          "That conversation is not available. Someone may have deleted it, or you may not have access to it.",
+        // One this screen had: the account was removed from it, or it went,
+        // while it was open. Its unsent words stay in Drafts (listDrafts).
+        const lost = seenTitles.current.get(activeChannelId);
+        const unsent = Object.keys(clientFromCtx.state.drafts).some(
+          (key) => draftPlace(key)?.channelId === activeChannelId,
         );
+        const note = lost
+          ? `You no longer have access to ${lost}.${unsent ? " What you were writing there is in Drafts." : ""}`
+          : "That conversation is not available. Someone may have deleted it, or you may not have access to it.";
+        setNavigationError(note);
+        setLostDraftsNote(unsent ? note : null);
         setPanel((p) => (p.kind === "thread" ? { kind: "none" } : p));
       }
       replaceRoute.current = general.id;
@@ -1726,7 +1749,19 @@ function WorkspaceInner({
             <Banner
               tone="alert"
               actions={
-                <BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>
+                <>
+                  {navigationError === lostDraftsNote && (
+                    <BannerAction
+                      onClick={() => {
+                        setNavigationError(null);
+                        setPanel({ kind: "drafts" });
+                      }}
+                    >
+                      Show drafts
+                    </BannerAction>
+                  )}
+                  <BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>
+                </>
               }
             >
               {navigationError}
