@@ -11,6 +11,7 @@ import {
   nativeTheme,
   powerMonitor,
   safeStorage,
+  screen,
   shell,
   Tray,
 } from "electron";
@@ -75,6 +76,7 @@ import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { windowColours } from "./windowTheme.js";
+import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
   findCloudflared,
@@ -381,6 +383,10 @@ function savedCallRelay(): Promise<CallRelay | null> {
 const APPEARANCE_KEY = "appearance";
 /** Read at startup, before the window is made, and kept as the renderer saves it. */
 let savedAppearance: unknown = null;
+/** The window's last size and place (windowPlace.ts), read at startup and kept as it moves. */
+let savedWindowPlace: unknown = null;
+/** Saves the open window's place now rather than after its pause; null without a window. */
+let saveWindowPlaceNow: (() => void) | null = null;
 
 /**
  * The window's background and title bar overlay in the page's theme: when the
@@ -1112,12 +1118,21 @@ function createWindow(): void {
   // window shows this before the page paints, and the overlay sits on the
   // window's own surface, above the sidebar and the conversation card.
   const colours = windowColours(savedAppearance, nativeTheme.shouldUseDarkColors);
+  // Where it was last, if that is still on a screen (windowPlace.ts).
+  const primary = screen.getPrimaryDisplay();
+  const opening = placeToOpen(savedWindowPlace, [
+    primary.workArea,
+    ...screen
+      .getAllDisplays()
+      .filter((display) => display.id !== primary.id)
+      .map((display) => display.workArea),
+  ]);
   mainWindow = new BrowserWindow({
-    show: !isTest,
-    width: 1280,
-    height: 820,
-    minWidth: 760,
-    minHeight: 480,
+    // A window that opens maximized is shown once it is, not first at its smaller size.
+    show: !isTest && !opening.maximized,
+    ...opening.bounds,
+    minWidth: MIN_WINDOW_SIZE.width,
+    minHeight: MIN_WINDOW_SIZE.height,
     backgroundColor: colours.background,
     titleBarStyle: "hidden",
     titleBarOverlay: {
@@ -1135,6 +1150,28 @@ function createWindow(): void {
 
   mainWindow.setMenuBarVisibility(false);
   const win = mainWindow;
+  if (opening.maximized) {
+    win.maximize();
+    if (!isTest) win.show();
+  }
+  // Its size and place are kept as they change, once it has rested a moment,
+  // and when it closes, so the next launch opens it where it was.
+  let placeTimer: ReturnType<typeof setTimeout> | null = null;
+  const savePlace = () => {
+    if (placeTimer) clearTimeout(placeTimer);
+    placeTimer = null;
+    // Full screen is a passing state, and minimized keeps its last place.
+    if (win.isDestroyed() || win.isFullScreen() || win.isMinimized()) return;
+    savedWindowPlace = placeToSave(win.getNormalBounds(), win.isMaximized());
+    void writeSetting(WINDOW_PLACE_KEY, savedWindowPlace).catch(() => {});
+  };
+  const savePlaceSoon = () => {
+    if (placeTimer) clearTimeout(placeTimer);
+    placeTimer = setTimeout(savePlace, 500);
+  };
+  for (const change of ["resize", "move", "maximize", "unmaximize"] as const)
+    win.on(change as "resize", savePlaceSoon);
+  saveWindowPlaceNow = savePlace;
   let closeAllowed = false;
   let windowCloseTask: Promise<void> | null = null;
   rendererReady = false;
@@ -1148,6 +1185,7 @@ function createWindow(): void {
   });
   win.webContents.on("render-process-gone", () => microphones.closeOwner(contentsId));
   win.on("close", (event) => {
+    if (placeTimer) savePlace();
     if (quitReady || closeAllowed) return;
     if (quitting || hosting.status().phase !== "stopped") {
       event.preventDefault();
@@ -1173,6 +1211,8 @@ function createWindow(): void {
     void windowCloseTask.catch(() => {});
   });
   win.on("closed", () => {
+    if (placeTimer) clearTimeout(placeTimer);
+    if (saveWindowPlaceNow === savePlace) saveWindowPlaceNow = null;
     microphones.closeOwner(contentsId);
     if (mainWindow === win) {
       mainWindow = null;
@@ -1314,6 +1354,8 @@ void app.whenReady().then(async () => {
   savedPublicAddress = typeof stored === "string" && stored.trim() ? stored.trim() : null;
   // Unreadable, the window follows the system until the page saves a choice.
   savedAppearance = await settings.get(APPEARANCE_KEY).catch(() => null);
+  // Unreadable, the window opens at its usual size, centred.
+  savedWindowPlace = await settings.get(WINDOW_PLACE_KEY).catch(() => null);
   publicAddressLookup = null;
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;
@@ -1378,6 +1420,8 @@ function quitOwnBase(stopConfirmed: boolean): void {
       updateTray();
       return;
     }
+    // Kept before the settings are saved for the last time.
+    saveWindowPlaceNow?.();
     if (!(await prepareLocalWrites(mainWindow, true))) {
       quitting = false;
       updateTray();
