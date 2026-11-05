@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   desktopCapturer,
   dialog,
   ipcMain,
@@ -78,6 +79,7 @@ import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.j
 import { windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
+import { contextMenuItems } from "./contextMenu.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
   findCloudflared,
@@ -1272,6 +1274,20 @@ function createWindow(): void {
   });
   win.webContents.on("did-finish-load", () => {
     if (!win.isDestroyed()) win.webContents.setZoomLevel(savedZoom);
+  });
+
+  // A right-click menu as in a browser: spelling, links, pictures, editing (contextMenu.ts).
+  win.webContents.on("context-menu", (_event, params) => {
+    const items = contextMenuItems(params, {
+      replaceMisspelling: (word) => win.webContents.replaceMisspelling(word),
+      addToDictionary: (word) => {
+        win.webContents.session.addWordToSpellCheckerDictionary(word);
+      },
+      openLink: (url) => void shell.openExternal(url),
+      copyText: (text) => clipboard.writeText(text),
+      copyImageAt: (x, y) => win.webContents.copyImageAt(x, y),
+    });
+    if (items.length && !win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: win });
   });
 
   // External links open in the OS browser, never inside the app.
