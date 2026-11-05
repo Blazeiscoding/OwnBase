@@ -12,6 +12,29 @@ export function localDateTime(date: Date): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+/** Past this, a device's clock is far enough off to say so where a time is chosen. */
+export const CLOCK_SKEW_NOTED_MS = 5 * 60_000;
+
+/**
+ * What a device clock that far off the workspace's does to a time chosen on
+ * it, in words, or null when it is close enough. `skewMs` is how far the
+ * workspace's clock is ahead of the device's; negative when it is behind.
+ */
+export function clockSkewNote(skewMs: number | null): string | null {
+  if (skewMs === null || Math.abs(skewMs) < CLOCK_SKEW_NOTED_MS) return null;
+  const off = Math.abs(skewMs);
+  const [count, unit] =
+    off < 90 * 60_000
+      ? [Math.round(off / 60_000), "minute"]
+      : off < 48 * 3_600_000
+        ? [Math.round(off / 3_600_000), "hour"]
+        : [Math.round(off / 86_400_000), "day"];
+  const amount = `${count} ${unit}${count === 1 ? "" : "s"}`;
+  return skewMs > 0
+    ? `This device's clock is ${amount} behind, so this would happen ${amount} early. Set the right time in your device's settings.`
+    : `This device's clock is ${amount} ahead, so this would happen ${amount} late. Set the right time in your device's settings.`;
+}
+
 /** Next occurrence of `hour` on the given day offset, at minute 0. */
 function at(hour: number, dayOffset = 0, base = new Date()): Date {
   const d = new Date(base);

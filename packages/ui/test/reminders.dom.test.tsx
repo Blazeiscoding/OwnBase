@@ -164,6 +164,27 @@ describe("a reminder from a message's menu", () => {
     expect(setReminder).toHaveBeenCalledWith(invoice.id, new Date("2099-03-02T08:15").getTime());
   });
 
+  it("says where this device's clock is far off the workspace's, and by how much", async () => {
+    const { client, user } = workspace();
+    // The workspace's clock is five hours ahead: "In 20 minutes" is already past there.
+    client.store.setState({ clockSkewMs: 5 * 3_600_000 });
+    render(tree(client, <MessageItem message={invoice} compact={false} />));
+    const { menu } = await moreActions(user);
+    await user.click(within(menu).getByRole("menuitem", { name: "Remind me about this…" }));
+    const popover = await screen.findByRole("dialog", { name: "Remind me" });
+    expect(within(popover).getByRole("note")).toHaveTextContent(
+      "This device's clock is 5 hours behind, so this would happen 5 hours early. Set the right time in your device's settings.",
+    );
+
+    // A few seconds either way is only the time the message took to arrive.
+    act(() => client.store.setState({ clockSkewMs: -3_000 }));
+    expect(within(popover).queryByRole("note")).toBeNull();
+    act(() => client.store.setState({ clockSkewMs: -3 * 86_400_000 }));
+    expect(within(popover).getByRole("note")).toHaveTextContent(
+      "This device's clock is 3 days ahead, so this would happen 3 days late.",
+    );
+  });
+
   it("is marked done from the menu once due", async () => {
     const { client, cancelReminder, user } = workspace({
       [invoice.id]: reminder(invoice.id, 1, 2),
