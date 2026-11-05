@@ -121,7 +121,7 @@ async function workspace(
     </PlatformContext.Provider>,
   );
   // The screen checks the saved access before it shows the workspace.
-  await screen.findByRole("button", { name: /^Members/ }, { timeout: 3_000 });
+  await screen.findByRole("button", { name: /^Members/ });
   const header = container.querySelector<HTMLElement>("header.channel-header")!;
   return { client, header, members, pins, search };
 }

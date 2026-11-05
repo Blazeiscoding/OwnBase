@@ -297,12 +297,10 @@ describe("one conversation's composer open in two windows", () => {
     await waitFor(() => expect(second).toBeEnabled());
 
     await user.type(first, "from the first");
-    await waitFor(() => expect(second.value).toBe("from the first"), { timeout: 3000 });
+    await waitFor(() => expect(second.value).toBe("from the first"));
     // Typed on in the second, which then saves it; the first had nothing unsaved.
     await user.type(second, ", and the second");
-    await waitFor(() => expect(first.value).toBe("from the first, and the second"), {
-      timeout: 3000,
-    });
+    await waitFor(() => expect(first.value).toBe("from the first, and the second"));
 
     // Both edited, and settled: neither writes its own back over the other's.
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 1500)));
@@ -313,5 +311,5 @@ describe("one conversation's composer open in two windows", () => {
       "from the first, and the second",
       "from the first, and the second",
     ]);
-  }, 15_000);
+  });
 });

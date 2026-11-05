@@ -165,9 +165,10 @@ describe("committed file cleanup", () => {
       for (const id of ids) writeFileSync(join(directory, "files", id), "x");
       server.store.queueFileDeletions(ids);
       await server.flushFileDeletions();
-      // The timer comes every fifteen seconds; the pages follow each other at once.
+      // The timer comes every fifteen seconds; the pages follow each other at
+      // once, so this gives up well before the timer could have drained them.
       await expect
-        .poll(() => server.store.pendingFileDeletions().length, { timeout: 5_000 })
+        .poll(() => server.store.pendingFileDeletions().length, { timeout: 10_000 })
         .toBe(0);
       expect(readdirSync(join(directory, "files")).filter((name) => ids.includes(name))).toEqual(
         [],

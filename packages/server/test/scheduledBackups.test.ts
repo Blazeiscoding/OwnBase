@@ -123,9 +123,16 @@ describe("backup folder names", () => {
 describe("scheduled backups", () => {
   it("takes a verified backup when one is due, then waits the interval", async () => {
     await start(schedule({ firstDelayMs: 0 }));
-    await vi.waitFor(() => expect(server!.backupStatus()!.lastSuccessAt).not.toBeNull(), {
-      timeout: 15_000,
-    });
+    // Finished, not only written: the success is noted before the old backups
+    // are pruned and the next one is set, which a busy disk can draw out.
+    await vi.waitFor(
+      () =>
+        expect(server!.backupStatus()).toMatchObject({
+          lastSuccessAt: expect.any(Number),
+          running: false,
+        }),
+      { timeout: 15_000 },
+    );
     const status = server!.backupStatus()!;
     const [taken] = await listScheduledBackups(backupDir);
     expect(taken!.at).toBe(status.lastSuccessAt! - (status.lastSuccessAt! % 1000));

@@ -322,14 +322,8 @@ describe("the gear on a channel's row", () => {
 
   it("opens that channel, then its settings", async () => {
     const { user } = workspace();
-    await user.click(
-      await screen.findByRole(
-        "button",
-        { name: "Channel settings for design" },
-        { timeout: 3_000 },
-      ),
-    );
-    const details = await screen.findByRole("dialog", { name: "#design" }, { timeout: 3_000 });
+    await user.click(await screen.findByRole("button", { name: "Channel settings for design" }));
+    const details = await screen.findByRole("dialog", { name: "#design" });
     expect(within(details).getByRole("tab", { selected: true })).toHaveTextContent("About");
     // The conversation behind it is #design now, not #general.
     expect(document.querySelector(".channel-header h2")).toHaveTextContent(/#\s*design/);
@@ -337,10 +331,8 @@ describe("the gear on a channel's row", () => {
 
   it("opens a private channel's Members tab, to add someone", async () => {
     const { user } = workspace();
-    await user.click(
-      await screen.findByRole("button", { name: "Add people to leads" }, { timeout: 3_000 }),
-    );
-    const details = await screen.findByRole("dialog", { name: "#leads" }, { timeout: 3_000 });
+    await user.click(await screen.findByRole("button", { name: "Add people to leads" }));
+    const details = await screen.findByRole("dialog", { name: "#leads" });
     expect(within(details).getByRole("tab", { selected: true })).toHaveTextContent("Members");
   });
 });

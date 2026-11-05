@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 /**
  * How far in from the left edge a swipe that opens the drawer may start.
@@ -21,7 +21,8 @@ const OWN_DRAG = "input, textarea, [contenteditable='true']";
  * scrolls, and a browser or system Back gesture from the very edge stays the
  * browser's. A drag that turns out to be mostly up or down is let go. The
  * drawer's own transition does the moving, and theme.css stills it under
- * reduced motion.
+ * reduced motion. The listeners go on as the drawer button is drawn, not in an
+ * effect after it, so a swipe from the first moment the screen shows counts.
  */
 export function useEdgeSwipe(props: {
   open: boolean;
@@ -32,7 +33,7 @@ export function useEdgeSwipe(props: {
 }) {
   const latest = useRef(props);
   latest.current = props;
-  useEffect(() => {
+  useLayoutEffect(() => {
     let start: { x: number; y: number; id: number; opening: boolean } | null = null;
     const begin = (event: TouchEvent) => {
       start = null;

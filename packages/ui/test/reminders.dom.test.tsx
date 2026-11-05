@@ -329,17 +329,11 @@ describe("a reminder come due", () => {
 
   it("counts on Activity's badge, in the sidebar and in the phone's bar", async () => {
     screenWith({ [invoice.id]: reminder(invoice.id, 1, 2) });
-    expect(
-      await screen.findByRole("img", { name: "Due reminders" }, { timeout: 3_000 }),
-    ).toHaveTextContent("1");
+    expect(await screen.findByRole("img", { name: "Due reminders" })).toHaveTextContent("1");
     cleanup();
 
     screenWith({ [invoice.id]: reminder(invoice.id, 1, 2) }, sam, true);
-    const bar = await screen.findByRole(
-      "navigation",
-      { name: "Main navigation" },
-      { timeout: 3_000 },
-    );
+    const bar = await screen.findByRole("navigation", { name: "Main navigation" });
     expect(within(bar).getByRole("button", { name: "Activity" })).toHaveAccessibleDescription(
       "1 reminder due",
     );
@@ -347,7 +341,7 @@ describe("a reminder come due", () => {
 
   it("raises a notification, but not during Do Not Disturb", async () => {
     const { client, notify } = screenWith({});
-    await screen.findByRole("button", { name: /Activity/ }, { timeout: 3_000 });
+    await screen.findByRole("button", { name: /Activity/ });
     act(() => client.onReminderDue?.(reminder(invoice.id, 1, 2), invoice));
     expect(notify).toHaveBeenCalledWith(
       "Reminder: Priya Shah in #general",
@@ -358,7 +352,7 @@ describe("a reminder come due", () => {
     cleanup();
 
     const quiet = screenWith({}, { ...sam, dndUntil: Date.now() + 3_600_000 });
-    await screen.findByRole("button", { name: /Activity/ }, { timeout: 3_000 });
+    await screen.findByRole("button", { name: /Activity/ });
     act(() => quiet.client.onReminderDue?.(reminder(invoice.id, 1, 2), invoice));
     expect(quiet.notify).not.toHaveBeenCalled();
   });

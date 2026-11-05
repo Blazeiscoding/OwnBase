@@ -115,10 +115,10 @@ async function workspace(roomForChat: boolean) {
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
-  await screen.findByRole("textbox", { name: "Message #general" }, { timeout: 3_000 });
+  await screen.findByRole("textbox", { name: "Message #general" });
   // Maya's camera is on as you join, which opens the call.
   act(() => client.store.setState({ huddle: inCall() }));
-  const call = await screen.findByRole("region", { name: "Huddle call" }, { timeout: 3_000 });
+  const call = await screen.findByRole("region", { name: "Huddle call" });
   return { client, call, user: userEvent.setup() };
 }
 

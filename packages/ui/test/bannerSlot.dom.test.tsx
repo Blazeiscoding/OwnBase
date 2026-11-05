@@ -103,13 +103,13 @@ function workspace(
 }
 
 /** Past the check of saved access, which shows a banner of its own while it waits. */
-const opened = () => screen.findByRole("button", { name: /^Members/ }, { timeout: 3_000 });
+const opened = () => screen.findByRole("button", { name: /^Members/ });
 
 describe("the banner place", () => {
   it("asks about notifications under the header when nothing more pressing is there", async () => {
     workspace();
     // Loaded on first use, while the screen also fetches Ctrl+K and search.
-    const ask = await screen.findByRole("region", { name: "Notifications" }, { timeout: 3_000 });
+    const ask = await screen.findByRole("region", { name: "Notifications" });
     // Under the header, not above it.
     const header = document.querySelector("header.channel-header")!;
     expect(header.compareDocumentPosition(ask) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
@@ -128,8 +128,8 @@ describe("the banner place", () => {
   it("puts a conversation that could not be opened first, and the next banner after Dismiss", async () => {
     const user = userEvent.setup();
     workspace({ banner: notSaved, channelId: "C_GONE" });
-    await screen.findByRole("navigation", { name: "Workspace navigation" }, { timeout: 3_000 });
-    const alert = await screen.findByRole("alert", {}, { timeout: 3_000 });
+    await screen.findByRole("navigation", { name: "Workspace navigation" });
+    const alert = await screen.findByRole("alert", {});
     expect(alert).toHaveTextContent(/not available/);
     expect(screen.queryByText("Could not save changes to sign-ins on this device.")).toBeNull();
 

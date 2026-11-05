@@ -188,11 +188,7 @@ describe("the workspace a founder opens", () => {
   it("opens on inviting people, and Done leaves the workspace behind it", async () => {
     const { create, screenOf } = ownersWorkspace();
     render(screenOf({ welcome: true }));
-    const welcome = await screen.findByRole(
-      "dialog",
-      { name: "Invite your people" },
-      { timeout: 3_000 },
-    );
+    const welcome = await screen.findByRole("dialog", { name: "Invite your people" });
     expect(
       await within(welcome).findByText("http://192.168.1.20:8543/#/join/WELC0ME1"),
     ).toBeVisible();
@@ -213,7 +209,7 @@ describe("Invite people, asked for by Manage hosting", () => {
     expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull();
 
     rerender(screenOf({ inviteAsk: 2 }));
-    const invite = await screen.findByRole("dialog", { name: "Invite people" }, { timeout: 3_000 });
+    const invite = await screen.findByRole("dialog", { name: "Invite people" });
     expect(
       await within(invite).findByText("http://192.168.1.20:8543/#/join/WELC0ME1"),
     ).toBeVisible();
@@ -221,9 +217,7 @@ describe("Invite people, asked for by Manage hosting", () => {
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull());
 
     rerender(screenOf({ inviteAsk: 3 }));
-    expect(
-      await screen.findByRole("dialog", { name: "Invite people" }, { timeout: 3_000 }),
-    ).toBeVisible();
+    expect(await screen.findByRole("dialog", { name: "Invite people" })).toBeVisible();
   });
 });
 

@@ -23,7 +23,9 @@ function files(dir: string): string[] {
 }
 
 describe("the line between the MIT core and ee/", () => {
-  it("is crossed only where the server bundle is built", () => {
+  // A minute: it reads every source file in the repository, which on a cold
+  // disk beside other suites took fourteen seconds.
+  it("is crossed only where the server bundle is built", { timeout: 60_000 }, () => {
     const crossing: string[] = [];
     for (const top of ["packages", "apps", "scripts", "tests"]) {
       for (const file of files(join(repo, top))) {

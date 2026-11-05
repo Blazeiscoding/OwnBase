@@ -461,7 +461,7 @@ describe("WorkspaceClient", () => {
     await client.loadNewer(channel.id);
     expect(window().items).toHaveLength(300);
     expect(window().hasMore).toBe(true);
-  }, 20_000); // Includes 400 real HTTP writes, not just the paging assertions.
+  }, 60_000); // 400 real HTTP writes, not just the paging: 15 s in a full parallel run.
 
   it("trims the oldest messages rather than growing forever at the tail", async () => {
     const api = new Api(base, aliceToken);

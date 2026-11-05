@@ -80,6 +80,12 @@ beforeEach(async () => {
   client = new WorkspaceClient(base, b.token);
   client.connect();
   await expect.poll(() => client.state.status).toBe("online");
+  // Once in, the client gives an account with no time zone this device's, and
+  // the server tells every device. On a busy machine that news came after a
+  // scenario began holding events, one more than it counted; so it is settled
+  // here, saved and then received.
+  await expect.poll(() => client.state.self?.timeZone).toBeTruthy();
+  await caughtUp();
   channelId = Object.values(client.state.channels).find((c) => c.name === "general")!.id;
 });
 

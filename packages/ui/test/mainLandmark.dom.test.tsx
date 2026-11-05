@@ -93,7 +93,7 @@ function workspace(width: number) {
     </PlatformContext.Provider>,
   );
   // The screen checks the saved access before it shows the workspace.
-  const ready = () => screen.findByRole("button", { name: "Open navigation" }, { timeout: 3_000 });
+  const ready = () => screen.findByRole("button", { name: "Open navigation" });
   const nav = () => screen.getByRole("navigation", { name: "Workspace navigation" });
   return { ready, nav };
 }

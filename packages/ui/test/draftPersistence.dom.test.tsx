@@ -259,9 +259,7 @@ describe("queued messages kept on this device", () => {
     const key = `outbox:${client.baseUrl}:${sam.id}`;
     await waitFor(() => expect(values.has(key)).toBe(true));
     client.send(design.id, "into an archived channel");
-    await waitFor(() => expect(storedTexts(values, key)).toEqual(["into an archived channel"]), {
-      timeout: 1500,
-    });
+    await waitFor(() => expect(storedTexts(values, key)).toEqual(["into an archived channel"]));
 
     await act(async () => refuse());
     expect(client.state.pending[0]).toMatchObject({ failed: true, refused: true });
@@ -283,13 +281,9 @@ describe("queued messages kept on this device", () => {
     await waitFor(() => expect(values.has(key)).toBe(true));
 
     first.client.send(design.id, "from the first window");
-    await waitFor(() => expect(storedTexts(values, key)).toEqual(["from the first window"]), {
-      timeout: 1500,
-    });
+    await waitFor(() => expect(storedTexts(values, key)).toEqual(["from the first window"]));
     second.client.send(design.id, "from the second window");
-    await waitFor(() => expect(storedTexts(values, key)).toContain("from the second window"), {
-      timeout: 1500,
-    });
+    await waitFor(() => expect(storedTexts(values, key)).toContain("from the second window"));
     expect(storedTexts(values, key)).toEqual(["from the first window", "from the second window"]);
 
     // Both windows die without writing again; the next start sends both.
@@ -628,9 +622,7 @@ describe("the moment a send is kept", () => {
     mount(client, platform);
     await waitFor(() => expect(values.has(key)).toBe(true));
     client.setDraft(design.id, "typed, then sent");
-    await waitFor(() => expect(values.get(draftKey)).toEqual({ [design.id]: "typed, then sent" }), {
-      timeout: 3000,
-    });
+    await waitFor(() => expect(values.get(draftKey)).toEqual({ [design.id]: "typed, then sent" }));
 
     gate.closed = true;
     // What the composer does on Enter.
@@ -658,9 +650,7 @@ describe("the moment a send is kept", () => {
     mount(client, platform);
     await waitFor(() => expect(values.has(key)).toBe(true));
     client.setDraft(design.id, "not lost");
-    await waitFor(() => expect(values.get(draftKey)).toEqual({ [design.id]: "not lost" }), {
-      timeout: 3000,
-    });
+    await waitFor(() => expect(values.get(draftKey)).toEqual({ [design.id]: "not lost" }));
 
     gate.closed = true;
     client.send(design.id, "not lost");
@@ -803,11 +793,8 @@ describe("words sent before their draft was ever saved", () => {
     expect(next.client.state.drafts[design.id]).toBe("first words");
     expect(next.client.state.pending).toEqual([]);
     expect(next.sendMessage).not.toHaveBeenCalled();
-    await waitFor(
-      () => expect(values.get(draftsKey(next.client))).toEqual({ [design.id]: "first words" }),
-      {
-        timeout: 3000,
-      },
+    await waitFor(() =>
+      expect(values.get(draftsKey(next.client))).toEqual({ [design.id]: "first words" }),
     );
   });
 

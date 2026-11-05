@@ -127,7 +127,7 @@ function workspace(
 }
 
 /** Past the check of saved access, which shows a banner of its own while it waits. */
-const opened = () => screen.findByRole("button", { name: /^Members/ }, { timeout: 3_000 });
+const opened = () => screen.findByRole("button", { name: /^Members/ });
 
 describe("a server notice", () => {
   it("shows an alert to the owner, as an alert, until dismissed for this visit", async () => {
