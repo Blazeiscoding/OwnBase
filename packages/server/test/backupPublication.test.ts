@@ -266,5 +266,5 @@ describe("publishing a verified backup", () => {
     await backupWorkspace({ dataDir, out });
     expect(operations()).toEqual([]);
     await expect(verifyBackup(out)).resolves.toBeDefined();
-  }, 15_000);
+  });
 });

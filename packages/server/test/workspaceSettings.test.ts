@@ -449,5 +449,5 @@ describe("the command line", () => {
       child.kill();
       await exited;
     }
-  }, 20_000);
+  });
 });

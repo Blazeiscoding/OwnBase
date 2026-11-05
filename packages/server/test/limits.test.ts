@@ -504,7 +504,7 @@ describe("turning limits off", () => {
         })
       ).status,
     ).toBe(201);
-  }, 15_000);
+  });
 });
 
 describe("typing notices", () => {

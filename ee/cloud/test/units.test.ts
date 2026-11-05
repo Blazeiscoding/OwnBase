@@ -200,7 +200,7 @@ describe("the supervisor", () => {
     expect(await answering(port)).toBeNull();
     await new Promise((r) => setTimeout(r, BACKOFF_MS[0]! + 300));
     expect(await answering(port)).toBeNull();
-  }, 15_000);
+  });
 
   it("says so when a server never answers", async () => {
     const supervisor = new Supervisor({
@@ -226,5 +226,5 @@ describe("the supervisor", () => {
     expect(outcome).toBe("still waiting");
     await supervisor.stop("mute");
     await expect(started).rejects.toThrow(/stopped before it answered/);
-  }, 15_000);
+  });
 });

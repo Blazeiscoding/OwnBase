@@ -202,7 +202,7 @@ describe("searching settings", () => {
         new RegExp(setting.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
       );
     }
-  }, 20_000);
+  });
 });
 
 describe("saying Saved", () => {

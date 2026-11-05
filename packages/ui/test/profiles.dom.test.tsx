@@ -224,9 +224,9 @@ describe("the members list", () => {
 });
 
 describe("your profile in settings", () => {
-  // Fifteen seconds: axe reads every one of the four hundred zones in the list,
-  // which under a full parallel run came past the five-second default.
-  it("takes a picture, removes it, and a time zone", { timeout: 15_000 }, async () => {
+  // A minute: axe reads every one of the four hundred zones in the list, which
+  // took eleven seconds in a full parallel run on Windows.
+  it("takes a picture, removes it, and a time zone", { timeout: 60_000 }, async () => {
     const { client, user } = workspace({ self: { ...sam, timeZone: "Asia/Kolkata" } });
     const now = () => client.state.self!;
     const setAvatar = vi
