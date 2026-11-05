@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { keepInSight } from "../lib/keepInSight.js";
 import {
   channelPermissions,
   SIDEBAR_SECTIONS_MAX,
@@ -1609,8 +1610,15 @@ function ChannelRow(props: {
   // A finger's hold is for the menu; iOS would start a drag with it instead.
   const touch = useMediaQuery("(hover: none)");
   const dragStart = touch ? undefined : props.onDragStart;
+  // The open conversation stays in sight, however it was opened: Alt+Down
+  // through a long list went past the bottom of the sidebar and on unseen.
+  const row = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    if (props.active && row.current) keepInSight(row.current, ".sidebar-scroll");
+  }, [props.active]);
   return (
     <li
+      ref={row}
       className="channel-item relative"
       data-conversation={props.id}
       data-active={props.active || undefined}
