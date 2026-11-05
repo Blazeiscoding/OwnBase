@@ -2019,6 +2019,74 @@ textarea::placeholder {
   box-shadow: var(--sheen);
 }
 
+/*
+ * Windows' contrast themes (forced colours) draw every background as the
+ * window's own colour, so what is chosen or open, which is shown by a lighter
+ * fill, would look like everything else. There it is outlined in the theme's
+ * highlight instead. A match Ctrl+K or a search marks keeps the theme's own
+ * colours for marked text, rather than its text colour on nothing.
+ */
+@media (forced-colors: active) {
+  .channel-row-active,
+  [aria-current="page"],
+  [role="tab"][aria-selected="true"],
+  [role="option"][aria-selected="true"],
+  [aria-pressed="true"],
+  label:has(> input.sr-only:checked) {
+    outline: 2px solid Highlight;
+    outline-offset: -2px;
+  }
+  mark {
+    background: Mark;
+    color: MarkText;
+  }
+  /* A switch drawn as a track and a thumb: both kept, in the theme's colours. */
+  input[role="switch"] + span {
+    forced-color-adjust: none;
+    border-color: CanvasText;
+    background: Canvas;
+  }
+  input[role="switch"]:checked + span {
+    border-color: Highlight;
+    background: Highlight;
+  }
+  input[role="switch"] + span > span {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+  input[role="switch"]:checked + span > span {
+    background: HighlightText;
+  }
+  /* A dot drawn only in colour, such as a chosen radio's or an unread one. */
+  span.rounded-full.bg-copper:empty {
+    forced-color-adjust: none;
+    background: Highlight;
+  }
+  /*
+   * Whether someone is here, by shape alone: filled when active, a moon when
+   * away, a ring when not here. Colour is all that told a green dot from a
+   * grey one beside an avatar.
+   */
+  .presence {
+    forced-color-adjust: none;
+  }
+  .presence[data-presence="active"],
+  .presence[data-presence="away"]:not(.presence-cut),
+  .presence-moon {
+    background: CanvasText !important;
+  }
+  .presence[data-presence="gone"],
+  .presence-cut[data-presence="away"] {
+    background: Canvas !important;
+  }
+  .presence[data-presence="gone"] {
+    border: 1.5px solid CanvasText !important;
+  }
+  .presence-cut {
+    box-shadow: 0 0 0 2px Canvas !important;
+  }
+}
+
 /* The workspace icons on the rail catch the light along their top edge. */
 .squircle {
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.22);

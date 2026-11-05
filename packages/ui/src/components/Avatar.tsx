@@ -91,7 +91,8 @@ export function PresenceDot({
   const moonMask = !online && away ? moon(size) : undefined;
   return (
     <span
-      className="inline-block shrink-0 rounded-full"
+      className="presence inline-block shrink-0 rounded-full"
+      data-presence={online ? "active" : away ? "away" : "gone"}
       style={{
         width: size,
         height: size,
@@ -132,7 +133,8 @@ export function AvatarWithPresence({
     <span className="relative inline-flex shrink-0">
       <Avatar user={user} size={size} />
       <span
-        className="absolute rounded-full"
+        className="presence presence-cut absolute rounded-full"
+        data-presence={online ? "active" : away ? "away" : "gone"}
         style={{
           width: dot,
           height: dot,
@@ -146,7 +148,7 @@ export function AvatarWithPresence({
           // The moon sits on the ring's colour, so its bite shows what is
           // behind the avatar rather than the picture.
           <span
-            className="block h-full w-full rounded-full"
+            className="presence-moon block h-full w-full rounded-full"
             style={{
               background: "var(--color-away)",
               maskImage: moon(dot),
