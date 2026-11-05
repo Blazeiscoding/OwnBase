@@ -214,12 +214,19 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
         ...(listed?.twoStep !== undefined ? { twoStep: listed.twoStep } : {}),
       });
     }
-    return [...byId.values()]
-      .map((person) => {
-        const left = leftAt[person.id];
-        return left && left > (person.lastSeenAt ?? 0) ? { ...person, lastSeenAt: left } : person;
-      })
-      .sort((a, b) => (a.handle < b.handle ? -1 : a.handle > b.handle ? 1 : 0));
+    return (
+      [...byId.values()]
+        .map((person) => {
+          const left = leftAt[person.id];
+          return left && left > (person.lastSeenAt ?? 0) ? { ...person, lastSeenAt: left } : person;
+        })
+        // By the name shown, as every other list of people is; the handle tells two of one name apart.
+        .sort(
+          (a, b) =>
+            a.displayName.localeCompare(b.displayName, undefined, { sensitivity: "base" }) ||
+            a.handle.localeCompare(b.handle),
+        )
+    );
   }, [people, liveUsers, leftAt]);
   // As the switcher matches people: a name or handle, without the @ written before one.
   const needle = query.trim().toLowerCase().replace(/^@/, "");
