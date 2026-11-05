@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerInfo } from "@ownbase/protocol";
@@ -61,7 +61,8 @@ describe("a sign-in the workspace ended", () => {
 
     expect(await screen.findByText(/You were signed out of Rocket Team/)).toBeTruthy();
     expect(screen.getByLabelText<HTMLInputElement>("Username").value).toBe("sam");
-    expect(document.activeElement).toBe(screen.getByLabelText("Password"));
+    // The form takes focus in an effect, which a busy machine runs after the notice is drawn.
+    await waitFor(() => expect(document.activeElement).toBe(screen.getByLabelText("Password")));
   });
 
   it("says so too when a saved sign-in no longer works", async () => {
