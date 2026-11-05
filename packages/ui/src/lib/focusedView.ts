@@ -83,6 +83,51 @@ export function clearFocusedView(window = THIS_WINDOW): void {
   }
 }
 
+/** Another window of this account, focused now, and where it is looking. */
+export function focusedElsewhere(
+  account: string | null,
+  window = THIS_WINDOW,
+  now = Date.now(),
+): FocusedView | null {
+  if (!account) return null;
+  const view = read();
+  if (!view || view.window === window || view.account !== account) return null;
+  if (now - view.at > STALE_MS || view.at - now > STALE_MS) return null;
+  return view;
+}
+
+/**
+ * Starts something every window of an account would otherwise do at once,
+ * such as a ring tone, in one of them; the function it gives stops it. The
+ * focused window, when another has focus, does it. Otherwise windows take
+ * turns through a lock, and the first to ask gets it. Plain http has no
+ * `navigator.locks`, so there each window does it, as before.
+ */
+export function inOneWindow(
+  account: string | null,
+  name: string,
+  start: () => () => void,
+  locks: LockManager | undefined = typeof navigator === "undefined" ? undefined : navigator.locks,
+): () => void {
+  if (!account || !locks) return start();
+  if (focusedElsewhere(account)) return () => {};
+  let stopped = false;
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  void locks
+    .request(`ownbase:${name} ${account}`, { ifAvailable: true }, async (lock) => {
+      if (!lock || stopped) return;
+      const stop = start();
+      await held;
+      stop();
+    })
+    .catch(() => {});
+  return () => {
+    stopped = true;
+    release();
+  };
+}
+
 /**
  * Whether another window of this account, focused now, shows the message:
  * the same test a window applies to itself.
@@ -93,10 +138,8 @@ export function onScreenElsewhere(
   window = THIS_WINDOW,
   now = Date.now(),
 ): boolean {
-  if (!account) return false;
-  const view = read();
-  if (!view || view.window === window || view.account !== account) return false;
-  if (now - view.at > STALE_MS || view.at - now > STALE_MS) return false;
+  const view = focusedElsewhere(account, window, now);
+  if (!view) return false;
   const screen: OnScreen = {
     focused: true,
     channelId: view.channelId,
