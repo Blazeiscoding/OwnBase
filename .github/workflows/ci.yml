@@ -42,7 +42,11 @@ jobs:
     outputs:
       leftovers: ${{ steps.leftovers.outputs.ids }}
     steps:
+      # Two commits deep: a pull request's run checks out the merge, whose
+      # first parent is main, to name the files it adds below.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 2
       - uses: pnpm/action-setup@v6
       - uses: actions/setup-node@v7
         id: node
@@ -72,10 +76,16 @@ jobs:
         run: node --test scripts/release-manifest.test.mjs
       - name: Test the product name check
         run: node --test scripts/check-product-name.test.mjs
-      # On an atlas it builds from this checkout; whether the copy in docs/ is
-      # current is a question for pnpm visualizer:check, not for every change.
+      # On an atlas it builds from this checkout. The copy in docs/ is the
+      # Atlas workflow's to rebuild, after the merge.
       - name: Test the project atlas generator
         run: node --test scripts/generate-project-visualizer.test.mjs
+      # A new file of app code needs no written explanation to pass: the atlas
+      # explains it from its comments meanwhile. These notices name the ones
+      # this change adds, beside the file, while the change is fresh.
+      - name: Name new files the atlas has no written explanation for
+        if: github.event_name == 'pull_request'
+        run: git diff --name-only --diff-filter=A -z HEAD^1 HEAD | xargs -0 node scripts/generate-project-visualizer.mjs --unexplained
       # No earlier product name anywhere in the repository (P2b).
       - name: Check the product name
         run: node scripts/check-product-name.mjs --repo

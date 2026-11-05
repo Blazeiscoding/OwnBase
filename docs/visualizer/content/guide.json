@@ -150,8 +150,8 @@
       "detail": "Every tracked file is indexed except this generated HTML itself. Explicit atlas source files are added before their first commit. Ignored builds, node_modules, user data and unrelated untracked directories are not scanned."
     },
     {
-      "text": "Every file of app code has a written explanation that a person checked. Other files, like tests and settings, get a description made from their contents.",
-      "detail": "All runtime source files in apps and packages have reviewed file explanations. Test, documentation, configuration and asset descriptions also use structural metadata. Generated symbol and import indexes do not infer every line's intent."
+      "text": "Files of app code have a written explanation that a person checked. A new one nobody has written about yet is explained from its own comments until someone does, and its page says so. Other files, like tests and settings, get a description made from their contents.",
+      "detail": "Runtime source files in apps, packages and ee have reviewed file explanations; one without is drafted from the comment it opens with or the doc comment on the declaration named after it, else its exports' comments, and is marked as not checked by a person. Test, documentation, configuration and asset descriptions also use structural metadata. Generated symbol and import indexes do not infer every line's intent."
     },
     {
       "text": "A line between two files means one names the other in its code. It shows what depends on what, not every step the code takes while it runs.",

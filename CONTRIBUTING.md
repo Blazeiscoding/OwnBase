@@ -110,11 +110,12 @@ formatting, so an unformatted file fails the build rather than starting an
 argument in review.
 
 The project atlas, `docs/PROJECT-VISUALIZER.html`, explains every runtime file
-and embeds the text of every tracked one. A new file under `apps/*/src` or
-`packages/*/src` needs an entry in `docs/visualizer/content/*.json`, or
-`pnpm visualizer:build` stops and names it. Run `pnpm visualizer:build` after a
-change so the atlas matches it; `pnpm visualizer:check` says whether it does.
-The [atlas guide](docs/visualizer/README.md) has the rest.
+and embeds the text of every tracked one. Give a new file under `apps/*/src` or
+`packages/*/src` an entry in `docs/visualizer/content/*.json`. Without one the
+atlas explains it from its own comments, and the checks name it in a notice.
+Leave the page itself alone: the Atlas workflow rebuilds it after every merge.
+`pnpm visualizer:build` builds it locally to look at. The
+[atlas guide](docs/visualizer/README.md) has the rest.
 
 Browser checks: `pnpm exec playwright install chromium`, then `pnpm test:e2e`
 after building. Windows checks: `pnpm build:win`,

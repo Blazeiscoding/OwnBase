@@ -122,22 +122,26 @@ test("counts, input digest, declaration positions and reverse references agree w
   }
 });
 
-test("runtime explanations and all guide/evidence references are complete", () => {
+test("runtime files carry their written explanation, or a draft that says it is one, and all guide/evidence references are complete", () => {
   const entries = catalogs.flatMap((catalog) => catalog.entries);
   assert.equal(new Set(entries.map((entry) => entry.path)).size, entries.length);
-  const runtime = data.files.filter((file) =>
-    /^(?:(?:packages|apps)\/.+|ee|ee\/cloud)\/src\//.test(file.path),
+  const runtime = data.files.filter(
+    (file) =>
+      /^(?:(?:packages|apps)\/.+|ee|ee\/cloud)\/src\//.test(file.path) &&
+      /\.(tsx?|mts|js|css|html|svg|json)$/.test(file.path),
   );
   assert.ok(runtime.length > 0);
   assert.equal(data.meta.runtimeCount, runtime.length);
-  assert.equal(data.meta.explainedRuntime, runtime.length);
+  assert.equal(data.meta.explainedRuntime, runtime.filter((file) => file.curated).length);
   for (const file of runtime) {
-    assert.equal(file.curated, true, file.path);
     const explanation = entries.find((entry) => entry.path === file.path);
-    assert.ok(explanation, `Missing reviewed explanation: ${file.path}`);
+    assert.equal(file.curated, Boolean(explanation), file.path);
+    assert.ok(file.plain && file.summary && file.details.length > 0, file.path);
+    if (!explanation) continue;
+    assert.equal(file.plain, explanation.plain);
     assert.equal(file.summary, explanation.summary);
     assert.deepEqual(file.details, explanation.details);
-    assert.ok(file.summary.length > 20 && file.details.length > 0, file.path);
+    assert.ok(file.summary.length > 20, file.path);
   }
   const references = [
     ...entries.map((entry) => entry.path),
@@ -235,7 +239,13 @@ test("HTML contains one parseable application script and preserves literal templ
   }
 });
 
-test("freshness survives commit/capture metadata changes but rejects changed source", () => {
+/**
+ * A disposable checkout holding the generator and the least it reads, with
+ * `entries` as the server's written explanations. Only dependency resolution
+ * changes in this copy; generator logic and all real repository inputs,
+ * output and HEAD stay untouched.
+ */
+function fixtureCheckout(entries) {
   const temporaryRoot = realpathSync(tmpdir());
   const fixture = mkdtempSync(resolve(temporaryRoot, "ownbase-visualizer-check-"));
   const write = (path, contents) => {
@@ -261,9 +271,25 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
       [resolve(fixture, "scripts/generate-project-visualizer.mjs"), ...args],
       { cwd: fixture, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] },
     );
+  const snapshot = () =>
+    JSON.parse(
+      read(outputPath, fixture).match(
+        /<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/,
+      )[1],
+    );
+  const remove = () => {
+    // Resolve and bound the generated folder before recursive removal; no links
+    // to project directories are created in this fixture.
+    const target = realpathSync(fixture);
+    const withinTemporaryRoot = relative(temporaryRoot, target);
+    assert.ok(
+      !isAbsolute(withinTemporaryRoot) &&
+        !withinTemporaryRoot.startsWith("..") &&
+        withinTemporaryRoot.startsWith("ownbase-visualizer-check-"),
+    );
+    rmSync(target, { recursive: true, force: true });
+  };
   try {
-    // Change only dependency resolution in this disposable copy; generator logic
-    // and all real repository inputs/output/HEAD remain untouched.
     const typescript = pathToFileURL(createRequire(import.meta.url).resolve("typescript")).href;
     write(
       "scripts/generate-project-visualizer.mjs",
@@ -291,23 +317,11 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
         JSON.stringify({
           area,
           overview: "Fixture only",
-          entries:
-            area === "server"
-              ? [
-                  {
-                    path: "packages/server/src/index.ts",
-                    summary: "Synthetic marker fixture",
-                    details: ["Not product data."],
-                    concepts: [],
-                  },
-                ]
-              : [],
+          entries: area === "server" ? entries : [],
           flows: [],
         }),
       );
     }
-    const literal = "$& $' $` $$ /* VISUALIZER_APP */ </script>";
-    write("packages/server/src/index.ts", `export const marker = ${JSON.stringify(literal)};\n`);
     git(fixture, "init", "--quiet");
     git(
       fixture,
@@ -316,13 +330,31 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
       "origin",
       "https://example.invalid/ownbase-visualizer-fixture.git",
     );
+  } catch (error) {
+    remove();
+    throw error;
+  }
+  return { fixture, write, commit, runGenerator, snapshot, remove };
+}
+
+test("freshness survives commit/capture metadata changes but rejects changed source", () => {
+  const { fixture, write, commit, runGenerator, snapshot, remove } = fixtureCheckout([
+    {
+      path: "packages/server/src/index.ts",
+      plain: "Synthetic marker fixture.",
+      summary: "Synthetic marker fixture",
+      details: ["Not product data."],
+      concepts: [],
+    },
+  ]);
+  try {
+    const literal = "$& $' $` $$ /* VISUALIZER_APP */ </script>";
+    write("packages/server/src/index.ts", `export const marker = ${JSON.stringify(literal)};\n`);
     git(fixture, "-c", "core.autocrlf=false", "add", "packages/server/src/index.ts");
     commit("Initial synthetic source");
     runGenerator();
     const captured = read(outputPath, fixture);
-    const capturedData = JSON.parse(
-      captured.match(/<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/)[1],
-    );
+    const capturedData = snapshot();
     assert.equal(
       capturedData.files.find((file) => file.path === "packages/server/src/index.ts").source,
       read("packages/server/src/index.ts", fixture),
@@ -352,15 +384,125 @@ test("freshness survives commit/capture metadata changes but rejects changed sou
       "A refused freshness check must not rewrite the artifact.",
     );
   } finally {
-    // Resolve and bound the generated folder before recursive removal; no links
-    // to project directories are created in this fixture.
-    const target = realpathSync(fixture);
-    const withinTemporaryRoot = relative(temporaryRoot, target);
-    assert.ok(
-      !isAbsolute(withinTemporaryRoot) &&
-        !withinTemporaryRoot.startsWith("..") &&
-        withinTemporaryRoot.startsWith("ownbase-visualizer-check-"),
+    remove();
+  }
+});
+
+// A new file used to stop the build until someone wrote about it. The page is
+// rebuilt after every merge now, so it explains such a file from the file's own
+// comments meanwhile, says so, and a pull request is told which ones it adds.
+test("app code nobody has written about yet is drafted from its own comments, and named on a pull request", () => {
+  const { fixture, write, commit, runGenerator, snapshot, remove } = fixtureCheckout([
+    {
+      path: "packages/server/src/written.ts",
+      plain: "Someone wrote this.",
+      summary: "A file a person explained, which keeps that explanation.",
+      details: ["Written by hand."],
+      concepts: [],
+    },
+  ]);
+  const sources = {
+    "packages/server/src/written.ts": "/** Its own comment, not used. */\nexport const a = 1;\n",
+    // The comment at the top is about the file: a blank line or an import follows it.
+    "packages/server/src/opening.ts": [
+      "// @ts-nocheck",
+      "/**",
+      " * Keeps the {@link Thing | things} a workspace holds, e.g. the ones in use. A second",
+      " * sentence says more.",
+      " * @see elsewhere",
+      " */",
+      'import { a } from "./written.js";',
+      "",
+      "/** Not about the file. */",
+      "export const b = a;",
+      "",
+    ].join("\n"),
+    // One sitting on a first declaration is that declaration's, and the
+    // declaration named after the file (useX for x) speaks for it.
+    "packages/server/src/drawer.ts": [
+      "/** How far in from the edge a swipe may start. */",
+      "export const EDGE = 40;",
+      "",
+      "/** Opens the drawer with a swipe. It only watches. */",
+      "export function useDrawer() {}",
+      "",
+    ].join("\n"),
+    // With neither, what its exports say of themselves, under their names.
+    "packages/server/src/parts.ts": [
+      "export const plain = 1;",
+      "/** Counts what came in. Then more. */",
+      "export function count() {}",
+      "/** Not exported. */",
+      "function hidden() {}",
+      "",
+    ].join("\n"),
+    "packages/server/src/silent.ts": "export const quiet = 1;\n",
+  };
+  try {
+    for (const [path, source] of Object.entries(sources)) write(path, source);
+    git(fixture, "-c", "core.autocrlf=false", "add", ".");
+    commit("Synthetic sources");
+    assert.match(
+      runGenerator(),
+      /1\/5 runtime explanations written; drafted from comments: packages\/server\/src\/drawer\.ts, packages\/server\/src\/opening\.ts, packages\/server\/src\/parts\.ts, packages\/server\/src\/silent\.ts/,
     );
-    rmSync(target, { recursive: true, force: true });
+    const data = snapshot();
+    const file = (path) => data.files.find((entry) => entry.path === path);
+    assert.equal(data.meta.runtimeCount, 5);
+    assert.equal(data.meta.explainedRuntime, 1);
+    assert.deepEqual(
+      [file("packages/server/src/written.ts")].map(({ curated, plain, details }) => ({
+        curated,
+        plain,
+        details,
+      })),
+      [{ curated: true, plain: "Someone wrote this.", details: ["Written by hand."] }],
+    );
+    const drafted = (path) => {
+      const { curated, plain, details } = file(path);
+      assert.equal(curated, false, path);
+      return { plain, details };
+    };
+    const rest = "The symbol index, imports and complete source show the rest.";
+    assert.deepEqual(drafted("packages/server/src/opening.ts"), {
+      plain: "Keeps the things a workspace holds, e.g. the ones in use.",
+      details: [
+        "A second sentence says more.",
+        `Drafted from the comment the file opens with. ${rest}`,
+      ],
+    });
+    assert.deepEqual(drafted("packages/server/src/drawer.ts"), {
+      plain: "Opens the drawer with a swipe.",
+      details: ["It only watches.", `Drafted from the comment on useDrawer. ${rest}`],
+    });
+    assert.deepEqual(drafted("packages/server/src/parts.ts"), {
+      plain: "Supporting code with no written explanation yet.",
+      details: [
+        "count: Counts what came in.",
+        `Drafted from the comments on what it exports. ${rest}`,
+      ],
+    });
+    assert.equal(
+      drafted("packages/server/src/silent.ts").plain,
+      "Supporting code with no written explanation yet.",
+    );
+
+    // The checks job passes the files a pull request adds; tests, docs and
+    // explained files are not named.
+    const notices = runGenerator(
+      "--unexplained",
+      "packages/server/src/written.ts",
+      "packages/server/src/parts.ts",
+      "packages/server/test/parts.test.ts",
+      "docs/NOTES.md",
+    )
+      .trim()
+      .split("\n");
+    assert.deepEqual(notices, [
+      "::notice file=packages/server/src/parts.ts,title=No written explanation::The project atlas explains this file from its own comments until someone writes an entry for it in docs/visualizer/content/*.json.",
+    ]);
+    assert.equal(runGenerator("--unexplained"), "");
+  } finally {
+    remove();
   }
 });
