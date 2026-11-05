@@ -236,7 +236,11 @@ export function Sidebar(props: Props) {
     return actions;
   }
   const drafts = useWorkspace((s) => s.drafts);
-  const draftCount = useMemo(() => listDrafts(drafts, {}, channels).length, [drafts, channels]);
+  const settled = useWorkspace((s) => s.status === "online");
+  const draftCount = useMemo(
+    () => listDrafts(drafts, {}, channels, settled).length,
+    [drafts, channels, settled],
+  );
   const prefs = useWorkspace((s) => s.prefs);
   // An older server keeps no stars, so none is offered there.
   const stars = useWorkspace((s) => s.stars);

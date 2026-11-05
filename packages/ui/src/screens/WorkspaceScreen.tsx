@@ -95,7 +95,7 @@ import { useOptionalToast } from "../components/Toast.js";
 import { useOptionalConfirm } from "../components/Confirm.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
-import type { DraftPlace } from "../lib/drafts.js";
+import { draftPlace, type DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { signOutOnPurpose, signedOutHow, type SignedOutHow } from "../lib/signOut.js";
@@ -371,6 +371,14 @@ function dialogFromRoute(dialog: RouteDialog | null | undefined): DialogKind {
 }
 
 /** The part of an open dialog the address keeps, if it keeps any. */
+/** The dialogs only an admin may open, by the names their headings give them. */
+const ADMIN_DIALOGS = {
+  people: "People",
+  reports: "Reported messages",
+  apps: "Apps and integrations",
+  workspace: "Workspace settings",
+} as const;
+
 function routeDialogOf(dialog: DialogKind): RouteDialog | null {
   switch (dialog.kind) {
     case "account":
@@ -680,6 +688,21 @@ function WorkspaceInner({
   const lastConversation = useLastConversation();
   const restoring = useRef(!initialTarget && !initialRoute);
 
+  /**
+   * What each conversation seen here was called, kept after it goes: the
+   * note on moving away from one this account just lost can then name it.
+   */
+  const seenTitles = useRef(new Map<ID, string>());
+  for (const channel of Object.values(channels))
+    seenTitles.current.set(
+      channel.id,
+      channel.type === "public" || channel.type === "private"
+        ? `#${channel.name}`
+        : channelTitle(channel, users, self?.id),
+    );
+  /** The note that also points to Drafts, while it is the one on show. */
+  const [lostDraftsNote, setLostDraftsNote] = useState<string | null>(null);
+
   // Pick #general (or the first channel) once the snapshot lands, and move
   // there from a conversation this account cannot see or that has gone.
   useEffect(() => {
@@ -698,9 +721,17 @@ function WorkspaceInner({
         }
       }
       if (activeChannelId) {
-        setNavigationError(
-          "That conversation is not available. Someone may have deleted it, or you may not have access to it.",
+        // One this screen had: the account was removed from it, or it went,
+        // while it was open. Its unsent words stay in Drafts (listDrafts).
+        const lost = seenTitles.current.get(activeChannelId);
+        const unsent = Object.keys(clientFromCtx.state.drafts).some(
+          (key) => draftPlace(key)?.channelId === activeChannelId,
         );
+        const note = lost
+          ? `You no longer have access to ${lost}.${unsent ? " What you were writing there is in Drafts." : ""}`
+          : "That conversation is not available. Someone may have deleted it, or you may not have access to it.";
+        setNavigationError(note);
+        setLostDraftsNote(unsent ? note : null);
         setPanel((p) => (p.kind === "thread" ? { kind: "none" } : p));
       }
       replaceRoute.current = general.id;
@@ -801,19 +832,22 @@ function WorkspaceInner({
   // can name them all the same, so they close for anyone else once the
   // account is known.
   const isAdmin = self?.role === "owner" || self?.role === "admin";
+  const wasAdmin = useRef(false);
+  const roleToast = useOptionalToast();
   useEffect(() => {
-    if (
-      self &&
-      !isAdmin &&
-      (dialog.kind === "people" ||
-        dialog.kind === "reports" ||
-        dialog.kind === "apps" ||
-        dialog.kind === "workspace")
-    ) {
+    const admin = ADMIN_DIALOGS[dialog.kind as keyof typeof ADMIN_DIALOGS];
+    if (self && !isAdmin && admin) {
       replaceDialogStep.current = true;
       setDialog({ kind: "none" });
+      // Taken away while open, by another admin: say why it closed.
+      if (wasAdmin.current)
+        roleToast?.({
+          message: `You are no longer an admin, so ${admin} closed.`,
+          kind: "info",
+        });
     }
-  }, [self, isAdmin, dialog.kind]);
+    if (self) wasAdmin.current = isAdmin;
+  }, [self, isAdmin, dialog.kind, roleToast]);
 
   useEffect(() => {
     const onPopState = () => {
@@ -1726,7 +1760,19 @@ function WorkspaceInner({
             <Banner
               tone="alert"
               actions={
-                <BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>
+                <>
+                  {navigationError === lostDraftsNote && (
+                    <BannerAction
+                      onClick={() => {
+                        setNavigationError(null);
+                        setPanel({ kind: "drafts" });
+                      }}
+                    >
+                      Show drafts
+                    </BannerAction>
+                  )}
+                  <BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>
+                </>
               }
             >
               {navigationError}

@@ -177,6 +177,19 @@ describe("what a draft key names", () => {
     ]);
   });
 
+  it("lists drafts in conversations no longer here as gone, once the conversations are the server's", () => {
+    const drafts = { C_LEFT: "kept words", [`C_LEFT:M1`]: "a reply", [design.id]: "here" };
+    const channels = { [design.id]: design };
+    expect(listDrafts(drafts, {}, channels).map((e) => e.key)).toEqual([design.id]);
+    expect(
+      listDrafts(drafts, {}, channels, true).map((e) => [e.key, e.place.kind, e.gone ?? false]),
+    ).toEqual([
+      ["C_LEFT", "conversation", true],
+      ["C_LEFT:M1", "thread", true],
+      [design.id, "conversation", false],
+    ]);
+  });
+
   it("reads stored times, keeping only what reads as one", () => {
     expect(readDraftTimes({ C1: 5, C2: "6", C3: Number.NaN, C4: null })).toEqual({ C1: 5 });
     for (const unreadable of [null, undefined, [5], "5", 5])
@@ -281,10 +294,8 @@ describe("opening a draft from the Drafts panel", () => {
     }
     const { client, user } = fourDrafts();
     client.store.setState({
-      // Not counted or listed: a conversation this client no longer has.
       self,
       users: { [sam.id]: self, [priya.id]: priya },
-      drafts: { ...client.state.drafts, C_LEFT: "From a channel since left" },
       timelines: {
         [general.id]: { items: [root, release], hasMore: false, hasMoreNewer: false, loaded: true },
       },
@@ -338,7 +349,6 @@ describe("opening a draft from the Drafts panel", () => {
     await user.type(await screen.findByRole("combobox"), "unsent");
     await user.click(screen.getByRole("option", { name: "Drafts, action" }));
     const panel = await screen.findByRole("complementary", { name: "Drafts" });
-    expect(within(panel).queryByText("From a channel since left")).toBeNull();
     await user.click(within(panel).getByRole("button", { name: "Open scheduled messages" }));
     expect(await screen.findByRole("complementary", { name: "Scheduled messages" })).toBeTruthy();
   });
@@ -407,6 +417,35 @@ describe("opening a draft from the Drafts panel", () => {
     await user.click(within(scheduled).getByRole("button", { name: "Discard edit" }));
     await act(() => Promise.resolve());
     expect(within(scheduled).queryByRole("textbox", { name: "Edit scheduled text" })).toBeNull();
+  });
+
+  it("names a conversation lost while open, and keeps what was being written there in Drafts", async () => {
+    const { client, user } = screenWith();
+    await user.click(within(await openDrafts(user)).getByRole("button", { name: /^#design/ }));
+    await screen.findByRole("textbox", { name: "Message #design" });
+    // Removed from it, as `channel.access` without the channel leaves things.
+    act(() => {
+      const { [design.id]: _channel, ...channels } = client.state.channels;
+      const { [design.id]: _membership, ...memberships } = client.state.memberships;
+      client.store.setState({ channels, memberships });
+    });
+    const note = await screen.findByText(
+      "You no longer have access to #design. What you were writing there is in Drafts.",
+    );
+    expect(await screen.findByRole("textbox", { name: "Message #general" })).toBeTruthy();
+    await user.click(
+      within(note.closest("[role=alert]")!).getByRole("button", { name: "Show drafts" }),
+    );
+    const panel = await screen.findByRole("complementary", { name: "Drafts" });
+    const row = within(panel).getByText("A conversation you can no longer open").closest("li")!;
+    expect(row).toHaveTextContent("Notes from the review");
+    // Nothing opens it; its words can be taken elsewhere.
+    expect(within(row).queryByRole("button", { name: /^A conversation/ })).toBeNull();
+    await user.click(within(row).getByRole("button", { name: "Copy text" }));
+    expect(await navigator.clipboard.readText()).toBe("Notes from the review");
+    expect(await screen.findByText("Draft copied.")).toBeTruthy();
+    await user.click(within(row).getByRole("button", { name: "Delete draft" }));
+    expect(client.state.drafts[design.id]).toBeUndefined();
   });
 });
 
