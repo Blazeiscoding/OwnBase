@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { AccessPolicy, Channel, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceSettings } from "../src/components/WorkspaceSettings.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
@@ -113,14 +114,16 @@ async function workspaceAs(role: User["role"]) {
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={workspace}>
-        <ConfirmProvider>
-          <WorkspaceScreen
-            client={workspace}
-            platform={platform}
-            onLeaveWorkspace={() => {}}
-            onSignedOut={() => {}}
-          />
-        </ConfirmProvider>
+        <ToastProvider>
+          <ConfirmProvider>
+            <WorkspaceScreen
+              client={workspace}
+              platform={platform}
+              onLeaveWorkspace={() => {}}
+              onSignedOut={() => {}}
+            />
+          </ConfirmProvider>
+        </ToastProvider>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );
@@ -129,7 +132,7 @@ async function workspaceAs(role: User["role"]) {
   const trigger = await screen.findByRole("button", { name: "Rocket Team, workspace menu" });
   await user.click(trigger);
   const menu = screen.getByRole("menu", { name: "Workspace" });
-  return { menu, user };
+  return { menu, user, workspace };
 }
 
 describe("where Workspace settings opens", () => {
@@ -142,6 +145,21 @@ describe("where Workspace settings opens", () => {
     expect(within(settings).getAllByRole("button", { name: "Close" })).toHaveLength(1);
     // A place of its own: the address names it, so Back closes it and a reload reopens it.
     expect(window.location.hash).toMatch(/\/d\/workspace$/);
+  });
+
+  it("closes, saying why, when another admin makes this one a member while it is open", async () => {
+    const { menu, user, workspace } = await workspaceAs("admin");
+    await user.click(within(menu).getByRole("menuitem", { name: "Workspace settings" }));
+    const settings = await screen.findByRole("dialog", { name: "Workspace settings" });
+    await user.type(await within(settings).findByLabelText("Workspace name"), " and friends");
+    act(() => workspace.store.setState({ self: { ...workspace.state.self!, role: "member" } }));
+    await waitFor(() =>
+      expect(screen.queryByRole("dialog", { name: "Workspace settings" })).toBeNull(),
+    );
+    expect(
+      await screen.findByText("You are no longer an admin, so Workspace settings closed."),
+    ).toBeTruthy();
+    expect(window.location.hash).not.toMatch(/\/d\/workspace$/);
   });
 
   it("is not offered to a member or a guest", async () => {

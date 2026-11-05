@@ -371,6 +371,14 @@ function dialogFromRoute(dialog: RouteDialog | null | undefined): DialogKind {
 }
 
 /** The part of an open dialog the address keeps, if it keeps any. */
+/** The dialogs only an admin may open, by the names their headings give them. */
+const ADMIN_DIALOGS = {
+  people: "People",
+  reports: "Reported messages",
+  apps: "Apps and integrations",
+  workspace: "Workspace settings",
+} as const;
+
 function routeDialogOf(dialog: DialogKind): RouteDialog | null {
   switch (dialog.kind) {
     case "account":
@@ -824,19 +832,22 @@ function WorkspaceInner({
   // can name them all the same, so they close for anyone else once the
   // account is known.
   const isAdmin = self?.role === "owner" || self?.role === "admin";
+  const wasAdmin = useRef(false);
+  const roleToast = useOptionalToast();
   useEffect(() => {
-    if (
-      self &&
-      !isAdmin &&
-      (dialog.kind === "people" ||
-        dialog.kind === "reports" ||
-        dialog.kind === "apps" ||
-        dialog.kind === "workspace")
-    ) {
+    const admin = ADMIN_DIALOGS[dialog.kind as keyof typeof ADMIN_DIALOGS];
+    if (self && !isAdmin && admin) {
       replaceDialogStep.current = true;
       setDialog({ kind: "none" });
+      // Taken away while open, by another admin: say why it closed.
+      if (wasAdmin.current)
+        roleToast?.({
+          message: `You are no longer an admin, so ${admin} closed.`,
+          kind: "info",
+        });
     }
-  }, [self, isAdmin, dialog.kind]);
+    if (self) wasAdmin.current = isAdmin;
+  }, [self, isAdmin, dialog.kind, roleToast]);
 
   useEffect(() => {
     const onPopState = () => {
