@@ -1176,6 +1176,9 @@ test("scrolls back through a long channel without unbounded growth or losing its
 test("OwnBase keeps a capped live timeline pinned and supports keyboard and narrow-window chat", async ({
   page,
 }, info) => {
+  // The longest scenario: 33 to 40 seconds on a quiet runner, 56 on a busy
+  // one, where the usual minute ran out.
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   // A blocked resource is reported to the console rather than thrown, so it
