@@ -48,6 +48,7 @@ import {
   useNotificationPreviews,
   type NotificationPreview,
 } from "../lib/notificationPreview.js";
+import { onScreenElsewhere, useFocusedView } from "../lib/focusedView.js";
 import type { PaletteCommand } from "../components/QuickSwitcher.js";
 import { useAppearance } from "../lib/appearance.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
@@ -1363,6 +1364,14 @@ function WorkspaceInner({
     channel: panelCovers || chatCovered || (sidebarOpen && drawerLayout()),
     thread: sidebarOpen && drawerLayout(),
   };
+  // Other windows of this account, in this browser, stay quiet about what
+  // this one shows while it has focus.
+  useFocusedView(account, {
+    channelId: activeChannelId,
+    threadRootId: openThreadId,
+    channelVisible: !covered.current.channel,
+    threadVisible: !covered.current.thread,
+  });
   // What the last conversation received is not news in the next one.
   useEffect(() => forget(), [activeChannelId, forget]);
 
@@ -1403,7 +1412,7 @@ function WorkspaceInner({
         channelVisible: !covered.current.channel,
         threadRootId: openThreadId,
         threadVisible: !covered.current.thread,
-      });
+      }) || onScreenElsewhere(msg, accountTag.current);
     const tell = (msg: Message) => {
       const state = clientFromCtx.state;
       // Only as much as this account chose to show on this device.
