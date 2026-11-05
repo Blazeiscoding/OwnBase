@@ -171,9 +171,6 @@ const IncomingCall = lazy(() =>
 const ViewModal = lazy(() =>
   import("../components/ViewModal.js").then((module) => ({ default: module.ViewModal })),
 );
-const SearchDialog = lazy(() =>
-  import("../components/SearchDialog.js").then((module) => ({ default: module.SearchDialog })),
-);
 // Forms opened now and then, and the video stage shown only during a call
 // with video, load on first use too.
 const NewChannelDialog = lazy(() =>
@@ -238,6 +235,29 @@ function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
   ) : (
     <LazyDialog loading="Loading Jump to" onClose={props.onClose}>
       <LazySwitcher {...props} />
+    </LazyDialog>
+  );
+}
+
+/**
+ * Search the same way: the header's search is pressed and typed into at once,
+ * and words typed while it was still loading were lost.
+ */
+let LoadedSearch: (typeof import("../components/SearchDialog.js"))["SearchDialog"] | null = null;
+const loadSearchDialog = () =>
+  import("../components/SearchDialog.js").then((module) => {
+    LoadedSearch = module.SearchDialog;
+    return { default: module.SearchDialog };
+  });
+const LazySearch = lazy(loadSearchDialog);
+function SearchDialog(props: ComponentProps<typeof LazySearch>) {
+  // Chosen once: a swap would start the search over.
+  const [Loaded] = useState(() => LoadedSearch);
+  return Loaded ? (
+    <Loaded {...props} />
+  ) : (
+    <LazyDialog loading="Loading search" onClose={props.onClose}>
+      <LazySearch {...props} />
     </LazyDialog>
   );
 }
@@ -817,8 +837,9 @@ function WorkspaceInner({
   useHistoryKeys(platform.kind === "desktop");
 
   useEffect(() => {
-    // Failing here is not final: opening the palette, a thread, a hint or an emoji picker fetches it again.
+    // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
     loadQuickSwitcher().catch(() => undefined);
+    loadSearchDialog().catch(() => undefined);
     loadThreadPanel().catch(() => undefined);
     loadTooltipBubble().catch(() => undefined);
     loadEmoji().catch(() => undefined);
@@ -1983,15 +2004,13 @@ function WorkspaceInner({
         />
       )}
       {dialog.kind === "search" && (
-        <LazyDialog loading="Loading search" onClose={closeDialog}>
-          <SearchDialog
-            channelId={activeChannelId}
-            initialQuery={dialog.query}
-            inConversation={dialog.inConversation}
-            onClose={closeDialog}
-            onJump={jumpToMessage}
-          />
-        </LazyDialog>
+        <SearchDialog
+          channelId={activeChannelId}
+          initialQuery={dialog.query}
+          inConversation={dialog.inConversation}
+          onClose={closeDialog}
+          onJump={jumpToMessage}
+        />
       )}
       {dialog.kind === "shortcuts" && (
         <LazyDialog loading="Loading keyboard shortcuts" onClose={closeDialog}>
