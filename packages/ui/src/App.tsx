@@ -32,6 +32,7 @@ import { hostedButStopped } from "./lib/resume.js";
 import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.js";
 import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
 import { railOrder } from "./lib/workspaceRail.js";
+import { useOtherWorkspacesUnread } from "./lib/otherUnread.js";
 
 type Session =
   | { view: "loading" }
@@ -111,6 +112,13 @@ export function App({ platform }: { platform: Platform }) {
     savedServers.map((s) => s.url),
   );
   const lastHosted = useLastHosted(platform.hosting, hosting.status);
+  // What waits in the workspaces not open, for their places on the rail.
+  const openUrl = session.view === "workspace" ? session.server.url : null;
+  const otherUnread = useOtherWorkspacesUnread(
+    openUrl === null
+      ? []
+      : savedServers.filter((s) => s.url !== openUrl).map((s) => ({ url: s.url, token: s.token })),
+  );
   const clientRef = useRef<WorkspaceClient | null>(null);
   const connectionId = useRef(0);
   const navigation = useRef(0);
@@ -615,6 +623,7 @@ export function App({ platform }: { platform: Platform }) {
                     name: saved.workspaceName,
                     handle: saved.handle,
                     icon: savedIcons[saved.url],
+                    waiting: otherUnread[saved.url],
                   }))}
                 railPlace={railPlace(savedServers, session.server)}
                 onOpenWorkspace={(url) => {

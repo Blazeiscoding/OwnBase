@@ -6,6 +6,7 @@ import {
   type ChannelPrefs,
   type ID,
   type SidebarSection,
+  type UnreadSummary,
 } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
@@ -179,6 +180,8 @@ export interface OtherWorkspace {
   handle: string;
   /** Its icon as this device keeps it, when it has one. */
   icon?: string | null;
+  /** What waits there, when it said (`useOtherWorkspacesUnread`). */
+  waiting?: UnreadSummary;
 }
 
 export function Sidebar(props: Props) {
@@ -1007,9 +1010,11 @@ function WorkspaceRail(props: {
   const other = (w: OtherWorkspace) => (
     <RailItem
       key={w.url}
-      label={`${w.name} · @${w.handle}`}
+      label={`${w.name} · @${w.handle}${waitingWords(w.waiting)}`}
       title={w.name}
       icon={w.icon}
+      badge={w.waiting?.mentions}
+      unread={!!w.waiting?.unread}
       onClick={() => props.onOpen?.(w.url)}
     />
   );
@@ -1038,6 +1043,14 @@ function WorkspaceRail(props: {
   );
 }
 
+/** What waits in another workspace, said after its name to a screen reader. */
+function waitingWords(waiting: UnreadSummary | undefined): string {
+  if (!waiting) return "";
+  if (waiting.mentions > 0)
+    return `, ${waiting.mentions} ${waiting.mentions === 1 ? "mention" : "mentions"}`;
+  return waiting.unread ? ", unread messages" : "";
+}
+
 function RailItem(props: {
   /** What it is called to a screen reader. */
   label: string;
@@ -1047,6 +1060,8 @@ function RailItem(props: {
   icon?: string | null;
   current?: boolean;
   badge?: number;
+  /** Something unread waits there: Discord's nub beside it. */
+  unread?: boolean;
   onClick?: () => void;
 }) {
   const title = props.title ?? props.label;
@@ -1056,7 +1071,7 @@ function RailItem(props: {
       <span
         aria-hidden="true"
         className="rail-pill"
-        data-state={props.current ? "current" : undefined}
+        data-state={props.current ? "current" : props.unread ? "unread" : undefined}
       />
       <Tooltip label={title} side="right">
         <button
