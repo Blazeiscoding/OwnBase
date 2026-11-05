@@ -609,6 +609,7 @@ describe("workspace server", () => {
     expect(res.status).toBe(200);
     expect(res.data.prefs).toEqual({
       notifyLevel: "all",
+      notifyChosen: true,
       muted: true,
       starred: false,
       sectionId: null,
@@ -618,6 +619,7 @@ describe("workspace server", () => {
     // Alice's choice is hers alone.
     expect(server.store.getChannelPrefs(general.id, bob.id)).toEqual({
       notifyLevel: "mentions",
+      notifyChosen: false,
       muted: false,
       starred: false,
       sectionId: null,
@@ -632,6 +634,7 @@ describe("workspace server", () => {
     // A partial update leaves the other field alone.
     expect(server.store.getChannelPrefs(general.id, alice.id)).toEqual({
       notifyLevel: "all",
+      notifyChosen: true,
       muted: false,
       starred: false,
       sectionId: null,
