@@ -976,6 +976,16 @@
       "concepts": ["local search history", "bounded list", "clear ownership"]
     },
     {
+      "path": "packages/ui/src/lib/keepInSight.ts",
+      "plain": "Scrolls a list just far enough for one of its rows to be wholly in sight, so the sidebar follows the open conversation.",
+      "summary": "keepInSight(row, listSelector, room = 8).",
+      "details": [
+        "Sidebar rows call it when they become the open conversation, however it was opened: a click, Ctrl+K, a link, or Alt+Up/Down through a long list, which used to go on past the bottom of the sidebar unseen.",
+        "It moves only the list it is given (.sidebar-scroll), not every scroller around it as scrollIntoView would, so a closed phone drawer is never pulled into view. A list not shown (no height) is left alone."
+      ],
+      "concepts": ["sidebar", "keyboard navigation"]
+    },
+    {
       "path": "packages/ui/src/lib/linkedMessages.ts",
       "plain": "Finds the links in a message that point at other messages in this workspace.",
       "summary": "Lists the workspace messages a message's words link to, for their cards.",
