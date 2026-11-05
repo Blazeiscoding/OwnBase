@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
@@ -57,6 +57,14 @@ const at = (zone: string) =>
   new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit", timeZone: zone }).format(
     Date.now(),
   );
+/**
+ * One instant for the time drawn and the time expected, half a minute from
+ * either edge: read from a running clock, the two came a minute apart when it
+ * turned between the drawing and the check. Only Date stands still.
+ */
+const stillClock = () => {
+  vi.useFakeTimers({ toFake: ["Date"], now: new Date("2026-01-15T12:34:30Z") });
+};
 
 const clients: WorkspaceClient[] = [];
 afterEach(() => {
@@ -107,6 +115,8 @@ describe("a profile picture", () => {
 });
 
 describe("someone's profile", () => {
+  beforeEach(stillClock);
+
   it("says they are away, and their local time and zone where it differs", async () => {
     const { client } = workspace({ presence: { U_MAYA: "away" } });
     shown(client, <ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
@@ -141,6 +151,8 @@ describe("someone's profile", () => {
 });
 
 describe("a direct message's header", () => {
+  beforeEach(stillClock);
+
   it("gives the other person's time when their clock reads otherwise", () => {
     const { client } = workspace();
     shown(client, <PartnerTime channelId="C_DM" />);
