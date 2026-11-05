@@ -78,7 +78,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
           isPrivate === value ? "border-copper" : "border-edge"
         }`}
       >
-        {isPrivate === value && <span className="size-2 rounded-full bg-copper" />}
+        {isPrivate === value && <span className="fc-fill size-2 rounded-full bg-copper" />}
       </span>
     </label>
   );

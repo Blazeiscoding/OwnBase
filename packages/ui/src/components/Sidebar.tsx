@@ -654,7 +654,7 @@ export function Sidebar(props: Props) {
               role="status"
               className="mx-2 mt-2 flex items-center gap-2 rounded-lg bg-copper/10 px-2.5 py-1.5 text-[12px] font-medium text-copper"
             >
-              <span className="size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
+              <span className="fc-fill size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
               <Swap on={props.connectionLabel} text className="min-w-0">
                 <span className="block truncate first-letter:uppercase">
                   {props.connectionLabel}
@@ -1631,7 +1631,7 @@ function ChannelRow(props: {
       {showUnread && (
         <span
           aria-hidden="true"
-          className={`absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-ink ${
+          className={`fc-fill absolute -left-2 top-1/2 h-2 w-1 -translate-y-1/2 rounded-r-full bg-ink ${
             unreadCame ? "animate-badge-in" : ""
           }`}
         />

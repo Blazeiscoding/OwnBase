@@ -2057,10 +2057,15 @@ textarea::placeholder {
   input[role="switch"]:checked + span > span {
     background: HighlightText;
   }
-  /* A dot drawn only in colour, such as a chosen radio's or an unread one. */
-  span.rounded-full.bg-copper:empty {
+  /* A mark drawn only as a fill, such as an unread dot or a chosen radio's. */
+  .fc-fill {
     forced-color-adjust: none;
-    background: Highlight;
+    background: CanvasText;
+  }
+  /* A count's fill is what set it apart from the words beside it. */
+  .badge-count {
+    outline: 1px solid CanvasText;
+    outline-offset: -1px;
   }
   /*
    * Whether someone is here, by shape alone: filled when active, a moon when

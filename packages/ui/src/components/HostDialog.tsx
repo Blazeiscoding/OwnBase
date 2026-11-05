@@ -1397,7 +1397,7 @@ export function HostDialog(props: {
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-online/15 px-2 py-0.5 text-xs font-medium text-online">
                               <span
                                 aria-hidden="true"
-                                className="size-1.5 rounded-full bg-online"
+                                className="fc-fill size-1.5 rounded-full bg-online"
                               />
                               {status.isolated ? "Only on this computer" : "Live"}
                             </span>

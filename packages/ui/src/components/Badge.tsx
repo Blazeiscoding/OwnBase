@@ -55,8 +55,8 @@ export function Badge({
   ...span
 }: BadgeProps) {
   const shape = dot
-    ? `size-2 shrink-0 rounded-full ${TONE[tone].dot}`
-    : `tabular shrink-0 rounded-full text-center ${COUNT[size]} ${TONE[tone].count}`;
+    ? `fc-fill size-2 shrink-0 rounded-full ${TONE[tone].dot}`
+    : `badge-count tabular shrink-0 rounded-full text-center ${COUNT[size]} ${TONE[tone].count}`;
   return (
     <CountBadge
       {...span}
