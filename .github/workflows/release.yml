@@ -37,6 +37,7 @@ on:
   pull_request:
     paths:
       - ".github/workflows/release.yml"
+      - ".github/actions/**"
       - "scripts/release-*"
 # Releases from main wait their turn rather than cancel one another: a run
 # stopped while publishing could leave a release with half its files. Of the
