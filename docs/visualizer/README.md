@@ -62,6 +62,12 @@ reading guide and scope. Update these alongside a changed runtime file. Keep
 unimplemented findings marked `follow-up`; do not turn a plan or diagnostic into
 a completed optimization.
 
+The Atlas workflow (`.github/workflows/atlas.yml`) rebuilds
+`docs/PROJECT-VISUALIZER.html` after every push to `main` and commits it there
+when it changed, so a pull request changes the sources above and leaves the
+page alone. A pull request that does rebuild it only collides with the
+workflow's commits; take `main`'s copy when merging `main` in.
+
 The pages people read first are written for someone who does not write code.
 Journey titles, summaries and steps, improvement titles, summaries, before and
 after, measurement labels and limits, and the guide's text use plain words: no
@@ -71,7 +77,7 @@ beside each one and shown under **In the code**: a journey's and a step's
 `detail`, an improvement's `technical` object, a measurement's `detail` and a
 guide limit's `detail`. When the code changes, update both. Each explained file
 also has a one-sentence `plain` description, shown first on its page and in the
-map's tooltip; the generator writes one for files without an explanation. The
+map's tooltip; the generator drafts one for files without an explanation. The
 rest of a file's explanation stays technical, since that view is for reading
 code.
 
@@ -82,11 +88,17 @@ pnpm visualizer:check
 pnpm visualizer:test
 ```
 
-The generator requires a reviewed entry for every `apps/*/src` and
-`packages/*/src` runtime file, validates referenced paths and unique guide IDs,
-and uses TypeScript's parser to extract declarations and literal imports.
-Remaining file descriptions use structural metadata. Imports are a source
-dependency map, not a dynamic call graph or proof of test execution.
+Each `apps/*/src`, `packages/*/src` and `ee` runtime file should have a written
+entry. One without is not an error: the page explains it from its own comments
+and says nobody has written about it yet. Its one sentence comes from the
+comment the file opens with, or from the doc comment on the declaration named
+after it (`useX` for `x.ts`); failing both, its details quote what its exported
+declarations' comments say, under their names. The build log lists these
+files, and the checks job names the ones a pull request adds in notices beside
+them. The generator validates referenced paths and unique guide IDs, and uses
+TypeScript's parser to extract declarations and literal imports. Remaining
+file descriptions use structural metadata. Imports are a source dependency
+map, not a dynamic call graph or proof of test execution.
 
 `--check` compares the deterministic output to current inputs while preserving
 the capture's base revision, date and tracked count, so committing the generated

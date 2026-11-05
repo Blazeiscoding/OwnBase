@@ -50,6 +50,22 @@ for (const catalog of catalogs) {
     annotations.set(entry.path, entry);
   }
 }
+// The app's own code, which a person explains in docs/visualizer/content.
+const isRuntime = (path) =>
+  /^((packages|apps)\/.+|ee|ee\/cloud)\/src\//.test(path) &&
+  /\.(tsx?|mts|js|css|html|svg|json)$/.test(path);
+// --unexplained <paths…> names the runtime files among those paths that have
+// no written explanation, as notices on a GitHub Actions run, and stops. The
+// checks job passes it the files a pull request adds.
+const unexplainedAt = process.argv.indexOf("--unexplained");
+if (unexplainedAt >= 0) {
+  for (const path of process.argv.slice(unexplainedAt + 1))
+    if (isRuntime(path) && !annotations.has(path))
+      console.log(
+        `::notice file=${path},title=No written explanation::The project atlas explains this file from its own comments until someone writes an entry for it in docs/visualizer/content/*.json.`,
+      );
+  process.exit(0);
+}
 const optimizations = JSON.parse(read("docs/visualizer/content/optimizations.json")).items;
 const guide = JSON.parse(read("docs/visualizer/content/guide.json"));
 
@@ -197,6 +213,66 @@ function analyze(path, source) {
   visit(ast);
   return { symbols, imports, checks };
 }
+// What a file says about itself: the comment it opens with, or the doc
+// comment on the declaration named after it (useX for x). Failing both, what
+// its exported functions, classes and values say about themselves, under their
+// names, since one of those is not the whole file. Directives and licence lines
+// are not words about the file.
+function ownWords(path, source, symbols) {
+  const directive = /^(?:\/\/\/\s*<|\/\/\s*(?:@|eslint|prettier-ignore)|\/\*\s*(?:eslint|@))/;
+  const ranges = ts.getLeadingCommentRanges(source, 0) ?? [];
+  // Comments sitting right on a first declaration are that declaration's;
+  // above an import, or apart from what follows by a blank line, the file's.
+  const blankAfter = (range) => /^[ \t]*\r?\n[ \t]*\r?\n/.test(source.slice(range.end));
+  const follows = source.slice(ranges.at(-1)?.end ?? 0).trimStart();
+  let own = ranges.length;
+  if (!/^(?:import\b|export\s*(?:\*|\{[^}]*\}\s*from)|["']use )/.test(follows))
+    while (own > 0 && !blankAfter(ranges[own - 1])) own--;
+  const opening = [];
+  for (const range of ranges.slice(0, own)) {
+    const text = source.slice(range.pos, range.end);
+    if (directive.test(text) || /copyright|spdx-license/i.test(text)) continue;
+    opening.push(
+      text
+        .replace(/^\/\*\*?|\*\/$/g, "")
+        .replace(/^[ \t]*(?:\*(?!\/)|\/\/)[ \t]?/gm, "")
+        .replace(/^@[\s\S]*/m, ""),
+    );
+  }
+  const tidy = (text) =>
+    text
+      .replace(/\{@link(?:code|plain)?\s+([^}|\s]+)(?:\s*\|\s*([^}]+))?\}/g, (_, name, label) =>
+        (label ?? name).trim(),
+      )
+      .replace(/\s+/g, " ")
+      .trim();
+  const sentences = (text) => text.split(/(?<=[.!?])\s+(?=[A-Z0-9"“(`])/);
+  const bare = (name) => name.toLowerCase().replace(/^use(?=.)/, "");
+  const stem = bare(posix.basename(path).replace(/\.[^.]+$/, ""));
+  const commented = symbols.filter((symbol) => symbol.comment && symbol.kind !== "method");
+  const named = opening.length ? null : commented.find((symbol) => bare(symbol.name) === stem);
+  const lead = tidy(opening.length ? opening.join("\n") : (named?.comment ?? ""));
+  const rest = "The symbol index, imports and complete source show the rest.";
+  if (lead) {
+    const [first, ...more] = sentences(lead);
+    return {
+      first,
+      details: [
+        ...(more.length ? [more.join(" ")] : []),
+        `Drafted from ${named ? `the comment on ${named.name}` : "the comment the file opens with"}. ${rest}`,
+      ],
+    };
+  }
+  const parts = commented
+    .filter((symbol) => symbol.exported)
+    .slice(0, 4)
+    .map((symbol) => `${symbol.name}: ${sentences(tidy(symbol.comment))[0]}`);
+  if (!parts.length) return null;
+  return {
+    first: null,
+    details: [...parts, `Drafted from the comments on what it exports. ${rest}`],
+  };
+}
 function describe(path, kind, source, analysis) {
   if (path.endsWith("package.json")) {
     const pkg = JSON.parse(source);
@@ -274,9 +350,12 @@ function describe(path, kind, source, analysis) {
       ],
       concepts: ["presentation"],
     };
+  // App code nobody has written about yet speaks for itself, from its comments.
+  const words = kind === "runtime" ? ownWords(path, source, analysis.symbols) : null;
   return {
-    plain:
-      kind === "tooling"
+    plain: words?.first
+      ? words.first
+      : kind === "tooling"
         ? "A helper script for building, testing or measuring OwnBase."
         : "Supporting code with no written explanation yet.",
     summary: `${posix.basename(path)} contains ${
@@ -285,9 +364,11 @@ function describe(path, kind, source, analysis) {
         .map((symbol) => symbol.name)
         .join(", ") || "the entry or supporting code"
     } for ${areaFor(path)}.`,
-    details: [
-      "This description is generated from declarations. Use the symbol index, imports and complete source to examine its implementation.",
-    ],
+    details: words
+      ? words.details
+      : [
+          "This description is generated from declarations. Use the symbol index, imports and complete source to examine its implementation.",
+        ],
     concepts: [kind === "tooling" ? "developer tooling" : "implementation"],
   };
 }
@@ -346,13 +427,13 @@ for (const item of [...optimizations, ...flows]) {
   if (ids.has(item.id)) throw new Error(`Duplicate guide ID: ${item.id}`);
   ids.add(item.id);
 }
-const runtime = files.filter(
-  (file) =>
-    /^((packages|apps)\/.+|ee|ee\/cloud)\/src\//.test(file.path) &&
-    /\.(tsx?|mts|js|css|html|svg|json)$/.test(file.path),
-);
-const missing = runtime.filter((file) => !file.curated).map((file) => file.path);
-if (missing.length) throw new Error(`Runtime files need explanations:\n${missing.join("\n")}`);
+const runtime = files.filter((file) => isRuntime(file.path));
+// One without a written explanation is drafted from its comments above, and
+// the page says so; the build names them rather than stopping for them.
+const unexplained = runtime.filter((file) => !file.curated).map((file) => file.path);
+const explanations = `${runtime.length - unexplained.length}/${runtime.length} runtime explanations written${
+  unexplained.length ? `; drafted from comments: ${unexplained.join(", ")}` : ""
+}`;
 const revision = git("rev-parse", "HEAD");
 const data = {
   meta: {
@@ -438,11 +519,11 @@ const html = read("docs/visualizer/template.html").replace(
 if (checking) {
   if (existing !== html) throw new Error("Project visualizer is stale. Run pnpm visualizer:build.");
   console.log(
-    `Visualizer is current: ${files.length} files, ${runtime.length}/${runtime.length} runtime explanations, ${flows.length} flows, ${optimizations.length} improvements.`,
+    `Visualizer is current: ${files.length} files, ${flows.length} flows, ${optimizations.length} improvements; ${explanations}.`,
   );
 } else {
   writeFileSync(written, html);
   console.log(
-    `Wrote ${relative(root, written)}: ${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB; ${files.length} files; ${runtime.length}/${runtime.length} runtime explanations.`,
+    `Wrote ${relative(root, written)}: ${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB; ${files.length} files; ${explanations}.`,
   );
 }

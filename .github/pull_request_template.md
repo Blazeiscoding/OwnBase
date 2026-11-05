@@ -7,7 +7,7 @@
 <!-- What you ran and what you looked at, and anything left for later. -->
 
 - [ ] `pnpm exec prettier --check .` passes
-- [ ] New runtime files have an atlas entry, and `pnpm visualizer:build` was run
+- [ ] New runtime files have an atlas entry (the Atlas workflow rebuilds the page after the merge)
 
 If something on screen changes, check these too.
 [CONTRIBUTING.md](https://github.com/Blazeiscoding/OwnBase/blob/main/CONTRIBUTING.md) says how.
