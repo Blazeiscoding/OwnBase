@@ -32,6 +32,9 @@ import {
 } from "../components/Sidebar.js";
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
+// In the first frame with the sidebar it sits above: loaded later, it pushed
+// the channels down under the pointer. Shown only to an owner, and small.
+import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
@@ -123,12 +126,6 @@ const WorkspaceSettings = lazy(() =>
 );
 // Opened now and then rather than on every visit, so they load on first use
 // and keep what every visit downloads small.
-// Shown to the owner until the first steps are done, then never again.
-const GettingStarted = lazy(() =>
-  import("../components/GettingStarted.js").then((module) => ({
-    default: module.GettingStarted,
-  })),
-);
 // Asked once per device, and only by a browser that has not answered yet.
 const NotificationBanner = lazy(() =>
   import("../components/NotificationBanner.js").then((module) => ({
@@ -173,9 +170,6 @@ const IncomingCall = lazy(() =>
 /** A form an app opens, which most sessions never see. */
 const ViewModal = lazy(() =>
   import("../components/ViewModal.js").then((module) => ({ default: module.ViewModal })),
-);
-const SearchDialog = lazy(() =>
-  import("../components/SearchDialog.js").then((module) => ({ default: module.SearchDialog })),
 );
 // Forms opened now and then, and the video stage shown only during a call
 // with video, load on first use too.
@@ -241,6 +235,29 @@ function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
   ) : (
     <LazyDialog loading="Loading Jump to" onClose={props.onClose}>
       <LazySwitcher {...props} />
+    </LazyDialog>
+  );
+}
+
+/**
+ * Search the same way: the header's search is pressed and typed into at once,
+ * and words typed while it was still loading were lost.
+ */
+let LoadedSearch: (typeof import("../components/SearchDialog.js"))["SearchDialog"] | null = null;
+const loadSearchDialog = () =>
+  import("../components/SearchDialog.js").then((module) => {
+    LoadedSearch = module.SearchDialog;
+    return { default: module.SearchDialog };
+  });
+const LazySearch = lazy(loadSearchDialog);
+function SearchDialog(props: ComponentProps<typeof LazySearch>) {
+  // Chosen once: a swap would start the search over.
+  const [Loaded] = useState(() => LoadedSearch);
+  return Loaded ? (
+    <Loaded {...props} />
+  ) : (
+    <LazyDialog loading="Loading search" onClose={props.onClose}>
+      <LazySearch {...props} />
     </LazyDialog>
   );
 }
@@ -820,8 +837,9 @@ function WorkspaceInner({
   useHistoryKeys(platform.kind === "desktop");
 
   useEffect(() => {
-    // Failing here is not final: opening the palette, a thread, a hint or an emoji picker fetches it again.
+    // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
     loadQuickSwitcher().catch(() => undefined);
+    loadSearchDialog().catch(() => undefined);
     loadThreadPanel().catch(() => undefined);
     loadTooltipBubble().catch(() => undefined);
     loadEmoji().catch(() => undefined);
@@ -1554,34 +1572,31 @@ function WorkspaceInner({
         gettingStarted={
           self?.role === "owner" && (
             <ErrorBoundary fallback={<span hidden />}>
-              <Suspense fallback={null}>
-                <GettingStarted
-                  onNewChannel={() => setDialog({ kind: "new-channel" })}
-                  onInvite={() => setDialog({ kind: "invite" })}
-                  onNotifications={() => setDialog({ kind: "account", section: "notifications" })}
-                  onNameWorkspace={() => setDialog({ kind: "workspace" })}
-                  activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
-                  onTryHuddle={() => {
-                    if (!activeChannelId) return;
-                    const ticket = navigation.current;
-                    setSidebarOpen(false);
-                    calls
-                      .joinHuddle(
-                        clientFromCtx,
-                        activeChannelId,
-                        () =>
-                          ticket === navigation.current && huddleRoom.current === activeChannelId,
-                      )
-                      .catch((err: unknown) => {
-                        setNavigationError(
-                          err instanceof Error
-                            ? `Could not start a huddle: ${err.message}`
-                            : "Could not start a huddle. Check your connection and try again.",
-                        );
-                      });
-                  }}
-                />
-              </Suspense>
+              <GettingStarted
+                onNewChannel={() => setDialog({ kind: "new-channel" })}
+                onInvite={() => setDialog({ kind: "invite" })}
+                onNotifications={() => setDialog({ kind: "account", section: "notifications" })}
+                onNameWorkspace={() => setDialog({ kind: "workspace" })}
+                activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
+                onTryHuddle={() => {
+                  if (!activeChannelId) return;
+                  const ticket = navigation.current;
+                  setSidebarOpen(false);
+                  calls
+                    .joinHuddle(
+                      clientFromCtx,
+                      activeChannelId,
+                      () => ticket === navigation.current && huddleRoom.current === activeChannelId,
+                    )
+                    .catch((err: unknown) => {
+                      setNavigationError(
+                        err instanceof Error
+                          ? `Could not start a huddle: ${err.message}`
+                          : "Could not start a huddle. Check your connection and try again.",
+                      );
+                    });
+                }}
+              />
             </ErrorBoundary>
           )
         }
@@ -1989,15 +2004,13 @@ function WorkspaceInner({
         />
       )}
       {dialog.kind === "search" && (
-        <LazyDialog loading="Loading search" onClose={closeDialog}>
-          <SearchDialog
-            channelId={activeChannelId}
-            initialQuery={dialog.query}
-            inConversation={dialog.inConversation}
-            onClose={closeDialog}
-            onJump={jumpToMessage}
-          />
-        </LazyDialog>
+        <SearchDialog
+          channelId={activeChannelId}
+          initialQuery={dialog.query}
+          inConversation={dialog.inConversation}
+          onClose={closeDialog}
+          onJump={jumpToMessage}
+        />
       )}
       {dialog.kind === "shortcuts" && (
         <LazyDialog loading="Loading keyboard shortcuts" onClose={closeDialog}>

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
-import { GettingStarted } from "../src/components/GettingStarted.js";
+import { GETTING_STARTED_COPY_KEY, GettingStarted } from "../src/components/GettingStarted.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 
@@ -34,6 +34,7 @@ const room = (id: string, name: string): Channel => ({
 const realNotification = globalThis.Notification;
 afterEach(() => {
   vi.restoreAllMocks();
+  localStorage.removeItem(GETTING_STARTED_COPY_KEY);
   if (realNotification) globalThis.Notification = realNotification;
   else delete (globalThis as { Notification?: unknown }).Notification;
 });
@@ -44,6 +45,8 @@ function checklist(
   options: {
     role?: User["role"];
     saved?: unknown;
+    /** A store that has not answered yet, as on a slow start. */
+    unread?: boolean;
     kind?: Platform["kind"];
     /** What the workspace is called; named by its owner unless said. */
     workspaceName?: string;
@@ -54,7 +57,10 @@ function checklist(
   const platform: Platform = {
     kind: options.kind ?? "web",
     storage: {
-      get: async <T,>(name: string) => (values.get(name) ?? null) as T | null,
+      get: <T,>(name: string) =>
+        options.unread
+          ? new Promise<T | null>(() => {})
+          : Promise.resolve((values.get(name) ?? null) as T | null),
       set: async (name: string, value: unknown) => void values.set(name, value),
     },
     notify: () => {},
@@ -228,5 +234,64 @@ describe("getting started, for whoever set the workspace up", () => {
     const again = checklist({ saved: { dismissed: true } });
     await act(async () => {});
     expect(again.container).toBeEmptyDOMElement();
+  });
+
+  describe("drawn with the sidebar, not after it", () => {
+    const copy = () =>
+      JSON.parse(localStorage.getItem(GETTING_STARTED_COPY_KEY) ?? "null") as unknown;
+    const keep = (value: unknown) =>
+      localStorage.setItem(GETTING_STARTED_COPY_KEY, JSON.stringify({ [SLOT]: value }));
+
+    it("draws the list as it was last time before the store answers", () => {
+      keep({ expanded: true });
+      checklist({ unread: true });
+      // In the first frame, so the channels below are not pushed down later.
+      const card = screen.getByRole("region", { name: "Getting started" });
+      expect(stepNames(card)).toHaveLength(4);
+    });
+
+    it("draws nothing before the store answers once the list was put away", () => {
+      keep({ dismissed: true });
+      const { container } = checklist({ unread: true });
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it("waits for the store on a device that has never shown it", () => {
+      const { container } = checklist({ unread: true });
+      expect(container).toBeEmptyDOMElement();
+    });
+
+    it("follows the store once read, and copies it for next time", async () => {
+      keep({});
+      checklist({ saved: { dismissed: true } });
+      expect(screen.getByRole("region", { name: "Getting started" })).toBeInTheDocument();
+      await waitFor(() =>
+        expect(screen.queryByRole("region", { name: "Getting started" })).toBeNull(),
+      );
+      expect(copy()).toEqual({ [SLOT]: { dismissed: true } });
+    });
+
+    it("keeps a press made before the store answers, and copies it", async () => {
+      keep({});
+      const { values, user } = checklist({ saved: { expanded: false } });
+      await user.click(allSteps(screen.getByRole("region", { name: "Getting started" })));
+      await act(async () => {});
+      expect(allSteps(await section())).toHaveAttribute("aria-expanded", "true");
+      expect(values.get(SLOT)).toEqual({ expanded: true });
+      expect(copy()).toEqual({ [SLOT]: { expanded: true } });
+    });
+
+    it("copies only what it keeps", async () => {
+      keep({ dismissed: "yes", expanded: true, note: "<script>" });
+      const first = checklist({ unread: true });
+      // "yes" is not a hide: only true is.
+      expect(stepNames(screen.getByRole("region", { name: "Getting started" }))).toHaveLength(4);
+      first.unmount();
+      localStorage.setItem(GETTING_STARTED_COPY_KEY, "not json");
+      const { values, user } = checklist({ saved: {} });
+      await user.click(within(await section()).getByRole("button", { name: "Hide" }));
+      await waitFor(() => expect(values.get(SLOT)).toEqual({ dismissed: true }));
+      expect(copy()).toEqual({ [SLOT]: { dismissed: true } });
+    });
   });
 });

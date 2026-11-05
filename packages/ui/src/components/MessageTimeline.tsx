@@ -163,9 +163,15 @@ export const MessageTimeline = memo(function MessageTimeline({
   }, [client, channelId, highlightMessageId]);
 
   const items = timeline?.items ?? [];
-  const firstUnread = items.findIndex(
-    (message) => message.seq > readBoundary.current.seq && message.userId !== selfId,
-  );
+  // Where the New line goes is known only with something already read loaded
+  // above it, or nothing older at all: otherwise the first unread may be
+  // further up, and a line above the oldest loaded would say it was here.
+  const lineKnown = !timeline?.hasMore || (items[0]?.seq ?? 0) <= readBoundary.current.seq;
+  const firstUnread = lineKnown
+    ? items.findIndex(
+        (message) => message.seq > readBoundary.current.seq && message.userId !== selfId,
+      )
+    : -1;
   const channelPending = pending.filter((p) => p.channelId === channelId && !p.threadRootId);
 
   async function requestHistory(kind: "initial" | "older" | "newer") {
@@ -179,7 +185,13 @@ export const MessageTimeline = memo(function MessageTimeline({
     historyAnchor.current = anchor ? { ticket, anchor } : null;
     try {
       if (kind === "newer") await client.loadNewer(channelId);
-      else await client.loadTimeline(channelId, { older: kind === "older" });
+      else
+        await client.loadTimeline(channelId, {
+          older: kind === "older",
+          // More missed than one page holds opens at the first of them, not the newest.
+          unreadAfter:
+            kind === "initial" && !pendingPosition.current ? readBoundary.current.seq : undefined,
+        });
       if (kind === "initial" && historyRequest.current === ticket)
         initialLoaded.current = channelId;
     } catch {
@@ -295,15 +307,18 @@ export const MessageTimeline = memo(function MessageTimeline({
     const el = scroller.current;
     if (!el || placedUnread.current === channelId || initialLoaded.current !== channelId) return;
     placedUnread.current = channelId;
-    if (highlightMessageId || timeline?.hasMoreNewer || pendingPosition.current) return;
+    // A window opened at the first unread is not the newest, and is placed too.
+    if (highlightMessageId || pendingPosition.current) return;
     // Never read here, as someone who has just joined: all of it is "new",
     // and the place to start is the newest, not the top of its history.
     if (readBoundary.current.seq === 0) return;
     const line = el.querySelector<HTMLElement>(NEW_LINE);
     if (!line) return;
-    const above = line.getBoundingClientRect().top - el.getBoundingClientRect().top;
-    if (above >= 0) return;
-    el.scrollTop += above - 12;
+    const box = el.getBoundingClientRect();
+    const at = line.getBoundingClientRect();
+    // Above the newest, or below the top of a window opened on what was missed.
+    if (at.top >= box.top && at.bottom <= box.bottom) return;
+    el.scrollTop += at.top - box.top - 12;
     pinnedToBottom.current = false;
     lastScrollTop.current = el.scrollTop;
     setAway({ newer: 0 });
@@ -517,9 +532,12 @@ export const MessageTimeline = memo(function MessageTimeline({
             className="timeline-pill pointer-events-auto absolute left-1/2 top-2 -translate-x-1/2"
           >
             <Icon name="arrow" size={13} style={{ transform: "rotate(-90deg)" }} />
-            {items.length - firstUnread === 1
-              ? "1 new message"
-              : `${items.length - firstUnread} new messages`}
+            {/* Newer ones not loaded yet would go uncounted. */}
+            {timeline?.hasMoreNewer
+              ? "New messages"
+              : items.length - firstUnread === 1
+                ? "1 new message"
+                : `${items.length - firstUnread} new messages`}
           </button>
         </div>
       )}
@@ -750,6 +768,11 @@ function DroppedEphemeralsNotice({ channelId, count }: { channelId: ID; count: n
 export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?: () => void }) {
   const client = useClient();
   const anchored = useWorkspace((s) => s.timelines[channelId]?.hasMoreNewer ?? false);
+  // Opened at what was missed, rather than jumped back to something read.
+  const catchingUp = useWorkspace((s) => {
+    const read = s.memberships[channelId] ?? 0;
+    return read > 0 && !!s.timelines[channelId]?.items.some((m) => m.seq > read);
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);
   const request = useRef<object | null>(null);
@@ -796,7 +819,11 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
           "Loading latest messages…"
         ) : (
           <>
-            {error ? "Retry jump to latest" : "You're viewing older messages · Jump to latest"}
+            {error
+              ? "Retry jump to latest"
+              : catchingUp
+                ? "Catching up · Jump to latest"
+                : "You're viewing older messages · Jump to latest"}
             <Icon
               name="arrow"
               size={14}

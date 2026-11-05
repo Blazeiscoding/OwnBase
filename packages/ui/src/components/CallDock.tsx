@@ -4,7 +4,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import { Icon } from "./Icon.js";
 import { useDialogOpen } from "./Modal.js";
-import { useOptionalToast } from "./Toast.js";
+import { useTryNotice } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 
 /**
@@ -15,7 +15,8 @@ import { Tooltip } from "./Tooltip.js";
  */
 export function CallDock({ where }: { where: string }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  // A camera that starts on the next press takes back the last press's failure.
+  const notice = useTryNotice();
   const open = useDialogOpen();
   const huddle = useWorkspace((s) => s.huddle);
   if (!open || !huddle) return null;
@@ -60,13 +61,14 @@ export function CallDock({ where }: { where: string }) {
             type="button"
             aria-label="Camera"
             aria-pressed={huddle.cameraOn}
-            onClick={() =>
+            onClick={() => {
+              notice.clear();
               void client.toggleCamera().catch((err: unknown) => {
                 // Closing the browser's own prompt says nothing, as in the bar.
                 const message = captureFailure("camera", err);
-                if (message) toast?.({ message, kind: "error" });
-              })
-            }
+                if (message) notice.show({ message, kind: "error" });
+              });
+            }}
             className={toggle(huddle.cameraOn, "bg-ink text-ground hover:bg-ink/85")}
           >
             <Icon name="camera" size={18} />

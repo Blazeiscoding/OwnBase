@@ -380,7 +380,7 @@ describe("opening a draft from the Drafts panel", () => {
     await user.click(within(panel).getByRole("button", { name: /^Thread in/ }));
     await screen.findByRole("complementary", { name: "Thread" });
     await waitFor(() => expect(load.mock.calls.length).toBeGreaterThan(before));
-    expect(load).toHaveBeenLastCalledWith(general.id, { older: false });
+    expect(load).toHaveBeenLastCalledWith(general.id, expect.objectContaining({ older: false }));
   });
 
   it("opens an unsaved edit in the message's editor", async () => {

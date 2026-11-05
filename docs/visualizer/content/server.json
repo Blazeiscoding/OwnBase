@@ -496,6 +496,7 @@
       "details": [
         "Owns account/session/channel/membership CRUD, per-user read/follow/save state, messages/files, invitations, audit records, integrations and durable queues. Visibility checks remain part of history and search queries.",
         "Message hydration batches reactions, reply counts, pins and file metadata for a page instead of running one query per message. Indexed mentions support unread counts without reparsing the entire history.",
+        "firstMessageAfterSeq finds where someone who had read up to a seq takes up reading again; GET /api/channels/:id/messages/since/:seq answers with the listMessagesAround window on it, so a conversation with more unread than one page opens at its New line (X3).",
         "Search combines safe quoted FTS terms, filename matches and structured filters. Rare terms start from matches; common terms try a newest-message window first and fill from older matches, preserving ordering and visibility.",
         "N06 soft deletion blanks words and actions, clears associated reaction/pin/save/mention state and redacts older event copies, including file names/buttons. Event sequence records remain so reconnect order still works.",
         "N07 markScheduledSent keeps status and message linkage while clearing text/file IDs and releasing scheduled-file holds in the message transaction.",

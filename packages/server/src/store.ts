@@ -2062,6 +2062,24 @@ export class Store {
     return { messages: this.hydrateMessages(rows), hasMoreOlder, hasMoreNewer };
   }
 
+  /**
+   * The first message someone else wrote in a conversation's history after an
+   * event seq: where `readerId`, who had read up to that seq, takes up reading
+   * again. Their own messages are not news to them, as the New line skips
+   * them. Null when nobody else has said anything there since.
+   */
+  firstMessageAfterSeq(channelId: ID, seq: number, readerId: ID): ID | null {
+    const row = this.db
+      .prepare(
+        `SELECT id FROM messages
+         WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND seq > ?
+           AND user_id != ?
+         ORDER BY id ASC LIMIT 1`,
+      )
+      .get(channelId, seq, readerId) as { id: string } | undefined;
+    return row?.id ?? null;
+  }
+
   /** Page forward from a message, for scrolling back down toward the tail. */
   listMessagesAfter(channelId: ID, afterId: ID, limit: number): Message[] {
     const rows = this.db

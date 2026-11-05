@@ -178,6 +178,19 @@ describe("the conversation's header", () => {
     );
   });
 
+  it("keeps what is typed straight after pressing search, fetched when the workspace opened", async () => {
+    const user = userEvent.setup();
+    const { header } = await workspace();
+    // Fetched when the workspace opened, so it is drawn at once, not as a loading step.
+    await act(() => import("../src/components/SearchDialog.js"));
+    await act(async () => {});
+    await user.click(within(header).getByRole("button", { name: "Search #general" }));
+    expect(screen.queryByRole("dialog", { name: "Loading search" })).toBeNull();
+    const dialog = screen.getByRole("dialog", { name: "Search messages" });
+    await user.keyboard("lunch");
+    expect(within(dialog).getByRole("textbox", { name: "Search messages" })).toHaveValue("lunch");
+  });
+
   it("offers pins, notification settings and details from its menu", async () => {
     const user = userEvent.setup();
     const { header } = await workspace();

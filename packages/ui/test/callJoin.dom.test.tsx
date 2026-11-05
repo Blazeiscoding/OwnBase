@@ -5,6 +5,7 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { HuddleButton } from "../src/components/HuddleBar.js";
+import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { useCallPreferences } from "../src/lib/callPreferences.js";
 import { writeRoute } from "../src/lib/route.js";
@@ -241,6 +242,27 @@ describe("preference-aware huddle admission (N04)", () => {
     await act(async () => saved.resolve({ joinMuted: true }));
     expect(join).not.toHaveBeenCalled();
     expect(replacement.join).not.toHaveBeenCalled();
+  });
+
+  it("takes a failed join's notice back when the next try starts", async () => {
+    const { join, wrap } = setup(async () => ({ joinMuted: false }));
+    const blocked =
+      "Joining a huddle needs your microphone, and access to it is blocked. Allow it in your browser or system settings, then try again.";
+    join.mockRejectedValueOnce(new Error(blocked));
+    render(
+      wrap(
+        <ToastProvider>
+          <HuddleButton channelId={general.id} />
+        </ToastProvider>,
+      ),
+    );
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Start a huddle" }));
+    expect(await screen.findByText(blocked)).toBeVisible();
+    // Allowed since: this try works, and the notice saying it was blocked goes.
+    await user.click(screen.getByRole("button", { name: "Start a huddle" }));
+    await waitFor(() => expect(join).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.queryByText(blocked)).toBeNull());
   });
 
   it.each(["damaged", [], {}, { joinMuted: "yes" }])(

@@ -589,6 +589,31 @@ export class Api {
     );
   }
 
+  /**
+   * A window centred on the first message after `seq`, where someone who had
+   * read up to it takes up reading again. 404 when nothing was said since, or
+   * from a server too old to offer it.
+   */
+  listMessagesSince(
+    channelId: ID,
+    seq: number,
+    limit = 50,
+    signal?: AbortSignal,
+  ): Promise<{
+    messages: Message[];
+    hasMoreOlder: boolean;
+    hasMoreNewer: boolean;
+    targetId: ID;
+    seq: number;
+  }> {
+    return this.request(
+      "GET",
+      `/api/channels/${channelId}/messages/since/${seq}?limit=${limit}`,
+      undefined,
+      { timeoutMs: 10_000, signal },
+    );
+  }
+
   listMessagesAfter(
     channelId: ID,
     afterId: ID,

@@ -716,6 +716,76 @@ describe("workspace server", () => {
     expect(after.data.messages.every((m) => m.id > middle)).toBe(true);
   });
 
+  it("loads a window from where someone stopped reading, past replies and their own messages", async () => {
+    const room = await api<{ channel: Channel }>("/api/channels", {
+      token: aliceToken,
+      body: { type: "public", name: "catching-up" },
+    });
+    const channelId = room.data.channel.id;
+    await api(`/api/channels/${channelId}/join`, { token: bobToken, method: "POST" });
+    const said: Message[] = [];
+    for (let i = 0; i < 30; i++) {
+      if (i === 12) {
+        // After the place read up to, before Bob's next message: a reply kept
+        // in its thread, and Alice's own words, neither of them news to her.
+        await api(`/api/channels/${channelId}/messages`, {
+          token: bobToken,
+          body: { text: "a reply", threadRootId: said[3]!.id },
+        });
+        await api(`/api/channels/${channelId}/messages`, {
+          token: aliceToken,
+          body: { text: "Alice's own note" },
+        });
+      }
+      const posted = await api<{ message: Message }>(`/api/channels/${channelId}/messages`, {
+        token: bobToken,
+        body: { text: `message ${i}` },
+      });
+      said.push(posted.data.message);
+    }
+    const read = said[11]!;
+
+    const since = await api<{
+      messages: Message[];
+      hasMoreOlder: boolean;
+      hasMoreNewer: boolean;
+      targetId: string;
+    }>(`/api/channels/${channelId}/messages/since/${read.seq}?limit=10`, { token: aliceToken });
+    expect(since.status).toBe(200);
+    expect(since.data.targetId).toBe(said[12]!.id);
+    // Some of what was read above it, for context, and more on either side.
+    expect(since.data.messages.map((m) => m.text)).toContain("message 12");
+    expect(since.data.messages.map((m) => m.text)).toContain("message 10");
+    expect(since.data.hasMoreOlder).toBe(true);
+    expect(since.data.hasMoreNewer).toBe(true);
+
+    // Only her own words since: nothing to take up again.
+    await api(`/api/channels/${channelId}/messages`, {
+      token: aliceToken,
+      body: { text: "Alice again" },
+    });
+    const caughtUp = await api(`/api/channels/${channelId}/messages/since/${said.at(-1)!.seq}`, {
+      token: aliceToken,
+    });
+    expect(caughtUp.status).toBe(404);
+    for (const bad of ["-1", "1.5", "abc", "99999999999999999"]) {
+      const res = await api(`/api/channels/${channelId}/messages/since/${bad}`, {
+        token: aliceToken,
+      });
+      expect(res.status).toBe(400);
+    }
+  });
+
+  it("will not load history from a place read in a hidden channel", async () => {
+    const secret = server.store.getChannelByName("secret-plans")!;
+    await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {
+      token: aliceToken,
+      body: { text: "still classified" },
+    });
+    const res = await api(`/api/channels/${secret.id}/messages/since/0`, { token: bobToken });
+    expect(res.status).toBe(404);
+  });
+
   it("will not load history around a message in a hidden channel", async () => {
     const secret = server.store.getChannelByName("secret-plans")!;
     const posted = await api<{ message: Message }>(`/api/channels/${secret.id}/messages`, {

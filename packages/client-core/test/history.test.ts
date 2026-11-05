@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { Message, ServerToClient } from "@ownbase/protocol";
-import { Api, WorkspaceClient } from "../src/index.js";
+import { Api, ApiError, WorkspaceClient } from "../src/index.js";
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
@@ -484,6 +484,70 @@ describe("timeline snapshot reconciliation", () => {
     hold.release();
     await loading;
     expect(client.state.timelines[channelId]?.items).toEqual([]);
+  });
+});
+
+describe("opening where reading stopped (X3)", () => {
+  async function said(count: number) {
+    const messages: Message[] = [];
+    for (let i = 0; i < count; i++)
+      messages.push((await owner.sendMessage(channelId, { text: `message ${i}` })).message);
+    await caughtUp();
+    return messages;
+  }
+
+  it("opens on the first unread when more were missed than one page holds", async () => {
+    const messages = await said(130);
+    await client.loadTimeline(channelId, { unreadAfter: messages[40]!.seq });
+    const timeline = client.state.timelines[channelId]!;
+    const ids = timeline.items.map((m) => m.id);
+    // Some of what was read above it, the first unread, and what follows.
+    expect(ids).toContain(messages[39]!.id);
+    expect(ids).toContain(messages[41]!.id);
+    expect(ids).not.toContain(messages.at(-1)!.id);
+    expect(timeline.hasMore).toBe(true);
+    expect(timeline.hasMoreNewer).toBe(true);
+    // Not read through to the newest: only reaching it marks the rest read.
+    expect(timeline.readThroughSeq).toBeUndefined();
+  });
+
+  it("opens on the newest when the unread fit in it, or the newest is asked for", async () => {
+    const messages = await said(130);
+    const since = vi.spyOn(client.api, "listMessagesSince");
+    await client.loadTimeline(channelId, { unreadAfter: messages[100]!.seq });
+    expect(client.state.timelines[channelId]!.items.at(-1)?.id).toBe(messages.at(-1)!.id);
+    expect(client.state.timelines[channelId]!.hasMoreNewer).toBe(false);
+    await client.loadTimeline(channelId, { latest: true, unreadAfter: messages[10]!.seq });
+    expect(client.state.timelines[channelId]!.hasMoreNewer).toBe(false);
+    expect(since).not.toHaveBeenCalled();
+  });
+
+  it("keeps the newest page from a server without it", async () => {
+    const messages = await said(70);
+    vi.spyOn(client.api, "listMessagesSince").mockRejectedValue(
+      new ApiError(404, "not_found", "Not found"),
+    );
+    await client.loadTimeline(channelId, { unreadAfter: messages[5]!.seq });
+    const timeline = client.state.timelines[channelId]!;
+    expect(timeline.items.at(-1)?.id).toBe(messages.at(-1)!.id);
+    expect(timeline.hasMoreNewer).toBe(false);
+    expect(timeline.readThroughSeq).toBe(messages.at(-1)!.seq);
+  });
+
+  it("keeps what changes while the window is on its way", async () => {
+    const messages = await said(120);
+    const hold = holdPage(client.api.listMessagesSince.bind(client.api));
+    vi.spyOn(client.api, "listMessagesSince").mockImplementation(hold.read);
+    const loading = client.loadTimeline(channelId, { unreadAfter: messages[30]!.seq });
+    await hold.captured;
+    await owner.editMessage(messages[31]!.id, "edited on the way");
+    await owner.deleteMessage(messages[32]!.id);
+    await caughtUp();
+    hold.release();
+    await loading;
+    const items = client.state.timelines[channelId]!.items;
+    expect(items.find((m) => m.id === messages[31]!.id)?.text).toBe("edited on the way");
+    expect(items.some((m) => m.id === messages[32]!.id)).toBe(false);
   });
 });
 
