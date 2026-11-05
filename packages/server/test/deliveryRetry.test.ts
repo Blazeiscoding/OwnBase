@@ -18,7 +18,8 @@ let store: Store;
 let subscriptionId: string;
 let appId: string;
 let seq = 0;
-let dataDir: string;
+/** The folder of a workspace kept on disk, for the one walk that restarts it. */
+let dataDir: string | null = null;
 
 async function open(dir: string) {
   // Isolated: nothing is sent, so the queue moves only as these tests move it.
@@ -32,9 +33,13 @@ async function open(dir: string) {
   store = server.store;
 }
 
-beforeEach(async () => {
-  dataDir = mkdtempSync(join(tmpdir(), "ownbase-retry-"));
-  await open(dataDir);
+/**
+ * A workspace with an app whose events wait in its queue. In memory unless a
+ * folder is given: each walk below makes over a thousand commits, and on disk
+ * Windows waits for every one, which took one walk past two minutes.
+ */
+async function setUp(dir = ":memory:") {
+  await open(dir);
   const owner = await fetch(`http://127.0.0.1:${server.port}/api/auth/register`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -53,11 +58,14 @@ beforeEach(async () => {
     eventTypes: [],
   }).id;
   seq = 0;
-});
+}
+
+beforeEach(() => setUp());
 
 afterEach(async () => {
   await server.stop();
-  rmSync(dataDir, { recursive: true, force: true });
+  if (dataDir) rmSync(dataDir, { recursive: true, force: true });
+  dataDir = null;
 });
 
 /** Queues `n` events; returns how many the ceiling let in. */
@@ -177,27 +185,36 @@ describe("retrying given-up app events (REV-15)", { timeout: 30_000 }, () => {
     expect(await response.json()).toEqual({ ok: true, retried: 1_000, waiting: 1_000 });
   });
 
-  it("keeps an accepted retry past the history window and a restart, then sends each once (F04)", async () => {
-    // Given up on a week ago, as after an outage: retried into a full queue.
-    failedAndFull(Date.now() - WEEK + 60_000);
-    expect(store.retryFailedEventDeliveries(subscriptionId)).toEqual({
-      retried: 1_000,
-      waiting: 1_000,
-    });
-    // The hourly prune crosses the original deadline while the queue is full.
-    store.pruneEventDeliveries(Date.now() + 120_000 - WEEK);
-    expect(delivery()).toMatchObject({ pending: CEILING, retrying: 1_000, dropped: 0 });
+  it(
+    "keeps an accepted retry past the history window and a restart, then sends each once (F04)",
+    { timeout: 120_000 },
+    async () => {
+      // The one walk that restarts the server, so its workspace is kept on disk,
+      // where Windows waits for each commit.
+      await server.stop();
+      dataDir = mkdtempSync(join(tmpdir(), "ownbase-retry-"));
+      await setUp(dataDir);
+      // Given up on a week ago, as after an outage: retried into a full queue.
+      failedAndFull(Date.now() - WEEK + 60_000);
+      expect(store.retryFailedEventDeliveries(subscriptionId)).toEqual({
+        retried: 1_000,
+        waiting: 1_000,
+      });
+      // The hourly prune crosses the original deadline while the queue is full.
+      store.pruneEventDeliveries(Date.now() + 120_000 - WEEK);
+      expect(delivery()).toMatchObject({ pending: CEILING, retrying: 1_000, dropped: 0 });
 
-    await server.stop();
-    await open(dataDir);
-    store.pruneEventDeliveries(Date.now() + 120_000 - WEEK);
-    expect(delivery()).toMatchObject({ pending: CEILING, retrying: 1_000, dropped: 0 });
+      await server.stop();
+      await open(dataDir);
+      store.pruneEventDeliveries(Date.now() + 120_000 - WEEK);
+      expect(delivery()).toMatchObject({ pending: CEILING, retrying: 1_000, dropped: 0 });
 
-    const sent = answer(10_000);
-    expect(sent).toHaveLength(1_500);
-    expect(new Set(sent).size).toBe(1_500);
-    expect(delivery()).toMatchObject({ pending: 0, failed: 0, retrying: 0 });
-  });
+      const sent = answer(10_000);
+      expect(sent).toHaveLength(1_500);
+      expect(new Set(sent).size).toBe(1_500);
+      expect(delivery()).toMatchObject({ pending: 0, failed: 0, retrying: 0 });
+    },
+  );
 
   it("still forgets expired given-up events nobody asked to retry (F04)", () => {
     failedAndFull(Date.now() - WEEK - 60_000);
