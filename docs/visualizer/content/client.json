@@ -700,6 +700,26 @@
       "concepts": ["routing", "history ownership", "deep linking", "reading position"]
     },
     {
+      "path": "packages/ui/src/lib/notifyLevels.ts",
+      "plain": "The names of the three notification levels, shared by the account's default in Settings and a conversation's own choice in its details.",
+      "summary": "NOTIFY_LEVELS and notifyLevelLabel (v53).",
+      "details": [
+        "NOTIFY_LEVELS words Every message, Direct messages and mentions, and Nothing. Account settings > Notifications offers them as Notify me about (client.setNotifyDefault); a channel's details add Use my default above them, chosen while ChannelPrefs.notifyChosen is false.",
+        "Which one counts for a message is effectiveNotifyLevel in the protocol: a conversation's own level once chosen, else the account's default, else mentions on a server without one."
+      ],
+      "concepts": ["notifications", "v53"]
+    },
+    {
+      "path": "packages/ui/src/lib/otherUnread.ts",
+      "plain": "Asks each of this device's other workspaces what waits there, so the rail can mark them while only one is open.",
+      "summary": "useOtherWorkspacesUnread, polling GET /api/me/unread.",
+      "details": [
+        "App passes the saved sign-ins other than the open one. Each is asked at once, every OTHER_UNREAD_EVERY_MS (30 s) while the window is seen, and again on focus, online and visibility. The answer (mentions, unread) goes to OtherWorkspace.waiting: the rail shows the count and the rail-pill unread state, and says it to a screen reader.",
+        "A workspace that cannot answer (404 from an older server, 401 for an ended sign-in, no connection) shows nothing. The same sign-ins re-rendered ask nothing new."
+      ],
+      "concepts": ["workspace switching", "unread"]
+    },
+    {
       "path": "packages/ui/src/lib/signOut.ts",
       "plain": "Tells a sign-in the workspace ended apart from one the person ended themselves, so the sign-in screen can say what happened.",
       "summary": "signOutOnPurpose, signedOutHow and the SignedOutFrom the sign-in screen is given.",
