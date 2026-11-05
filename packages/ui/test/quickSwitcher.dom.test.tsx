@@ -40,7 +40,10 @@ const room = (
 /** A workspace client that never connects, holding the replica a test gives it. */
 function switcherWith(
   extra: Partial<
-    Pick<Parameters<typeof QuickSwitcher>[0], "commands" | "onSearch" | "recent">
+    Pick<
+      Parameters<typeof QuickSwitcher>[0],
+      "commands" | "onSearch" | "recent" | "initialQuery" | "openAtOnce"
+    >
   > = {},
 ) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
@@ -228,6 +231,30 @@ describe("jumping to a conversation", () => {
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(openDm).toHaveBeenCalledTimes(2);
     expect(onOpen).toHaveBeenCalledWith("D_PRIYA");
+  });
+});
+
+describe("what was typed while the palette loaded", () => {
+  it("is carried on from, the caret after it", async () => {
+    const user = userEvent.setup();
+    const { onOpen } = switcherWith({ initialQuery: "lea" });
+    const box = screen.getByRole("combobox", { name: "Channel or person" });
+    expect(box).toHaveValue("lea");
+    expect(box).toHaveFocus();
+    await user.keyboard("ds{Enter}");
+    expect(box).toHaveValue("leads");
+    expect(onOpen).toHaveBeenCalledWith("C_LEADS");
+  });
+
+  it("with an Enter, goes where that Enter would have gone, once", () => {
+    const { onOpen } = switcherWith({ initialQuery: "leads", openAtOnce: true });
+    expect(onOpen).toHaveBeenCalledTimes(1);
+    expect(onOpen).toHaveBeenCalledWith("C_LEADS");
+  });
+
+  it("with only an Enter, opens what Enter opens on an empty palette", () => {
+    const { onOpen } = switcherWith({ openAtOnce: true });
+    expect(onOpen).toHaveBeenCalledWith("C_DESIGN");
   });
 });
 

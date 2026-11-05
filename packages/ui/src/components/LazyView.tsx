@@ -48,8 +48,16 @@ export function LazyPanel(props: { name: string; onClose: () => void; children: 
   );
 }
 
-/** A dialog loaded on first use, with the same promise as a panel. */
-export function LazyDialog(props: { loading: string; onClose: () => void; children: ReactNode }) {
+/**
+ * A dialog loaded on first use, with the same promise as a panel. `placeholder`
+ * stands in while it loads, for one that has more to do then than say so.
+ */
+export function LazyDialog(props: {
+  loading: string;
+  onClose: () => void;
+  placeholder?: ReactNode;
+  children: ReactNode;
+}) {
   return (
     <ErrorBoundary
       fallback={
@@ -68,13 +76,15 @@ export function LazyDialog(props: { loading: string; onClose: () => void; childr
     >
       <Suspense
         fallback={
-          <Dialog title={props.loading} onClose={props.onClose}>
-            <p role="status" className="text-sm text-ink-faint">
-              <span className="text-shimmer" data-text="Opening this view…">
-                Opening this view…
-              </span>
-            </p>
-          </Dialog>
+          props.placeholder ?? (
+            <Dialog title={props.loading} onClose={props.onClose}>
+              <p role="status" className="text-sm text-ink-faint">
+                <span className="text-shimmer" data-text="Opening this view…">
+                  Opening this view…
+                </span>
+              </p>
+            </Dialog>
+          )
         }
       >
         {props.children}
