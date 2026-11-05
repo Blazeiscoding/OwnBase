@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, ForwardReference, Message, User } from "@ownbase/protocol";
@@ -133,6 +133,22 @@ describe("forwarding a message", () => {
     });
     expect(screen.queryByRole("dialog", { name: "Forward message" })).toBeNull();
     expect(await screen.findByText("Forwarded to #design.")).toBeVisible();
+  });
+
+  it("leaves an input method's Enter and arrows to it", async () => {
+    // Typing Japanese or Chinese, Enter picks among the candidates: it is not
+    // whom to send to, and the arrows walk the candidates, not the list.
+    const { user } = shown(message());
+    const dialog = await openForward(user);
+    const field = within(dialog).getByRole("combobox", { name: "Forward to" });
+    await user.type(field, "des");
+    fireEvent.keyDown(field, { key: "ArrowDown", isComposing: true });
+    fireEvent.keyDown(field, { key: "Enter", isComposing: true });
+    expect(field).toHaveValue("des");
+    expect(within(dialog).getByRole("option", { name: "#design" })).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
   });
 
   it("sends to someone there is no conversation with yet, starting one", async () => {

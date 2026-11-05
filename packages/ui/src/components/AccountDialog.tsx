@@ -28,6 +28,7 @@ import { TwoStepSettings } from "./TwoStepSettings.js";
 import { LinkedSignIns } from "./LinkedSignIns.js";
 import { BlockedPeople } from "./Blocking.js";
 import { buttonClass } from "./Button.js";
+import { isImeKey } from "../lib/textInput.js";
 
 type Confirmation =
   { kind: "device"; session: SessionInfo } | { kind: "others" } | { kind: "signout" };
@@ -300,6 +301,9 @@ export function AccountDialog({
             maxLength={80}
             onChange={(event) => setQuery(event.target.value)}
             onKeyDown={(event) => {
+              // An input method's Enter picks a candidate and its Escape lets go
+              // of one: neither is a jump to a result or clearing the field.
+              if (isImeKey(event.nativeEvent)) return;
               if (event.key === "Escape" && query) {
                 // Clears the search first; the next Escape closes the window.
                 event.preventDefault();
