@@ -77,6 +77,7 @@ import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
+import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
   findCloudflared,
@@ -387,6 +388,8 @@ let savedAppearance: unknown = null;
 let savedWindowPlace: unknown = null;
 /** Saves the open window's place now rather than after its pause; null without a window. */
 let saveWindowPlaceNow: (() => void) | null = null;
+/** The page's zoom level (zoomKeys.ts), read at startup and kept as the keys change it. */
+let savedZoom = 0;
 
 /**
  * The window's background and title bar overlay in the page's theme: when the
@@ -1257,6 +1260,20 @@ function createWindow(): void {
     event.preventDefault();
   });
 
+  // Ctrl and =, - or 0 zoom as in a browser (zoomKeys.ts), and the zoom is
+  // kept for the next launch.
+  win.webContents.on("before-input-event", (event, input) => {
+    const step = zoomStep(input, process.platform);
+    if (!step) return;
+    event.preventDefault();
+    savedZoom = nextZoomLevel(win.webContents.getZoomLevel(), step);
+    win.webContents.setZoomLevel(savedZoom);
+    void writeSetting(ZOOM_KEY, savedZoom).catch(() => {});
+  });
+  win.webContents.on("did-finish-load", () => {
+    if (!win.isDestroyed()) win.webContents.setZoomLevel(savedZoom);
+  });
+
   // External links open in the OS browser, never inside the app.
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:/.test(url)) void shell.openExternal(url);
@@ -1356,6 +1373,7 @@ void app.whenReady().then(async () => {
   savedAppearance = await settings.get(APPEARANCE_KEY).catch(() => null);
   // Unreadable, the window opens at its usual size, centred.
   savedWindowPlace = await settings.get(WINDOW_PLACE_KEY).catch(() => null);
+  savedZoom = savedZoomLevel(await settings.get(ZOOM_KEY).catch(() => null));
   publicAddressLookup = null;
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;
