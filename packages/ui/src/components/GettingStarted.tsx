@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { DEFAULT_WORKSPACE_NAME } from "@ownbase/protocol";
 import { useOptionalToast } from "./Toast.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
@@ -15,6 +15,47 @@ interface Saved {
   huddleTried?: boolean;
   /** Every step listed rather than only the next, as a sidebar category stays open. */
   expanded?: boolean;
+}
+
+/**
+ * Where the list's last known state is copied, outside the device store and
+ * its "ownbase:" names: the store is read after the sidebar is drawn, and a
+ * list that appeared only then pushed the channels down under the pointer.
+ * The state itself stays in the store; the copy follows it.
+ */
+export const GETTING_STARTED_COPY_KEY = "ownbase-getting-started";
+
+/** Only what is kept, so nothing else stored there is drawn from. */
+function cleaned(value: unknown): Saved | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const { dismissed, huddleTried, expanded } = value as Record<string, unknown>;
+  return {
+    ...(dismissed === true ? { dismissed } : {}),
+    ...(huddleTried === true ? { huddleTried } : {}),
+    ...(typeof expanded === "boolean" ? { expanded } : {}),
+  };
+}
+
+function copies(): Record<string, unknown> {
+  try {
+    const all: unknown = JSON.parse(localStorage.getItem(GETTING_STARTED_COPY_KEY) ?? "null");
+    return all && typeof all === "object" && !Array.isArray(all)
+      ? (all as Record<string, unknown>)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+function keepCopy(key: string, saved: Saved) {
+  try {
+    localStorage.setItem(
+      GETTING_STARTED_COPY_KEY,
+      JSON.stringify({ ...copies(), [key]: cleaned(saved) }),
+    );
+  } catch {
+    // Without it the list is drawn once the store is read, as before.
+  }
 }
 
 /** What the browser allows, or whether the desktop app shows its own. */
@@ -56,7 +97,15 @@ export function GettingStarted(props: {
     const scoped = workspaceStorageKey(client.baseUrl, workspaceId, self?.id, "getting-started");
     return scoped && { key: scoped.key };
   }, [client.baseUrl, workspaceId, self?.id]);
-  const [saved, setSaved] = useState<Saved | null>(null);
+  // What is stored, with the key it is stored under.
+  const [saved, setSaved] = useState<{ key: string; value: Saved } | null>(null);
+  // Drawn from with the sidebar until the store is read. None on a device
+  // that has never shown the list, which then appears once it is read.
+  const copy = useMemo(() => (key ? cleaned(copies()[key.key]) : null), [key]);
+  const loaded = key && saved?.key === key.key ? saved.value : null;
+  const current = loaded ?? copy;
+  // The key last pressed for: a press on the copy is newer than any read.
+  const pressed = useRef<string | null>(null);
   // Notification permission changes outside the app, so look again on return.
   const [, recheck] = useState(0);
   // How often the whole list has been opened: its rows come in afresh each time.
@@ -69,7 +118,10 @@ export function GettingStarted(props: {
     readWorkspaceStorage<Saved>(platform, key)
       .catch(() => null)
       .then((value) => {
-        if (alive) setSaved(value && typeof value === "object" ? value : {});
+        if (!alive || pressed.current === key.key) return;
+        const read = value && typeof value === "object" ? value : {};
+        setSaved({ key: key.key, value: read });
+        keepCopy(key.key, read);
       });
     return () => {
       alive = false;
@@ -77,15 +129,18 @@ export function GettingStarted(props: {
   }, [platform, key]);
 
   const save = (next: Saved) => {
-    setSaved(next);
+    if (!key) return;
+    pressed.current = key.key;
+    setSaved({ key: key.key, value: next });
+    keepCopy(key.key, next);
     // Losing this only shows the list again; nothing to report.
-    if (key) writeWorkspaceStorage(platform, key, next).catch(() => {});
+    writeWorkspaceStorage(platform, key, next).catch(() => {});
   };
 
   useEffect(() => {
-    if (inHuddle && saved && !saved.huddleTried) save({ ...saved, huddleTried: true });
+    if (inHuddle && loaded && !loaded.huddleTried) save({ ...loaded, huddleTried: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inHuddle, saved]);
+  }, [inHuddle, loaded]);
 
   useEffect(() => {
     const again = () => recheck((n) => n + 1);
@@ -93,7 +148,7 @@ export function GettingStarted(props: {
     return () => window.removeEventListener("focus", again);
   }, []);
 
-  if (self?.role !== "owner" || !saved || saved.dismissed) return null;
+  if (self?.role !== "owner" || !current || current.dismissed) return null;
   const rooms = Object.values(channels).filter(
     (c) => (c.type === "public" || c.type === "private") && !c.archived,
   );
@@ -136,7 +191,7 @@ export function GettingStarted(props: {
       label: props.activeChannelName
         ? `Try a huddle in ${props.activeChannelName}`
         : "Try a huddle",
-      done: saved.huddleTried === true || inHuddle,
+      done: current.huddleTried === true || inHuddle,
       action: "Start",
       onClick: props.onTryHuddle,
     },
@@ -145,7 +200,7 @@ export function GettingStarted(props: {
   if (left === 0) return null;
 
   const done = steps.length - left;
-  const expanded = saved.expanded === true;
+  const expanded = current.expanded === true;
   // Folded, the list is the next step alone: the first one still to do.
   const shown = expanded ? steps : steps.filter((step) => !step.done).slice(0, 1);
   return (
@@ -162,8 +217,8 @@ export function GettingStarted(props: {
         </p>
         <button
           onClick={() => {
-            const before = saved;
-            save({ ...saved, dismissed: true });
+            const before = current;
+            save({ ...current, dismissed: true });
             // Nothing else brings the list back, so a hide by mistake can be undone.
             toast?.({
               message: "Getting started is hidden.",
@@ -190,7 +245,7 @@ export function GettingStarted(props: {
           aria-controls={listId}
           onClick={() => {
             if (!expanded) setOpened((n) => n + 1);
-            save({ ...saved, expanded: !expanded });
+            save({ ...current, expanded: !expanded });
           }}
           className="-mr-1.5 flex h-6 shrink-0 items-center gap-0.5 rounded-md px-1.5 text-[12px] text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
         >

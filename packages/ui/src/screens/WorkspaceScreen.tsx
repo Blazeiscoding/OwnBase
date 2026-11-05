@@ -32,6 +32,9 @@ import {
 } from "../components/Sidebar.js";
 import { JumpToLatestBar, MessageTimeline } from "../components/MessageTimeline.js";
 import { Composer } from "../components/Composer.js";
+// In the first frame with the sidebar it sits above: loaded later, it pushed
+// the channels down under the pointer. Shown only to an owner, and small.
+import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
@@ -123,12 +126,6 @@ const WorkspaceSettings = lazy(() =>
 );
 // Opened now and then rather than on every visit, so they load on first use
 // and keep what every visit downloads small.
-// Shown to the owner until the first steps are done, then never again.
-const GettingStarted = lazy(() =>
-  import("../components/GettingStarted.js").then((module) => ({
-    default: module.GettingStarted,
-  })),
-);
 // Asked once per device, and only by a browser that has not answered yet.
 const NotificationBanner = lazy(() =>
   import("../components/NotificationBanner.js").then((module) => ({
@@ -1554,34 +1551,31 @@ function WorkspaceInner({
         gettingStarted={
           self?.role === "owner" && (
             <ErrorBoundary fallback={<span hidden />}>
-              <Suspense fallback={null}>
-                <GettingStarted
-                  onNewChannel={() => setDialog({ kind: "new-channel" })}
-                  onInvite={() => setDialog({ kind: "invite" })}
-                  onNotifications={() => setDialog({ kind: "account", section: "notifications" })}
-                  onNameWorkspace={() => setDialog({ kind: "workspace" })}
-                  activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
-                  onTryHuddle={() => {
-                    if (!activeChannelId) return;
-                    const ticket = navigation.current;
-                    setSidebarOpen(false);
-                    calls
-                      .joinHuddle(
-                        clientFromCtx,
-                        activeChannelId,
-                        () =>
-                          ticket === navigation.current && huddleRoom.current === activeChannelId,
-                      )
-                      .catch((err: unknown) => {
-                        setNavigationError(
-                          err instanceof Error
-                            ? `Could not start a huddle: ${err.message}`
-                            : "Could not start a huddle. Check your connection and try again.",
-                        );
-                      });
-                  }}
-                />
-              </Suspense>
+              <GettingStarted
+                onNewChannel={() => setDialog({ kind: "new-channel" })}
+                onInvite={() => setDialog({ kind: "invite" })}
+                onNotifications={() => setDialog({ kind: "account", section: "notifications" })}
+                onNameWorkspace={() => setDialog({ kind: "workspace" })}
+                activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
+                onTryHuddle={() => {
+                  if (!activeChannelId) return;
+                  const ticket = navigation.current;
+                  setSidebarOpen(false);
+                  calls
+                    .joinHuddle(
+                      clientFromCtx,
+                      activeChannelId,
+                      () => ticket === navigation.current && huddleRoom.current === activeChannelId,
+                    )
+                    .catch((err: unknown) => {
+                      setNavigationError(
+                        err instanceof Error
+                          ? `Could not start a huddle: ${err.message}`
+                          : "Could not start a huddle. Check your connection and try again.",
+                      );
+                    });
+                }}
+              />
             </ErrorBoundary>
           )
         }
