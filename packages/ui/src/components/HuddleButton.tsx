@@ -8,7 +8,7 @@ import { useCallPreferences } from "../lib/callPreferences.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import { channelTitle } from "../lib/format.js";
-import { useOptionalToast } from "./Toast.js";
+import { useTryNotice } from "./Toast.js";
 import { useOptionalConfirm } from "./Confirm.js";
 import type { WorkspaceClient } from "@ownbase/client-core";
 
@@ -54,7 +54,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   const [joining, setJoining] = useState(false);
   const calls = useCallPreferences();
   const confirm = useOptionalConfirm();
-  const toast = useOptionalToast();
+  const notice = useTryNotice();
   const currentRoom = useRef({ client, channelId });
   currentRoom.current = { client, channelId };
   const mounted = useRef(true);
@@ -69,6 +69,8 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
 
   async function join() {
     setError(null);
+    // The last try's failure is old news, whether this one works or not.
+    notice.clear();
     if (!(await confirmHuddleSwitch(client, confirm, channelId))) return;
     setJoining(true);
     try {
@@ -83,8 +85,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not join this huddle.";
       // A notice stays until read; the button had room for a few words for four seconds.
-      if (toast) toast({ message, kind: "error" });
-      else if (mounted.current) {
+      if (!notice.show({ message, kind: "error" }) && mounted.current) {
         setError(message);
         setTimeout(() => {
           if (mounted.current) setError(null);
