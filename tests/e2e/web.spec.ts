@@ -3903,6 +3903,43 @@ async function pressUntilFocused(page: Page, key: string, target: Locator, limit
   await expect(target, `${key} never reached it`).toBeFocused({ timeout: 1 });
 }
 
+test("Jump to keeps a name and an Enter typed before its code has arrived", async ({ page }) => {
+  // The palette's code held back, as on a slow line in the first moment after
+  // signing in, when the workspace has only just asked for it.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/assets\/QuickSwitcher-[^/]*\.js$/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  const login = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ handle: "alice", password: "password123" }),
+  });
+  const alice = { authorization: `Bearer ${((await login.json()) as { token: string }).token}` };
+  const created = await fetch(`${base}/api/channels`, {
+    method: "POST",
+    headers: { ...alice, "content-type": "application/json" },
+    body: JSON.stringify({ name: "design", type: "public" }),
+  });
+  expect(created.status).toBe(201);
+
+  await signIn(page, "alice");
+  await page.keyboard.press("Control+k");
+  const jumpTo = page.getByRole("dialog", { name: "Jump to", exact: true });
+  await expect(jumpTo).toContainText("Loading…");
+  await page.keyboard.type("design");
+  await page.keyboard.press("Enter");
+  await expect(jumpTo.getByRole("textbox", { name: "Channel or person" })).toHaveValue("design");
+  await expect(page.locator(".channel-header h2")).toHaveText("#general");
+
+  release();
+  await expect(page.locator(".channel-header h2")).toHaveText("#design");
+  await expect(jumpTo).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Message #design" })).toBeFocused();
+});
+
 test("somebody with only a keyboard signs in, switches channel, replies, reacts, searches and opens settings", async ({
   browser,
 }) => {
@@ -3977,9 +4014,6 @@ test("somebody with only a keyboard signs in, switches channel, replies, reacts,
 
     // Switch channel from the switcher.
     await page.keyboard.press("Control+k");
-    // Jump to is fetched as the workspace opens. This soon after signing in it
-    // can still be loading, and what is typed into its loading state is lost.
-    await expect(page.getByRole("combobox", { name: "Channel or person" })).toBeFocused();
     await page.keyboard.type("design");
     await page.keyboard.press("Enter");
     await expect(page.locator(".channel-header h2")).toHaveText("#design");

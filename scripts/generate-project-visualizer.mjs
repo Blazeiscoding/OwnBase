@@ -381,6 +381,11 @@ const data = {
   areas: catalogs.map(({ area, overview }) => ({ area, overview })),
 };
 const checking = process.argv.includes("--check");
+// Somewhere else to write the page: its tests build a fresh one with --out,
+// since the copy in docs/ lags the code between rebuilds.
+const outAt = process.argv.indexOf("--out");
+if (outAt >= 0 && !process.argv[outAt + 1]) throw new Error("--out needs a path to write to.");
+const written = outAt >= 0 ? resolve(process.argv[outAt + 1]) : resolve(root, outputPath);
 let existing;
 if (checking) {
   existing = read(outputPath);
@@ -436,8 +441,8 @@ if (checking) {
     `Visualizer is current: ${files.length} files, ${runtime.length}/${runtime.length} runtime explanations, ${flows.length} flows, ${optimizations.length} improvements.`,
   );
 } else {
-  writeFileSync(resolve(root, outputPath), html);
+  writeFileSync(written, html);
   console.log(
-    `Wrote ${relative(root, resolve(root, outputPath))}: ${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB; ${files.length} files; ${runtime.length}/${runtime.length} runtime explanations.`,
+    `Wrote ${relative(root, written)}: ${(Buffer.byteLength(html) / 1024 / 1024).toFixed(2)} MiB; ${files.length} files; ${runtime.length}/${runtime.length} runtime explanations.`,
   );
 }

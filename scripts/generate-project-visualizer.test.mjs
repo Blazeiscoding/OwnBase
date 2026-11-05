@@ -1,19 +1,11 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import {
-  existsSync,
-  mkdirSync,
-  mkdtempSync,
-  readFileSync,
-  realpathSync,
-  rmSync,
-  writeFileSync,
-} from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
-import test from "node:test";
+import test, { after } from "node:test";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { Script } from "node:vm";
 
@@ -25,8 +17,17 @@ const sha256 = (value) => createHash("sha256").update(value).digest("hex");
 const git = (base, ...args) =>
   execFileSync("git", args, { cwd: base, encoding: "utf8", stdio: ["ignore", "pipe", "pipe"] });
 
-assert.ok(existsSync(resolve(root, outputPath)), "Run pnpm visualizer:build before these checks.");
-const html = read(outputPath);
+// These check what the generator makes from this checkout now, built here,
+// not the copy in docs/: that one lags the code between rebuilds, and whether
+// it is current is pnpm visualizer:check's question.
+const built = mkdtempSync(resolve(realpathSync(tmpdir()), "ownbase-visualizer-"));
+after(() => rmSync(built, { recursive: true, force: true }));
+execFileSync(
+  process.execPath,
+  [resolve(root, "scripts/generate-project-visualizer.mjs"), "--out", resolve(built, "page.html")],
+  { cwd: root, stdio: ["ignore", "pipe", "pipe"] },
+);
+const html = read(resolve(built, "page.html"));
 const dataBlocks = [
   ...html.matchAll(/<script id="project-data" type="application\/json">([\s\S]*?)<\/script>/g),
 ];

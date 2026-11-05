@@ -1828,9 +1828,19 @@
       "details": [
         "Builds labelled suggestion rows and keeps text-field focus with useListbox; IME Enter stays text input.",
         "Existing conversations navigate directly, while a person without a DM starts one and shows pending/failure state. This is a navigation convenience over the server-authorized openDm operation.",
-        "It is kept out of the entry every visit downloads and fetched as soon as the workspace opens; see WorkspaceScreen."
+        "It is kept out of the entry every visit downloads and fetched as soon as the workspace opens; see WorkspaceScreen. It takes on what was typed before it arrived (initialQuery), and an Enter pressed then (openAtOnce)."
       ],
       "concepts": ["quick navigation", "autocomplete", "direct messages"]
+    },
+    {
+      "path": "packages/ui/src/components/QuickSwitcherLoading.tsx",
+      "plain": "Jump to while its code is still on the way: the same box, keeping what is typed.",
+      "summary": "Stands in for the Ctrl+K palette until its code arrives, keeping typing and an Enter.",
+      "details": [
+        "In the first moment after signing in the palette can still be loading. This draws its frame with a real field, so a name typed straight after Ctrl+K is kept, and an Enter is remembered.",
+        "WorkspaceScreen passes it to LazyDialog as the placeholder and hands what it kept to the palette as initialQuery and openAtOnce. It also holds the frame, field and placeholder text both share, so the one gives way to the other unseen."
+      ],
+      "concepts": ["quick navigation", "lazy loading", "typing before load"]
     },
     {
       "path": "packages/ui/src/components/MembersPanel.tsx",
@@ -2716,7 +2726,7 @@
       "plain": "Shows a loading message while a panel or dialog downloads on first use, and offers to close or reload if that fails.",
       "summary": "Wraps on-demand panels and dialogs with loading and failed-chunk recovery.",
       "details": [
-        "Suspense announces what is loading and retains a way to close the pending view.",
+        "Suspense announces what is loading and retains a way to close the pending view. A dialog with more to do while it loads passes its own placeholder, as Jump to does with QuickSwitcherLoading.",
         "An ErrorBoundary confines a failed download to that view and provides close/reload actions, allowing the rest of the workspace to remain usable."
       ],
       "concepts": ["lazy loading", "chunk failure isolation", "recoverable navigation"]

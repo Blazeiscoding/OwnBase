@@ -8,6 +8,13 @@ import { Icon, type IconName } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { useListbox } from "../lib/useListbox.js";
 import { matchTier, rankPlaces, type PlaceStanding } from "../lib/switcherRank.js";
+import {
+  SWITCHER_CLOSE,
+  SWITCHER_FIELD,
+  SWITCHER_FRAME,
+  SWITCHER_ROW,
+  switcherPlaceholder,
+} from "./QuickSwitcherLoading.js";
 
 /** Something to do from the palette rather than somewhere to go. */
 export interface PaletteCommand {
@@ -99,6 +106,10 @@ export function QuickSwitcher(props: {
   recent?: readonly ID[];
   commands?: PaletteCommand[];
   onSearch?: (query: string) => void;
+  /** What was typed while the palette loaded, to carry on from. */
+  initialQuery?: string;
+  /** Enter was pressed while it loaded: go where it would have gone. */
+  openAtOnce?: boolean;
 }) {
   const client = useClient();
   const channels = useWorkspace((s) => s.channels);
@@ -106,7 +117,7 @@ export function QuickSwitcher(props: {
   const selfId = useWorkspace((s) => s.self?.id);
   const memberships = useWorkspace((s) => s.memberships);
   const lastSeq = useWorkspace((s) => s.channelLastSeq);
-  const [q, setQ] = useState("");
+  const [q, setQ] = useState(props.initialQuery ?? "");
   /** A person whose new direct conversation is being started, or failed to start. */
   const [opening, setOpening] = useState<SwitcherRow | null>(null);
   const [failed, setFailed] = useState<SwitcherRow | null>(null);
@@ -242,18 +253,28 @@ export function QuickSwitcher(props: {
     }
   }
 
+  const openedAtOnce = useRef(false);
+  useEffect(() => {
+    if (!props.openAtOnce || openedAtOnce.current) return;
+    openedAtOnce.current = true;
+    const chosen = results[list.active];
+    if (chosen) void open(chosen);
+    // Once, as the palette arrives: the Enter was for what had been typed then.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const query = q.trim();
 
   return (
     // A palette rather than a dialog: no title bar, no animation, because it
     // opens dozens of times a day from the keyboard and must feel instant.
     <Modal
-      title="Jump to"
+      title={SWITCHER_FRAME.title}
       onClose={props.onClose}
-      backdropClassName="flex items-start justify-center dialog-backdrop px-3 pt-[14vh]"
-      className="w-[560px] max-w-full dialog-surface overflow-hidden rounded-2xl border border-[var(--card-edge)] outline-none"
+      backdropClassName={SWITCHER_FRAME.backdropClassName}
+      className={SWITCHER_FRAME.className}
     >
-      <div className="flex items-center gap-3 border-b border-edge px-4">
+      <div className={SWITCHER_ROW}>
         <Icon name="search" size={18} className="text-ink-faint" />
         <input
           autoFocus
@@ -273,16 +294,11 @@ export function QuickSwitcher(props: {
             const chosen = results[list.active];
             if (e.key === "Enter" && chosen) void open(chosen);
           }}
-          placeholder={props.commands?.length ? "Channel, person or action" : "Channel or person"}
-          className="h-14 min-w-0 flex-1 bg-transparent text-[15px] outline-none placeholder:text-ink-faint"
+          placeholder={switcherPlaceholder(!!props.commands?.length)}
+          className={SWITCHER_FIELD}
         />
         {/* For a finger or a pointer; the keyboard has Escape. */}
-        <button
-          type="button"
-          aria-label="Close"
-          onClick={props.onClose}
-          className="-mr-1.5 flex size-8 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
-        >
+        <button type="button" aria-label="Close" onClick={props.onClose} className={SWITCHER_CLOSE}>
           <Icon name="close" size={16} />
         </button>
       </div>
