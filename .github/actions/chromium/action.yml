@@ -1,0 +1,36 @@
+name: Chromium for the browser tests
+description: >-
+  Installs the Chromium the browser tests use, and the Linux packages it
+  needs, from caches that caches.yml fills on main.
+# The runner image already has every library Chromium needs; what it lacks is
+# nine font packages, 22 MB, which the visual check's pictures were taken with.
+# Ubuntu's mirror has served those at 40 kB/s, which made one install take
+# nine minutes instead of twenty seconds. So the packages come from a cache
+# into apt's own download folder, and apt fetches only what has a newer
+# version since. Restoring alone leaves no cache behind that only one pull
+# request could use.
+runs:
+  using: composite
+  steps:
+    - uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+    # Any earlier copy is better than none: fonts rarely change, and apt
+    # checks each file against its index before using it.
+    - uses: actions/cache/restore@v6
+      with:
+        path: ~/.cache/playwright-apt
+        key: playwright-apt-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+        restore-keys: playwright-apt-${{ runner.os }}-
+    - shell: bash
+      run: |
+        shopt -s nullglob
+        debs=("$HOME"/.cache/playwright-apt/*.deb)
+        if [ ${#debs[@]} -gt 0 ]; then
+          sudo cp "${debs[@]}" /var/cache/apt/archives/
+          echo "Restored ${#debs[@]} packages for apt"
+        else
+          echo "::notice::No cached packages for Chromium; apt downloads them."
+        fi
+        pnpm exec playwright install --with-deps chromium

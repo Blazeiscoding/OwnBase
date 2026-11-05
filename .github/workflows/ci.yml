@@ -241,14 +241,9 @@ jobs:
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-checks-
             turbo-${{ runner.os }}-${{ runner.arch }}-node-${{ steps.node.outputs.node-version }}-${{ hashFiles('pnpm-lock.yaml', 'turbo.json') }}-
       - run: pnpm exec turbo run build --filter=ownbase-server
-      # Chromium comes from a cache caches.yml fills on main, and is only
-      # downloaded when the lockfile has moved on without it. Restoring alone
-      # leaves no cache behind that only this pull request could use.
-      - uses: actions/cache/restore@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm exec playwright install --with-deps chromium
+      # Chromium and its fonts come from caches caches.yml fills on main, and
+      # are only downloaded when the lockfile has moved on without them.
+      - uses: ./.github/actions/chromium
       - run: ${{ matrix.run }}
       - uses: actions/upload-artifact@v7
         if: failure()

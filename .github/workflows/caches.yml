@@ -39,7 +39,23 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      # The browser only; the system libraries it needs are installed by each
-      # check run, since they live outside the cached folder.
+      # And the Linux packages it needs that the runner image lacks, fonts
+      # alone so far, as the files apt downloaded. Each check run hands them
+      # to apt (.github/actions/chromium), which installs them without going
+      # to Ubuntu's mirror, slow at times.
       - if: runner.os == 'Linux'
-        run: pnpm exec playwright install chromium
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/playwright-apt
+          key: playwright-apt-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+      - if: runner.os == 'Linux'
+        run: |
+          echo 'APT::Keep-Downloaded-Packages "true";' | sudo tee /etc/apt/apt.conf.d/99keep-downloads
+          sudo rm -f /etc/apt/apt.conf.d/docker-clean
+          pnpm exec playwright install --with-deps chromium
+          mkdir -p ~/.cache/playwright-apt
+          shopt -s nullglob
+          debs=(/var/cache/apt/archives/*.deb)
+          if [ ${#debs[@]} -gt 0 ]; then cp "${debs[@]}" ~/.cache/playwright-apt/; fi
+          echo "Packages kept for the browser tests: ${#debs[@]}"
+          ls ~/.cache/playwright-apt

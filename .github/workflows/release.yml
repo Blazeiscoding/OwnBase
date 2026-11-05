@@ -68,6 +68,10 @@ jobs:
           fi
           echo "build=$build" >> "$GITHUB_OUTPUT"
 
+  # The server is built and packed here, and tested beside it: the unit
+  # suites in the parts ci.yml splits them into, and the browser suite in
+  # three parts that each unpack this very archive. In one job, one after
+  # another, these took 11 to 14 minutes, the longest wait of a release.
   server:
     needs: [plan]
     if: needs.plan.outputs.build == 'true'
@@ -82,18 +86,9 @@ jobs:
       - run: pnpm install --frozen-lockfile
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
-      - run: pnpm typecheck --concurrency=2
-      - run: pnpm test --concurrency=2
-        env:
-          VITEST_MAX_THREADS: "2"
-          VITEST_MAX_FORKS: "2"
       - run: pnpm build --concurrency=2
       - run: node scripts/check-web-bundle.mjs
       - run: node scripts/check-web-precompressed.mjs apps/server-cli/dist/web
-      - run: pnpm exec playwright install --with-deps chromium
-      # The browser tests start these very builds; their setup refuses
-      # anything not built from this checkout.
-      - run: pnpm test:e2e
       - name: Collect the server
         run: |
           version=$(node -p "require('./package.json').version")
@@ -101,13 +96,79 @@ jobs:
           tar -czf "release/ownbase-server-$version.tar.gz" -C apps/server-cli/dist .
           cp apps/server-cli/dist/build.json release/server.build.json
           cp apps/server-cli/dist/web/build.json release/web.build.json
-          # What this job tested, bound by SHA-256 here, where it was built.
+          # What the browser jobs test, bound by SHA-256 here, where it was built.
           node scripts/release-manifest.mjs bind release server "release/ownbase-server-$version.tar.gz"
       - uses: actions/upload-artifact@v7
         with:
           name: release-server
           path: release/
           retention-days: 1
+
+  unit:
+    name: unit (${{ matrix.part }})
+    needs: [plan]
+    if: needs.plan.outputs.build == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - part: typecheck and the rest
+            run: >-
+              pnpm typecheck --concurrency=2 &&
+              pnpm exec turbo run test --filter=@ownbase/protocol --filter=@ownbase/client-core
+              --filter=@ownbase/desktop --filter=@ownbase/ee --filter=@ownbase/cloud --concurrency=2
+          - part: server
+            run: pnpm exec turbo run test --filter=@ownbase/server --only
+          - part: ui 1 of 2
+            run: pnpm exec turbo run test --filter=@ownbase/ui --only -- --shard=1/2
+          - part: ui 2 of 2
+            run: pnpm exec turbo run test --filter=@ownbase/ui --only -- --shard=2/2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - run: ${{ matrix.run }}
+        env:
+          VITEST_MAX_THREADS: "2"
+          VITEST_MAX_FORKS: "2"
+
+  browser:
+    name: browser (e2e ${{ matrix.shard }} of 3)
+    needs: [server]
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: 1
+      - uses: actions/download-artifact@v8
+        with:
+          name: release-server
+          path: release
+      # The archive the release publishes, where the tests start it from.
+      # Their setup refuses anything not built from this checkout.
+      - name: Unpack the server
+        run: |
+          mkdir -p apps/server-cli/dist
+          tar -xzf release/ownbase-server-*.tar.gz -C apps/server-cli/dist
+      - uses: ./.github/actions/chromium
+      - run: pnpm test:e2e --shard=${{ matrix.shard }}/3
 
   windows:
     needs: [plan]
@@ -239,7 +300,7 @@ jobs:
   # Checks every file was built from this commit and writes the hashes and
   # notes; on a pull request it stops here.
   manifest:
-    needs: [server, windows, mac]
+    needs: [server, unit, browser, windows, mac]
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.tag.outputs.tag }}

@@ -54,11 +54,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - run: pnpm build --concurrency=2
-      - uses: actions/cache/restore@v6
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
-      - run: pnpm exec playwright install --with-deps chromium
+      - uses: ./.github/actions/chromium
       - run: pnpm test:visual --update-snapshots=${{ inputs.every && 'all' || 'changed' }}
       - uses: actions/upload-artifact@v7
         if: failure()
