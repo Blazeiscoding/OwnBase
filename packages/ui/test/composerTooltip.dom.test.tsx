@@ -66,9 +66,6 @@ describe.each([
   { enterSends: true, shortcut: "Enter", hint: "Enter to send" },
   { enterSends: false, shortcut: "Ctrl Enter", hint: "Ctrl Enter to send" },
 ])("composer tooltips with enterSends=$enterSends", ({ enterSends, shortcut, hint }) => {
-  // Ten seconds: it tabs through every folded formatting button, which jsdom
-  // cannot hide, and each stop renders a tooltip. Under a full parallel run
-  // that came close to the five-second default.
   it("shows keyboard hints without native titles and preserves the three actions", async () => {
     const user = userEvent.setup();
     const { filePicker, send } = renderComposer(enterSends);
@@ -122,5 +119,5 @@ describe.each([
       onQueued: expect.any(Function),
     });
     expect(textbox).toHaveValue("");
-  }, 10_000);
+  });
 });

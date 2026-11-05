@@ -315,11 +315,7 @@ async function workspaceAs(
     </PlatformContext.Provider>,
   );
   // The screen checks saved workspace access first.
-  const trigger = await screen.findByRole(
-    "button",
-    { name: "Rocket Team, workspace menu" },
-    { timeout: 3_000 },
-  );
+  const trigger = await screen.findByRole("button", { name: "Rocket Team, workspace menu" });
   return { client: workspace, trigger, user: userEvent.setup() };
 }
 
@@ -355,9 +351,7 @@ describe("where the icon shows inside a workspace", () => {
     const admin = await workspaceAs("admin");
     await admin.user.click(admin.trigger);
     await admin.user.click(screen.getByRole("menuitem", { name: "Workspace settings" }));
-    expect(
-      await screen.findByRole("button", { name: "Upload icon" }, { timeout: 3_000 }),
-    ).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Upload icon" })).toBeVisible();
   });
 
   it("forgets this device's copy once the workspace has none", async () => {

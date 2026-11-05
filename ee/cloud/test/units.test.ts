@@ -1,5 +1,5 @@
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { createServer } from "node:net";
+import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -200,7 +200,7 @@ describe("the supervisor", () => {
     expect(await answering(port)).toBeNull();
     await new Promise((r) => setTimeout(r, BACKOFF_MS[0]! + 300));
     expect(await answering(port)).toBeNull();
-  }, 15_000);
+  });
 
   it("says so when a server never answers", async () => {
     const supervisor = new Supervisor({
@@ -208,7 +208,20 @@ describe("the supervisor", () => {
       args: ["-e", "setTimeout(() => {}, 60000)"],
     });
     cleanups.push(() => supervisor.stopAll());
-    const port = await freePort();
+    // The port is held here by a listener that takes connections and never
+    // says a word. Left free, it was taken in CI by a server another test
+    // started, which answered for this one.
+    const connections = new Set<Socket>();
+    const mute = createServer((socket) => connections.add(socket));
+    await new Promise<void>((done) => mute.listen(0, "127.0.0.1", done));
+    cleanups.push(
+      () =>
+        new Promise<void>((done) => {
+          for (const socket of connections) socket.destroy();
+          mute.close(() => done());
+        }),
+    );
+    const port = (mute.address() as { port: number }).port;
     const started = supervisor.start({
       slug: "mute",
       port,
@@ -226,5 +239,5 @@ describe("the supervisor", () => {
     expect(outcome).toBe("still waiting");
     await supervisor.stop("mute");
     await expect(started).rejects.toThrow(/stopped before it answered/);
-  }, 15_000);
+  });
 });

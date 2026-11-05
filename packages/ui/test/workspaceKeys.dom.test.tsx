@@ -95,7 +95,7 @@ function workspace(kind: Platform["kind"]) {
   // The rail is on screen before the effect that listens for keys has run:
   // a busy machine shows the gap, so wait out the effects as well.
   const ready = async () => {
-    await screen.findByRole("group", { name: "Workspaces" }, { timeout: 3_000 });
+    await screen.findByRole("group", { name: "Workspaces" });
     await act(() => new Promise<void>((resolve) => setTimeout(resolve, 0)));
   };
   const press = (digit: number, extra: Partial<KeyboardEventInit> = {}) =>

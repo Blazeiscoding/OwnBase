@@ -108,7 +108,7 @@ function workspace(options: { phone?: boolean; self?: User; kind?: Platform["kin
     </PlatformContext.Provider>,
   );
   // The screen checks the saved access before it shows the workspace.
-  const ready = () => screen.findByRole("button", { name: "Open navigation" }, { timeout: 3_000 });
+  const ready = () => screen.findByRole("button", { name: "Open navigation" });
   const bar = () => screen.getByRole("navigation", { name: "Main navigation" });
   const item = (name: string) => within(bar()).getByRole("button", { name });
   const drawer = () => screen.getByRole("button", { name: "Open navigation" });

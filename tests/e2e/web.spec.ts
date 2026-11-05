@@ -209,6 +209,20 @@ async function signIn(page: Page, handle: string) {
   await page.getByLabel("Password", { exact: true }).fill("password123");
   await page.getByRole("button", { name: "Sign in", exact: true }).last().click();
   await expect(page.locator("textarea")).toBeVisible();
+  await takesTyping(page.locator("textarea"));
+}
+
+/**
+ * Waits until a composer takes typing. Keys pressed before then are lost, and
+ * pressSequentially, unlike fill, does not wait. The box is disabled until its
+ * saved scheduling state has loaded, which takes a moment after it shows. After
+ * a send it refuses typing until this device has kept the send, saying so with
+ * aria-readonly rather than readonly (a phone's keyboard would drop), which
+ * toBeEditable does not read on a textarea.
+ */
+async function takesTyping(box: Locator) {
+  await expect(box).toBeEnabled();
+  await expect(box).toHaveAttribute("aria-readonly", "false");
 }
 
 /**
@@ -1162,6 +1176,9 @@ test("scrolls back through a long channel without unbounded growth or losing its
 test("OwnBase keeps a capped live timeline pinned and supports keyboard and narrow-window chat", async ({
   page,
 }, info) => {
+  // The longest scenario: 33 to 40 seconds on a quiet runner, 56 on a busy
+  // one, where the usual minute ran out.
+  test.setTimeout(120_000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   // A blocked resource is reported to the console rather than thrown, so it
@@ -1413,6 +1430,7 @@ test("OwnBase keeps a capped live timeline pinned and supports keyboard and narr
     });
   });
   const composer = page.getByRole("textbox", { name: "Message #design-studio", exact: true });
+  await takesTyping(composer);
   await composer.pressSequentially("A calmer space for our next big idea.", { delay: 12 });
   // Allow the debounced draft write, then verify a dialog round trip keeps it.
   await expect
@@ -1813,8 +1831,8 @@ test("the composer shows mentions as names while typing, and sends them as ids",
   await page.keyboard.press("Enter");
   await expect.poll(latest).toBe("Lunch <!here> now?");
   // The server can hold the message before this device has kept the send;
-  // until it has, the box is read-only and would drop what is typed next.
-  await expect(composer).toBeEditable();
+  // until it has, the box refuses what is typed next.
+  await takesTyping(composer);
 
   // The completion is the browser's own edit: Undo takes it back to what was
   // typed, and Redo brings back the mention, not the letters of its name.
@@ -1835,7 +1853,7 @@ test("the composer shows mentions as names while typing, and sends them as ids",
   await expect(composer).toHaveValue("ask @bobby 日本");
   await page.keyboard.press("Enter");
   await expect.poll(latest).toBe(`ask <@${bobby}> 日本`);
-  await expect(composer).toBeEditable();
+  await takesTyping(composer);
 
   // Backspace takes a whole mention, and bolding one keeps it a mention.
   await composer.pressSequentially("@bo", { delay: 10 });
@@ -3884,6 +3902,43 @@ async function pressUntilFocused(page: Page, key: string, target: Locator, limit
   }
   await expect(target, `${key} never reached it`).toBeFocused({ timeout: 1 });
 }
+
+test("Jump to keeps a name and an Enter typed before its code has arrived", async ({ page }) => {
+  // The palette's code held back, as on a slow line in the first moment after
+  // signing in, when the workspace has only just asked for it.
+  let release = () => {};
+  const held = new Promise<void>((resolve) => (release = resolve));
+  await page.route(/\/assets\/QuickSwitcher-[^/]*\.js$/, async (route) => {
+    await held;
+    await route.continue();
+  });
+  const login = await fetch(`${base}/api/auth/login`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ handle: "alice", password: "password123" }),
+  });
+  const alice = { authorization: `Bearer ${((await login.json()) as { token: string }).token}` };
+  const created = await fetch(`${base}/api/channels`, {
+    method: "POST",
+    headers: { ...alice, "content-type": "application/json" },
+    body: JSON.stringify({ name: "design", type: "public" }),
+  });
+  expect(created.status).toBe(201);
+
+  await signIn(page, "alice");
+  await page.keyboard.press("Control+k");
+  const jumpTo = page.getByRole("dialog", { name: "Jump to", exact: true });
+  await expect(jumpTo).toContainText("Loading…");
+  await page.keyboard.type("design");
+  await page.keyboard.press("Enter");
+  await expect(jumpTo.getByRole("textbox", { name: "Channel or person" })).toHaveValue("design");
+  await expect(page.locator(".channel-header h2")).toHaveText("#general");
+
+  release();
+  await expect(page.locator(".channel-header h2")).toHaveText("#design");
+  await expect(jumpTo).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "Message #design" })).toBeFocused();
+});
 
 test("somebody with only a keyboard signs in, switches channel, replies, reacts, searches and opens settings", async ({
   browser,

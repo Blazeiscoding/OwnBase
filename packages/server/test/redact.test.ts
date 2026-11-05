@@ -105,7 +105,7 @@ describe("redacting a url", () => {
     }).finally(() => clearTimeout(timer));
     expect({ code, errors }).toEqual({ code: 0, errors: "" });
     expect(JSON.parse(output)).toEqual({ statuses: [200, 200, 200, 200, 200], leaked: false });
-  }, 15_000);
+  });
 });
 
 describe("what actually reaches the log", () => {

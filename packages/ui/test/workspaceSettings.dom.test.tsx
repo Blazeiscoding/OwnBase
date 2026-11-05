@@ -126,11 +126,7 @@ async function workspaceAs(role: User["role"]) {
   );
   const user = userEvent.setup();
   // The screen checks saved workspace access first.
-  const trigger = await screen.findByRole(
-    "button",
-    { name: "Rocket Team, workspace menu" },
-    { timeout: 3_000 },
-  );
+  const trigger = await screen.findByRole("button", { name: "Rocket Team, workspace menu" });
   await user.click(trigger);
   const menu = screen.getByRole("menu", { name: "Workspace" });
   return { menu, user };
@@ -140,11 +136,7 @@ describe("where Workspace settings opens", () => {
   it("is in the workspace menu for the owner and admins, and opens as a window, as Account settings does", async () => {
     const { menu, user } = await workspaceAs("admin");
     await user.click(within(menu).getByRole("menuitem", { name: "Workspace settings" }));
-    const settings = await screen.findByRole(
-      "dialog",
-      { name: "Workspace settings" },
-      { timeout: 3_000 },
-    );
+    const settings = await screen.findByRole("dialog", { name: "Workspace settings" });
     expect(await within(settings).findByLabelText("Workspace name")).toHaveValue("Rocket Team");
     expect(settings).toHaveClass("settings-window", "dialog-surface", "animate-pop-in");
     expect(within(settings).getAllByRole("button", { name: "Close" })).toHaveLength(1);

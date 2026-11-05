@@ -136,4 +136,4 @@ it("refuses malformed upgrade targets without ending the server process", async 
       clearTimeout(forced);
     }
   }
-}, 15_000);
+});

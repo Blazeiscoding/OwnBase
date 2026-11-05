@@ -50,6 +50,7 @@ import {
 } from "../lib/notificationPreview.js";
 import { onScreenElsewhere, useFocusedView } from "../lib/focusedView.js";
 import type { PaletteCommand } from "../components/QuickSwitcher.js";
+import { QuickSwitcherLoading, type EarlyTyping } from "../components/QuickSwitcherLoading.js";
 import { useAppearance } from "../lib/appearance.js";
 import { shortcutLabel } from "../lib/shortcuts.js";
 import type { AccountSection } from "../components/AccountDialog.js";
@@ -218,7 +219,8 @@ const ChannelDetailsDialog = lazy(() =>
 /**
  * Ctrl+K's palette is out of the first download too, but it is fetched as
  * soon as the workspace opens and drawn directly once here: a switch typed
- * straight after Ctrl+K must not land on a loading state.
+ * straight after Ctrl+K must not land on a loading state. In the moment before
+ * it has arrived, its frame stands in and keeps what is typed, and an Enter.
  */
 let LoadedSwitcher: (typeof import("../components/QuickSwitcher.js"))["QuickSwitcher"] | null =
   null;
@@ -231,11 +233,23 @@ const LazySwitcher = lazy(loadQuickSwitcher);
 function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
   // Chosen once, as for search: a swap would start the palette over.
   const [Loaded] = useState(() => LoadedSwitcher);
+  const [typing, setTyping] = useState<EarlyTyping>({ query: "", entered: false });
   return Loaded ? (
     <Loaded {...props} />
   ) : (
-    <LazyDialog loading="Loading Jump to" onClose={props.onClose}>
-      <LazySwitcher {...props} />
+    <LazyDialog
+      loading="Loading Jump to"
+      onClose={props.onClose}
+      placeholder={
+        <QuickSwitcherLoading
+          typing={typing}
+          onTyping={setTyping}
+          actions={!!props.commands?.length}
+          onClose={props.onClose}
+        />
+      }
+    >
+      <LazySwitcher {...props} initialQuery={typing.query} openAtOnce={typing.entered} />
     </LazyDialog>
   );
 }

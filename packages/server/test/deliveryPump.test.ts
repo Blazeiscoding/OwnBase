@@ -101,7 +101,7 @@ function release(path: string) {
 }
 const eventually = (check: () => void) => vi.waitFor(check, { timeout: 5_000, interval: 5 });
 
-describe("app events with an endpoint slow to answer (REV-15)", { timeout: 20_000 }, () => {
+describe("app events with an endpoint slow to answer (REV-15)", () => {
   it("holds back only that endpoint's own events", async () => {
     holding.add("/slow");
     const slow = subscribe("slow");
@@ -169,13 +169,13 @@ describe("app events with an endpoint slow to answer (REV-15)", { timeout: 20_00
     const second = queue(slow);
     const draining = server!.flushEventDeliveries();
     await eventually(() => expect(heldCount()).toBe(1));
-    const began = Date.now();
     await server!.stop();
     await draining;
-    expect(Date.now() - began).toBeLessThan(2_000);
     expect(at("/slow")).toEqual([first]);
 
     // Neither event was spent: the first was cut short, the second never left.
+    // Had the stop waited for the slow answer, the call would have run out its
+    // four seconds and spent an attempt; a clock read here failed a busy machine.
     server = await start({ isolated: true });
     const due = server.store.dueEventDeliveries();
     expect(due.map((d) => [d.eventSeq, d.attempts])).toEqual([[first, 0]]);

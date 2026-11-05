@@ -309,16 +309,16 @@ describe("opening a draft from the Drafts panel", () => {
     return { client, user, jump };
   }
   async function openDrafts(user: ReturnType<typeof userEvent.setup>) {
-    const row = await screen.findByRole("button", { name: /^Drafts/ }, { timeout: 3_000 });
+    const row = await screen.findByRole("button", { name: /^Drafts/ });
     expect(within(row).getByRole("img", { name: "Unsent drafts" })).toHaveTextContent("4");
     await user.click(row);
-    return screen.findByRole("complementary", { name: "Drafts" }, { timeout: 3_000 });
+    return screen.findByRole("complementary", { name: "Drafts" });
   }
 
   it("has a sidebar row only while there are drafts, or while the panel is open", async () => {
     const { client, user } = screenWith();
     act(() => client.hydrateDrafts({}));
-    await screen.findByRole("button", { name: /^Jump to…/ }, { timeout: 3_000 });
+    await screen.findByRole("button", { name: /^Jump to…/ });
     expect(screen.queryByRole("button", { name: /^Drafts/ })).toBeNull();
     act(() => client.setDraft(design.id, "Back to it"));
     const row = await screen.findByRole("button", { name: /^Drafts/ });
@@ -334,7 +334,7 @@ describe("opening a draft from the Drafts panel", () => {
 
   it("opens from the palette, and links to Scheduled", async () => {
     const { user } = screenWith();
-    await user.click(await screen.findByRole("button", { name: /^Jump to…/ }, { timeout: 3_000 }));
+    await user.click(await screen.findByRole("button", { name: /^Jump to…/ }));
     await user.type(await screen.findByRole("combobox"), "unsent");
     await user.click(screen.getByRole("option", { name: "Drafts, action" }));
     const panel = await screen.findByRole("complementary", { name: "Drafts" });
@@ -479,9 +479,7 @@ describe("draft times on this device", () => {
       client.setDraft(design.id, "");
     });
     // Written after the pause drafts wait for, and the times after them.
-    await waitFor(() => expect(values.get(timesKey)).toEqual({ [general.id]: 5_000 }), {
-      timeout: 3_000,
-    });
+    await waitFor(() => expect(values.get(timesKey)).toEqual({ [general.id]: 5_000 }));
     expect(values.get(draftsKey)).toEqual({ [general.id]: "kept, and changed", C_OLD: "no time" });
   });
 

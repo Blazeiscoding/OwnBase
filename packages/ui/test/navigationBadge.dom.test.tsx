@@ -87,7 +87,7 @@ function workspace() {
   );
   const toggle = () => screen.getByRole("button", { name: "Open navigation" });
   // The screen checks the saved access before it shows the workspace.
-  const ready = () => screen.findByRole("button", { name: "Open navigation" }, { timeout: 3_000 });
+  const ready = () => screen.findByRole("button", { name: "Open navigation" });
   return { client, ready, toggle };
 }
 

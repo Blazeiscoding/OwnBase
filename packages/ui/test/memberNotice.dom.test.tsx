@@ -133,7 +133,7 @@ function workspace(
 }
 
 /** Past the check of saved access, which shows a banner of its own while it waits. */
-const opened = () => screen.findByRole("button", { name: /^Members/ }, { timeout: 3_000 });
+const opened = () => screen.findByRole("button", { name: /^Members/ });
 const notice = () => screen.queryByText(/more than the \d+ .* includes/);
 
 const owner = person("U_OWNER", "owner");
