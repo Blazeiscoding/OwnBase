@@ -232,9 +232,11 @@ const SCROLL_KEYS: Record<string, number> = {
  */
 function scrollFromOutside(event: KeyboardEvent, panel: HTMLElement): boolean {
   const from = event.target as Element;
+  // In a short window settings scroll as a whole, and the browser's own keys do.
   const scroller = panel.querySelector(".dialog-scroll");
   const by = SCROLL_KEYS[event.key];
   if (!by || !scroller || scroller.contains(from)) return false;
+  if (getComputedStyle(scroller).overflowY === "visible") return false;
   if (event.ctrlKey || event.altKey || event.metaKey) return false;
   // In a control an arrow, Home or End is the control's, and so is a page in a box of lines.
   const paging = event.key.startsWith("Page");

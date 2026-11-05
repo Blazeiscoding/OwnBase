@@ -37,7 +37,7 @@ export function Dialog({
       guards={guards}
       dismissible={dismissible}
       describedBy={describedBy}
-      backdropClassName="flex items-start justify-center dialog-backdrop px-3 pt-[12dvh] animate-fade-in"
+      backdropClassName="flex items-start justify-center dialog-backdrop dialog-place px-3 animate-fade-in"
       className="dialog-panel animate-pop-in rounded-2xl dialog-surface border border-[var(--card-edge)] outline-none"
       style={{ width }}
     >

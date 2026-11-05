@@ -1734,12 +1734,27 @@ textarea::placeholder {
  * parts stack: its name and close button, then whatever the content keeps in
  * sight, and what scrolls takes the room that is left.
  */
+.dialog-place {
+  padding-top: 12dvh;
+}
 .dialog-panel {
   display: flex;
   flex-direction: column;
   max-width: 100%;
   max-height: 78dvh;
   overflow: hidden;
+}
+/*
+ * In a short window, such as a phone held sideways or a page zoomed far in,
+ * the margin above a dialog would cost more than half of what it can show.
+ */
+@media (height < 32rem) {
+  .dialog-place {
+    padding-top: 0.75rem;
+  }
+  .dialog-panel {
+    max-height: calc(100dvh - 1.5rem);
+  }
 }
 .dialog-head {
   display: flex;
@@ -1907,6 +1922,32 @@ textarea::placeholder {
   }
   .settings-head {
     padding: 1.125rem 3.75rem 0.75rem 1.5rem;
+  }
+}
+/*
+ * A short window, such as a phone held sideways or a page zoomed far in, has
+ * no room to keep the name, the search and the sections in sight: kept, they
+ * took over 40% of a phone on its side, and its keyboard the rest. There the
+ * whole page scrolls, and the open section is as tall as what it holds.
+ */
+@media (width < 57rem) and (height < 32rem) {
+  .settings-window {
+    overflow: hidden auto;
+    overscroll-behavior: contain;
+  }
+  .settings-section {
+    flex: none;
+  }
+  .settings-window .dialog-frame,
+  .settings-window .dialog-scroll {
+    flex: none;
+    overflow: visible;
+    mask-image: none;
+  }
+}
+@media (width >= 57rem) and (height < 32rem) {
+  .settings-backdrop {
+    padding-block: 0.75rem;
   }
 }
 /*
