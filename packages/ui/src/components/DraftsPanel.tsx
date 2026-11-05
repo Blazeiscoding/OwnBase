@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { readableText } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { listDrafts, type DraftEntry, type DraftPlace } from "../lib/drafts.js";
-import { channelTitle, formatFull, formatWhen } from "../lib/format.js";
+import { channelTitle, formatFull } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { Icon } from "./Icon.js";
@@ -10,6 +10,7 @@ import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
 import { Tooltip } from "./Tooltip.js";
 import { useToast } from "./Toast.js";
+import { When } from "./When.js";
 
 /**
  * Every draft this device keeps for the account (E5): a conversation's or a
@@ -150,7 +151,7 @@ function DraftRow(props: {
               title={formatFull(props.at)}
               className="ml-auto shrink-0 text-[12px] text-ink-faint"
             >
-              {formatWhen(props.at)}
+              <When at={props.at} />
             </time>
           )}
         </span>

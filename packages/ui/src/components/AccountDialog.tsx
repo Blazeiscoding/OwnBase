@@ -29,6 +29,7 @@ import { LinkedSignIns } from "./LinkedSignIns.js";
 import { BlockedPeople } from "./Blocking.js";
 import { buttonClass } from "./Button.js";
 import { isImeKey } from "../lib/textInput.js";
+import { When } from "./When.js";
 
 type Confirmation =
   { kind: "device"; session: SessionInfo } | { kind: "others" } | { kind: "signout" };
@@ -548,12 +549,12 @@ export function AccountDialog({
                         "Active now"
                       ) : (
                         <span title={formatFull(session.lastSeenAt)}>
-                          Last active {formatWhen(session.lastSeenAt)}
+                          Last active <When at={session.lastSeenAt} />
                         </span>
                       )}
                       {" · "}
                       <span title={formatFull(session.createdAt)}>
-                        signed in {formatWhen(session.createdAt)}
+                        signed in <When at={session.createdAt} />
                       </span>
                     </p>
                   </div>

@@ -21,6 +21,7 @@ import {
   rememberedReadingPosition,
   type ReadingPosition,
 } from "../lib/route.js";
+import { useToday } from "../lib/today.js";
 
 const GROUP_WINDOW_MS = 5 * 60 * 1000;
 
@@ -838,6 +839,8 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
 }
 
 function DayDivider({ ts }: { ts: number }) {
+  // "Today" over today's messages becomes "Yesterday" at midnight, open or not.
+  useToday();
   return (
     <div className="relative my-4 flex items-center gap-2 px-4" role="separator">
       <div className="h-px flex-1 bg-edge" />

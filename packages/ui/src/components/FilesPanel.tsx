@@ -17,6 +17,8 @@ import { inputCls } from "./TextField.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
 import { Tooltip } from "./Tooltip.js";
+import { When } from "./When.js";
+import { useToday } from "../lib/today.js";
 
 type Kind = "all" | FileKind;
 const KINDS: readonly Kind[] = ["all", "image", "document", "other"];
@@ -292,6 +294,8 @@ function FileRow({
   const { file } = shared;
   const picture = opensAsPicture(file);
   const download = useFileDownload(file);
+  // Its label says when it was shared, as "Yesterday" once the day turns.
+  useToday();
   return (
     <li>
       <div className="group flex items-center gap-1 rounded-lg pr-1 transition-colors hover:bg-ink/[0.04]">
@@ -326,7 +330,7 @@ function FileRow({
                 title={formatFull(shared.sharedAt)}
                 className="ml-auto shrink-0 pl-1"
               >
-                {formatWhen(shared.sharedAt)}
+                <When at={shared.sharedAt} />
               </time>
             </span>
           </span>
