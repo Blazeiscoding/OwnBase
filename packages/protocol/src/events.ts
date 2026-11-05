@@ -244,6 +244,12 @@ export interface ReadySnapshot {
   huddleRings?: HuddleRing[];
   /** This server keeps inline replies; older ones post one as an ordinary message. */
   inlineReplies?: true;
+  /**
+   * The server's clock as it sent this, so a client can tell how far off its
+   * own is: reminders and scheduled messages go by the time the device chose.
+   * Absent from older servers.
+   */
+  serverTime?: number;
   /** This server forwards a message (`forwardFrom`); an older one would drop the original. */
   forwards?: true;
   /** This server sends `scheduled` when the queue changes; an older one has to be asked. */

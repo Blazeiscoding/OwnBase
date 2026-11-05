@@ -396,6 +396,7 @@ export class Gateway {
           huddleReports: true,
           huddleRings: this.ringsFor(user.id),
           inlineReplies: true,
+          serverTime: Date.now(),
           forwards: true,
           scheduledEvents: true,
           activityThreads: true,

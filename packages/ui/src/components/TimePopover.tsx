@@ -1,5 +1,6 @@
 import { useId, useRef, useState, type RefObject } from "react";
-import { localDateTime, type SchedulePreset } from "../lib/schedule.js";
+import { useWorkspace } from "../context.js";
+import { clockSkewNote, localDateTime, type SchedulePreset } from "../lib/schedule.js";
 import { Icon } from "./Icon.js";
 import { Popover } from "./Popover.js";
 
@@ -23,9 +24,17 @@ export function TimePopover(props: {
   const [error, setError] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const errorId = useId();
+  // A time chosen here is the device's; a clock far off sends it at the wrong moment.
+  const skewNote = clockSkewNote(useWorkspace((s) => s.clockSkewMs));
   return (
     <Popover label={props.label} anchor={props.anchor} onClose={props.onClose} width={260}>
       <div className="px-3 pb-1 pt-2.5 text-[12px] font-medium text-ink-faint">{props.label}</div>
+      {skewNote && (
+        <p role="note" className="flex items-start gap-1.5 px-3 pb-1.5 text-[12px] text-alert">
+          <Icon name="alert" size={12} className="mt-0.5 shrink-0" />
+          <span>{skewNote}</span>
+        </p>
+      )}
       <ul className="px-1">
         {props.presets.map((p) => (
           <li key={p.label}>

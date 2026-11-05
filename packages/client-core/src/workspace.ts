@@ -555,6 +555,12 @@ export interface WorkspaceState {
   workspaceId: ID | null;
   /** The server keeps inline replies; an older one would post one as a plain message. */
   inlineReplies: boolean;
+  /**
+   * How far the server's clock is ahead of this device's (behind when
+   * negative), as of connecting; null until known or from an older server.
+   * Reminders and scheduled messages go at the time this device chose.
+   */
+  clockSkewMs: number | null;
   /** The server forwards a message; an older one would post the comment alone. */
   forwards: boolean;
   /** The server says when this account's scheduled queue changes; an older one has to be asked. */
@@ -739,6 +745,7 @@ const initialState: WorkspaceState = {
   workspaceName: "",
   workspaceId: null,
   inlineReplies: false,
+  clockSkewMs: null,
   forwards: false,
   scheduledEvents: false,
   activityThreads: false,
@@ -1217,6 +1224,7 @@ export class WorkspaceClient {
       workspaceName: snap.workspaceName,
       workspaceId: snap.workspaceId ?? prev.workspaceId,
       inlineReplies: snap.inlineReplies === true,
+      clockSkewMs: typeof snap.serverTime === "number" ? snap.serverTime - Date.now() : null,
       forwards: snap.forwards === true,
       scheduledEvents: snap.scheduledEvents === true,
       activityThreads: snap.activityThreads === true,
