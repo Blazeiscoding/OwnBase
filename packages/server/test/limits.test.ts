@@ -133,6 +133,13 @@ describe("authentication limits", () => {
     expect(stopped.data.error).toBe("too_many_requests");
     // Something to wait for, rather than leaving a client to guess.
     expect(Number(stopped.retryAfter)).toBeGreaterThan(0);
+    // The desktop app calls from another origin, where only exposed headers are read.
+    const fromApp = await fetch(`${base}/api/auth/login`, {
+      method: "POST",
+      headers: { "content-type": "application/json", origin: "app://ownbase" },
+      body: JSON.stringify({ handle: "target", password: "not-the-password" }),
+    });
+    expect(fromApp.headers.get("access-control-expose-headers")).toMatch(/retry-after/i);
 
     // The right password is refused too: that is the point, or a guesser would
     // simply keep going until it worked.

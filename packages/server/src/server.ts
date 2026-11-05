@@ -1931,6 +1931,8 @@ async function startWorkspaceServer(
   await app.register(cors, {
     origin: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+    // How long to wait after "too much at once", for clients on another origin.
+    exposedHeaders: ["retry-after"],
   });
   await app.register(multipart, { limits: { fileSize: maxFileSize, files: 1 } });
 

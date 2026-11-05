@@ -124,6 +124,11 @@ export interface StoredPending {
  */
 export const OUTBOX_LIMIT = 50;
 
+/** The wait after "too much at once" from a server that did not say how long. */
+const RATE_LIMIT_WAIT_MS = 2000;
+/** However long a server asks for, a send is tried again within this. */
+const RATE_LIMIT_WAIT_MAX_MS = 60_000;
+
 const MISSING_ATTACHMENTS =
   "The attached files were not kept when the app closed. Attach them again to send this.";
 
@@ -181,10 +186,17 @@ function commandFailure(err: unknown): string {
 /** Turns a send failure into something the author can act on. */
 function sendFailureReason(error: unknown): string {
   // Status 0: an upload that never had an answer (no connection, timed out).
+  // The workspace was reached, so waiting to be back online would wait forever.
+  if (error instanceof DOMException && error.name === "TimeoutError") {
+    return "The workspace did not answer in time. Press Retry to send it again.";
+  }
+  if (error instanceof SyntaxError) {
+    return "The workspace's answer could not be read. Press Retry to send it again.";
+  }
   if (!(error instanceof ApiError) || error.status === 0) {
     return "Could not reach the workspace. It is sent again once you're back online.";
   }
-  if (error.status === 429) return "Too much sent at once. Press Retry in a moment.";
+  if (error.status === 429) return "Too much sent at once. It is sent again in a moment.";
   switch (error.code) {
     case "channel_archived":
       return "This conversation is archived.";
@@ -202,6 +214,8 @@ function sendFailureReason(error: unknown): string {
       return "The message this forwards is no longer there.";
     case "forward_unavailable":
       return "What this forwards is private or deleted, so it cannot be passed on.";
+    case "file_too_large":
+      return "A file is over this workspace's size limit. Discard this and attach a smaller one.";
     case "storage_quota_exceeded":
       return "The workspace has no room left for files. Ask whoever hosts it to free space or raise the limit, then press Retry.";
     case "nonce_conflict":
@@ -1027,6 +1041,9 @@ export class WorkspaceClient {
     // Release the microphone before the socket goes, so no call is left open.
     this.leaveHuddle();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    if (this.rateLimitTimer) clearTimeout(this.rateLimitTimer);
+    this.rateLimitTimer = null;
+    this.rateLimited.clear();
     if (this.listeningOnline) window.removeEventListener("online", this.onNetworkBack);
     this.listeningOnline = false;
     if (this.typingSweep) clearInterval(this.typingSweep);
@@ -2830,6 +2847,50 @@ export class WorkspaceClient {
       // not reaching the server from here says nothing new about it.
       if (!refused && this.state.pending.some((p) => p.nonce === nonce && p.refused)) return;
       this.failPending(nonce, sendFailureReason(error), refused);
+      if (error instanceof ApiError && error.status === 429)
+        this.waitOutRateLimit(nonce, error.retryAfterMs);
+    }
+  }
+
+  /** Sends turned away for coming too fast, sent again once the wait is over. */
+  private rateLimited = new Set<string>();
+  private rateLimitTimer: ReturnType<typeof setTimeout> | null = null;
+  private rateLimitUntil = 0;
+
+  /**
+   * Holds a send the workspace turned away for coming too fast until it said
+   * to try again. Pressing Retry on each of many was the only way before, and
+   * a full outbox stopped the composer meanwhile.
+   */
+  private waitOutRateLimit(nonce: string, waitMs = RATE_LIMIT_WAIT_MS): void {
+    if (this.stopped) return;
+    this.rateLimited.add(nonce);
+    const wait = Math.min(Math.max(waitMs, 250), RATE_LIMIT_WAIT_MAX_MS);
+    const until = Date.now() + wait;
+    if (this.rateLimitTimer && until <= this.rateLimitUntil) return;
+    if (this.rateLimitTimer) clearTimeout(this.rateLimitTimer);
+    this.rateLimitUntil = until;
+    this.rateLimitTimer = setTimeout(() => {
+      this.rateLimitTimer = null;
+      void this.resendRateLimited();
+    }, wait);
+  }
+
+  /**
+   * One at a time and in the order they were written, so they neither run
+   * into the limit again all together nor arrive out of order. One turned
+   * away again starts a new wait, and those after it wait with it.
+   */
+  private async resendRateLimited(): Promise<void> {
+    const waiting = this.state.pending.filter((p) => this.rateLimited.has(p.nonce));
+    this.rateLimited.clear();
+    for (const p of waiting) {
+      if (this.stopped) return;
+      if (this.rateLimitTimer) {
+        this.rateLimited.add(p.nonce);
+        continue;
+      }
+      await this.resend(p.nonce);
     }
   }
 
@@ -2863,6 +2924,11 @@ export class WorkspaceClient {
   }
 
   retrySend(nonce: string): void {
+    void this.resend(nonce);
+  }
+
+  /** Sends a failed message again; settles once this try has its answer. */
+  private async resend(nonce: string): Promise<void> {
     const p = this.state.pending.find((p) => p.nonce === nonce);
     if (!p?.failed) return;
     const files = this.retryFiles.get(nonce) ?? [];
@@ -2878,7 +2944,7 @@ export class WorkspaceClient {
           : item,
       ),
     }));
-    void this.deliver(p, files);
+    await this.deliver(p, files);
   }
 
   /**
