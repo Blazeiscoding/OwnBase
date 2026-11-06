@@ -3,13 +3,8 @@ import { errorCodeOf, isAdministrator, isDirect, isRoom, userMentionsIn } from "
 
 describe("shared rules", () => {
   it("counts owners and admins as running the workspace, and nobody else", () => {
-    expect(["owner", "admin", "member", "guest", undefined].map(isAdministrator)).toEqual([
-      true,
-      true,
-      false,
-      false,
-      false,
-    ]);
+    const roles = ["owner", "admin", "member", "guest", undefined] as const;
+    expect(roles.map((role) => isAdministrator(role))).toEqual([true, true, false, false, false]);
   });
 
   it("tells rooms from direct messages, and a missing conversation from both", () => {
