@@ -81,6 +81,7 @@ import { windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
 import { contextMenuItems } from "./contextMenu.js";
+import { appMenuTemplate } from "./appMenu.js";
 import { READER_LOCALE_ARG, readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
@@ -1412,6 +1413,9 @@ void app.whenReady().then(async () => {
     hourCycle: await hourCycle,
   });
   publicAddressLookup = null;
+  // No Ctrl+W, Ctrl+R or developer tools in the installed app (appMenu.ts).
+  if (app.isPackaged)
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform)));
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;
   createTray();
