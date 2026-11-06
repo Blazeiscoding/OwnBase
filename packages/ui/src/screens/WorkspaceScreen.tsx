@@ -1950,7 +1950,11 @@ function WorkspaceInner({
       )}
       {panel.kind === "activity" && (
         <LazyPanel name="Activity" onClose={() => setPanel({ kind: "none" })}>
-          <ActivityPanel onClose={() => setPanel({ kind: "none" })} onJump={jumpToMessage} />
+          <ActivityPanel
+            onClose={() => setPanel({ kind: "none" })}
+            onJump={jumpToMessage}
+            onOpenChannel={openChannel}
+          />
         </LazyPanel>
       )}
       {panel.kind === "scheduled" && (

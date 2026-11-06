@@ -28,6 +28,7 @@ import type {
   SlashCommand,
   ThreadFollow,
   Reminder,
+  ChannelRemoval,
   ReportReason,
   ReportResolution,
   ReportedMessage,
@@ -934,6 +935,11 @@ export class Api {
 
   cancelReminder(messageId: ID): Promise<{ ok: true }> {
     return this.request("DELETE", `/api/messages/${messageId}/reminder`);
+  }
+
+  /** Reads notes that someone removed this account from channels; says which were there. */
+  readChannelRemovals(ids: ID[]): Promise<{ ids: ID[] }> {
+    return this.request("POST", "/api/activity/removals/read", { ids });
   }
 
   /** Replaces this account's choices in a poll; none takes the vote back (E6). */

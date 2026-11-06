@@ -75,6 +75,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     notifyDefault: null,
     profiles: true,
     reminders: {},
+    channelRemovals: {},
     pollChoices: {},
     pollPicks: {},
     stars: true,

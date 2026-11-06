@@ -23,6 +23,7 @@ import {
   type ServerToClient,
   type ThreadFollow,
   type Reminder,
+  type ChannelRemoval,
   type SidebarSection,
   type User,
   type WorkspaceEvent,
@@ -594,6 +595,11 @@ export interface WorkspaceState {
    */
   reminders: Record<ID, Reminder> | null;
   /**
+   * Notes that someone removed this account from channels, by id, for
+   * Activity until read. Empty from a server that keeps none.
+   */
+  channelRemovals: Record<ID, ChannelRemoval>;
+  /**
    * What this account chose in each anonymous poll it voted in, by message id,
    * which no message says (E6). Null where the server keeps no polls, so none
    * is offered there.
@@ -755,6 +761,7 @@ const initialState: WorkspaceState = {
   notifyDefault: null,
   profiles: false,
   reminders: null,
+  channelRemovals: {},
   pollChoices: null,
   pollPicks: {},
   stars: false,
@@ -927,6 +934,8 @@ export class WorkspaceClient {
   private activeConversation: ID | null = null;
   private activeThread: ID | null = null;
   private pendingReads = new Map<ID, number>();
+  /** Notes of removals this device is telling the server it read. */
+  private readingRemovals = new Set<ID>();
   /**
    * Conversations deliberately left unread. Automatic acknowledgement skips
    * them, or looking at what you just marked unread would immediately read it
@@ -1236,6 +1245,12 @@ export class WorkspaceClient {
       reminders: snap.reminders
         ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
         : null,
+      // But for those this device is reading, which the server may not have yet.
+      channelRemovals: Object.fromEntries(
+        (snap.channelRemovals ?? [])
+          .filter((removal) => !this.readingRemovals.has(removal.id))
+          .map((removal) => [removal.id, removal]),
+      ),
       pollChoices: snap.pollChoices ?? null,
       // What the server now says stands, but for votes still on their way.
       pollPicks: Object.fromEntries(
@@ -2018,6 +2033,12 @@ export class WorkspaceClient {
       const reminders = { ...s.reminders };
       delete reminders[event.messageId];
       this.store.setState({ reminders });
+    } else if (event.type === "channel.removal") {
+      this.store.setState({
+        channelRemovals: { ...s.channelRemovals, [event.removal.id]: event.removal },
+      });
+    } else if (event.type === "channel.removals.read") {
+      this.forgetRemovals(event.ids);
     } else if (event.type === "notify.default") {
       if (s.notifyDefault !== null) this.store.setState({ notifyDefault: event.level });
     } else if (event.type === "sidebar.sections") {
@@ -3354,6 +3375,43 @@ export class WorkspaceClient {
       return { reminders };
     });
     return true;
+  }
+
+  /**
+   * Reads notes that someone removed this account from channels, which clears
+   * them from Activity at once and from this account's other devices once the
+   * server has it. False if it could not be told, and the notes are back.
+   */
+  async readChannelRemovals(ids: ID[]): Promise<boolean> {
+    const taken = ids
+      .map((id) => this.state.channelRemovals[id])
+      .filter((removal): removal is ChannelRemoval => !!removal);
+    if (taken.length === 0) return true;
+    for (const removal of taken) this.readingRemovals.add(removal.id);
+    this.forgetRemovals(taken.map((removal) => removal.id));
+    try {
+      await this.api.readChannelRemovals(taken.map((removal) => removal.id));
+      return true;
+    } catch {
+      this.store.setState((s) => ({
+        channelRemovals: {
+          ...s.channelRemovals,
+          ...Object.fromEntries(taken.map((removal) => [removal.id, removal])),
+        },
+      }));
+      return false;
+    } finally {
+      for (const removal of taken) this.readingRemovals.delete(removal.id);
+    }
+  }
+
+  private forgetRemovals(ids: ID[]): void {
+    this.store.setState((s) => {
+      if (!ids.some((id) => id in s.channelRemovals)) return {};
+      const channelRemovals = { ...s.channelRemovals };
+      for (const id of ids) delete channelRemovals[id];
+      return { channelRemovals };
+    });
   }
 
   /**

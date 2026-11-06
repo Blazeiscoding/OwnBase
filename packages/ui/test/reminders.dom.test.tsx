@@ -243,7 +243,12 @@ describe("Activity's reminders", () => {
       .spyOn(setup.client.api, "listReminders")
       .mockResolvedValue({ reminders: items });
     const onJump = vi.fn();
-    render(tree(setup.client, <ActivityPanel onClose={() => {}} onJump={onJump} />));
+    render(
+      tree(
+        setup.client,
+        <ActivityPanel onClose={() => {}} onJump={onJump} onOpenChannel={() => {}} />,
+      ),
+    );
     return { ...setup, list, onJump };
   }
 
