@@ -13,7 +13,7 @@
   "tags": [
     {
       "name": "activity",
-      "description": "Mentions, replies and reactions addressed to the signed-in account."
+      "description": "Mentions, replies and reactions addressed to the signed-in account, and channels it was removed from."
     },
     {
       "name": "admin",
@@ -5200,6 +5200,41 @@
         }
       }
     },
+    "/api/activity/removals/read": {
+      "post": {
+        "operationId": "postActivityRemovalsRead",
+        "tags": [
+          "activity"
+        ],
+        "summary": "Reads notes that someone removed this account from channels, which clears them on every device.",
+        "description": "Reads notes that someone removed this account from channels, which clears them on every device. One already read, or not this account's, is passed over.\n\nNeeds a signed-in account. Guests may call it too.",
+        "x-access": "member",
+        "x-guests": true,
+        "security": [
+          {
+            "session": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReadRemovalsBody"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Done."
+          },
+          "default": {
+            "$ref": "#/components/responses/Error"
+          }
+        }
+      }
+    },
     "/api/search": {
       "get": {
         "operationId": "getSearch",
@@ -6327,6 +6362,24 @@
             "maximum": 1000
           }
         }
+      },
+      "ReadRemovalsBody": {
+        "type": "object",
+        "properties": {
+          "ids": {
+            "minItems": 1,
+            "maxItems": 200,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 100
+            }
+          }
+        },
+        "required": [
+          "ids"
+        ]
       }
     },
     "responses": {

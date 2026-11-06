@@ -2,6 +2,7 @@ import type {
   AccessPolicy,
   Channel,
   ChannelPrefs,
+  ChannelRemoval,
   Friendship,
   ID,
   Message,
@@ -119,6 +120,14 @@ export type EphemeralEvent =
    * deleted or out of their reach. Private to their own sockets.
    */
   | { type: "reminder.removed"; messageId: ID }
+  /**
+   * Someone else removed this user from a channel; the note waits in their
+   * Activity until read. Private to their own sockets. Clients older than
+   * this event ignore it.
+   */
+  | { type: "channel.removal"; removal: ChannelRemoval }
+  /** Notes of removals this user read, gone from every device of theirs. */
+  | { type: "channel.removals.read"; ids: ID[] }
   /**
    * What this user chose in an anonymous poll, which no message says (E6):
    * option places, empty once they take their vote back. Private to their own
@@ -263,6 +272,11 @@ export interface ReadySnapshot {
    * from a server that keeps none, so no reminder is offered there.
    */
   reminders?: Reminder[];
+  /**
+   * Notes that someone removed this account from channels, not yet read,
+   * newest first. Absent from a server that keeps none.
+   */
+  channelRemovals?: ChannelRemoval[];
   /**
    * What this account chose in each anonymous poll it voted in and can still
    * read, by message id (E6). Absent from a server without polls, so none is

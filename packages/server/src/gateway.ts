@@ -402,6 +402,7 @@ export class Gateway {
           activityThreads: true,
           threadMutes: true,
           reminders: this.store.reminders(user.id),
+          channelRemovals: this.store.channelRemovals(user.id),
           pollChoices: this.store.anonymousPollChoices(user.id),
           sharedFiles: true,
           sidebarSections: this.store.sidebarSections(user.id),
