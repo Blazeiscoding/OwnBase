@@ -370,7 +370,6 @@ function dialogFromRoute(dialog: RouteDialog | null | undefined): DialogKind {
   return { kind: dialog.name };
 }
 
-/** The part of an open dialog the address keeps, if it keeps any. */
 /** The dialogs only an admin may open, by the names their headings give them. */
 const ADMIN_DIALOGS = {
   people: "People",
@@ -379,6 +378,7 @@ const ADMIN_DIALOGS = {
   workspace: "Workspace settings",
 } as const;
 
+/** The part of an open dialog the address keeps, if it keeps any. */
 function routeDialogOf(dialog: DialogKind): RouteDialog | null {
   switch (dialog.kind) {
     case "account":
