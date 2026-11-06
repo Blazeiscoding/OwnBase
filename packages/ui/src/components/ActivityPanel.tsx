@@ -1,5 +1,11 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { dueReminderCount, isMessageRead, notificationBody } from "@ownbase/client-core";
+import {
+  dueReminderCount,
+  isMessageRead,
+  isThreadUnread,
+  isUnread,
+  notificationBody,
+} from "@ownbase/client-core";
 import type { ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
@@ -121,8 +127,8 @@ export function ActivityPanel({
   /** Whether anything is unread anywhere, which Mark all read reads. */
   const unreadAnywhere = useWorkspace(
     (s) =>
-      Object.entries(s.memberships).some(([id, read]) => (s.channelLastSeq[id] ?? 0) > read) ||
-      Object.values(s.threadFollows).some((f) => f.following && f.lastSeq > f.lastReadSeq),
+      Object.keys(s.memberships).some((id) => isUnread(s, id)) ||
+      Object.values(s.threadFollows).some(isThreadUnread),
   );
   const { panel, heading } = usePanelFocus({ takeFocus: true });
   const scroller = useRef<HTMLDivElement>(null);

@@ -2,6 +2,9 @@ import type { IncomingMessage, Server as HttpServer } from "node:http";
 import { WebSocketServer, WebSocket } from "ws";
 import {
   PROTOCOL_VERSION,
+  SOCKET_CLOSE,
+  isAdministrator,
+  type SocketRefusal,
   type AccessPolicy,
   type ClientToServer,
   type EphemeralEvent,
@@ -334,7 +337,7 @@ export class Gateway {
       try {
         const parsed = socketMessage.safeParse(JSON.parse(String(data)));
         if (!parsed.success) {
-          ws.close(4000, "invalid message");
+          ws.close(SOCKET_CLOSE.invalidMessage, "invalid message");
           return;
         }
         msg = parsed.data;
@@ -351,30 +354,23 @@ export class Gateway {
       if (msg.type === "hello" && !client) {
         clearTimeout(authTimer);
         if (msg.protocolVersion !== PROTOCOL_VERSION) {
-          this.send(ws, {
-            type: "error",
-            code: "protocol_mismatch",
-            message: `server speaks protocol v${PROTOCOL_VERSION}`,
-          });
-          ws.close(4002);
+          this.refuse(ws, "protocol_mismatch", `server speaks protocol v${PROTOCOL_VERSION}`);
           return;
         }
         const tokenHash = hashToken(msg.token);
         const user = this.store.getSessionUser(tokenHash);
         if (!user) {
-          this.send(ws, { type: "error", code: "auth_failed", message: "invalid token" });
-          ws.close(4003);
+          this.refuse(ws, "auth_failed", "invalid token");
           return;
         }
         // The REST side refuses a locked account; the socket has to as well, or
         // a temporary password would still hand over the whole workspace.
         if (this.store.mustChangePassword(user.id)) {
-          this.send(ws, {
-            type: "error",
-            code: "password_change_required",
-            message: "Choose a new password before using this workspace.",
-          });
-          ws.close(4004);
+          this.refuse(
+            ws,
+            "password_change_required",
+            "Choose a new password before using this workspace.",
+          );
           return;
         }
         // Everything the handshake reads is read before this socket joins
@@ -416,7 +412,7 @@ export class Gateway {
           workspaceId: this.store.getMeta("workspace_id") ?? undefined,
           friends: this.store.listFriends(user.id),
           blocked: this.store.blockedIds(user.id),
-          ...(user.role === "owner" || user.role === "admin"
+          ...(isAdministrator(user.role)
             ? { openReports: this.store.openReportCount(), ...this.noticesFor() }
             : {}),
         };
@@ -1041,7 +1037,12 @@ export class Gateway {
     this.send(client.ws, { type: "error", code: "auth_failed", message: reason });
     // Stop fanout and accepting frames immediately, without waiting for the close handshake.
     this.unregister(client, false, reason);
-    client.ws.close(4003, reason);
+    client.ws.close(SOCKET_CLOSE.auth_failed, reason);
+  }
+
+  private refuse(ws: WebSocket, code: SocketRefusal, message: string): void {
+    this.send(ws, { type: "error", code, message });
+    ws.close(SOCKET_CLOSE[code]);
   }
 
   private authorized(client: Client): boolean {

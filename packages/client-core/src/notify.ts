@@ -1,10 +1,14 @@
 import {
   broadcastLabel,
+  USER_MENTION,
   broadcastsIn,
   effectiveNotifyLevel,
+  isDirect,
+  userMentionsIn,
   type ID,
   type Message,
 } from "@ownbase/protocol";
+import { isSnoozed } from "./selectors.js";
 import type { WorkspaceState } from "./workspace.js";
 
 export type NotifyDecision =
@@ -61,11 +65,11 @@ export function decideNotification(
 
   // A reply that chose to notify the author of what it answers names them.
   const named =
-    message.text.includes(`<@${self.id}>`) ||
+    userMentionsIn(message.text).has(self.id) ||
     (message.replyTo?.ping === true && message.replyTo.userId === self.id);
   const broadcasts = broadcastsIn(message.text);
   // A room-wide mention only reaches a room: in a DM it is just words.
-  const isDm = channel.type === "dm" || channel.type === "group_dm";
+  const isDm = isDirect(channel.type);
   const addressed = named || (!isDm && broadcasts.size > 0);
 
   // A muted thread speaks up only for what is addressed to this account, as
@@ -84,7 +88,7 @@ export function decideNotification(
 
   // Do Not Disturb wins over everything except the decision to stay silent,
   // which is already settled above.
-  if (self.dndUntil !== null && self.dndUntil > now) return { notify: false, reason: "dnd" };
+  if (isSnoozed(self.dndUntil, now)) return { notify: false, reason: "dnd" };
 
   if (isDm) return { notify: true, reason: "dm" };
   if (named) return { notify: true, reason: "mention" };
@@ -105,8 +109,7 @@ export function decideReminderNotification(
   state: WorkspaceState,
   now = Date.now(),
 ): { notify: false; reason: "dnd" } | { notify: true; reason: "reminder" } {
-  const dndUntil = state.self?.dndUntil ?? null;
-  if (dndUntil !== null && dndUntil > now) return { notify: false, reason: "dnd" };
+  if (isSnoozed(state.self?.dndUntil, now)) return { notify: false, reason: "dnd" };
   return { notify: true, reason: "reminder" };
 }
 
@@ -162,7 +165,7 @@ export function readableText(state: WorkspaceState, text: string): string {
   // mentions from resolving to names.
   return (
     text
-      .replaceAll(/<@([A-Za-z0-9_-]+)>/g, (_all, id: ID) => {
+      .replaceAll(USER_MENTION, (_all, id: ID) => {
         const user = state.users[id];
         return user ? `@${user.displayName}` : "@someone";
       })

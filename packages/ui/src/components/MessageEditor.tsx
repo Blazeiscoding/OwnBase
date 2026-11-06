@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Message } from "@ownbase/protocol";
+import { MESSAGE_TEXT_MAX, type Message } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import {
@@ -9,7 +9,6 @@ import {
   formattingShortcut,
   listShortcut,
   type ListKind,
-  MESSAGE_LIMIT,
 } from "./FormattingToolbar.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { MentionTags } from "./MentionTags.js";
@@ -103,7 +102,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
   }
 
   async function save() {
-    if (saving.current || !draft.trim() || draft.length > MESSAGE_LIMIT) return;
+    if (saving.current || !draft.trim() || draft.length > MESSAGE_TEXT_MAX) return;
     if (draft.trim() === message.text) {
       cancel();
       return;
@@ -265,8 +264,8 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
             />
           </div>
           <div className="flex items-center justify-between gap-2 px-3 pb-2 text-xs">
-            <span className={draft.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}>
-              {draft.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()}
+            <span className={draft.length > MESSAGE_TEXT_MAX ? "text-alert" : "text-ink-faint"}>
+              {draft.length.toLocaleString()} / {MESSAGE_TEXT_MAX.toLocaleString()}
             </span>
             <div className="flex gap-3">
               <button type="button" className="text-ink-dim" onClick={cancel}>
@@ -275,7 +274,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
               <button
                 type="button"
                 className="btn-shape bg-copper px-3 py-1 font-medium text-ground disabled:opacity-40"
-                disabled={!draft.trim() || draft.length > MESSAGE_LIMIT}
+                disabled={!draft.trim() || draft.length > MESSAGE_TEXT_MAX}
                 onClick={() => void save()}
               >
                 {busy ? "Saving…" : changedElsewhere ? "Save my version" : "Save"}

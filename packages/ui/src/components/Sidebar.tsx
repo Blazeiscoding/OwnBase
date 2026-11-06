@@ -9,7 +9,7 @@ import {
   type SidebarSection,
   type UnreadSummary,
 } from "@ownbase/protocol";
-import { blockedPartner } from "../lib/blocking.js";
+import { blockedPartner, isSnoozed, isUnread } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
 import { channelTitle } from "../lib/format.js";
@@ -246,7 +246,7 @@ export function Sidebar(props: Props) {
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
   const blocked = useWorkspace((s) => s.blocked);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
-  const snoozed = dndUntil !== null && dndUntil > Date.now();
+  const snoozed = isSnoozed(dndUntil);
   const others = props.otherWorkspaces ?? [];
   const name = workspaceName || "Connecting…";
 
@@ -301,7 +301,7 @@ export function Sidebar(props: Props) {
     return sectionId && sectioned.has(sectionId) && !prefs[id]?.starred ? sectionId : null;
   };
 
-  const isUnread = (id: ID) => (channelLastSeq[id] ?? 0) > (memberships[id] ?? 0);
+  const unread = (id: ID) => isUnread({ channelLastSeq, memberships }, id);
   const hasDraft = (id: ID) => !!drafts[id];
   // Muted channels still show unread state, just quietly.
   const isMuted = (id: ID) => prefs[id]?.muted ?? false;
@@ -309,7 +309,7 @@ export function Sidebar(props: Props) {
   const mentions = (id: ID) => mentionCounts[id] ?? 0;
   const totalMentions = Object.values(mentionCounts).reduce((sum, n) => sum + n, 0);
   const unreadConversations = Object.keys(memberships).filter(
-    (id) => isUnread(id) && !blockedPartner(channels[id], selfId, blocked),
+    (id) => unread(id) && !blockedPartner(channels[id], selfId, blocked),
   ).length;
 
   const [collapsed, toggleCollapsed] = useCollapsedSections();
@@ -325,7 +325,7 @@ export function Sidebar(props: Props) {
   const shown = (section: string, id: ID) =>
     !collapsed.has(section) ||
     id === props.activeChannelId ||
-    (isUnread(id) && !isMuted(id)) ||
+    (unread(id) && !isMuted(id)) ||
     mentions(id) > 0;
 
   const client = useClient();
@@ -368,7 +368,7 @@ export function Sidebar(props: Props) {
     };
     const items: MenuItem[] = [];
     // Read without opening it, as Slack's row menu does.
-    if (isUnread(ch.id) || mentions(ch.id) > 0)
+    if (unread(ch.id) || mentions(ch.id) > 0)
       items.push({
         id: "read",
         label: "Mark as read",
@@ -547,7 +547,7 @@ export function Sidebar(props: Props) {
         key={ch.id}
         id={ch.id}
         active={ch.id === props.activeChannelId}
-        unread={isUnread(ch.id)}
+        unread={unread(ch.id)}
         muted={isMuted(ch.id)}
         draft={hasDraft(ch.id)}
         huddle={huddleWith(ch.id)}
@@ -585,7 +585,7 @@ export function Sidebar(props: Props) {
         key={ch.id}
         id={ch.id}
         active={ch.id === props.activeChannelId}
-        unread={isUnread(ch.id)}
+        unread={unread(ch.id)}
         muted={isMuted(ch.id)}
         draft={hasDraft(ch.id)}
         huddle={huddleWith(ch.id)}

@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, WorkspaceClient, normalizeServerUrl } from "../src/index.js";
+import { Api, WorkspaceClient, isUnread, normalizeServerUrl } from "../src/index.js";
 import type { WorkspaceState } from "../src/index.js";
 
 let server: WorkspaceServer;
@@ -365,10 +365,10 @@ describe("WorkspaceClient", () => {
     const general = Object.values(client.state.channels).find((c) => c.name === "general")!;
 
     await new Api(base, bobToken).sendMessage(general.id, { text: "unread ping" });
-    await until(client, () => client.unreadCount(general.id), "unread flag");
+    await until(client, (s) => isUnread(s, general.id), "unread flag");
 
     client.markRead(general.id);
-    expect(client.unreadCount(general.id)).toBe(false);
+    expect(isUnread(client.state, general.id)).toBe(false);
     client.destroy();
   });
 

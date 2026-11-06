@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   APP_SCOPES,
+  MESSAGE_TEXT_MAX,
   SIDEBAR_SECTIONS_MAX,
   SIDEBAR_SECTION_NAME_MAX,
   POLL_OPTION_MAX,
@@ -233,7 +234,7 @@ export const channelManagerBody = z.object({ manager: z.boolean() });
 
 export const sendMessageBody = z
   .object({
-    text: z.string().max(12000),
+    text: z.string().max(MESSAGE_TEXT_MAX),
     threadRootId: z.string().optional(),
     nonce: z.string().max(64).optional(),
     /** Ids from POST /api/channels/:id/files, attached to this message. */
@@ -275,7 +276,7 @@ export const sendMessageBody = z
 
 export const scheduleMessageBody = z
   .object({
-    text: z.string().max(12000),
+    text: z.string().max(MESSAGE_TEXT_MAX),
     /** Stable identity for retrying this exact scheduling request. */
     nonce: z.string().min(1).max(64).optional(),
     /** Epoch ms; must be in the future. */
@@ -295,9 +296,9 @@ export const rescheduleBody = z.object({
 });
 
 export const editScheduledBody = z.object({
-  text: z.string().max(12000),
+  text: z.string().max(MESSAGE_TEXT_MAX),
   /** The text the author started editing; prevents overwriting another edit. */
-  expectedText: z.string().max(12000),
+  expectedText: z.string().max(MESSAGE_TEXT_MAX),
 });
 
 const appScopes = z.array(z.enum(APP_SCOPES)).max(APP_SCOPES.length);
@@ -403,13 +404,13 @@ export const runCommandBody = z.object({
 });
 
 export const editMessageBody = z.object({
-  text: z.string().min(1).max(12000),
+  text: z.string().min(1).max(MESSAGE_TEXT_MAX),
   /**
    * The words the author is replacing, as their client last had them. A
    * message changed since is refused rather than overwritten. Left out, an
    * edit replaces whatever is there, as before this existed.
    */
-  expectedText: z.string().max(12000).optional(),
+  expectedText: z.string().max(MESSAGE_TEXT_MAX).optional(),
 });
 
 export const markReadBody = z.object({

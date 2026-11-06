@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { ID, ScheduledMessage } from "@ownbase/protocol";
+import { MESSAGE_TEXT_MAX, type ID, type ScheduledMessage } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
 import { formatScheduleTime, localDateTime } from "../lib/schedule.js";
 import { Mrkdwn } from "./Mrkdwn.js";
-import { MESSAGE_LIMIT } from "./FormattingToolbar.js";
 import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
@@ -252,9 +251,9 @@ export function ScheduledPanel(props: {
               />
             </label>
             <p
-              className={`text-xs ${editText.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}`}
+              className={`text-xs ${editText.length > MESSAGE_TEXT_MAX ? "text-alert" : "text-ink-faint"}`}
             >
-              {editText.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()} characters
+              {editText.length.toLocaleString()} / {MESSAGE_TEXT_MAX.toLocaleString()} characters
               {editing.fileIds.length === 1
                 ? " · 1 file stays attached"
                 : editing.fileIds.length > 1
@@ -312,7 +311,7 @@ export function ScheduledPanel(props: {
                 disabled={
                   busy !== null ||
                   !currentEdit ||
-                  editText.length > MESSAGE_LIMIT ||
+                  editText.length > MESSAGE_TEXT_MAX ||
                   (!editText.trim() && editing.fileIds.length === 0)
                 }
               >

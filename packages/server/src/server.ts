@@ -91,6 +91,7 @@ import {
   type AppScope,
   appScopesBody,
   eventScope,
+  isAdministrator,
   type ScheduledMessage,
   type ServerInfo,
   type User,
@@ -153,6 +154,7 @@ import { SECURITY_HEADERS } from "./securityHeaders.js";
 import { isMissingAsset, webCacheControl } from "./webClient.js";
 import { eventActorId, signatureHeaders, toSlackEvent } from "./integrations.js";
 import { BUILTIN_COMMANDS } from "./commands.js";
+import { HttpError } from "./httpError.js";
 import { secretToken, ulid } from "./ids.js";
 import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
 import {
@@ -616,18 +618,6 @@ export interface RetentionStatus {
   lastError: string | null;
   /** Sweeps that have failed in a row. */
   failures: number;
-}
-
-class HttpError extends Error {
-  constructor(
-    public statusCode: number,
-    public code: string,
-    message?: string,
-    /** Seconds until the same call could succeed, for a refusal that will lift. */
-    public retryAfter?: number,
-  ) {
-    super(message ?? code);
-  }
 }
 
 export async function createWorkspaceServer(opts: ServerOptions): Promise<WorkspaceServer> {
@@ -1994,11 +1984,11 @@ async function startWorkspaceServer(
       if (err.retryAfter !== undefined) reply.header("retry-after", String(err.retryAfter));
       return reply.status(err.statusCode).send({ error: err.code, message: err.message });
     }
-    const fastifyErr = err as { statusCode?: number; code?: string; message?: string };
+    const fastifyErr = err as { statusCode?: number; message?: string };
     if (typeof fastifyErr.statusCode === "number" && fastifyErr.statusCode < 500) {
       return reply
         .status(fastifyErr.statusCode)
-        .send({ error: fastifyErr.code ?? "bad_request", message: fastifyErr.message });
+        .send({ error: "bad_request", message: fastifyErr.message });
     }
     app.log.error(err);
     return reply.status(500).send({ error: "internal" });
@@ -3238,7 +3228,7 @@ async function startWorkspaceServer(
     if (!existing || !store.canAccess(existing.channelId, me.id)) {
       throw new HttpError(404, "message_not_found");
     }
-    const isPrivileged = me.role === "owner" || me.role === "admin";
+    const isPrivileged = isAdministrator(me.role);
     if (existing.userId !== me.id && !isPrivileged) throw new HttpError(403, "not_your_message");
 
     removeMessage(existing);
@@ -3250,7 +3240,7 @@ async function startWorkspaceServer(
   const publishOpenReports = (): void => {
     const open = store.openReportCount();
     for (const user of store.listUsers())
-      if ((user.role === "owner" || user.role === "admin") && !user.deactivated)
+      if (isAdministrator(user.role) && !user.deactivated)
         gateway.sendToUser(user.id, { type: "reports", open });
   };
 
@@ -3628,7 +3618,7 @@ async function startWorkspaceServer(
 
   const requireAdmin = (req: FastifyRequest): User => {
     const me = requireUser(req);
-    if (me.role !== "owner" && me.role !== "admin") throw new HttpError(403, "admin_only");
+    if (!isAdministrator(me.role)) throw new HttpError(403, "admin_only");
     return me;
   };
 
@@ -6257,7 +6247,7 @@ async function startWorkspaceServer(
    */
   app.get("/api/invites", async (req) => {
     const me = requireUser(req);
-    const admin = me.role === "owner" || me.role === "admin";
+    const admin = isAdministrator(me.role);
     return { invites: store.listInvites(admin ? {} : { createdBy: me.id }) };
   });
 
@@ -6268,7 +6258,7 @@ async function startWorkspaceServer(
    */
   app.delete<{ Params: { code: string } }>("/api/invites/:code", async (req) => {
     const me = requireUser(req);
-    const admin = me.role === "owner" || me.role === "admin";
+    const admin = isAdministrator(me.role);
     const invite = store.getInvite(req.params.code);
     if (!invite || (!admin && invite.createdBy !== me.id)) {
       throw new HttpError(404, "invite_not_found");

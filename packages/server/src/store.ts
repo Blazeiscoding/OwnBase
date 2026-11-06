@@ -41,7 +41,16 @@ import type {
   MessageReport,
   ReportReason,
 } from "@ownbase/protocol";
-import { APP_SCOPES, FILE_KIND_TYPES, FILE_TYPE_MATCH, replyExcerpt } from "@ownbase/protocol";
+import {
+  APP_SCOPES,
+  FILE_KIND_TYPES,
+  FILE_TYPE_MATCH,
+  broadcastsIn,
+  isAdministrator,
+  isRoom,
+  replyExcerpt,
+  userMentionsIn,
+} from "@ownbase/protocol";
 import type { AppScope } from "@ownbase/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
 
@@ -162,7 +171,7 @@ function toUser(r: UserRow): User {
     deactivated: r.deactivated === 1,
     dndUntil: r.dnd_until,
     createdAt: r.created_at,
-    canInvite: mayInvite(r.role, r.is_bot, r.can_invite),
+    canInvite: mayInvite(r.role as Role, r.is_bot, r.can_invite),
     ...(r.time_zone ? { timeZone: r.time_zone } : {}),
     ...(r.away === 1 ? { away: true as const } : {}),
     ...(r.avatar_version ? { avatarVersion: r.avatar_version } : {}),
@@ -194,9 +203,13 @@ function toPrefs(r: PrefsRow): ChannelPrefs {
  * The one rule for who may create invite codes, used for the flag clients see
  * and for the codes a creator has already handed out. An app never may.
  */
-function mayInvite(role: string, isBot: number, canInvite: number | undefined | null): boolean {
+function mayInvite(
+  role: Role | null,
+  isBot: number,
+  canInvite: number | undefined | null,
+): boolean {
   if (isBot === 1) return false;
-  return role === "owner" || role === "admin" || canInvite === 1;
+  return isAdministrator(role) || canInvite === 1;
 }
 
 /** How long a session survives without being used. */
@@ -1600,8 +1613,8 @@ export class Store {
   ): void {
     if (!created)
       this.db.prepare("DELETE FROM message_mentions WHERE message_id = ?").run(messageId);
-    const named = new Set([...text.matchAll(/<@([A-Za-z0-9_-]+)>/g)].map((m) => m[1]!));
-    if (/<!(?:here|channel|everyone)>/.test(text)) named.add("!");
+    const named: Set<string> = userMentionsIn(text);
+    if (broadcastsIn(text).size > 0) named.add("!");
     const pinged = created ? created.pinged : this.replyPinged(messageId);
     if (pinged) named.add(pinged);
     if (named.size === 0) return;
@@ -4543,7 +4556,7 @@ export class Store {
         ? "revoked"
         : r.creator_deactivated !== 0
           ? "creator_deactivated"
-          : !mayInvite(r.creator_role ?? "", r.creator_is_bot ?? 0, r.creator_can_invite)
+          : !mayInvite(r.creator_role as Role | null, r.creator_is_bot ?? 0, r.creator_can_invite)
             ? "creator_not_permitted"
             : r.expires_at !== null && now > r.expires_at
               ? "expired"
@@ -5033,12 +5046,12 @@ export class Store {
    * reads every member (REV-06).
    */
   mentionedMemberIds(channelId: ID, text: string, exclude: ID): ID[] {
-    const direct = new Set([...text.matchAll(/<@([^>]+)>/g)].map((m) => m[1]!));
-    const roomWideToken = /<!(channel|here|everyone)>/.test(text);
+    const direct = userMentionsIn(text);
+    const roomWideToken = broadcastsIn(text).size > 0;
     if (direct.size === 0 && !roomWideToken) return [];
     const channel = this.getChannel(channelId);
     if (!channel) return [];
-    if (roomWideToken && (channel.type === "public" || channel.type === "private"))
+    if (roomWideToken && isRoom(channel.type))
       return this.memberIds(channelId).filter((id) => id !== exclude);
     return [...direct].filter((id) => id !== exclude && this.isMember(channelId, id));
   }

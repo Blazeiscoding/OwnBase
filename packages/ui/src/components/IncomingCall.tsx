@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { HuddleRing, ID } from "@ownbase/protocol";
+import { isSnoozed } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
@@ -47,7 +48,7 @@ export function IncomingCall(props: {
       ),
     [rings, selfId, blocked],
   );
-  const snoozed = dndUntil !== null && dndUntil > Date.now();
+  const snoozed = isSnoozed(dndUntil);
   const loud = ringingMe.filter((ring) => !snoozed && !prefs[ring.channelId]?.muted);
   const ringing = loud.length > 0;
 

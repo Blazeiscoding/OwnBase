@@ -9,7 +9,6 @@ const EmojiPicker = lazy(() =>
   import("./EmojiPicker.js").then((module) => ({ default: module.EmojiPicker })),
 );
 
-export const MESSAGE_LIMIT = 12_000;
 /** The marker Ctrl/Cmd with this key puts round the selection: B, I and E, and Shift+X for strikethrough as in Slack. */
 export const formattingShortcut = (key: string, shift = false) =>
   shift

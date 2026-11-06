@@ -1,6 +1,6 @@
 import { useId, type ReactNode } from "react";
-import type { ID } from "@ownbase/protocol";
-import { blockedPartner } from "../lib/blocking.js";
+import { isDirect, isRoom, type ID } from "@ownbase/protocol";
+import { isSnoozed, mentionsElsewhere, waitsForAttention } from "@ownbase/client-core";
 import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
@@ -89,43 +89,19 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
   const { activeChannelId } = props;
   const guest = useWorkspace((s) => s.self?.role === "guest");
   const self = useWorkspace((s) => s.self);
-  const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
-  const snoozed = dndUntil !== null && dndUntil > Date.now();
-  // What waits elsewhere, as the drawer's button counts it: the conversation
-  // on screen is being read, and a muted one does not call for attention.
+  const snoozed = isSnoozed(useWorkspace((s) => s.self?.dndUntil));
   const unreadRooms = useWorkspace((s) =>
-    Object.keys(s.memberships).some((id) => {
-      const channel = s.channels[id];
-      return (
-        id !== activeChannelId &&
-        (channel?.type === "public" || channel?.type === "private") &&
-        !channel.archived &&
-        !s.prefs[id]?.muted &&
-        (s.channelLastSeq[id] ?? 0) > (s.memberships[id] ?? 0)
-      );
-    }),
+    Object.keys(s.memberships).some(
+      (id) => isRoom(s.channels[id]?.type) && waitsForAttention(s, id, activeChannelId),
+    ),
   );
   const unreadDms = useWorkspace(
     (s) =>
-      Object.keys(s.memberships).filter((id) => {
-        const channel = s.channels[id];
-        return (
-          id !== activeChannelId &&
-          (channel?.type === "dm" || channel?.type === "group_dm") &&
-          !channel.archived &&
-          !s.prefs[id]?.muted &&
-          // Waiting unseen with someone blocked (E12).
-          !blockedPartner(channel, s.self?.id, s.blocked) &&
-          (s.channelLastSeq[id] ?? 0) > (s.memberships[id] ?? 0)
-        );
-      }).length,
+      Object.keys(s.memberships).filter(
+        (id) => isDirect(s.channels[id]?.type) && waitsForAttention(s, id, activeChannelId),
+      ).length,
   );
-  const mentions = useWorkspace((s) =>
-    Object.entries(s.mentionCounts).reduce(
-      (sum, [id, count]) => (id === activeChannelId ? sum : sum + count),
-      0,
-    ),
-  );
+  const mentions = useWorkspace((s) => mentionsElsewhere(s, activeChannelId));
   const unreadReplies = useWorkspace((s) => unreadThreadCount(s.threadFollows) > 0);
   const dueReminders = useWorkspace(dueReminderCount);
   const waitingInActivity = [

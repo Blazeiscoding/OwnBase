@@ -1,4 +1,9 @@
-import type { WorkspaceClient, WorkspaceState } from "@ownbase/client-core";
+import {
+  isThreadUnread,
+  isUnread,
+  type WorkspaceClient,
+  type WorkspaceState,
+} from "@ownbase/client-core";
 import type { ID } from "@ownbase/protocol";
 
 /** Conversations and followed threads with something unread, as Mark all read clears them. */
@@ -7,13 +12,9 @@ export function unreadEverywhere(state: WorkspaceState): {
   threads: WorkspaceState["threadFollows"][ID][];
 } {
   const channels: [ID, number][] = [];
-  for (const [channelId, read] of Object.entries(state.memberships)) {
-    const newest = state.channelLastSeq[channelId] ?? 0;
-    if (newest > read) channels.push([channelId, newest]);
-  }
-  const threads = Object.values(state.threadFollows).filter(
-    (follow) => follow.following && follow.lastSeq > follow.lastReadSeq,
-  );
+  for (const channelId of Object.keys(state.memberships))
+    if (isUnread(state, channelId)) channels.push([channelId, state.channelLastSeq[channelId]!]);
+  const threads = Object.values(state.threadFollows).filter(isThreadUnread);
   return { channels, threads };
 }
 
