@@ -1,6 +1,7 @@
 import {
   app,
   BrowserWindow,
+  clipboard,
   desktopCapturer,
   dialog,
   ipcMain,
@@ -11,9 +12,11 @@ import {
   nativeTheme,
   powerMonitor,
   safeStorage,
+  screen,
   shell,
   Tray,
 } from "electron";
+import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { statfs } from "node:fs/promises";
 import { join } from "node:path";
@@ -75,6 +78,11 @@ import { startHostedServer } from "./hostedServer.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { windowColours } from "./windowTheme.js";
+import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
+import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
+import { contextMenuItems } from "./contextMenu.js";
+import { appMenuTemplate } from "./appMenu.js";
+import { READER_LOCALE_ARG, readerLocale, systemHourCycle } from "./regionalFormat.js";
 import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
 import {
   findCloudflared,
@@ -381,6 +389,14 @@ function savedCallRelay(): Promise<CallRelay | null> {
 const APPEARANCE_KEY = "appearance";
 /** Read at startup, before the window is made, and kept as the renderer saves it. */
 let savedAppearance: unknown = null;
+/** The window's last size and place (windowPlace.ts), read at startup and kept as it moves. */
+let savedWindowPlace: unknown = null;
+/** Saves the open window's place now rather than after its pause; null without a window. */
+let saveWindowPlaceNow: (() => void) | null = null;
+/** The page's zoom level (zoomKeys.ts), read at startup and kept as the keys change it. */
+let savedZoom = 0;
+/** The locale the page writes dates and times in (regionalFormat.ts), worked out at startup. */
+let pageLocale: string | null = null;
 
 /**
  * The window's background and title bar overlay in the page's theme: when the
@@ -1112,12 +1128,21 @@ function createWindow(): void {
   // window shows this before the page paints, and the overlay sits on the
   // window's own surface, above the sidebar and the conversation card.
   const colours = windowColours(savedAppearance, nativeTheme.shouldUseDarkColors);
+  // Where it was last, if that is still on a screen (windowPlace.ts).
+  const primary = screen.getPrimaryDisplay();
+  const opening = placeToOpen(savedWindowPlace, [
+    primary.workArea,
+    ...screen
+      .getAllDisplays()
+      .filter((display) => display.id !== primary.id)
+      .map((display) => display.workArea),
+  ]);
   mainWindow = new BrowserWindow({
-    show: !isTest,
-    width: 1280,
-    height: 820,
-    minWidth: 760,
-    minHeight: 480,
+    // A window that opens maximized is shown once it is, not first at its smaller size.
+    show: !isTest && !opening.maximized,
+    ...opening.bounds,
+    minWidth: MIN_WINDOW_SIZE.width,
+    minHeight: MIN_WINDOW_SIZE.height,
     backgroundColor: colours.background,
     titleBarStyle: "hidden",
     titleBarOverlay: {
@@ -1127,6 +1152,7 @@ function createWindow(): void {
     },
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
+      ...(pageLocale ? { additionalArguments: [READER_LOCALE_ARG + pageLocale] } : {}),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -1135,6 +1161,28 @@ function createWindow(): void {
 
   mainWindow.setMenuBarVisibility(false);
   const win = mainWindow;
+  if (opening.maximized) {
+    win.maximize();
+    if (!isTest) win.show();
+  }
+  // Its size and place are kept as they change, once it has rested a moment,
+  // and when it closes, so the next launch opens it where it was.
+  let placeTimer: ReturnType<typeof setTimeout> | null = null;
+  const savePlace = () => {
+    if (placeTimer) clearTimeout(placeTimer);
+    placeTimer = null;
+    // Full screen is a passing state, and minimized keeps its last place.
+    if (win.isDestroyed() || win.isFullScreen() || win.isMinimized()) return;
+    savedWindowPlace = placeToSave(win.getNormalBounds(), win.isMaximized());
+    void writeSetting(WINDOW_PLACE_KEY, savedWindowPlace).catch(() => {});
+  };
+  const savePlaceSoon = () => {
+    if (placeTimer) clearTimeout(placeTimer);
+    placeTimer = setTimeout(savePlace, 500);
+  };
+  for (const change of ["resize", "move", "maximize", "unmaximize"] as const)
+    win.on(change as "resize", savePlaceSoon);
+  saveWindowPlaceNow = savePlace;
   let closeAllowed = false;
   let windowCloseTask: Promise<void> | null = null;
   rendererReady = false;
@@ -1148,6 +1196,7 @@ function createWindow(): void {
   });
   win.webContents.on("render-process-gone", () => microphones.closeOwner(contentsId));
   win.on("close", (event) => {
+    if (placeTimer) savePlace();
     if (quitReady || closeAllowed) return;
     if (quitting || hosting.status().phase !== "stopped") {
       event.preventDefault();
@@ -1173,6 +1222,8 @@ function createWindow(): void {
     void windowCloseTask.catch(() => {});
   });
   win.on("closed", () => {
+    if (placeTimer) clearTimeout(placeTimer);
+    if (saveWindowPlaceNow === savePlace) saveWindowPlaceNow = null;
     microphones.closeOwner(contentsId);
     if (mainWindow === win) {
       mainWindow = null;
@@ -1215,6 +1266,34 @@ function createWindow(): void {
   });
   mainWindow.webContents.on("will-navigate", (event) => {
     event.preventDefault();
+  });
+
+  // Ctrl and =, - or 0 zoom as in a browser (zoomKeys.ts), and the zoom is
+  // kept for the next launch.
+  win.webContents.on("before-input-event", (event, input) => {
+    const step = zoomStep(input, process.platform);
+    if (!step) return;
+    event.preventDefault();
+    savedZoom = nextZoomLevel(win.webContents.getZoomLevel(), step);
+    win.webContents.setZoomLevel(savedZoom);
+    void writeSetting(ZOOM_KEY, savedZoom).catch(() => {});
+  });
+  win.webContents.on("did-finish-load", () => {
+    if (!win.isDestroyed()) win.webContents.setZoomLevel(savedZoom);
+  });
+
+  // A right-click menu as in a browser: spelling, links, pictures, editing (contextMenu.ts).
+  win.webContents.on("context-menu", (_event, params) => {
+    const items = contextMenuItems(params, {
+      replaceMisspelling: (word) => win.webContents.replaceMisspelling(word),
+      addToDictionary: (word) => {
+        win.webContents.session.addWordToSpellCheckerDictionary(word);
+      },
+      openLink: (url) => void shell.openExternal(url),
+      copyText: (text) => clipboard.writeText(text),
+      copyImageAt: (x, y) => win.webContents.copyImageAt(x, y),
+    });
+    if (items.length && !win.isDestroyed()) Menu.buildFromTemplate(items).popup({ window: win });
   });
 
   // External links open in the OS browser, never inside the app.
@@ -1297,6 +1376,17 @@ function loadRenderer(win: BrowserWindow): void {
 
 void app.whenReady().then(async () => {
   if (!primaryInstance) return;
+  // Asked of the system while the settings are read: whether it writes times
+  // on the 24-hour clock, which Chromium does not follow.
+  const hourCycle = systemHourCycle(
+    process.platform,
+    (command, args) =>
+      new Promise((resolve, reject) =>
+        execFile(command, args, { timeout: 3_000, windowsHide: true }, (error, stdout) =>
+          error ? reject(error) : resolve(stdout),
+        ),
+      ),
+  );
   // The installer gates ask which profile this process uses (F05).
   const gateReport = appEnv("RELEASE_GATE_REPORT");
   if (gateReport)
@@ -1314,7 +1404,18 @@ void app.whenReady().then(async () => {
   savedPublicAddress = typeof stored === "string" && stored.trim() ? stored.trim() : null;
   // Unreadable, the window follows the system until the page saves a choice.
   savedAppearance = await settings.get(APPEARANCE_KEY).catch(() => null);
+  // Unreadable, the window opens at its usual size, centred.
+  savedWindowPlace = await settings.get(WINDOW_PLACE_KEY).catch(() => null);
+  savedZoom = savedZoomLevel(await settings.get(ZOOM_KEY).catch(() => null));
+  pageLocale = readerLocale({
+    appLocale: app.getLocale(),
+    systemLocale: app.getSystemLocale(),
+    hourCycle: await hourCycle,
+  });
   publicAddressLookup = null;
+  // No Ctrl+W, Ctrl+R or developer tools in the installed app (appMenu.ts).
+  if (app.isPackaged)
+    Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform)));
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;
   createTray();
@@ -1378,6 +1479,8 @@ function quitOwnBase(stopConfirmed: boolean): void {
       updateTray();
       return;
     }
+    // Kept before the settings are saved for the last time.
+    saveWindowPlaceNow?.();
     if (!(await prepareLocalWrites(mainWindow, true))) {
       quitting = false;
       updateTray();

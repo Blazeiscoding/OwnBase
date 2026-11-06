@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useStore } from "zustand";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import type { Platform } from "../platform.js";
+import { useDeviceOffline } from "../lib/online.js";
 import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import {
   checkWorkspaceAddress,
@@ -49,6 +50,7 @@ export function WorkspaceStorageGate({
   const userId = useStore(client.store, (state) => state.self?.id);
   const workspaceId = useStore(client.store, (state) => state.workspaceId);
   const status = useStore(client.store, (state) => state.status);
+  const deviceOffline = useDeviceOffline();
   const scope = useMemo<Scope | null>(
     () => (userId && workspaceId ? { client, workspaceId, userId } : null),
     [client, workspaceId, userId],
@@ -118,7 +120,13 @@ export function WorkspaceStorageGate({
         ? "Going back to sign in…"
         : userId
           ? "Checking the workspace address…"
-          : "Connecting to the workspace…";
+          : // Opened with no network, or the server down, the app is here
+            // until it answers; say why rather than seem to load forever.
+            deviceOffline
+            ? "This device is offline. The workspace opens once the network is back."
+            : status === "reconnecting"
+              ? `Can't reach the workspace at ${hostOf(client.baseUrl)}. OwnBase keeps trying, and opens it once it answers.`
+              : "Connecting to the workspace…";
 
   return (
     <div className="flex h-full flex-col bg-ground text-ink">
@@ -191,4 +199,13 @@ export function WorkspaceStorageGate({
       </div>
     </div>
   );
+}
+
+/** The address as people type it, such as "chat.example.com" or "192.168.1.5:8543". */
+function hostOf(baseUrl: string): string {
+  try {
+    return new URL(baseUrl).host;
+  } catch {
+    return baseUrl;
+  }
 }

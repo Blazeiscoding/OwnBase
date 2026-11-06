@@ -1,5 +1,6 @@
 export { App } from "./App.js";
 export { webPlatform } from "./platform.js";
+export { setReaderLocale } from "./lib/readerLocale.js";
 export type {
   AutoBackup,
   CallRelayDraft,

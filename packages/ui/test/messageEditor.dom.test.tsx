@@ -149,9 +149,19 @@ describe("editing a message", () => {
     expect(box).toHaveValue("Ship it on Monday");
     expect(kept(client)?.text).toBe("Ship it on Monday");
 
+    // A server that answered with a fault is not a connection to wait for.
+    edit.mockRejectedValueOnce(new ApiError(500, "internal"));
+    await user.click(screen.getByRole("button", { name: "Save" }));
+    await waitFor(() =>
+      expect(screen.getByRole("alert")).toHaveTextContent(
+        "The workspace could not save this edit. Your text is still here. Try again in a moment.",
+      ),
+    );
+    expect(box).toHaveValue("Ship it on Monday");
+
     await user.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(edit).toHaveBeenCalledTimes(2);
+    expect(edit).toHaveBeenCalledTimes(3);
   });
 
   it("says when the message is gone, and keeps the edit", async () => {

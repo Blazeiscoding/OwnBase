@@ -76,6 +76,7 @@ import {
   hasSearchCriteria,
   searchQuery,
   activityQuery,
+  readRemovalsBody,
   sendMessageBody,
   SEND_RETRY_WINDOW_MS,
   updateChannelBody,
@@ -315,6 +316,7 @@ export const GUEST_ROUTES = new Set([
   "GET /api/scheduled",
   "GET /api/commands",
   "GET /api/activity",
+  "POST /api/activity/removals/read",
   "GET /api/search",
 ]);
 
@@ -1931,6 +1933,8 @@ async function startWorkspaceServer(
   await app.register(cors, {
     origin: true,
     methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
+    // How long to wait after "too much at once", for clients on another origin.
+    exposedHeaders: ["retry-after"],
   });
   await app.register(multipart, { limits: { fileSize: maxFileSize, files: 1 } });
 
@@ -2980,6 +2984,12 @@ async function startWorkspaceServer(
       mutate((emit, afterCommit) => {
         if (store.removeMember(channel.id, req.params.userId)) {
           afterCommit(() => gateway.updateChannelAccess(channel.id, req.params.userId));
+          // They hear who removed them, in Activity, wherever they are.
+          const removal = store.addChannelRemoval(req.params.userId, channel, me.id);
+          if (removal)
+            afterCommit(() =>
+              gateway.sendToUser(req.params.userId, { type: "channel.removal", removal }),
+            );
           if (channel.managerIds?.includes(req.params.userId))
             emit({ type: "channel.updated", channel: store.getChannel(channel.id)! }, channel.id);
           emit(
@@ -6297,6 +6307,16 @@ async function startWorkspaceServer(
     const matches = store.activityMessages(me.id, { ...query, limit: query.limit + 1 });
     const messages = matches.slice(0, query.limit);
     return { messages, nextCursor: matches.length > query.limit ? messages.at(-1)!.id : null };
+  });
+
+  // Reads notes that someone removed this account from channels, which clears
+  // them on every device. One already read, or not this account's, is passed over.
+  app.post("/api/activity/removals/read", async (req) => {
+    const me = requireUser(req);
+    const { ids } = readRemovalsBody.parse(req.body);
+    const read = store.readChannelRemovals(me.id, ids);
+    if (read.length > 0) gateway.sendToUser(me.id, { type: "channel.removals.read", ids: read });
+    return { ids: read };
   });
 
   app.get("/api/search", async (req) => {

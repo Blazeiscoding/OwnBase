@@ -95,7 +95,7 @@ describe("the Activity panel", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <ActivityPanel onClose={() => {}} onJump={() => {}} />
+          <ActivityPanel onClose={() => {}} onJump={() => {}} onOpenChannel={() => {}} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
@@ -228,7 +228,7 @@ describe("the Activity panel", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <ActivityPanel onClose={() => {}} onJump={() => {}} />
+          <ActivityPanel onClose={() => {}} onJump={() => {}} onOpenChannel={() => {}} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
@@ -300,7 +300,7 @@ describe("the Activity panel", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <ActivityPanel onClose={() => {}} onJump={() => {}} />
+          <ActivityPanel onClose={() => {}} onJump={() => {}} onOpenChannel={() => {}} />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

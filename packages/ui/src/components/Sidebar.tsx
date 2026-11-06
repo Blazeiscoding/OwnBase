@@ -11,7 +11,7 @@ import {
 } from "@ownbase/protocol";
 import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
-import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
+import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { channelTitle } from "../lib/format.js";
 import { listDrafts } from "../lib/drafts.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
@@ -185,9 +185,18 @@ export interface OtherWorkspace {
   waiting?: UnreadSummary;
 }
 
+/** "Unread mentions", "Unread mentions and due reminders", "A, b and c". */
+function wordList(parts: (string | false)[]): string {
+  const words = parts.filter((part): part is string => !!part);
+  const joined =
+    words.length > 1 ? `${words.slice(0, -1).join(", ")} and ${words.at(-1)}` : (words[0] ?? "");
+  return joined.charAt(0).toUpperCase() + joined.slice(1);
+}
+
 export function Sidebar(props: Props) {
   const unreadThreads = useWorkspace((s) => unreadThreadCount(s.threadFollows));
   const dueReminders = useWorkspace(dueReminderCount);
+  const removals = useWorkspace(unreadRemovalCount);
   const friendRequests = useWorkspace(
     (s) => s.friends.filter((f) => f.status === "incoming").length,
   );
@@ -236,7 +245,11 @@ export function Sidebar(props: Props) {
     return actions;
   }
   const drafts = useWorkspace((s) => s.drafts);
-  const draftCount = useMemo(() => listDrafts(drafts, {}, channels).length, [drafts, channels]);
+  const settled = useWorkspace((s) => s.status === "online");
+  const draftCount = useMemo(
+    () => listDrafts(drafts, {}, channels, settled).length,
+    [drafts, channels, settled],
+  );
   const prefs = useWorkspace((s) => s.prefs);
   // An older server keeps no stars, so none is offered there.
   const stars = useWorkspace((s) => s.stars);
@@ -692,16 +705,14 @@ export function Sidebar(props: Props) {
                   onClick={props.onActivity}
                   open={props.openPanel === "activity"}
                 >
-                  {totalMentions + dueReminders > 0 ? (
+                  {totalMentions + dueReminders + removals > 0 ? (
                     <Badge
-                      label={
-                        dueReminders === 0
-                          ? "Unread mentions"
-                          : totalMentions === 0
-                            ? "Due reminders"
-                            : "Unread mentions and due reminders"
-                      }
-                      count={totalMentions + dueReminders}
+                      label={wordList([
+                        totalMentions > 0 && "unread mentions",
+                        dueReminders > 0 && "due reminders",
+                        removals > 0 && "channels you were removed from",
+                      ])}
+                      count={totalMentions + dueReminders + removals}
                     />
                   ) : (
                     <Badge tone="quiet" label="Unread conversations" count={unreadConversations} />

@@ -1,11 +1,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { dueReminderCount, isMessageRead, notificationBody } from "@ownbase/client-core";
-import type { ID, Message } from "@ownbase/protocol";
+import type { ChannelRemoval, ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
+import { useOptionalToast } from "./Toast.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
@@ -74,14 +75,46 @@ export function groupActivity(messages: Message[], byThread: boolean): ActivityG
   return [...groups.values()];
 }
 
+/** What All lists, newest first: groups of messages, and notes of removals between them. */
+export type ActivityEntry =
+  | { kind: "group"; group: ActivityGroup; at: number }
+  | { kind: "removal"; removal: ChannelRemoval; at: number };
+
+/**
+ * Notes of removals placed among the groups by when each came. While older
+ * messages are still to load, a note older than the oldest shown waits for
+ * them, so it does not sit above messages that came before it.
+ */
+export function withRemovals(
+  groups: ActivityGroup[],
+  removals: ChannelRemoval[],
+  loadedSince: number | null,
+): ActivityEntry[] {
+  const entries: ActivityEntry[] = groups.map((group) => ({
+    kind: "group",
+    group,
+    at: group.messages[0]?.createdAt ?? 0,
+  }));
+  for (const removal of removals)
+    if (loadedSince === null || removal.createdAt >= loadedSince)
+      entries.push({ kind: "removal", removal, at: removal.createdAt });
+  // Stable: groups keep the order they came in.
+  return entries.sort((a, b) => b.at - a.at);
+}
+
 export function ActivityPanel({
   onClose,
   onJump,
+  onOpenChannel,
 }: {
   onClose: () => void;
   onJump: (channelId: ID, messageId: ID) => void;
+  /** Opens a conversation at its newest, or a public channel's preview to one not in it. */
+  onOpenChannel: (channelId: ID) => void;
 }) {
   const client = useClient();
+  const toast = useOptionalToast();
+  const removals = useWorkspace((s) => s.channelRemovals);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
@@ -121,6 +154,7 @@ export function ActivityPanel({
   /** Whether anything is unread anywhere, which Mark all read reads. */
   const unreadAnywhere = useWorkspace(
     (s) =>
+      Object.keys(s.channelRemovals).length > 0 ||
       Object.entries(s.memberships).some(([id, read]) => (s.channelLastSeq[id] ?? 0) > read) ||
       Object.values(s.threadFollows).some((f) => f.following && f.lastSeq > f.lastReadSeq),
   );
@@ -183,6 +217,46 @@ export function ActivityPanel({
       (mode === "mentions" || unread(message)),
   );
   const groups = groupActivity(messages, mode === "threads");
+  // Only All lists notes of removals, and only once its first page is in.
+  const entries =
+    mode === "all" && result
+      ? withRemovals(
+          groups,
+          Object.values(removals),
+          paged.nextCursor ? (result.at(-1)?.createdAt ?? null) : null,
+        )
+      : groups.map((group): ActivityEntry => ({ kind: "group", group, at: 0 }));
+
+  /** Reads notes of removals, saying so if the server could not be told. */
+  function readRemovals(ids: ID[]) {
+    void client.readChannelRemovals(ids).then((read) => {
+      if (!read)
+        toast?.({
+          message: "Could not mark that read. Check your connection and try again.",
+          kind: "error",
+        });
+    });
+  }
+
+  /**
+   * Reads a note of a removal, and opens its channel where that can still be
+   * done: a public channel's preview, from which one can join again, or a
+   * private one they were since added back to. Otherwise says why not.
+   */
+  function openRemoval(removal: ChannelRemoval) {
+    readRemovals([removal.id]);
+    if (channels[removal.channelId]) {
+      onOpenChannel(removal.channelId);
+      return;
+    }
+    toast?.({
+      message:
+        removal.channelType === "private"
+          ? `#${removal.channelName} is private. Only someone in it can add you back.`
+          : `#${removal.channelName} no longer exists.`,
+      kind: "info",
+    });
+  }
 
   /**
    * Reads a conversation through one message, or a thread through one reply.
@@ -197,6 +271,8 @@ export function ActivityPanel({
   /** Every conversation and followed thread read to its newest, and every reply listed. */
   function markAllRead() {
     markEverythingRead(client);
+    const notes = Object.keys(removals);
+    if (notes.length > 0) readRemovals(notes);
     // A mention in a thread nobody follows is read through its thread too.
     const newestReply = new Map<ID, Message>();
     for (const message of messages)
@@ -308,11 +384,29 @@ export function ActivityPanel({
                   : null
               }
               onRetry={() => list.retry()}
-              empty={result && !messages.length && !paged.nextCursor ? EMPTY[mode] : null}
+              empty={result && !entries.length && !paged.nextCursor ? EMPTY[mode] : null}
               emptyIcon={mode === "mentions" ? "at" : mode === "threads" ? "thread" : "check"}
             />
             <div className="space-y-2.5">
-              {groups.map((group) => {
+              {entries.map((entry) => {
+                if (entry.kind === "removal") {
+                  const { removal } = entry;
+                  return (
+                    <ul key={removal.id}>
+                      <RemovalRow
+                        removal={removal}
+                        remover={users[removal.removedBy]}
+                        reachable={!!channels[removal.channelId]}
+                        onOpen={() => openRemoval(removal)}
+                        onRead={(row) => {
+                          keepFocusFrom(row);
+                          readRemovals([removal.id]);
+                        }}
+                      />
+                    </ul>
+                  );
+                }
+                const { group } = entry;
                 const channel = channels[group.channelId]!;
                 const where =
                   channel.type === "public" || channel.type === "private"
@@ -463,6 +557,78 @@ function ActivityRow(props: {
             onClick={props.onSave}
           >
             <Icon name="bookmark" size={14} />
+          </button>
+        </Tooltip>
+      </span>
+    </li>
+  );
+}
+
+/**
+ * A note that someone removed you from a channel, as one row among the
+ * messages: who, which channel as it was named then, when, and what pressing
+ * it can still do. Unread until pressed or marked read, which clears it.
+ */
+function RemovalRow(props: {
+  removal: ChannelRemoval;
+  remover: Parameters<typeof Avatar>[0]["user"];
+  /** The channel is still there for this account to open or preview. */
+  reachable: boolean;
+  onOpen: () => void;
+  onRead: (row: HTMLElement | null) => void;
+}) {
+  const open = useRef<HTMLButtonElement>(null);
+  const { removal } = props;
+  const who = props.remover?.displayName ?? "Someone";
+  const hint = props.reachable
+    ? removal.channelType === "public"
+      ? "Open it to read or join again"
+      : "Open it"
+    : removal.channelType === "private"
+      ? "Private: only someone in it can add you back"
+      : "It no longer exists";
+  return (
+    <li className="group/row relative" onClickCapture={dropRepeatClick}>
+      <span
+        aria-hidden="true"
+        className="fc-fill absolute left-0.5 top-4 size-1.5 rounded-full bg-copper"
+      />
+      <button
+        ref={open}
+        type="button"
+        data-activity-row=""
+        onClick={props.onOpen}
+        className="flex w-full items-start gap-2.5 rounded-lg py-1.5 pl-3 pr-2 text-left transition-colors hover:bg-ink/[0.035] focus-visible:bg-ink/[0.035] [@media(hover:none)]:pr-[2.75rem]"
+      >
+        <Avatar user={props.remover} size={24} />
+        <span className="min-w-0 flex-1">
+          <span className="flex items-baseline gap-1.5 text-[13px]">
+            {/* Wraps rather than cut the channel's name, the point of the note. */}
+            <span className="min-w-0 [overflow-wrap:anywhere]">
+              <span className="font-semibold">{who}</span> removed you from{" "}
+              <span className="font-semibold">#{removal.channelName}</span>
+            </span>
+            <span className="sr-only">, unread</span>
+            <time
+              dateTime={new Date(removal.createdAt).toISOString()}
+              title={formatFull(removal.createdAt)}
+              className="ml-auto shrink-0 text-[12px] text-ink-faint"
+            >
+              <When at={removal.createdAt} />
+            </time>
+          </span>
+          <span className="block truncate text-[13px] text-ink-dim">{hint}</span>
+        </span>
+      </button>
+      <span className="absolute right-1.5 top-1 flex gap-0.5 rounded-lg bg-raised p-0.5 opacity-0 shadow-[0_1px_3px_rgb(0_0_0/0.18)] transition-opacity group-focus-within/row:opacity-100 group-hover/row:opacity-100 [@media(hover:none)]:top-2 [@media(hover:none)]:opacity-100">
+        <Tooltip label="Clear this from Activity">
+          <button
+            type="button"
+            aria-label="Mark read"
+            className="flex size-7 items-center justify-center rounded-md text-ink-faint transition-colors hover:bg-ink/[0.06] hover:text-ink"
+            onClick={() => props.onRead(open.current)}
+          >
+            <Icon name="check" size={14} />
           </button>
         </Tooltip>
       </span>
