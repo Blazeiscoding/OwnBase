@@ -7,3 +7,4 @@ export * from "./format.js";
 export * from "./huddle.js";
 export * from "./permissions.js";
 export * from "./plan.js";
+export * from "./errors.js";

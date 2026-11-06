@@ -172,7 +172,7 @@ export function useFileDownload(file: FileMeta) {
       if (native) {
         const url = await client.api.downloadUrl(file.id);
         if (!current || lifetime.current !== current) return;
-        if (!platform.downloadFile) throw new ApiError(409, "download_upgrade_required");
+        if (!platform.downloadFile) throw new Error("This app cannot save downloads.");
         await platform.downloadFile(url);
         if (lifetime.current === current) setHandedOff(true);
         return;
@@ -252,8 +252,6 @@ const UNAVAILABLE = "This file is gone, or you no longer have access to it.";
 
 function fileError(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.code === "download_upgrade_required")
-      return "Large files need a newer OwnBase. Update this app, and ask the host to update the workspace server.";
     if (err.status === 401) return "Sign in again to download this file.";
     if (err.status === 403 || err.status === 404) return UNAVAILABLE;
   }

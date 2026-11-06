@@ -1,3 +1,4 @@
+import { errorCodeOf, type ErrorCode } from "@ownbase/protocol";
 import type {
   AccessPolicy,
   CallLogEntry,
@@ -66,7 +67,7 @@ export interface AppDetail extends App {
 export class ApiError extends Error {
   constructor(
     public status: number,
-    public code: string,
+    public code: ErrorCode,
     message?: string,
   ) {
     super(message ?? code);
@@ -131,11 +132,11 @@ export class Api {
         : opts?.signal,
     });
     if (!res.ok) {
-      let code = "http_error";
+      let code: ErrorCode = "http_error";
       let message: string | undefined;
       try {
-        const data = (await res.json()) as { error?: string; message?: string };
-        code = data.error ?? code;
+        const data = (await res.json()) as { error?: unknown; message?: string };
+        code = errorCodeOf(data.error);
         message = data.message;
       } catch {
         /* non-JSON error body */
@@ -154,8 +155,6 @@ export class Api {
   }
 
   async downloadUrl(fileId: ID): Promise<string> {
-    if (!(await this.serverInfo()).downloadTickets)
-      throw new ApiError(409, "download_upgrade_required");
     const result = await this.request<{ token: string; expiresAt: number }>(
       "POST",
       `/api/files/${fileId}/download-token`,
@@ -447,7 +446,7 @@ export class Api {
         ? AbortSignal.any([signal, AbortSignal.timeout(20_000)])
         : AbortSignal.timeout(20_000),
     });
-    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? "no_icon" : "icon_failed");
+    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? "no_icon" : "http_error");
     return res.blob();
   }
 
@@ -719,9 +718,9 @@ export class Api {
             reject(new ApiError(0, "invalid_response"));
           }
         } else {
-          let code = "upload_failed";
+          let code: ErrorCode = "http_error";
           try {
-            code = (JSON.parse(xhr.responseText) as { error?: string }).error ?? code;
+            code = errorCodeOf((JSON.parse(xhr.responseText) as { error?: unknown }).error);
           } catch {
             /* non-JSON error body */
           }
@@ -758,10 +757,7 @@ export class Api {
         : AbortSignal.timeout(300_000),
     });
     if (!res.ok)
-      throw new ApiError(
-        res.status,
-        res.status === 404 ? "file_not_found" : "file_download_failed",
-      );
+      throw new ApiError(res.status, res.status === 404 ? "file_not_found" : "http_error");
     return res.blob();
   }
 
@@ -769,13 +765,6 @@ export class Api {
     channelId: ID,
     body: ScheduleMessageBody,
   ): Promise<{ scheduled: ScheduledMessage }> {
-    if (body.nonce && !(await this.serverInfo()).schedulingIdempotency) {
-      throw new ApiError(
-        409,
-        "scheduling_upgrade_required",
-        "Update this workspace server before using recoverable scheduling.",
-      );
-    }
     return this.request("POST", `/api/channels/${channelId}/scheduled`, body, {
       timeoutMs: 15_000,
     });
@@ -1013,9 +1002,9 @@ export class Api {
       signal: AbortSignal.timeout(10_000),
     });
     if (res.ok) return;
-    let code = "http_error";
+    let code: ErrorCode = "http_error";
     try {
-      code = ((await res.json()) as { error?: string }).error ?? code;
+      code = errorCodeOf(((await res.json()) as { error?: unknown }).error);
     } catch {
       /* non-JSON error body */
     }

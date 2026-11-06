@@ -7,6 +7,7 @@ import {
   type User,
 } from "@ownbase/protocol";
 import type { ExtensionContext } from "@ownbase/server/extensions";
+import { HttpError } from "@ownbase/server/httpError";
 import {
   authorizationUrl,
   discover,
@@ -113,10 +114,6 @@ interface Reply {
   send(payload?: unknown): Reply;
 }
 type Query = { Querystring: Record<string, string | undefined> };
-
-/** Answered as the server answers its own refusals: `{ error: code, message }`. */
-const refuse = (statusCode: number, code: string, message: string) =>
-  Object.assign(new Error(message), { statusCode, code });
 
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
@@ -557,12 +554,12 @@ export function singleSignOn(opts: {
     app.post("/api/sso/redeem", async (req) => {
       const body = (req.body ?? {}) as { code?: unknown; verifier?: unknown };
       if (typeof body.code !== "string" || typeof body.verifier !== "string")
-        throw refuse(400, "invalid_request", "A code and its verifier are needed.");
+        throw new HttpError(400, "invalid_request", "A code and its verifier are needed.");
       const key = s256(body.code);
       const held = codes.get(key);
       codes.delete(key);
       if (!held || held.expiresAt <= now() || s256(body.verifier) !== held.challenge)
-        throw refuse(
+        throw new HttpError(
           401,
           "sso_code_invalid",
           "That sign-in has expired, or was started somewhere else. Start again.",
@@ -584,11 +581,11 @@ export function singleSignOn(opts: {
     app.post("/api/sso/connect", async (req) => {
       const me = given.requireUser(req);
       if (me.role === "guest")
-        throw refuse(403, "guest_not_allowed", "Guests sign in with their name alone.");
+        throw new HttpError(403, "guest_not_allowed", "Guests sign in with their name alone.");
       if (!configured(settings()) || !base())
-        throw refuse(409, "sso_off", "This workspace does not use single sign-on.");
+        throw new HttpError(409, "sso_off", "This workspace does not use single sign-on.");
       if (!opts.licensed())
-        throw refuse(
+        throw new HttpError(
           403,
           "license_required",
           "Linking needs an Enterprise license with single sign-on.",
@@ -603,7 +600,7 @@ export function singleSignOn(opts: {
       const me = given.requireUser(req);
       // Without it they could not sign in again.
       if (me.role !== "owner" && required())
-        throw refuse(
+        throw new HttpError(
           409,
           "sso_required",
           "This workspace requires single sign-on, so your account stays linked.",
@@ -621,7 +618,7 @@ export function singleSignOn(opts: {
         const value = body[key];
         if (value === undefined) continue;
         if (typeof value !== "string" || value.length > TEXT_MAX)
-          throw refuse(
+          throw new HttpError(
             400,
             "invalid_request",
             `${key} must be text of up to ${TEXT_MAX} characters.`,
@@ -629,7 +626,7 @@ export function singleSignOn(opts: {
         if (key === "domains") {
           const domains = parseDomains(value);
           if (!domains)
-            throw refuse(
+            throw new HttpError(
               400,
               "invalid_domains",
               "Write domains such as acme.com, separated by commas.",
@@ -643,7 +640,7 @@ export function singleSignOn(opts: {
         const value = body[key];
         if (value === undefined) continue;
         if (typeof value !== "boolean")
-          throw refuse(400, "invalid_request", `${key} is on or off.`);
+          throw new HttpError(400, "invalid_request", `${key} is on or off.`);
         next[key] = value;
       }
       if (!next.issuer) {
@@ -652,24 +649,28 @@ export function singleSignOn(opts: {
         return { ok: true };
       }
       if (!opts.licensed())
-        throw refuse(
+        throw new HttpError(
           403,
           "license_required",
           "Single sign-on needs an Enterprise license with SSO.",
         );
       if (!base())
-        throw refuse(
+        throw new HttpError(
           409,
           "public_url_required",
           "Give the server its public address first (--public-url): the provider sends people back to it.",
         );
       if (!next.clientId || !next.clientSecret)
-        throw refuse(400, "sso_incomplete", "Fill in the client ID and the client secret too.");
+        throw new HttpError(
+          400,
+          "sso_incomplete",
+          "Fill in the client ID and the client secret too.",
+        );
       try {
         next.issuer = (await discover(next.issuer, fetchFn)).issuer;
       } catch (error) {
         if (!(error instanceof OidcError)) throw error;
-        throw refuse(400, "sso_discovery_failed", error.message);
+        throw new HttpError(400, "sso_discovery_failed", error.message);
       }
       provider = null;
       given.storage.set("sso:settings", JSON.stringify(next));

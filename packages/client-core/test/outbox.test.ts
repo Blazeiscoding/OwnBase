@@ -142,7 +142,7 @@ describe("a send that does not go through", () => {
   it("says a file that could not go up was lost on the way, not refused", async () => {
     const client = await online();
     // What the upload's XHR gives on a dropped connection, and on its timeout.
-    for (const code of ["network_error", "upload_timeout"]) {
+    for (const code of ["network_error", "upload_timeout"] as const) {
       vi.spyOn(client.api, "uploadFile").mockRejectedValueOnce(new ApiError(0, code));
       client.send(general, `With a file (${code})`, {
         files: [new File(["hello"], "notes.txt", { type: "text/plain" })],
@@ -158,7 +158,9 @@ describe("a send that does not go through", () => {
 
   it("asks for a moment when the workspace says too much came at once", async () => {
     const client = await online();
-    vi.spyOn(client.api, "sendMessage").mockRejectedValueOnce(new ApiError(429, "rate_limited"));
+    vi.spyOn(client.api, "sendMessage").mockRejectedValueOnce(
+      new ApiError(429, "too_many_requests"),
+    );
     client.send(general, "One of many");
     const state = await until(client, (s) => !!failed(s), "the rate limit");
     expect(failed(state)).toMatchObject({
