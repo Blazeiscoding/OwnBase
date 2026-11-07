@@ -5,7 +5,7 @@ import {
   canRemoveChannelMember,
   canSetChannelManager,
   type ID,
-  type ChannelPrefs,
+  DEFAULT_CHANNEL_PREFS,
   type NotifyLevel,
 } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
@@ -23,8 +23,6 @@ import { NOTIFY_LEVELS, notifyLevelLabel } from "../lib/notifyLevels.js";
 
 type Tab = "about" | "members" | "notifications";
 const TABS: readonly Tab[] = ["about", "members", "notifications"];
-
-const DEFAULT_PREFS: ChannelPrefs = { notifyLevel: "mentions", muted: false };
 
 /**
  * Why a change to the channel did not happen, in words. The server's refusals
@@ -689,7 +687,7 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
   // Select the stored value only — a fallback object built inside the selector
   // would be a new reference every render and spin the store subscription.
   const stored = useWorkspace((s) => s.prefs[channelId]);
-  const prefs = stored ?? DEFAULT_PREFS;
+  const prefs = stored ?? DEFAULT_CHANNEL_PREFS;
   const write = useWorkspace((s) => s.prefsWrites[channelId]);
   // A refused star says so where it was chosen; this speaks for these choices only.
   const failed =

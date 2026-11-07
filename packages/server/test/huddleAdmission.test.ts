@@ -131,10 +131,14 @@ describe("huddle transition admission", () => {
       );
     }
     await sender.settle();
-    otherDevice.ws.send(JSON.stringify({ type: "huddle.join", channelId: secondChannel }));
+    otherDevice.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: secondChannel, requestId: "join-1" }),
+    );
     await otherDevice.settle();
     sender.ws.send(JSON.stringify({ type: "huddle.leave", channelId: firstChannel }));
-    sender.ws.send(JSON.stringify({ type: "huddle.join", channelId: firstChannel }));
+    sender.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: firstChannel, requestId: "join-2" }),
+    );
     await sender.settle();
     await otherDevice.settle();
 
@@ -144,13 +148,16 @@ describe("huddle transition admission", () => {
     const results = sender.frames.flatMap((frame) =>
       frame.type === "ephemeral" && frame.event.type === "huddle.join.result" ? [frame.event] : [],
     );
-    expect(results).toHaveLength(21);
-    expect(results.every((result) => result.accepted)).toBe(true);
+    expect(results).toHaveLength(22);
+    expect(results.slice(0, 21).every((result) => result.accepted)).toBe(true);
+    // Joining again after leaving spends an admission, and both are spent.
+    expect(results[21]).toMatchObject({ requestId: "join-2", accepted: false });
+    // Its own answer only, none of the sender's.
     expect(
-      otherDevice.frames.some(
+      otherDevice.frames.filter(
         (frame) => frame.type === "ephemeral" && frame.event.type === "huddle.join.result",
       ),
-    ).toBe(false);
+    ).toHaveLength(1);
     otherDevice.ws.send(JSON.stringify({ type: "huddle.leave", channelId: secondChannel }));
     await otherDevice.settle();
     expect(server.gateway.huddleParticipants(secondChannel)).toEqual([]);
@@ -165,8 +172,12 @@ describe("huddle transition admission", () => {
     const secondChannel = (
       await request("/api/channels", person.token, { type: "public", name: "second-room" })
     ).data.channel.id;
-    existingDevice.ws.send(JSON.stringify({ type: "huddle.join", channelId: firstChannel }));
-    existingDevice.ws.send(JSON.stringify({ type: "huddle.join", channelId: secondChannel }));
+    existingDevice.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: firstChannel, requestId: "join-3" }),
+    );
+    existingDevice.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: secondChannel, requestId: "join-4" }),
+    );
     await existingDevice.settle();
     joiningDevice.ws.send(
       JSON.stringify({ type: "huddle.join", channelId: firstChannel, requestId: "first" }),
@@ -234,7 +245,9 @@ describe("huddle transition admission", () => {
 
     // A different exhausted account drops its admitted seat on disconnect.
     const ownerSocket = await connect(owner.token);
-    ownerSocket.ws.send(JSON.stringify({ type: "huddle.join", channelId: room.id }));
+    ownerSocket.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: room.id, requestId: "join-5" }),
+    );
     await ownerSocket.settle();
     expect(server.gateway.huddleParticipants(room.id)).toEqual([owner.user.id]);
     ownerSocket.ws.terminate();

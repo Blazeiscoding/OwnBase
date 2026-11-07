@@ -114,8 +114,12 @@ describe("removing someone from a room", () => {
     const roomId = room.data.channel.id as string;
     const anaSocket = await connect(ana);
     const benSocket = await connect(ben);
-    anaSocket.ws.send(JSON.stringify({ type: "huddle.join", channelId: roomId }));
-    benSocket.ws.send(JSON.stringify({ type: "huddle.join", channelId: roomId }));
+    anaSocket.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: roomId, requestId: "join-6" }),
+    );
+    benSocket.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: roomId, requestId: "join-7" }),
+    );
     await anaSocket.heard(huddleOf(roomId, [ana.id, ben.id]));
 
     expect(
@@ -127,7 +131,9 @@ describe("removing someone from a room", () => {
     await anaSocket.heard(huddleOf(roomId, [ana.id]));
     expect(server.gateway.huddleParticipants(roomId)).toEqual([ana.id]);
     // Asking to sit back down in the call is refused.
-    benSocket.ws.send(JSON.stringify({ type: "huddle.join", channelId: roomId }));
+    benSocket.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: roomId, requestId: "join-8" }),
+    );
 
     benSocket.frames.length = 0;
     await post(roomId, ana, "After Ben left");
@@ -156,7 +162,9 @@ describe("removing someone from a room", () => {
       userId: ben.id,
     });
     const benSocket = await connect(ben);
-    benSocket.ws.send(JSON.stringify({ type: "huddle.join", channelId: roomId }));
+    benSocket.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: roomId, requestId: "join-9" }),
+    );
     await expect.poll(() => server.gateway.huddleParticipants(roomId)).toEqual([ben.id]);
 
     await request(`/api/channels/${roomId}/members/${ben.id}`, owner.token, "DELETE");
@@ -259,7 +267,9 @@ describe("group conversations", () => {
     await post(group.id, owner, "Before Ben left");
     const anaSocket = await connect(ana);
     const benSocket = await connect(ben);
-    benSocket.ws.send(JSON.stringify({ type: "huddle.join", channelId: group.id }));
+    benSocket.ws.send(
+      JSON.stringify({ type: "huddle.join", channelId: group.id, requestId: "join-10" }),
+    );
     await expect.poll(() => server.gateway.huddleParticipants(group.id)).toEqual([ben.id]);
 
     expect((await request(`/api/channels/${group.id}/leave`, ben.token)).status).toBe(200);

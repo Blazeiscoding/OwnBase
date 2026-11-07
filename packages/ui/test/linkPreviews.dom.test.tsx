@@ -17,6 +17,7 @@ const person = (id: string, displayName: string, role: User["role"] = "member"):
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -94,7 +95,6 @@ function workspace(self: User, state: { linkPreviews?: boolean | null } = {}) {
     memberships: { C_GENERAL: 0 },
     status: "online",
     workspaceName: "Rocket Team",
-    workspaceSettings: true,
     accessPolicy: "account_required",
     linkPreviews: state.linkPreviews === undefined ? true : state.linkPreviews,
   });

@@ -385,7 +385,7 @@ export function parseView(
   raw: unknown,
   id: string,
   context: { channelId?: string } = {},
-): Omit<ModalView, "id"> & { id: string; droppedFields: number } {
+): Omit<ModalView, "id" | "hash"> & { id: string; droppedFields: number; wordless: boolean } {
   const view = (raw ?? {}) as {
     title?: TextObject | string;
     submit?: TextObject | string;
@@ -459,11 +459,10 @@ export function parseView(
     closeLabel: textOf(view.close).trim().slice(0, 40) || "Cancel",
     privateMetadata:
       typeof view.private_metadata === "string" ? view.private_metadata.slice(0, 3000) : "",
-    // All the words in one, for a client that draws them above the fields.
-    text: blocksToText(blocks.filter((b) => b?.type !== "input")),
     fields,
     blocks: layout,
     droppedFields,
+    wordless: !blocksToText(blocks.filter((b) => b?.type !== "input")),
   };
 }
 

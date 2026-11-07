@@ -18,6 +18,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -200,7 +201,13 @@ describe("the conversation's header", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Pinned messages", "Notification settings", "Channel details"]);
+    ).toEqual([
+      "Pinned messages",
+      "Files",
+      "Star channel",
+      "Notification settings",
+      "Channel details",
+    ]);
 
     await user.click(within(menu).getByRole("menuitem", { name: "Notification settings" }));
     const details = await screen.findByRole("dialog", { name: "#general" });

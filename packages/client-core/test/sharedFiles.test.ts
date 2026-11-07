@@ -31,10 +31,9 @@ afterAll(async () => {
 });
 
 describe("shared files on the client", () => {
-  it("are offered where the server lists them, and read a page at a time by filter", async () => {
+  it("are read a page at a time by filter", async () => {
     const client = new WorkspaceClient(base, token);
     onTestFinished(() => client.destroy());
-    expect(client.state.sharedFiles).toBe(false);
     client.connect();
     await new Promise<void>((resolve) => {
       const stop = client.store.subscribe((s) => {
@@ -44,7 +43,6 @@ describe("shared files on the client", () => {
         }
       });
     });
-    expect(client.state.sharedFiles).toBe(true);
 
     const general = Object.values(client.state.channels).find((c) => c.name === "general")!;
     const api = new Api(base, token);

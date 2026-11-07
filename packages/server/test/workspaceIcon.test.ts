@@ -389,7 +389,7 @@ describe("telling everyone", () => {
   it("puts the icon's version in the snapshot and tells every socket when it changes", async () => {
     const { owner, member } = await workspace();
     const watching = await connect(member.token);
-    expect(watching.ready()).toMatchObject({ workspaceIcon: true, iconVersion: null });
+    expect(watching.ready()).toMatchObject({ iconVersion: null });
     const ownerElsewhere = await connect(owner.token);
 
     const { iconVersion } = (await upload(owner.token, png())).data;
@@ -403,7 +403,7 @@ describe("telling everyone", () => {
     const hostVersion = server!.workspaceIcon()!.version;
     await expect.poll(() => watching.icons()).toEqual([iconVersion, null, hostVersion]);
     const later = await connect(member.token);
-    expect(later.ready()).toMatchObject({ workspaceIcon: true, iconVersion: hostVersion });
+    expect(later.ready()).toMatchObject({ iconVersion: hostVersion });
   });
 
   it("tells whatever follows the workspace, naming who changed it", async () => {

@@ -49,8 +49,7 @@ export function ProfileDialog(props: {
   const [opening, setOpening] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   // Blocking is offered where the server blocks (E12).
-  const canBlock = useWorkspace((s) => s.blocked !== null);
-  const blockedThem = useWorkspace((s) => s.blocked?.includes(props.userId) === true);
+  const blockedThem = useWorkspace((s) => s.blocked.includes(props.userId));
   const [blockError, setBlockError] = useState<string | null>(null);
   // A deactivated account reads nothing new: its card says so, and offers
   // only the conversation already had with it, to read back (V2).
@@ -248,7 +247,7 @@ export function ProfileDialog(props: {
             {opening ? "Opening…" : `Message ${user.displayName}`}
           </button>
         )}
-        {user.id !== selfId && !user.isBot && canBlock && (!gone || blockedThem) && (
+        {user.id !== selfId && !user.isBot && (!gone || blockedThem) && (
           <button
             type="button"
             onClick={() => void toggleBlock(user.id, user.displayName)}
@@ -287,8 +286,6 @@ export function ProfileForm() {
   // Saves are told in a notice, so the form never shifts to make room for one.
   const toast = useOptionalToast();
   const id = useId();
-  // The server keeps pictures and time zones (E9); an older one offers neither.
-  const profiles = useWorkspace((s) => s.profiles);
   const picker = useRef<HTMLInputElement>(null);
   const [picture, setPicture] = useState<{ busy: boolean; problem: string | null }>({
     busy: false,
@@ -407,94 +404,86 @@ export function ProfileForm() {
         </div>
       </div>
 
-      {profiles && (
-        <div>
-          <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">Profile picture</span>
-          <div className="flex flex-wrap items-center gap-2">
+      <div>
+        <span className="mb-1.5 block text-[13px] font-medium text-ink-dim">Profile picture</span>
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => picker.current?.click()}
+            aria-disabled={picture.busy || undefined}
+            className={buttonClass("secondary", "aria-disabled:opacity-60")}
+          >
+            {picture.busy ? "Saving…" : self?.avatarVersion ? "Change picture" : "Upload a picture"}
+          </button>
+          {self?.avatarVersion && (
             <button
               type="button"
-              onClick={() => picker.current?.click()}
+              onClick={() => void removePicture()}
               aria-disabled={picture.busy || undefined}
-              className={buttonClass("secondary", "aria-disabled:opacity-60")}
+              className={buttonClass("quiet", "aria-disabled:opacity-60")}
             >
-              {picture.busy
-                ? "Saving…"
-                : self?.avatarVersion
-                  ? "Change picture"
-                  : "Upload a picture"}
+              Remove
             </button>
-            {self?.avatarVersion && (
+          )}
+          <input
+            ref={picker}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              e.target.value = "";
+              if (file && !picture.busy) void choosePicture(file);
+            }}
+          />
+        </div>
+        {picture.problem && (
+          <p role="alert" className="mt-1.5 text-sm text-alert">
+            {picture.problem}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label
+          htmlFor={`${id}-time-zone`}
+          className="mb-1.5 block text-[13px] font-medium text-ink-dim"
+        >
+          Time zone
+        </label>
+        <select
+          id={`${id}-time-zone`}
+          value={self?.timeZone ?? ""}
+          onChange={(e) => void chooseZone(e.target.value)}
+          className={inputCls}
+        >
+          {!self?.timeZone && <option value="">Not set</option>}
+          {zones.map((zone) => (
+            <option key={zone} value={zone}>
+              {zoneLabel(zone)}
+            </option>
+          ))}
+        </select>
+        <p className="mt-1.5 text-[13px] text-ink-faint">
+          Others see your local time on your profile.
+          {!onThisDevice && (
+            <>
+              {" "}
+              This device is in {zoneLabel(detected)}.{" "}
               <button
                 type="button"
-                onClick={() => void removePicture()}
-                aria-disabled={picture.busy || undefined}
-                className={buttonClass("quiet", "aria-disabled:opacity-60")}
+                onClick={() => void chooseZone(detected)}
+                className="font-medium text-ink-dim underline hover:text-ink"
               >
-                Remove
+                Use it
               </button>
-            )}
-            <input
-              ref={picker}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              hidden
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                e.target.value = "";
-                if (file && !picture.busy) void choosePicture(file);
-              }}
-            />
-          </div>
-          {picture.problem && (
-            <p role="alert" className="mt-1.5 text-sm text-alert">
-              {picture.problem}
-            </p>
+            </>
           )}
-        </div>
-      )}
-
-      {profiles && (
-        <div>
-          <label
-            htmlFor={`${id}-time-zone`}
-            className="mb-1.5 block text-[13px] font-medium text-ink-dim"
-          >
-            Time zone
-          </label>
-          <select
-            id={`${id}-time-zone`}
-            value={self?.timeZone ?? ""}
-            onChange={(e) => void chooseZone(e.target.value)}
-            className={inputCls}
-          >
-            {!self?.timeZone && <option value="">Not set</option>}
-            {zones.map((zone) => (
-              <option key={zone} value={zone}>
-                {zoneLabel(zone)}
-              </option>
-            ))}
-          </select>
-          <p className="mt-1.5 text-[13px] text-ink-faint">
-            Others see your local time on your profile.
-            {!onThisDevice && (
-              <>
-                {" "}
-                This device is in {zoneLabel(detected)}.{" "}
-                <button
-                  type="button"
-                  onClick={() => void chooseZone(detected)}
-                  className="font-medium text-ink-dim underline hover:text-ink"
-                >
-                  Use it
-                </button>
-              </>
-            )}
-          </p>
-          <p role="status" className="mt-1 text-[13px] text-ink-dim empty:hidden">
-            {zoneNote ?? ""}
-          </p>
-        </div>
-      )}
+        </p>
+        <p role="status" className="mt-1 text-[13px] text-ink-dim empty:hidden">
+          {zoneNote ?? ""}
+        </p>
+      </div>
 
       <fieldset>
         <legend className="mb-1.5 block text-[13px] font-medium text-ink-dim">Status</legend>

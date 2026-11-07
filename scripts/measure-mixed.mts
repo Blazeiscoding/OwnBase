@@ -361,7 +361,6 @@ try {
             type: "hello",
             token: people[person]!.token,
             lastSeq,
-            syncVersion: 1,
             protocolVersion: PROTOCOL_VERSION,
           }),
         ),

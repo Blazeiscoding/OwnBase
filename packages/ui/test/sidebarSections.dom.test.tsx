@@ -20,6 +20,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -47,9 +48,11 @@ const work: SidebarSection = { id: "S_WORK", name: "Work" };
 const reading: SidebarSection = { id: "S_READING", name: "Reading" };
 const plain: ChannelPrefs = {
   notifyLevel: "mentions",
+  notifyChosen: true,
   muted: false,
   starred: false,
   sectionId: null,
+  hiddenSeq: null,
 };
 
 const clients: WorkspaceClient[] = [];
@@ -63,7 +66,7 @@ afterEach(() => {
 /** A client that never connects; the test answers its requests as the workspace would. */
 function workspace(
   options: {
-    sections?: SidebarSection[] | null;
+    sections?: SidebarSection[];
     prefs?: Record<string, Partial<ChannelPrefs>>;
   } = {},
 ) {
@@ -78,8 +81,7 @@ function workspace(
     channels: { [general.id]: general, [design.id]: design, [launch.id]: launch, [dm.id]: dm },
     memberships: { [general.id]: 0, [design.id]: 0, [launch.id]: 0, [dm.id]: 0 },
     prefs,
-    stars: true,
-    sidebarSections: options.sections === undefined ? [work, reading] : options.sections,
+    sidebarSections: options.sections ?? [work, reading],
     status: "online",
     workspaceName: "Rocket Team",
   });
@@ -180,13 +182,6 @@ describe("sections in the sidebar", () => {
     expect(rows("Channels")).toEqual(["general"]);
     expect(rows("Starred")).toEqual(["launch"]);
     expect(await accessibilityProblems(nav())).toEqual([]);
-  });
-
-  it("are offered nowhere on a server that keeps none", async () => {
-    const { user } = workspace({ sections: null });
-    expect(places()).not.toContain("Work");
-    const menu = await rowMenu(user, "design");
-    expect(within(menu).queryByRole("menuitem", { name: /Move to|New section/ })).toBeNull();
   });
 
   it("fold away, keeping in sight what is open or waiting", async () => {

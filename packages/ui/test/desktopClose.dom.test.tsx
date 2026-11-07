@@ -13,6 +13,7 @@ const sam: User = {
   handle: "sam",
   displayName: "Sam",
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

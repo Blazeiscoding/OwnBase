@@ -132,7 +132,7 @@ describe("live session access", () => {
     "blocks %s delivery to an expired socket and removes its huddle seat",
     async (delivery) => {
       const expired = await connect();
-      expired.ws.send(JSON.stringify({ type: "huddle.join", channelId }));
+      expired.ws.send(JSON.stringify({ type: "huddle.join", channelId, requestId: "join-11" }));
       await expect.poll(() => server.gateway.huddleParticipants(channelId)).toEqual([userId]);
       await expect
         .poll(() =>
@@ -175,7 +175,7 @@ describe("live session access", () => {
     const expired = await connect();
     server.store.deleteSession(hashToken(token));
     server.store.createSession(hashToken(token), userId, "expired device", -1);
-    expired.ws.send(JSON.stringify({ type: "huddle.join", channelId }));
+    expired.ws.send(JSON.stringify({ type: "huddle.join", channelId, requestId: "join-12" }));
     await expect.poll(() => expired.ws.readyState).toBe(WebSocket.CLOSED);
     expect(server.gateway.huddleParticipants(channelId)).toEqual([]);
   });
@@ -225,7 +225,9 @@ describe("channel access revocation", () => {
     const host = await connect();
     const visitor = await connect(guest.body.token);
     for (const socket of [host, visitor])
-      socket.ws.send(JSON.stringify({ type: "huddle.join", channelId: channel.id }));
+      socket.ws.send(
+        JSON.stringify({ type: "huddle.join", channelId: channel.id, requestId: "join-13" }),
+      );
     await expect.poll(() => server.gateway.huddleParticipants(channel.id).length).toBe(2);
 
     await request(`/api/channels/${channel.id}/leave`, undefined, "POST", guest.body.token);

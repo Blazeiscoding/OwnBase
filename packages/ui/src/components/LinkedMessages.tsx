@@ -48,7 +48,7 @@ function LinkedMessageCard(props: {
 }) {
   const message = useLinkedMessage(props.target);
   // Someone this account blocked stays out of sight here too.
-  const blocked = useWorkspace((s) => !!message && s.blocked?.includes(message.userId) === true);
+  const blocked = useWorkspace((s) => !!message && s.blocked.includes(message.userId));
   if (!message || blocked) return null;
   return (
     <Card message={message} onOpenImage={props.onOpenImage} onChannelClick={props.onChannelClick} />

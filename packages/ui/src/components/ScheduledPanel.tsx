@@ -26,7 +26,6 @@ export function ScheduledPanel(props: {
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
   const scheduledChanges = useWorkspace((s) => s.scheduledChanges);
-  const live = useWorkspace((s) => s.scheduledEvents);
   const [items, setItems] = useState<ScheduledMessage[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,13 +113,6 @@ export function ScheduledPanel(props: {
     };
   }, [load]);
 
-  // The server says when the queue changes, as entries send, fail or change on
-  // another device (UX-08). One that does not is asked every 15 seconds.
-  useEffect(() => {
-    if (live) return;
-    const timer = setInterval(load, 15_000);
-    return () => clearInterval(timer);
-  }, [load, live]);
   const heard = useRef(scheduledChanges);
   useEffect(() => {
     if (heard.current === scheduledChanges) return;

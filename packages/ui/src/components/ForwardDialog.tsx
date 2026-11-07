@@ -62,7 +62,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
   }
   if (!guest)
     for (const u of Object.values(users))
-      if (u.id !== selfId && !u.deactivated && !directWith.has(u.id) && !blocked?.includes(u.id))
+      if (u.id !== selfId && !u.deactivated && !directWith.has(u.id) && !blocked.includes(u.id))
         places.push({ key: `person:${u.id}`, label: u.displayName, userId: u.id });
   places.sort((a, b) => a.label.localeCompare(b.label));
   const typed = query.trim().toLowerCase().replace(/^[#@]/, "");

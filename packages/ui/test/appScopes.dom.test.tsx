@@ -18,6 +18,7 @@ const owner: User = {
   handle: "sam",
   displayName: "Sam Rivera",
   role: "owner",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -137,12 +138,5 @@ describe("what an app may do", () => {
       "mpim:history",
       "reactions:read",
     ]);
-  });
-
-  it("says nothing about scopes for an app from a server before them", async () => {
-    appsDialog([app({ scopes: undefined, subscriptions: [subscription([])] })]);
-    const deploy = await card("Deploy Bot");
-    expect(within(deploy).queryByRole("group", { name: "What it may do" })).toBeNull();
-    expect(within(deploy).queryByText(/Not sent without/)).toBeNull();
   });
 });

@@ -49,7 +49,6 @@ async function connect(person: Person) {
         type: "hello",
         token: person.token,
         lastSeq: null,
-        syncVersion: 1,
         protocolVersion: PROTOCOL_VERSION,
       }),
     ),

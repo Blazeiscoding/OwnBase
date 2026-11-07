@@ -20,6 +20,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -89,7 +90,6 @@ function opened(
     },
     memberships: { C_GENERAL: 0, C_DESIGN: 0 },
     status: "online",
-    sharedFiles: true,
   });
   const list = vi
     .spyOn(client.api, "listSharedFiles")

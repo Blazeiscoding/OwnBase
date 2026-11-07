@@ -12,6 +12,7 @@ const owner: User = {
   handle: "owner",
   displayName: "Workspace Owner",
   role: "owner",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

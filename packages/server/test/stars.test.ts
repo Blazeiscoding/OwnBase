@@ -112,9 +112,8 @@ describe("a starred conversation", () => {
     expect(ctx.server.store.getChannelPrefs(general, owner.id)?.starred).toBe(true);
     expect(ctx.server.store.getChannelPrefs(general, peer.id)?.starred).toBe(false);
 
-    // Each account's snapshot carries its own, and says this server keeps stars.
+    // Each account's snapshot carries its own.
     const mine = ready(await listen(ctx.base, owner.token));
-    expect(mine.stars).toBe(true);
     expect(mine.memberships.find((m) => m.channelId === general)?.prefs.starred).toBe(true);
     const theirs = ready(await listen(ctx.base, peer.token));
     expect(theirs.memberships.find((m) => m.channelId === general)?.prefs.starred).toBe(false);

@@ -17,6 +17,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -107,7 +108,6 @@ function hanasActivity(options: { threads?: boolean } = {}) {
     channelLastSeq: { [design.id]: 7, [general.id]: 8, [dm.id]: 2 },
     threadFollows: { M_ROOT: follow("M_ROOT", general.id, 9) },
     repliesRead: {},
-    activityThreads: options.threads ?? true,
     status: "online",
   });
   const asked = vi.spyOn(client.api, "activity").mockImplementation(async (mode) => ({
@@ -187,16 +187,6 @@ describe("Activity's groups", () => {
     expect(within(thread).getByText("Friday works")).toBeVisible();
     expect(within(thread).queryByText("in a thread")).toBeNull();
     expect(within(panel).getByText("Unread replies in threads you follow.")).toBeVisible();
-  });
-
-  it("offers no Threads tab to a server that cannot answer it", async () => {
-    const { panel } = hanasActivity({ threads: false });
-    const tabs = within(panel).getByRole("tablist", { name: "Activity filter" });
-    expect(
-      within(tabs)
-        .getAllByRole("tab")
-        .map((tab) => tab.textContent),
-    ).toEqual(["All", "Mentions"]);
   });
 });
 

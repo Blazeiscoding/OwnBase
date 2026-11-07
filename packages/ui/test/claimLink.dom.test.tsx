@@ -14,11 +14,14 @@ import { accessibilityProblems } from "./accessibility.js";
  */
 const unclaimed: ServerInfo = {
   app: "ownbase",
-  protocolVersion: 1,
+  protocolVersion: 2,
   serverVersion: "0.0.0-test",
   workspaceName: "Acme",
   userCount: 0,
   requiresInvite: false,
+  accessPolicy: "account_required",
+  workspaceCopies: false,
+  iconVersion: null,
   requiresClaim: true,
 };
 

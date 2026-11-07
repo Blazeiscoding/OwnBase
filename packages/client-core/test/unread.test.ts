@@ -431,7 +431,6 @@ describe("following a thread", () => {
 
 describe("muting a thread", () => {
   it("round-trips, shown at once here and through the server on another device", async () => {
-    expect(client.state.threadMutes).toBe(true);
     const root = await incoming("Noisy thread");
     await client.loadThread(root.id, channelId, "latest");
     await incoming("chatter", root.id);
@@ -556,12 +555,6 @@ describe("the read rule every surface uses", () => {
     expect(isMessageRead(reply(40, true), { ...state, threadFollows: held(45) })).toBe(true);
     // A quiet reply is the thread's either way.
     expect(isMessageRead(reply(40), { ...state, threadFollows: held(45) })).toBe(false);
-  });
-
-  it("keeps the older rule for a server that reads replies with the channel's cursor", () => {
-    const state = { memberships: { C1: 50 }, repliesRead: null, threadFollows: follow(5) };
-    expect(isMessageRead(reply(40), state)).toBe(true);
-    expect(isMessageRead(reply(60), state)).toBe(false);
   });
 });
 

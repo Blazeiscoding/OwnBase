@@ -21,6 +21,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -119,7 +120,6 @@ function workspace(removals: ChannelRemoval[]) {
     memberships: { [general.id]: 7, [ops.id]: 3 },
     channelLastSeq: { [general.id]: 9, [ops.id]: 4 },
     status: "online",
-    activityThreads: true,
     channelRemovals: Object.fromEntries(removals.map((r) => [r.id, r])),
   });
   vi.spyOn(client.api, "activity").mockImplementation(async (mode) => ({

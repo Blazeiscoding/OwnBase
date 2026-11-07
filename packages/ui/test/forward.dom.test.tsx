@@ -16,6 +16,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -57,7 +58,7 @@ const message = (over: Partial<Message> = {}): Message => ({
   ...over,
 });
 
-function shown(item: Message, forwards = true) {
+function shown(item: Message) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
@@ -65,7 +66,6 @@ function shown(item: Message, forwards = true) {
     channels: { C_GENERAL: general, C_DESIGN: design, C_SECRET: secret },
     memberships: { C_GENERAL: 0, C_DESIGN: 0, C_SECRET: 0 },
     status: "online",
-    forwards,
   });
   const send = vi.spyOn(client, "send").mockReturnValue(true);
   render(
@@ -94,17 +94,6 @@ async function openForward(user: ReturnType<typeof userEvent.setup>) {
 }
 
 describe("forwarding a message", () => {
-  it("is offered only where the server forwards", async () => {
-    const { user } = shown(message(), false);
-    await user.click(screen.getByRole("button", { name: "Actions for message from Priya Shah" }));
-    expect(
-      within(screen.getByRole("menu", { name: "Actions for message from Priya Shah" })).queryByRole(
-        "menuitem",
-        { name: "Forward…" },
-      ),
-    ).toBeNull();
-  });
-
   it("sends to a conversation chosen by typing, with words of its own", async () => {
     const { send, user } = shown(message());
     const dialog = await openForward(user);

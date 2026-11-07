@@ -208,7 +208,7 @@ describe("self-hosted product", () => {
     expect(server!.store.listUsers().filter((u) => u.role === "owner")).toHaveLength(1);
   });
 
-  it.each([null, { type: "hello", token: {}, protocolVersion: 1, lastSeq: null }])(
+  it.each([null, { type: "hello", token: {}, protocolVersion: 2, lastSeq: null }])(
     "rejects malformed socket messages without crashing: %j",
     async (payload) => {
       const base = await start();
@@ -393,7 +393,7 @@ describe("self-hosted product", () => {
     await new Promise<void>((resolve, reject) => {
       socket.on("open", () => {
         socket.send(
-          JSON.stringify({ type: "hello", token: leaverToken, lastSeq: null, protocolVersion: 1 }),
+          JSON.stringify({ type: "hello", token: leaverToken, lastSeq: null, protocolVersion: 2 }),
         );
       });
       socket.on("message", (data) => {

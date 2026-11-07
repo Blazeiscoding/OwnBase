@@ -22,6 +22,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -84,11 +85,14 @@ function samsClient() {
 describe("signing in, when it does not work", () => {
   const info: ServerInfo = {
     app: "ownbase",
-    protocolVersion: 1,
+    protocolVersion: 2,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",
     userCount: 4,
     requiresInvite: false,
+    accessPolicy: "account_required",
+    workspaceCopies: false,
+    iconVersion: null,
     requiresClaim: false,
   };
   const platform: Platform = {

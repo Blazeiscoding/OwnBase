@@ -394,8 +394,7 @@ export class Api {
 
   /**
    * Renames the workspace, for its owner and admins. Everyone signed in hears
-   * `workspace.renamed`. A server without `ReadySnapshot.workspaceSettings`
-   * has no such route.
+   * `workspace.renamed`.
    */
   renameWorkspace(name: string): Promise<{ workspaceName: string }> {
     return this.request("PUT", "/api/admin/workspace/name", { name }, { timeoutMs: 10_000 });

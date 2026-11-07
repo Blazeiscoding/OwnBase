@@ -50,7 +50,7 @@ export function decideNotification(
   const self = state.self;
   if (!self || message.userId === self.id) return { notify: false, reason: "own-message" };
   // Someone this account blocked never reaches it, whatever they write (E12).
-  if (state.blocked?.includes(message.userId)) return { notify: false, reason: "blocked" };
+  if (state.blocked.includes(message.userId)) return { notify: false, reason: "blocked" };
 
   const channel = state.channels[message.channelId];
   if (!channel || !(message.channelId in state.memberships)) {
@@ -115,7 +115,7 @@ export function decideReminderNotification(
 
 /** Reminders come due, in conversations this client still has. */
 export function dueReminderCount(state: Pick<WorkspaceState, "reminders" | "channels">): number {
-  return Object.values(state.reminders ?? {}).filter(
+  return Object.values(state.reminders).filter(
     (reminder) => reminder.dueAt !== null && reminder.channelId in state.channels,
   ).length;
 }

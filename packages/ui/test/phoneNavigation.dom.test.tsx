@@ -32,6 +32,7 @@ const person = (id: string, displayName: string, role: User["role"] = "member"):
   handle: displayName.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -83,7 +84,6 @@ function workspace(options: { phone?: boolean; self?: User; kind?: Platform["kin
     workspaceName: "Phone Team",
     channels: { [general.id]: general, [design.id]: design, [dm.id]: dm },
     memberships: { [general.id]: 0, [design.id]: 0, [dm.id]: 0 },
-    activityThreads: true,
     status: "online",
   });
   writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
@@ -214,7 +214,16 @@ describe("the phone's bottom bar", () => {
     // Muted, a DM waits quietly; read, a channel no longer waits.
     act(() =>
       client.store.setState({
-        prefs: { [dm.id]: { notifyLevel: "all", muted: true } },
+        prefs: {
+          [dm.id]: {
+            notifyLevel: "all",
+            notifyChosen: true,
+            muted: true,
+            starred: false,
+            sectionId: null,
+            hiddenSeq: null,
+          },
+        },
         memberships: { [general.id]: 0, [design.id]: 2, [dm.id]: 0 },
         mentionCounts: {},
         threadFollows: {

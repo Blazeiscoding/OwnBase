@@ -439,6 +439,15 @@ export class Store {
     return row?.value ?? null;
   }
 
+  /** The workspace's id: made once, kept through renames, moves and restores. */
+  workspaceId(): ID {
+    const id = this.getMeta("workspace_id");
+    if (id) return id;
+    const made = ulid();
+    this.setMeta("workspace_id", made);
+    return made;
+  }
+
   setMeta(key: string, value: string): void {
     this.db
       .prepare(

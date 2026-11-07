@@ -18,6 +18,7 @@ const sam: User = {
   handle: "sam",
   displayName: "Sam Rivera",
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -260,7 +261,7 @@ describe("notifying about a message in the conversation on screen", () => {
     it("leaves out what was read elsewhere or deleted, and tells the one left as itself", async () => {
       const { notify, client } = await caughtUp(3);
       // Read on another device up to the first; the second deleted since.
-      act(() => client.store.setState({ memberships: { [general.id]: missed(0).seq } }));
+      act(() => client.store.setState({ repliesRead: { [general.id]: missed(0).seq } }));
       act(() => client.onMessageDeleted?.("M_MISSED_1"));
       settle();
       expect(notify).toHaveBeenCalledTimes(1);
@@ -275,7 +276,16 @@ describe("notifying about a message in the conversation on screen", () => {
       const { notify, client } = await caughtUp(5);
       act(() =>
         client.store.setState({
-          prefs: { [general.id]: { notifyLevel: "mentions", muted: true } },
+          prefs: {
+            [general.id]: {
+              notifyLevel: "mentions",
+              notifyChosen: true,
+              muted: true,
+              starred: false,
+              sectionId: null,
+              hiddenSeq: null,
+            },
+          },
         }),
       );
       settle();

@@ -22,6 +22,7 @@ const priya: User = {
   handle: "Priya",
   displayName: "Priya Shah",
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

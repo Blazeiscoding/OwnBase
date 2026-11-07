@@ -70,7 +70,7 @@ export function useWorkspaceIconUrl(
 /** The icon of the workspace on screen, or null while there is none to show. */
 export function useCurrentWorkspaceIcon(): string | null {
   const client = useClient();
-  const version = useWorkspace((s) => (s.workspaceIcon ? s.iconVersion : null));
+  const version = useWorkspace((s) => s.iconVersion ?? null);
   return useWorkspaceIconUrl(client.baseUrl, version);
 }
 
@@ -167,16 +167,15 @@ export async function forgetCachedIcon(platform: Platform, url: string): Promise
  * Keeps a small copy of the icon of the workspace on screen on this device,
  * whenever it has one that is not kept yet, and forgets it when the
  * workspace has none, so the saved workspaces show it while it is offline.
- * Nothing is kept or forgotten for a server that keeps no icons.
+ * Nothing is kept or forgotten before the workspace says whether it has one.
  */
 export function useRememberWorkspaceIcon(platform: Platform): void {
   const client = useClient();
-  const capable = useWorkspace((s) => s.workspaceIcon);
   const version = useWorkspace((s) => s.iconVersion);
   const shown = useCurrentWorkspaceIcon();
   const baseUrl = client.baseUrl;
   useEffect(() => {
-    if (!capable) return;
+    if (version === undefined) return;
     if (version && !shown) return;
     let current = true;
     const key = cachedIconKey(baseUrl);
@@ -197,7 +196,7 @@ export function useRememberWorkspaceIcon(platform: Platform): void {
     return () => {
       current = false;
     };
-  }, [platform, baseUrl, capable, version, shown]);
+  }, [platform, baseUrl, version, shown]);
 }
 
 /**

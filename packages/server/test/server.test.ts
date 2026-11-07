@@ -604,7 +604,18 @@ describe("workspace server", () => {
 
     const res = await api<{ prefs: { notifyLevel: string; muted: boolean } }>(
       `/api/channels/${general.id}/prefs`,
-      { method: "PATCH", token: aliceToken, body: { notifyLevel: "all", muted: true } },
+      {
+        method: "PATCH",
+        token: aliceToken,
+        body: {
+          notifyLevel: "all",
+          notifyChosen: true,
+          muted: true,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
     );
     expect(res.status).toBe(200);
     expect(res.data.prefs).toEqual({
@@ -935,7 +946,7 @@ describe("workspace server", () => {
     await a.next((m) => m.type === "ready");
     await b.next((m) => m.type === "ready");
 
-    a.ws.send(JSON.stringify({ type: "huddle.join", channelId: general.id }));
+    a.ws.send(JSON.stringify({ type: "huddle.join", channelId: general.id, requestId: "join-14" }));
     // Bob is in the channel, so he learns a huddle started.
     const started = await b.next(
       (m) =>
@@ -945,7 +956,7 @@ describe("workspace server", () => {
     );
     expect(started.type).toBe("ephemeral");
 
-    b.ws.send(JSON.stringify({ type: "huddle.join", channelId: general.id }));
+    b.ws.send(JSON.stringify({ type: "huddle.join", channelId: general.id, requestId: "join-15" }));
     await a.next(
       (m) =>
         m.type === "ephemeral" &&
@@ -993,7 +1004,7 @@ describe("workspace server", () => {
     await b.next((m) => m.type === "ready");
 
     // Only Alice joins; Bob is in the channel but not the call.
-    a.ws.send(JSON.stringify({ type: "huddle.join", channelId: general.id }));
+    a.ws.send(JSON.stringify({ type: "huddle.join", channelId: general.id, requestId: "join-16" }));
     await b.next((m) => m.type === "ephemeral" && m.event.type === "huddle.participants");
 
     a.ws.send(
@@ -1021,7 +1032,7 @@ describe("workspace server", () => {
     await a.next((m) => m.type === "ready");
     await b.next((m) => m.type === "ready");
 
-    a.ws.send(JSON.stringify({ type: "huddle.join", channelId: secret.id }));
+    a.ws.send(JSON.stringify({ type: "huddle.join", channelId: secret.id, requestId: "join-17" }));
     await new Promise((r) => setTimeout(r, 250));
     const sawIt = b.received.some(
       (m) =>
@@ -1032,7 +1043,7 @@ describe("workspace server", () => {
     expect(sawIt).toBe(false);
 
     // Bob cannot start one there either.
-    b.ws.send(JSON.stringify({ type: "huddle.join", channelId: secret.id }));
+    b.ws.send(JSON.stringify({ type: "huddle.join", channelId: secret.id, requestId: "join-18" }));
     await new Promise((r) => setTimeout(r, 250));
     expect(server.gateway.huddleParticipants(secret.id)).toEqual([alice.id]);
 

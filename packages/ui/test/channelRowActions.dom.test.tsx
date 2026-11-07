@@ -31,7 +31,7 @@ const person = (role: User["role"], canInvite?: boolean): User => ({
   deactivated: false,
   dndUntil: null,
   createdAt: 0,
-  ...(canInvite === undefined ? {} : { canInvite }),
+  canInvite: canInvite ?? true,
 });
 const channel = (id: string, name: string, type: Channel["type"] = "public"): Channel => ({
   id,
@@ -184,6 +184,7 @@ describe("the stylesheet", () => {
 describe("closing a direct conversation", () => {
   const prefs = (hiddenSeq: number | null) => ({
     notifyLevel: "all" as const,
+    notifyChosen: true,
     muted: false,
     starred: false,
     sectionId: null,
@@ -219,17 +220,6 @@ describe("closing a direct conversation", () => {
     expect(dmRow()).toBeNull();
     act(() => client.store.setState({ channelLastSeq: { C_DM: 10 } }));
     expect(dmRow()).not.toBeNull();
-  });
-
-  it("is not offered by a server that keeps no such thing", async () => {
-    const { client, user } = sidebar(person("member"));
-    act(() =>
-      client.store.setState({
-        prefs: { C_DM: { notifyLevel: "all", muted: false } },
-      }),
-    );
-    await user.click(screen.getByRole("button", { name: "More options for Maya" }));
-    expect(screen.queryByRole("menuitem", { name: "Close conversation" })).toBeNull();
   });
 });
 

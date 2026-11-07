@@ -135,6 +135,7 @@ describe("counting a plan's members", () => {
     handle: "u",
     displayName: "u",
     role: "member",
+    canInvite: true,
     statusText: "",
     statusEmoji: "",
     isBot: false,

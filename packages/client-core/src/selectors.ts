@@ -27,9 +27,9 @@ export function isThreadUnread(follow: ThreadFollow): boolean {
 export function blockedPartner(
   channel: Channel | undefined,
   selfId: ID | undefined,
-  blocked: ID[] | null,
+  blocked: ID[],
 ): ID | null {
-  if (!channel || channel.type !== "dm" || !blocked?.length) return null;
+  if (!channel || channel.type !== "dm" || !blocked.length) return null;
   const other = channel.memberIds?.find((id) => id !== selfId);
   return other && blocked.includes(other) ? other : null;
 }

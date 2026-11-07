@@ -1,5 +1,6 @@
 import { createStore, type StoreApi } from "zustand/vanilla";
 import {
+  DEFAULT_CHANNEL_PREFS,
   PROTOCOL_VERSION,
   SEND_RETRY_WINDOW_MS,
   SOCKET_CLOSE,
@@ -532,16 +533,9 @@ export function keepEphemeral(
 
 export interface WorkspaceState {
   friends: Friendship[];
-  /**
-   * The people this account blocked (E12), whose messages fold away and who
-   * never notify it; null where the server does not block, which takes no
-   * reports either, so neither is offered there.
-   */
-  blocked: ID[] | null;
-  /**
-   * How many reported messages wait for an admin (E12); null unless this
-   * account is one, on a server that takes reports.
-   */
+  /** The people this account blocked (E12), whose messages fold away and who never notify it. */
+  blocked: ID[];
+  /** How many reported messages wait for an admin (E12); null unless this account is one. */
   openReports: number | null;
   /**
    * How many members the plan includes (P5); null unless this account is the
@@ -555,48 +549,31 @@ export interface WorkspaceState {
   serverNotices: ServerNotice[];
   status: ConnectionStatus;
   workspaceName: string;
-  /** Authenticated storage identity; null when an older server does not expose it. */
+  /** Authenticated storage identity; null until the first snapshot. */
   workspaceId: ID | null;
-  /** The server keeps inline replies; an older one would post one as a plain message. */
-  inlineReplies: boolean;
+  /**
+   * The protocol the server said it speaks when it refused this one, with
+   * `protocol_mismatch`; 0 for a version-1 server, which did not say.
+   */
+  serverProtocolVersion: number | null;
   /**
    * How far the server's clock is ahead of this device's (behind when
-   * negative), as of connecting; null until known or from an older server.
+   * negative), as of connecting; null until the first snapshot.
    * Reminders and scheduled messages go at the time this device chose.
    */
   clockSkewMs: number | null;
-  /** The server forwards a message; an older one would post the comment alone. */
-  forwards: boolean;
-  /** The server says when this account's scheduled queue changes; an older one has to be asked. */
-  scheduledEvents: boolean;
-  /** The server lists unread replies in followed threads as Activity's own mode. */
-  activityThreads: boolean;
-  /** The server mutes a thread for one account; an older one refuses it, so it is not offered. */
-  threadMutes: boolean;
-  /** The server lists the files shared in conversations, so Files is offered (E7). */
-  sharedFiles: boolean;
   /**
-   * This account's sidebar sections, in their order (E8). Null where the
-   * server keeps none, so none is offered there. A conversation's own is
-   * `ChannelPrefs.sectionId`; one naming a section not here has none.
+   * This account's sidebar sections, in their order (E8). A conversation's own
+   * is `ChannelPrefs.sectionId`; one naming a section not here has none.
    */
-  sidebarSections: SidebarSection[] | null;
+  sidebarSections: SidebarSection[];
   /**
    * What this account's conversations notify about unless one was set on its
-   * own (v53). Null where the server keeps no default, so none is offered and
-   * each conversation's `notifyLevel` is what it does.
+   * own (v53); null until the first snapshot.
    */
   notifyDefault: NotifyLevel | null;
-  /**
-   * The server keeps profile pictures, time zones and away by hand, and is
-   * told when this device goes idle (E9); an older one offers none of them.
-   */
-  profiles: boolean;
-  /**
-   * This account's reminders by message id, waiting and due (E4). Null where
-   * the server keeps none, so none is offered there.
-   */
-  reminders: Record<ID, Reminder> | null;
+  /** This account's reminders by message id, waiting and due (E4). */
+  reminders: Record<ID, Reminder>;
   /**
    * Notes that someone removed this account from channels, by id, for
    * Activity until read. Empty from a server that keeps none.
@@ -604,40 +581,23 @@ export interface WorkspaceState {
   channelRemovals: Record<ID, ChannelRemoval>;
   /**
    * What this account chose in each anonymous poll it voted in, by message id,
-   * which no message says (E6). Null where the server keeps no polls, so none
-   * is offered there.
+   * which no message says (E6).
    */
-  pollChoices: Record<ID, number[]> | null;
+  pollChoices: Record<ID, number[]>;
   /**
    * Choices made here in a poll that the server has not yet been heard to
    * have, by message id: shown in place of its own; see `shownPoll`.
    */
   pollPicks: Record<ID, number[]>;
-  /**
-   * The server keeps a star per conversation (`ChannelPrefs.starred`). An
-   * older one would drop a star without saying so, so none is offered there.
-   */
-  stars: boolean;
-  /**
-   * The server lets its owner and admins rename the workspace and change who
-   * may join. An older one refuses both, so Workspace settings offers neither.
-   */
-  workspaceSettings: boolean;
-  /** Who may join now, as the server last said; null from a server that does not say. */
+  /** Who may join now, as the server last said; null until the first snapshot. */
   accessPolicy: AccessPolicy | null;
-  /**
-   * Whether new messages get link previews now (E2), as the server last said;
-   * null from a server without them, where the setting is not offered.
-   */
+  /** Whether new messages get link previews now (E2); null until the first snapshot. */
   linkPreviews: boolean | null;
   /**
-   * The server keeps an icon for the workspace, which its owner and admins
-   * set. An older one has none to give and takes none, so no upload is
-   * offered and the workspace shows its coloured square.
+   * The workspace icon's version, as the server last said, or null when there
+   * is none; undefined until the first snapshot says which.
    */
-  workspaceIcon: boolean;
-  /** The icon's version, as the server last said, or null when there is none. */
-  iconVersion: string | null;
+  iconVersion: string | null | undefined;
   /**
    * Counts up whenever this account's scheduled queue may have changed: the
    * server said so, or this client connected and could have missed it saying so.
@@ -649,12 +609,8 @@ export interface WorkspaceState {
   channels: Record<ID, Channel>;
   /** channelId -> my lastReadSeq (only channels I'm a member of). */
   memberships: Record<ID, number>;
-  /**
-   * channelId -> how far replies count as read in a thread I have no cursor
-   * for (`repliesReadSeq`). Null for a server that reads replies with the
-   * channel's cursor, as servers did before replies were read by thread.
-   */
-  repliesRead: Record<ID, number> | null;
+  /** channelId -> how far replies count as read in a thread I have no cursor for (`repliesReadSeq`). */
+  repliesRead: Record<ID, number>;
   /** channelId -> my notification settings for it, including choices still being saved. */
   prefs: Record<ID, ChannelPrefs>;
   /**
@@ -711,10 +667,9 @@ export interface WorkspaceState {
   huddles: Record<ID, ID[]>;
   /**
    * channelId -> the ring of a direct message's huddle this account is part
-   * of, calling or called, while it rings (E10). Null where the server rings
-   * nobody, so nothing can be declined there.
+   * of, calling or called, while it rings (E10).
    */
-  rings: Record<ID, HuddleRing> | null;
+  rings: Record<ID, HuddleRing>;
   /** Private replies per channel, newest last, within EPHEMERAL_LIMITS. */
   ephemerals: Record<ID, EphemeralMessage[]>;
   /** channelId -> private replies let go there to stay within the limits. */
@@ -746,39 +701,30 @@ export interface WorkspaceState {
 
 const initialState: WorkspaceState = {
   friends: [],
-  blocked: null,
+  blocked: [],
   openReports: null,
   memberNotice: null,
   serverNotices: [],
   status: "connecting",
   workspaceName: "",
   workspaceId: null,
-  inlineReplies: false,
+  serverProtocolVersion: null,
   clockSkewMs: null,
-  forwards: false,
-  scheduledEvents: false,
-  activityThreads: false,
-  threadMutes: false,
-  sharedFiles: false,
-  sidebarSections: null,
+  sidebarSections: [],
   notifyDefault: null,
-  profiles: false,
-  reminders: null,
+  reminders: {},
   channelRemovals: {},
-  pollChoices: null,
+  pollChoices: {},
   pollPicks: {},
-  stars: false,
-  workspaceSettings: false,
   accessPolicy: null,
   linkPreviews: null,
-  workspaceIcon: false,
-  iconVersion: null,
+  iconVersion: undefined,
   scheduledChanges: 0,
   self: null,
   users: {},
   channels: {},
   memberships: {},
-  repliesRead: null,
+  repliesRead: {},
   prefs: {},
   prefsWrites: {},
   channelLastSeq: {},
@@ -798,7 +744,7 @@ const initialState: WorkspaceState = {
   drafts: {},
   draftTimes: {},
   huddles: {},
-  rings: null,
+  rings: {},
   huddle: null,
   huddleEnded: null,
   ringNotice: null,
@@ -829,8 +775,6 @@ export function isMessageRead(
   if (!message.threadRootId) return message.seq <= channelRead;
   const follow = state.threadFollows[message.threadRootId];
   const threadRead = follow?.lastReadSeq;
-  // A server that reads replies with the channel's cursor too.
-  if (!state.repliesRead) return message.seq <= Math.max(channelRead, threadRead ?? 0);
   // Also sent to the channel, and read there; unless the thread was marked
   // unread since the channel was last read past where it then stood.
   const held = follow?.unreadHold !== undefined && channelRead <= follow.unreadHold;
@@ -1094,7 +1038,6 @@ export class WorkspaceClient {
           token: this.token,
           lastSeq,
           protocolVersion: PROTOCOL_VERSION,
-          syncVersion: 1,
         }),
       );
     };
@@ -1152,17 +1095,13 @@ export class WorkspaceClient {
       case "ephemeral":
         this.applyEphemeral(msg.event);
         break;
-      case "resync":
-        // Compatibility with servers that predate replayFrom/synced.
-        this.resetHistory();
-        this.store.setState({ lastSeq: 0, status: "connecting" });
-        this.ws?.close();
-        this.reconnectDelay = 1000;
-        this.openSocket(null);
-        break;
       case "error":
         if (msg.code === "auth_failed") this.store.setState({ status: "auth_failed" });
-        if (msg.code === "protocol_mismatch") this.store.setState({ status: "protocol_mismatch" });
+        if (msg.code === "protocol_mismatch")
+          this.store.setState({
+            status: "protocol_mismatch",
+            serverProtocolVersion: msg.protocolVersion ?? 0,
+          });
         if (msg.code === "password_change_required") {
           this.store.setState({ status: "password_change_required" });
         }
@@ -1173,8 +1112,6 @@ export class WorkspaceClient {
   }
 
   private applyReady(snap: ReadySnapshot): void {
-    this.huddleJoinReplies = snap.huddleJoinReplies === true;
-    this.huddleReports = snap.huddleReports === true;
     // A replaced server must not inherit this connection's private drafts or
     // outbox, even if a copied session token happens to work there. Keep the
     // old identity intact so unmount can flush its work before signing in again.
@@ -1197,68 +1134,52 @@ export class WorkspaceClient {
     }
     const reset = snap.replayFrom === null || this.state.lastSeq > snap.seq;
     if (reset) this.resetHistory();
-    this.heardSections = snap.sidebarSections ?? null;
+    this.heardSections = snap.sidebarSections;
     const users: Record<ID, User> = {};
     for (const u of snap.users) users[u.id] = u;
     const channels: Record<ID, Channel> = {};
     for (const c of snap.channels) channels[c.id] = c;
     const memberships: Record<ID, number> = {};
     const prefs: Record<ID, ChannelPrefs> = {};
-    const repliesRead: Record<ID, number> | null = snap.memberships.some(
-      (m) => m.repliesReadSeq !== undefined,
-    )
-      ? {}
-      : null;
+    const repliesRead: Record<ID, number> = {};
     for (const m of snap.memberships) {
       const pending = this.pendingReads.get(m.channelId) ?? 0;
       if (pending <= m.lastReadSeq || pending > snap.seq) this.pendingReads.delete(m.channelId);
       memberships[m.channelId] = Math.max(m.lastReadSeq, this.pendingReads.get(m.channelId) ?? 0);
-      if (repliesRead) repliesRead[m.channelId] = m.repliesReadSeq ?? 0;
+      repliesRead[m.channelId] = m.repliesReadSeq;
       prefs[m.channelId] = m.prefs;
     }
     const saved: Record<ID, true> = {};
     for (const id of snap.savedMessageIds) saved[id] = true;
-    // A server older than v15 does not know about following. Keeping what we
-    // already had would show follow state it can no longer honour, so drop it.
     const threadFollows: Record<ID, ThreadFollow> = {};
-    for (const follow of snap.threadFollows ?? []) threadFollows[follow.rootId] = follow;
+    for (const follow of snap.threadFollows) threadFollows[follow.rootId] = follow;
 
     this.store.setState((prev) => ({
-      status: snap.replayFrom === undefined ? "online" : "connecting",
+      status: "connecting",
       workspaceName: snap.workspaceName,
-      workspaceId: snap.workspaceId ?? prev.workspaceId,
-      inlineReplies: snap.inlineReplies === true,
-      clockSkewMs: typeof snap.serverTime === "number" ? snap.serverTime - Date.now() : null,
-      forwards: snap.forwards === true,
-      scheduledEvents: snap.scheduledEvents === true,
-      activityThreads: snap.activityThreads === true,
-      threadMutes: snap.threadMutes === true,
-      sharedFiles: snap.sharedFiles === true,
-      sidebarSections: snap.sidebarSections ?? null,
-      notifyDefault: snap.notifyDefault ?? null,
-      profiles: snap.profiles === true,
-      reminders: snap.reminders
-        ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
-        : null,
+      workspaceId: snap.workspaceId,
+      clockSkewMs: snap.serverTime - Date.now(),
+      sidebarSections: snap.sidebarSections,
+      notifyDefault: snap.notifyDefault,
+      reminders: Object.fromEntries(
+        snap.reminders.map((reminder) => [reminder.messageId, reminder]),
+      ),
       // But for those this device is reading, which the server may not have yet.
       channelRemovals: Object.fromEntries(
-        (snap.channelRemovals ?? [])
+        snap.channelRemovals
           .filter((removal) => !this.readingRemovals.has(removal.id))
           .map((removal) => [removal.id, removal]),
       ),
-      pollChoices: snap.pollChoices ?? null,
+      pollChoices: snap.pollChoices,
       // What the server now says stands, but for votes still on their way.
       pollPicks: Object.fromEntries(
         Object.entries(prev.pollPicks).filter(([messageId]) =>
           this.choices.has(`poll:${messageId}`),
         ),
       ),
-      stars: snap.stars === true,
-      workspaceSettings: snap.workspaceSettings === true,
-      accessPolicy: snap.accessPolicy ?? null,
-      linkPreviews: snap.linkPreviews ?? null,
-      workspaceIcon: snap.workspaceIcon === true,
-      iconVersion: snap.workspaceIcon === true ? (snap.iconVersion ?? null) : null,
+      accessPolicy: snap.accessPolicy,
+      linkPreviews: snap.linkPreviews,
+      iconVersion: snap.iconVersion,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -1270,14 +1191,12 @@ export class WorkspaceClient {
       channelLastSeq: snap.channelLastSeq,
       presence: snap.presence,
       threadFollows,
-      mentionCounts: snap.mentionCounts ?? {},
+      mentionCounts: snap.mentionCounts,
       saved,
       huddles: snap.huddles,
-      rings: snap.huddleRings
-        ? Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring]))
-        : null,
-      friends: snap.friends ?? [],
-      blocked: snap.blocked ?? null,
+      rings: Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring])),
+      friends: snap.friends,
+      blocked: snap.blocked,
       openReports: snap.openReports ?? null,
       memberNotice: snap.memberNotice ?? null,
       serverNotices: snap.notices ?? [],
@@ -1391,14 +1310,14 @@ export class WorkspaceClient {
     this.store.setState({
       channels: without(state.channels),
       memberships: without(state.memberships),
-      repliesRead: state.repliesRead && without(state.repliesRead),
+      repliesRead: without(state.repliesRead),
       prefs: without(state.prefs),
       prefsWrites: without(state.prefsWrites),
       timelines: without(state.timelines),
       channelLastSeq: without(state.channelLastSeq),
       typing: without(state.typing),
       huddles: without(state.huddles),
-      rings: state.rings && without(state.rings),
+      rings: without(state.rings),
       ephemerals: without(state.ephemerals),
       ephemeralsDropped: without(state.ephemeralsDropped),
       threads: Object.fromEntries(
@@ -1588,7 +1507,7 @@ export class WorkspaceClient {
         changed(event.channelId);
         this.tellApp(this.onMessageDeleted, event.messageId);
         // Its poll went with it.
-        if (s.pollChoices?.[event.messageId]) {
+        if (s.pollChoices[event.messageId]) {
           const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
           patch.pollChoices = pollChoices;
         }
@@ -1698,10 +1617,8 @@ export class WorkspaceClient {
           changed(event.channelId);
           const { [event.channelId]: _gone, ...rest } = s.memberships;
           patch.memberships = rest;
-          if (s.repliesRead) {
-            const { [event.channelId]: _floor, ...repliesRead } = s.repliesRead;
-            patch.repliesRead = repliesRead;
-          }
+          const { [event.channelId]: _floor, ...repliesRead } = s.repliesRead;
+          patch.repliesRead = repliesRead;
           // Notification settings belong to the membership, which a rejoin
           // starts afresh, and a choice still being saved has nowhere to go.
           const { [event.channelId]: _prefs, ...prefs } = s.prefs;
@@ -1905,18 +1822,16 @@ export class WorkspaceClient {
         return;
       }
       const memberships = { ...s.memberships };
-      const repliesRead = s.repliesRead && { ...s.repliesRead };
+      const repliesRead = { ...s.repliesRead };
       const prefs = { ...s.prefs };
       const prefsWrites = { ...s.prefsWrites };
       if (event.membership) {
         memberships[event.channelId] = event.membership.lastReadSeq;
-        if (repliesRead)
-          repliesRead[event.channelId] =
-            event.membership.repliesReadSeq ?? repliesRead[event.channelId] ?? 0;
+        repliesRead[event.channelId] = event.membership.repliesReadSeq;
         prefs[event.channelId] = event.membership.prefs;
       } else {
         delete memberships[event.channelId];
-        if (repliesRead) delete repliesRead[event.channelId];
+        delete repliesRead[event.channelId];
         delete prefs[event.channelId];
         delete prefsWrites[event.channelId];
         this.prefsWrites.delete(event.channelId);
@@ -2024,7 +1939,7 @@ export class WorkspaceClient {
       if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
         this.tellApp(this.onReminderDue, event.reminder, event.message);
     } else if (event.type === "reminder.removed") {
-      if (!s.reminders?.[event.messageId]) return;
+      if (!s.reminders[event.messageId]) return;
       const reminders = { ...s.reminders };
       delete reminders[event.messageId];
       this.store.setState({ reminders });
@@ -2035,7 +1950,7 @@ export class WorkspaceClient {
     } else if (event.type === "channel.removals.read") {
       this.forgetRemovals(event.ids);
     } else if (event.type === "notify.default") {
-      if (s.notifyDefault !== null) this.store.setState({ notifyDefault: event.level });
+      this.store.setState({ notifyDefault: event.level });
     } else if (event.type === "sidebar.sections") {
       this.heardSections = event.sections;
       // A reorder of this device's still on its way is not undone by an older word.
@@ -2110,7 +2025,6 @@ export class WorkspaceClient {
   dismissModal(viewId = this.state.modal?.id): void {
     if (!viewId || this.state.modal?.id !== viewId) return;
     this.forgetModals([viewId]);
-    // A server from before stacks has no such route, and nothing to close.
     void this.api.closeView(viewId).catch(() => {});
   }
 
@@ -2766,12 +2680,11 @@ export class WorkspaceClient {
     const self = this.state.self;
     if (!self) return false;
     const files = opts.files ?? [];
-    // An older server would post a forward's comment alone, so it is not asked.
-    const forward = opts.forward && this.state.forwards ? opts.forward : undefined;
+    const forward = opts.forward;
     if (!text.trim() && files.length === 0 && !forward) return false;
-    // An older server would post the question alone; a poll carries nothing else.
+    // A poll carries nothing else.
     const poll = opts.poll;
-    if (poll && (!this.state.pollChoices || files.length > 0 || forward)) return false;
+    if (poll && (files.length > 0 || forward)) return false;
 
     // A leading "/word" is a command, not a message. The trailing space or end
     // of line matters: it keeps a pasted path like /Users/me/notes.txt a
@@ -2797,9 +2710,7 @@ export class WorkspaceClient {
       channelId,
       threadRootId: opts.threadRootId ?? null,
       broadcast: !!opts.threadRootId && !!opts.alsoSendToChannel,
-      // Only a server that keeps the answer is asked to; an older one would
-      // post it as a plain message, which is what it would then show.
-      ...(opts.replyTo && this.state.inlineReplies ? { replyTo: opts.replyTo } : {}),
+      ...(opts.replyTo ? { replyTo: opts.replyTo } : {}),
       ...(forward ? { forward } : {}),
       ...(poll ? { poll } : {}),
       text,
@@ -3237,7 +3148,7 @@ export class WorkspaceClient {
 
   /** What the server has as this account's choices in a poll, from what is held of it. */
   private serverChoicesIn(messageId: ID, anonymous: boolean, s = this.state): number[] {
-    if (anonymous) return s.pollChoices?.[messageId] ?? [];
+    if (anonymous) return s.pollChoices[messageId] ?? [];
     const message =
       Object.values(s.timelines)
         .flatMap((tl) => tl.items)
@@ -3364,7 +3275,7 @@ export class WorkspaceClient {
       if (!(error instanceof ApiError && error.status === 404)) return false;
     }
     this.store.setState((s) => {
-      if (!s.reminders?.[messageId]) return {};
+      if (!s.reminders[messageId]) return {};
       const reminders = { ...s.reminders };
       delete reminders[messageId];
       return { reminders };
@@ -3423,7 +3334,7 @@ export class WorkspaceClient {
         rootId,
         channelId,
         following: muted ? false : (before?.following ?? false),
-        lastReadSeq: before?.lastReadSeq ?? this.state.repliesRead?.[channelId] ?? 0,
+        lastReadSeq: before?.lastReadSeq ?? this.state.repliesRead[channelId] ?? 0,
         lastSeq: Math.max(before?.lastSeq ?? 0, this.threadTailSeq(rootId)),
         revision: (before?.revision ?? 0) + 1,
         ...(muted ? { muted: true as const } : {}),
@@ -3706,7 +3617,7 @@ export class WorkspaceClient {
     let write = this.prefsWrites.get(channelId);
     if (!write) {
       write = {
-        confirmed: this.state.prefs[channelId] ?? { notifyLevel: "mentions", muted: false },
+        confirmed: this.state.prefs[channelId] ?? DEFAULT_CHANNEL_PREFS,
         inFlight: null,
         queued: null,
         failed: null,
@@ -3802,9 +3713,6 @@ export class WorkspaceClient {
   /** Whether the session was let into its huddle, so a returning socket asks to go on with it. */
   private inHuddle = false;
   private rejoins = 0;
-  private huddleJoinReplies = false;
-  /** Whether this server takes `huddle.report`; an older one closes the socket on it. */
-  private huddleReports = false;
   /** The call log of the last huddle, kept after leaving it for Diagnostics. */
   private lastCallLog: CallLogLine[] = [];
   private pendingHuddleJoin: {
@@ -3879,7 +3787,7 @@ export class WorkspaceClient {
         noiseFilter: options.noiseFilter,
         systemMicrophone: options.systemMicrophone,
         onReport: (peer, report) => {
-          if (this.huddleReports && this.session === session)
+          if (this.session === session)
             this.sendSocket({ type: "huddle.report", channelId, peer, report });
         },
       },
@@ -3902,32 +3810,27 @@ export class WorkspaceClient {
       return;
     }
     try {
-      if (this.huddleJoinReplies) {
-        const requestId = `join-${attempt}`;
-        await new Promise<void>((resolve, reject) => {
-          const timer = setTimeout(() => {
-            this.pendingHuddleJoin?.finish(
-              new Error("The huddle did not answer. Check your connection, then try again."),
-            );
-          }, 10_000);
-          this.pendingHuddleJoin = {
-            channelId,
-            requestId,
-            finish: (error) => {
-              clearTimeout(timer);
-              this.pendingHuddleJoin = null;
-              if (error) reject(error);
-              else resolve();
-            },
-          };
-          this.sendSocket({ type: "huddle.join", channelId, requestId });
-          session.note("Asked the server to join the huddle.");
-        });
-        session.note("The server let this device into the huddle.");
-      } else {
-        // Servers predating admission replies retain their original join flow.
-        this.sendSocket({ type: "huddle.join", channelId });
-      }
+      const requestId = `join-${attempt}`;
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          this.pendingHuddleJoin?.finish(
+            new Error("The huddle did not answer. Check your connection, then try again."),
+          );
+        }, 10_000);
+        this.pendingHuddleJoin = {
+          channelId,
+          requestId,
+          finish: (error) => {
+            clearTimeout(timer);
+            this.pendingHuddleJoin = null;
+            if (error) reject(error);
+            else resolve();
+          },
+        };
+        this.sendSocket({ type: "huddle.join", channelId, requestId });
+        session.note("Asked the server to join the huddle.");
+      });
+      session.note("The server let this device into the huddle.");
     } catch (error) {
       session.note(`Not let in: ${error instanceof Error ? error.message : String(error)}`);
       session.destroy();
@@ -3973,11 +3876,10 @@ export class WorkspaceClient {
   /**
    * Says no to the ring of this direct message's huddle (E10). It stops here
    * at once and on this account's other devices when the server says so; the
-   * caller is told. Only where the server rings, since an older one would
-   * close the socket on it.
+   * caller is told.
    */
   declineRing(channelId: ID): void {
-    const ring = this.state.rings?.[channelId];
+    const ring = this.state.rings[channelId];
     const selfId = this.state.self?.id;
     if (!ring || !selfId || !ring.ringing.includes(selfId)) return;
     this.sendSocket({ type: "huddle.decline", channelId });
@@ -4061,11 +3963,6 @@ export class WorkspaceClient {
       this.publishHuddleState();
     };
     session.note("The connection to the server came back. Asking to go on with the huddle.");
-    if (!this.huddleJoinReplies) {
-      this.sendSocket({ type: "huddle.join", channelId });
-      back();
-      return;
-    }
     const requestId = `rejoin-${attempt}-${++this.rejoins}`;
     const timer = setTimeout(() => {
       this.pendingHuddleJoin?.finish(new Error("The huddle did not answer."));
@@ -4366,7 +4263,7 @@ export class WorkspaceClient {
       const { commands } = await this.api.listCommands();
       this.store.setState({ commands });
     } catch {
-      /* an older server, or no permission — the composer simply shows no hints */
+      /* no permission: the composer shows no hints */
     }
   }
 
@@ -4381,7 +4278,7 @@ export class WorkspaceClient {
   setIdle(idle: boolean): void {
     if (this.idle === idle) return;
     this.idle = idle;
-    if (this.state.profiles) this.sendSocket({ type: "idle", idle });
+    this.sendSocket({ type: "idle", idle });
   }
 
   /**
@@ -4475,7 +4372,6 @@ export class WorkspaceClient {
    * that it is idle, if it is, and its time zone, for an account with none.
    */
   private afterReady(snap: ReadySnapshot): void {
-    if (!snap.profiles) return;
     if (this.idle) this.sendSocket({ type: "idle", idle: true });
     if (snap.self.timeZone) return;
     let zone: string | undefined;
@@ -4510,8 +4406,8 @@ export class WorkspaceClient {
  * `repliesRead` after joining a channel at `seq`: its replies until then are
  * not this account's to catch up on, as the server counts them on joining.
  */
-function joined(repliesRead: Record<ID, number> | null, channelId: ID, seq: number) {
-  return repliesRead && { ...repliesRead, [channelId]: seq };
+function joined(repliesRead: Record<ID, number>, channelId: ID, seq: number) {
+  return { ...repliesRead, [channelId]: seq };
 }
 
 /** A copy of `values` without the given keys. */

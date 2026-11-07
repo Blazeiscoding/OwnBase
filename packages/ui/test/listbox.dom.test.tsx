@@ -14,6 +14,7 @@ const person = (id: string, handle: string, displayName: string): User => ({
   handle,
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
