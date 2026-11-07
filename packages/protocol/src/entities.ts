@@ -596,33 +596,23 @@ export interface ServerInfo {
   userCount: number;
   /** True once an owner exists; joining then requires an invite code. */
   requiresInvite: boolean;
-  /**
-   * Who may join. Absent from servers before guest access, which offer only
-   * accounts (and say whether those need an invite through `requiresInvite`).
-   */
-  accessPolicy?: AccessPolicy;
+  /** Who may join. */
+  accessPolicy: AccessPolicy;
   /**
    * True when this workspace has no owner yet and the caller is not on the
    * machine running it — claiming it needs the code the server printed at
    * startup. Whoever is at the keyboard does not need one.
    */
   requiresClaim: boolean;
-  /** Scheduling retries are deduplicated by an account-scoped request key. */
-  schedulingIdempotency?: boolean;
-  /** Single-use, session-bound tickets for native file downloads. */
-  downloadTickets?: boolean;
   /** The owner can make and download a copy of the whole workspace. */
-  workspaceCopies?: boolean;
+  workspaceCopies: boolean;
   /**
    * How others reach this workspace, when its host configured it. Links people
    * share are built on it, rather than on whatever address the sharer is using.
    */
   publicUrl?: string;
-  /**
-   * The workspace icon's version, for `GET /api/workspace/icon?v=`, or null
-   * when it has none. Absent from servers before workspace icons.
-   */
-  iconVersion?: string | null;
+  /** The workspace icon's version, for `GET /api/workspace/icon?v=`, or null when it has none. */
+  iconVersion: string | null;
   /**
    * Ways to sign in besides a password, from the server's extensions (P9),
    * and who may still use a password: everyone, or only the owner, kept as
@@ -805,7 +795,7 @@ export interface FollowedThread {
   latestReply?: Message | null;
 }
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /**
  * Here rather than beside the request schemas: the client and the desktop

@@ -710,8 +710,7 @@ async function startWorkspaceServer(
   if (opts.workspaceName && (unowned || !store.getMeta("workspace_name")))
     store.setMeta("workspace_name", opts.workspaceName);
   if (!store.getMeta("workspace_name")) store.setMeta("workspace_name", DEFAULT_WORKSPACE_NAME);
-  // Slack payloads carry a team id; ours is generated once and never changes.
-  if (!store.getMeta("workspace_id")) store.setMeta("workspace_id", ulid());
+  store.workspaceId();
   // Before guest access, invite_only alone said who could join: on, invited
   // accounts; off, any account. A workspace keeps that until someone chooses.
   if (!isAccessPolicy(store.getMeta("access_policy")))
@@ -1171,7 +1170,7 @@ async function startWorkspaceServer(
         type: "event_callback",
         event_id: `Ev${envelope.seq}`,
         event_time: Math.floor(Date.now() / 1000),
-        team_id: store.getMeta("workspace_id"),
+        team_id: store.workspaceId(),
         event: payload,
         // Our own event beside Slack's shape, so a native app need not
         // reverse-engineer the mapping.
@@ -2120,8 +2119,6 @@ async function startWorkspaceServer(
       requiresInvite: userCount > 0 && inviteOnly(),
       accessPolicy: accessPolicy(),
       requiresClaim: userCount === 0 && !!claimCode() && !isLocalRequest(req),
-      schedulingIdempotency: true,
-      downloadTickets: true,
       workspaceCopies: opts.dataDir !== ":memory:",
       ...(publicUrl ? { publicUrl } : {}),
       iconVersion: icon?.version ?? null,
@@ -4279,7 +4276,7 @@ async function startWorkspaceServer(
       url: `${requestOrigin(req)}/`,
       team: workspaceName(),
       user: bot.handle,
-      team_id: store.getMeta("workspace_id") ?? "",
+      team_id: store.workspaceId(),
       user_id: bot.id,
       bot_id: owner.id,
       is_enterprise_install: false,
@@ -4631,7 +4628,7 @@ async function startWorkspaceServer(
       const form = new URLSearchParams({
         command: `/${name}`,
         text: argText,
-        team_id: store.getMeta("workspace_id") ?? "",
+        team_id: store.workspaceId(),
         team_domain: workspaceName(),
         channel_id: channel.id,
         channel_name: channel.name,
@@ -5441,7 +5438,7 @@ async function startWorkspaceServer(
     try {
       const payload = JSON.stringify({
         type: "view_submission",
-        team: { id: store.getMeta("workspace_id") ?? "", domain: workspaceName() },
+        team: { id: store.workspaceId(), domain: workspaceName() },
         user: { id: me.id, username: me.handle, name: me.displayName },
         api_app_id: owner.id,
         trigger_id: newTrigger({
@@ -5665,7 +5662,7 @@ async function startWorkspaceServer(
       const payload = JSON.stringify({
         type: "block_actions",
         // Slack sends this as a form field named payload; so do we below.
-        team: { id: store.getMeta("workspace_id") ?? "", domain: workspaceName() },
+        team: { id: store.workspaceId(), domain: workspaceName() },
         user: { id: me.id, username: me.handle, name: me.displayName },
         api_app_id: owner.id,
         channel: { id: channel.id, name: channel.name },

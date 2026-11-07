@@ -517,16 +517,9 @@ export function keepEphemeral(
 
 export interface WorkspaceState {
   friends: Friendship[];
-  /**
-   * The people this account blocked (E12), whose messages fold away and who
-   * never notify it; null where the server does not block, which takes no
-   * reports either, so neither is offered there.
-   */
-  blocked: ID[] | null;
-  /**
-   * How many reported messages wait for an admin (E12); null unless this
-   * account is one, on a server that takes reports.
-   */
+  /** The people this account blocked (E12), whose messages fold away and who never notify it. */
+  blocked: ID[];
+  /** How many reported messages wait for an admin (E12); null unless this account is one. */
   openReports: number | null;
   /**
    * How many members the plan includes (P5); null unless this account is the
@@ -540,77 +533,35 @@ export interface WorkspaceState {
   serverNotices: ServerNotice[];
   status: ConnectionStatus;
   workspaceName: string;
-  /** Authenticated storage identity; null when an older server does not expose it. */
+  /** Authenticated storage identity; null until the first snapshot. */
   workspaceId: ID | null;
-  /** The server keeps inline replies; an older one would post one as a plain message. */
-  inlineReplies: boolean;
-  /** The server forwards a message; an older one would post the comment alone. */
-  forwards: boolean;
-  /** The server says when this account's scheduled queue changes; an older one has to be asked. */
-  scheduledEvents: boolean;
-  /** The server lists unread replies in followed threads as Activity's own mode. */
-  activityThreads: boolean;
-  /** The server mutes a thread for one account; an older one refuses it, so it is not offered. */
-  threadMutes: boolean;
-  /** The server lists the files shared in conversations, so Files is offered (E7). */
-  sharedFiles: boolean;
   /**
-   * This account's sidebar sections, in their order (E8). Null where the
-   * server keeps none, so none is offered there. A conversation's own is
-   * `ChannelPrefs.sectionId`; one naming a section not here has none.
+   * This account's sidebar sections, in their order (E8). A conversation's own
+   * is `ChannelPrefs.sectionId`; one naming a section not here has none.
    */
-  sidebarSections: SidebarSection[] | null;
+  sidebarSections: SidebarSection[];
   /**
    * What this account's conversations notify about unless one was set on its
-   * own (v53). Null where the server keeps no default, so none is offered and
-   * each conversation's `notifyLevel` is what it does.
+   * own (v53); null until the first snapshot.
    */
   notifyDefault: NotifyLevel | null;
-  /**
-   * The server keeps profile pictures, time zones and away by hand, and is
-   * told when this device goes idle (E9); an older one offers none of them.
-   */
-  profiles: boolean;
-  /**
-   * This account's reminders by message id, waiting and due (E4). Null where
-   * the server keeps none, so none is offered there.
-   */
-  reminders: Record<ID, Reminder> | null;
+  /** This account's reminders by message id, waiting and due (E4). */
+  reminders: Record<ID, Reminder>;
   /**
    * What this account chose in each anonymous poll it voted in, by message id,
-   * which no message says (E6). Null where the server keeps no polls, so none
-   * is offered there.
+   * which no message says (E6).
    */
-  pollChoices: Record<ID, number[]> | null;
+  pollChoices: Record<ID, number[]>;
   /**
    * Choices made here in a poll that the server has not yet been heard to
    * have, by message id: shown in place of its own; see `shownPoll`.
    */
   pollPicks: Record<ID, number[]>;
-  /**
-   * The server keeps a star per conversation (`ChannelPrefs.starred`). An
-   * older one would drop a star without saying so, so none is offered there.
-   */
-  stars: boolean;
-  /**
-   * The server lets its owner and admins rename the workspace and change who
-   * may join. An older one refuses both, so Workspace settings offers neither.
-   */
-  workspaceSettings: boolean;
-  /** Who may join now, as the server last said; null from a server that does not say. */
+  /** Who may join now, as the server last said; null until the first snapshot. */
   accessPolicy: AccessPolicy | null;
-  /**
-   * Whether new messages get link previews now (E2), as the server last said;
-   * null from a server without them, where the setting is not offered.
-   */
+  /** Whether new messages get link previews now (E2); null until the first snapshot. */
   linkPreviews: boolean | null;
-  /**
-   * The server keeps an icon for the workspace, which its owner and admins
-   * set. An older one has none to give and takes none, so no upload is
-   * offered and the workspace shows its coloured square.
-   */
-  workspaceIcon: boolean;
-  /** The icon's version, as the server last said, or null when there is none. */
+  /** The workspace icon's version, as the server last said, or null when there is none. */
   iconVersion: string | null;
   /**
    * Counts up whenever this account's scheduled queue may have changed: the
@@ -623,12 +574,8 @@ export interface WorkspaceState {
   channels: Record<ID, Channel>;
   /** channelId -> my lastReadSeq (only channels I'm a member of). */
   memberships: Record<ID, number>;
-  /**
-   * channelId -> how far replies count as read in a thread I have no cursor
-   * for (`repliesReadSeq`). Null for a server that reads replies with the
-   * channel's cursor, as servers did before replies were read by thread.
-   */
-  repliesRead: Record<ID, number> | null;
+  /** channelId -> how far replies count as read in a thread I have no cursor for (`repliesReadSeq`). */
+  repliesRead: Record<ID, number>;
   /** channelId -> my notification settings for it, including choices still being saved. */
   prefs: Record<ID, ChannelPrefs>;
   /**
@@ -685,10 +632,9 @@ export interface WorkspaceState {
   huddles: Record<ID, ID[]>;
   /**
    * channelId -> the ring of a direct message's huddle this account is part
-   * of, calling or called, while it rings (E10). Null where the server rings
-   * nobody, so nothing can be declined there.
+   * of, calling or called, while it rings (E10).
    */
-  rings: Record<ID, HuddleRing> | null;
+  rings: Record<ID, HuddleRing>;
   /** Private replies per channel, newest last, within EPHEMERAL_LIMITS. */
   ephemerals: Record<ID, EphemeralMessage[]>;
   /** channelId -> private replies let go there to stay within the limits. */
@@ -720,37 +666,27 @@ export interface WorkspaceState {
 
 const initialState: WorkspaceState = {
   friends: [],
-  blocked: null,
+  blocked: [],
   openReports: null,
   memberNotice: null,
   serverNotices: [],
   status: "connecting",
   workspaceName: "",
   workspaceId: null,
-  inlineReplies: false,
-  forwards: false,
-  scheduledEvents: false,
-  activityThreads: false,
-  threadMutes: false,
-  sharedFiles: false,
-  sidebarSections: null,
+  sidebarSections: [],
   notifyDefault: null,
-  profiles: false,
-  reminders: null,
-  pollChoices: null,
+  reminders: {},
+  pollChoices: {},
   pollPicks: {},
-  stars: false,
-  workspaceSettings: false,
   accessPolicy: null,
   linkPreviews: null,
-  workspaceIcon: false,
   iconVersion: null,
   scheduledChanges: 0,
   self: null,
   users: {},
   channels: {},
   memberships: {},
-  repliesRead: null,
+  repliesRead: {},
   prefs: {},
   prefsWrites: {},
   channelLastSeq: {},
@@ -770,7 +706,7 @@ const initialState: WorkspaceState = {
   drafts: {},
   draftTimes: {},
   huddles: {},
-  rings: null,
+  rings: {},
   huddle: null,
   huddleEnded: null,
   ringNotice: null,
@@ -1140,8 +1076,6 @@ export class WorkspaceClient {
   }
 
   private applyReady(snap: ReadySnapshot): void {
-    this.huddleJoinReplies = snap.huddleJoinReplies === true;
-    this.huddleReports = snap.huddleReports === true;
     // A replaced server must not inherit this connection's private drafts or
     // outbox, even if a copied session token happens to work there. Keep the
     // old identity intact so unmount can flush its work before signing in again.
@@ -1164,61 +1098,43 @@ export class WorkspaceClient {
     }
     const reset = snap.replayFrom === null || this.state.lastSeq > snap.seq;
     if (reset) this.resetHistory();
-    this.heardSections = snap.sidebarSections ?? null;
+    this.heardSections = snap.sidebarSections;
     const users: Record<ID, User> = {};
     for (const u of snap.users) users[u.id] = u;
     const channels: Record<ID, Channel> = {};
     for (const c of snap.channels) channels[c.id] = c;
     const memberships: Record<ID, number> = {};
     const prefs: Record<ID, ChannelPrefs> = {};
-    const repliesRead: Record<ID, number> | null = snap.memberships.some(
-      (m) => m.repliesReadSeq !== undefined,
-    )
-      ? {}
-      : null;
+    const repliesRead: Record<ID, number> = {};
     for (const m of snap.memberships) {
       const pending = this.pendingReads.get(m.channelId) ?? 0;
       if (pending <= m.lastReadSeq || pending > snap.seq) this.pendingReads.delete(m.channelId);
       memberships[m.channelId] = Math.max(m.lastReadSeq, this.pendingReads.get(m.channelId) ?? 0);
-      if (repliesRead) repliesRead[m.channelId] = m.repliesReadSeq ?? 0;
+      repliesRead[m.channelId] = m.repliesReadSeq;
       prefs[m.channelId] = m.prefs;
     }
     const saved: Record<ID, true> = {};
     for (const id of snap.savedMessageIds) saved[id] = true;
-    // A server older than v15 does not know about following. Keeping what we
-    // already had would show follow state it can no longer honour, so drop it.
     const threadFollows: Record<ID, ThreadFollow> = {};
-    for (const follow of snap.threadFollows ?? []) threadFollows[follow.rootId] = follow;
+    for (const follow of snap.threadFollows) threadFollows[follow.rootId] = follow;
 
     this.store.setState((prev) => ({
-      status: snap.replayFrom === undefined ? "online" : "connecting",
+      status: "connecting",
       workspaceName: snap.workspaceName,
-      workspaceId: snap.workspaceId ?? prev.workspaceId,
-      inlineReplies: snap.inlineReplies === true,
-      forwards: snap.forwards === true,
-      scheduledEvents: snap.scheduledEvents === true,
-      activityThreads: snap.activityThreads === true,
-      threadMutes: snap.threadMutes === true,
-      sharedFiles: snap.sharedFiles === true,
-      sidebarSections: snap.sidebarSections ?? null,
-      notifyDefault: snap.notifyDefault ?? null,
-      profiles: snap.profiles === true,
-      reminders: snap.reminders
-        ? Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder]))
-        : null,
-      pollChoices: snap.pollChoices ?? null,
+      workspaceId: snap.workspaceId,
+      sidebarSections: snap.sidebarSections,
+      notifyDefault: snap.notifyDefault,
+      reminders: Object.fromEntries(snap.reminders.map((reminder) => [reminder.messageId, reminder])),
+      pollChoices: snap.pollChoices,
       // What the server now says stands, but for votes still on their way.
       pollPicks: Object.fromEntries(
         Object.entries(prev.pollPicks).filter(([messageId]) =>
           this.choices.has(`poll:${messageId}`),
         ),
       ),
-      stars: snap.stars === true,
-      workspaceSettings: snap.workspaceSettings === true,
-      accessPolicy: snap.accessPolicy ?? null,
-      linkPreviews: snap.linkPreviews ?? null,
-      workspaceIcon: snap.workspaceIcon === true,
-      iconVersion: snap.workspaceIcon === true ? (snap.iconVersion ?? null) : null,
+      accessPolicy: snap.accessPolicy,
+      linkPreviews: snap.linkPreviews,
+      iconVersion: snap.iconVersion,
       // Whatever was said while this client was away was not heard.
       scheduledChanges: prev.scheduledChanges + 1,
       self: snap.self,
@@ -1230,14 +1146,12 @@ export class WorkspaceClient {
       channelLastSeq: snap.channelLastSeq,
       presence: snap.presence,
       threadFollows,
-      mentionCounts: snap.mentionCounts ?? {},
+      mentionCounts: snap.mentionCounts,
       saved,
       huddles: snap.huddles,
-      rings: snap.huddleRings
-        ? Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring]))
-        : null,
-      friends: snap.friends ?? [],
-      blocked: snap.blocked ?? null,
+      rings: Object.fromEntries(snap.huddleRings.map((ring) => [ring.channelId, ring])),
+      friends: snap.friends,
+      blocked: snap.blocked,
       openReports: snap.openReports ?? null,
       memberNotice: snap.memberNotice ?? null,
       serverNotices: snap.notices ?? [],

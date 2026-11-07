@@ -68,7 +68,6 @@ export const socketMessage = z.discriminatedUnion("type", [
     token: z.string().min(1).max(256),
     lastSeq: z.number().int().nonnegative().nullable(),
     protocolVersion: z.number().int(),
-    syncVersion: z.literal(1).optional(),
   }),
   z.object({ type: z.literal("ping") }),
   z.object({ type: z.literal("typing"), channelId: id }),

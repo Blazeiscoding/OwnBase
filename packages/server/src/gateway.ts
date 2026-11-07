@@ -354,7 +354,13 @@ export class Gateway {
       if (msg.type === "hello" && !client) {
         clearTimeout(authTimer);
         if (msg.protocolVersion !== PROTOCOL_VERSION) {
-          this.refuse(ws, "protocol_mismatch", `server speaks protocol v${PROTOCOL_VERSION}`);
+          this.send(ws, {
+            type: "error",
+            code: "protocol_mismatch",
+            message: `server speaks protocol v${PROTOCOL_VERSION}`,
+            protocolVersion: PROTOCOL_VERSION,
+          });
+          ws.close(SOCKET_CLOSE.protocol_mismatch);
           return;
         }
         const tokenHash = hashToken(msg.token);
@@ -378,6 +384,7 @@ export class Gateway {
         const snapshot: ReadySnapshot = {
           type: "ready",
           seq: this.store.currentSeq(),
+          replayFrom: null,
           self: user,
           users: this.store.listUsers(),
           channels: this.store.listChannelsVisibleTo(user.id),
@@ -388,28 +395,16 @@ export class Gateway {
           threadFollows: this.store.threadFollows(user.id),
           mentionCounts: this.store.unreadMentionCounts(user.id),
           huddles: this.huddlesVisibleTo(user.id),
-          huddleJoinReplies: true,
-          huddleReports: true,
           huddleRings: this.ringsFor(user.id),
-          inlineReplies: true,
-          forwards: true,
-          scheduledEvents: true,
-          activityThreads: true,
-          threadMutes: true,
           reminders: this.store.reminders(user.id),
           pollChoices: this.store.anonymousPollChoices(user.id),
-          sharedFiles: true,
           sidebarSections: this.store.sidebarSections(user.id),
           notifyDefault: this.store.notifyDefault(user.id),
-          profiles: true,
-          stars: true,
-          workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),
-          workspaceIcon: true,
           iconVersion: this.workspace.iconVersion(),
           linkPreviews: this.workspace.linkPreviews(),
           workspaceName: this.workspace.name(),
-          workspaceId: this.store.getMeta("workspace_id") ?? undefined,
+          workspaceId: this.store.workspaceId(),
           friends: this.store.listFriends(user.id),
           blocked: this.store.blockedIds(user.id),
           ...(isAdministrator(user.role)
@@ -423,14 +418,10 @@ export class Gateway {
         client = { ws, userId: user.id, tokenHash, alive: true };
         this.register(client);
         snapshot.presence = this.presenceMap();
-        if (msg.syncVersion === 1) snapshot.replayFrom = missed === null ? null : msg.lastSeq;
+        snapshot.replayFrom = missed === null ? null : msg.lastSeq;
         this.send(ws, snapshot);
-        if (missed !== null) {
-          for (const envelope of missed) this.send(ws, { type: "event", envelope });
-        } else if (msg.lastSeq !== null && msg.syncVersion !== 1) {
-          this.send(ws, { type: "resync" });
-        }
-        if (msg.syncVersion === 1) this.send(ws, { type: "synced", seq: snapshot.seq });
+        for (const envelope of missed ?? []) this.send(ws, { type: "event", envelope });
+        this.send(ws, { type: "synced", seq: snapshot.seq });
         return;
       }
 
