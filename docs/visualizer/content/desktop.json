@@ -15,8 +15,9 @@
         "The embedded server still runs in Electron main. hostedServer.ts starts it, and stops it again if setup fails after it is listening (Q12).",
         "The app's own page is granted the microphone and camera, display capture, notifications and full screen, and nothing else. Full screen was refused until the huddle stage needed it: a refused request never settles, so the stage's Full screen button did nothing. Screen sharing goes through the in-app picker (screenShare.ts): the display-media handler shares the source it just chose, or nothing, with no system picker. screen:choose also carries the picker's Share sound, which the handler passes on only where screenSoundSupported and the page asked for audio.",
         "hosting:icon answers a listed hosted workspace's icon as a data URL, or null (UX-60).",
-        "Reads the renderer's appearance setting at startup and makes the window with windowColours' background and title bar overlay. storage:set of that setting, and nativeTheme's updated event, paint the window again, so a window in White is not framed in Onyx and its buttons are drawn on White.",
-        "microphone:list, microphone:open and microphone:close reach SystemMicrophones (microphone.ts) behind the same trusted-window guard; open hands the page its end of a MessageChannelMain. A page that navigates, crashes or closes lets go of its microphones, and quitting ends every helper."
+        "Makes the window in the theme the page last told it through window:setTheme (kept in the main process's own settings, read from the page's appearance setting before the page has said), and paints it again on that call and on nativeTheme's updated event.",
+        "microphone:list, microphone:open and microphone:close reach SystemMicrophones (microphone.ts) behind the same trusted-window guard; open hands the page its end of a MessageChannelMain. A page that navigates, crashes or closes lets go of its microphones, and quitting ends every helper.",
+        "Registers every channel of the bridge contract from one handler table, through the trusted-window guard; hosting's handlers come from HostingService. The window's place and zoom live in the main process's own settings file, out of the page's reach."
       ],
       "concepts": ["Electron main", "process ownership", "IPC", "lifecycle", "system microphone"]
     },
@@ -52,6 +53,19 @@
       "concepts": ["state machine", "serialized operations", "backup", "ownership", "UX-60"]
     },
     {
+      "path": "apps/desktop/src/main/hostingService.ts",
+      "plain": "Everything about hosting in the desktop app in one place: the workspace server, its public link, the call relay and starting with the computer.",
+      "summary": "Owns the hosting status, hosting's settings and every hosting call the window makes.",
+      "details": [
+        "Composes the hosting controller (hosting.ts) with cloudflared, the configured public address, the cloudflared installer, the call relay and the login item, and adds what only the app knows (backgroundAvailable, cloudflaredInstall) to the status, so the status has one source.",
+        "Status reaches the window only as the hosting:changed push; no call returns it. hosting:status reads it once and looks again for cloudflared and the public address.",
+        "One quitting rule: while OwnBase quits, only calls that read or stop are answered, and the rest fail with the quitting code.",
+        "One folder-picker helper for the four places the system's folder dialog is asked (backup, automatic backups, restore, restore over).",
+        "Relay refusals carry a code naming the field, so the relay form marks the right one."
+      ],
+      "concepts": ["hosting", "single source of status", "IPC"]
+    },
+    {
       "path": "apps/desktop/src/main/registry.ts",
       "plain": "Keeps the list of workspaces this computer hosts and checks a folder really is the right workspace before opening it.",
       "summary": "Records stable hosted-workspace identities and validates adoption of folders.",
@@ -71,7 +85,8 @@
         "Every operation shares the same promise queue, making an update's read/modify/write indivisible relative to other desktop callers.",
         "Writes a private temporary file, synchronizes its contents, then renames it over the settings file; read failures are distinguished from first-use absence.",
         "Protects saved sign-in tokens during legacy migration and before any new settings write.",
-        "drain waits for all accepted work, including work queued during the wait, and propagates an unfinished failure to close preparation."
+        "drain waits for all accepted work, including work queued during the wait, and propagates an unfinished failure to close preparation.",
+        "ownSettings wraps the main process's own file (app-settings.json): before its first use it moves the keys the main process owns (hosted workspaces, the call relay, the public address, the window's place and zoom…) out of the page's file once, and marks that done, so the page can never write a setting the main process reads."
       ],
       "concepts": ["atomic update", "durability", "serialization", "credentials"]
     },
@@ -134,10 +149,20 @@
       "summary": "Checks who may invoke native handlers and receive sensitive native events.",
       "details": [
         "A request must come from the current app window's live top frame, with matching process/routing identity and the expected renderer origin/path.",
-        "The guarded wrapper refuses before a handler starts; appRecipients limits pushed drafts, outbox entries, invite links and settings to the trusted app page.",
+        "answering refuses before a handler starts and answers every call with a Reply, so nothing rejects through Electron; appRecipients limits pushed hosting status, invite links and deep links to the trusted app page.",
         "Validates settings keys for type, length and control characters. The boundary does not protect against malicious code already executing inside the trusted app page."
       ],
       "concepts": ["IPC authorization", "least privilege", "recipient validation"]
+    },
+    {
+      "path": "apps/desktop/src/main/lookup.ts",
+      "plain": "Remembers something read from outside the app for a few seconds, and forgets it when asked.",
+      "summary": "One time-limited cache with explicit invalidation.",
+      "details": [
+        "Used for where cloudflared is, the configured public address, and how cloudflared would be installed: hosting status is read far more often than these change.",
+        "forget() drops the kept value, which the hosting service calls when the window asks again or after an install."
+      ],
+      "concepts": ["cache", "invalidation"]
     },
     {
       "path": "apps/desktop/src/main/backupWorker.ts",
@@ -248,29 +273,47 @@
     },
     {
       "path": "apps/desktop/src/preload/index.ts",
-      "plain": "A narrow doorway that lets the screens ask the desktop app for saving, hosting, downloads and links, and nothing more.",
-      "summary": "Exposes a narrow native bridge into the isolated renderer.",
+      "plain": "A narrow doorway that lets the screens ask the desktop app for the requests listed in its contract, and nothing more.",
+      "summary": "Exposes the bridge contract to the isolated renderer through one generic invoke and on.",
       "details": [
-        "contextBridge exposes named storage, discovery, hosting, download, deep-link, route and close-handshake methods rather than giving the renderer Node APIs.",
-        "Commands use ipcRenderer.invoke and event subscriptions return disposal functions that remove their listeners.",
-        "The main-side boundary still validates callers and payloads; a typed bridge alone is not authorization.",
-        "hostingIcon asks the main process for a hosted workspace's icon (UX-60).",
-        "screenSound tells the picker whether a share can send its sound here, from the same screenSoundSupported the main process uses (screenShare.ts has no imports, so it bundles into the preload), and chooseScreen passes the choice with the source.",
-        "On Windows, microphones, openMicrophone and closeMicrophone reach main/microphone.ts. A port cannot cross the context bridge, so each opened microphone's port is passed to the page as a window message, ownbase:microphone-port, with its session."
+        "window.ownbase has invoke(channel, ...args), on(event, listener) and capabilities, built from the contract's channel and event lists; a channel or event not on them is refused without reaching the main process.",
+        "Imports nothing from the main process: the capabilities arrive as a window argument.",
+        "Passes each opened microphone's MessagePort to the page as a window message, since a port cannot cross the context bridge.",
+        "The main-side boundary still validates callers and payloads; a typed bridge alone is not authorization."
       ],
       "concepts": ["preload", "context isolation", "IPC contract", "teardown"]
     },
     {
+      "path": "apps/desktop/src/shared/bridge.ts",
+      "plain": "The list of every request the desktop window can make to the app, and every update the app sends back, with what each carries.",
+      "summary": "The one typed contract between the main process, the preload and the renderer.",
+      "details": [
+        "Calls maps each channel to its arguments and result; Events maps each push to its payload. The main process's handler table, the preload's allow-list and the renderer's platform are all typed from it, so a channel cannot be added on one side only.",
+        "Every call is answered with a Reply: { ok: true, value } or { ok: false, error: { code, message } }, so a failure's code crosses the bridge instead of Electron's rewording of a rejection.",
+        "The capabilities the main process decided (screen sound, the system microphone, opening at sign-in, the reader locale) travel as one window argument that readCapabilities parses in the preload."
+      ],
+      "concepts": ["IPC contract", "type safety", "error codes"]
+    },
+    {
+      "path": "apps/desktop/src/shared/desktopError.ts",
+      "plain": "A failure inside the desktop app that names its kind with a code the screens can act on.",
+      "summary": "DesktopError and its conversion to the { code, message } that crosses the bridge.",
+      "details": [
+        "toFailure keeps a DesktopError's code and calls anything else failed, with its message.",
+        "RegistryFormatError and the call relay's field refusals are DesktopErrors, so the host dialog switches on the code rather than matching words."
+      ],
+      "concepts": ["error codes"]
+    },
+    {
       "path": "apps/desktop/src/renderer/src/platform.ts",
       "plain": "Plugs the shared screens into the desktop app's own saving, hosting and workspace finding.",
-      "summary": "Adapts the preload bridge to the shared UI Platform interface.",
+      "summary": "Builds the UI's Platform from the bridge contract.",
       "details": [
-        "Maps native storage, atomic draft/outbox/record merges, hosting and discovery into the interface also used by the browser.",
-        "Converts Electron's channel-prefixed rejection into the actionable message written by main.",
-        "Owns close-preparation delivery and route checkpoint subscriptions; followPlace restores the remembered history before shared App mounts.",
-        "hosting.icon passes a hosted workspace's icon through from hostingIcon (UX-60).",
-        "screenShare.sound and choose's sound option carry the picker's Share sound to chooseScreen.",
-        "notify hands Electron windowsTag(tag), an 11-character cyrb53 fingerprint, rather than the tag itself. Windows drops a toast whose tag runs past 54 characters, without an error or a show event, and the screen's tags (the account's address and id, then what it is about) are longer, so until 2026-10-24 the app showed no notification on Windows at all.",
+        "invoker unwraps each Reply, throwing a DesktopCallError with the failure's code; a rejection from the bridge itself loses Electron's \"Error invoking remote method\" prefix there, once.",
+        "Storage, screen share and hosting members are tables of channel names, each typed by the contract and checked against the UI's Platform without restating a signature.",
+        "There is one window, so desktop storage has no watch functions; the browser's platform keeps them for its tabs.",
+        "Owns close-preparation delivery and route checkpoints; followPlace restores the remembered history before the shared App mounts.",
+        "notify hands Electron windowsTag(tag), an 11-character cyrb53 fingerprint, rather than the tag itself. Windows drops a toast whose tag runs past 54 characters, without an error or a show event.",
         "systemMicrophone collects the ports the preload posts to the window, whether they arrive before or after the answer to opening, ignores messages from anywhere else, and lets a microphone go if its port has not come within five seconds."
       ],
       "concepts": ["platform adapter", "shared UI", "IPC", "route restore", "Windows notifications"]

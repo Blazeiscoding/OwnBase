@@ -557,6 +557,17 @@
       "concepts": ["shared protocol", "LAN discovery", "IPv6"]
     },
     {
+      "path": "packages/protocol/src/desktop.ts",
+      "plain": "The shared description of what the desktop app tells its screens about hosting, backups, relays, screens and microphones.",
+      "summary": "Data types and error codes the desktop bridge carries, declared once for main and UI.",
+      "details": [
+        "In protocol because it changes least: the UI's Platform and the desktop app's bridge contract both import it, and neither imports the other.",
+        "DesktopErrorCode lists the failures the UI acts on (quitting, the registry's three formats, a missing owner account, each relay field); anything else is failed with a message written to be shown.",
+        "isPort, portFromText and PORT_RULE are the one port rule (1 to 65535) the host dialog and the hosting controller share."
+      ],
+      "concepts": ["shared types", "desktop bridge", "error codes"]
+    },
+    {
       "path": "packages/protocol/src/entities.ts",
       "plain": "The shared rules for what a person, channel, message, file and every other workspace record looks like.",
       "summary": "Defines the shared vocabulary of workspace records and feature metadata.",
