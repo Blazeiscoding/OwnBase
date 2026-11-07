@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { planMembers, type MemberNotice } from "@ownbase/protocol";
+import { selfIsAdministrator } from "@ownbase/client-core";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Banner, BannerAction } from "./Banner.js";
 
@@ -11,9 +12,7 @@ export const MEMBER_NOTICE_SNOOZE_MS = 14 * 24 * 60 * 60 * 1000;
  * admins (P5); null for everyone else, or where the host set no plan.
  */
 export function usePlanMembers(): { notice: MemberNotice; members: number } | null {
-  const notice = useWorkspace((s) =>
-    s.self?.role === "owner" || s.self?.role === "admin" ? s.memberNotice : null,
-  );
+  const notice = useWorkspace((s) => (selfIsAdministrator(s) ? s.memberNotice : null));
   const members = useWorkspace((s) => (notice ? planMembers(Object.values(s.users)) : 0));
   return notice ? { notice, members } : null;
 }

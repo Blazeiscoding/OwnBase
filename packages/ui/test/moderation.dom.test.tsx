@@ -10,7 +10,7 @@ import { ProfileDialog } from "../src/components/ProfileDialog.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { IncomingCall } from "../src/components/IncomingCall.js";
 import { BlockedComposer, BlockedPeople, DeactivatedComposer } from "../src/components/Blocking.js";
-import { deactivatedPartner } from "../src/lib/blocking.js";
+import { deactivatedPartner } from "@ownbase/client-core";
 import { ReportsDialog } from "../src/components/ReportsDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";

@@ -421,7 +421,7 @@ describe("outbox durability", () => {
 
   it("still sends again after a restart when the server only failed to answer", async () => {
     vi.spyOn(client.api, "sendMessage").mockRejectedValueOnce(
-      new ApiError(503, "unavailable", "The workspace is busy"),
+      new ApiError(503, "http_error", "The workspace is busy"),
     );
     client.send(channelId, "outcome unknown");
     await expect.poll(() => client.state.pending[0]?.failed).toBe(true);

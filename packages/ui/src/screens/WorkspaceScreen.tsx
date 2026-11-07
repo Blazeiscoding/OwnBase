@@ -9,16 +9,19 @@ import {
   type ComponentProps,
   type ReactNode,
 } from "react";
-import type { ID, Message } from "@ownbase/protocol";
-import { blockedPartner, deactivatedPartner } from "../lib/blocking.js";
+import { isAdministrator, type ID, type Message } from "@ownbase/protocol";
 import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
   WorkspaceClient,
+  blockedPartner,
+  deactivatedPartner,
   decideNotification,
   decideReminderNotification,
   isMessageOnScreen,
   isMessageRead,
+  mentionsElsewhere,
   notificationBody,
+  waitsForAttention,
 } from "@ownbase/client-core";
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
@@ -831,7 +834,7 @@ function WorkspaceInner({
   // People, Apps and Workspace settings are for administrators. An address
   // can name them all the same, so they close for anyone else once the
   // account is known.
-  const isAdmin = self?.role === "owner" || self?.role === "admin";
+  const isAdmin = isAdministrator(self?.role);
   const wasAdmin = useRef(false);
   const roleToast = useOptionalToast();
   useEffect(() => {
@@ -2207,22 +2210,9 @@ function NavigationToggle(props: {
   onOpen: () => void;
 }) {
   const { activeChannelId } = props;
-  const mentions = useWorkspace((s) =>
-    Object.entries(s.mentionCounts).reduce(
-      (sum, [id, count]) => (id === activeChannelId ? sum : sum + count),
-      0,
-    ),
-  );
+  const mentions = useWorkspace((s) => mentionsElsewhere(s, activeChannelId));
   const unread = useWorkspace((s) =>
-    Object.keys(s.memberships).some(
-      (id) =>
-        id !== activeChannelId &&
-        !s.prefs[id]?.muted &&
-        !s.channels[id]?.archived &&
-        // A DM with someone blocked waits unseen (E12).
-        !blockedPartner(s.channels[id], s.self?.id, s.blocked) &&
-        (s.channelLastSeq[id] ?? 0) > (s.memberships[id] ?? 0),
-    ),
+    Object.keys(s.memberships).some((id) => waitsForAttention(s, id, activeChannelId)),
   );
   const described = mentions > 0 || unread;
   return (

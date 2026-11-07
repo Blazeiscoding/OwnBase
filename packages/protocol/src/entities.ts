@@ -74,6 +74,16 @@ export interface User {
 
 export type ChannelType = "public" | "private" | "dm" | "group_dm";
 
+/** Public and private channels: rooms with names, where a room-wide mention reaches everyone. */
+export function isRoom(type: ChannelType | undefined): boolean {
+  return type === "public" || type === "private";
+}
+
+/** One-to-one and group direct messages. */
+export function isDirect(type: ChannelType | undefined): boolean {
+  return type === "dm" || type === "group_dm";
+}
+
 export interface Channel {
   id: ID;
   type: ChannelType;
@@ -278,6 +288,9 @@ export interface PollOption {
   /** Who chose it, first to last; absent from an anonymous poll. */
   voterIds?: ID[];
 }
+
+/** The longest a message's text may be, however it is posted. */
+export const MESSAGE_TEXT_MAX = 12_000;
 
 /** The most choices a poll offers, and the fewest. */
 export const POLL_OPTIONS_MAX = 10;

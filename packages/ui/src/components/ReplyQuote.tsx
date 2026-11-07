@@ -1,4 +1,5 @@
 import {
+  USER_MENTION,
   broadcastLabel,
   type Channel,
   type ID,
@@ -19,7 +20,7 @@ export function quoteLine(
   channels: Record<ID, Channel>,
 ): string {
   return text
-    .replaceAll(/<@([A-Za-z0-9_-]+)>/g, (_all, id: ID) => userMentionLabel(users[id]))
+    .replaceAll(USER_MENTION, (_all, id: ID) => userMentionLabel(users[id]))
     .replaceAll(/<#([A-Za-z0-9_-]+)>/g, (_all, id: ID) => channelMentionLabel(channels[id]))
     .replaceAll(/<!(channel|here|everyone)>/g, (_all, who: string) => broadcastLabel(who))
     .replaceAll(

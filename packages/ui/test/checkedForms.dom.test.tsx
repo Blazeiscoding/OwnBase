@@ -196,7 +196,7 @@ describe("an app's forms", () => {
     const subscribe = vi
       .spyOn(client.api, "createSubscription")
       .mockRejectedValueOnce(
-        new ApiError(400, "url_verification_failed", "the URL did not answer the challenge"),
+        new ApiError(400, "challenge_failed", "the URL did not answer the challenge"),
       )
       .mockResolvedValueOnce({} as Awaited<ReturnType<typeof client.api.createSubscription>>);
     const section = within(dialog).getByRole("group", { name: "Event subscriptions" });
@@ -230,7 +230,7 @@ describe("an app's forms", () => {
     const save = vi
       .spyOn(client.api, "setInteractivityUrl")
       .mockResolvedValueOnce({ app: deployBot })
-      .mockRejectedValueOnce(new ApiError(400, "url_verification_failed", "no answer"))
+      .mockRejectedValueOnce(new ApiError(400, "challenge_failed", "no answer"))
       .mockResolvedValueOnce({ app: deployBot });
     const section = within(dialog).getByRole("group", { name: "Interactivity" });
     const url = within(section).getByLabelText("Request URL");

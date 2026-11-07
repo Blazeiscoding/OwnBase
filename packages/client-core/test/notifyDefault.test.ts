@@ -85,7 +85,7 @@ describe("the default for what notifies", () => {
     const client = await online();
     let refuse = () => {};
     vi.spyOn(client.api, "setNotifyDefault").mockImplementation(
-      () => new Promise((_, reject) => (refuse = () => reject(new ApiError(500, "down")))),
+      () => new Promise((_, reject) => (refuse = () => reject(new ApiError(500, "internal")))),
     );
     const saving = client.setNotifyDefault("nothing");
     expect(client.state.notifyDefault).toBe("nothing");

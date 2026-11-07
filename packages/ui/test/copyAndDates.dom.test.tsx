@@ -141,7 +141,7 @@ describe("signing in, when it does not work", () => {
 
   it("repeats what the server said about a refusal it explained", async () => {
     expect(
-      await signInFailing(new ApiError(403, "account_locked", "This account is locked.")),
+      await signInFailing(new ApiError(403, "guest_restricted", "This account is locked.")),
     ).toHaveTextContent("This account is locked.");
   });
 
@@ -152,7 +152,7 @@ describe("signing in, when it does not work", () => {
   });
 
   it("says a refusal the server did not explain in words, without its code", async () => {
-    expect(await signInFailing(new ApiError(409, "not_now"))).toHaveTextContent(
+    expect(await signInFailing(new ApiError(409, "usage"))).toHaveTextContent(
       "The workspace's server turned that down. Try again, or ask whoever runs it.",
     );
   });

@@ -1,4 +1,4 @@
-import type { ID } from "@ownbase/protocol";
+import { userMentionsIn, type ID } from "@ownbase/protocol";
 import type { CommandHint, WorkspaceClient } from "@ownbase/client-core";
 
 /**
@@ -110,7 +110,7 @@ export async function runAppCommand(
         return { ok: true, said: `Topic of ${where} set.` };
       }
       case "invite": {
-        const ids = [...new Set([...args.matchAll(/<@([A-Za-z0-9_-]+)>/g)].map((m) => m[1]!))];
+        const ids = [...userMentionsIn(args)];
         if (ids.length === 0)
           return { ok: false, said: "Mention the people to add after /invite, as /invite @Sam." };
         const added: string[] = [];

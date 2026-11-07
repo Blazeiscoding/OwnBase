@@ -1,3 +1,5 @@
+import type { ID } from "./entities.js";
+
 /**
  * Escapes text that must appear literally in a message rather than be read as
  * mrkdwn. Clients treat a backslash as "the next character is not a
@@ -32,6 +34,14 @@ export function broadcastsIn(text: string): Set<Broadcast> {
     found.add(m[1] === "here" ? "here" : "channel");
   }
   return found;
+}
+
+/** `<@id>`, the wire form of naming a person. Global: use with matchAll or replaceAll. */
+export const USER_MENTION = /<@([A-Za-z0-9_-]+)>/g;
+
+/** The people a message names, by id. */
+export function userMentionsIn(text: string): Set<ID> {
+  return new Set([...text.matchAll(USER_MENTION)].map((m) => m[1]!));
 }
 
 /** How a broadcast token reads to a person: `<!here>` becomes `@here`. */

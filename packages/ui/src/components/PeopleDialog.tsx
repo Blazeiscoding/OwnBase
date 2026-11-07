@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ID, User } from "@ownbase/protocol";
+import { isAdministrator, type ID, type User } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Dialog } from "./Dialog.js";
@@ -68,7 +68,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const alive = useRef(true);
   const actionPanel = useRef<HTMLDivElement>(null);
   const clipboard = useCopy();
-  const isAdmin = self?.role === "owner" || self?.role === "admin";
+  const isAdmin = isAdministrator(self?.role);
 
   const load = useCallback(async () => {
     setLoading(true);

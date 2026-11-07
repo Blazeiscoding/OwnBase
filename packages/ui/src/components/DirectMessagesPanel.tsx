@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ApiError, notificationBody } from "@ownbase/client-core";
+import { ApiError, blockedPartner, isUnread, notificationBody } from "@ownbase/client-core";
 import type { Channel, ID, Message } from "@ownbase/protocol";
-import { blockedPartner } from "../lib/blocking.js";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
@@ -145,8 +144,7 @@ export function DirectMessagesPanel(props: {
             const active = channel.id === props.activeChannelId;
             const muted = prefs[channel.id]?.muted ?? false;
             const mentions = mentionCounts[channel.id] ?? 0;
-            const unread =
-              !active && (channelLastSeq[channel.id] ?? 0) > (memberships[channel.id] ?? 0);
+            const unread = !active && isUnread({ channelLastSeq, memberships }, channel.id);
             const last = latest[channel.id];
             // Who said it, where the conversation's name does not already:
             // you, or one of a group.
