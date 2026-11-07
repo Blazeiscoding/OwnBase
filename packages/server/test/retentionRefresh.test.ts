@@ -77,7 +77,6 @@ async function connect(token: string, lastSeq: number | null = null) {
           token,
           lastSeq,
           protocolVersion: PROTOCOL_VERSION,
-          syncVersion: 1,
         }),
       ),
     );

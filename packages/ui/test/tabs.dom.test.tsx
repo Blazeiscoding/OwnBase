@@ -232,7 +232,7 @@ describe("views that were pressed buttons", () => {
     expect(await accessibilityProblems(panel)).toEqual([]);
 
     unread.focus();
-    await user.keyboard("{ArrowLeft}");
+    await user.keyboard("{ArrowRight}");
     const mentions = within(list).getByRole("tab", { name: "Mentions" });
     expect(mentions).toHaveFocus();
     expect(mentions).toHaveAttribute("aria-selected", "true");

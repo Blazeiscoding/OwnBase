@@ -85,9 +85,8 @@ afterAll(async () => {
 });
 
 describe("forwarding on the client", () => {
-  it("sends a forward with its comment, shows the card while sending, and learns the server forwards", async () => {
+  it("sends a forward with its comment, and shows the card while sending", async () => {
     const { client, general, news, bob } = await online();
-    expect(client.state.forwards).toBe(true);
     const { message: original } = await bob.sendMessage(news.id, { text: "We ship Friday" });
 
     client.send(general.id, "FYI", { forward: forwardOf(original, general.id, true) });
@@ -114,18 +113,6 @@ describe("forwarding on the client", () => {
       true,
     );
     await until(client, (s) => s.pending.length === 0, "the bare forward");
-  });
-
-  it("sends the comment alone to a server that does not forward, and nothing without one", async () => {
-    const { client, general, news, bob } = await online();
-    const { message: original } = await bob.sendMessage(news.id, { text: "Old server?" });
-    client.store.setState({ forwards: false });
-    expect(client.send(general.id, "", { forward: forwardOf(original, general.id, true) })).toBe(
-      false,
-    );
-    client.send(general.id, "Have a look", { forward: forwardOf(original, general.id, true) });
-    expect(client.state.pending[0]!).not.toHaveProperty("forward");
-    await until(client, (s) => s.pending.length === 0, "delivery");
   });
 
   it("keeps a held card current when its original, in another conversation, changes", async () => {

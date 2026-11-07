@@ -13,11 +13,14 @@ import { accessibilityProblems } from "./accessibility.js";
 
 const info: ServerInfo = {
   app: "ownbase",
-  protocolVersion: 1,
+  protocolVersion: 2,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",
   userCount: 4,
   requiresInvite: true,
+  accessPolicy: "invite_only",
+  workspaceCopies: false,
+  iconVersion: null,
   requiresClaim: false,
 };
 
@@ -174,6 +177,7 @@ describe("account and administration dialogs", () => {
           createdBy: "U_SAM",
           createdAt: 0,
           interactivityUrl: "",
+          scopes: [],
           signingSecret: "test-signing-secret-not-a-credential",
           webhooks: [],
           commands: [],

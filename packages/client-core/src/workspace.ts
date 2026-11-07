@@ -1038,7 +1038,6 @@ export class WorkspaceClient {
           token: this.token,
           lastSeq,
           protocolVersion: PROTOCOL_VERSION,
-          syncVersion: 1,
         }),
       );
     };
@@ -1508,7 +1507,7 @@ export class WorkspaceClient {
         changed(event.channelId);
         this.tellApp(this.onMessageDeleted, event.messageId);
         // Its poll went with it.
-        if (s.pollChoices?.[event.messageId]) {
+        if (s.pollChoices[event.messageId]) {
           const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
           patch.pollChoices = pollChoices;
         }
@@ -1940,7 +1939,7 @@ export class WorkspaceClient {
       if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
         this.tellApp(this.onReminderDue, event.reminder, event.message);
     } else if (event.type === "reminder.removed") {
-      if (!s.reminders?.[event.messageId]) return;
+      if (!s.reminders[event.messageId]) return;
       const reminders = { ...s.reminders };
       delete reminders[event.messageId];
       this.store.setState({ reminders });
@@ -3149,7 +3148,7 @@ export class WorkspaceClient {
 
   /** What the server has as this account's choices in a poll, from what is held of it. */
   private serverChoicesIn(messageId: ID, anonymous: boolean, s = this.state): number[] {
-    if (anonymous) return s.pollChoices?.[messageId] ?? [];
+    if (anonymous) return s.pollChoices[messageId] ?? [];
     const message =
       Object.values(s.timelines)
         .flatMap((tl) => tl.items)
@@ -3276,7 +3275,7 @@ export class WorkspaceClient {
       if (!(error instanceof ApiError && error.status === 404)) return false;
     }
     this.store.setState((s) => {
-      if (!s.reminders?.[messageId]) return {};
+      if (!s.reminders[messageId]) return {};
       const reminders = { ...s.reminders };
       delete reminders[messageId];
       return { reminders };

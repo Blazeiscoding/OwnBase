@@ -29,7 +29,7 @@ export function RemindersList({ onJump }: { onJump: (channelId: ID, messageId: I
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
   const signature = useWorkspace((s) =>
-    Object.values(s.reminders ?? {})
+    Object.values(s.reminders)
       .map((r) => `${r.messageId}:${r.remindAt}:${r.dueAt}`)
       .sort()
       .join(","),

@@ -78,7 +78,7 @@ afterEach(() => {
   stopRinging.mockClear();
 });
 
-function workspace(rings: Record<string, HuddleRing> | null = { C_DM: ring() }) {
+function workspace(rings: Record<string, HuddleRing> = { C_DM: ring() }) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   clients.push(client);
   client.store.setState({
@@ -219,7 +219,18 @@ describe("a ring someone gets", () => {
 
     const muted = workspace();
     act(() =>
-      muted.client.store.setState({ prefs: { C_DM: { notifyLevel: "all", muted: true } } }),
+      muted.client.store.setState({
+        prefs: {
+          C_DM: {
+            notifyLevel: "all",
+            notifyChosen: true,
+            muted: true,
+            starred: false,
+            sectionId: null,
+            hiddenSeq: null,
+          },
+        },
+      }),
     );
     muted.shown(<IncomingCall onOpen={vi.fn()} preview="full" tag="sam" />);
     expect(screen.getByRole("region", { name: "Maya Chen is calling" })).toBeInTheDocument();
@@ -249,7 +260,7 @@ describe("a missed huddle's note", () => {
   });
 
   it("offers the one who missed it a call back, or the huddle still going", async () => {
-    const { client, shown, user } = workspace(null);
+    const { client, shown, user } = workspace({});
     const { container } = shown(<CallNote message={note("U_MAYA")} />);
     expect(container).toHaveTextContent("Missed huddle");
     await user.click(screen.getByRole("button", { name: "Call back" }));
@@ -263,7 +274,7 @@ describe("a missed huddle's note", () => {
   });
 
   it("tells the caller nobody answered, with nothing to press and no way to edit it", () => {
-    const { shown } = workspace(null);
+    const { shown } = workspace({});
     shown(<MessageItem message={note("U_SAM")} compact={false} onOpenThread={vi.fn()} />);
     expect(screen.getByRole("article")).toHaveTextContent("No answer");
     expect(screen.queryByRole("button", { name: "Call back" })).toBeNull();
@@ -323,7 +334,7 @@ describe("the caller", () => {
   });
 
   it("reads who declined, or that nobody answered, while alone in the call it rang for", () => {
-    const { client, shown } = workspace(null);
+    const { client, shown } = workspace({});
     inCall(client);
     shown(<HuddleBar />);
     expect(screen.getByRole("status")).toHaveTextContent("Waiting for someone to join…");

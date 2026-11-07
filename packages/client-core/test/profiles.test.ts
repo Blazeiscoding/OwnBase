@@ -102,7 +102,6 @@ describe("profiles on the client", () => {
     // Under its current name, as the server keeps it: this runtime may say Asia/Calcutta.
     const device = currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone);
     const laptop = await online();
-    expect(laptop.state.profiles).toBe(true);
     await until(laptop, (s) => s.self?.timeZone === device, "the detected zone");
     expect(await laptop.setTimeZone("Pacific/Auckland")).toBe(true);
     expect(laptop.state.self?.timeZone).toBe("Pacific/Auckland");
@@ -173,7 +172,7 @@ describe("profiles on the client", () => {
     expect(laptop.state.self!.avatarVersion).toBeUndefined();
   });
 
-  it("say idle only to a server that keeps profiles, and only when it changes", async () => {
+  it("say idle only when it changes", async () => {
     const laptop = await online();
     const sent: { type?: string; idle?: boolean }[] = [];
     const send = WebSocket.prototype.send;
@@ -185,12 +184,6 @@ describe("profiles on the client", () => {
       return send.call(this, data);
     });
     try {
-      // An older server closes a socket on a message it does not know (4000),
-      // so it is told nothing, though this device still knows it is idle.
-      laptop.store.setState({ profiles: false });
-      laptop.setIdle(true);
-      laptop.setIdle(false);
-      laptop.store.setState({ profiles: true });
       laptop.setIdle(true);
       laptop.setIdle(true);
       laptop.setIdle(false);

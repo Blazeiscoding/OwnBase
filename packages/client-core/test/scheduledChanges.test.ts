@@ -31,8 +31,24 @@ const ready = (over: Partial<ReadySnapshot> = {}): ReadySnapshot => ({
   channelLastSeq: {},
   presence: {},
   savedMessageIds: [],
+  mentionCounts: {},
+  threadFollows: [],
   huddles: {},
+  huddleRings: [],
+  serverTime: 0,
+  reminders: [],
+  channelRemovals: [],
+  pollChoices: {},
+  sidebarSections: [],
+  notifyDefault: "mentions",
+  accessPolicy: "account_required",
+  iconVersion: null,
+  linkPreviews: true,
   workspaceName: "W",
+  workspaceId: "W1",
+  friends: [],
+  blocked: [],
+  replayFrom: null,
   ...over,
 });
 
@@ -55,23 +71,20 @@ function client() {
 describe("changes to the scheduled queue", () => {
   it("are counted as the server reports them", () => {
     const { client: c, receive } = client();
-    receive(ready({ scheduledEvents: true }));
+    receive(ready());
     const before = c.state.scheduledChanges;
     receive({ type: "ephemeral", event: { type: "scheduled" } });
     receive({ type: "ephemeral", event: { type: "scheduled" } });
     expect(c.state.scheduledChanges).toBe(before + 2);
   });
 
-  it("are counted on every connection, which also says whether the server reports them", () => {
+  it("are counted on every connection", () => {
     const { client: c, receive } = client();
     expect(c.state.scheduledChanges).toBe(0);
-    receive(ready({ scheduledEvents: true }));
-    expect(c.state.scheduledEvents).toBe(true);
+    receive(ready());
     expect(c.state.scheduledChanges).toBe(1);
 
-    // An older server says nothing, so a list has to ask it now and then.
     receive(ready());
-    expect(c.state.scheduledEvents).toBe(false);
     expect(c.state.scheduledChanges).toBe(2);
   });
 });

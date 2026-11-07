@@ -28,7 +28,11 @@ const view: ModalView = {
   submitLabel: "Submit",
   closeLabel: "Cancel",
   privateMetadata: "",
-  text: "",
+  hash: "H1",
+  blocks: [
+    { type: "field", field: 0 },
+    { type: "field", field: 1 },
+  ],
   fields: [
     {
       blockId: "amount",
@@ -321,6 +325,7 @@ describe("an app's form with choices", () => {
       field("at", { label: "Time", type: "time" }),
     ],
   };
+  choices.blocks = choices.fields.map((_, field) => ({ type: "field" as const, field }));
 
   function renderChoices(form: ModalView = choices) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
@@ -508,7 +513,13 @@ describe("a stack of app forms", () => {
     const { client } = renderStack();
     act(() =>
       client.store.setState({
-        modal: { ...view, id: "V_LOADING", text: "Loading…", fields: [], submitLabel: "" },
+        modal: {
+          ...view,
+          id: "V_LOADING",
+          blocks: [{ type: "section", text: "Loading…" }],
+          fields: [],
+          submitLabel: "",
+        },
       }),
     );
     const dialog = screen.getByRole("dialog", { name: "File an expense" });
@@ -537,7 +548,6 @@ describe("words between an app's fields", () => {
   it("draws them where the app put them", async () => {
     const dialog = renderView({
       ...view,
-      text: "*What*\n\nThe amount on the receipt.\n\n———\n\nWhy you spent it.\n\nYour manager sees this.",
       blocks: [
         { type: "header", text: "What" },
         { type: "section", text: "The amount on the receipt." },
@@ -560,12 +570,5 @@ describe("words between an app's fields", () => {
     // Each field is drawn once, however the blocks list it.
     expect(within(dialog).getAllByRole("textbox")).toHaveLength(2);
     expect(await accessibilityProblems(dialog)).toEqual([]);
-  });
-
-  it("puts every word above the fields when an older server sends no order", () => {
-    const dialog = renderView({ ...view, text: "Keep the receipt." });
-    const words = within(dialog).getByText("Keep the receipt.");
-    expect(before(words, within(dialog).getByRole("textbox", { name: "Amount" }))).toBe(true);
-    expect(within(dialog).getAllByRole("textbox")).toHaveLength(2);
   });
 });

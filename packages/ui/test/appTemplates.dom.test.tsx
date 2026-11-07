@@ -54,6 +54,7 @@ const app = (over: Partial<AppDetail>): AppDetail => ({
   webhooks: [],
   commands: [],
   subscriptions: [],
+  scopes: [],
   ...over,
 });
 const HOOK_PATH = "/hooks/test-webhook-not-a-credential";
@@ -94,6 +95,7 @@ function makesApp(client: WorkspaceClient, made: AppDetail) {
       createdBy: made.createdBy,
       createdAt: made.createdAt,
       interactivityUrl: "",
+      scopes: [],
     },
     botUser: { ...owner, id: made.botUserId, handle: "webhook-bot", isBot: true },
     token: "test-bot-token-not-a-credential",

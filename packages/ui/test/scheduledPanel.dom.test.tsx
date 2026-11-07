@@ -53,17 +53,13 @@ const queued = (id: string, text: string, hours = 2): ScheduledMessage =>
     messageId: null,
   }) as unknown as ScheduledMessage;
 
-function renderPanel(
-  list: () => Promise<{ scheduled: ScheduledMessage[] }>,
-  { scheduledEvents = true } = {},
-) {
+function renderPanel(list: () => Promise<{ scheduled: ScheduledMessage[] }>) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
     users: { [sam.id]: sam },
     channels: { [design.id]: design },
     status: "online",
-    scheduledEvents,
   });
   const api = {
     list: vi.spyOn(client.api, "listScheduled").mockImplementation(list),
@@ -113,22 +109,6 @@ describe("the Scheduled panel", () => {
     queue = [queued("S2", "Queued on the phone", 3)];
     act(() => client.store.setState({ scheduledChanges: client.state.scheduledChanges + 1 }));
     await waitFor(() => expect(within(panel).queryByText("Standup notes")).toBeNull());
-  });
-
-  it("asks every 15 seconds only a server that does not say when the queue changes", async () => {
-    const every = vi.spyOn(globalThis, "setInterval");
-    try {
-      const live = renderPanel(async () => ({ scheduled: [] }));
-      await within(live.panel).findByText(/Nothing scheduled/);
-      expect(every.mock.calls.some(([, ms]) => ms === 15_000)).toBe(false);
-      cleanup();
-
-      const older = renderPanel(async () => ({ scheduled: [] }), { scheduledEvents: false });
-      await within(older.panel).findByText(/Nothing scheduled/);
-      expect(every.mock.calls.some(([, ms]) => ms === 15_000)).toBe(true);
-    } finally {
-      every.mockRestore();
-    }
   });
 
   it("says which replies will also appear in the channel", async () => {

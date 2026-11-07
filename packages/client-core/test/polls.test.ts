@@ -263,13 +263,11 @@ describe("polls on the client", () => {
     expect(counts(alice.client, message)).toEqual([0, 0]);
   });
 
-  it("are not sent to a server that keeps none, nor with files", async () => {
+  it("are not sent with files", async () => {
     const { client, general } = await online();
     const poll = { options: ["A", "B"], multiple: false, anonymous: false };
     const file = new File(["x"], "x.txt", { type: "text/plain" });
     expect(client.send(general.id, "With a file?", { poll, files: [file] })).toBe(false);
-    client.store.setState({ pollChoices: null });
-    expect(client.send(general.id, "Older server?", { poll })).toBe(false);
     expect(client.state.pending).toEqual([]);
   });
 

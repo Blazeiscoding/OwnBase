@@ -29,6 +29,7 @@ const deployApp: AppDetail = {
   createdBy: owner.id,
   createdAt: 0,
   interactivityUrl: "",
+  scopes: [],
   signingSecret: "test-signing-secret-not-a-credential",
   webhooks: [],
   commands: [],

@@ -49,8 +49,7 @@ export function ProfileDialog(props: {
   const [opening, setOpening] = useState(false);
   const [dmError, setDmError] = useState<string | null>(null);
   // Blocking is offered where the server blocks (E12).
-  const canBlock = useWorkspace((s) => s.blocked !== null);
-  const blockedThem = useWorkspace((s) => s.blocked?.includes(props.userId) === true);
+  const blockedThem = useWorkspace((s) => s.blocked.includes(props.userId));
   const [blockError, setBlockError] = useState<string | null>(null);
   // A deactivated account reads nothing new: its card says so, and offers
   // only the conversation already had with it, to read back (V2).
@@ -248,7 +247,7 @@ export function ProfileDialog(props: {
             {opening ? "Opening…" : `Message ${user.displayName}`}
           </button>
         )}
-        {user.id !== selfId && !user.isBot && canBlock && (!gone || blockedThem) && (
+        {user.id !== selfId && !user.isBot && (!gone || blockedThem) && (
           <button
             type="button"
             onClick={() => void toggleBlock(user.id, user.displayName)}

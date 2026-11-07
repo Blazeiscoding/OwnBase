@@ -9,12 +9,15 @@ import type { Platform } from "../src/platform.js";
 /** Creating an account while an admin changes who may join: the invite withdrawn, or invites required. */
 const info = (requiresInvite: boolean): ServerInfo => ({
   app: "ownbase",
-  protocolVersion: 1,
+  protocolVersion: 2,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",
   userCount: 4,
   requiresInvite,
   requiresClaim: false,
+  accessPolicy: requiresInvite ? "invite_only" : "account_required",
+  workspaceCopies: false,
+  iconVersion: null,
 });
 
 const platform: Platform = {

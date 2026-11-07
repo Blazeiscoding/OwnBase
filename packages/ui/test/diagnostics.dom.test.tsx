@@ -46,19 +46,22 @@ describe("the diagnostics report", () => {
       ...base,
       server: {
         app: "ownbase",
-        protocolVersion: 1,
+        protocolVersion: 2,
         serverVersion: "0.4.2",
         workspaceName: "Rocket Team",
         userCount: 4,
         requiresInvite: true,
+        accessPolicy: "invite_only",
+        workspaceCopies: false,
+        iconVersion: null,
         requiresClaim: false,
       },
     });
     expect(report.split("\n")).toEqual([
       "OwnBase diagnostics",
       "Taken: 2026-09-26T12:00:00.000Z",
-      "App: browser, protocol 1, build from source",
-      "Server: v0.4.2, protocol 1, build from source",
+      "App: browser, protocol 2, build from source",
+      "Server: v0.4.2, protocol 2, build from source",
       "Address: http://10.0.0.5:8543",
       "Connection: online",
       "Waiting to send: 2",
@@ -77,25 +80,28 @@ describe("the diagnostics report", () => {
       appBuild: { revision: "0123456789abcdef0123456789abcdef01234567", dirty: false },
       server: {
         app: "ownbase",
-        protocolVersion: 1,
+        protocolVersion: 2,
         serverVersion: "0.4.2",
         build: { revision: "fedcba9876543210fedcba9876543210fedcba98", dirty: true },
         workspaceName: "Rocket Team",
         userCount: 4,
         requiresInvite: true,
+        accessPolicy: "invite_only",
+        workspaceCopies: false,
+        iconVersion: null,
         requiresClaim: false,
       },
     });
-    expect(report).toContain("App: browser, protocol 1, build 0123456789ab\n");
+    expect(report).toContain("App: browser, protocol 2, build 0123456789ab\n");
     expect(report).toContain(
-      "Server: v0.4.2, protocol 1, build fedcba987654 with uncommitted changes\n",
+      "Server: v0.4.2, protocol 2, build fedcba987654 with uncommitted changes\n",
     );
     const container = diagnosticsReport({
       ...base,
       appBuild: { revision: "unknown", dirty: null },
       server: { error: "timed out" },
     });
-    expect(container).toContain("App: browser, protocol 1, build unknown revision\n");
+    expect(container).toContain("App: browser, protocol 2, build unknown revision\n");
   });
 
   it("says when the server could not be reached, and when this device is offline", () => {
@@ -313,11 +319,14 @@ describe("the diagnostics dialog", () => {
     });
     vi.spyOn(client.api, "serverInfo").mockResolvedValue({
       app: "ownbase",
-      protocolVersion: 1,
+      protocolVersion: 2,
       serverVersion: "0.4.2",
       workspaceName: "Rocket Team",
       userCount: 4,
       requiresInvite: true,
+      accessPolicy: "invite_only",
+      workspaceCopies: false,
+      iconVersion: null,
       requiresClaim: false,
     });
     const platform: Platform = {
@@ -336,7 +345,7 @@ describe("the diagnostics dialog", () => {
     const dialog = screen.getByRole("dialog", { name: "Diagnostics" });
     expect(within(dialog).getByRole("button", { name: "Copy diagnostics" })).toBeDisabled();
     const report = await within(dialog).findByLabelText("Diagnostics report");
-    expect(report).toHaveTextContent("Server: v0.4.2, protocol 1");
+    expect(report).toHaveTextContent("Server: v0.4.2, protocol 2");
     for (const private_ of [
       "The launch moves to Friday",
       "Do not tell anyone yet",
@@ -355,11 +364,14 @@ describe("the diagnostics dialog", () => {
 
   const info: ServerInfo = {
     app: "ownbase",
-    protocolVersion: 1,
+    protocolVersion: 2,
     serverVersion: "0.4.2",
     workspaceName: "Rocket Team",
     userCount: 4,
     requiresInvite: true,
+    accessPolicy: "invite_only",
+    workspaceCopies: false,
+    iconVersion: null,
     requiresClaim: false,
   };
 

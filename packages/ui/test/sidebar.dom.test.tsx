@@ -180,6 +180,7 @@ describe("the account menu", () => {
       "💬In a meeting1 hour",
       "🎧Heads downToday",
       "🍜Out for lunch1 hour",
+      "Set yourself away",
       "Profile and status",
       "Account settings",
       "Scheduled messages",
@@ -286,6 +287,7 @@ describe("the account menu", () => {
       "💬In a meeting1 hour",
       "🎧Heads downToday",
       "🍜Out for lunch1 hour",
+      "Set yourself away",
       "Profile and status",
       "Account settings",
       "Scheduled messages",
@@ -506,7 +508,6 @@ describe("a direct message's row", () => {
         users: { ...s.users, U_MAYA: maya, U_LEE: lee },
         channels: { C_MAYA: dm("C_MAYA", "U_MAYA"), C_LEE: dm("C_LEE", "U_LEE") },
         memberships: { C_MAYA: 0, C_LEE: 0 },
-        profiles: true,
         presence: { U_MAYA: "away", U_LEE: "online" },
       })),
     );

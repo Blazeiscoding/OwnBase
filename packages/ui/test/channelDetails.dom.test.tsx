@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
-import type { Channel, User } from "@ownbase/protocol";
+import { DEFAULT_CHANNEL_PREFS, type Channel, type User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { ChannelDetailsDialog } from "../src/components/ChannelDetailsDialog.js";
 import { ToastProvider } from "../src/components/Toast.js";
@@ -262,7 +262,7 @@ describe("notification settings", () => {
       .spyOn(client.api, "setChannelPrefs")
       .mockRejectedValueOnce(new Error("offline"))
       .mockImplementation(async (_id, body) => ({
-        prefs: { notifyLevel: "mentions", muted: false, ...body },
+        prefs: { ...DEFAULT_CHANNEL_PREFS, notifyChosen: true, ...body },
       }));
     await user.click(dialog.getByRole("tab", { name: "Notifications" }));
     const mute = dialog.getByRole("checkbox", { name: /Mute this channel/ });
@@ -299,11 +299,20 @@ describe("the account's default, in a channel's notifications (v53)", () => {
     act(() =>
       client.store.setState({
         notifyDefault: "all",
-        prefs: { C_DESIGN: { notifyLevel: "mentions", notifyChosen: false, muted: false } },
+        prefs: {
+          C_DESIGN: {
+            notifyLevel: "mentions",
+            notifyChosen: false,
+            muted: false,
+            starred: false,
+            sectionId: null,
+            hiddenSeq: null,
+          },
+        },
       }),
     );
     const save = vi.spyOn(client.api, "setChannelPrefs").mockImplementation(async (_id, body) => ({
-      prefs: { notifyLevel: "mentions", notifyChosen: true, muted: false, ...body },
+      prefs: { ...DEFAULT_CHANNEL_PREFS, notifyChosen: true, ...body },
     }));
     await user.click(dialog.getByRole("tab", { name: "Notifications" }));
     const radios = dialog.getAllByRole("radio").map((r) => r.closest("label")!.textContent);

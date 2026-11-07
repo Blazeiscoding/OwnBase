@@ -59,31 +59,22 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
   return {
     friends: [],
     blocked: [],
+    serverProtocolVersion: null,
     openReports: null,
     memberNotice: null,
     serverNotices: [],
     status: "online",
     workspaceName: "W",
     workspaceId: null,
-    inlineReplies: true,
     clockSkewMs: null,
-    forwards: true,
-    scheduledEvents: true,
-    activityThreads: true,
-    threadMutes: true,
-    sharedFiles: true,
     sidebarSections: [],
     notifyDefault: null,
-    profiles: true,
     reminders: {},
     channelRemovals: {},
     pollChoices: {},
     pollPicks: {},
-    stars: true,
-    workspaceSettings: true,
     accessPolicy: "account_required",
     linkPreviews: true,
-    workspaceIcon: true,
     iconVersion: null,
     scheduledChanges: 0,
     self: me,
@@ -91,7 +82,16 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     channels: { C1: channel("public") },
     memberships: { C1: 0 },
     repliesRead: { C1: 0 },
-    prefs: { C1: { notifyLevel: "mentions", muted: false } },
+    prefs: {
+      C1: {
+        notifyLevel: "mentions",
+        notifyChosen: true,
+        muted: false,
+        starred: false,
+        sectionId: null,
+        hiddenSeq: null,
+      },
+    },
     prefsWrites: {},
     channelLastSeq: {},
     presence: {},
@@ -110,7 +110,7 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     drafts: {},
     draftTimes: {},
     huddles: {},
-    rings: null,
+    rings: {},
     ringNotice: null,
     ephemerals: {},
     ephemeralsDropped: {},
@@ -126,7 +126,18 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
 describe("a reminder come due", () => {
   it("notifies in a muted conversation, but not during Do Not Disturb", () => {
     const now = 1_000_000;
-    const muted = state({ prefs: { C1: { notifyLevel: "nothing", muted: true } } });
+    const muted = state({
+      prefs: {
+        C1: {
+          notifyLevel: "nothing",
+          notifyChosen: true,
+          muted: true,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     expect(decideReminderNotification(muted, now)).toEqual({ notify: true, reason: "reminder" });
     const snoozed = state({ self: { ...me, dndUntil: now + 60_000 } });
     expect(decideReminderNotification(snoozed, now)).toEqual({ notify: false, reason: "dnd" });
@@ -151,7 +162,6 @@ describe("a reminder come due", () => {
       },
     });
     expect(dueReminderCount(s)).toBe(1);
-    expect(dueReminderCount(state({ reminders: null }))).toBe(0);
   });
 });
 
@@ -195,18 +205,51 @@ describe("decideNotification", () => {
   });
 
   it("notifies on every message when the channel is set to all", () => {
-    const s = state({ prefs: { C1: { notifyLevel: "all", muted: false } } });
+    const s = state({
+      prefs: {
+        C1: {
+          notifyLevel: "all",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
   });
 
   it("stays quiet at level nothing, even for a mention", () => {
-    const s = state({ prefs: { C1: { notifyLevel: "nothing", muted: false } } });
+    const s = state({
+      prefs: {
+        C1: {
+          notifyLevel: "nothing",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     const mention = message({ text: `oi <@${me.id}>` });
     expect(decideNotification(s, mention)).toEqual({ notify: false, reason: "level" });
   });
 
   it("mute beats every level", () => {
-    const s = state({ prefs: { C1: { notifyLevel: "all", muted: true } } });
+    const s = state({
+      prefs: {
+        C1: {
+          notifyLevel: "all",
+          notifyChosen: true,
+          muted: true,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     expect(decideNotification(s, message())).toEqual({ notify: false, reason: "muted" });
   });
 
@@ -229,7 +272,18 @@ describe("decideNotification", () => {
     const reply = (over: Partial<Message> = {}) => message({ threadRootId: "M0", ...over });
 
     it("stays quiet for a reply at level all, and in a DM", () => {
-      const all = { prefs: { C1: { notifyLevel: "all" as const, muted: false } } };
+      const all = {
+        prefs: {
+          C1: {
+            notifyLevel: "all" as const,
+            notifyChosen: true,
+            muted: false,
+            starred: false,
+            sectionId: null,
+            hiddenSeq: null,
+          },
+        },
+      };
       expect(decideNotification(muted(all), reply())).toEqual({
         notify: false,
         reason: "thread-muted",
@@ -291,7 +345,14 @@ describe("decideNotification", () => {
   });
 
   it("follows the account's default where a conversation has no level of its own (v53)", () => {
-    const following = { notifyLevel: "mentions" as const, notifyChosen: false, muted: false, starred: false, sectionId: null, hiddenSeq: null };
+    const following = {
+      notifyLevel: "mentions" as const,
+      notifyChosen: false,
+      muted: false,
+      starred: false,
+      sectionId: null,
+      hiddenSeq: null,
+    };
     const everything = state({ notifyDefault: "all", prefs: { C1: following } });
     expect(decideNotification(everything, message())).toEqual({ notify: true, reason: "all" });
     const quiet = state({ notifyDefault: "nothing", prefs: { C1: following } });
@@ -306,13 +367,29 @@ describe("decideNotification", () => {
   });
 
   it("keeps a level chosen for one conversation, whatever the default", () => {
-    const own = { notifyLevel: "all" as const, notifyChosen: true, muted: false, starred: false, sectionId: null, hiddenSeq: null };
+    const own = {
+      notifyLevel: "all" as const,
+      notifyChosen: true,
+      muted: false,
+      starred: false,
+      sectionId: null,
+      hiddenSeq: null,
+    };
     const s = state({ notifyDefault: "nothing", prefs: { C1: own } });
     expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
     // An older server says nothing of choosing: its level is the conversation's own.
     const older = state({
       notifyDefault: null,
-      prefs: { C1: { notifyLevel: "all", muted: false } },
+      prefs: {
+        C1: {
+          notifyLevel: "all",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
     });
     expect(decideNotification(older, message()).notify).toBe(true);
   });
@@ -373,7 +450,18 @@ describe("notificationBody", () => {
     expect(notificationBody(state(), forward)).toBe("Forwarded a message");
   });
   it("treats @channel as addressed to you, even on a mentions-only channel", () => {
-    const s = state({ prefs: { C1: { notifyLevel: "mentions", muted: false } } });
+    const s = state({
+      prefs: {
+        C1: {
+          notifyLevel: "mentions",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     expect(decideNotification(s, message({ text: "<!channel> standup in five" }))).toEqual({
       notify: true,
       reason: "broadcast",
@@ -388,7 +476,18 @@ describe("notificationBody", () => {
   });
 
   it("rings for @here only while you are actually here", () => {
-    const s = state({ prefs: { C1: { notifyLevel: "mentions", muted: false } } });
+    const s = state({
+      prefs: {
+        C1: {
+          notifyLevel: "mentions",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     const here = message({ text: "<!here> anyone free?" });
     expect(decideNotification(s, here, { live: true })).toEqual({
       notify: true,
@@ -407,7 +506,18 @@ describe("notificationBody", () => {
   });
 
   it("still obeys mute and Do Not Disturb when a room is addressed", () => {
-    const muted = state({ prefs: { C1: { notifyLevel: "all", muted: true } } });
+    const muted = state({
+      prefs: {
+        C1: {
+          notifyLevel: "all",
+          notifyChosen: true,
+          muted: true,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     expect(decideNotification(muted, message({ text: "<!channel> hello" }))).toEqual({
       notify: false,
       reason: "muted",
@@ -420,7 +530,18 @@ describe("notificationBody", () => {
       reason: "dnd",
     });
 
-    const nothing = state({ prefs: { C1: { notifyLevel: "nothing", muted: false } } });
+    const nothing = state({
+      prefs: {
+        C1: {
+          notifyLevel: "nothing",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
+    });
     expect(decideNotification(nothing, message({ text: "<!here> hello" }))).toEqual({
       notify: false,
       reason: "level",
@@ -430,7 +551,16 @@ describe("notificationBody", () => {
   it("ignores a room-wide mention in a direct message, where it means nothing", () => {
     const s = state({
       channels: { C1: channel("dm") },
-      prefs: { C1: { notifyLevel: "mentions", muted: false } },
+      prefs: {
+        C1: {
+          notifyLevel: "mentions",
+          notifyChosen: true,
+          muted: false,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
     });
     // Still notified, because it is a DM — but as a DM, not as a broadcast.
     expect(decideNotification(s, message({ text: "<!here> hi" }))).toEqual({

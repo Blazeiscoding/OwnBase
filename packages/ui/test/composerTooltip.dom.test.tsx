@@ -75,15 +75,15 @@ describe.each([
     await user.type(textbox, "A draft");
     await screen.findByText(hint, { exact: false });
 
-    const attach = screen.getByRole("button", { name: "Attach a file" });
+    const attach = screen.getByRole("button", { name: "Add to message" });
     const later = screen.getByRole("button", { name: "Send later" });
     const sendButton = screen.getByRole("button", { name: "Send message" });
     for (const button of [attach, later, sendButton]) expect(button).not.toHaveAttribute("title");
 
     await user.tab();
     expect(attach).toHaveFocus();
-    expect(screen.getByRole("tooltip")).toHaveTextContent("Attach a file");
-    expect(attach).toHaveAccessibleDescription("Attach a file");
+    expect(screen.getByRole("tooltip")).toHaveTextContent("Add to message");
+    expect(attach).toHaveAccessibleDescription("Add to message");
 
     // Formatting and emoji sit between attaching and sending, in reading order.
     await user.tab();
@@ -109,6 +109,7 @@ describe.each([
 
     const pickerClick = vi.spyOn(filePicker, "click").mockImplementation(() => undefined);
     await user.click(attach);
+    await user.click(screen.getByRole("menuitem", { name: "Upload a file" }));
     expect(pickerClick).toHaveBeenCalledOnce();
     await user.click(later);
     expect(await screen.findByRole("button", { name: "Schedule message" })).toBeVisible();

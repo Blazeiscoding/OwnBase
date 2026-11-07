@@ -205,7 +205,7 @@ export function HuddleBar({
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  const ring = useWorkspace((s) => (s.huddle ? s.rings?.[s.huddle.channelId] : undefined));
+  const ring = useWorkspace((s) => (s.huddle ? s.rings[s.huddle.channelId] : undefined));
   const ringNotice = useWorkspace((s) => s.ringNotice);
   const speakerId = useCallPreferences().devices.speakerId;
   const { volumes } = useCallVolumes();

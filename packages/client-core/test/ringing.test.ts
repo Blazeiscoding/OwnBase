@@ -139,10 +139,6 @@ describe("rings on the client", () => {
     try {
       // Nothing ringing: nothing to say.
       laptop.declineRing(channelId);
-      // An older server rings nobody and closes a socket on a message it does
-      // not know, so even a ring this device somehow holds is not declined there.
-      laptop.store.setState({ rings: null });
-      laptop.declineRing(channelId);
       // One ringing someone else is not this account's to decline.
       laptop.store.setState({
         rings: {

@@ -1875,13 +1875,11 @@ describe("modals", () => {
       id: string;
       title: string;
       submitLabel: string;
-      text: string;
       fields: { blockId: string; type: string; optional: boolean; options: unknown[] }[];
       blocks?: unknown[];
     };
     expect(pushedView.title).toBe("Deploy");
     expect(pushedView.submitLabel).toBe("Ship it");
-    expect(pushedView.text).toBe("Where is this going?");
     // The file input is gone; the two fields we can draw are not.
     expect(pushedView.fields.map((f) => f.blockId)).toEqual(["where", "why"]);
     expect(pushedView.fields[0]!.options).toHaveLength(2);

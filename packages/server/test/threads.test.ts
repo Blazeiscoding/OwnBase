@@ -243,7 +243,6 @@ describe("thread following", () => {
 
     // The ready snapshot says this server answers the mode.
     const { frames } = await connect(owner.token);
-    expect((frames.find((f) => f.type === "ready") as any).activityThreads).toBe(true);
   });
 
   it("drops a thread from the list when its root is deleted", async () => {

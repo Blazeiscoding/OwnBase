@@ -109,11 +109,14 @@ describe("a message's menu", () => {
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
     ).toEqual([
+      "Reply",
       "Reply in thread",
       "Add a reaction…",
       "Copy text",
       "Copy link to message",
+      "Forward…",
       "Save for later",
+      "Remind me about this…",
       "Mark unread from this message",
       "Pin to channel",
       "Edit message",
@@ -170,6 +173,7 @@ describe("a message's toolbar", () => {
     const icons = [...toolbar.querySelectorAll<SVGElement>("svg[data-icon]")];
     expect(icons.map((icon) => icon.dataset.icon)).toEqual([
       "smile",
+      "reply",
       "thread",
       "bookmark",
       "edit",

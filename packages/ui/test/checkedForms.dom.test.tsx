@@ -130,6 +130,7 @@ describe("an app's forms", () => {
     createdBy: "U_SAM",
     createdAt: 0,
     interactivityUrl: "",
+    scopes: [],
     signingSecret: "test-signing-secret-not-a-credential",
     webhooks: [],
     commands: [],

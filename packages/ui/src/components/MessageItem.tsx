@@ -84,7 +84,7 @@ interface Props {
  * which shows it on request. It keeps its place for the arrow keys and links.
  */
 export const MessageItem = memo(function MessageItem(props: Props) {
-  const blocked = useWorkspace((s) => s.blocked?.includes(props.message.userId) === true);
+  const blocked = useWorkspace((s) => s.blocked.includes(props.message.userId));
   const [shown, setShown] = useState(false);
   if (!blocked || shown) return <MessageRow {...props} />;
   return (

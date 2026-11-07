@@ -95,7 +95,6 @@ function workspace(self: User, state: { linkPreviews?: boolean | null } = {}) {
     memberships: { C_GENERAL: 0 },
     status: "online",
     workspaceName: "Rocket Team",
-    workspaceSettings: true,
     accessPolicy: "account_required",
     linkPreviews: state.linkPreviews === undefined ? true : state.linkPreviews,
   });

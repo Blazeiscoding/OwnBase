@@ -606,30 +606,6 @@ describe("scoped history invalidation", () => {
     expect(client.state.threads[root.id]).toBeUndefined();
   });
 
-  it("restarts initial timeline and thread loads on a full reconnect resync", async () => {
-    const root = (await owner.sendMessage(channelId, { text: "root" })).message;
-    await caughtUp();
-    const timeline = holdPage(client.api.listMessages.bind(client.api));
-    const thread = holdPage(client.api.threadHistory.bind(client.api));
-    vi.spyOn(client.api, "listMessages").mockImplementationOnce(timeline.read);
-    vi.spyOn(client.api, "threadHistory").mockImplementationOnce(thread.read);
-    const loadingTimeline = client.loadTimeline(channelId);
-    const loadingThread = client.loadThread(root.id, channelId);
-    await Promise.all([timeline.captured, thread.captured]);
-    const connection = client as unknown as { handleServerMessage(message: ServerToClient): void };
-    connection.handleServerMessage({ type: "resync" });
-    await expect.poll(() => client.state.status).toBe("online");
-    await expect.poll(() => client.state.timelines[channelId]?.loaded).toBe(true);
-    await expect.poll(() => client.state.threadPages[root.id]?.loading).toBe(false);
-    const replacementTimeline = client.state.timelines[channelId];
-    const replacementThread = client.state.threadPages[root.id];
-    timeline.release();
-    thread.release();
-    await Promise.all([loadingTimeline, loadingThread]);
-    expect(client.state.timelines[channelId]).toBe(replacementTimeline);
-    expect(client.state.threadPages[root.id]).toBe(replacementThread);
-  });
-
   it("settles loading on logout and ignores both late responses", async () => {
     const root = (await owner.sendMessage(channelId, { text: "root" })).message;
     await caughtUp();

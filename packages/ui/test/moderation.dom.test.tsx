@@ -33,6 +33,7 @@ const person = (id: string, displayName: string, over: Partial<User> = {}): User
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -90,8 +91,8 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-/** A client over Sam's workspace; `blocked` null is a server that neither blocks nor takes reports. */
-function workspace(blocked: string[] | null = [], self: User = sam) {
+/** A client over Sam's workspace. */
+function workspace(blocked: string[] = [], self: User = sam) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   clients.push(client);
   client.store.setState({
@@ -180,19 +181,11 @@ describe("reporting a message", () => {
     );
   });
 
-  it("is not offered for your own message, or by a server that takes no reports", async () => {
+  it("is not offered for your own message", async () => {
     const own = workspace();
     own.shown(<MessageItem message={message({ userId: "U_SAM" })} compact={false} />);
     await own.user.click(
       screen.getByRole("button", { name: "Actions for message from Sam Rivera" }),
-    );
-    expect(screen.queryByRole("menuitem", { name: "Report message…" })).toBeNull();
-    cleanup();
-
-    const older = workspace(null);
-    older.shown(<MessageItem message={message()} compact={false} />);
-    await older.user.click(
-      screen.getByRole("button", { name: "Actions for message from Maya Chen" }),
     );
     expect(screen.queryByRole("menuitem", { name: "Report message…" })).toBeNull();
   });
@@ -222,16 +215,13 @@ describe("blocking from someone's card", () => {
     expect(setBlocked).toHaveBeenLastCalledWith("U_MAYA", false);
   });
 
-  it("says when the block did not take, and is not offered by an older server", async () => {
+  it("says when the block did not take", async () => {
     const { client, shown, user } = workspace();
     vi.spyOn(client, "setBlocked").mockResolvedValue(false);
     shown(<ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Block Maya Chen" }));
     await user.click(screen.getByRole("button", { name: "Block" }));
     expect(await screen.findByRole("alert")).toHaveTextContent("Could not block Maya Chen.");
-    cleanup();
-    workspace(null).shown(<ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
-    expect(screen.queryByRole("button", { name: "Block Maya Chen" })).toBeNull();
   });
 });
 
@@ -373,11 +363,6 @@ describe("blocked people in Account settings", () => {
     expect(setBlocked).toHaveBeenCalledWith("U_LEE", false);
     act(() => client.store.setState({ blocked: [] }));
     expect(screen.getByText(/You have not blocked anyone/)).toBeVisible();
-  });
-
-  it("is not there on a server that does not block", () => {
-    workspace(null).shown(<BlockedPeople />);
-    expect(screen.queryByRole("heading", { name: "Blocked people" })).toBeNull();
   });
 });
 

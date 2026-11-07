@@ -57,10 +57,7 @@ afterEach(() => {
   window.history.replaceState(null, "", "/");
 });
 
-function client(
-  self: User,
-  state: { accessPolicy?: AccessPolicy | null; workspaceSettings?: boolean; others?: User[] } = {},
-) {
+function client(self: User, state: { accessPolicy?: AccessPolicy | null; others?: User[] } = {}) {
   const workspace = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   clients.push(workspace);
   workspace.store.setState({
@@ -70,7 +67,6 @@ function client(
     memberships: { [general.id]: 0 },
     status: "online",
     workspaceName: "Rocket Team",
-    workspaceSettings: state.workspaceSettings ?? true,
     accessPolicy: state.accessPolicy === undefined ? "account_required" : state.accessPolicy,
   });
   return workspace;
@@ -305,26 +301,6 @@ describe("who can join", () => {
     expect(dialog).toHaveTextContent(
       "While the public link is open, Manage hosting shows this same setting and can change it.",
     );
-  });
-});
-
-describe("a workspace whose server is older", () => {
-  it("shows the name and offers nothing the server would refuse", async () => {
-    const { dialog, user, rename, choose } = page({
-      workspaceSettings: false,
-      accessPolicy: null,
-    });
-    expect(within(dialog).getByRole("note")).toHaveTextContent(
-      "Change its name and who can join where it is hosted, not here.",
-    );
-    expect(within(within(dialog).getByRole("tabpanel")).getByText("Rocket Team")).toBeVisible();
-    expect(within(dialog).queryByRole("textbox")).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Save" })).toBeNull();
-    await user.click(within(dialog).getByRole("tab", { name: "Who can join" }));
-    expect(within(dialog).queryByRole("radio")).toBeNull();
-    expect(rename).not.toHaveBeenCalled();
-    expect(choose).not.toHaveBeenCalled();
-    expect(await accessibilityProblems(dialog)).toEqual([]);
   });
 });
 

@@ -579,7 +579,7 @@ function WorkspaceInner({
   const inHuddle = useWorkspace((s) => !!s.huddle);
   useHuddleEndedNotice();
   const rungHere = useWorkspace((s) =>
-    Object.values(s.rings ?? {}).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
+    Object.values(s.rings).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
   );
   // Wide enough for the chat beside the call with room left for a share, as
   // Discord shows a voice channel's. The choice to hide it lasts the session.

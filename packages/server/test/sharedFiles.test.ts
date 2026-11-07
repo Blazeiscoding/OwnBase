@@ -336,24 +336,3 @@ describe("reading the list", () => {
     }
   });
 });
-
-describe("the ready snapshot", () => {
-  it("says the server lists shared files", async () => {
-    const ws = new WebSocket(base.replace("http", "ws") + "/ws");
-    sockets.push(ws);
-    const frames: ServerToClient[] = [];
-    ws.on("message", (data) => frames.push(JSON.parse(String(data)) as ServerToClient));
-    ws.on("open", () =>
-      ws.send(
-        JSON.stringify({
-          type: "hello",
-          token: owner.token,
-          lastSeq: null,
-          protocolVersion: PROTOCOL_VERSION,
-        }),
-      ),
-    );
-    await expect.poll(() => frames.some((f) => f.type === "ready")).toBe(true);
-    expect(frames.find((f) => f.type === "ready")).toMatchObject({ sharedFiles: true });
-  });
-});

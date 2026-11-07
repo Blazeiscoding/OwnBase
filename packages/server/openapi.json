@@ -2,7 +2,7 @@
   "openapi": "3.0.3",
   "info": {
     "title": "OwnBase REST API",
-    "version": "1",
+    "version": "2",
     "description": "The REST routes under /api/ that the first-party clients use, and the Slack-compatible methods apps call. The native routes are not a stable public API: they change with the clients, and the version here is the client protocol's (`PROTOCOL_VERSION`). docs/INTEGRATIONS.md is the contract for apps.\n\nGenerated from the server's source and the zod schemas it validates requests with, by packages/server/test/openapi.test.ts, which fails when this file is out of date. Rewrite it with `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.\n\nThe WebSocket at /ws, incoming webhooks at /hooks/, the web client's files and the enterprise edition's routes are not described here."
   },
   "servers": [

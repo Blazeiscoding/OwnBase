@@ -79,7 +79,7 @@ afterEach(() => {
 });
 
 /** A client whose server answers reminders as the real one does. */
-function workspace(reminders: Record<string, Reminder> | null = {}) {
+function workspace(reminders: Record<string, Reminder> = {}) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   clients.push(client);
   client.store.setState({
@@ -88,7 +88,6 @@ function workspace(reminders: Record<string, Reminder> | null = {}) {
     channels: { [general.id]: general },
     memberships: { [general.id]: 9 },
     status: "online",
-    activityThreads: true,
     reminders,
   });
   const setReminder = vi
@@ -145,7 +144,7 @@ describe("a reminder from a message's menu", () => {
     expect(again.items).not.toContain("Remind me about this…");
     await user.click(within(again.menu).getByRole("menuitem", { name: "Cancel reminder" }));
     expect(cancelReminder).toHaveBeenCalledWith(invoice.id);
-    await waitFor(() => expect(client.state.reminders?.[invoice.id]).toBeUndefined());
+    await waitFor(() => expect(client.state.reminders[invoice.id]).toBeUndefined());
   });
 
   it("takes a chosen time, and says so when that time has passed", async () => {
@@ -221,12 +220,6 @@ describe("a reminder from a message's menu", () => {
     const menu = screen.getByRole("menu", { name: "Actions for message from Priya Shah" });
     expect(within(menu).getByRole("menuitem", { name: "Remind me about this…" })).toBeVisible();
   });
-
-  it("is not offered where the server keeps no reminders", async () => {
-    const { client, user } = workspace(null);
-    render(tree(client, <MessageItem message={invoice} compact={false} />));
-    expect((await moreActions(user)).items).not.toContain("Remind me about this…");
-  });
 });
 
 describe("Activity's reminders", () => {
@@ -237,7 +230,7 @@ describe("Activity's reminders", () => {
     { reminder: reminder(later.id, Date.now() + 3_600_000, null), message: later },
   ];
 
-  function activity(reminders: Record<string, Reminder> | null) {
+  function activity(reminders: Record<string, Reminder>) {
     const setup = workspace(reminders);
     vi.spyOn(setup.client.api, "activity").mockResolvedValue({ messages: [], nextCursor: null });
     const list = vi
@@ -316,11 +309,6 @@ describe("Activity's reminders", () => {
       client.store.setState({ reminders: { [later.id]: { ...items[1]!.reminder, remindAt: 5 } } }),
     );
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
-  });
-
-  it("has no Reminders tab where the server keeps none", () => {
-    activity(null);
-    expect(screen.queryByRole("tab", { name: /Reminders/ })).toBeNull();
   });
 });
 

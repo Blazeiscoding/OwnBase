@@ -44,7 +44,6 @@ describe("the workspace's name and who may join", () => {
   it("come with the snapshot, with the server saying it takes changes", () => {
     for (const client of [member, ownerElsewhere])
       expect(client.state).toMatchObject({
-        workspaceSettings: true,
         accessPolicy: "account_required",
         workspaceName: "Rocket Team",
       });
@@ -81,31 +80,5 @@ describe("the workspace's name and who may join", () => {
     });
     expect(member.state.workspaceName).toBe("Rocket Team");
     expect(member.state.accessPolicy).toBe("account_required");
-  });
-
-  it("are not offered by a server that does not take them", () => {
-    // A server before workspace settings sends neither the flag nor the rule.
-    const older = new WorkspaceClient("http://127.0.0.1:9", "token");
-    try {
-      const self = member.state.self!;
-      const connection = older as unknown as { handleServerMessage(message: unknown): void };
-      connection.handleServerMessage({
-        type: "ready",
-        seq: 0,
-        self,
-        users: [self],
-        channels: [],
-        memberships: [],
-        channelLastSeq: {},
-        presence: {},
-        savedMessageIds: [],
-        huddles: {},
-        workspaceName: "W",
-      });
-      expect(older.state.workspaceSettings).toBe(false);
-      expect(older.state.accessPolicy).toBeNull();
-    } finally {
-      older.destroy();
-    }
   });
 });

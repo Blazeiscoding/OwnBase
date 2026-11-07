@@ -56,7 +56,7 @@ const message = (over: Partial<Message> = {}): Message => ({
 });
 
 /** A client whose server answers a mute as the real one does. */
-function workspace(threadMutes = true, following = true) {
+function workspace(following = true) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   const root = message();
   const follow: ThreadFollow = {
@@ -73,7 +73,6 @@ function workspace(threadMutes = true, following = true) {
     channels: { [general.id]: general },
     memberships: { [general.id]: 9 },
     status: "online",
-    threadMutes,
     threadFollows: { [root.id]: follow },
     threadPages: {
       [root.id]: {
@@ -161,13 +160,6 @@ describe("muting a thread from its panel", () => {
     const menu = await screen.findByRole("menu", { name: "More actions" });
     expect(within(menu).queryByRole("menuitem", { name: "Mute thread" })).toBeNull();
   });
-
-  it("is not offered by a server that cannot keep a mute", () => {
-    const { client, root } = workspace(false);
-    panel(client, root.id);
-    expect(screen.getByRole("button", { name: "Following" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Mute thread" })).toBeNull();
-  });
 });
 
 describe("muting a thread from its first message", () => {
@@ -229,12 +221,5 @@ describe("muting a thread from its first message", () => {
     const answer = message({ id: "M_ANSWER", threadRootId: root.id, replyCount: 0 });
     rerender(tree(client, <MessageItem message={answer} compact={false} />));
     expect(await touch()).not.toContain("Mute thread");
-  });
-
-  it("is not offered by a server that cannot keep a mute", async () => {
-    const { client, root, user } = workspace(false);
-    wrap(client, <MessageItem message={root} compact={false} />);
-    const { items } = await actions(user)();
-    expect(items).not.toContain("Mute thread");
   });
 });

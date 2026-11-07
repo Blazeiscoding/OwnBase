@@ -191,28 +191,6 @@ describe("huddle join acknowledgement", () => {
     expect(client.state.huddle).toBeNull();
     expect(HuddleSession.prototype.syncParticipants).not.toHaveBeenCalled();
   });
-
-  it("continues joining servers whose snapshots predate admission replies", async () => {
-    const sent = holdJoin();
-    const self = client.state.self!;
-    internals().handleServerMessage({
-      type: "ready",
-      seq: client.state.lastSeq,
-      self,
-      users: Object.values(client.state.users),
-      channels: Object.values(client.state.channels),
-      memberships: [],
-      channelLastSeq: {},
-      presence: {},
-      savedMessageIds: [],
-      huddles: {},
-      workspaceName: "Older server",
-    });
-    await client.joinHuddle(channelId);
-    expect(client.state.huddle?.channelId).toBe(channelId);
-    expect(sent).toContainEqual({ type: "huddle.join", channelId });
-    expect(tracks[0]!.stop).not.toHaveBeenCalled();
-  });
 });
 
 describe("how big the call draws everyone (E13b)", () => {

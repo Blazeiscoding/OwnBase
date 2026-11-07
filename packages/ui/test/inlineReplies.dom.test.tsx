@@ -69,7 +69,7 @@ const platform: Platform = {
   notify: () => {},
 };
 
-function workspace(inlineReplies = true) {
+function workspace() {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({
     self: sam,
@@ -77,7 +77,6 @@ function workspace(inlineReplies = true) {
     channels: { [general.id]: general },
     memberships: { [general.id]: 0 },
     status: "online",
-    inlineReplies,
   });
   const send = vi.spyOn(client, "send").mockReturnValue(true);
   return { client, send };
@@ -85,9 +84,9 @@ function workspace(inlineReplies = true) {
 
 async function renderConversation(
   messages: { message: Message; inThread?: boolean }[],
-  options: { inlineReplies?: boolean; threadRootId?: string; openMessage?: () => void } = {},
+  options: { threadRootId?: string; openMessage?: () => void } = {},
 ) {
-  const { client, send } = workspace(options.inlineReplies);
+  const { client, send } = workspace();
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
@@ -214,14 +213,6 @@ describe("answering a message in place", () => {
     expect(within(aside).getByText("Replying to")).toHaveTextContent("Replying to Priya Shah");
     expect(within(aside).getByRole("textbox", { name: "Reply…" })).toHaveFocus();
     expect(within(screen.getByRole("main")).queryByText("Replying to")).not.toBeInTheDocument();
-  });
-
-  it("is not offered by a server that would post it as an ordinary message", async () => {
-    const { user } = await renderConversation([{ message: message() }], { inlineReplies: false });
-    expect(screen.queryByRole("button", { name: "Reply" })).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Actions for message from Priya Shah" }));
-    expect(screen.queryByRole("menuitem", { name: "Reply" })).not.toBeInTheDocument();
-    expect(screen.getByRole("menuitem", { name: "Reply in thread" })).toBeInTheDocument();
   });
 });
 
