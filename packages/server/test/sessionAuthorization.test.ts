@@ -48,7 +48,6 @@ async function connect(token: string) {
         type: "hello",
         token,
         lastSeq: null,
-        syncVersion: 1,
         protocolVersion: PROTOCOL_VERSION,
       }),
     ),

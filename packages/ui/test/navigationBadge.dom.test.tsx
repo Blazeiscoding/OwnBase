@@ -18,6 +18,7 @@ const owner: User = {
   handle: "owner",
   displayName: "Owner",
   role: "owner",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -115,7 +116,16 @@ describe("the phone's menu button", () => {
     act(() =>
       client.store.setState({
         channelLastSeq: { [design.id]: 5 },
-        prefs: { [design.id]: { notifyLevel: "all", muted: true } },
+        prefs: {
+          [design.id]: {
+            notifyLevel: "all",
+            notifyChosen: true,
+            muted: true,
+            starred: false,
+            sectionId: null,
+            hiddenSeq: null,
+          },
+        },
       }),
     );
     expect(toggle()).not.toHaveAccessibleDescription();

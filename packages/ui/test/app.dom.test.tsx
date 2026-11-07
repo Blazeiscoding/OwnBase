@@ -192,6 +192,7 @@ describe("switching workspace from the sidebar", () => {
           handle: "sam",
           displayName: "Sam Rivera",
           role: "member",
+          canInvite: true,
           statusText: "",
           statusEmoji: "",
           isBot: false,

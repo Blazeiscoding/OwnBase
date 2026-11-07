@@ -46,7 +46,6 @@ async function connect(token: string) {
         type: "hello",
         token,
         lastSeq: null,
-        syncVersion: 1,
         protocolVersion: PROTOCOL_VERSION,
       }),
     ),
@@ -108,7 +107,6 @@ describe("the call log", () => {
   it("records joining, the setup passed on, what each side reports, and leaving", async () => {
     const a = await connect(owner.token);
     const b = await connect(member.token);
-    expect(a.frames.find((f) => f.type === "ready")).toMatchObject({ huddleReports: true });
     a.send({ type: "huddle.join", channelId: general, requestId: "1" });
     b.send({ type: "huddle.join", channelId: general, requestId: "1" });
     await expect.poll(async () => (await calls(owner.token)).length).toBe(2);

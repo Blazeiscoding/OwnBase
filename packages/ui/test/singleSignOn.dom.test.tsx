@@ -27,11 +27,14 @@ const okta = {
 };
 const info = (over: Partial<ServerInfo> = {}): ServerInfo => ({
   app: "ownbase",
-  protocolVersion: 1,
+  protocolVersion: 2,
   serverVersion: "0.0.0-test",
   workspaceName: "Acme",
   userCount: 12,
   requiresInvite: false,
+  accessPolicy: "account_required",
+  workspaceCopies: false,
+  iconVersion: null,
   requiresClaim: false,
   signIn: { methods: [okta], passwords: "everyone" },
   ...over,
@@ -41,6 +44,7 @@ const person = (role: User["role"]): User => ({
   handle: "maya",
   displayName: "Maya Lin",
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -234,7 +238,6 @@ function workspace(role: User["role"]) {
     users: { U_MAYA: person(role) },
     status: "online",
     workspaceName: "Acme",
-    workspaceSettings: true,
     accessPolicy: "account_required",
   });
   return client;

@@ -68,9 +68,9 @@ afterEach(async () => {
 });
 
 describe("the workspace's icon", () => {
-  it("comes with the snapshot, with the server saying it keeps one", () => {
+  it("comes with the snapshot", () => {
     for (const client of [member, ownerElsewhere])
-      expect(client.state).toMatchObject({ workspaceIcon: true, iconVersion: null });
+      expect(client.state).toMatchObject({ iconVersion: null });
   });
 
   it("follows a change an admin or the host makes, on every device and for everyone", async () => {
@@ -114,33 +114,5 @@ describe("the workspace's icon", () => {
       owner.setWorkspaceIcon(new Blob(["<svg/>"], { type: "image/svg+xml" })),
     ).rejects.toMatchObject({ status: 415, code: "unsupported_icon_type" });
     expect(member.state.iconVersion).toBeNull();
-  });
-
-  it("is not offered by a server that does not keep one", () => {
-    // A server before workspace icons sends neither the flag nor a version.
-    const older = new WorkspaceClient("http://127.0.0.1:9", "token");
-    try {
-      const self = member.state.self!;
-      const connection = older as unknown as { handleServerMessage(message: unknown): void };
-      connection.handleServerMessage({
-        type: "ready",
-        seq: 0,
-        self,
-        users: [self],
-        channels: [],
-        memberships: [],
-        channelLastSeq: {},
-        presence: {},
-        savedMessageIds: [],
-        huddles: {},
-        workspaceName: "W",
-        // Even a version without the flag is not taken as one.
-        iconVersion: "0123456789abcdef",
-      });
-      expect(older.state.workspaceIcon).toBe(false);
-      expect(older.state.iconVersion).toBeNull();
-    } finally {
-      older.destroy();
-    }
   });
 });

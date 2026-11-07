@@ -235,7 +235,6 @@ describe("renaming the workspace and choosing who may join", () => {
     const ownerSocket = await connect(owner.token);
     const memberSocket = await connect(member.token);
     expect(memberSocket.ready()).toMatchObject({
-      workspaceSettings: true,
       accessPolicy: "account_required",
       workspaceName: "Rocket Team",
     });
@@ -250,7 +249,6 @@ describe("renaming the workspace and choosing who may join", () => {
     }
     const later = await connect(member.token);
     expect(later.ready()).toMatchObject({
-      workspaceSettings: true,
       accessPolicy: "invite_only",
       workspaceName: "Blue Team",
     });

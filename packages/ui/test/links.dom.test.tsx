@@ -78,11 +78,14 @@ async function inviteWith(options: {
   client.store.setState({ self: owner, users: { U_SAM: owner }, status: "online" });
   const info: ServerInfo = {
     app: "ownbase",
-    protocolVersion: 1,
+    protocolVersion: 2,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",
     userCount: 3,
     requiresInvite: true,
+    accessPolicy: "invite_only",
+    workspaceCopies: false,
+    iconVersion: null,
     requiresClaim: false,
     ...(options.publicUrl ? { publicUrl: options.publicUrl } : {}),
   };
@@ -396,11 +399,14 @@ describe("a link to a message, written in a message", () => {
     });
     vi.spyOn(client.api, "serverInfo").mockResolvedValue({
       app: "ownbase",
-      protocolVersion: 1,
+      protocolVersion: 2,
       serverVersion: "0.0.0-test",
       workspaceName: "Rocket Team",
       userCount: 3,
       requiresInvite: true,
+      accessPolicy: "invite_only",
+      workspaceCopies: false,
+      iconVersion: null,
       requiresClaim: false,
       publicUrl: "https://rocket.example.dev",
     });

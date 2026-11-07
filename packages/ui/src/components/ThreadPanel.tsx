@@ -50,7 +50,6 @@ export function ThreadPanel({
   const replies = useWorkspace((s) => s.threads[rootId]);
   const follows = useWorkspace((s) => s.threadFollows[rootId]?.following ?? false);
   const muted = useWorkspace((s) => s.threadFollows[rootId]?.muted === true);
-  const canMute = useWorkspace((s) => s.threadMutes);
   const pending = useWorkspace((s) => s.pending).filter((p) => p.threadRootId === rootId);
   // A reply being written when the message it answers was deleted: kept, as
   // the reply box keeps its draft, until copied elsewhere or deleted.
@@ -236,7 +235,7 @@ export function ThreadPanel({
             </button>
           </Tooltip>
         )}
-        {root && canMute && (
+        {root && (
           <Tooltip
             label={
               muted

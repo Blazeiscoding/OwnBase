@@ -160,7 +160,6 @@ describe("a profile picture", () => {
     const version = kept.body.user.avatarVersion as string;
     expect(version).toMatch(/^[0-9a-f]{16}$/);
     await expect.poll(() => userUpdates(theirs.frames).at(-1)?.avatarVersion).toBe(version);
-    expect(ready(theirs.frames).profiles).toBe(true);
 
     const served = await request(
       `/api/users/${owner.id}/avatar?v=${version}`,

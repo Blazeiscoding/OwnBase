@@ -24,6 +24,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -313,12 +314,14 @@ describe("message actions", () => {
     // With the key that does the same on a focused message, where there is one.
     const shortcuts: Record<string, string> = {
       "Add a reaction": "R",
+      Reply: "Q",
       "Reply in thread": "T",
       "Remove from Saved": "A",
       "Edit message": "E",
     };
     const named = [
       "Add a reaction",
+      "Reply",
       "Reply in thread",
       "Remove from Saved",
       "Edit message",
@@ -348,6 +351,8 @@ describe("message actions", () => {
     ).toEqual([
       "Copy link to message",
       // Each with its key as a keycap after the name.
+      "Forward…F",
+      "Remind me about this…",
       "Mark unread from this messageU",
       "Unpin from channelP",
       "Delete messageDelete",
@@ -427,7 +432,16 @@ describe("channel rows", () => {
         C_LEADS: room("C_LEADS", "private", "leads"),
       },
       memberships: { C_GENERAL: 0, C_LEADS: 0 },
-      prefs: { C_LEADS: { notifyLevel: "all", muted: true } },
+      prefs: {
+        C_LEADS: {
+          notifyLevel: "all",
+          notifyChosen: true,
+          muted: true,
+          starred: false,
+          sectionId: null,
+          hiddenSeq: null,
+        },
+      },
       huddles: { C_GENERAL: ["U_PRIYA"] },
     });
     render(

@@ -198,7 +198,6 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
           type: "hello",
           token,
           lastSeq: null,
-          syncVersion: 1,
           protocolVersion: PROTOCOL_VERSION,
         }),
       ),
@@ -215,8 +214,6 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
     const other = await register("other");
     const mine = await connect(owner.token);
     const theirs = await connect(other.token);
-    const ready = mine.frames.find((f) => f.type === "ready");
-    expect(ready && "scheduledEvents" in ready && ready.scheduledEvents).toBe(true);
 
     const id = (await schedule(owner.token, "first")).body.scheduled.id as string;
     await expect.poll(mine.told).toBe(1);

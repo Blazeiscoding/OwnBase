@@ -10,6 +10,9 @@ const workspace = (patch: Partial<ServerInfo> = {}): ServerInfo => ({
   workspaceName: "Rocket Team",
   userCount: 3,
   requiresInvite: false,
+  accessPolicy: "account_required",
+  workspaceCopies: false,
+  iconVersion: null,
   requiresClaim: false,
   ...patch,
 });

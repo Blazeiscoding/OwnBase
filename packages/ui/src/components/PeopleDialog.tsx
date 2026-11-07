@@ -575,7 +575,7 @@ function PersonMenu({
       label: "Reset password",
       onSelect: () => onBeginAction("reset", person),
     });
-    // Only for someone who has it: an older server does not say, and offers none.
+    // Only for someone who has it.
     if (person.twoStep) {
       items.push({
         id: "two-step",

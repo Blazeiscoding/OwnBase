@@ -709,7 +709,7 @@ export function HuddleStage({
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  const ring = useWorkspace((s) => (s.huddle ? s.rings?.[s.huddle.channelId] : undefined));
+  const ring = useWorkspace((s) => (s.huddle ? s.rings[s.huddle.channelId] : undefined));
   const ringNotice = useWorkspace((s) => s.ringNotice);
   const { volumes } = useCallVolumes();
   const stage = useRef<HTMLElement | null>(null);

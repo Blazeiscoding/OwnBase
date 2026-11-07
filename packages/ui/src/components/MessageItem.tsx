@@ -84,7 +84,7 @@ interface Props {
  * which shows it on request. It keeps its place for the arrow keys and links.
  */
 export const MessageItem = memo(function MessageItem(props: Props) {
-  const blocked = useWorkspace((s) => s.blocked?.includes(props.message.userId) === true);
+  const blocked = useWorkspace((s) => s.blocked.includes(props.message.userId));
   const [shown, setShown] = useState(false);
   if (!blocked || shown) return <MessageRow {...props} />;
   return (
@@ -135,17 +135,10 @@ const MessageRow = memo(function MessageRow({
   const [picking, setPicking] = useState(false);
   // What the dialog passes on, as it was when Forward was chosen.
   const [forwarding, setForwarding] = useState<ForwardSource | null>(null);
-  // Offered only where the server forwards; an older one would drop the card.
-  const canForward = useWorkspace((s) => s.forwards);
-  const canMute = useWorkspace((s) => s.threadMutes);
   const threadMuted = useWorkspace((s) => s.threadFollows[message.id]?.muted === true);
-  // Offered where the server keeps reminders; an older one has none.
-  const canRemind = useWorkspace((s) => s.reminders !== null);
-  const reminder = useWorkspace((s) => s.reminders?.[message.id] ?? null);
+  const reminder = useWorkspace((s) => s.reminders[message.id] ?? null);
   /** Choosing when to be reminded, from the menu. */
   const [reminding, setReminding] = useState(false);
-  // Offered where the server takes reports (E12), which an older one does not.
-  const canReport = useWorkspace((s) => s.blocked !== null);
   const [reporting, setReporting] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState(false);
@@ -184,8 +177,7 @@ const MessageRow = memo(function MessageRow({
   const openMessage = useContext(OpenMessageContext);
   // Answered in place in the conversation it is shown in: the channel, or
   // inside a thread its replies. The thread's first message is the thread.
-  const canReply =
-    useWorkspace((s) => s.inlineReplies) && !(inThread && message.threadRootId === null);
+  const canReply = !(inThread && message.threadRootId === null);
   /** Shift, as in Discord, answers without notifying the author. */
   function reply(ping = true) {
     startReply(
@@ -278,31 +270,29 @@ const MessageRow = memo(function MessageRow({
         });
     });
   }
-  const remindItems: MenuItem[] = !canRemind
-    ? []
-    : reminder
-      ? [
-          {
-            id: "remind",
-            label: "Change reminder…",
-            icon: "clock",
-            onSelect: () => setReminding(true),
-          },
-          {
-            id: "remind-done",
-            label: reminder.dueAt === null ? "Cancel reminder" : "Mark reminder done",
-            icon: reminder.dueAt === null ? "close" : "check",
-            onSelect: finishReminder,
-          },
-        ]
-      : [
-          {
-            id: "remind",
-            label: "Remind me about this…",
-            icon: "clock",
-            onSelect: () => setReminding(true),
-          },
-        ];
+  const remindItems: MenuItem[] = reminder
+    ? [
+        {
+          id: "remind",
+          label: "Change reminder…",
+          icon: "clock",
+          onSelect: () => setReminding(true),
+        },
+        {
+          id: "remind-done",
+          label: reminder.dueAt === null ? "Cancel reminder" : "Mark reminder done",
+          icon: reminder.dueAt === null ? "close" : "check",
+          onSelect: finishReminder,
+        },
+      ]
+    : [
+        {
+          id: "remind",
+          label: "Remind me about this…",
+          icon: "clock",
+          onSelect: () => setReminding(true),
+        },
+      ];
   const pinLabel = message.pinned ? "Unpin from channel" : "Pin to channel";
   function togglePin() {
     reportRefusal(
@@ -360,7 +350,7 @@ const MessageRow = memo(function MessageRow({
       ),
   };
   // A forward of something hidden here or deleted has nothing to pass on.
-  const forwarded = canForward ? forwardSource(message) : null;
+  const forwarded = forwardSource(message);
   const forwardItems: MenuItem[] = forwarded
     ? [
         {
@@ -382,7 +372,7 @@ const MessageRow = memo(function MessageRow({
   // A thread is muted from its first message in the channel once it has
   // replies, and unmuted there whatever it has; the thread's own header has both.
   const muteItems: MenuItem[] =
-    canMute && !inThread && (message.replyCount > 0 || threadMuted)
+    !inThread && (message.replyCount > 0 || threadMuted)
       ? [
           {
             id: "mute",
@@ -398,17 +388,16 @@ const MessageRow = memo(function MessageRow({
       ? []
       : [{ id: "pin", label: pinLabel, icon: "pin", keys: ["P"], onSelect: togglePin }];
   // Someone else's message, to the workspace's admins (E12).
-  const reportItems: MenuItem[] =
-    canReport && !mine
-      ? [
-          {
-            id: "report",
-            label: "Report message…",
-            icon: "flag",
-            onSelect: () => setReporting(true),
-          },
-        ]
-      : [];
+  const reportItems: MenuItem[] = !mine
+    ? [
+        {
+          id: "report",
+          label: "Report message…",
+          icon: "flag",
+          onSelect: () => setReporting(true),
+        },
+      ]
+    : [];
   const deleteItems: MenuItem[] = canDelete
     ? [
         {

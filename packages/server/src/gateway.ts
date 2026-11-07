@@ -354,7 +354,13 @@ export class Gateway {
       if (msg.type === "hello" && !client) {
         clearTimeout(authTimer);
         if (msg.protocolVersion !== PROTOCOL_VERSION) {
-          this.refuse(ws, "protocol_mismatch", `server speaks protocol v${PROTOCOL_VERSION}`);
+          this.send(ws, {
+            type: "error",
+            code: "protocol_mismatch",
+            message: `server speaks protocol v${PROTOCOL_VERSION}`,
+            protocolVersion: PROTOCOL_VERSION,
+          });
+          ws.close(SOCKET_CLOSE.protocol_mismatch);
           return;
         }
         const tokenHash = hashToken(msg.token);
@@ -378,6 +384,7 @@ export class Gateway {
         const snapshot: ReadySnapshot = {
           type: "ready",
           seq: this.store.currentSeq(),
+          replayFrom: null,
           self: user,
           users: this.store.listUsers(),
           channels: this.store.listChannelsVisibleTo(user.id),
@@ -388,30 +395,18 @@ export class Gateway {
           threadFollows: this.store.threadFollows(user.id),
           mentionCounts: this.store.unreadMentionCounts(user.id),
           huddles: this.huddlesVisibleTo(user.id),
-          huddleJoinReplies: true,
-          huddleReports: true,
           huddleRings: this.ringsFor(user.id),
-          inlineReplies: true,
           serverTime: Date.now(),
-          forwards: true,
-          scheduledEvents: true,
-          activityThreads: true,
-          threadMutes: true,
           reminders: this.store.reminders(user.id),
           channelRemovals: this.store.channelRemovals(user.id),
           pollChoices: this.store.anonymousPollChoices(user.id),
-          sharedFiles: true,
           sidebarSections: this.store.sidebarSections(user.id),
           notifyDefault: this.store.notifyDefault(user.id),
-          profiles: true,
-          stars: true,
-          workspaceSettings: true,
           accessPolicy: this.workspace.accessPolicy(),
-          workspaceIcon: true,
           iconVersion: this.workspace.iconVersion(),
           linkPreviews: this.workspace.linkPreviews(),
           workspaceName: this.workspace.name(),
-          workspaceId: this.store.getMeta("workspace_id") ?? undefined,
+          workspaceId: this.store.workspaceId(),
           friends: this.store.listFriends(user.id),
           blocked: this.store.blockedIds(user.id),
           ...(isAdministrator(user.role)
@@ -425,14 +420,10 @@ export class Gateway {
         client = { ws, userId: user.id, tokenHash, alive: true };
         this.register(client);
         snapshot.presence = this.presenceMap();
-        if (msg.syncVersion === 1) snapshot.replayFrom = missed === null ? null : msg.lastSeq;
+        snapshot.replayFrom = missed === null ? null : msg.lastSeq;
         this.send(ws, snapshot);
-        if (missed !== null) {
-          for (const envelope of missed) this.send(ws, { type: "event", envelope });
-        } else if (msg.lastSeq !== null && msg.syncVersion !== 1) {
-          this.send(ws, { type: "resync" });
-        }
-        if (msg.syncVersion === 1) this.send(ws, { type: "synced", seq: snapshot.seq });
+        for (const envelope of missed ?? []) this.send(ws, { type: "event", envelope });
+        this.send(ws, { type: "synced", seq: snapshot.seq });
         return;
       }
 
@@ -615,25 +606,22 @@ export class Gateway {
     return out;
   }
 
-  private joinHuddle(channelId: ID, client: Client, requestId?: string): void {
+  private joinHuddle(channelId: ID, client: Client, requestId: string): void {
     const userId = client.userId;
     const reply = (event: HuddleJoinResult) => {
-      if (!requestId) return; // Older clients do not wait for admission replies.
       // One bounded reply only to this socket, like pong. Room fanout stays
       // admission-rationed; send() applies the existing slow-reader limit.
       this.send(client.ws, { type: "ephemeral", event });
     };
-    const refuse = (message: string, retryAfterMs?: number) => {
-      if (requestId)
-        reply({
-          type: "huddle.join.result",
-          channelId,
-          requestId,
-          accepted: false,
-          message,
-          retryAfterMs,
-        });
-    };
+    const refuse = (message: string, retryAfterMs?: number) =>
+      reply({
+        type: "huddle.join.result",
+        channelId,
+        requestId,
+        accepted: false,
+        message,
+        retryAfterMs,
+      });
     if (!this.store.canAccess(channelId, userId)) {
       this.calls.add({ channelId, userId, kind: "refused", reason: "no access" });
       refuse("You no longer have access to this conversation.");
@@ -661,7 +649,7 @@ export class Gateway {
         if (before)
           this.send(before.ws, { type: "ephemeral", event: { type: "huddle.moved", channelId } });
       }
-      if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+      reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
       return;
     }
     // Each admitted join can cause at most one later departure broadcast. Leave,
@@ -682,7 +670,7 @@ export class Gateway {
     // The first one in a direct message's huddle rings the others (E10).
     if (started) this.contained("huddle ring", () => this.startRing(channelId, userId));
     this.publishHuddle(channelId);
-    if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+    reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
   }
 
   /**

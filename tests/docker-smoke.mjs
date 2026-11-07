@@ -169,7 +169,7 @@ try {
                 type: "hello",
                 token: guest.token,
                 lastSeq: null,
-                protocolVersion: 1,
+                protocolVersion: 2,
               }),
             );
           ws.onerror = reject;

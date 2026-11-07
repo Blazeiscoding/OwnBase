@@ -77,7 +77,6 @@ async function replay(after: number) {
         type: "hello",
         token,
         lastSeq: after,
-        syncVersion: 1,
         protocolVersion: PROTOCOL_VERSION,
       }),
     ),

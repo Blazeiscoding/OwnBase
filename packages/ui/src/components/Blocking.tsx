@@ -107,11 +107,10 @@ function BlockedRow({ userId }: { userId: ID }) {
 
 /**
  * Account settings > Security's list of the people this account blocked
- * (E12). Absent where the server does not block.
+ * (E12).
  */
 export function BlockedPeople() {
   const blocked = useWorkspace((s) => s.blocked);
-  if (blocked === null) return null;
   return (
     <section aria-labelledby="account-blocked-title" className="mt-6 border-t border-edge pt-5">
       <h3 id="account-blocked-title" className="font-semibold">

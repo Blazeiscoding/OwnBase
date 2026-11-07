@@ -39,10 +39,7 @@ export interface User {
   role: Role;
   statusText: string;
   statusEmoji: string;
-  /**
-   * Epoch ms when the status clears itself (UX-61). Absent or null when it
-   * stays until changed, and absent from servers before schema v39.
-   */
+  /** Epoch ms when the status clears itself (UX-61). Absent or null when it stays until changed. */
   statusExpiresAt?: number | null;
   isBot: boolean;
   deactivated: boolean;
@@ -51,7 +48,7 @@ export interface User {
   createdAt: number;
   /**
    * Their time zone, an IANA name such as "Asia/Kolkata", for the local time
-   * others see (E9). Absent until it is set, and from older servers.
+   * others see (E9). Absent until it is set.
    */
   timeZone?: string;
   /**
@@ -66,10 +63,9 @@ export interface User {
   avatarVersion?: string;
   /**
    * Whether this account may create invite codes: always for an owner or admin,
-   * and for a member only when an administrator has allowed it. Absent from
-   * servers before schema v25, where every member could.
+   * and for a member only when an administrator has allowed it.
    */
-  canInvite?: boolean;
+  canInvite: boolean;
 }
 
 export type ChannelType = "public" | "private" | "dm" | "group_dm";
@@ -108,31 +104,36 @@ export interface ChannelPrefs {
   notifyLevel: NotifyLevel;
   /**
    * False: this conversation follows the account's default instead of
-   * `notifyLevel` (`ReadySnapshot.notifyDefault`). Absent from servers before
-   * schema v53, which have no default: there `notifyLevel` is what it does.
+   * `notifyLevel` (`ReadySnapshot.notifyDefault`).
    */
-  notifyChosen?: boolean;
+  notifyChosen: boolean;
   /** Muted channels never notify and stay quiet in the sidebar. */
   muted: boolean;
-  /**
-   * Listed under Starred, above Channels, for this account alone (UX-20).
-   * Absent from servers before schema v40, which keep no stars: read it as
-   * false. See `ReadySnapshot.stars`.
-   */
-  starred?: boolean;
+  /** Listed under Starred, above Channels, for this account alone (UX-20). */
+  starred: boolean;
   /**
    * The sidebar section this account keeps it in, or null (E8). A
    * conversation sits in one place: a section, Starred, or where it would
-   * be. Absent from servers before schema v46; see `ReadySnapshot.sidebarSections`.
+   * be. See `ReadySnapshot.sidebarSections`.
    */
-  sectionId?: ID | null;
+  sectionId: ID | null;
   /**
    * A direct conversation this account closed: left out of the sidebar until
    * a message newer than this event seq arrives, or it is opened again. Null
-   * while shown. Absent from servers before schema v52, which hide nothing.
+   * while shown.
    */
-  hiddenSeq?: number | null;
+  hiddenSeq: number | null;
 }
+
+/** What a conversation's preferences read as before the server has said. */
+export const DEFAULT_CHANNEL_PREFS: ChannelPrefs = {
+  notifyLevel: "mentions",
+  notifyChosen: false,
+  muted: false,
+  starred: false,
+  sectionId: null,
+  hiddenSeq: null,
+};
 
 /**
  * A section of one account's sidebar, named by them, between Starred and
@@ -151,7 +152,7 @@ export function effectiveNotifyLevel(
   prefs: Pick<ChannelPrefs, "notifyLevel" | "notifyChosen"> | undefined,
   notifyDefault: NotifyLevel | null | undefined,
 ): NotifyLevel {
-  if (prefs && prefs.notifyChosen !== false) return prefs.notifyLevel;
+  if (prefs?.notifyChosen) return prefs.notifyLevel;
   return notifyDefault ?? "mentions";
 }
 
@@ -596,33 +597,23 @@ export interface ServerInfo {
   userCount: number;
   /** True once an owner exists; joining then requires an invite code. */
   requiresInvite: boolean;
-  /**
-   * Who may join. Absent from servers before guest access, which offer only
-   * accounts (and say whether those need an invite through `requiresInvite`).
-   */
-  accessPolicy?: AccessPolicy;
+  /** Who may join. */
+  accessPolicy: AccessPolicy;
   /**
    * True when this workspace has no owner yet and the caller is not on the
    * machine running it — claiming it needs the code the server printed at
    * startup. Whoever is at the keyboard does not need one.
    */
   requiresClaim: boolean;
-  /** Scheduling retries are deduplicated by an account-scoped request key. */
-  schedulingIdempotency?: boolean;
-  /** Single-use, session-bound tickets for native file downloads. */
-  downloadTickets?: boolean;
   /** The owner can make and download a copy of the whole workspace. */
-  workspaceCopies?: boolean;
+  workspaceCopies: boolean;
   /**
    * How others reach this workspace, when its host configured it. Links people
    * share are built on it, rather than on whatever address the sharer is using.
    */
   publicUrl?: string;
-  /**
-   * The workspace icon's version, for `GET /api/workspace/icon?v=`, or null
-   * when it has none. Absent from servers before workspace icons.
-   */
-  iconVersion?: string | null;
+  /** The workspace icon's version, for `GET /api/workspace/icon?v=`, or null when it has none. */
+  iconVersion: string | null;
   /**
    * Ways to sign in besides a password, from the server's extensions (P9),
    * and who may still use a password: everyone, or only the owner, kept as
@@ -822,7 +813,7 @@ export interface FollowedThread {
   latestReply?: Message | null;
 }
 
-export const PROTOCOL_VERSION = 1;
+export const PROTOCOL_VERSION = 2;
 
 /**
  * Here rather than beside the request schemas: the client and the desktop
@@ -876,11 +867,8 @@ export interface App {
    * posts should be.
    */
   interactivityUrl: string;
-  /**
-   * What its bot token may do and what it is sent (E18c). Absent from servers
-   * before then, where every app could do everything.
-   */
-  scopes?: AppScope[];
+  /** What its bot token may do and what it is sent (E18c). */
+  scopes: AppScope[];
 }
 
 /**
@@ -986,21 +974,15 @@ export interface ModalView {
   privateMetadata: string;
   /**
    * Changes whenever the app changes the view (E18b), so a client can tell an
-   * update from the same view sent again. Absent from servers before then.
+   * update from the same view sent again.
    */
-  hash?: string;
-  /**
-   * Every header, section, context and divider, in order, flattened to one
-   * mrkdwn text. What a client draws above `fields` when `blocks` is absent.
-   */
-  text: string;
+  hash: string;
   fields: ModalField[];
   /**
    * The view in the app's order, so words between two fields stay between
-   * them. Each field appears once, by its index in `fields`. Absent from
-   * servers before this was added: a client draws `text`, then `fields`.
+   * them. Each field appears once, by its index in `fields`.
    */
-  blocks?: ModalBlock[];
+  blocks: ModalBlock[];
 }
 
 /**

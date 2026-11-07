@@ -8,11 +8,14 @@ import type { DiscoveredServer, HostingStatus, Platform } from "../src/platform.
 
 const info: ServerInfo = {
   app: "ownbase",
-  protocolVersion: 1,
+  protocolVersion: 2,
   serverVersion: "0.0.0-test",
   workspaceName: "Six Team",
   userCount: 1,
   requiresInvite: false,
+  accessPolicy: "account_required",
+  workspaceCopies: false,
+  iconVersion: null,
   requiresClaim: false,
 };
 

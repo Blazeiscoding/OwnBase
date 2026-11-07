@@ -56,7 +56,6 @@ function connect(person: Person, lastSeq: number | null = null) {
         type: "hello",
         token: person.token,
         lastSeq,
-        syncVersion: 1,
         protocolVersion: PROTOCOL_VERSION,
       }),
     ),

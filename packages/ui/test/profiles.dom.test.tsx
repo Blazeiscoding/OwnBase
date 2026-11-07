@@ -29,6 +29,7 @@ const person = (id: string, displayName: string, over: Partial<User> = {}): User
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -87,7 +88,6 @@ function workspace(
     channels: { C_DM: dm },
     memberships: { C_DM: 0 },
     presence: over.presence ?? {},
-    profiles: true,
     status: "online",
     workspaceName: "Rocket Team",
   });
@@ -211,14 +211,6 @@ describe("away by hand", () => {
     await user.click(screen.getByRole("button", { name: /your account$/ }));
     await user.click(screen.getByRole("menuitem", { name: "Set yourself active" }));
     expect(updateMe).toHaveBeenLastCalledWith({ away: false });
-  });
-
-  it("is not offered by a server that keeps no profiles", async () => {
-    const { client, user } = workspace();
-    client.store.setState({ profiles: false });
-    menu(client);
-    await user.click(screen.getByRole("button", { name: /your account$/ }));
-    expect(screen.queryByRole("menuitem", { name: /Set yourself/ })).toBeNull();
   });
 });
 

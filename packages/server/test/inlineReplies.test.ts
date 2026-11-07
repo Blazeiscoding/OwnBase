@@ -99,9 +99,7 @@ afterEach(async () => {
 
 describe("inline replies", () => {
   it("carry who wrote what they answer and how it began, and only replies carry it", async () => {
-    const frames = await connect(owner.token);
-    const ready = frames.find((f) => f.type === "ready");
-    expect(ready && "inlineReplies" in ready && ready.inlineReplies).toBe(true);
+    await connect(owner.token);
 
     const original = await post(owner.token, { text: "Lunch at noon?" });
     expect(original).not.toHaveProperty("replyTo");

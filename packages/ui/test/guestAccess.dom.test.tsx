@@ -16,13 +16,15 @@ import { accessibilityProblems } from "./accessibility.js";
  */
 const info: ServerInfo = {
   app: "ownbase",
-  protocolVersion: 1,
+  protocolVersion: 2,
   serverVersion: "0.0.0-test",
   workspaceName: "Rocket Team",
   userCount: 4,
   requiresInvite: false,
   requiresClaim: false,
   accessPolicy: "guest_allowed",
+  workspaceCopies: false,
+  iconVersion: null,
 };
 
 const platform: Platform = {
@@ -36,6 +38,7 @@ const person = (id: string, displayName: string, role: User["role"]): User => ({
   handle: id.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -98,11 +101,8 @@ describe("joining a workspace that allows guests", () => {
     );
   });
 
-  it("offers only accounts where guests are not allowed, or the server is older", async () => {
-    for (const serverInfo of [
-      { ...info, accessPolicy: "account_required" as const },
-      { ...info, accessPolicy: undefined },
-    ]) {
+  it("offers only accounts where guests are not allowed", async () => {
+    for (const serverInfo of [{ ...info, accessPolicy: "account_required" as const }]) {
       const { view } = await joinCard(serverInfo);
       expect(screen.queryByRole("tab", { name: "Join as guest" })).toBeNull();
       expect(screen.getByRole("tab", { name: "Sign in" })).toHaveAttribute("aria-selected", "true");

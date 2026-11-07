@@ -44,21 +44,6 @@ describe("a form's blocks, in the app's order", () => {
     ]);
   });
 
-  it("still sends every word as one text, for a client that draws them above the fields", () => {
-    const view = parseView({ type: "modal", blocks }, "V1");
-    expect(view.text).toBe(
-      [
-        "*Where it goes*",
-        "Build *412* passed.",
-        "Staging first, always.",
-        "———",
-        "Who to tell",
-        "*On call:* Sam",
-      ].join("\n\n"),
-    );
-    expect(view.text).toBe(blocksToText(blocks));
-  });
-
   it("lists every field once, in the order of fields", () => {
     const view = parseView({ type: "modal", blocks }, "V1");
     const shown = view.blocks!.flatMap((b) => (b.type === "field" ? [b.field] : []));

@@ -44,7 +44,7 @@ export function IncomingCall(props: {
           !!selfId &&
           ring.ringing.includes(selfId) &&
           // Someone this account blocked never rings it (E12).
-          !blocked?.includes(ring.callerId),
+          !blocked.includes(ring.callerId),
       ),
     [rings, selfId, blocked],
   );

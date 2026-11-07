@@ -201,14 +201,13 @@ describe("muting a thread", () => {
     expect(await followed()).toEqual([root.id]);
   });
 
-  it("carries a mute through the handshake, which says this server mutes threads", async () => {
+  it("carries a mute through the handshake", async () => {
     const root = await post("Snapshot", peer.token);
     await post("Reply", peer.token, root.id);
     await mute(root.id, true);
 
     const { frames } = await connect(owner.token);
     const ready = frames.find((f) => f.type === "ready") as any;
-    expect(ready.threadMutes).toBe(true);
     expect(ready.threadFollows.find((f: ThreadFollow) => f.rootId === root.id)).toMatchObject({
       following: false,
       muted: true,

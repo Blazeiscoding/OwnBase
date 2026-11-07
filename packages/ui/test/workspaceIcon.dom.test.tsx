@@ -48,6 +48,7 @@ const person = (id: string, displayName: string, role: User["role"]): User => ({
   handle: id.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -106,7 +107,7 @@ afterEach(() => {
 
 function client(
   self: User,
-  state: { workspaceIcon?: boolean; iconVersion?: string | null } = {},
+  state: { iconVersion?: string | null } = {},
   baseUrl = "http://127.0.0.1:9",
 ) {
   const workspace = new WorkspaceClient(baseUrl, "test-token-not-a-credential");
@@ -118,9 +119,7 @@ function client(
     memberships: { [general.id]: 0 },
     status: "online",
     workspaceName: "Rocket Team",
-    workspaceSettings: true,
     accessPolicy: "account_required",
-    workspaceIcon: state.workspaceIcon ?? true,
     iconVersion: state.iconVersion ?? null,
   });
   return workspace;
@@ -274,15 +273,6 @@ describe("the icon in Workspace settings", () => {
     expect(client.state.iconVersion).toBe("v-old");
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
-
-  it("is not offered by a server older than workspace icons", () => {
-    const { dialog, picker } = settings({ workspaceIcon: false });
-    expect(within(dialog).queryByRole("heading", { name: "Workspace icon" })).toBeNull();
-    expect(within(dialog).queryByRole("button", { name: "Upload icon" })).toBeNull();
-    expect(picker).toBeNull();
-    // The name is still there to change.
-    expect(within(dialog).getByLabelText("Workspace name")).toBeVisible();
-  });
 });
 
 /** The whole workspace, as `role`, on a wide screen. */
@@ -368,11 +358,14 @@ describe("where the icon shows inside a workspace", () => {
 describe("where the icon shows before signing in", () => {
   const info: ServerInfo = {
     app: "ownbase",
-    protocolVersion: 1,
+    protocolVersion: 2,
     serverVersion: "0.0.0-test",
     workspaceName: "Rocket Team",
     userCount: 2,
     requiresInvite: false,
+    accessPolicy: "account_required",
+    workspaceCopies: false,
+    iconVersion: null,
     requiresClaim: false,
   };
 
@@ -402,8 +395,8 @@ describe("where the icon shows before signing in", () => {
     expect(Api.prototype.workspaceIcon).toHaveBeenCalledWith("v-join");
   });
 
-  it("is the coloured square on the card of a server with none, or one too old to say", async () => {
-    for (const iconVersion of [null, undefined]) {
+  it("is the coloured square on the card of a server with none", async () => {
+    for (const iconVersion of [null]) {
       const card = await joinCard({ ...info, iconVersion });
       expect(card.querySelector("img")).toBeNull();
       expect(card.querySelector('[aria-hidden="true"]')).toHaveTextContent("R");

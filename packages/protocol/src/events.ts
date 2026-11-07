@@ -63,8 +63,8 @@ export type EphemeralEvent =
       channel: Channel | null;
       membership: {
         lastReadSeq: number;
-        /** See `ReadySnapshot.memberships`. Absent from older servers. */
-        repliesReadSeq?: number;
+        /** See `ReadySnapshot.memberships`. */
+        repliesReadSeq: number;
         prefs: ChannelPrefs;
       } | null;
     }
@@ -208,8 +208,8 @@ export type Presence = "online" | "away" | "offline";
 export interface ReadySnapshot {
   type: "ready";
   seq: number;
-  /** Present for syncVersion 1: null replaces history; otherwise replay follows from this cursor. */
-  replayFrom?: number | null;
+  /** Null replaces history; otherwise replay follows from this cursor. */
+  replayFrom: number | null;
   self: User;
   users: User[];
   channels: Channel[];
@@ -221,127 +221,51 @@ export interface ReadySnapshot {
      * Replies in a thread this account has no read cursor for count as read up
      * to here: where the channel cursor stood when the server began reading
      * replies through their threads, or where the workspace was on joining.
-     * Absent from older servers, whose channel cursor reads every reply too.
      */
-    repliesReadSeq?: number;
+    repliesReadSeq: number;
     prefs: ChannelPrefs;
   }[];
   /** Latest message seq per channel the user belongs to, for unread badges. */
   channelLastSeq: Record<ID, number>;
-  /**
-   * Who is online. Anyone missing is offline. Servers before 1 October 2026
-   * also listed every other account as offline.
-   */
+  /** Who is online. Anyone missing is offline. */
   presence: Record<ID, Presence>;
   /** Message ids this user has saved for later. */
   savedMessageIds: ID[];
-  /** Unread mentions per conversation. Absent from servers before v16. */
-  mentionCounts?: Record<ID, number>;
-  /** Follow state and thread read cursors. Absent from servers before v15. */
-  threadFollows?: ThreadFollow[];
+  /** Unread mentions per conversation. */
+  mentionCounts: Record<ID, number>;
+  /** Follow state and thread read cursors. */
+  threadFollows: ThreadFollow[];
   /** Live huddles the user can see: channelId -> participant ids. */
   huddles: Record<ID, ID[]>;
-  /** This server answers correlated join attempts before clients start their peer mesh. */
-  huddleJoinReplies?: true;
-  /** This server keeps a call log and takes `huddle.report`; older ones close on it. */
-  huddleReports?: true;
-  /**
-   * The rings this account is part of, calling or called (E10). Present only
-   * where the server rings direct calls and takes `huddle.decline`; an older
-   * one closes the socket on it.
-   */
-  huddleRings?: HuddleRing[];
-  /** This server keeps inline replies; older ones post one as an ordinary message. */
-  inlineReplies?: true;
+  /** The rings this account is part of, calling or called (E10). */
+  huddleRings: HuddleRing[];
   /**
    * The server's clock as it sent this, so a client can tell how far off its
    * own is: reminders and scheduled messages go by the time the device chose.
-   * Absent from older servers.
    */
-  serverTime?: number;
-  /** This server forwards a message (`forwardFrom`); an older one would drop the original. */
-  forwards?: true;
-  /** This server sends `scheduled` when the queue changes; an older one has to be asked. */
-  scheduledEvents?: true;
-  /** This server answers Activity's `threads` mode; an older one refuses it. */
-  activityThreads?: true;
-  /** This server mutes a thread (`PUT /api/messages/:id/mute`); an older one refuses it. */
-  threadMutes?: true;
-  /**
-   * This account's reminders it can still reach, waiting and due (E4). Absent
-   * from a server that keeps none, so no reminder is offered there.
-   */
-  reminders?: Reminder[];
-  /**
-   * Notes that someone removed this account from channels, not yet read,
-   * newest first. Absent from a server that keeps none.
-   */
-  channelRemovals?: ChannelRemoval[];
-  /**
-   * What this account chose in each anonymous poll it voted in and can still
-   * read, by message id (E6). Absent from a server without polls, so none is
-   * offered there.
-   */
-  pollChoices?: Record<ID, number[]>;
-  /**
-   * This server lists the files shared in conversations (`GET /api/files`,
-   * E7). An older one does not, so the file browser is not offered there.
-   */
-  sharedFiles?: true;
-  /**
-   * This account's sidebar sections, in their order (E8). Absent from a
-   * server that keeps none, so none is offered there.
-   */
-  sidebarSections?: SidebarSection[];
-  /**
-   * What this account's conversations notify about unless one was set on its
-   * own (v53). Absent from an older server, which keeps a level per
-   * conversation only, so no default is offered there.
-   */
-  notifyDefault?: NotifyLevel;
-  /**
-   * This server keeps profile pictures, time zones and away by hand, and
-   * reads a socket's `idle` (E9). An older one offers none of them.
-   */
-  profiles?: true;
-  /**
-   * This server keeps a star per conversation, `ChannelPrefs.starred`. An
-   * older one drops a star sent to it without saying so, so it is not offered.
-   */
-  stars?: true;
-  /**
-   * This server lets its owner and admins rename the workspace and change who
-   * may join (`PUT /api/admin/workspace/name` and `/access-policy`). An older
-   * one refuses both, so Workspace settings offers neither there.
-   */
-  workspaceSettings?: true;
-  /** Who may join now. Absent from servers before `workspaceSettings`. */
-  accessPolicy?: AccessPolicy;
-  /**
-   * This server keeps an icon for the workspace, which its owner and admins
-   * set and remove (`PUT` and `DELETE /api/admin/workspace/icon`) and anyone
-   * reads (`GET /api/workspace/icon`). An older one has neither, so no upload
-   * is offered there and the workspace shows its coloured square.
-   */
-  workspaceIcon?: true;
-  /** The icon's version, which changes with its image, or null when there is none. */
-  iconVersion?: string | null;
-  /**
-   * Whether this server adds link previews to new messages now, which its
-   * owner and admins change (`PUT /api/admin/workspace/link-previews`). Absent
-   * from servers before link previews, so the setting is not offered there.
-   */
-  linkPreviews?: boolean;
+  serverTime: number;
+  /** This account's reminders it can still reach, waiting and due (E4). */
+  reminders: Reminder[];
+  /** Notes that someone removed this account from channels, not yet read, newest first. */
+  channelRemovals: ChannelRemoval[];
+  /** What this account chose in each anonymous poll it voted in and can still read (E6). */
+  pollChoices: Record<ID, number[]>;
+  /** This account's sidebar sections, in their order (E8). */
+  sidebarSections: SidebarSection[];
+  /** What this account's conversations notify about unless one was set on its own (v53). */
+  notifyDefault: NotifyLevel;
+  /** Who may join now. */
+  accessPolicy: AccessPolicy;
+  /** The workspace icon's version, which changes with its image, or null when there is none. */
+  iconVersion: string | null;
+  /** Whether this server adds link previews to new messages now. */
+  linkPreviews: boolean;
   workspaceName: string;
-  /** Stable across address/name changes and backup restores. Older servers omit it. */
-  workspaceId?: ID;
-  friends?: Friendship[];
-  /**
-   * The people this account has blocked (E12), which also says this server
-   * blocks and takes reports of messages. An older one does neither, so
-   * neither is offered there.
-   */
-  blocked?: ID[];
+  /** Stable across address/name changes and backup restores. */
+  workspaceId: ID;
+  friends: Friendship[];
+  /** The people this account has blocked (E12). */
+  blocked: ID[];
   /** How many reported messages wait for an admin (E12). Given to the owner and admins only. */
   openReports?: number;
   /**
@@ -356,7 +280,6 @@ export interface ReadySnapshot {
   notices?: ServerNotice[];
 }
 
-/** Everything the server can push over the socket. */
 /**
  * The codes a server closes a socket with. The last three are refusals a
  * reconnect cannot cure, each named by the `error` frame sent just before.
@@ -376,17 +299,21 @@ export const SOCKET_REFUSALS = [
 ] as const;
 export type SocketRefusal = (typeof SOCKET_REFUSALS)[number];
 
+/** Everything the server can push over the socket. */
 export type ServerToClient =
   | ReadySnapshot
   | { type: "synced"; seq: number }
   | { type: "event"; envelope: EventEnvelope }
   | { type: "ephemeral"; event: EphemeralEvent }
-  /** lastSeq was pruned from the log — client must drop caches and re-sync. */
-  | { type: "resync" }
   | {
       type: "error";
       code: SocketRefusal;
       message: string;
+      /**
+       * The protocol this server speaks, with protocol_mismatch, so the client
+       * can say which side to update. A version-1 server left it out.
+       */
+      protocolVersion?: number;
     }
   | { type: "pong" };
 
@@ -396,10 +323,9 @@ export type ClientToServer =
       token: string;
       lastSeq: number | null;
       protocolVersion: number;
-      syncVersion?: 1;
     }
   | { type: "typing"; channelId: ID }
-  | { type: "huddle.join"; channelId: ID; requestId?: string }
+  | { type: "huddle.join"; channelId: ID; requestId: string }
   | { type: "huddle.leave"; channelId: ID }
   | { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }
   /** How one of this side's connections in a huddle went, for the host's call log. */

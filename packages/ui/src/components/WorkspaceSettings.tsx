@@ -57,10 +57,6 @@ export function WorkspaceSettings({
 }) {
   const tabsId = useId();
   const name = useWorkspace((s) => s.workspaceName);
-  // A server from before workspace settings refuses both, so neither is offered.
-  const editable = useWorkspace((s) => s.workspaceSettings);
-  // A server from before workspace icons keeps none, so none is offered.
-  const icons = useWorkspace((s) => s.workspaceIcon);
   const [section, setSection] = useState<Section>("general");
   const owner = useWorkspace((s) => s.self?.role === "owner");
   const extensions = useExtensionPanels(owner);
@@ -94,25 +90,16 @@ export function WorkspaceSettings({
         scroller={panel}
         onClose={onClose}
       >
-        {!editable && (
-          <p
-            role="note"
-            className="mb-4 rounded-lg border border-edge bg-raised p-3 text-sm text-ink-dim"
-          >
-            This workspace's server runs an older version of OwnBase. Change its name and who can
-            join where it is hosted, not here.
-          </p>
-        )}
         {section === "general" && (
           <>
-            {icons && <IconSection />}
-            <NameSection editable={editable} />
+            <IconSection />
+            <NameSection />
             <PreviewsSection />
             <PlanSection />
             <CopySection />
           </>
         )}
-        {section === "joining" && <JoiningSection editable={editable} hostedHere={hostedHere} />}
+        {section === "joining" && <JoiningSection hostedHere={hostedHere} />}
         {section === "signin" && (
           <ExtensionPanels panels={extensions.panels} onSaved={extensions.reload} />
         )}
@@ -262,7 +249,7 @@ function renameProblem(err: unknown): string {
 }
 
 /** The workspace's name: typed, checked when sent, and kept with Save. */
-function NameSection({ editable }: { editable: boolean }) {
+function NameSection() {
   const client = useClient();
   const saved = useSaved();
   const alive = useAlive();
@@ -277,16 +264,6 @@ function NameSection({ editable }: { editable: boolean }) {
   useEffect(() => {
     if (!typed) setDraft(name);
   }, [name, typed]);
-
-  if (!editable)
-    return (
-      <section aria-labelledby="workspace-name-title">
-        <h4 id="workspace-name-title" className="mb-1.5 text-[13px] font-medium text-ink-dim">
-          Workspace name
-        </h4>
-        <p className="text-sm text-ink">{name}</p>
-      </section>
-    );
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -597,7 +574,7 @@ function CopySection() {
 }
 
 /** Who may join: three rules, each saved the moment it is chosen. */
-function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHere: boolean }) {
+function JoiningSection({ hostedHere }: { hostedHere: boolean }) {
   const client = useClient();
   const saved = useSaved();
   const confirm = useConfirm();
@@ -612,7 +589,7 @@ function JoiningSection({ editable, hostedHere }: { editable: boolean; hostedHer
   const request = useRef(0);
   const shown = choosing ?? current;
 
-  if (!editable || !shown) return null;
+  if (!shown) return null;
 
   async function choose(next: AccessPolicy) {
     if (next === shown) return;

@@ -828,7 +828,6 @@ function AuthCard(props: {
   const isFirstUser = !hasUsers;
   // Anyone may see it before signing in, as they see the workspace's name.
   const icon = useWorkspaceIconUrl(props.url, props.info.iconVersion);
-  // Older servers say nothing about guests, and offer accounts only.
   const guestAllowed = hasUsers && props.info.accessPolicy === "guest_allowed";
   const modes = guestAllowed ? GUEST_MODES : MODES;
   // An empty workspace has nothing to sign in to, even if we remember a handle

@@ -19,6 +19,7 @@ const person = (id: string, displayName: string): User => ({
   handle: displayName.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -43,7 +44,14 @@ const design = room("C_DESIGN", "design");
 const zeta = room("C_ZETA", "zeta");
 const dm: Channel = { ...room("C_DM", ""), type: "dm", memberIds: [sam.id, maya.id] };
 
-const plain: ChannelPrefs = { notifyLevel: "mentions", muted: false, starred: false };
+const plain: ChannelPrefs = {
+  notifyLevel: "mentions",
+  notifyChosen: true,
+  muted: false,
+  starred: false,
+  sectionId: null,
+  hiddenSeq: null,
+};
 
 const clients: WorkspaceClient[] = [];
 afterEach(() => {
@@ -57,7 +65,7 @@ afterEach(() => {
  * A client that never connects, whose preference requests the test answers:
  * the workspace takes them, or refuses one when told to.
  */
-function workspace(options: { stars?: boolean; prefs?: Record<string, ChannelPrefs> } = {}) {
+function workspace(options: { prefs?: Record<string, ChannelPrefs> } = {}) {
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   clients.push(client);
   const prefs = options.prefs ?? {
@@ -72,7 +80,6 @@ function workspace(options: { stars?: boolean; prefs?: Record<string, ChannelPre
     channels: { [general.id]: general, [design.id]: design, [zeta.id]: zeta, [dm.id]: dm },
     memberships: { [general.id]: 0, [design.id]: 0, [zeta.id]: 0, [dm.id]: 0 },
     prefs,
-    stars: options.stars ?? true,
     status: "online",
     workspaceName: "Rocket Team",
   });
@@ -144,7 +151,7 @@ describe("starring from a row's More menu", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Invite people", "Star channel", "Mute channel"]);
+    ).toEqual(["Invite people", "Star channel", "New section…", "Mute channel"]);
     expect(await accessibilityProblems(menu)).toEqual([]);
     await user.click(within(menu).getByRole("menuitem", { name: "Star channel" }));
 
@@ -322,29 +329,6 @@ describe("the Starred section", () => {
   });
 });
 
-describe("a server from before stars", () => {
-  it("offers no Star, and its preferences without the flag read as unstarred", async () => {
-    const { client, user } = workspace({
-      stars: false,
-      prefs: {
-        [general.id]: { notifyLevel: "mentions", muted: false },
-        [design.id]: { notifyLevel: "all", muted: true },
-        [zeta.id]: { notifyLevel: "mentions", muted: false },
-        [dm.id]: { notifyLevel: "all", muted: false },
-      },
-    });
-    renderSidebar(client);
-    expect(section("Starred")).toBeNull();
-    expect(section("Channels")).toEqual(["design", "general", "zeta"]);
-    const menu = await rowMenu(user, "design");
-    expect(
-      within(menu)
-        .getAllByRole("menuitem")
-        .map((item) => item.textContent),
-    ).toEqual(["Invite people", "Unmute channel"]);
-  });
-});
-
 describe("Mute in a row's More menu", () => {
   it("is named by what it does now", async () => {
     const { client, sent, user } = workspace();
@@ -401,19 +385,12 @@ describe("the conversation's ⋯ menu", () => {
     expect(screen.getByRole("menuitem", { name: "Star conversation" })).toBeInTheDocument();
   });
 
-  it("offers no Star in a channel only looked into, or on a server that keeps none", async () => {
+  it("offers no Star in a channel only looked into", async () => {
     const { client, user } = workspace();
     const lobby = room("C_LOBBY", "lobby");
     client.store.setState({ channels: { ...client.state.channels, [lobby.id]: lobby } });
     menu(client, lobby.id, true);
     await user.click(screen.getByRole("button", { name: "Conversation options" }));
-    expect(items()).not.toContain("Star channel");
-    await user.keyboard("{Escape}");
-    cleanup();
-
-    const older = workspace({ stars: false });
-    menu(older.client, design.id, true);
-    await older.user.click(screen.getByRole("button", { name: "Conversation options" }));
     expect(items()).not.toContain("Star channel");
   });
 });

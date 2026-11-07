@@ -61,8 +61,7 @@ export function InviteDialog(props: {
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
   const selfRole = useWorkspace((s) => s.self?.role);
-  // Older servers do not send the flag; every member could invite there.
-  const canInvite = useWorkspace((s) => s.self?.canInvite ?? true);
+  const canInvite = useWorkspace((s) => s.self?.canInvite === true);
   const [invite, setInvite] = useState<Invite | null>(null);
   /** Undefined until the first answer; null when the list could not be read. */
   const [invites, setInvites] = useState<Invite[] | null | undefined>(undefined);

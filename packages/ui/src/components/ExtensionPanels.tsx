@@ -25,7 +25,7 @@ export function useExtensionPanels(enabled: boolean) {
       (result) => {
         if (!stop) setPanels(result.panels);
       },
-      // An older server has no such route; one that fails is asked again next time.
+      // One that fails is asked again next time.
       () => {},
     );
     return () => {

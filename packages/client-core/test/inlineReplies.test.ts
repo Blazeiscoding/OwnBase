@@ -77,9 +77,8 @@ afterAll(async () => {
 });
 
 describe("inline replies on the client", () => {
-  it("sends what a message answers, shows it while sending, and learns the server keeps them", async () => {
+  it("sends what a message answers, and shows it while sending", async () => {
     const { client, general } = await online(aliceToken);
-    expect(client.state.inlineReplies).toBe(true);
     const { message: original } = await new Api(base, bobToken).sendMessage(general.id, {
       text: "Pizza or tacos?",
     });
@@ -95,20 +94,6 @@ describe("inline replies on the client", () => {
     );
     const reply = sent.timelines[general.id]!.items.find((m) => m.text === "Tacos")!;
     expect(reply.replyTo).toMatchObject({ id: original.id, text: "Pizza or tacos?", ping: true });
-  });
-
-  it("sends a plain message to a server that would not keep the answer", async () => {
-    const { client, general } = await online(aliceToken);
-    const { message: original } = await new Api(base, bobToken).sendMessage(general.id, {
-      text: "Old server?",
-    });
-    client.store.setState({ inlineReplies: false });
-    client.send(general.id, "Maybe", { replyTo: quoteOf(original, true) });
-    expect(client.state.pending[0]!).not.toHaveProperty("replyTo");
-    const sent = await until(client, (s) => s.pending.length === 0, "delivery");
-    expect(sent.timelines[general.id]!.items.find((m) => m.text === "Maybe")).not.toHaveProperty(
-      "replyTo",
-    );
   });
 
   it("shows an edit or deletion of what replies answer, as it happens", async () => {

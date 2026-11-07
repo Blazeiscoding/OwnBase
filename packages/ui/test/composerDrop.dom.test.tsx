@@ -31,6 +31,7 @@ function conversation(role: User["role"] = "member") {
     handle: "sam",
     displayName: "Sam Rivera",
     role,
+    canInvite: true,
     statusText: "",
     statusEmoji: "",
     isBot: false,

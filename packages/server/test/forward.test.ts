@@ -141,7 +141,7 @@ describe("forwarding a message", () => {
     );
   });
 
-  it("goes with no words of its own, and the server says it forwards", async () => {
+  it("goes with no words of its own", async () => {
     const ws = new WebSocket(base.replace("http", "ws") + "/ws");
     sockets.push(ws);
     const frames: ServerToClient[] = [];
@@ -156,9 +156,7 @@ describe("forwarding a message", () => {
         }),
       ),
     );
-    await expect
-      .poll(() => frames.find((f) => f.type === "ready"))
-      .toMatchObject({ forwards: true });
+    await expect.poll(() => frames.some((f) => f.type === "ready")).toBe(true);
 
     const original = await post(peer.token, general, { text: "Lunch at noon" });
     const forward = await post(owner.token, general, { text: "", forwardFrom: original.id });

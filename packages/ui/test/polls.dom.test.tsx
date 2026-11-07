@@ -27,6 +27,7 @@ const person = (id: string, displayName: string, role: User["role"] = "member"):
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -240,7 +241,7 @@ function composer(opts: { polls?: boolean; self?: User; threadRootId?: string } 
     users: { U_SAM: sam, U_PRIYA: priya },
     channels: { C_GENERAL: general },
     status: "online",
-    pollChoices: opts.polls === false ? null : {},
+    pollChoices: {},
   });
   const send = vi.spyOn(client, "send").mockReturnValue(true);
   const platform: Platform = {
@@ -324,16 +325,6 @@ describe("making a poll", () => {
       poll: { options: ["Yes", "No"], multiple: false, anonymous: false },
     });
     await waitFor(() => expect(box).toHaveValue(""));
-  });
-
-  it("keeps the plain attach button where the server keeps no polls", async () => {
-    const { send, user } = composer({ polls: false });
-    expect(screen.getByRole("button", { name: "Attach a file" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Add to message" })).toBeNull();
-    // /poll is then the server's to answer.
-    await typeInto(user, "/poll Lunch?{Enter}");
-    expect(send).toHaveBeenCalledWith("C_GENERAL", "/poll Lunch?", expect.anything());
-    expect(screen.queryByRole("dialog", { name: "Create a poll" })).toBeNull();
   });
 
   it("is not offered to a guest, and /poll says why", async () => {
