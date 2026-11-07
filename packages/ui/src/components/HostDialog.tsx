@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import type {
-  AutoBackup,
-  HostedWorkspaces,
-  HostingStart,
-  RestoreInventory,
-  HostingStatus,
-  LastHosted,
-  Platform,
+import { DEFAULT_PORT, type AccessPolicy } from "@ownbase/protocol";
+import { PORT_RULE, portFromText } from "@ownbase/protocol/desktop";
+import {
+  failureCode,
+  failureMessage,
+  type AutoBackup,
+  type HostedWorkspaces,
+  type HostingStart,
+  type HostingStatus,
+  type Platform,
+  type StartedWorkspace,
 } from "../platform.js";
-import type { AccessPolicy } from "@ownbase/protocol";
 import { useHostingStatus } from "../lib/hosting.js";
 import { useHostedIcon } from "../lib/workspaceIcon.js";
 import { useCopy } from "../lib/useCopy.js";
@@ -85,8 +87,6 @@ function StartWithComputer(props: {
       alive = false;
     };
   }, [login]);
-  if (!setStart) return null;
-
   async function save(action: () => Promise<unknown>, undo: () => void) {
     setSaving(true);
     props.onError(null);
@@ -94,11 +94,7 @@ function StartWithComputer(props: {
       await action();
     } catch (reason) {
       undo();
-      props.onError(
-        reason instanceof Error && reason.message
-          ? reason.message
-          : "That choice could not be saved. Try again.",
-      );
+      props.onError(failureMessage(reason, "That choice could not be saved. Try again."));
     } finally {
       setSaving(false);
     }
@@ -141,7 +137,7 @@ function StartWithComputer(props: {
           <span>Open OwnBase when you sign in to this computer</span>
         </label>
       )}
-      {reopen && props.publicAddress && (
+      {props.publicAddress && (
         <label className="flex items-start gap-2 text-ink">
           <input
             type="checkbox"
@@ -185,7 +181,6 @@ function LaunchProblem(props: {
   onRetry: (() => void) | null;
   disabled: boolean;
   className?: string;
-  onDismissed: () => void;
   onError: (text: string | null) => void;
 }) {
   const dismiss = props.hosting.dismissLaunchError;
@@ -194,43 +189,36 @@ function LaunchProblem(props: {
   return (
     <div role="alert" className={`text-sm ${props.className ?? ""}`}>
       <p className="text-alert">{props.message}</p>
-      {(props.onRetry || dismiss) && (
-        <div className="mt-1 flex flex-wrap gap-3">
-          {props.onRetry && (
-            <button
-              type="button"
-              disabled={props.disabled || saving}
-              className={linkBtnCls}
-              onClick={props.onRetry}
-            >
-              Try again
-            </button>
-          )}
-          {dismiss && (
-            <button
-              type="button"
-              disabled={props.disabled || saving}
-              className={linkBtnCls}
-              onClick={() => {
-                setSaving(true);
-                props.onError(null);
-                dismiss().then(
-                  () => {
-                    setSaving(false);
-                    props.onDismissed();
-                  },
-                  () => {
-                    setSaving(false);
-                    props.onError("That message could not be dismissed. Try again.");
-                  },
-                );
-              }}
-            >
-              Dismiss
-            </button>
-          )}
-        </div>
-      )}
+      <div className="mt-1 flex flex-wrap gap-3">
+        {props.onRetry && (
+          <button
+            type="button"
+            disabled={props.disabled || saving}
+            className={linkBtnCls}
+            onClick={props.onRetry}
+          >
+            Try again
+          </button>
+        )}
+        <button
+          type="button"
+          disabled={props.disabled || saving}
+          className={linkBtnCls}
+          onClick={() => {
+            setSaving(true);
+            props.onError(null);
+            dismiss().then(
+              () => setSaving(false),
+              () => {
+                setSaving(false);
+                props.onError("That message could not be dismissed. Try again.");
+              },
+            );
+          }}
+        >
+          Dismiss
+        </button>
+      </div>
     </div>
   );
 }
@@ -267,7 +255,7 @@ function StartupWhileStopped(props: {
       alive = false;
     };
   }, [login]);
-  if (!setStart || (!props.chosen && !props.launchError && !atLogin)) return null;
+  if (!props.chosen && !props.launchError && !atLogin) return null;
 
   async function save(action: () => Promise<unknown>) {
     setSaving(true);
@@ -276,11 +264,7 @@ function StartupWhileStopped(props: {
       await action();
       props.onChanged();
     } catch (reason) {
-      props.onError(
-        reason instanceof Error && reason.message
-          ? reason.message
-          : "That choice could not be saved. Try again.",
-      );
+      props.onError(failureMessage(reason, "That choice could not be saved. Try again."));
     } finally {
       setSaving(false);
     }
@@ -368,7 +352,7 @@ function AutoBackupSettings(props: {
   const [retrying, setRetrying] = useState(false);
   const schedule = props.schedule;
   // A restored copy being looked inside has nothing to back up by itself yet.
-  if (!setAutoBackup || (props.held && !schedule)) return null;
+  if (props.held && !schedule) return null;
 
   async function save(
     next: { everyDays: 1 | 7; keep: number } | null,
@@ -378,7 +362,7 @@ function AutoBackupSettings(props: {
     setSaving(true);
     props.onNote(null);
     try {
-      const result = await setAutoBackup!(props.folder, next, chooseFolder);
+      const result = await setAutoBackup(props.folder, next, chooseFolder);
       // No folder chosen: nothing changed, and nothing needs saying.
       if (result === undefined) return;
       props.onNote({ ok: true, text: said(result) });
@@ -386,10 +370,7 @@ function AutoBackupSettings(props: {
     } catch (reason) {
       props.onNote({
         ok: false,
-        text:
-          reason instanceof Error && reason.message
-            ? reason.message
-            : "The backup schedule could not be saved. Try again.",
+        text: failureMessage(reason, "The backup schedule could not be saved. Try again."),
       });
     } finally {
       setSaving(false);
@@ -401,7 +382,7 @@ function AutoBackupSettings(props: {
     setRetrying(true);
     props.onNote(null);
     try {
-      await retryBackups!();
+      await retryBackups();
     } finally {
       setRetrying(false);
       // Whether it failed again, and why, comes back with the list.
@@ -535,7 +516,7 @@ function AutoBackupSettings(props: {
             {props.error}
           </p>
           {/* Only removing older ones failed: the backup itself was made. */}
-          {retryBackups && schedule && schedule.failure?.kind !== "cleanup" && !props.held && (
+          {schedule && schedule.failure?.kind !== "cleanup" && !props.held && (
             <button type="button" className={linkBtnCls} onClick={() => void retry()}>
               {retrying ? "Trying again…" : "Try again"}
             </button>
@@ -544,17 +525,6 @@ function AutoBackupSettings(props: {
       )}
     </fieldset>
   );
-}
-
-/** The port a workspace starts on unless another is chosen or that one is busy. */
-const DEFAULT_PORT = 8543;
-
-/** A port as typed, or null when it is not one a workspace could use. */
-function portValue(text: string): number | null {
-  const trimmed = text.trim();
-  if (!/^\d{1,5}$/.test(trimmed)) return null;
-  const port = Number(trimmed);
-  return port >= 1 && port <= 65535 ? port : null;
 }
 
 /**
@@ -584,9 +554,9 @@ function PortForm(props: {
       onSubmit={(event) => {
         event.preventDefault();
         if (props.saving) return;
-        const port = portValue(draft);
+        const port = portFromText(draft);
         if (port === null) {
-          setError("Choose a port from 1 to 65535.");
+          setError(PORT_RULE);
           field.current?.focus();
         } else if (port === props.port) props.onCancel();
         else
@@ -739,18 +709,18 @@ function RenameForm(props: {
   );
 }
 
-/** Give recovery guidance without showing Electron's IPC wrapper or raw error details. */
-function hostedListError(reason: unknown): string {
-  // Electron prefixes errors from main-process IPC, so match the fixed
-  // registry messages inside the wrapper rather than showing its raw text.
-  const message = reason instanceof Error ? reason.message : "";
-  if (message.includes("The hosted workspace list was saved by a newer version of OwnBase."))
-    return "The hosted workspace list was saved by a newer version of OwnBase. Update OwnBase to open it; the list was not changed.";
-  if (message.includes("The hosted workspace list has a version this OwnBase cannot read."))
-    return "The hosted workspace list has a version this OwnBase cannot read. Use a compatible version; the list was not changed.";
-  if (message.includes("The hosted workspace list in settings is invalid."))
-    return "The hosted workspace list in settings is invalid. Restore or repair the settings file before hosting; the list was not changed.";
-  return "Could not read the list of workspaces hosted on this computer, so none can start. Check that OwnBase’s settings file can be read, then open this again.";
+/** What to do when the list of hosted workspaces cannot be read, without its raw details. */
+export function hostedListError(reason: unknown): string {
+  switch (failureCode(reason)) {
+    case "registry-newer":
+      return "The hosted workspace list was saved by a newer version of OwnBase. Update OwnBase to open it; the list was not changed.";
+    case "registry-unsupported":
+      return "The hosted workspace list has a version this OwnBase cannot read. Use a compatible version; the list was not changed.";
+    case "registry-damaged":
+      return "The hosted workspace list in settings is invalid. Restore or repair the settings file before hosting; the list was not changed.";
+    default:
+      return "Could not read the list of workspaces hosted on this computer, so none can start. Check that OwnBase’s settings file can be read, then open this again.";
+  }
 }
 
 /**
@@ -761,7 +731,6 @@ function useHostedWorkspaces(hosting: Hosting, phase: string, revision: number) 
   const [hosted, setHosted] = useState<HostedWorkspaces | null>(null);
   const [failed, setFailed] = useState<string | null>(null);
   useEffect(() => {
-    if (!hosting.list) return;
     let alive = true;
     hosting
       .list()
@@ -836,7 +805,7 @@ export function HostDialog(props: {
   /** The hosted workspace is the one already on screen, so there is nothing to open. */
   viewingHosted?: boolean;
   onClose: () => void;
-  onStarted: (status: HostingStatus) => void;
+  onStarted: (started: Pick<StartedWorkspace, "port">) => void;
   /** Opens Invite people in the hosted workspace, which is on screen. */
   onInvite?: () => void;
   /** The tab to open on, once the workspace is running and has it. */
@@ -870,23 +839,15 @@ export function HostDialog(props: {
   /** Save was pressed with the address already saved, which is said rather than saved again. */
   const [addressUnchanged, setAddressUnchanged] = useState(false);
   const addressField = useRef<HTMLInputElement>(null);
-  // A public address is not authorization. Require an invite by default when
-  // a previously LAN-only workspace is first put on the internet.
-  const [requireInvite, setRequireInvite] = useState(true);
-  /** Who may join once opened, chosen before opening; guests only when asked for. */
+  /**
+   * Who may join once opened, chosen before opening. A public address is not
+   * authorization, so a workspace first put on the internet needs invites.
+   */
   const [openPolicy, setOpenPolicy] = useState<AccessPolicy>("invite_only");
-  // An app without guest access says who may join with invites alone.
-  const guestsSupported = !!props.hosting.setAccessPolicy;
   /** What the running workspace holds now, as acknowledged by it. */
-  const livePolicy: AccessPolicy | undefined =
-    status?.accessPolicy ??
-    (status?.inviteOnly === undefined
-      ? undefined
-      : status.inviteOnly
-        ? "invite_only"
-        : "account_required");
+  const livePolicy = status?.accessPolicy;
   const { copy, label: copyLabel } = useCopy();
-  const phase = status?.phase ?? (status?.running ? "running" : "stopped");
+  const phase = status?.phase ?? "stopped";
   const changing = phase === "starting" || phase === "stopping";
   const unavailable = loading || statusError || !status || changing || !!busy;
   const publicUrl = status?.openToAll?.phase === "open" ? status.openToAll.url : null;
@@ -898,7 +859,7 @@ export function HostDialog(props: {
   const addressValue = addressDraft ?? savedAddress;
   const addressDirty = addressDraft !== null && addressDraft.trim() !== savedAddress;
 
-  // Opening management also refreshes shells without status subscriptions.
+  // Opening it looks again for what a public link needs, which nothing announces.
   useEffect(() => {
     void refresh();
   }, [refresh]);
@@ -917,10 +878,6 @@ export function HostDialog(props: {
     tunnelWasMissing.current = status?.tunnelAvailable === false;
   }, [status?.tunnelAvailable]);
 
-  useEffect(() => {
-    if (status?.inviteOnly !== undefined) setRequireInvite(status.inviteOnly);
-  }, [status?.inviteOnly]);
-
   const [listRevision, setListRevision] = useState(0);
   const { hosted, failed: listFailed } = useHostedWorkspaces(props.hosting, phase, listRevision);
   /** The running workspace's icon, which follows a change made in Workspace settings. */
@@ -938,7 +895,6 @@ export function HostDialog(props: {
   const [activating, setActivating] = useState<string | null>(null);
   /** The stopped workspace whose earlier copies are showing. */
   const [earlierOf, setEarlierOf] = useState<string | null>(null);
-  const canRestoreOver = !!props.hosting.backups && !!props.hosting.restoreOver;
   const renameFn = props.hosting.rename;
   const openFolderFn = props.hosting.openFolder;
   /** The folder of the workspace being renamed, while its form is open. */
@@ -954,7 +910,7 @@ export function HostDialog(props: {
   }, [changingPort]);
 
   async function savePort(folder: string, name: string, port: number): Promise<string | null> {
-    if (!setPortFn || operationPending.current) return null;
+    if (operationPending.current) return null;
     operationPending.current = true;
     setBusy("renaming");
     setBackupNote(null);
@@ -965,9 +921,7 @@ export function HostDialog(props: {
       setBackupNote({ ok: true, text: `${name} will start on port ${port}.` });
       return null;
     } catch (reason) {
-      return reason instanceof Error && reason.message
-        ? reason.message
-        : "The port could not be saved. Try again.";
+      return failureMessage(reason, "The port could not be saved. Try again.");
     } finally {
       setListRevision((n) => n + 1);
       operationPending.current = false;
@@ -989,7 +943,7 @@ export function HostDialog(props: {
   }
 
   async function saveName(folder: string, previous: string, next: string): Promise<string | null> {
-    if (!renameFn || operationPending.current) return null;
+    if (operationPending.current) return null;
     operationPending.current = true;
     setBusy("renaming");
     setBackupNote(null);
@@ -1001,35 +955,25 @@ export function HostDialog(props: {
       return null;
     } catch (reason) {
       // The main process says what is wrong with the name, or with the folder.
-      return reason instanceof Error && reason.message
-        ? reason.message
-        : "The new name could not be saved. Try again.";
+      return failureMessage(reason, "The new name could not be saved. Try again.");
     } finally {
       setListRevision((n) => n + 1);
-      void refresh();
       operationPending.current = false;
       setBusy(null);
     }
   }
 
   async function openFolder(folder: string) {
-    if (!openFolderFn) return;
     setBackupNote(null);
     try {
       await openFolderFn(folder);
     } catch (reason) {
-      setBackupNote({
-        ok: false,
-        text:
-          reason instanceof Error && reason.message
-            ? reason.message
-            : "The folder could not be opened.",
-      });
+      setBackupNote({ ok: false, text: failureMessage(reason, "The folder could not be opened.") });
     }
   }
 
   async function restoreBackup() {
-    if (!restoreFn || operationPending.current || unavailable) return;
+    if (operationPending.current || unavailable) return;
     operationPending.current = true;
     setBusy("restoring");
     setBackupNote(null);
@@ -1053,7 +997,7 @@ export function HostDialog(props: {
   }
 
   async function removeMissing(folder: string, name: string) {
-    if (!forgetFn || operationPending.current || unavailable) return;
+    if (operationPending.current || unavailable) return;
     operationPending.current = true;
     setBusy("removing");
     setBackupNote(null);
@@ -1070,7 +1014,7 @@ export function HostDialog(props: {
   }
 
   async function backUp(folder: string, name: string) {
-    if (!backupFn || operationPending.current || unavailable) return;
+    if (operationPending.current || unavailable) return;
     operationPending.current = true;
     setBusy("backing-up");
     setBackupNote(null);
@@ -1113,9 +1057,9 @@ export function HostDialog(props: {
       void launch({ workspaceName: name.trim() });
       return;
     }
-    const port = portValue(portText);
+    const port = portFromText(portText);
     if (port === null) {
-      setError({ message: "Choose a port from 1 to 65535, or leave it empty for the usual one." });
+      setError({ message: `${PORT_RULE} Or leave it empty for the usual one.` });
       return;
     }
     void launch({ workspaceName: name.trim(), port });
@@ -1127,19 +1071,15 @@ export function HostDialog(props: {
     setBusy("starting");
     setError(null);
     try {
-      const next = await props.hosting.start(request);
-      void refresh();
-      if (next.running && next.phase !== "stopping" && next.port !== undefined)
-        props.onStarted(next);
+      props.onStarted(await props.hosting.start(request));
     } catch (reason) {
       // The desktop app says what went wrong in words it chose to show.
       setError({
-        message:
-          reason instanceof Error && reason.message
-            ? reason.message
-            : "The workspace could not start. Check that its data folder is writable and its port is available, then try again.",
+        message: failureMessage(
+          reason,
+          "The workspace could not start. Check that its data folder is writable and its port is available, then try again.",
+        ),
       });
-      await refresh();
     } finally {
       operationPending.current = false;
       setBusy(null);
@@ -1160,7 +1100,6 @@ export function HostDialog(props: {
           "The workspace did not stop. If it keeps failing, quitting OwnBase offers ways to recover.",
       });
     } finally {
-      await refresh();
       operationPending.current = false;
       setBusy(null);
     }
@@ -1170,7 +1109,6 @@ export function HostDialog(props: {
     if (
       operationPending.current ||
       unavailable ||
-      !props.hosting.openToAll ||
       status?.publicAddressError ||
       status?.tunnelAvailable === false
     )
@@ -1179,28 +1117,23 @@ export function HostDialog(props: {
     setBusy("opening");
     setError(null);
     try {
-      await props.hosting.openToAll(
-        guestsSupported
-          ? { inviteOnly: openPolicy === "invite_only", accessPolicy: openPolicy }
-          : { inviteOnly: requireInvite },
-      );
+      await props.hosting.openToAll(openPolicy);
     } catch (err) {
       setError({
         tunnel: true,
         message:
-          err instanceof Error && /Create your own account/i.test(err.message)
+          failureCode(err) === "owner-account-missing"
             ? "Open the workspace and create its owner account first, then try again."
             : "The public link did not open. Check that cloudflared is installed and this computer is online, then try again.",
       });
     } finally {
-      await refresh();
       operationPending.current = false;
       setBusy(null);
     }
   }
 
   async function endOpenToAll() {
-    if (operationPending.current || !props.hosting.endOpenToAll) return;
+    if (operationPending.current) return;
     operationPending.current = true;
     setBusy("closing");
     setError(null);
@@ -1214,7 +1147,6 @@ export function HostDialog(props: {
           : "OwnBase’s Cloudflare connection could not be closed cleanly. Try again before quitting OwnBase.",
       });
     } finally {
-      await refresh();
       operationPending.current = false;
       setBusy(null);
     }
@@ -1222,7 +1154,7 @@ export function HostDialog(props: {
 
   /** Changes who may join, showing what the workspace then holds rather than the wish. */
   async function changeAccessPolicy(next: AccessPolicy) {
-    if (operationPending.current || !props.hosting.setAccessPolicy) return;
+    if (operationPending.current) return;
     // Signing guests out cannot be taken back, so it is asked first, as
     // Workspace settings asks for the same change.
     if (livePolicy === "guest_allowed" && next !== "guest_allowed" && confirm) {
@@ -1244,35 +1176,13 @@ export function HostDialog(props: {
         message: "Who may join could not be changed. The previous setting is still in use.",
       });
     } finally {
-      await refresh();
-      operationPending.current = false;
-      setBusy(null);
-    }
-  }
-
-  async function changeInvitePolicy(next: boolean) {
-    if (operationPending.current || !props.hosting.setInviteOnly) return;
-    const previous = requireInvite;
-    setRequireInvite(next);
-    operationPending.current = true;
-    setBusy("policy");
-    setError(null);
-    try {
-      await props.hosting.setInviteOnly(next);
-    } catch {
-      setRequireInvite(previous);
-      setError({
-        message: "Who may join could not be changed. The previous setting is still in use.",
-      });
-    } finally {
-      await refresh();
       operationPending.current = false;
       setBusy(null);
     }
   }
 
   async function saveAddress() {
-    if (operationPending.current || !props.hosting.setPublicAddress) return;
+    if (operationPending.current) return;
     setAddressError(null);
     if (!addressValue.trim() && !savedAddress) {
       setAddressError("Enter the address, such as https://box.tail1234.ts.net.");
@@ -1293,26 +1203,20 @@ export function HostDialog(props: {
     } catch (err) {
       // The main process says exactly what is wrong with the address; a
       // rewritten message here would only be vaguer than the real one.
-      setAddressError(
-        err instanceof Error && err.message
-          ? err.message
-          : "The address could not be saved. Try again.",
-      );
+      setAddressError(failureMessage(err, "The address could not be saved. Try again."));
       addressField.current?.focus();
     } finally {
-      await refresh();
       operationPending.current = false;
       setBusy(null);
     }
   }
 
-  /** The sections of a running workspace, each only where this app can do what it holds. */
+  /** The sections of a running workspace; one being looked inside is not on the internet. */
   const sections: Section[] = [];
   if (!statusError && status && (status.running || changing)) {
     sections.push("overview");
-    if (!status.isolated && (props.hosting.openToAll || props.hosting.relay))
-      sections.push("internet");
-    if (status.folder && (backupFn || props.hosting.setAutoBackup)) sections.push("backups");
+    if (!status.isolated) sections.push("internet");
+    if (status.folder) sections.push("backups");
     sections.push("advanced");
   }
   const live = sections.length > 0;
@@ -1358,10 +1262,7 @@ export function HostDialog(props: {
               <div className="space-y-4 text-sm sm:min-h-[21rem]">
                 {shown === "overview" && (
                   <>
-                    {renameFn &&
-                    status.folder &&
-                    renaming === status.folder &&
-                    phase === "running" ? (
+                    {status.folder && renaming === status.folder && phase === "running" ? (
                       <RenameForm
                         folder={status.folder}
                         name={status.workspaceName ?? ""}
@@ -1403,21 +1304,18 @@ export function HostDialog(props: {
                             </span>
                           )}
                         </div>
-                        {renameFn &&
-                          status.folder &&
-                          status.workspaceName &&
-                          phase === "running" && (
-                            <button
-                              id={`rename-${status.folder}`}
-                              type="button"
-                              disabled={unavailable}
-                              aria-label={`Rename ${status.workspaceName}`}
-                              onClick={() => setRenaming(status.folder!)}
-                              className={`${linkBtnCls} shrink-0`}
-                            >
-                              Rename
-                            </button>
-                          )}
+                        {status.folder && status.workspaceName && phase === "running" && (
+                          <button
+                            id={`rename-${status.folder}`}
+                            type="button"
+                            disabled={unavailable}
+                            aria-label={`Rename ${status.workspaceName}`}
+                            onClick={() => setRenaming(status.folder!)}
+                            className={`${linkBtnCls} shrink-0`}
+                          >
+                            Rename
+                          </button>
+                        )}
                       </div>
                     )}
                     <LaunchProblem
@@ -1430,13 +1328,11 @@ export function HostDialog(props: {
                         !status.isolated &&
                         !status.openToAll &&
                         !status.publicAddressError &&
-                        status.tunnelAvailable !== false &&
-                        props.hosting.openToAll
+                        status.tunnelAvailable !== false
                           ? () => void openToAll()
                           : null
                       }
                       disabled={unavailable}
-                      onDismissed={() => void refresh()}
                       onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
                     />
                     {status.isolated && (
@@ -1454,7 +1350,9 @@ export function HostDialog(props: {
                           {publicUrl && (
                             <div>
                               <p className="mb-1 text-ink-dim">
-                                {status.inviteOnly ? "Public address" : "Anyone can join at"}
+                                {livePolicy === "invite_only"
+                                  ? "Public address"
+                                  : "Anyone can join at"}
                               </p>
                               <AddressRow
                                 url={publicUrl}
@@ -1535,37 +1433,35 @@ export function HostDialog(props: {
                           type="button"
                           className={buttonClass("primary")}
                           disabled={unavailable || !status.running || status.port === undefined}
-                          onClick={() => props.onStarted(status)}
+                          onClick={() =>
+                            status.port !== undefined && props.onStarted({ port: status.port })
+                          }
                         >
                           Open it
                         </button>
                       ))}
                     {status.running && phase !== "stopping" && (
                       <p className="text-ink-dim">
-                        {status.backgroundAvailable === true
+                        {status.backgroundAvailable
                           ? "Closing this window keeps the workspace running in the system tray. Use the tray to reopen OwnBase or stop hosting."
-                          : status.backgroundAvailable === false
-                            ? "Closing this window only minimizes OwnBase. Keep it running, or people lose their connection."
-                            : "Keep OwnBase running so teammates can stay connected."}
+                          : "Closing this window only minimizes OwnBase. Keep it running, or people lose their connection."}
                       </p>
                     )}
                   </>
                 )}
                 {shown === "internet" && (
                   <>
-                    {props.hosting.openToAll && (
-                      <div>
-                        <h3 className="font-semibold text-ink">
-                          Let people outside your network join
-                        </h3>
-                        <p className="mt-1 text-ink-dim">
-                          {publicUrl
-                            ? "The workspace has a public link now, so people can join from anywhere. Messages and files still stay on this computer."
-                            : "Right now only people on the same Wi-Fi or network as this computer can join. A public link lets people join from home or on mobile data too. Messages and files still stay on this computer."}
-                        </p>
-                      </div>
-                    )}
-                    {props.hosting.openToAll && !status.isolated && (
+                    <div>
+                      <h3 className="font-semibold text-ink">
+                        Let people outside your network join
+                      </h3>
+                      <p className="mt-1 text-ink-dim">
+                        {publicUrl
+                          ? "The workspace has a public link now, so people can join from anywhere. Messages and files still stay on this computer."
+                          : "Right now only people on the same Wi-Fi or network as this computer can join. A public link lets people join from home or on mobile data too. Messages and files still stay on this computer."}
+                      </p>
+                    </div>
+                    {!status.isolated && (
                       <div className="card-warm rounded-xl p-3">
                         <div className="mb-1 flex items-center justify-between gap-3">
                           <h3 className="font-semibold text-ink">Public link</h3>
@@ -1620,7 +1516,7 @@ export function HostDialog(props: {
                                 </Swap>
                               </button>
                             </div>
-                            {guestsSupported && livePolicy ? (
+                            {livePolicy && (
                               <div className="mt-3">
                                 <JoinPolicyChoice
                                   compact
@@ -1631,45 +1527,27 @@ export function HostDialog(props: {
                                   onChange={(next) => void changeAccessPolicy(next)}
                                 />
                               </div>
-                            ) : (
-                              <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
-                                <input
-                                  type="checkbox"
-                                  checked={status.inviteOnly ?? requireInvite}
-                                  disabled={!!busy || !props.hosting.setInviteOnly}
-                                  onChange={(event) =>
-                                    void changeInvitePolicy(event.target.checked)
-                                  }
-                                  className="mt-0.5"
-                                />
-                                <span>
-                                  Require an invite link to create an account. Recommended for every
-                                  public workspace.
-                                </span>
-                              </label>
                             )}
                             <p className="mt-2 text-xs text-ink-dim">
                               {livePolicy === "guest_allowed"
                                 ? "Anyone with this address can join as a guest for a day and post in public channels. Choosing either of the others signs every guest out."
-                                : !status.inviteOnly
+                                : livePolicy !== "invite_only"
                                   ? "Anyone with this address can create an account. Send the address only to people you trust."
                                   : invitesHere
                                     ? "This address alone will not let anyone in. Send an invite link instead. It has this address and an invite code, so people join in one click."
                                     : "This address alone will not let anyone in. To bring someone in, open the workspace, choose Invite people from its menu and send them that link."}
                             </p>
                             <div className="mt-3 flex flex-wrap items-center gap-2">
-                              {status.inviteOnly &&
-                                livePolicy !== "guest_allowed" &&
-                                invitesHere && (
-                                  <button
-                                    type="button"
-                                    disabled={!!busy}
-                                    onClick={props.onInvite}
-                                    className={buttonClass("primary", "h-8 px-3 text-[13px]")}
-                                  >
-                                    Get an invite link
-                                  </button>
-                                )}
+                              {livePolicy === "invite_only" && invitesHere && (
+                                <button
+                                  type="button"
+                                  disabled={!!busy}
+                                  onClick={props.onInvite}
+                                  className={buttonClass("primary", "h-8 px-3 text-[13px]")}
+                                >
+                                  Get an invite link
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 disabled={!!busy}
@@ -1722,11 +1600,10 @@ export function HostDialog(props: {
                             )}
                             {status.tunnelAvailable === false ? (
                               <div className="mt-3 text-xs text-ink-dim">
-                                {status.cloudflaredInstall && props.hosting.installCloudflared ? (
+                                {status.cloudflaredInstall ? (
                                   <InstallCloudflared
                                     install={status.cloudflaredInstall}
                                     onInstall={props.hosting.installCloudflared}
-                                    onDone={() => void refresh()}
                                     disabled={!!busy}
                                   />
                                 ) : (
@@ -1746,32 +1623,16 @@ export function HostDialog(props: {
                               </div>
                             ) : (
                               <>
-                                {guestsSupported ? (
-                                  <div className="mt-3">
-                                    <JoinPolicyChoice
-                                      compact
-                                      legend="Who can join"
-                                      hint="Who can join once the link is open."
-                                      value={openPolicy}
-                                      disabled={!!busy}
-                                      onChange={setOpenPolicy}
-                                    />
-                                  </div>
-                                ) : (
-                                  <label className="mt-3 flex items-start gap-2 text-xs text-ink-dim">
-                                    <input
-                                      type="checkbox"
-                                      checked={requireInvite}
-                                      disabled={!!busy}
-                                      onChange={(event) => setRequireInvite(event.target.checked)}
-                                      className="mt-0.5"
-                                    />
-                                    <span>
-                                      Require an invite link to create an account. Recommended and
-                                      enabled by default.
-                                    </span>
-                                  </label>
-                                )}
+                                <div className="mt-3">
+                                  <JoinPolicyChoice
+                                    compact
+                                    legend="Who can join"
+                                    hint="Who can join once the link is open."
+                                    value={openPolicy}
+                                    disabled={!!busy}
+                                    onChange={setOpenPolicy}
+                                  />
+                                </div>
                                 <button
                                   ref={openButton}
                                   type="button"
@@ -1789,93 +1650,91 @@ export function HostDialog(props: {
                                 </button>
                               </>
                             )}
-                            {props.hosting.setPublicAddress && (
-                              <div className="mt-3 border-t border-edge pt-3">
-                                <label
-                                  htmlFor="public-address"
-                                  className="block text-xs font-medium text-ink-dim"
-                                >
-                                  Your own address
-                                </label>
-                                <p id="public-address-help" className="mt-1 text-xs text-ink-dim">
-                                  Only if you already run Tailscale Funnel, a reverse proxy or a
-                                  tunnel of your own to this computer. Enter its address to keep the
-                                  same link every time. Most people leave this empty, and OwnBase{" "}
-                                  {status.publicAddressManaged
-                                    ? "uses the Cloudflare address set up for it"
-                                    : "gets a new address each time"}
-                                  .
-                                </p>
-                                <form
-                                  noValidate
-                                  className="mt-2 flex gap-2"
-                                  onSubmit={(event) => {
-                                    event.preventDefault();
-                                    void saveAddress();
+                            <div className="mt-3 border-t border-edge pt-3">
+                              <label
+                                htmlFor="public-address"
+                                className="block text-xs font-medium text-ink-dim"
+                              >
+                                Your own address
+                              </label>
+                              <p id="public-address-help" className="mt-1 text-xs text-ink-dim">
+                                Only if you already run Tailscale Funnel, a reverse proxy or a
+                                tunnel of your own to this computer. Enter its address to keep the
+                                same link every time. Most people leave this empty, and OwnBase{" "}
+                                {status.publicAddressManaged
+                                  ? "uses the Cloudflare address set up for it"
+                                  : "gets a new address each time"}
+                                .
+                              </p>
+                              <form
+                                noValidate
+                                className="mt-2 flex gap-2"
+                                onSubmit={(event) => {
+                                  event.preventDefault();
+                                  void saveAddress();
+                                }}
+                              >
+                                <input
+                                  ref={addressField}
+                                  id="public-address"
+                                  type="url"
+                                  inputMode="url"
+                                  spellCheck={false}
+                                  placeholder="https://box.tail1234.ts.net"
+                                  value={addressValue}
+                                  // Off only when the environment fixes it; read-only
+                                  // while saving, so focus stays here.
+                                  disabled={status.publicAddressLocked}
+                                  readOnly={busy === "address"}
+                                  aria-describedby={`public-address-help${addressError ? " public-address-error" : ""}`}
+                                  aria-invalid={!!addressError}
+                                  aria-errormessage={
+                                    addressError ? "public-address-error" : undefined
+                                  }
+                                  onChange={(event) => {
+                                    setAddressDraft(event.target.value);
+                                    setAddressError(null);
+                                    setAddressUnchanged(false);
                                   }}
+                                  className={inputClass(
+                                    "small",
+                                    "flex-1 font-mono disabled:opacity-40",
+                                  )}
+                                />
+                                {/* Never off for want of a change: sent unchanged, it says so. */}
+                                <button
+                                  type="submit"
+                                  disabled={status.publicAddressLocked}
+                                  aria-disabled={!!busy || undefined}
+                                  className="h-8 shrink-0 rounded-lg border border-edge px-3 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
                                 >
-                                  <input
-                                    ref={addressField}
-                                    id="public-address"
-                                    type="url"
-                                    inputMode="url"
-                                    spellCheck={false}
-                                    placeholder="https://box.tail1234.ts.net"
-                                    value={addressValue}
-                                    // Off only when the environment fixes it; read-only
-                                    // while saving, so focus stays here.
-                                    disabled={status.publicAddressLocked}
-                                    readOnly={busy === "address"}
-                                    aria-describedby={`public-address-help${addressError ? " public-address-error" : ""}`}
-                                    aria-invalid={!!addressError}
-                                    aria-errormessage={
-                                      addressError ? "public-address-error" : undefined
-                                    }
-                                    onChange={(event) => {
-                                      setAddressDraft(event.target.value);
-                                      setAddressError(null);
-                                      setAddressUnchanged(false);
-                                    }}
-                                    className={inputClass(
-                                      "small",
-                                      "flex-1 font-mono disabled:opacity-40",
-                                    )}
-                                  />
-                                  {/* Never off for want of a change: sent unchanged, it says so. */}
-                                  <button
-                                    type="submit"
-                                    disabled={status.publicAddressLocked}
-                                    aria-disabled={!!busy || undefined}
-                                    className="h-8 shrink-0 rounded-lg border border-edge px-3 text-xs text-ink-dim hover:text-ink disabled:opacity-40"
-                                  >
-                                    {busy === "address" ? "Saving…" : "Save"}
-                                  </button>
-                                </form>
-                                {status.publicAddressLocked && (
-                                  <p className="mt-2 text-xs text-ink-dim">
-                                    An environment variable sets this address, so you cannot change
-                                    it here.
-                                  </p>
-                                )}
-                                {addressError && (
-                                  <p
-                                    id="public-address-error"
-                                    role="alert"
-                                    className="mt-2 text-xs text-alert"
-                                  >
-                                    {addressError}
-                                  </p>
-                                )}
-                                <p role="status" className="mt-2 text-xs text-ink-dim empty:hidden">
-                                  {addressUnchanged ? "That address is already saved." : ""}
+                                  {busy === "address" ? "Saving…" : "Save"}
+                                </button>
+                              </form>
+                              {status.publicAddressLocked && (
+                                <p className="mt-2 text-xs text-ink-dim">
+                                  An environment variable sets this address, so you cannot change it
+                                  here.
                                 </p>
-                              </div>
-                            )}
+                              )}
+                              {addressError && (
+                                <p
+                                  id="public-address-error"
+                                  role="alert"
+                                  className="mt-2 text-xs text-alert"
+                                >
+                                  {addressError}
+                                </p>
+                              )}
+                              <p role="status" className="mt-2 text-xs text-ink-dim empty:hidden">
+                                {addressUnchanged ? "That address is already saved." : ""}
+                              </p>
+                            </div>
                           </>
                         )}
                       </div>
                     )}
-                    {props.hosting.relay && !status.isolated && (
+                    {!status.isolated && (
                       <CallRelaySettings relay={props.hosting.relay} disabled={unavailable} />
                     )}
                   </>
@@ -1890,7 +1749,7 @@ export function HostDialog(props: {
                             ? "This workspace has not been backed up from this computer yet."
                             : `Last backed up ${backedUpWhen(runningEntry.lastBackupAt)}.`}
                       </p>
-                      {backupFn && status.folder && (
+                      {status.folder && (
                         <button
                           type="button"
                           disabled={unavailable}
@@ -1939,7 +1798,7 @@ export function HostDialog(props: {
                       <div>
                         <div className="flex items-center justify-between gap-3">
                           <p className="text-ink-dim">Workspace data folder</p>
-                          {openFolderFn && status.folder && (
+                          {status.folder && (
                             <button
                               type="button"
                               onClick={() => void openFolder(status.folder!)}
@@ -1957,12 +1816,10 @@ export function HostDialog(props: {
                         <p className="text-ink-dim">
                           Local port: <span className="font-mono text-ink">{status.port}</span>
                         </p>
-                        {setPortFn && (
-                          <p className="mt-1 text-xs text-ink-faint">
-                            To use another port, stop hosting, then choose Change port beside the
-                            workspace.
-                          </p>
-                        )}
+                        <p className="mt-1 text-xs text-ink-faint">
+                          To use another port, stop hosting, then choose Change port beside the
+                          workspace.
+                        </p>
                       </div>
                     )}
                   </>
@@ -2052,7 +1909,6 @@ export function HostDialog(props: {
                 onRetry={null}
                 disabled={unavailable}
                 className="mb-4"
-                onDismissed={() => void refresh()}
                 onError={(text) => setBackupNote(text ? { ok: false, text } : null)}
               />
               {listFailed && (
@@ -2080,7 +1936,7 @@ export function HostDialog(props: {
                         key={w.folder}
                         className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-edge px-3 py-2"
                       >
-                        {setPortFn && changingPort === w.folder && !w.missing ? (
+                        {changingPort === w.folder && !w.missing ? (
                           <PortForm
                             folder={w.folder}
                             name={w.name}
@@ -2092,7 +1948,7 @@ export function HostDialog(props: {
                               setChangingPort(null);
                             }}
                           />
-                        ) : renameFn && renaming === w.folder && !w.missing ? (
+                        ) : renaming === w.folder && !w.missing ? (
                           <RenameForm
                             folder={w.folder}
                             name={w.name}
@@ -2126,10 +1982,9 @@ export function HostDialog(props: {
                                         `${w.autoBackup.everyDays === 1 ? "Backs up daily" : "Backs up weekly"}${
                                           w.restored ? " once back in use" : ""
                                         }`,
-                                      backupFn &&
-                                        (w.lastBackupAt === null
-                                          ? "Not backed up yet"
-                                          : `Backed up ${backedUpWhen(w.lastBackupAt)}`),
+                                      w.lastBackupAt === null
+                                        ? "Not backed up yet"
+                                        : `Backed up ${backedUpWhen(w.lastBackupAt)}`,
                                     ]
                                       .filter(Boolean)
                                       .join(" · ")}
@@ -2138,64 +1993,57 @@ export function HostDialog(props: {
                               {w.autoBackupError && !w.running && (
                                 <p className="text-xs text-alert">{w.autoBackupError}</p>
                               )}
-                              {!w.missing &&
-                                (renameFn || openFolderFn || setPortFn || canRestoreOver) && (
-                                  <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
-                                    {renameFn && (
-                                      <button
-                                        id={`rename-${w.folder}`}
-                                        type="button"
-                                        disabled={unavailable}
-                                        aria-label={`Rename ${w.name}`}
-                                        onClick={() => setRenaming(w.folder)}
-                                        className={linkBtnCls}
-                                      >
-                                        Rename
-                                      </button>
-                                    )}
-                                    {setPortFn && (
-                                      <button
-                                        id={`port-${w.folder}`}
-                                        type="button"
-                                        disabled={unavailable}
-                                        aria-label={`Change port for ${w.name}`}
-                                        onClick={() => {
-                                          setRenaming(null);
-                                          setChangingPort(w.folder);
-                                        }}
-                                        className={linkBtnCls}
-                                      >
-                                        Change port
-                                      </button>
-                                    )}
-                                    {openFolderFn && (
-                                      <button
-                                        type="button"
-                                        aria-label={`Open folder for ${w.name}`}
-                                        onClick={() => void openFolder(w.folder)}
-                                        className={linkBtnCls}
-                                      >
-                                        Open folder
-                                      </button>
-                                    )}
-                                    {canRestoreOver && !w.running && (
-                                      <button
-                                        type="button"
-                                        disabled={unavailable}
-                                        aria-label={`Earlier copies of ${w.name}`}
-                                        aria-expanded={earlierOf === w.folder}
-                                        onClick={() =>
-                                          setEarlierOf(earlierOf === w.folder ? null : w.folder)
-                                        }
-                                        className={linkBtnCls}
-                                      >
-                                        Earlier copies
-                                      </button>
-                                    )}
-                                  </div>
-                                )}
+                              {!w.missing && (
+                                <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+                                  <button
+                                    id={`rename-${w.folder}`}
+                                    type="button"
+                                    disabled={unavailable}
+                                    aria-label={`Rename ${w.name}`}
+                                    onClick={() => setRenaming(w.folder)}
+                                    className={linkBtnCls}
+                                  >
+                                    Rename
+                                  </button>
+                                  <button
+                                    id={`port-${w.folder}`}
+                                    type="button"
+                                    disabled={unavailable}
+                                    aria-label={`Change port for ${w.name}`}
+                                    onClick={() => {
+                                      setRenaming(null);
+                                      setChangingPort(w.folder);
+                                    }}
+                                    className={linkBtnCls}
+                                  >
+                                    Change port
+                                  </button>
+                                  <button
+                                    type="button"
+                                    aria-label={`Open folder for ${w.name}`}
+                                    onClick={() => void openFolder(w.folder)}
+                                    className={linkBtnCls}
+                                  >
+                                    Open folder
+                                  </button>
+                                  {!w.running && (
+                                    <button
+                                      type="button"
+                                      disabled={unavailable}
+                                      aria-label={`Earlier copies of ${w.name}`}
+                                      aria-expanded={earlierOf === w.folder}
+                                      onClick={() =>
+                                        setEarlierOf(earlierOf === w.folder ? null : w.folder)
+                                      }
+                                      className={linkBtnCls}
+                                    >
+                                      Earlier copies
+                                    </button>
+                                  )}
+                                </div>
+                              )}
                             </div>
-                            {backupFn && !w.missing && (
+                            {!w.missing && (
                               <button
                                 type="button"
                                 disabled={unavailable}
@@ -2206,7 +2054,7 @@ export function HostDialog(props: {
                                 Back up
                               </button>
                             )}
-                            {w.missing && forgetFn ? (
+                            {w.missing ? (
                               <button
                                 type="button"
                                 disabled={unavailable}
@@ -2367,16 +2215,14 @@ export function HostDialog(props: {
                       : "Start hosting"}
                 </button>
               </form>
-              {restoreFn && (
-                <button
-                  type="button"
-                  disabled={unavailable}
-                  onClick={() => void restoreBackup()}
-                  className={buttonClass("secondary", "mt-3 w-full")}
-                >
-                  {busy === "restoring" ? "Restoring…" : "Restore from a backup…"}
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={unavailable}
+                onClick={() => void restoreBackup()}
+                className={buttonClass("secondary", "mt-3 w-full")}
+              >
+                {busy === "restoring" ? "Restoring…" : "Restore from a backup…"}
+              </button>
             </>
           ) : null}
         </DialogScroll>
@@ -2395,8 +2241,7 @@ const INSTALLED_WITH = { winget: "winget", homebrew: "Homebrew" } as const;
  */
 function InstallCloudflared(props: {
   install: NonNullable<HostingStatus["cloudflaredInstall"]>;
-  onInstall: () => Promise<HostingStatus>;
-  onDone: () => void;
+  onInstall: () => Promise<void>;
   disabled: boolean;
 }) {
   const [pressed, setPressed] = useState(false);
@@ -2413,13 +2258,13 @@ function InstallCloudflared(props: {
       await props.onInstall();
     } catch (err) {
       setFailure(
-        err instanceof Error && err.message
-          ? err.message
-          : "cloudflared could not be installed. Install it yourself, then check again.",
+        failureMessage(
+          err,
+          "cloudflared could not be installed. Install it yourself, then check again.",
+        ),
       );
     } finally {
       setPressed(false);
-      props.onDone();
     }
   }
 

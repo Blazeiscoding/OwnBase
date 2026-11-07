@@ -22,7 +22,7 @@ import { startHostedServer } from "./hostedServer.js";
 import type { Handler, Handlers } from "./ipcBoundary.js";
 import { lookup } from "./lookup.js";
 import { REGISTRY_KEY } from "./registry.js";
-import { moveSettings, type SettingsStorage } from "./settings.js";
+import type { SettingsStorage } from "./settings.js";
 import {
   findCloudflared,
   openConfiguredAddress,
@@ -39,7 +39,7 @@ type HostingChannel = Extract<Channel, `hosting:${string}`>;
 /** The saved stable public address, which the host can type into Manage hosting. */
 const PUBLIC_ADDRESS_KEY = "publicAddress";
 
-/** Every setting hosting keeps, which used to live in the file the window writes. */
+/** Every setting hosting keeps. */
 export const HOSTING_KEYS = [
   REGISTRY_KEY,
   "lastHosted",
@@ -96,10 +96,8 @@ export interface LoginItem {
 }
 
 export interface HostingServiceOptions {
-  /** The main process's own settings file. */
+  /** The main process's own settings, out of the page's reach. */
   settings: SettingsStorage;
-  /** The file the window writes, which hosting's settings are moved out of. */
-  pageSettings: SettingsStorage;
   credentials: CredentialProtector;
   /** Where hosted workspaces' folders are. */
   dataRoot: string;
@@ -150,27 +148,7 @@ export function createHostingService(options: HostingServiceOptions) {
   let trayStopping = false;
   let savedAddress: string | null = null;
 
-  let moved: Promise<void> | null = null;
-  /** Hosting's settings, read and written only once they are out of the window's file. */
-  const settings = {
-    async get(key: string, read?: { strict?: boolean; distinguishMissing?: boolean }) {
-      await ownSettings();
-      return options.settings.get(key, read);
-    },
-    async set(key: string, value: unknown) {
-      await ownSettings();
-      return options.settings.set(key, value);
-    },
-  };
-  function ownSettings(): Promise<void> {
-    moved ??= moveSettings(options.pageSettings, options.settings, HOSTING_KEYS).catch(
-      (error: unknown) => {
-        moved = null;
-        throw error;
-      },
-    );
-    return moved;
-  }
+  const settings = options.settings;
 
   const cloudflared = lookup(() =>
     findCloudflared(env, existsSync, platform, downloadedCloudflared(options.cloudflaredFolder)),
@@ -237,7 +215,10 @@ export function createHostingService(options: HostingServiceOptions) {
       const error = [...relayServers].map((server) => server.relayError()).find(Boolean);
       return { ...summarize(current), ...(error ? { error } : {}) };
     } catch (error) {
-      return { kind: "none" as const, error: error instanceof Error ? error.message : String(error) };
+      return {
+        kind: "none" as const,
+        error: error instanceof Error ? error.message : String(error),
+      };
     }
   }
 
@@ -363,6 +344,7 @@ export function createHostingService(options: HostingServiceOptions) {
     "hosting:installCloudflared": async () => {
       await installer.install();
       lookAgain();
+      options.onChange();
     },
     // Unreadable settings mean no remembered workspace, not a failed call.
     "hosting:lastHosted": () => controller.lastHosted(),
@@ -473,7 +455,10 @@ export function createHostingService(options: HostingServiceOptions) {
       channel,
       (event: unknown, ...args: unknown[]) => {
         if (quitting && !ANSWERED_WHILE_QUITTING.has(channel as HostingChannel))
-          throw new DesktopError("quitting", "OwnBase is shutting down. Try again after reopening it.");
+          throw new DesktopError(
+            "quitting",
+            "OwnBase is shutting down. Try again after reopening it.",
+          );
         return (handler as (event: unknown, ...args: unknown[]) => unknown)(event, ...args);
       },
     ]),

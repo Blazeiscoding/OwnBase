@@ -17,7 +17,7 @@ const bridge: OwnBaseBridge = {
       : Promise.resolve({ ok: false, error: { code: "refused", message: "No such call." } }),
   on: (event, listener) => {
     if (!events.has(event)) return () => {};
-    const heard = (_event: unknown, payload: never) => listener(payload);
+    const heard = (_event: unknown, payload: unknown) => listener(payload as never);
     ipcRenderer.on(event, heard);
     return () => ipcRenderer.removeListener(event, heard);
   },

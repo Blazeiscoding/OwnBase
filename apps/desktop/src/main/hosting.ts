@@ -4,6 +4,7 @@ import { isAbsolute, join } from "node:path";
 import { ACCESS_POLICIES, type AccessPolicy } from "@ownbase/protocol";
 import {
   isPort,
+  PORT_RULE,
   type HostedBackup,
   type HostedWorkspace as HostedWorkspaceView,
   type HostingStart,
@@ -234,8 +235,6 @@ function startFailure(error: unknown): Error {
     );
   return error instanceof Error ? error : new Error("The workspace could not start.");
 }
-
-const PORT_RULE = "Choose a port from 1 to 65535.";
 
 /** A name as typed, trimmed, for a new workspace or a rename alike. */
 function workspaceNameOf(value: unknown): string {

@@ -11,6 +11,17 @@ export function isPort(value: unknown): value is number {
   return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 65535;
 }
 
+/** What a person is told when a port they chose is not one. */
+export const PORT_RULE = "Choose a port from 1 to 65535.";
+
+/** A port as typed, or null when it is not one. */
+export function portFromText(text: string): number | null {
+  const trimmed = text.trim();
+  if (!/^\d{1,5}$/.test(trimmed)) return null;
+  const port = Number(trimmed);
+  return isPort(port) ? port : null;
+}
+
 /**
  * Why a desktop call failed. `failed` comes with a message the main process
  * wrote for the person reading it; the others name a case the UI says in its
@@ -47,6 +58,12 @@ export interface DesktopFailure {
 
 /** What this copy of the desktop app can do, decided once by its main process. */
 export interface DesktopCapabilities {
+  /**
+   * The locale to write dates and times in: the system's regional format,
+   * where it differs from the language Chromium was started in. Null when
+   * the page's own is right.
+   */
+  readerLocale: string | null;
   /** A shared screen can carry its sound, with the app's own left out. */
   screenSound: boolean;
   /** Microphones can be opened the way other apps on this computer open them. */

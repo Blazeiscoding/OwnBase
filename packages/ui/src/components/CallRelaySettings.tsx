@@ -5,7 +5,7 @@ import { inputClass, TextField } from "./TextField.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 
-type RelayApi = NonNullable<NonNullable<Platform["hosting"]>["relay"]>;
+type RelayApi = NonNullable<Platform["hosting"]>["relay"];
 type Kind = CallRelayDraft["kind"];
 /** The fields a relay is described by, each of which can be what is wrong. */
 type Field = "keyId" | "apiToken" | "urls" | "username" | "credential";

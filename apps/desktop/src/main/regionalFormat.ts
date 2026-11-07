@@ -7,9 +7,6 @@
 
 export type HourCycle = "h23" | "h12";
 
-/** The argument the window's page is given the locale in (see the preload). */
-export const READER_LOCALE_ARG = "--ownbase-reader-locale=";
-
 /** A time pattern such as Windows' "HH:mm" or "h:mm tt": H is 24-hour, h is 12-hour. */
 export function hourCycleFromPattern(pattern: string): HourCycle | null {
   const bare = pattern.replace(/'[^']*'/g, "");

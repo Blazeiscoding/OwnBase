@@ -43,7 +43,7 @@ import {
 } from "../shared/bridge.js";
 import createBackupWorker from "./backupWorker?nodeWorker";
 import type { BackupJob, BackupReply } from "./backupWorker.js";
-import { createSettingsStorage, moveSettings } from "./settings.js";
+import { createSettingsStorage, ownSettings as movedOut } from "./settings.js";
 import type { CredentialProtector } from "./credentials.js";
 import { ClosePreparation } from "./closePreparation.js";
 import {
@@ -70,7 +70,7 @@ import {
 import { SystemMicrophones, isEndpointId } from "./microphone.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
-import { createHostingService, type LoginItem } from "./hostingService.js";
+import { HOSTING_KEYS, createHostingService, type LoginItem } from "./hostingService.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
 import { isWindowTheme, themeOfAppearance, windowColours } from "./windowTheme.js";
@@ -100,7 +100,8 @@ const trustedRenderer = rendererUrlTrust(rendererUrl);
  * pushed here includes invite links and hosting.
  */
 function push<E extends EventName>(event: E, payload: Events[E]): void {
-  for (const win of appRecipients(mainWindow, trustedRenderer)) win.webContents.send(event, payload);
+  for (const win of appRecipients(mainWindow, trustedRenderer))
+    win.webContents.send(event, payload);
 }
 let rendererReady = false;
 let quitting = false;
@@ -212,9 +213,10 @@ const settings = createSettingsStorage(
   credentialProtector,
 );
 /** What the main process keeps for itself, out of the window's reach. */
-const ownSettings = createSettingsStorage(
-  join(app.getPath("userData"), "app-settings.json"),
-  credentialProtector,
+const ownSettings = movedOut(
+  createSettingsStorage(join(app.getPath("userData"), "app-settings.json"), credentialProtector),
+  settings,
+  [...HOSTING_KEYS, WINDOW_PLACE_KEY, ZOOM_KEY],
 );
 const closePreparation = new ClosePreparation();
 
@@ -405,7 +407,6 @@ const loginItem: LoginItem | null = (() => {
 
 const hosting = createHostingService({
   settings: ownSettings,
-  pageSettings: settings,
   credentials: credentialProtector,
   dataRoot: join(app.getPath("userData"), "hosted"),
   cloudflaredFolder: join(app.getPath("userData"), "cloudflared"),
@@ -423,8 +424,7 @@ const hosting = createHostingService({
       title,
       buttonLabel,
       properties: (create ? ["openDirectory", "createDirectory"] : ["openDirectory"]) as (
-        | "openDirectory"
-        | "createDirectory"
+        "openDirectory" | "createDirectory"
       )[],
     };
     const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
@@ -442,7 +442,7 @@ const hosting = createHostingService({
 });
 
 /** What this copy of the app can do, handed to the window as it is made. */
-const capabilities: DesktopCapabilities = {
+const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
   screenSound,
   systemMicrophone: microphoneHelper !== null,
   openAtLogin: loginItem !== null,
@@ -498,8 +498,14 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
       )
     ).outbox,
   "storage:mergeDrafts": async (_event, key, changes, enveloped) =>
-    (await mergeDraftsSetting(settings, settingKey(key), changes as DraftChanges, enveloped === true))
-      .drafts,
+    (
+      await mergeDraftsSetting(
+        settings,
+        settingKey(key),
+        changes as DraftChanges,
+        enveloped === true,
+      )
+    ).drafts,
   // Each changed name only, such as one account's notification choice, so no
   // whole copy erases another's (F02).
   "storage:mergeRecord": async (_event, key, changes) => {
@@ -527,17 +533,20 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
     place.remember(url, state);
   },
   "window:takePlace": () => place.take(),
-  "window:preparedClose": (event, id, saved) =>
-    closePreparation.acknowledge(event.sender.id, id, saved),
+  "window:preparedClose": (event, id, saved) => {
+    closePreparation.acknowledge(event.sender.id, id, saved);
+  },
   "window:setTheme": async (_event, theme) => {
     if (!isWindowTheme(theme)) throw new Error("Not a theme.");
     windowTheme = theme;
     paintWindow();
     await ownSettings.set(WINDOW_THEME_KEY, theme);
   },
-  "screen:sources": (_event, quick) =>
-    quick === true ? screenSources.quick() : screenSources.full(),
-  "screen:choose": async (_event, id, sound) => {
+  "screen:sources": (_event, options) =>
+    (options as { quick?: unknown } | undefined)?.quick === true
+      ? screenSources.quick()
+      : screenSources.full(),
+  "screen:choose": async (_event, id, options) => {
     screenChoice.hold(
       await findSource(id, () =>
         desktopCapturer.getSources({
@@ -545,7 +554,7 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
           thumbnailSize: { width: 0, height: 0 },
         }),
       ),
-      sound === true && screenSound,
+      (options as { sound?: unknown } | undefined)?.sound === true && screenSound,
     );
   },
   "microphone:list": () => microphones.list(),
@@ -568,7 +577,11 @@ const handlers: Handlers<IpcMainInvokeEvent> = {
 for (const channel of CHANNELS)
   ipcMain.handle(
     channel,
-    answering(() => mainWindow, trustedRenderer, handlers[channel] as Handlers<IpcMainInvokeEvent>[typeof channel]),
+    answering(
+      () => mainWindow,
+      trustedRenderer,
+      handlers[channel] as Handlers<IpcMainInvokeEvent>[typeof channel],
+    ),
   );
 
 // ---------- the tray, and quitting ----------
@@ -989,8 +1002,6 @@ void app.whenReady().then(async () => {
       },
     ).catch(() => {});
   await hosting.load();
-  // The window's place and zoom were kept in the page's file before 0.1.0-beta.20.
-  await moveSettings(settings, ownSettings, [WINDOW_PLACE_KEY, ZOOM_KEY]).catch(() => {});
   // Unreadable, the window follows the system until the page says its theme.
   const saved = await ownSettings.get(WINDOW_THEME_KEY).catch(() => null);
   windowTheme = isWindowTheme(saved)

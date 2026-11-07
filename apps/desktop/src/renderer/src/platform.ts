@@ -1,133 +1,63 @@
-import type {
-  DraftChanges,
-  OutboxChanges,
-  RecordChanges,
-  StoredOutbox,
-} from "@ownbase/client-core";
-import type { AccessPolicy } from "@ownbase/protocol";
-import type {
-  AutoBackup,
-  CallRelayDraft,
-  CallRelaySetting,
-  DiscoveredServer,
-  HostedBackup,
-  HostedWorkspaces,
-  HostingStart,
-  HostingStatus,
-  LastHosted,
-  OpenedSystemMicrophone,
-  Platform,
-  RestoreInventory,
-  ShareableSource,
-  SystemMicrophoneDevice,
-} from "@ownbase/ui";
-
-interface OwnBaseBridge {
-  downloadFile: (url: string) => Promise<void>;
-  storageGet: (key: string, options?: { strict?: boolean }) => Promise<unknown>;
-  storageSet: (key: string, value: unknown) => Promise<void>;
-  storageMergeOutbox: (
-    key: string,
-    changes: OutboxChanges,
-    enveloped: boolean,
-  ) => Promise<StoredOutbox>;
-  onOutboxChanged: (cb: (key: string, stored: unknown) => void) => () => void;
-  storageMergeDrafts: (
-    key: string,
-    changes: DraftChanges,
-    enveloped: boolean,
-  ) => Promise<Record<string, string>>;
-  onDraftsChanged: (cb: (key: string, stored: unknown) => void) => () => void;
-  storageMergeRecord: (key: string, changes: RecordChanges) => Promise<Record<string, string>>;
-  storageInitialize: (key: string, value: unknown) => Promise<unknown>;
-  storageTrustAddress: (key: string, address: string) => Promise<string[] | null>;
-  onRecordChanged: (cb: (key: string, stored: unknown) => void) => () => void;
-  lanSnapshot: () => Promise<DiscoveredServer[]>;
-  onLanServers: (cb: (servers: DiscoveredServer[]) => void) => () => void;
-  hostingStatus: () => Promise<HostingStatus>;
-  hostingStart: (opts: HostingStart) => Promise<HostingStatus>;
-  hostingLastHosted: () => Promise<LastHosted | null>;
-  hostingList: () => Promise<HostedWorkspaces>;
-  hostingBackup: (folder: string) => Promise<{ path: string; at: number } | null>;
-  hostingForget: (folder: string) => Promise<void>;
-  hostingRename: (folder: string, name: string) => Promise<{ folder: string; name: string }>;
-  hostingOpenFolder: (folder: string) => Promise<void>;
-  hostingIcon: (folder: string) => Promise<string | null>;
-  hostingSetStartOnLaunch: (folder: string | null) => Promise<string | null>;
-  hostingSetReopenPublicOnLaunch: (reopen: boolean) => Promise<boolean>;
-  hostingDismissLaunchError: () => Promise<unknown>;
-  hostingSetPort: (folder: string, port: number) => Promise<{ folder: string; port: number }>;
-  hostingSetAutoBackup: (
-    folder: string,
-    schedule: { everyDays: 1 | 7; keep: number } | null,
-    chooseFolder: boolean,
-  ) => Promise<AutoBackup | null | undefined>;
-  hostingRunDueBackups: () => Promise<void>;
-  hostingOpenAtLogin: () => Promise<boolean | null>;
-  hostingSetOpenAtLogin: (open: boolean) => Promise<boolean>;
-  hostingRestore: () => Promise<{
-    folder: string;
-    name: string;
-    inventory?: RestoreInventory | null;
-  } | null>;
-  hostingBackups: (folder: string) => Promise<HostedBackup[]>;
-  hostingRestoreOver: (
-    folder: string,
-    backup: string | null,
-  ) => Promise<{
-    folder: string;
-    name: string;
-    setAside: string | null;
-    inventory?: RestoreInventory | null;
-  } | null>;
-  hostingStop: () => Promise<void>;
-  hostingOpenToAll: (opts: {
-    inviteOnly: boolean;
-    accessPolicy?: AccessPolicy;
-  }) => Promise<HostingStatus>;
-  hostingEndOpenToAll: () => Promise<HostingStatus>;
-  hostingSetInviteOnly: (inviteOnly: boolean) => Promise<HostingStatus>;
-  hostingSetAccessPolicy: (policy: AccessPolicy) => Promise<HostingStatus>;
-  hostingSetPublicAddress: (address: string) => Promise<HostingStatus>;
-  hostingInstallCloudflared: () => Promise<HostingStatus>;
-  hostingRelay: () => Promise<CallRelaySetting>;
-  hostingSetRelay: (draft: CallRelayDraft) => Promise<CallRelaySetting>;
-  hostingTestRelay: (draft: CallRelayDraft) => Promise<RTCIceServer[]>;
-  onHostingStatus: (cb: (status: HostingStatus) => void) => () => void;
-  consumeDeepLink: () => Promise<string | null>;
-  onDeepLink: (cb: (url: string) => void) => () => void;
-  revealWindow: () => Promise<void>;
-  rememberPlace: (url: string, state: unknown) => Promise<void>;
-  takePlace: () => Promise<unknown>;
-  onPrepareClose: (cb: (id: number) => void) => () => void;
-  preparedClose: (id: number, saved: boolean) => Promise<void>;
-  screenSources: (quick: boolean) => Promise<ShareableSource[] | null>;
-  chooseScreen: (id: string, sound: boolean) => Promise<void>;
-  screenSound: boolean;
-  /** The system's regional format for dates and times, when Chromium's differs. */
-  readerLocale?: string;
-  microphones?: () => Promise<{ defaultId: string | null; microphones: SystemMicrophoneDevice[] }>;
-  openMicrophone?: (id: string) => Promise<{ session: number; sampleRate: number; name: string }>;
-  closeMicrophone?: (session: number) => Promise<void>;
-}
+import type { DesktopErrorCode } from "@ownbase/protocol/desktop";
+import type { OpenedSystemMicrophone, Platform } from "@ownbase/ui";
+import {
+  MICROPHONE_PORT,
+  type Args,
+  type Channel,
+  type OwnBaseBridge,
+  type Result,
+} from "../../shared/bridge.js";
 
 declare global {
   interface Window {
-    ownbase: OwnBaseBridge;
+    /** Absent when this page is opened in a plain browser. */
+    ownbase?: OwnBaseBridge;
   }
 }
 
-/**
- * Electron prefixes a rejected handler's message with the channel it came
- * from. Where the main process wrote the message for the person reading it,
- * that prefix is noise, so it is removed before the UI ever sees it.
- */
+/** A desktop call that failed, with the code the UI acts on. */
+export class DesktopCallError extends Error {
+  constructor(
+    readonly code: DesktopErrorCode,
+    message: string,
+  ) {
+    super(message);
+    this.name = "DesktopCallError";
+  }
+}
+
+/** Electron's wording when the bridge itself rejects, before the reason it was given. */
 const IPC_PREFIX = /^Error invoking remote method '[^']*':\s*(?:[A-Za-z]*Error:\s*)?/;
-function plainly<T>(call: Promise<T>): Promise<T> {
-  return call.catch((reason: unknown) => {
-    const message = reason instanceof Error ? reason.message : String(reason);
-    throw new Error(message.replace(IPC_PREFIX, "") || message);
-  });
+
+export type Call = <C extends Channel>(channel: C, ...args: Args<C>) => Promise<Result<C>>;
+
+/** Makes a call through the bridge, resolving to its value or rejecting with its code. */
+export function invoker(bridge: Pick<OwnBaseBridge, "invoke">): Call {
+  return async (channel, ...args) => {
+    let reply;
+    try {
+      reply = await bridge.invoke(channel, ...args);
+    } catch (reason) {
+      const message = reason instanceof Error ? reason.message : String(reason);
+      throw new DesktopCallError("internal", message.replace(IPC_PREFIX, "") || message);
+    }
+    if (reply.ok) return reply.value;
+    throw new DesktopCallError(reply.error.code, reply.error.message);
+  };
+}
+
+type Callers<M extends Record<string, Channel>> = {
+  [K in keyof M]: (...args: Args<M[K]>) => Promise<Result<M[K]>>;
+};
+
+/** One function per named channel, each taking and resolving to what the contract says. */
+function callers<M extends Record<string, Channel>>(call: Call, channels: M): Callers<M> {
+  return Object.fromEntries(
+    Object.entries(channels).map(([name, channel]) => [
+      name,
+      (...args: unknown[]) => (call as (c: Channel, ...a: unknown[]) => unknown)(channel, ...args),
+    ]),
+  ) as unknown as Callers<M>;
 }
 
 /**
@@ -152,23 +82,19 @@ function windowsTag(tag: string): string {
   return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(36);
 }
 
-/** What the preload posts a microphone's port to this window as. */
-const MICROPHONE_PORT = "ownbase:microphone-port";
 /** How long an opened microphone's port may take to arrive. */
 const PORT_MS = 5000;
 
 /**
  * Microphones the app opens itself on Windows (the main process's
  * microphone.ts). Each one's sound arrives on a port of its own, posted to
- * this window by the preload: before or after the answer to opening it,
- * so ports are held here until they are asked for.
+ * this window by the preload before or after the answer to opening it, so
+ * ports are held here until they are asked for.
  */
 export function systemMicrophone(
-  bridge: Pick<OwnBaseBridge, "microphones" | "openMicrophone" | "closeMicrophone">,
+  call: Call,
   target: Window = window,
-): Platform["systemMicrophone"] {
-  const { microphones, openMicrophone, closeMicrophone } = bridge;
-  if (!microphones || !openMicrophone || !closeMicrophone) return undefined;
+): NonNullable<Platform["systemMicrophone"]> {
   const arrived = new Map<number, MessagePort>();
   const waiting = new Map<number, (port: MessagePort) => void>();
   target.addEventListener("message", (event: MessageEvent) => {
@@ -202,10 +128,10 @@ export function systemMicrophone(
       });
     });
   return {
-    list: () => microphones(),
+    list: () => call("microphone:list"),
     open: async (id): Promise<OpenedSystemMicrophone> => {
-      const { session, sampleRate, name } = await plainly(openMicrophone(id));
-      const close = () => void closeMicrophone(session).catch(() => {});
+      const { session, sampleRate, name } = await call("microphone:open", id);
+      const close = () => void call("microphone:close", session).catch(() => {});
       try {
         return { port: await portFor(session), sampleRate, name, close };
       } catch (err) {
@@ -216,13 +142,14 @@ export function systemMicrophone(
   };
 }
 
-export function electronPlatform(): Platform {
-  const bridge = window.ownbase;
+export function electronPlatform(bridge: OwnBaseBridge): Platform {
+  const call = invoker(bridge);
+  const { capabilities } = bridge;
   const preparing = {
     capture: new Set<() => void | Promise<void>>(),
     persist: new Set<() => void | Promise<void>>(),
   };
-  bridge.onPrepareClose?.((id) => {
+  bridge.on("window:prepareClose", (id) => {
     void (async () => {
       let saved = false;
       try {
@@ -232,7 +159,7 @@ export function electronPlatform(): Platform {
       } catch {
         // Failure is handed back to the native close decision; it must not silently quit.
       }
-      await bridge.preparedClose(id, saved).catch(() => {});
+      await call("window:preparedClose", id, saved).catch(() => {});
     })();
   });
   return {
@@ -243,29 +170,20 @@ export function electronPlatform(): Platform {
         preparing[phase].delete(prepare);
       };
     },
-    downloadFile: (url) => bridge.downloadFile(url),
+    downloadFile: (url) => call("file:download", url),
+    setWindowTheme: (theme) => void call("window:setTheme", theme).catch(() => {}),
+    // One window, so nothing else changes what it stores: no watch* here.
     storage: {
       get: async <T>(key: string, options?: { strict?: boolean }) =>
-        (await bridge.storageGet(key, options)) as T | null,
-      set: (key, value) => bridge.storageSet(key, value),
-      initialize: (key, value) => bridge.storageInitialize(key, value),
-      trustAddress: (key, address) => bridge.storageTrustAddress(key, address),
-      // Merged in the main process, where every window's writes wait their turn.
-      mergeOutbox: (key, changes, enveloped) => bridge.storageMergeOutbox(key, changes, enveloped),
-      watchOutbox: (key, cb) =>
-        bridge.onOutboxChanged((changed, stored) => {
-          if (changed === key) cb(stored);
-        }),
-      mergeDrafts: (key, changes, enveloped) => bridge.storageMergeDrafts(key, changes, enveloped),
-      watchDrafts: (key, cb) =>
-        bridge.onDraftsChanged((changed, stored) => {
-          if (changed === key) cb(stored);
-        }),
-      mergeRecord: (key, changes) => bridge.storageMergeRecord(key, changes),
-      watchRecord: (key, cb) =>
-        bridge.onRecordChanged((changed, stored) => {
-          if (changed === key) cb(stored);
-        }),
+        (await call("storage:get", key, options)) as T | null,
+      ...callers(call, {
+        set: "storage:set",
+        initialize: "storage:initialize",
+        trustAddress: "storage:trustAddress",
+        mergeOutbox: "storage:mergeOutbox",
+        mergeDrafts: "storage:mergeDrafts",
+        mergeRecord: "storage:mergeRecord",
+      }),
     },
     notify: (title, body, onClick, options) => {
       const tag = options?.tag === undefined ? undefined : windowsTag(options.tag);
@@ -275,70 +193,61 @@ export function electronPlatform(): Platform {
           event.preventDefault();
           // The renderer cannot raise a window that is minimized or closed to
           // the tray; the main process can.
-          void bridge.revealWindow();
+          void call("window:reveal").catch(() => {});
           onClick();
           note.close();
         };
       }
     },
     screenShare: {
-      sources: (options) => bridge.screenSources(options?.quick === true),
-      // Says, in the picker's words, when what was chosen has gone.
-      choose: (id, options) => plainly(bridge.chooseScreen(id, options?.sound === true)),
-      sound: bridge.screenSound === true,
+      ...callers(call, { sources: "screen:sources", choose: "screen:choose" }),
+      sound: capabilities.screenSound,
     },
-    systemMicrophone: systemMicrophone(bridge),
+    ...(capabilities.systemMicrophone ? { systemMicrophone: systemMicrophone(call) } : {}),
     discoverLan: (cb) => {
-      void bridge.lanSnapshot().then(cb);
-      return bridge.onLanServers(cb);
+      void call("lan:snapshot").then(cb, () => {});
+      return bridge.on("lan:servers", cb);
     },
     deepLinks: {
-      consumePending: () => bridge.consumeDeepLink(),
-      subscribe: (cb) => bridge.onDeepLink(cb),
+      consumePending: () => call("deeplink:consume"),
+      subscribe: (cb) => bridge.on("deeplink", cb),
     },
     hosting: {
-      status: () => bridge.hostingStatus(),
-      // Its refusals are the controller's own words, and the window shows them.
-      start: (opts) => plainly(bridge.hostingStart(opts)),
-      setPort: (folder, port) => plainly(bridge.hostingSetPort(folder, port)),
-      setAutoBackup: (folder, schedule, chooseFolder) =>
-        plainly(bridge.hostingSetAutoBackup(folder, schedule, chooseFolder)),
-      retryBackups: () => bridge.hostingRunDueBackups(),
-      lastHosted: () => bridge.hostingLastHosted(),
-      list: () => bridge.hostingList(),
-      backup: (folder) => plainly(bridge.hostingBackup(folder)),
-      forget: (folder) => plainly(bridge.hostingForget(folder)),
-      rename: (folder, name) => plainly(bridge.hostingRename(folder, name)),
-      openFolder: (folder) => plainly(bridge.hostingOpenFolder(folder)),
-      icon: (folder) => bridge.hostingIcon(folder),
-      setReopenPublicOnLaunch: (reopen) => plainly(bridge.hostingSetReopenPublicOnLaunch(reopen)),
-      dismissLaunchError: async () => {
-        await plainly(bridge.hostingDismissLaunchError());
-      },
-      setStartOnLaunch: async (folder) => {
-        await plainly(bridge.hostingSetStartOnLaunch(folder));
-      },
-      openAtLogin: {
-        get: () => bridge.hostingOpenAtLogin(),
-        set: (open) => plainly(bridge.hostingSetOpenAtLogin(open)),
-      },
-      restore: () => plainly(bridge.hostingRestore()),
-      backups: (folder) => plainly(bridge.hostingBackups(folder)),
-      restoreOver: (folder, backup) => plainly(bridge.hostingRestoreOver(folder, backup)),
-      stop: () => bridge.hostingStop(),
-      openToAll: (opts) => plainly(bridge.hostingOpenToAll(opts)),
-      endOpenToAll: () => bridge.hostingEndOpenToAll(),
-      setInviteOnly: (inviteOnly) => bridge.hostingSetInviteOnly(inviteOnly),
-      setAccessPolicy: (policy) => bridge.hostingSetAccessPolicy(policy),
-      setPublicAddress: (address) => plainly(bridge.hostingSetPublicAddress(address)),
-      // Says, in the installer's words, what to do when it could not.
-      installCloudflared: () => plainly(bridge.hostingInstallCloudflared()),
-      relay: {
-        get: () => bridge.hostingRelay(),
-        set: (draft) => plainly(bridge.hostingSetRelay(draft)),
-        test: (draft) => plainly(bridge.hostingTestRelay(draft)),
-      },
-      subscribe: (cb) => bridge.onHostingStatus(cb),
+      ...callers(call, {
+        status: "hosting:status",
+        start: "hosting:start",
+        stop: "hosting:stop",
+        openToAll: "hosting:openToAll",
+        endOpenToAll: "hosting:endOpenToAll",
+        setAccessPolicy: "hosting:setAccessPolicy",
+        setPublicAddress: "hosting:setPublicAddress",
+        installCloudflared: "hosting:installCloudflared",
+        lastHosted: "hosting:lastHosted",
+        list: "hosting:list",
+        backup: "hosting:backup",
+        forget: "hosting:forget",
+        rename: "hosting:rename",
+        openFolder: "hosting:openFolder",
+        icon: "hosting:icon",
+        setStartOnLaunch: "hosting:setStartOnLaunch",
+        setReopenPublicOnLaunch: "hosting:setReopenPublicOnLaunch",
+        dismissLaunchError: "hosting:dismissLaunchError",
+        setPort: "hosting:setPort",
+        setAutoBackup: "hosting:setAutoBackup",
+        retryBackups: "hosting:retryBackups",
+        restore: "hosting:restore",
+        backups: "hosting:backups",
+        restoreOver: "hosting:restoreOver",
+      }),
+      subscribe: (cb) => bridge.on("hosting:changed", cb),
+      relay: callers(call, {
+        get: "hosting:relay:get",
+        set: "hosting:relay:set",
+        test: "hosting:relay:test",
+      }),
+      openAtLogin: capabilities.openAtLogin
+        ? callers(call, { get: "hosting:openAtLogin:get", set: "hosting:openAtLogin:set" })
+        : null,
     },
   };
 }
@@ -351,12 +260,13 @@ export function electronPlatform(): Platform {
  * moment, since reading position changes as someone scrolls.
  */
 export async function followPlace(
-  bridge: Pick<OwnBaseBridge, "rememberPlace" | "takePlace">,
+  bridge: Pick<OwnBaseBridge, "invoke">,
   delayMs = 250,
 ): Promise<void> {
+  const call = invoker(bridge);
   // A recovered page starts from the entry it had; the app checks that entry
   // belongs to the workspace it opens before using it.
-  const recovered = await bridge.takePlace().catch(() => null);
+  const recovered = await call("window:takePlace").catch(() => null);
   if (recovered && window.history.state == null)
     window.history.replaceState(recovered, "", window.location.href);
   let timer: ReturnType<typeof setTimeout> | null = null;
@@ -364,7 +274,7 @@ export async function followPlace(
     if (timer) return;
     timer = setTimeout(() => {
       timer = null;
-      void bridge.rememberPlace(window.location.href, window.history.state).catch(() => {});
+      void call("window:rememberPlace", window.location.href, window.history.state).catch(() => {});
     }, delayMs);
   };
   for (const method of ["pushState", "replaceState"] as const) {

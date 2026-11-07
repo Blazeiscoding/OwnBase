@@ -138,6 +138,7 @@ const BAR_COLOURS = { dark: "#111115", light: "#e9e9ec" } as const;
  * at the top of the app, so every screen follows.
  */
 export function useApplyAppearance(): void {
+  const platform = usePlatform();
   const { theme, density, loaded } = useAppearance();
   useEffect(() => {
     const root = document.documentElement;
@@ -146,6 +147,10 @@ export function useApplyAppearance(): void {
     // Only what was read or chosen: before that, the store holds the copy itself.
     if (loaded) keepFirstPaintCopy(theme, density);
   }, [theme, density, loaded]);
+  // The desktop window's own frame and title bar, painted before the page is.
+  useEffect(() => {
+    if (loaded) platform.setWindowTheme?.(theme);
+  }, [platform, theme, loaded]);
   // The browser's bars around the page (a phone's, an installed app's) in the same theme.
   useEffect(() => {
     const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');

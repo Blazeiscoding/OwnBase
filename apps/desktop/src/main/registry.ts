@@ -5,10 +5,7 @@ import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { holdWorkspace } from "@ownbase/server/ownership";
 import { ICON_META_KEYS, readStoredIcon } from "@ownbase/server/workspaceIcon";
-import type {
-  AutoBackup as AutoBackupView,
-  BackupFailureKind,
-} from "@ownbase/protocol/desktop";
+import type { AutoBackup as AutoBackupView, BackupFailureKind } from "@ownbase/protocol/desktop";
 import { DesktopError } from "../shared/desktopError.js";
 
 /**
@@ -150,7 +147,11 @@ const FOLDER = /^[a-z0-9-]{1,64}$/;
 export class RegistryFormatError extends DesktopError {
   constructor(kind: "newer" | "unsupported" | "invalid") {
     super(
-      kind === "newer" ? "registry-newer" : kind === "unsupported" ? "registry-unsupported" : "registry-damaged",
+      kind === "newer"
+        ? "registry-newer"
+        : kind === "unsupported"
+          ? "registry-unsupported"
+          : "registry-damaged",
       kind === "newer"
         ? "A newer version of OwnBase saved the list of hosted workspaces. Update OwnBase to open it. The list was not changed."
         : kind === "unsupported"

@@ -23,25 +23,45 @@ export interface SettingsStorage {
   drain(): Promise<void>;
 }
 
+/** Marks a settings file whose keys were already taken out of the page's file. */
+const MOVED_KEY = "movedFromPageSettings";
+
 /**
- * Moves `keys` from one settings file to another, as the main process took
- * its own settings out of the file the window writes. One already in `to` is
- * kept there, and every one found is then removed from `from`. Throws, moving
- * nothing more, while either file cannot be read, so it can be tried again.
+ * The main process's own settings, which used to share the file the page
+ * writes. Before the first read or write, `keys` found in `page` are moved
+ * here (one already here wins) and removed there, once: after that the page's
+ * file is never read for them, so nothing the page writes under those names
+ * reaches the main process. While either file cannot be read, nothing is
+ * answered and the move is tried again on the next call.
  */
-export async function moveSettings(
-  from: SettingsStorage,
-  to: SettingsStorage,
+export function ownSettings(
+  own: SettingsStorage,
+  page: SettingsStorage,
   keys: readonly string[],
-): Promise<void> {
-  for (const key of keys) {
-    const value = await from.get(key, { strict: true, distinguishMissing: true });
-    if (value === undefined) continue;
-    if ((await to.get(key, { strict: true, distinguishMissing: true })) === undefined)
-      await to.set(key, value);
-    // A value of undefined leaves the key out of the file.
-    await from.set(key, undefined);
-  }
+): SettingsStorage {
+  let moved: Promise<void> | null = null;
+  const move = () =>
+    (moved ??= (async () => {
+      if ((await own.get(MOVED_KEY, { strict: true })) === true) return;
+      for (const key of keys) {
+        const value = await page.get(key, { strict: true, distinguishMissing: true });
+        if (value === undefined) continue;
+        if ((await own.get(key, { strict: true, distinguishMissing: true })) === undefined)
+          await own.set(key, value);
+        // JSON leaves an undefined value out of the file.
+        await page.set(key, undefined);
+      }
+      await own.set(MOVED_KEY, true);
+    })().catch((error: unknown) => {
+      moved = null;
+      throw error;
+    }));
+  return {
+    get: async (key, options) => (await move(), own.get(key, options)),
+    set: async (key, value) => (await move(), own.set(key, value)),
+    update: async (key, change) => (await move(), own.update(key, change)),
+    drain: () => own.drain(),
+  };
 }
 
 /** All callers share one queue so a legacy migration cannot race another settings write. */

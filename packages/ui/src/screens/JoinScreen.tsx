@@ -362,7 +362,7 @@ function ResumeHosted(props: {
     try {
       // The remembered port keeps the saved sign-in's address working; a
       // fallback port would open somewhere the sign-in does not point.
-      await start(folder ? { folder, port } : { workspaceName, port });
+      await start({ folder, port });
       // Its own sign-in still works, so reopening it asks for no password;
       // one that stopped working falls back to the sign-in form.
       onOpenSaved(saved);

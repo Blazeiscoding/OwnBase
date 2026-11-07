@@ -60,8 +60,8 @@ export interface Calls {
   "window:takePlace": () => unknown;
   "window:preparedClose": (id: number, saved: boolean) => void;
   "window:setTheme": (theme: WindowTheme) => void;
-  "screen:sources": (quick: boolean) => ShareableSource[] | null;
-  "screen:choose": (id: string, sound: boolean) => void;
+  "screen:sources": (options?: { quick?: boolean }) => ShareableSource[] | null;
+  "screen:choose": (id: string, options?: { sound?: boolean }) => void;
   "microphone:list": () => SystemMicrophones;
   "microphone:open": (id: string) => OpenedMicrophone;
   "microphone:close": (session: number) => void;
@@ -115,8 +115,7 @@ export type Result<C extends Channel> = ReturnType<Calls[C]>;
 
 /** How every call is answered: what it resolves to, or why it failed. */
 export type Reply<C extends Channel> =
-  | { ok: true; value: Result<C> }
-  | { ok: false; error: DesktopFailure };
+  { ok: true; value: Result<C> } | { ok: false; error: DesktopFailure };
 
 /** What the preload puts on `window.ownbase`. */
 export interface OwnBaseBridge {
@@ -205,6 +204,7 @@ export function capabilitiesArgument(capabilities: DesktopCapabilities): string 
 /** The capabilities in a window's arguments; none where they cannot be read. */
 export function readCapabilities(argv: readonly string[]): DesktopCapabilities {
   const none: DesktopCapabilities = {
+    readerLocale: null,
     screenSound: false,
     systemMicrophone: false,
     openAtLogin: false,
@@ -214,6 +214,7 @@ export function readCapabilities(argv: readonly string[]): DesktopCapabilities {
   try {
     const read = JSON.parse(arg.slice(CAPABILITIES_ARG.length)) as Record<string, unknown>;
     return {
+      readerLocale: typeof read.readerLocale === "string" ? read.readerLocale : null,
       screenSound: read.screenSound === true,
       systemMicrophone: read.systemMicrophone === true,
       openAtLogin: read.openAtLogin === true,
