@@ -1,4 +1,5 @@
 import type { Channel, ID, User } from "@ownbase/protocol";
+import { dateFormat } from "./readerLocale.js";
 
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -12,15 +13,15 @@ export function formatBytes(bytes: number): string {
   return `${value < 10 ? value.toFixed(1) : Math.round(value)} ${units[unit]}`;
 }
 
-// One formatter each, in the reader's own locale, made once: the time is
-// formatted for every message on screen.
-const timeFormat = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
-const dayFormat = new Intl.DateTimeFormat(undefined, {
+// One formatter each, in the reader's own locale (readerLocale.ts), made once:
+// the time is formatted for every message on screen.
+const timeFormat = dateFormat({ hour: "numeric", minute: "2-digit" });
+const dayFormat = dateFormat({
   weekday: "long",
   month: "long",
   day: "numeric",
 });
-const fullFormat = new Intl.DateTimeFormat(undefined, { dateStyle: "full", timeStyle: "short" });
+const fullFormat = dateFormat({ dateStyle: "full", timeStyle: "short" });
 
 export function formatTime(ts: number): string {
   return timeFormat.format(ts);
@@ -31,9 +32,9 @@ export function formatFull(ts: number): string {
   return fullFormat.format(ts);
 }
 
-const weekdayFormat = new Intl.DateTimeFormat(undefined, { weekday: "short" });
-const shortDateFormat = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric" });
-const longDateFormat = new Intl.DateTimeFormat(undefined, {
+const weekdayFormat = dateFormat({ weekday: "short" });
+const shortDateFormat = dateFormat({ month: "short", day: "numeric" });
+const longDateFormat = dateFormat({
   month: "short",
   day: "numeric",
   year: "numeric",

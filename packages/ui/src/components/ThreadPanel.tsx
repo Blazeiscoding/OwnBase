@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FileMeta, ID, ReplyReference } from "@ownbase/protocol";
-import type { PollDraft } from "@ownbase/client-core";
+import { readableText, type PollDraft } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { PendingStatus } from "./PendingStatus.js";
 import { Composer } from "./Composer.js";
@@ -16,6 +16,8 @@ import { ListStatus } from "./ListStatus.js";
 import type { ReadingPosition } from "../lib/route.js";
 import { rememberThreadPosition, rememberedThreadPosition } from "../lib/threadPosition.js";
 import { channelTitle } from "../lib/format.js";
+import { writeClipboard } from "../lib/useCopy.js";
+import { useOptionalToast } from "./Toast.js";
 
 interface Props {
   channelId: ID;
@@ -50,6 +52,9 @@ export function ThreadPanel({
   const muted = useWorkspace((s) => s.threadFollows[rootId]?.muted === true);
   const canMute = useWorkspace((s) => s.threadMutes);
   const pending = useWorkspace((s) => s.pending).filter((p) => p.threadRootId === rootId);
+  // A reply being written when the message it answers was deleted: kept, as
+  // the reply box keeps its draft, until copied elsewhere or deleted.
+  const unsent = useWorkspace((s) => s.drafts[`${channelId}:${rootId}`]);
   // Where the thread is: a phone shows it over the conversation it came from.
   const where = useWorkspace((s) => {
     const channel = s.channels[channelId];
@@ -363,8 +368,16 @@ export function ThreadPanel({
           </div>
         ))}
       </div>
-      {root && (
+      {root ? (
         <Composer channelId={channelId} threadRootId={rootId} placeholder="Reply…" autoFocus />
+      ) : (
+        page?.loaded &&
+        unsent?.trim() && (
+          <UnsentReply
+            text={readableText(client.state, unsent)}
+            onDelete={() => client.setDraft(`${channelId}:${rootId}`, "")}
+          />
+        )
       )}
       {lightbox && (
         <Lightbox
@@ -374,6 +387,47 @@ export function ThreadPanel({
         />
       )}
     </aside>
+  );
+}
+
+/**
+ * The reply being written when the thread's first message was deleted. It
+ * has nothing left to answer, so its words show in full, to copy elsewhere or
+ * delete; it stays in Drafts until then.
+ */
+function UnsentReply(props: { text: string; onDelete: () => void }) {
+  const toast = useOptionalToast();
+  return (
+    <div role="group" aria-label="Your unsent reply" className="border-t border-edge px-5 py-3">
+      <p className="text-[13px] text-ink-faint">Your reply was not sent.</p>
+      <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-line break-words text-[15px] text-ink-dim">
+        {props.text}
+      </p>
+      <div className="mt-2 flex gap-1">
+        <button
+          type="button"
+          onClick={() =>
+            void writeClipboard(props.text).then((ok) =>
+              toast?.(
+                ok
+                  ? { message: "Reply copied.", kind: "success" }
+                  : { message: "Could not copy the reply.", kind: "error" },
+              ),
+            )
+          }
+          className="rounded-md px-2 py-1 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-ink"
+        >
+          Copy text
+        </button>
+        <button
+          type="button"
+          onClick={props.onDelete}
+          className="rounded-md px-2 py-1 text-[13px] font-medium text-ink-dim transition-colors hover:bg-ink/[0.06] hover:text-alert"
+        >
+          Delete draft
+        </button>
+      </div>
+    </div>
   );
 }
 

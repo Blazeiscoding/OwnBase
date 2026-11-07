@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { currentZoneName, type User } from "@ownbase/protocol";
+import { readerLocale } from "./readerLocale.js";
 
 /**
  * Someone's local time (E9): the time in their zone, as this reader writes
@@ -10,10 +11,11 @@ const formatters = new Map<string, Intl.DateTimeFormat>();
 
 /** The time of day at `at` in a zone, such as "9:42 PM"; null for a zone this device does not know. */
 export function timeIn(timeZone: string, at: number): string | null {
-  let format = formatters.get(timeZone);
+  const key = `${readerLocale() ?? ""} ${timeZone}`;
+  let format = formatters.get(key);
   if (!format) {
     try {
-      format = new Intl.DateTimeFormat(undefined, {
+      format = new Intl.DateTimeFormat(readerLocale(), {
         hour: "numeric",
         minute: "2-digit",
         timeZone,
@@ -21,7 +23,7 @@ export function timeIn(timeZone: string, at: number): string | null {
     } catch {
       return null;
     }
-    formatters.set(timeZone, format);
+    formatters.set(key, format);
   }
   return format.format(at);
 }

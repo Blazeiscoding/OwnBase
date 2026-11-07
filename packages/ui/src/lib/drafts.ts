@@ -79,22 +79,32 @@ export interface DraftEntry {
   text: string;
   /** When they last changed, if this device knows. */
   at?: number;
+  /**
+   * Written in a conversation this account can no longer open: it was
+   * removed from it, or it is gone. The words can be copied, not sent.
+   */
+  gone?: boolean;
 }
 
 /**
  * Every draft to list, newest first, then those whose time this device never
- * learned (kept by an earlier version). Drafts in conversations this client
- * no longer has, and keys it does not know, are left out.
+ * learned (kept by an earlier version). Keys it does not know are left out.
+ * So are drafts in conversations this client does not have, unless `settled`
+ * says its conversations are the server's: then they are listed as gone,
+ * since the words are still the person's.
  */
 export function listDrafts(
   drafts: Record<string, string>,
   times: Record<string, number>,
   channels: Record<ID, Channel>,
+  settled = false,
 ): DraftEntry[] {
   const entries: DraftEntry[] = [];
   for (const [key, value] of Object.entries(drafts)) {
     const place = draftPlace(key);
-    if (!place || !channels[place.channelId]) continue;
+    if (!place) continue;
+    const gone = !channels[place.channelId];
+    if (gone && !settled) continue;
     const text =
       place.kind === "edit"
         ? readEditDraft(value)?.text
@@ -102,7 +112,7 @@ export function listDrafts(
           ? readScheduledEditDraft(value)
           : value;
     if (!text?.trim()) continue;
-    entries.push({ key, place, text, at: times[key] });
+    entries.push({ key, place, text, at: times[key], ...(gone ? { gone } : {}) });
   }
   // Stable, so drafts with no time keep the order they were stored in.
   return entries.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));

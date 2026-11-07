@@ -127,7 +127,7 @@ function hanasActivity(options: { threads?: boolean } = {}) {
   const onJump = vi.fn();
   render(
     <ClientContext.Provider value={client}>
-      <ActivityPanel onClose={() => {}} onJump={onJump} />
+      <ActivityPanel onClose={() => {}} onJump={onJump} onOpenChannel={() => {}} />
     </ClientContext.Provider>,
   );
   const panel = screen.getByRole("complementary", { name: "Activity" });
