@@ -7,6 +7,7 @@ import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
 import type { CloudflaredInstall } from "@ownbase/protocol/desktop";
 import { lookup } from "./lookup.js";
+import { pinnedCloudflared } from "./tunnel.js";
 
 /**
  * Installs Cloudflare's cloudflared for Open to all with what this computer
@@ -398,11 +399,6 @@ export interface InstallerOptions {
   find: () => string | null;
   /** Called whenever what `state()` says changes. */
   onChange: () => void;
-  /**
-   * Whether OwnBase was pointed at one cloudflared (`pinnedCloudflared`).
-   * Installing another would change nothing, so none is offered.
-   */
-  pinned?: boolean;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   arch?: string;
@@ -428,8 +424,10 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
   const lifetime = new AbortController();
   let installing: Promise<string> | null = null;
   let progress: CloudflaredInstall | null = null;
+  // Pointed at one cloudflared, OwnBase uses only that, so installing another changes nothing.
+  const pinned = pinnedCloudflared(env) !== null;
   const route = lookup<InstallRoute | null>(() =>
-    options.pinned
+    pinned
       ? null
       : (findPackageManager(env, options.exists, platform)?.route ??
         (releaseAsset(platform, arch) ? "download" : null)),
@@ -443,7 +441,7 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
   async function run(): Promise<string> {
     const already = options.find();
     if (already) return already;
-    if (options.pinned)
+    if (pinned)
       throw new Error(
         "OWNBASE_CLOUDFLARED names the cloudflared to use, but there is no file there. Correct it, then press Check again.",
       );

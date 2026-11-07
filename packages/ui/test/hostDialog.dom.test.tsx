@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, type Mock } from "vitest";
 import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { HostDialog } from "../src/components/HostDialog.js";
@@ -6,18 +6,27 @@ import { useHostingStatus } from "../src/lib/hosting.js";
 import type {
   AutoBackup,
   HostedBackup,
+  HostedWorkspace,
   HostedWorkspaces,
   HostingStart,
   HostingStatus,
   Platform,
   RestoreInventory,
+  StartedWorkspace,
 } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 import type { AccessPolicy } from "@ownbase/protocol";
 
 type Hosting = NonNullable<Platform["hosting"]>;
 
-const stopped: HostingStatus = { running: false, phase: "stopped" };
+/** A listed workspace as a test names it; the rest is what a plain one has. */
+type Listed = Pick<
+  HostedWorkspace,
+  "folder" | "name" | "port" | "lastHostedAt" | "lastBackupAt" | "running" | "missing"
+> &
+  Partial<HostedWorkspace>;
+
+const stopped: HostingStatus = { running: false, phase: "stopped", backgroundAvailable: true };
 const publicUrl = "https://rocket-team.trycloudflare.com";
 const running: HostingStatus = {
   running: true,
@@ -27,132 +36,143 @@ const running: HostingStatus = {
   lanUrls: ["192.168.1.20:8543"],
   dataDir: "C:\\Users\\sam\\AppData\\Roaming\\OwnBase\\hosted\\rocket-team",
   backgroundAvailable: true,
+  accessPolicy: "invite_only",
 };
 
-/** The desktop app's hosting bridge, with a status that can change underneath the dialog. */
+/**
+ * The desktop app's hosting, with a status that changes underneath the
+ * dialog: as in the app, every change is pushed, and no call returns it.
+ */
 function fakeHosting(
   initial: HostingStatus,
-  hosted?: HostedWorkspaces,
-  /** An app with guest access, which says who may join as a policy. */
-  options: { guests?: boolean } = {},
+  hosted?: { workspaces: Listed[]; unreadable: string[] },
 ) {
   let current = initial;
   const listeners = new Set<(status: HostingStatus) => void>();
+  const change = (next: HostingStatus) => {
+    current = next;
+    listeners.forEach((listener) => listener(next));
+  };
+  const listed = () => ({
+    unreadable: hosted?.unreadable ?? [],
+    workspaces: (hosted?.workspaces ?? []).map((w): HostedWorkspace => ({
+      startsOnLaunch: false,
+      autoBackup: null,
+      autoBackupError: null,
+      restored: false,
+      iconVersion: null,
+      ...w,
+    })),
+  });
   const hosting = {
     status: vi.fn(async () => current),
-    start: vi.fn(async (request: HostingStart) => {
-      const workspaceName =
-        "folder" in request
-          ? hosted!.workspaces.find((w) => w.folder === request.folder)!.name
-          : request.workspaceName;
-      current = { ...running, workspaceName };
-      return current;
-    }),
-    ...(hosted
-      ? {
-          list: vi.fn(async () => hosted),
-          forget: vi.fn(async (_folder: string) => {}),
-          restore: vi.fn(
-            async (): Promise<{
-              folder: string;
-              name: string;
-              inventory?: RestoreInventory | null;
-            } | null> => ({
-              folder: "w-restored",
-              name: "Rocket Team",
-              inventory: {
-                appAddresses: [{ origin: "https://bot.example", uses: ["events"] }],
-                scheduled: { waiting: 1, earliestAt: null },
-                undeliveredEvents: 0,
-                sessions: 2,
-              },
-            }),
-          ),
-          backup: vi.fn(async (folder: string): Promise<{ path: string; at: number } | null> => ({
-            path: `/backups/${folder}-2026-09-25T10-00-00`,
-            at: Date.now(),
-          })),
-          rename: vi.fn(async (folder: string, name: string) => ({ folder, name: name.trim() })),
-          openFolder: vi.fn(async (_folder: string) => {}),
-          setPort: vi.fn(async (folder: string, port: number) => ({ folder, port })),
-          setAutoBackup: vi.fn(
-            async (
-              _folder: string,
-              schedule: { everyDays: 1 | 7; keep: number } | null,
-              _chooseFolder: boolean,
-            ): Promise<AutoBackup | null | undefined> =>
-              schedule ? { destination: "D:\\Backups", ...schedule } : null,
-          ),
-          retryBackups: vi.fn(async () => {}),
-        }
-      : {}),
-    stop: vi.fn(async () => {
-      current = stopped;
-    }),
-    openToAll: vi.fn(
-      async ({
-        inviteOnly,
-        accessPolicy,
-      }: {
-        inviteOnly: boolean;
-        accessPolicy?: AccessPolicy;
-      }) => {
-        current = {
-          ...current,
-          openToAll: { phase: "open", url: publicUrl },
-          tunnelAvailable: true,
-          inviteOnly,
-          ...(accessPolicy ? { accessPolicy } : {}),
-        };
-        return current;
-      },
-    ),
-    ...(options.guests
-      ? {
-          setAccessPolicy: vi.fn(async (accessPolicy: AccessPolicy) => {
-            current = { ...current, accessPolicy, inviteOnly: accessPolicy === "invite_only" };
-            return current;
-          }),
-        }
-      : {}),
-    endOpenToAll: vi.fn(async () => {
-      delete current.openToAll;
-      current = { ...current, openToAllError: undefined };
-      return current;
-    }),
-    setInviteOnly: vi.fn(async (inviteOnly: boolean) => {
-      current = { ...current, inviteOnly };
-      return current;
-    }),
-    // The main process validates and saves; here it simply takes what it is given.
-    setPublicAddress: vi.fn(async (address: string) => {
-      current = address
-        ? {
-            ...current,
-            publicAddress: address,
-            publicAddressSetting: address,
-            inviteOnly: true,
-            openToAllError: undefined,
-          }
-        : {
-            ...current,
-            publicAddress: undefined,
-            publicAddressSetting: undefined,
-            inviteOnly: true,
-            openToAllError: undefined,
-          };
-      return current;
-    }),
     subscribe: (listener: (status: HostingStatus) => void) => {
       listeners.add(listener);
       return () => void listeners.delete(listener);
     },
-  };
+    start: vi.fn(async (request: HostingStart): Promise<StartedWorkspace> => {
+      const folder = "folder" in request ? request.folder : "rocket-team";
+      const workspaceName =
+        "folder" in request
+          ? listed().workspaces.find((w) => w.folder === request.folder)!.name
+          : request.workspaceName;
+      change({ ...running, workspaceName, folder });
+      return { folder, workspaceName, port: running.port! };
+    }),
+    stop: vi.fn(async () => change(stopped)),
+    openToAll: vi.fn(async (accessPolicy: AccessPolicy) =>
+      change({
+        ...current,
+        openToAll: { phase: "open", url: publicUrl },
+        tunnelAvailable: true,
+        accessPolicy,
+      }),
+    ),
+    endOpenToAll: vi.fn(async () => {
+      const { openToAll: _closed, ...rest } = current;
+      change({ ...rest, openToAllError: undefined });
+    }),
+    setAccessPolicy: vi.fn(async (accessPolicy: AccessPolicy) =>
+      change({ ...current, accessPolicy }),
+    ),
+    // The main process validates and saves; here it simply takes what it is given.
+    setPublicAddress: vi.fn(async (address: string) =>
+      change({
+        ...current,
+        publicAddress: address || undefined,
+        publicAddressSetting: address || undefined,
+        accessPolicy: "invite_only",
+        openToAllError: undefined,
+      }),
+    ),
+    installCloudflared: vi.fn(async () => {}),
+    relay: {
+      get: vi.fn(async () => ({ kind: "none" as const })),
+      set: vi.fn(async () => ({ kind: "none" as const })),
+      test: vi.fn(async () => []),
+    },
+    lastHosted: vi.fn(async () => null),
+    // Takes a list as a test names it, filling in the rest.
+    list: vi.fn(async () => listed()) as Mock<
+      () => Promise<{ workspaces: Listed[]; unreadable: string[] }>
+    > &
+      (() => Promise<HostedWorkspaces>),
+    backup: vi.fn(async (folder: string): Promise<{ path: string; at: number } | null> => ({
+      path: `/backups/${folder}-2026-09-25T10-00-00`,
+      at: Date.now(),
+    })),
+    forget: vi.fn(async (_folder: string) => {}),
+    rename: vi.fn(async (folder: string, name: string) => ({ folder, name: name.trim() })),
+    openFolder: vi.fn(async (_folder: string) => {}),
+    icon: vi.fn(async (_folder: string): Promise<string | null> => null),
+    setStartOnLaunch: vi.fn(async (_folder: string | null) => {}),
+    setReopenPublicOnLaunch: vi.fn(async (_reopen: boolean) => {}),
+    dismissLaunchError: vi.fn(async () => {}),
+    setPort: vi.fn(async (_folder: string, _port: number) => {}),
+    setAutoBackup: vi.fn(
+      async (
+        _folder: string,
+        schedule: { everyDays: 1 | 7; keep: number } | null,
+        _chooseFolder: boolean,
+      ): Promise<AutoBackup | null | undefined> =>
+        schedule ? { destination: "D:\\Backups", ...schedule } : null,
+    ),
+    retryBackups: vi.fn(async () => {}),
+    openAtLogin: null as {
+      get: Mock<() => Promise<boolean>>;
+      set: Mock<(open: boolean) => Promise<boolean>>;
+    } | null,
+    restore: vi.fn(
+      async (): Promise<{
+        folder: string;
+        name: string;
+        inventory: RestoreInventory | null;
+      } | null> => ({
+        folder: "w-restored",
+        name: "Rocket Team",
+        inventory: {
+          appAddresses: [{ origin: "https://bot.example", uses: ["events"] }],
+          scheduled: { waiting: 1, earliestAt: null },
+          undeliveredEvents: 0,
+          sessions: 2,
+        },
+      }),
+    ),
+    backups: vi.fn(async (_folder: string): Promise<HostedBackup[]> => []),
+    restoreOver: vi.fn(
+      async (
+        folder: string,
+        _backup: string | null,
+      ): Promise<{
+        folder: string;
+        name: string;
+        setAside: string | null;
+        inventory: RestoreInventory | null;
+      } | null> => ({ folder, name: "Rocket Team", setAside: null, inventory: null }),
+    ),
+  } satisfies Hosting;
   /** A change made somewhere else, such as the tray, arriving while the dialog is open. */
-  const push = (next: HostingStatus) => {
-    current = next;
-    act(() => listeners.forEach((listener) => listener(next)));
-  };
+  const push = (next: HostingStatus) => act(() => change(next));
   return { hosting, push };
 }
 
@@ -166,7 +186,7 @@ function Harness(props: {
   hosting: Hosting;
   open?: boolean;
   viewingHosted?: boolean;
-  onStarted?: (status: HostingStatus) => void;
+  onStarted?: (started: { port: number }) => void;
   onClose?: () => void;
   onInvite?: () => void;
   initialSection?: "internet";
@@ -212,9 +232,7 @@ describe("hosting a workspace from the host dialog", () => {
 
     expect(hosting.start).toHaveBeenCalledWith({ workspaceName: "Rocket Team" });
     await waitFor(() =>
-      expect(onStarted).toHaveBeenCalledWith(
-        expect.objectContaining({ running: true, port: 8543 }),
-      ),
+      expect(onStarted).toHaveBeenCalledWith(expect.objectContaining({ port: 8543 })),
     );
   });
 
@@ -323,7 +341,7 @@ describe("hosting a workspace from the host dialog", () => {
     expect(list).toHaveTextContent("Not backed up yet");
     expect(list).not.toHaveTextContent("Port 8543");
 
-    hosting.list!.mockResolvedValueOnce({
+    hosting.list.mockResolvedValueOnce({
       workspaces: [
         {
           folder: "team-a",
@@ -423,7 +441,7 @@ describe("hosting a workspace from the host dialog", () => {
     expect(within(list).queryByRole("button", { name: "Start hosting Old Club" })).toBeNull();
     expect(within(list).queryByRole("button", { name: "Back up Old Club" })).toBeNull();
 
-    hosting.list!.mockResolvedValueOnce({ workspaces: [], unreadable: [] });
+    hosting.list.mockResolvedValueOnce({ workspaces: [], unreadable: [] });
     await user.click(within(list).getByRole("button", { name: "Remove Old Club from the list" }));
     expect(hosting.forget).toHaveBeenCalledWith("gone");
     await waitFor(() =>
@@ -452,7 +470,7 @@ describe("hosting a workspace from the host dialog", () => {
       "The backup was not restored. Rocket Team is already hosted on this computer",
     );
 
-    const listReads = hosting.list!.mock.calls.length;
+    const listReads = hosting.list.mock.calls.length;
     await user.click(restore);
     const note = await screen.findByText(/^Restored Rocket Team\. Until you put it back in use/);
     expect(note).toHaveAttribute("role", "status");
@@ -460,30 +478,34 @@ describe("hosting a workspace from the host dialog", () => {
       "Once back in use, it will accept 2 earlier sign-ins, send 1 waiting scheduled message, deliver 0 waiting app events and call apps at https://bot.example.",
     );
     expect(hosting.start).not.toHaveBeenCalled();
-    await waitFor(() => expect(hosting.list!.mock.calls.length).toBeGreaterThan(listReads));
+    await waitFor(() => expect(hosting.list.mock.calls.length).toBeGreaterThan(listReads));
   });
 
   it("says when the list of hosted workspaces cannot be read", async () => {
     const { hosting } = fakeHosting(stopped, { workspaces: [], unreadable: [] });
-    hosting.list!.mockRejectedValueOnce(new Error("settings unreadable"));
+    hosting.list.mockRejectedValueOnce(new Error("settings unreadable"));
     render(<Harness hosting={hosting} />);
     expect(await screen.findByRole("alert")).toHaveTextContent(
       /Could not read the list of workspaces hosted on this computer/,
     );
   });
 
-  it("explains an unsupported newer hosted-workspace registry without suggesting file repair", async () => {
+  // The desktop app names the registry's problem by its code; until U7 the
+  // dialog matched words the main process no longer wrote, so every one of
+  // these read as the generic "settings file" message.
+  it.each([
+    ["registry-newer", /newer version of OwnBase\. Update OwnBase/],
+    ["registry-unsupported", /version this OwnBase cannot read\. Use a compatible version/],
+    ["registry-damaged", /is invalid\. Restore or repair the settings file/],
+  ])("explains a hosted-workspace list it cannot use (%s)", async (code, said) => {
     const { hosting } = fakeHosting(stopped, { workspaces: [], unreadable: [] });
-    hosting.list!.mockRejectedValueOnce(
-      new Error(
-        "Error invoking remote method 'hosting:list': Error: The hosted workspace list was saved by a newer version of OwnBase. Update OwnBase to open it; the list was not changed.",
-      ),
+    hosting.list.mockRejectedValueOnce(
+      Object.assign(new Error("Words the dialog does not read."), { code }),
     );
     render(<Harness hosting={hosting} />);
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/newer version of OwnBase/);
-    expect(alert).toHaveTextContent(/Update OwnBase/);
+    expect(alert).toHaveTextContent(said);
     expect(alert).not.toHaveTextContent(/settings file can be read/);
   });
 
@@ -553,6 +575,7 @@ describe("hosting a workspace from the host dialog", () => {
   it("puts a public address first on the overview, and in its code", async () => {
     const { hosting } = fakeHosting({
       ...running,
+      accessPolicy: "account_required",
       tunnelAvailable: true,
       openToAll: { phase: "open", url: publicUrl },
     });
@@ -615,18 +638,15 @@ describe("hosting a workspace from the host dialog", () => {
     expect(within(dialog).getByRole("tabpanel")).toHaveAccessibleName("Advanced");
   });
 
-  it("offers only the sections this app can do", async () => {
+  it("offers backups only for a workspace in the list", async () => {
     const { hosting } = fakeHosting(running);
-    const bare = { ...hosting } as Partial<typeof hosting>;
-    delete bare.openToAll;
-    render(<Harness hosting={bare as typeof hosting} />);
+    render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("tablist", { name: "Hosting" });
-    // No public link, no relay and nothing to back up with.
     expect(
       within(list)
         .getAllByRole("tab")
         .map((tab) => tab.textContent),
-    ).toEqual(["Overview", "Advanced"]);
+    ).toEqual(["Overview", "Share on the internet", "Advanced"]);
   });
 
   it("opens, copies, secures, and closes a public Cloudflare address", async () => {
@@ -636,13 +656,14 @@ describe("hosting a workspace from the host dialog", () => {
     await showSection("Share on the internet");
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
-    const inviteRequired = within(dialog).getByRole("checkbox", {
-      name: /Require an invite link to create an account/,
-    });
-    expect(inviteRequired).toBeChecked();
+    const rule = (name: RegExp) =>
+      within(within(dialog).getByRole("group", { name: "Who can join" })).getByRole("radio", {
+        name,
+      });
+    expect(rule(/People with an invite/)).toBeChecked();
 
     await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
-    expect(hosting.openToAll).toHaveBeenCalledWith({ inviteOnly: true });
+    expect(hosting.openToAll).toHaveBeenCalledWith("invite_only");
     expect(await within(dialog).findByRole("link", { name: publicUrl })).toHaveAttribute(
       "href",
       publicUrl,
@@ -657,19 +678,9 @@ describe("hosting a workspace from the host dialog", () => {
     expect(await navigator.clipboard.readText()).toBe(publicUrl);
     expect(within(dialog).getByRole("button", { name: "Copied" })).toBeVisible();
 
-    await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: /Require an invite link to create an account/,
-      }),
-    );
-    expect(hosting.setInviteOnly).toHaveBeenCalledWith(false);
-    await waitFor(() =>
-      expect(
-        within(dialog).getByRole("checkbox", {
-          name: /Require an invite link to create an account/,
-        }),
-      ).not.toBeChecked(),
-    );
+    await user.click(rule(/Anyone who creates an account/));
+    expect(hosting.setAccessPolicy).toHaveBeenCalledWith("account_required");
+    await waitFor(() => expect(rule(/Anyone who creates an account/)).toBeChecked());
     expect(
       within(dialog).getByText(/Anyone with this address can create an account/),
     ).toBeVisible();
@@ -699,8 +710,8 @@ describe("hosting a workspace from the host dialog", () => {
 
     // Without invites the address is all anyone needs.
     await user.click(
-      within(dialog).getByRole("checkbox", {
-        name: /Require an invite link to create an account/,
+      within(within(dialog).getByRole("group", { name: "Who can join" })).getByRole("radio", {
+        name: /Anyone who creates an account/,
       }),
     );
     await waitFor(() =>
@@ -719,11 +730,11 @@ describe("hosting a workspace from the host dialog", () => {
 
   it("chooses who can join with the cards Workspace settings uses, before and after opening", async () => {
     const user = userEvent.setup();
-    const { hosting } = fakeHosting(
-      { ...running, tunnelAvailable: true, accessPolicy: "account_required", inviteOnly: false },
-      undefined,
-      { guests: true },
-    );
+    const { hosting } = fakeHosting({
+      ...running,
+      tunnelAvailable: true,
+      accessPolicy: "account_required",
+    });
     render(<Harness hosting={hosting} />);
     await showSection("Share on the internet");
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
@@ -736,10 +747,7 @@ describe("hosting a workspace from the host dialog", () => {
     expect(rule(/Anyone, guests included/)).toBeChecked();
     expect(hosting.setAccessPolicy).not.toHaveBeenCalled();
     await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
-    expect(hosting.openToAll).toHaveBeenCalledWith({
-      inviteOnly: false,
-      accessPolicy: "guest_allowed",
-    });
+    expect(hosting.openToAll).toHaveBeenCalledWith("guest_allowed");
     await within(dialog).findByRole("link", { name: publicUrl });
     expect(rule(/Anyone, guests included/)).toBeChecked();
     expect(group()).toHaveAccessibleDescription(/A change applies right away/);
@@ -753,7 +761,6 @@ describe("hosting a workspace from the host dialog", () => {
     await user.click(rule(/Anyone who creates an account/));
     expect(hosting.setAccessPolicy).toHaveBeenLastCalledWith("account_required");
     await waitFor(() => expect(rule(/Anyone who creates an account/)).toBeChecked());
-    expect(hosting.setInviteOnly).not.toHaveBeenCalled();
   });
 
   it("explains when cloudflared is unavailable and can check again", async () => {
@@ -785,10 +792,10 @@ describe("hosting a workspace from the host dialog", () => {
     let finish!: () => void;
     const installCloudflared = vi.fn(
       () =>
-        new Promise<HostingStatus>((resolve) => {
+        new Promise<void>((resolve) => {
           finish = () => {
             push({ ...running, tunnelAvailable: true });
-            resolve({ ...running, tunnelAvailable: true });
+            resolve();
           };
         }),
     );
@@ -854,7 +861,7 @@ describe("hosting a workspace from the host dialog", () => {
       cloudflaredInstall: { via: "download" },
     });
     const installCloudflared = vi
-      .fn<() => Promise<HostingStatus>>()
+      .fn<() => Promise<void>>()
       .mockRejectedValueOnce(
         new Error(
           "OwnBase could not reach Cloudflare's releases on GitHub. Check this computer's internet connection, then try again.",
@@ -889,6 +896,24 @@ describe("hosting a workspace from the host dialog", () => {
     expect(screen.getByRole("dialog", { name: "Workspace is live" })).toBe(dialog);
     expect(within(dialog).getByRole("button", { name: "Get a public link" })).toBeEnabled();
     expect(hosting.stop).not.toHaveBeenCalled();
+  });
+
+  it("asks for the owner account first when the desktop app says that is what is missing", async () => {
+    const user = userEvent.setup();
+    const { hosting } = fakeHosting({ ...running, tunnelAvailable: true });
+    hosting.openToAll.mockRejectedValueOnce(
+      Object.assign(new Error("Words the dialog does not read."), {
+        code: "owner-account-missing",
+      }),
+    );
+    render(<Harness hosting={hosting} />);
+    await showSection("Share on the internet");
+
+    const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
+    await user.click(within(dialog).getByRole("button", { name: "Get a public link" }));
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "Open the workspace and create its owner account first, then try again.",
+    );
   });
 
   it("offers to open the hosted workspace only when it is not the one already on screen", async () => {
@@ -998,7 +1023,7 @@ describe("renaming a hosted workspace and opening its folder", () => {
     expect(field).toHaveAccessibleDescription("Give the workspace a name.");
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
 
-    hosting.list!.mockResolvedValue({
+    hosting.list.mockResolvedValue({
       workspaces: [{ ...teamA, name: "Blue Team" }],
       unreadable: [],
     });
@@ -1097,16 +1122,6 @@ describe("renaming a hosted workspace and opening its folder", () => {
       "The folder that held Team A is missing.",
     );
   });
-
-  it("offers neither where the app cannot do them", async () => {
-    const { hosting } = fakeHosting(stopped, { workspaces: [teamA], unreadable: [] });
-    delete (hosting as Partial<typeof hosting>).rename;
-    delete (hosting as Partial<typeof hosting>).openFolder;
-    render(<Harness hosting={hosting} />);
-    const list = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(within(list).queryByRole("button", { name: /^Rename/ })).toBeNull();
-    expect(within(list).queryByRole("button", { name: /^Open folder/ })).toBeNull();
-  });
 });
 
 describe("starting with the computer", () => {
@@ -1125,18 +1140,16 @@ describe("starting with the computer", () => {
       workspaces: [{ ...teamA, running: initial.running }],
       unreadable: [],
     });
-    const hosting = fake.hosting as typeof fake.hosting & {
-      setStartOnLaunch: ReturnType<typeof vi.fn>;
-      openAtLogin: { get: ReturnType<typeof vi.fn>; set: ReturnType<typeof vi.fn> };
-    };
-    let login = atLogin;
-    hosting.setStartOnLaunch = vi.fn(async (folder: string | null) => {
+    const { hosting } = fake;
+    let login = atLogin ?? false;
+    hosting.setStartOnLaunch.mockImplementation(async (folder: string | null) => {
       fake.push({ ...initial, startsOnLaunch: folder === "team-a" });
     });
-    hosting.openAtLogin = {
-      get: vi.fn(async () => login),
-      set: vi.fn(async (open: boolean) => (login = open)),
-    };
+    // Null where this copy of the app cannot open at sign-in.
+    hosting.openAtLogin =
+      atLogin === null
+        ? null
+        : { get: vi.fn(async () => login), set: vi.fn(async (open: boolean) => (login = open)) };
     return { hosting, push: fake.push };
   }
 
@@ -1160,7 +1173,7 @@ describe("starting with the computer", () => {
     expect(hosting.setStartOnLaunch).toHaveBeenCalledWith("team-a");
     await waitFor(() => expect(start).toBeChecked());
     await user.click(login);
-    expect(hosting.openAtLogin.set).toHaveBeenCalledWith(true);
+    expect(hosting.openAtLogin!.set).toHaveBeenCalledWith(true);
     await waitFor(() => expect(login).toBeChecked());
     expect(group).toHaveTextContent(/With both on, Rocket Team comes back by itself/);
 
@@ -1178,14 +1191,10 @@ describe("starting with the computer", () => {
       startsOnLaunch: false,
     };
     const { hosting, push } = withLaunch(status);
-    const withReopen = hosting as typeof hosting & {
-      setReopenPublicOnLaunch: ReturnType<typeof vi.fn>;
-    };
-    withReopen.setReopenPublicOnLaunch = vi.fn(async (reopen: boolean) => {
+    hosting.setReopenPublicOnLaunch.mockImplementation(async (reopen: boolean) => {
       push({ ...status, startsOnLaunch: true, reopensPublicOnLaunch: reopen });
-      return reopen;
     });
-    render(<Harness hosting={withReopen} />);
+    render(<Harness hosting={hosting} />);
     await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
     const reopen = within(group).getByRole("checkbox", {
@@ -1196,7 +1205,7 @@ describe("starting with the computer", () => {
     push({ ...status, startsOnLaunch: true });
     await waitFor(() => expect(reopen).toBeEnabled());
     await user.click(reopen);
-    expect(withReopen.setReopenPublicOnLaunch).toHaveBeenCalledWith(true);
+    expect(hosting.setReopenPublicOnLaunch).toHaveBeenCalledWith(true);
     await waitFor(() => expect(reopen).toBeChecked());
   });
 
@@ -1214,7 +1223,6 @@ describe("starting with the computer", () => {
     render(<Harness hosting={hosting} />);
     await showSection("Advanced");
     const group = await screen.findByRole("group", { name: "When this computer starts" });
-    await waitFor(() => expect(hosting.openAtLogin.get).toHaveBeenCalled());
     expect(within(group).queryByRole("checkbox", { name: /sign in/ })).toBeNull();
     expect(group).toHaveTextContent("Rocket Team starts whenever OwnBase opens.");
   });
@@ -1281,7 +1289,7 @@ describe("what did not happen when OwnBase opened, while hosting runs", () => {
     expect(screen.getByText("192.168.1.20:8543")).toBeInTheDocument();
 
     await user.click(within(alert).getByRole("button", { name: "Try again" }));
-    expect(hosting.openToAll).toHaveBeenCalledWith({ inviteOnly: true });
+    expect(hosting.openToAll).toHaveBeenCalledWith("invite_only");
   });
 
   it("offers to try again only for the workspace it is about", async () => {
@@ -1418,12 +1426,8 @@ describe("starting with the computer, while nothing is running", () => {
       { ...stopped, launchError },
       { workspaces: [{ ...teamA, startsOnLaunch }], unreadable: [] },
     );
-    const hosting = fake.hosting as typeof fake.hosting & {
-      setStartOnLaunch: ReturnType<typeof vi.fn>;
-      openAtLogin: { get: ReturnType<typeof vi.fn>; set: ReturnType<typeof vi.fn> };
-    };
+    const { hosting } = fake;
     let login = atLogin;
-    hosting.setStartOnLaunch = vi.fn(async () => null);
     hosting.openAtLogin = {
       get: vi.fn(async () => login),
       set: vi.fn(async (open: boolean) => (login = open)),
@@ -1451,7 +1455,7 @@ describe("starting with the computer, while nothing is running", () => {
     });
     expect(login).toBeChecked();
     await user.click(login);
-    expect(hosting.openAtLogin.set).toHaveBeenCalledWith(false);
+    expect(hosting.openAtLogin!.set).toHaveBeenCalledWith(false);
     await waitFor(() => expect(login).not.toBeChecked());
     // Still listed, and still startable.
     const list = screen.getByRole("region", { name: "Hosted on this computer" });
@@ -1477,7 +1481,7 @@ describe("starting with the computer, while nothing is running", () => {
     const hosting = stoppedWith(false, "", false);
     render(<Harness hosting={hosting} />);
     await screen.findByRole("region", { name: "Hosted on this computer" });
-    await waitFor(() => expect(hosting.openAtLogin.get).toHaveBeenCalled());
+    await waitFor(() => expect(hosting.openAtLogin!.get).toHaveBeenCalled());
     expect(screen.queryByRole("region", { name: "When this computer starts" })).toBeNull();
   });
 });
@@ -1517,7 +1521,7 @@ describe("who is connected, and which port", () => {
     await user.type(port, "70000");
     await user.click(screen.getByRole("button", { name: "Start hosting" }));
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "Choose a port from 1 to 65535, or leave it empty for the usual one.",
+      "Choose a port from 1 to 65535. Or leave it empty for the usual one.",
     );
     expect(hosting.start).not.toHaveBeenCalled();
 
@@ -1554,7 +1558,7 @@ describe("who is connected, and which port", () => {
     expect(field).toHaveFocus();
     expect(hosting.setPort).not.toHaveBeenCalled();
 
-    hosting.list!.mockResolvedValue({ workspaces: [{ ...teamA, port: 9100 }], unreadable: [] });
+    hosting.list.mockResolvedValue({ workspaces: [{ ...teamA, port: 9100 }], unreadable: [] });
     await user.clear(field);
     await user.type(field, "9100{Enter}");
     expect(hosting.setPort).toHaveBeenCalledWith("team-a", 9100);
@@ -1624,7 +1628,7 @@ describe("automatic backups", () => {
     expect(group).toHaveTextContent(/OwnBase can back up Rocket Team every day/);
     expect(await accessibilityProblems(screen.getByRole("dialog"))).toEqual([]);
 
-    hosting.list!.mockResolvedValue({
+    hosting.list.mockResolvedValue({
       workspaces: [
         { ...rocket, autoBackup: { destination: "D:\\Backups", everyDays: 1, keep: 7 } },
       ],
@@ -1723,7 +1727,7 @@ describe("automatic backups", () => {
     );
     const done = Date.now();
     hosting.retryBackups!.mockImplementationOnce(async () => {
-      hosting.list!.mockResolvedValue({
+      hosting.list.mockResolvedValue({
         workspaces: [
           { ...rocket, autoBackup: { ...failing, lastAt: done }, autoBackupError: null },
         ],
@@ -1881,6 +1885,11 @@ describe("a stable public address configured for the desktop app", () => {
 
 describe("an address the host already has", () => {
   const funnel = "https://box.tail1234.ts.net";
+  /** The address's own Save, apart from the relay's beside it. */
+  const addressSave = (dialog: HTMLElement) =>
+    within(within(dialog).getByLabelText("Your own address").closest("form")!).getByRole("button", {
+      name: "Save",
+    });
 
   it("takes one, trims it, and publishes it as the workspace's own", async () => {
     const user = userEvent.setup();
@@ -1890,7 +1899,7 @@ describe("an address the host already has", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     const address = within(dialog).getByLabelText("Your own address");
-    const save = within(dialog).getByRole("button", { name: "Save" });
+    const save = addressSave(dialog);
     // Never off: sent empty with none saved, it asks for one beside the field.
     expect(save).toBeEnabled();
     await user.click(save);
@@ -1920,7 +1929,7 @@ describe("an address the host already has", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     await user.type(within(dialog).getByLabelText("Your own address"), "http://localhost:8543");
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(addressSave(dialog));
 
     expect(await within(dialog).findByRole("alert")).toHaveTextContent(/public HTTPS hostname/);
     const address = within(dialog).getByLabelText("Your own address");
@@ -1936,7 +1945,7 @@ describe("an address the host already has", () => {
       tunnelAvailable: true,
       publicAddress: funnel,
       publicAddressSetting: funnel,
-      inviteOnly: true,
+      accessPolicy: "invite_only",
     });
     render(<Harness hosting={hosting} />);
     await showSection("Share on the internet");
@@ -1944,7 +1953,7 @@ describe("an address the host already has", () => {
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByText(/may already let people reach the workspace/)).toBeVisible();
     expect(within(dialog).getByText(/turn off that tunnel or proxy yourself/)).toBeVisible();
-    expect(within(dialog).getByRole("checkbox", { name: /Require an invite/ })).toBeChecked();
+    expect(within(dialog).getByRole("radio", { name: /People with an invite/ })).toBeChecked();
   });
 
   it("says there is nothing to save rather than saving the same address again", async () => {
@@ -1961,7 +1970,7 @@ describe("an address the host already has", () => {
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     const address = within(dialog).getByLabelText("Your own address");
     // Saving it would also turn invites back on, so the same address is not sent again.
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(addressSave(dialog));
     expect(hosting.setPublicAddress).not.toHaveBeenCalled();
     expect(within(dialog).getByText("That address is already saved.")).toHaveAttribute(
       "role",
@@ -1972,7 +1981,7 @@ describe("an address the host already has", () => {
     // Emptied, it is a change: the saved address goes.
     await user.clear(address);
     expect(within(dialog).queryByText(/Nothing to save/)).toBeNull();
-    await user.click(within(dialog).getByRole("button", { name: "Save" }));
+    await user.click(addressSave(dialog));
     expect(hosting.setPublicAddress).toHaveBeenCalledWith("");
   });
 
@@ -1989,7 +1998,7 @@ describe("an address the host already has", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Workspace is live" });
     expect(within(dialog).getByLabelText("Your own address")).toBeDisabled();
-    expect(within(dialog).getByRole("button", { name: "Save" })).toBeDisabled();
+    expect(addressSave(dialog)).toBeDisabled();
     expect(within(dialog).getByText(/An environment variable sets this address/)).toBeVisible();
     expect(await accessibilityProblems(dialog)).toEqual([]);
   });
@@ -2134,20 +2143,12 @@ describe("earlier copies of a stopped workspace", () => {
     );
   });
 
-  it("is not offered while the workspace runs, or by an app that cannot restore over one", async () => {
+  it("is not offered while the workspace runs", async () => {
     const { hosting } = withCopies(vi.fn(), true);
-    const { unmount } = render(<Harness hosting={hosting} />);
+    render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
     expect(
       within(list).queryByRole("button", { name: "Earlier copies of Rocket Team" }),
-    ).toBeNull();
-    unmount();
-
-    const { hosting: older } = fakeHosting(stopped, { workspaces: [workspace], unreadable: [] });
-    render(<Harness hosting={older} />);
-    const again = await screen.findByRole("region", { name: "Hosted on this computer" });
-    expect(
-      within(again).queryByRole("button", { name: "Earlier copies of Rocket Team" }),
     ).toBeNull();
   });
 });

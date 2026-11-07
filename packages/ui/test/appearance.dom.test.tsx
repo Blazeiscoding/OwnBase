@@ -39,7 +39,10 @@ function Applied() {
  * Appearance settings on a device whose storage holds `saved`, and may refuse
  * to save. With `held`, the storage answers only once `read` is called.
  */
-function appearance(saved: unknown, options: { failSave?: boolean; held?: boolean } = {}) {
+function appearance(
+  saved: unknown,
+  options: { failSave?: boolean; held?: boolean; setWindowTheme?: Platform["setWindowTheme"] } = {},
+) {
   const set = vi.fn(async (_name: string, _value: unknown) => {
     if (options.failSave) throw new Error("storage is full");
   });
@@ -55,6 +58,7 @@ function appearance(saved: unknown, options: { failSave?: boolean; held?: boolea
       set,
     },
     notify: () => {},
+    ...(options.setWindowTheme ? { setWindowTheme: options.setWindowTheme } : {}),
   };
   const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
   client.store.setState({ self: sam, users: { [sam.id]: sam }, status: "online" });
@@ -75,6 +79,17 @@ const root = () => document.documentElement.dataset;
 const kept = () => JSON.parse(localStorage.getItem(FIRST_PAINT_KEY) ?? "null") as unknown;
 
 describe("how OwnBase looks on this device", () => {
+  it("tells the desktop window's frame the theme once it is read, and each time it changes", async () => {
+    const setWindowTheme = vi.fn();
+    const { panel, user, read } = appearance({ theme: "light" }, { held: true, setWindowTheme });
+    // The copy the page was first painted with is not the saved choice yet.
+    expect(setWindowTheme).not.toHaveBeenCalled();
+    read();
+    await waitFor(() => expect(setWindowTheme).toHaveBeenLastCalledWith("light"));
+    await user.click(within(panel).getByRole("radio", { name: /^Onyx/ }));
+    await waitFor(() => expect(setWindowTheme).toHaveBeenLastCalledWith("dark"));
+  });
+
   it("applies what was saved, and offers every theme and density", async () => {
     const { panel } = appearance({ theme: "light", density: "compact" });
     await waitFor(() => expect(root().theme).toBe("light"));

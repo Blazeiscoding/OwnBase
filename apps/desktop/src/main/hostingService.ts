@@ -28,7 +28,6 @@ import {
   openConfiguredAddress,
   openNamedTunnel,
   openQuickTunnel,
-  pinnedCloudflared,
   probeHealth,
   resolvePublicAddress,
   validatePublicAddress,
@@ -156,7 +155,6 @@ export function createHostingService(options: HostingServiceOptions) {
   const addressConfig = lookup(() => resolvePublicAddress(savedAddress, env));
   const installer = createCloudflaredInstaller({
     dir: options.cloudflaredFolder,
-    pinned: pinnedCloudflared(env) !== null,
     env,
     platform,
     find: () => {

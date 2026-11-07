@@ -4,6 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import { App } from "../src/App.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
+import { hostingStub } from "./hostingStub.js";
 
 const rocket: SavedServer = {
   url: "http://127.0.0.1:9",
@@ -15,10 +16,7 @@ const rocket: SavedServer = {
 
 /** A browser with one saved sign-in, and a way to hand the app links as they arrive. */
 function appWithLinks(
-  hosting?: {
-    status: () => Promise<HostingStatus>;
-    lastHosted: () => Promise<{ workspaceName: string; port: number } | null>;
-  },
+  hosting?: Pick<NonNullable<Platform["hosting"]>, "status" | "lastHosted">,
   saved: SavedServer = rocket,
 ) {
   let deliver: (url: string) => void = () => {};
@@ -38,11 +36,7 @@ function appWithLinks(
     },
     ...(hosting
       ? {
-          hosting: {
-            ...hosting,
-            start: async () => ({ running: false, phase: "stopped" as const }),
-            stop: async () => {},
-          },
+          hosting: hostingStub(hosting),
         }
       : {}),
   };
@@ -84,8 +78,8 @@ describe("reopening a workspace this computer hosted", () => {
   it("parks on the join screen instead of reconnecting to a stopped workspace", async () => {
     const connect = vi.spyOn(WorkspaceClient.prototype, "connect").mockImplementation(() => {});
     appWithLinks({
-      status: async () => ({ running: false, phase: "stopped" }),
-      lastHosted: async () => ({ workspaceName: "Rocket Team", port: 9 }),
+      status: async () => ({ running: false, phase: "stopped", backgroundAvailable: true }),
+      lastHosted: async () => ({ folder: "rocket-team", workspaceName: "Rocket Team", port: 9 }),
     });
     // The saved sign-in points at this computer's own stopped workspace, so
     // nothing connects: the join screen offers to host it again instead.
@@ -101,13 +95,14 @@ describe("reopening a workspace this computer hosted", () => {
       status: async () => ({
         running: true,
         phase: "running",
+        backgroundAvailable: true,
         workspaceName: "Rocket Team",
         port: 9,
         warning: "The last-used hosting settings could not be saved.",
         openToAllError:
           "The public link stopped working (edge connection lost). Press Get a public link for a new one.",
       }),
-      lastHosted: async () => ({ workspaceName: "Rocket Team", port: 9 }),
+      lastHosted: async () => ({ folder: "rocket-team", workspaceName: "Rocket Team", port: 9 }),
     });
     await waitFor(() => expect(connect).toHaveBeenCalledTimes(1));
     expect(await screen.findByRole("alert")).toHaveTextContent(/public link stopped working/);
@@ -118,6 +113,7 @@ describe("reopening a workspace this computer hosted", () => {
   const hostedHere = (workspaceName: string): HostingStatus => ({
     running: true,
     phase: "running",
+    backgroundAvailable: true,
     workspaceName,
     port: 8543,
     lanUrls: ["http://192.168.1.2:8543"],

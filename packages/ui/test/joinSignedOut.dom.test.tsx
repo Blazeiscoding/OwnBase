@@ -29,7 +29,7 @@ const rocket: SavedServer = {
   handle: "sam",
   lastUsedAt: 2,
 };
-const stopped: HostingStatus = { running: false, phase: "stopped" };
+const stopped: HostingStatus = { running: false, phase: "stopped", backgroundAvailable: true };
 const platform: Platform = {
   kind: "desktop",
   storage: { get: async () => null, set: async () => {} },
