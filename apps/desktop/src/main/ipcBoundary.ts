@@ -71,8 +71,8 @@ export interface Recipient {
 }
 
 /**
- * The windows allowed to hear what the main process pushes (F09): drafts,
- * unsent messages, choices, invite links, hosting. The same rule as for
+ * The windows allowed to hear what the main process pushes (F09): invite
+ * links, hosting, workspaces found nearby. The same rule as for
  * requests: the app's own window, live, showing the app's page. Any other
  * window, one loading the same preload or the app's window navigated away,
  * hears nothing, though it is refused only when it asks.

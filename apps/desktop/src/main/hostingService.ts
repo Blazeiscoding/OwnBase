@@ -38,7 +38,6 @@ type HostingChannel = Extract<Channel, `hosting:${string}`>;
 /** The saved stable public address, which the host can type into Manage hosting. */
 const PUBLIC_ADDRESS_KEY = "publicAddress";
 
-/** Every setting hosting keeps. */
 export const HOSTING_KEYS = [
   REGISTRY_KEY,
   "lastHosted",
@@ -512,7 +511,6 @@ export function createHostingService(options: HostingServiceOptions) {
         options.onChange();
       }
     },
-    /** While true, only reading and stopping are answered. */
     setQuitting(on: boolean): void {
       quitting = on;
     },
