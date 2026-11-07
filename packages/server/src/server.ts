@@ -5214,8 +5214,8 @@ async function startWorkspaceServer(
     id: ID,
     channelId: ID,
   ): { view: ModalView; externalId: string } | { error: string } => {
-    const { droppedFields, ...parsed } = parseView(raw, id, { channelId });
-    if (parsed.fields.length === 0 && (droppedFields > 0 || !parsed.text)) {
+    const { droppedFields, wordless, ...parsed } = parseView(raw, id, { channelId });
+    if (parsed.fields.length === 0 && (droppedFields > 0 || wordless)) {
       return { error: droppedFields > 0 ? "unsupported_elements" : "no_inputs" };
     }
     const named = (raw as { external_id?: unknown } | null)?.external_id;

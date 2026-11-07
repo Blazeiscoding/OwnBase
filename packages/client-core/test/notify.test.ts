@@ -14,6 +14,7 @@ const me: User = {
   handle: "me",
   displayName: "Me",
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,
@@ -290,7 +291,7 @@ describe("decideNotification", () => {
   });
 
   it("follows the account's default where a conversation has no level of its own (v53)", () => {
-    const following = { notifyLevel: "mentions" as const, notifyChosen: false, muted: false };
+    const following = { notifyLevel: "mentions" as const, notifyChosen: false, muted: false, starred: false, sectionId: null, hiddenSeq: null };
     const everything = state({ notifyDefault: "all", prefs: { C1: following } });
     expect(decideNotification(everything, message())).toEqual({ notify: true, reason: "all" });
     const quiet = state({ notifyDefault: "nothing", prefs: { C1: following } });
@@ -305,7 +306,7 @@ describe("decideNotification", () => {
   });
 
   it("keeps a level chosen for one conversation, whatever the default", () => {
-    const own = { notifyLevel: "all" as const, notifyChosen: true, muted: false };
+    const own = { notifyLevel: "all" as const, notifyChosen: true, muted: false, starred: false, sectionId: null, hiddenSeq: null };
     const s = state({ notifyDefault: "nothing", prefs: { C1: own } });
     expect(decideNotification(s, message())).toEqual({ notify: true, reason: "all" });
     // An older server says nothing of choosing: its level is the conversation's own.

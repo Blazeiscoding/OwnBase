@@ -11,6 +11,7 @@ const users: Record<ID, User> = {
     handle: "alice",
     displayName: "Alice",
     role: "member",
+    canInvite: true,
     statusText: "",
     statusEmoji: "",
     isBot: false,

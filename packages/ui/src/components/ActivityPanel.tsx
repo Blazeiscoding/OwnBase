@@ -131,14 +131,8 @@ export function ActivityPanel({
   const removedHistory = useWorkspace((s) => s.removedHistory);
   const changedContent = useWorkspace((s) => s.changedContent);
   const saved = useWorkspace((s) => s.saved);
-  // An older server has no list of thread replies of its own to give.
-  const threadsAnswered = useWorkspace((s) => s.activityThreads);
-  // Nor reminders, which it does not keep.
-  const remindersKept = useWorkspace((s) => s.reminders !== null);
   const dueReminders = useWorkspace(dueReminderCount);
-  const modes: readonly ActivityMode[] = MODES.filter(
-    (value) => (value !== "threads" || threadsAnswered) && (value !== "reminders" || remindersKept),
-  );
+  const modes: readonly ActivityMode[] = MODES;
   const [chosen, setMode] = useState<ActivityMode>("all");
   const mode = modes.includes(chosen) ? chosen : "all";
   // In All, a new message anywhere, or a new reply in a thread, may belong

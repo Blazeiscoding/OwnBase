@@ -606,25 +606,22 @@ export class Gateway {
     return out;
   }
 
-  private joinHuddle(channelId: ID, client: Client, requestId?: string): void {
+  private joinHuddle(channelId: ID, client: Client, requestId: string): void {
     const userId = client.userId;
     const reply = (event: HuddleJoinResult) => {
-      if (!requestId) return; // Older clients do not wait for admission replies.
       // One bounded reply only to this socket, like pong. Room fanout stays
       // admission-rationed; send() applies the existing slow-reader limit.
       this.send(client.ws, { type: "ephemeral", event });
     };
-    const refuse = (message: string, retryAfterMs?: number) => {
-      if (requestId)
-        reply({
-          type: "huddle.join.result",
-          channelId,
-          requestId,
-          accepted: false,
-          message,
-          retryAfterMs,
-        });
-    };
+    const refuse = (message: string, retryAfterMs?: number) =>
+      reply({
+        type: "huddle.join.result",
+        channelId,
+        requestId,
+        accepted: false,
+        message,
+        retryAfterMs,
+      });
     if (!this.store.canAccess(channelId, userId)) {
       this.calls.add({ channelId, userId, kind: "refused", reason: "no access" });
       refuse("You no longer have access to this conversation.");
@@ -652,7 +649,7 @@ export class Gateway {
         if (before)
           this.send(before.ws, { type: "ephemeral", event: { type: "huddle.moved", channelId } });
       }
-      if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+      reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
       return;
     }
     // Each admitted join can cause at most one later departure broadcast. Leave,
@@ -673,7 +670,7 @@ export class Gateway {
     // The first one in a direct message's huddle rings the others (E10).
     if (started) this.contained("huddle ring", () => this.startRing(channelId, userId));
     this.publishHuddle(channelId);
-    if (requestId) reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
+    reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
   }
 
   /**

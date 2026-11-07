@@ -26,6 +26,7 @@ import {
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import { channelTitle } from "../lib/format.js";
+import { protocolMismatch } from "../lib/connection.js";
 import {
   HostingStatus,
   Sidebar,
@@ -510,6 +511,7 @@ function WorkspaceInner({
   hostingEntry?: HostingEntry;
 }) {
   const status = useWorkspace((s) => s.status);
+  const serverProtocol = useWorkspace((s) => s.serverProtocolVersion);
   // So the saved workspaces show this one's icon while its server is off.
   useRememberWorkspaceIcon(platform);
   const channels = useWorkspace((s) => s.channels);
@@ -1185,8 +1187,6 @@ function WorkspaceInner({
   const deactivatedHere = useWorkspace((s) =>
     activeChannelId ? deactivatedPartner(s.channels[activeChannelId], s.self?.id, s.users) : null,
   );
-  // The server lists shared files (E7); an older one is offered no Files.
-  const sharedFiles = useWorkspace((s) => s.sharedFiles);
   const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts" | "files") => {
     setPanel({ kind });
     setSidebarOpen(false);
@@ -1248,17 +1248,13 @@ function WorkspaceInner({
             keywords: "unsent unsaved writing",
             run: () => openPanel("drafts"),
           },
-          ...(sharedFiles
-            ? [
-                {
-                  id: "files",
-                  label: "Files",
-                  icon: "file" as const,
-                  keywords: "attachments images documents uploads shared",
-                  run: () => openPanel("files"),
-                },
-              ]
-            : []),
+          {
+            id: "files",
+            label: "Files",
+            icon: "file",
+            keywords: "attachments images documents uploads shared",
+            run: () => openPanel("files"),
+          },
           ...(isGuest
             ? []
             : [
@@ -1561,7 +1557,7 @@ function WorkspaceInner({
         : status === "auth_failed"
           ? "signed out"
           : status === "protocol_mismatch"
-            ? "Different OwnBase version. Update to connect."
+            ? protocolMismatch(serverProtocol).short
             : status === "password_change_required"
               ? "Choose a new password to carry on"
               : "offline";
@@ -1600,14 +1596,10 @@ function WorkspaceInner({
           setPanel({ kind: "drafts" });
           setSidebarOpen(false);
         }}
-        onFiles={
-          sharedFiles
-            ? () => {
-                setPanel({ kind: "files" });
-                setSidebarOpen(false);
-              }
-            : undefined
-        }
+        onFiles={() => {
+          setPanel({ kind: "files" });
+          setSidebarOpen(false);
+        }}
         onFriends={() => setDialog({ kind: "friends" })}
         onActivity={() => {
           setPanel({ kind: "activity" });
@@ -1732,11 +1724,7 @@ function WorkspaceInner({
                   channelId={activeChannelId}
                   isRoom={isRoom}
                   onPins={() => setPanel({ kind: "pins" })}
-                  onFiles={
-                    sharedFiles
-                      ? () => setPanel({ kind: "files", channelId: activeChannelId })
-                      : undefined
-                  }
+                  onFiles={() => setPanel({ kind: "files", channelId: activeChannelId })}
                   onNotifications={
                     isMember
                       ? () => setDialog({ kind: "channel-details", tab: "notifications" })

@@ -225,7 +225,7 @@ describe("closing a direct conversation", () => {
     const { client, user } = sidebar(person("member"));
     act(() =>
       client.store.setState({
-        prefs: { C_DM: { notifyLevel: "all", muted: false } },
+        prefs: { C_DM: { notifyLevel: "all", notifyChosen: true, muted: false, starred: false, sectionId: null, hiddenSeq: null } },
       }),
     );
     await user.click(screen.getByRole("button", { name: "More options for Maya" }));

@@ -365,12 +365,7 @@ function AppForm(props: {
     );
   };
 
-  // The app's order, where the server keeps it. An older server sends the
-  // words as one text, drawn above the fields.
-  const layout: ModalBlock[] = view.blocks ?? [
-    ...(view.text ? [{ type: "section" as const, text: view.text }] : []),
-    ...view.fields.map((_, field) => ({ type: "field" as const, field })),
-  ];
+  const layout: ModalBlock[] = view.blocks;
 
   return (
     <Dialog title={view.title} onClose={closeAll} width={520} ownScroll>

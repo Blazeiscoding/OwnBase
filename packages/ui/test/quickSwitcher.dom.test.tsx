@@ -12,6 +12,7 @@ const person = (id: string, handle: string, displayName: string, deactivated = f
   handle,
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

@@ -7,6 +7,7 @@ const person = (id: ID, displayName: string): User => ({
   handle: displayName.toLowerCase(),
   displayName,
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

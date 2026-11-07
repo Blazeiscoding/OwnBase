@@ -210,8 +210,7 @@ export function Sidebar(props: Props) {
   const selfId = self?.id;
   // A guest has public channels only: no DMs, rooms of its own, friends or schedules.
   const guest = self?.role === "guest";
-  // Older servers do not send the flag; every member could invite there.
-  const canInvite = !guest && (self?.canInvite ?? true);
+  const canInvite = !guest && self?.canInvite === true;
 
   /**
    * Discord's two actions at the end of a channel's row: invite and settings,
@@ -251,9 +250,6 @@ export function Sidebar(props: Props) {
     [drafts, channels, settled],
   );
   const prefs = useWorkspace((s) => s.prefs);
-  // An older server keeps no stars, so none is offered there.
-  const stars = useWorkspace((s) => s.stars);
-  // Nor sections, which a server without them leaves null (E8).
   const sections = useWorkspace((s) => s.sidebarSections);
   const huddles = useWorkspace((s) => s.huddles);
   const mentionCounts = useWorkspace((s) => s.mentionCounts);
@@ -265,7 +261,7 @@ export function Sidebar(props: Props) {
 
   const { starred, sectioned, rooms, dms } = useMemo(() => {
     const starred: Channel[] = [];
-    const sectioned = new Map<ID, Channel[]>((sections ?? []).map((s) => [s.id, []]));
+    const sectioned = new Map<ID, Channel[]>(sections.map((s) => [s.id, []]));
     const rooms: Channel[] = [];
     const dms: Channel[] = [];
     for (const ch of Object.values(channels)) {
@@ -388,37 +384,33 @@ export function Sidebar(props: Props) {
         icon: "check",
         onSelect: () => client.markRead(ch.id, channelLastSeq[ch.id] ?? 0, { explicit: true }),
       });
-    if (stars) {
-      const isStarred = prefs[ch.id]?.starred === true;
-      const star = starItem(client, toast, conversation, isStarred);
-      const to = !isStarred ? "starred" : isDirect(ch) ? "dms" : "channels";
-      items.push({
-        ...star,
-        onSelect: () => {
-          moved.current = { id: ch.id, section: to };
-          star.onSelect();
-        },
-      });
-    }
-    if (sections) {
-      const home = isDirect(ch) ? "dms" : "channels";
-      items.push(
-        ...moveItems(
-          client,
-          toast,
-          conversation,
-          sections,
-          sectionOf(ch.id),
-          () => setNaming({ mode: "create", moveId: ch.id }),
-          (to) => (moved.current = { id: ch.id, section: to ? `section:${to}` : home }),
-        ),
-      );
-    }
+    const isStarred = prefs[ch.id]?.starred === true;
+    const star = starItem(client, toast, conversation, isStarred);
+    const to = !isStarred ? "starred" : isDirect(ch) ? "dms" : "channels";
+    items.push({
+      ...star,
+      onSelect: () => {
+        moved.current = { id: ch.id, section: to };
+        star.onSelect();
+      },
+    });
+    const home = isDirect(ch) ? "dms" : "channels";
+    items.push(
+      ...moveItems(
+        client,
+        toast,
+        conversation,
+        sections,
+        sectionOf(ch.id),
+        () => setNaming({ mode: "create", moveId: ch.id }),
+        (to) => (moved.current = { id: ch.id, section: to ? `section:${to}` : home }),
+      ),
+    );
     items.push({
       ...muteItem(client, toast, conversation, isMuted(ch.id)),
-      ...(sections ? { section: true } : {}),
+      section: true,
     });
-    if (isDirect(ch) && prefs[ch.id] && "hiddenSeq" in prefs[ch.id]!)
+    if (isDirect(ch) && prefs[ch.id])
       items.push(closeItem(client, toast, ch.id, channelLastSeq[ch.id] ?? 0, label));
     return { label, items };
   }
@@ -433,7 +425,7 @@ export function Sidebar(props: Props) {
     if (!ch) return null;
     const isStarred = prefs[id]?.starred === true;
     const now = sectionOf(id);
-    if (place === "starred") return stars && !isStarred ? { starred: true } : null;
+    if (place === "starred") return !isStarred ? { starred: true } : null;
     if (place === "channels" || place === "dms") {
       if (place !== (isDirect(ch) ? "dms" : "channels") || (!isStarred && !now)) return null;
       return { starred: false, sectionId: null };
@@ -479,24 +471,21 @@ export function Sidebar(props: Props) {
   }
 
   /** A row a pointer can drag to a section, Starred or back home (E8). */
-  const draggable = (id: ID) =>
-    sections || stars
-      ? {
-          onDragStart: (event: React.DragEvent) => {
-            dragging.current = id;
-            event.dataTransfer.setData(DRAG_TYPE, id);
-            event.dataTransfer.effectAllowed = "move";
-          },
-          onDragEnd: () => {
-            dragging.current = null;
-            setDropOn(null);
-          },
-        }
-      : {};
+  const draggable = (id: ID) => ({
+    onDragStart: (event: React.DragEvent) => {
+      dragging.current = id;
+      event.dataTransfer.setData(DRAG_TYPE, id);
+      event.dataTransfer.effectAllowed = "move";
+    },
+    onDragEnd: () => {
+      dragging.current = null;
+      setDropOn(null);
+    },
+  });
 
   /** A section's own menu: rename it, move it up or down, delete it. */
   function sectionMenu(section: SidebarSection, index: number): RowMenu {
-    const list = sections ?? [];
+    const list = sections;
     const order = (to: number) => {
       const ids = list.map((s) => s.id).filter((id) => id !== section.id);
       ids.splice(to, 0, section.id);
@@ -768,7 +757,7 @@ export function Sidebar(props: Props) {
             </ul>
 
             {/* Shown while it holds something, or while a row is dragged that it could take. */}
-            {(starred.length > 0 || (dropOn !== null && stars)) && (
+            {(starred.length > 0 || dropOn !== null) && (
               <div {...dropZone("starred")}>
                 <SectionHeader
                   label="Starred"
@@ -785,7 +774,7 @@ export function Sidebar(props: Props) {
               </div>
             )}
 
-            {(sections ?? []).map((section, index) => {
+            {sections.map((section, index) => {
               const place = `section:${section.id}`;
               const inIt = sectioned.get(section.id) ?? [];
               return (
@@ -890,7 +879,7 @@ export function Sidebar(props: Props) {
                   : "Could not rename the section. Check your connection and try again.";
               const made = await client.createSidebarSection(name);
               if (!made)
-                return (sections?.length ?? 0) >= SIDEBAR_SECTIONS_MAX
+                return sections.length >= SIDEBAR_SECTIONS_MAX
                   ? `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections. Delete one to make another.`
                   : "Could not create the section. Check your connection and try again.";
               const moveId = naming.moveId;
@@ -1240,8 +1229,6 @@ export function AccountMenu(props: {
   trigger?: { label: string; className: string; content: ReactNode };
 }) {
   const self = useWorkspace((s) => s.self);
-  // The server keeps away by hand (E9); an older one offers none.
-  const profiles = useWorkspace((s) => s.profiles);
   const selfAway = useWorkspace((s) => s.presence[s.self?.id ?? ""] === "away");
   const client = useClient();
   const toast = useOptionalToast();
@@ -1287,7 +1274,7 @@ export function AccountMenu(props: {
         });
       });
   }
-  if (profiles && self) {
+  if (self) {
     const awayByHand = self.away === true;
     items.push({
       id: "away",

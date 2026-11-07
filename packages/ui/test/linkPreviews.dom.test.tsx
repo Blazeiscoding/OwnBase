@@ -17,6 +17,7 @@ const person = (id: string, displayName: string, role: User["role"] = "member"):
   handle: displayName.split(" ")[0]!.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

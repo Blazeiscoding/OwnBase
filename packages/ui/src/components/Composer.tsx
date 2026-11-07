@@ -76,8 +76,6 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   const isRoom = channelType === "public" || channelType === "private";
   // A guest writes, but does not upload, schedule or run an app's commands.
   const guest = useWorkspace((s) => s.self?.role === "guest");
-  // The server keeps polls; an older one would post the question alone.
-  const pollsKept = useWorkspace((s) => s.pollChoices !== null);
   /** The question the poll window opens with; null while it is closed. */
   const [pollQuestion, setPollQuestion] = useState<string | null>(null);
   // Threads keep their own draft slot so a channel draft isn't clobbered.
@@ -452,7 +450,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     const trimmed = text.trim();
     if ((!trimmed && attached.length === 0) || text.length > MESSAGE_TEXT_MAX) return;
     // /poll opens the poll window, its words the question, as the + menu does.
-    const asked = attached.length === 0 && pollsKept ? POLL_COMMAND.exec(trimmed) : null;
+    const asked = attached.length === 0 ? POLL_COMMAND.exec(trimmed) : null;
     if (asked) {
       if (guest) {
         setSendRefusal("Guests cannot make polls. Create an account to make one.");
@@ -1100,42 +1098,31 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
           </label>
         )}
         <div className="relative flex flex-wrap items-center gap-0.5 px-2 pb-2">
-          {!guest &&
-            (pollsKept ? (
-              // Discord's round plus, opening what can be added: a file, or a poll.
-              <Menu
-                label="Add to message"
-                triggerLabel="Add to message"
-                tooltip="Add to message"
-                align="start"
-                triggerClassName="group/attach flex size-8 items-center justify-center rounded-md"
-                triggerContent={plus}
-                items={[
-                  {
-                    id: "upload",
-                    label: "Upload a file",
-                    icon: "attach",
-                    onSelect: () => filePicker.current?.click(),
-                  },
-                  {
-                    id: "poll",
-                    label: "Create a poll",
-                    icon: "poll",
-                    onSelect: () => setPollQuestion(""),
-                  },
-                ]}
-              />
-            ) : (
-              <Tooltip label="Attach a file">
-                <button
-                  onClick={() => filePicker.current?.click()}
-                  aria-label="Attach a file"
-                  className="group/attach flex size-8 items-center justify-center rounded-md"
-                >
-                  {plus}
-                </button>
-              </Tooltip>
-            ))}
+          {!guest && (
+            // Discord's round plus, opening what can be added: a file, or a poll.
+            <Menu
+              label="Add to message"
+              triggerLabel="Add to message"
+              tooltip="Add to message"
+              align="start"
+              triggerClassName="group/attach flex size-8 items-center justify-center rounded-md"
+              triggerContent={plus}
+              items={[
+                {
+                  id: "upload",
+                  label: "Upload a file",
+                  icon: "attach",
+                  onSelect: () => filePicker.current?.click(),
+                },
+                {
+                  id: "poll",
+                  label: "Create a poll",
+                  icon: "poll",
+                  onSelect: () => setPollQuestion(""),
+                },
+              ]}
+            />
+          )}
           <FormattingToolbar
             key={draftKey}
             placement="inline"

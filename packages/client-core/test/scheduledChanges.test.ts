@@ -12,6 +12,7 @@ const self: User = {
   handle: "sam",
   displayName: "Sam",
   role: "member",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

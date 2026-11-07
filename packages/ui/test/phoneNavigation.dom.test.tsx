@@ -32,6 +32,7 @@ const person = (id: string, displayName: string, role: User["role"] = "member"):
   handle: displayName.toLowerCase(),
   displayName,
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

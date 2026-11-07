@@ -455,12 +455,9 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
               ))}
             </div>
 
-            {/* A server from before scopes has none to show (E18c). */}
-            {a.scopes && (
-              <FormSection label="What it may do">
-                <AppScopes app={{ ...a, scopes: a.scopes }} onChanged={load} />
-              </FormSection>
-            )}
+            <FormSection label="What it may do">
+              <AppScopes app={a} onChanged={load} />
+            </FormSection>
 
             <FormSection label="Slash commands">
               <CommandList app={a} onChanged={load} />
@@ -1284,13 +1281,7 @@ function ScopePicker(props: {
  * from their next call. A change that does not go through is taken back on
  * screen, so what is ticked is what the server holds.
  */
-function AppScopes({
-  app,
-  onChanged,
-}: {
-  app: AppDetail & { scopes: AppScope[] };
-  onChanged: () => void;
-}) {
+function AppScopes({ app, onChanged }: { app: AppDetail; onChanged: () => void }) {
   const client = useClient();
   const [shown, setShown] = useState<AppScope[]>(app.scopes);
   const [error, setError] = useState<string | null>(null);

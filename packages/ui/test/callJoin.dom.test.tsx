@@ -17,6 +17,7 @@ const owner: User = {
   handle: "owner",
   displayName: "Owner",
   role: "owner",
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

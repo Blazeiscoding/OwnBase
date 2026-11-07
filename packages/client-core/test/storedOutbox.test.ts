@@ -249,6 +249,7 @@ describe("a refusal another window was given", () => {
         handle: "sam",
         displayName: "Sam",
         role: "member",
+        canInvite: true,
         statusText: "",
         statusEmoji: "",
         isBot: false,

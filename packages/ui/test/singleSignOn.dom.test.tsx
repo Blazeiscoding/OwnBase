@@ -41,6 +41,7 @@ const person = (role: User["role"]): User => ({
   handle: "maya",
   displayName: "Maya Lin",
   role,
+  canInvite: true,
   statusText: "",
   statusEmoji: "",
   isBot: false,

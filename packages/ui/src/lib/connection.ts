@@ -57,3 +57,20 @@ export function incompatibleWorkspace(url: string, info: ServerInfo): string | n
   }
   return null;
 }
+
+/**
+ * What to say once a workspace refused this app's protocol: which side has to
+ * update, from the version the server said it speaks (0: too old to say).
+ */
+export function protocolMismatch(serverVersion: number | null): { short: string; long: string } {
+  if (serverVersion !== null && serverVersion > PROTOCOL_VERSION) {
+    return {
+      short: "Workspace is newer. Update this app.",
+      long: "This workspace runs a newer version of OwnBase than this app. Update this app to connect.",
+    };
+  }
+  return {
+    short: "Workspace is out of date. Ask its host to update.",
+    long: "This workspace runs an older version of OwnBase than this app. The person who runs it needs to update the server.",
+  };
+}

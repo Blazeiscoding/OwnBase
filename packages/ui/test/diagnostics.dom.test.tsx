@@ -14,6 +14,7 @@ const sam: User = {
   handle: "sam",
   displayName: "Sam Rivera",
   role: "member",
+  canInvite: true,
   statusText: "Planning the launch",
   statusEmoji: "",
   isBot: false,

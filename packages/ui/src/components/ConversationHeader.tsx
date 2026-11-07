@@ -144,8 +144,8 @@ export function ConversationMenu(props: {
 }) {
   const client = useClient();
   const toast = useOptionalToast();
-  // A star is kept with a membership, by a server that keeps stars.
-  const canStar = useWorkspace((s) => s.stars && props.channelId in s.memberships);
+  // A star is kept with a membership.
+  const canStar = useWorkspace((s) => props.channelId in s.memberships);
   const starred = useWorkspace((s) => s.prefs[props.channelId]?.starred === true);
   const conversation = {
     id: props.channelId,

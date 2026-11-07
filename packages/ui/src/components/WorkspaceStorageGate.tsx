@@ -3,6 +3,7 @@ import { useStore } from "zustand";
 import type { WorkspaceClient } from "@ownbase/client-core";
 import type { Platform } from "../platform.js";
 import { useDeviceOffline } from "../lib/online.js";
+import { protocolMismatch } from "../lib/connection.js";
 import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import {
   checkWorkspaceAddress,
@@ -50,6 +51,7 @@ export function WorkspaceStorageGate({
   const userId = useStore(client.store, (state) => state.self?.id);
   const workspaceId = useStore(client.store, (state) => state.workspaceId);
   const status = useStore(client.store, (state) => state.status);
+  const serverProtocol = useStore(client.store, (state) => state.serverProtocolVersion);
   const deviceOffline = useDeviceOffline();
   const scope = useMemo<Scope | null>(
     () => (userId && workspaceId ? { client, workspaceId, userId } : null),
@@ -115,7 +117,7 @@ export function WorkspaceStorageGate({
   const asking = current?.phase === "approval" || current?.phase === "saving";
   const waiting =
     status === "protocol_mismatch"
-      ? "This app and the workspace run different versions of OwnBase. Update OwnBase to connect."
+      ? protocolMismatch(serverProtocol).long
       : signedOut
         ? "Going back to sign in…"
         : userId

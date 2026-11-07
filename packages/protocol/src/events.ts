@@ -63,8 +63,8 @@ export type EphemeralEvent =
       channel: Channel | null;
       membership: {
         lastReadSeq: number;
-        /** See `ReadySnapshot.memberships`. Absent from older servers. */
-        repliesReadSeq?: number;
+        /** See `ReadySnapshot.memberships`. */
+        repliesReadSeq: number;
         prefs: ChannelPrefs;
       } | null;
     }
@@ -325,7 +325,7 @@ export type ClientToServer =
       protocolVersion: number;
     }
   | { type: "typing"; channelId: ID }
-  | { type: "huddle.join"; channelId: ID; requestId?: string }
+  | { type: "huddle.join"; channelId: ID; requestId: string }
   | { type: "huddle.leave"; channelId: ID }
   | { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }
   /** How one of this side's connections in a huddle went, for the host's call log. */
