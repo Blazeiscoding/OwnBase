@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { CallLogEntry, ServerInfo, WorkspaceStatus } from "@ownbase/protocol";
-import { ApiError } from "@ownbase/client-core";
+import { ApiError, selfIsAdministrator } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { CALL_LOG_HEADING, diagnosticsFileName, diagnosticsReport } from "../lib/diagnostics.js";
 import { useCopy } from "../lib/useCopy.js";
@@ -53,7 +53,7 @@ export function DiagnosticsDialog({
 }) {
   const client = useClient();
   const platform = usePlatform();
-  const admin = useWorkspace((s) => s.self?.role === "owner" || s.self?.role === "admin");
+  const admin = useWorkspace(selfIsAdministrator);
   const [report, setReport] = useState<{ text: string; taken: Date } | null>(null);
   const [saved, setSaved] = useState<string | null>(null);
   const { copy, label } = useCopy(2500);

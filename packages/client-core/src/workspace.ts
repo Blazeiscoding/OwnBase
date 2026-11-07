@@ -2,6 +2,8 @@ import { createStore, type StoreApi } from "zustand/vanilla";
 import {
   PROTOCOL_VERSION,
   SEND_RETRY_WINDOW_MS,
+  SOCKET_CLOSE,
+  SOCKET_REFUSALS,
   type AccessPolicy,
   type Channel,
   type ChannelPrefs,
@@ -32,6 +34,7 @@ import { Api, ApiError, type CommandHint } from "./api.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
+import { isThreadUnread } from "./selectors.js";
 import { quoteChanges, requote } from "./replies.js";
 import { pollChoicesKey, pollChoicesOfKey, serverPollChoices, type PollDraft } from "./polls.js";
 import type {
@@ -808,8 +811,7 @@ const initialState: WorkspaceState = {
 
 /** Followed threads with replies this account has not read. */
 export function unreadThreadCount(threadFollows: Record<ID, ThreadFollow>): number {
-  return Object.values(threadFollows).filter((f) => f.following && f.lastSeq > f.lastReadSeq)
-    .length;
+  return Object.values(threadFollows).filter(isThreadUnread).length;
 }
 
 /**
@@ -1103,25 +1105,18 @@ export class WorkspaceClient {
         const msg = JSON.parse(String(e.data)) as ServerToClient;
         this.handleServerMessage(msg);
       } catch {
-        ws.close(4000, "invalid server message");
+        ws.close(SOCKET_CLOSE.invalidMessage, "invalid server message");
       }
     };
 
     ws.onclose = (event) => {
       if (this.ws !== ws) return;
       this.ws = null;
-      if (event.code === 4003) this.store.setState({ status: "auth_failed" });
-      if (event.code === 4002) this.store.setState({ status: "protocol_mismatch" });
-      if (event.code === 4004) this.store.setState({ status: "password_change_required" });
-      // Retrying only makes sense for a refusal that might stop. These will not
-      // until somebody does something, so reconnecting would be a loop that
-      // never ends and never says why.
-      if (
-        this.stopped ||
-        this.state.status === "auth_failed" ||
-        this.state.status === "protocol_mismatch" ||
-        this.state.status === "password_change_required"
-      ) {
+      const refusal = SOCKET_REFUSALS.find((r) => SOCKET_CLOSE[r] === event.code);
+      if (refusal) this.store.setState({ status: refusal });
+      // A refusal lasts until somebody does something, so reconnecting would be
+      // a loop that never ends and never says why.
+      if (this.stopped || SOCKET_REFUSALS.some((r) => r === this.state.status)) {
         this.leaveHuddle();
         return;
       }
@@ -3797,12 +3792,6 @@ export class WorkspaceClient {
     });
   }
 
-  /** True while notifications are snoozed. */
-  isSnoozed(now = Date.now()): boolean {
-    const until = this.state.self?.dndUntil ?? null;
-    return until !== null && until > now;
-  }
-
   // ---------- huddles ----------
 
   private session: HuddleSession | null = null;
@@ -4514,13 +4503,6 @@ export class WorkspaceClient {
         channel.id in s.memberships ? s.repliesRead : joined(s.repliesRead, channel.id, s.lastSeq),
     }));
     return channel;
-  }
-
-  unreadCount(channelId: ID): boolean {
-    const s = this.state;
-    const last = s.channelLastSeq[channelId] ?? 0;
-    const read = s.memberships[channelId] ?? 0;
-    return last > read;
   }
 }
 

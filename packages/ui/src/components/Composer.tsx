@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { ID, ScheduleMessageBody } from "@ownbase/protocol";
+import { MESSAGE_TEXT_MAX, type ID, type ScheduleMessageBody } from "@ownbase/protocol";
 import { ApiError, OUTBOX_LIMIT, quoteOf } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes } from "../lib/format.js";
@@ -38,7 +38,6 @@ import {
   formattingShortcut,
   listShortcut,
   type ListKind,
-  MESSAGE_LIMIT,
 } from "./FormattingToolbar.js";
 
 // Choosing a time to send is now and then, so its picker loads on first use.
@@ -451,7 +450,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     // Only this conversation's send waiting to be kept holds this one back.
     if (archived || scheduleLock.current || recoveryBlocksSend || held) return;
     const trimmed = text.trim();
-    if ((!trimmed && attached.length === 0) || text.length > MESSAGE_LIMIT) return;
+    if ((!trimmed && attached.length === 0) || text.length > MESSAGE_TEXT_MAX) return;
     // /poll opens the poll window, its words the question, as the + menu does.
     const asked = attached.length === 0 && pollsKept ? POLL_COMMAND.exec(trimmed) : null;
     if (asked) {
@@ -553,7 +552,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
       recoveryBlocksSend ||
       !scheduleStorageKey ||
       (!trimmed && attached.length === 0) ||
-      text.length > MESSAGE_LIMIT
+      text.length > MESSAGE_TEXT_MAX
     )
       return;
     scheduleLock.current = true;
@@ -625,15 +624,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
       setScheduleError(
         savingRecovery
           ? "Nothing was scheduled because this device could not save a copy first. Your draft is still here."
-          : error instanceof ApiError && error.code === "scheduling_upgrade_required"
-            ? "The workspace server needs an update before it can schedule messages. Ask the host to update OwnBase. Your draft is still here."
-            : submitted
-              ? "Could not finish scheduling. Press Check again to see if the message was scheduled."
-              : error instanceof ApiError && error.code === "storage_quota_exceeded"
-                ? "The workspace has no room left for files. Your draft is still here. Ask the host to free space or raise the limit, then try again."
-                : error instanceof ApiError && error.code === "file_too_large"
-                  ? "One of these files is bigger than this workspace allows. Remove it and try again."
-                  : "Could not upload the files. Your draft is still here. Try again when you're back online.",
+          : submitted
+            ? "Could not finish scheduling. Press Check again to see if the message was scheduled."
+            : error instanceof ApiError && error.code === "storage_quota_exceeded"
+              ? "The workspace has no room left for files. Your draft is still here. Ask the host to free space or raise the limit, then try again."
+              : error instanceof ApiError && error.code === "file_too_large"
+                ? "One of these files is bigger than this workspace allows. Remove it and try again."
+                : "Could not upload the files. Your draft is still here. Try again when you're back online.",
       );
     } finally {
       if (current()) {
@@ -691,15 +688,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     } catch (error) {
       if (scheduleContext.current === context)
         setScheduleError(
-          error instanceof ApiError && error.code === "scheduling_upgrade_required"
-            ? "The workspace server needs an update before it can schedule messages. Ask the host to update OwnBase. Your draft is still here."
-            : error instanceof ApiError && error.code === "scheduled_removed"
-              ? "This message was scheduled, then removed from Scheduled. OwnBase did not schedule it again."
-              : error instanceof ApiError && error.code === "send_at_in_past"
-                ? "The time you picked has passed, so the message was not scheduled. Keep the draft and pick a new time."
-                : error instanceof ApiError && error.code === "scheduled_limit"
-                  ? `${error.message} Your message is still saved here.`
-                  : "Could not check if the message was scheduled. Your message is still saved here. Try again when you're back online.",
+          error instanceof ApiError && error.code === "scheduled_removed"
+            ? "This message was scheduled, then removed from Scheduled. OwnBase did not schedule it again."
+            : error instanceof ApiError && error.code === "send_at_in_past"
+              ? "The time you picked has passed, so the message was not scheduled. Keep the draft and pick a new time."
+              : error instanceof ApiError && error.code === "scheduled_limit"
+                ? `${error.message} Your message is still saved here.`
+                : "Could not check if the message was scheduled. Your message is still saved here. Try again when you're back online.",
         );
     } finally {
       if (scheduleContext.current === context) {
@@ -1082,13 +1077,13 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
             {attachmentNote}
           </p>
         )}
-        {text.length > MESSAGE_LIMIT - 1000 && (
+        {text.length > MESSAGE_TEXT_MAX - 1000 && (
           <p
             aria-live="polite"
-            className={`px-4 pb-2 text-right text-xs ${text.length > MESSAGE_LIMIT ? "text-alert" : "text-ink-faint"}`}
+            className={`px-4 pb-2 text-right text-xs ${text.length > MESSAGE_TEXT_MAX ? "text-alert" : "text-ink-faint"}`}
           >
-            {text.length.toLocaleString()} / {MESSAGE_LIMIT.toLocaleString()} characters
-            {text.length > MESSAGE_LIMIT ? " · Shorten your message to send it." : ""}
+            {text.length.toLocaleString()} / {MESSAGE_TEXT_MAX.toLocaleString()} characters
+            {text.length > MESSAGE_TEXT_MAX ? " · Shorten your message to send it." : ""}
           </p>
         )}
         {threadRootId && (
@@ -1185,7 +1180,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
                   send();
                   box.current?.focus();
                 }}
-                disabled={(!text.trim() && attached.length === 0) || text.length > MESSAGE_LIMIT}
+                disabled={(!text.trim() && attached.length === 0) || text.length > MESSAGE_TEXT_MAX}
                 aria-label="Send message"
                 className="btn-shape flex size-8 items-center justify-center bg-copper text-ground hover:bg-copper-deep disabled:bg-transparent disabled:text-ink-faint/60"
               >

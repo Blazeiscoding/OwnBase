@@ -14,6 +14,16 @@
       "concepts": ["authentication", "scrypt", "session hashing"]
     },
     {
+      "path": "packages/server/src/httpError.ts",
+      "plain": "How the server turns a request down: a status and one of the listed reasons, sent back as the error.",
+      "summary": "HttpError(statusCode, code: ErrorCode, message?, retryAfter?), shared by the server's routes and ee's single sign-on.",
+      "details": [
+        "The server's error handler answers an HttpError with { error: code, message } and its status, and a Retry-After header when retryAfter is set.",
+        "It lives in its own module, exported as @ownbase/server/httpError, so ee throws the same class instead of building look-alike errors by hand."
+      ],
+      "concepts": ["error codes", "REST errors"]
+    },
+    {
       "path": "packages/server/src/twoStep.ts",
       "plain": "Makes and checks the six-digit codes an authenticator app shows, and the recovery codes for when the phone is gone.",
       "summary": "RFC 6238 time-based codes and recovery codes for two-step sign-in, made with node:crypto alone (E11).",
@@ -621,13 +631,26 @@
       "concepts": ["durable events", "ephemeral state", "reconnect", "N10 contract"]
     },
     {
+      "path": "packages/protocol/src/errors.ts",
+      "plain": "The list of every reason the server can give for turning a request down, so the app can only check for reasons that exist.",
+      "summary": "ERROR_CODES and the ErrorCode type, used by the server's HttpError and the client's ApiError.",
+      "details": [
+        "Every code a REST answer can carry is listed once, grouped by what it is about, along with the few a client makes up itself when no answer arrives (network_error, upload_timeout, http_error).",
+        "HttpError on the server and ApiError in client-core both take an ErrorCode, so a code renamed or retired on one side fails to compile where the other still expects it.",
+        "errorCodeOf reads a code off the wire and turns one this client does not know into http_error.",
+        "Incoming webhooks answer in Slack's words (invalid_webhook, not_in_channel, no_text, invalid_payload); those are listed too, since the Apps dialog's test post reads them."
+      ],
+      "concepts": ["error codes", "shared contract", "untangle U1"]
+    },
+    {
       "path": "packages/protocol/src/format.ts",
       "plain": "Shared formatting rules for showing text exactly as typed and spotting @channel, @here and @everyone mentions.",
       "summary": "Shares literal mrkdwn escaping and room-wide mention interpretation.",
       "details": [
         "escapeMrkdwn prefixes formatting delimiters and backslashes so generated text such as /shrug is displayed literally.",
         "broadcastsIn recognizes Slack-compatible <!channel>, <!here> and <!everyone> tokens, normalizing everyone to channel.",
-        "broadcastLabel turns wire tokens into user-facing labels; choosing who is eligible for notification remains an authorization/presence decision elsewhere."
+        "broadcastLabel turns wire tokens into user-facing labels; choosing who is eligible for notification remains an authorization/presence decision elsewhere.",
+        "USER_MENTION and userMentionsIn read <@id> mentions; the server's mention index, its mention-count fan-out, notifications and the UI all use them instead of their own patterns."
       ],
       "concepts": ["mrkdwn", "mentions", "shared utility"]
     },
@@ -663,6 +686,7 @@
       "plain": "Decides who can manage a channel, such as adding or removing people, with the same rules in the app and on the server.",
       "summary": "Shares channel-management policy between server enforcement and UI affordances.",
       "details": [
+        "isAdministrator is the one owner-or-admin check, used by the server, the gateway and the UI.",
         "Owner/admin, creator and delegated member managers receive different management powers; active human status and room type are checked.",
         "Delegated management ends with membership. Removing someone is not a public-room ban, and an administrator's management role does not grant visibility into private rooms.",
         "Removal protects self, owner, admins and privileged managers according to the actor's authority; manager assignment rejects inappropriate bot/deactivated/creator targets.",

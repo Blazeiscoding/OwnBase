@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import {
   WORKSPACE_ICON_MAX_BYTES,
   WORKSPACE_ICON_TYPES,
+  type ErrorCode,
   type WorkspaceIconType,
 } from "@ownbase/protocol";
 import { imageSize } from "./imageSize.js";
@@ -53,7 +54,7 @@ export function iconVersion(bytes: Uint8Array): string {
 /** Why an icon was refused, as an HTTP answer. */
 export interface IconRefusal {
   status: number;
-  code: string;
+  code: ErrorCode;
   message: string;
 }
 

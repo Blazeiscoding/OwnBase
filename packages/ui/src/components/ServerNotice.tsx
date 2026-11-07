@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useState } from "react";
 import type { ServerNotice } from "@ownbase/protocol";
+import { selfIsAdministrator } from "@ownbase/client-core";
 import { usePlatform, useWorkspace } from "../context.js";
 import { Banner, BannerAction } from "./Banner.js";
 
@@ -23,9 +24,7 @@ export function ServerNoticeBanner({
   onShowing?: (showing: boolean) => void;
 }) {
   const platform = usePlatform();
-  const notices = useWorkspace((s) =>
-    s.self?.role === "owner" || s.self?.role === "admin" ? s.serverNotices : NONE,
-  );
+  const notices = useWorkspace((s) => (selfIsAdministrator(s) ? s.serverNotices : NONE));
   const workspaceId = useWorkspace((s) => s.workspaceId);
   const prefix = `serverNoticeSnoozedAt:${workspaceId ?? "workspace"}:`;
   // Unknown until storage answers, so a snoozed notice does not flash first.

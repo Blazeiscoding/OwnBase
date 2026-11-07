@@ -357,6 +357,25 @@ export interface ReadySnapshot {
 }
 
 /** Everything the server can push over the socket. */
+/**
+ * The codes a server closes a socket with. The last three are refusals a
+ * reconnect cannot cure, each named by the `error` frame sent just before.
+ */
+export const SOCKET_CLOSE = {
+  invalidMessage: 4000,
+  protocol_mismatch: 4002,
+  auth_failed: 4003,
+  password_change_required: 4004,
+} as const;
+
+/** Refusals that end a session's socket until somebody acts. */
+export const SOCKET_REFUSALS = [
+  "auth_failed",
+  "protocol_mismatch",
+  "password_change_required",
+] as const;
+export type SocketRefusal = (typeof SOCKET_REFUSALS)[number];
+
 export type ServerToClient =
   | ReadySnapshot
   | { type: "synced"; seq: number }
@@ -366,7 +385,7 @@ export type ServerToClient =
   | { type: "resync" }
   | {
       type: "error";
-      code: "auth_failed" | "protocol_mismatch" | "password_change_required";
+      code: SocketRefusal;
       message: string;
     }
   | { type: "pong" };

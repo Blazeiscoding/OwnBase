@@ -75,6 +75,17 @@ export type {
 export { serverPollChoices, shownPoll } from "./polls.js";
 export type { PollDraft } from "./polls.js";
 export { OUTBOX_LIMIT, WorkspaceClient, isMessageRead, unreadThreadCount } from "./workspace.js";
+export {
+  blockedPartner,
+  deactivatedPartner,
+  isSnoozed,
+  snoozedUntil,
+  isThreadUnread,
+  isUnread,
+  mentionsElsewhere,
+  selfIsAdministrator,
+  waitsForAttention,
+} from "./selectors.js";
 export type {
   ChannelTimeline,
   EphemeralMessage,

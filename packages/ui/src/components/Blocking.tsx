@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { ID } from "@ownbase/protocol";
+import { selfIsAdministrator } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
@@ -60,7 +61,7 @@ export function BlockedComposer({ userId }: { userId: ID }) {
  */
 export function DeactivatedComposer({ userId }: { userId: ID }) {
   const name = useWorkspace((s) => s.users[userId]?.displayName ?? "This person");
-  const admin = useWorkspace((s) => s.self?.role === "owner" || s.self?.role === "admin");
+  const admin = useWorkspace(selfIsAdministrator);
   return (
     <div className="shrink-0 px-4 pb-5">
       <div className="flex items-center gap-3 rounded-xl border border-edge bg-ink/[0.03] px-4 py-3">

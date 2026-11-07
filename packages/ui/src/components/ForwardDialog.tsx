@@ -1,8 +1,7 @@
 import { useId, useRef, useState, type FormEvent } from "react";
-import type { ID } from "@ownbase/protocol";
-import { forwardOf, type ForwardSource } from "@ownbase/client-core";
+import { MESSAGE_TEXT_MAX, type ID } from "@ownbase/protocol";
+import { blockedPartner, forwardOf, type ForwardSource } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
-import { blockedPartner } from "../lib/blocking.js";
 import { matchTier } from "../lib/switcherRank.js";
 import { useListbox } from "../lib/useListbox.js";
 import { buttonClass } from "./Button.js";
@@ -195,7 +194,7 @@ export function ForwardDialog({ source, onClose }: { source: ForwardSource; onCl
             dir="auto"
             rows={2}
             value={comment}
-            maxLength={12000}
+            maxLength={MESSAGE_TEXT_MAX}
             onChange={(event) => setComment(event.target.value)}
             className={`${inputCls} resize-none`}
           />

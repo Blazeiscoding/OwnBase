@@ -71,7 +71,7 @@ describe("the commands the app runs", () => {
   it("add the people mentioned, and name who could not be added", async () => {
     const client = workspace();
     const invite = vi.spyOn(client.api, "inviteMember").mockImplementation(async (_c, id) => {
-      if (id === "U_KAI") throw new ApiError(403, "forbidden");
+      if (id === "U_KAI") throw new ApiError(403, "admin_only");
       return { ok: true };
     });
     expect(
@@ -91,7 +91,7 @@ describe("the commands the app runs", () => {
       said: "Topic of #design set.",
     });
     expect(update).toHaveBeenCalledWith("C1", { topic: "Ship it" });
-    update.mockRejectedValue(new ApiError(403, "forbidden"));
+    update.mockRejectedValue(new ApiError(403, "admin_only"));
     expect((await runAppCommand("topic", "Ship it", { client, channelId: "C1" })).said).toMatch(
       /Only someone who can manage #design/,
     );

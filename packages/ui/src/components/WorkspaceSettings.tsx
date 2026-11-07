@@ -524,7 +524,7 @@ function CopySection() {
     setError(null);
     try {
       const url = await client.api.workspaceCopyUrl(ready.id);
-      if (!platform.downloadFile) throw new ApiError(409, "download_upgrade_required");
+      if (!platform.downloadFile) throw new Error("This app cannot save downloads.");
       await platform.downloadFile(url);
       if (alive.current) setStarted(true);
     } catch (err) {

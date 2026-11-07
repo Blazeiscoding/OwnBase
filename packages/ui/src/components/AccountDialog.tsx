@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
-import { ApiError } from "@ownbase/client-core";
+import { ApiError, snoozedUntil } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { signOutOnPurpose } from "../lib/signOut.js";
@@ -635,14 +635,14 @@ function NotificationSettings() {
   const [permission, setPermission] = useState(browserPermission);
   const [asking, setAsking] = useState(false);
   const [now, setNow] = useState(() => new Date());
-  const paused = dndUntil !== null && dndUntil > now.getTime();
+  const pausedUntil = snoozedUntil(dndUntil, now.getTime());
 
   // A pause ends by itself; say so without waiting for another render.
   useEffect(() => {
-    if (!paused) return;
-    const timer = setTimeout(() => setNow(new Date()), Math.max(0, dndUntil - Date.now()) + 50);
+    if (pausedUntil === null) return;
+    const timer = setTimeout(() => setNow(new Date()), Math.max(0, pausedUntil - Date.now()) + 50);
     return () => clearTimeout(timer);
-  }, [paused, dndUntil]);
+  }, [pausedUntil]);
 
   async function ask() {
     if (asking) return;
@@ -686,12 +686,12 @@ function NotificationSettings() {
           Pause notifications
         </h3>
         <p role="status" className="mt-1 text-sm text-ink-dim">
-          {paused
-            ? `Paused until ${resumeTime(dndUntil, now)}, on every device you use.`
+          {pausedUntil !== null
+            ? `Paused until ${resumeTime(pausedUntil, now)}, on every device you use.`
             : "A pause stops notifications on every device you use."}
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
-          {paused ? (
+          {pausedUntil !== null ? (
             <button
               className={buttonClass("secondary")}
               onClick={() => client.snoozeNotificationsUntil(null)}
