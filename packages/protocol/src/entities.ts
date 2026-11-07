@@ -788,6 +788,23 @@ export interface Reminder {
   dueAt: number | null;
 }
 
+/**
+ * A note that someone else removed this account from a channel, waiting in
+ * Activity until it is read. Leaving by oneself leaves none. The channel's
+ * name and kind are as they were then, since the channel may since be out of
+ * reach, renamed or deleted.
+ */
+export interface ChannelRemoval {
+  id: ID;
+  channelId: ID;
+  channelName: string;
+  channelType: "public" | "private";
+  /** Who removed them. */
+  removedBy: ID;
+  /** When, in epoch ms. */
+  createdAt: number;
+}
+
 /** A reminder with the message it is about, as the Reminders list shows it. */
 export interface ReminderItem {
   reminder: Reminder;

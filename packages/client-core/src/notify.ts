@@ -120,6 +120,11 @@ export function dueReminderCount(state: Pick<WorkspaceState, "reminders" | "chan
   ).length;
 }
 
+/** Notes that someone removed this account from channels, waiting in Activity. */
+export function unreadRemovalCount(state: Pick<WorkspaceState, "channelRemovals">): number {
+  return Object.keys(state.channelRemovals).length;
+}
+
 /**
  * What the person has on screen, as far as the app can tell. A conversation
  * can be selected without being seen: the window can be in the background or

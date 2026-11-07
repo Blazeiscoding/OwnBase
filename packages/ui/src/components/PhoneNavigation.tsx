@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from "react";
 import { isDirect, isRoom, type ID } from "@ownbase/protocol";
 import { isSnoozed, mentionsElsewhere, waitsForAttention } from "@ownbase/client-core";
-import { dueReminderCount, unreadThreadCount } from "@ownbase/client-core";
+import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
 import { useOnScreenKeyboard } from "../lib/onScreenKeyboard.js";
@@ -104,9 +104,11 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
   const mentions = useWorkspace((s) => mentionsElsewhere(s, activeChannelId));
   const unreadReplies = useWorkspace((s) => unreadThreadCount(s.threadFollows) > 0);
   const dueReminders = useWorkspace(dueReminderCount);
+  const removals = useWorkspace(unreadRemovalCount);
   const waitingInActivity = [
     mentions > 0 && `${mentions} ${mentions === 1 ? "mention" : "mentions"}`,
     dueReminders > 0 && `${dueReminders} ${dueReminders === 1 ? "reminder" : "reminders"} due`,
+    removals > 0 && `${removals} ${removals === 1 ? "channel" : "channels"} you were removed from`,
   ]
     .filter(Boolean)
     .join(", ");
@@ -149,8 +151,8 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
           label="Activity"
           current={here === "activity"}
           onClick={props.onActivity}
-          count={mentions + dueReminders}
-          dot={mentions + dueReminders === 0 && unreadReplies}
+          count={mentions + dueReminders + removals}
+          dot={mentions + dueReminders + removals === 0 && unreadReplies}
           waiting={
             waitingInActivity ||
             (unreadReplies ? "Unread replies in threads you follow" : undefined)

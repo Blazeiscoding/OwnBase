@@ -745,6 +745,23 @@ const MIGRATIONS: string[] = [
   ALTER TABLE channel_members ADD COLUMN notify_chosen INTEGER NOT NULL DEFAULT 0;
   UPDATE channel_members SET notify_chosen = 1 WHERE notify_level <> 'mentions';
   `,
+  // v54 — a note for someone another person removed from a channel, waiting
+  // in their Activity until they read it, which deletes it. The channel's name
+  // and kind as they were then, and no foreign key to it or to who removed
+  // them, as an audit entry's actor: the note outlives a deleted channel. It
+  // goes with the account it is for.
+  `
+  CREATE TABLE channel_removals (
+    id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel_id TEXT NOT NULL,
+    channel_name TEXT NOT NULL,
+    channel_type TEXT NOT NULL,
+    removed_by TEXT NOT NULL,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX idx_channel_removals_user ON channel_removals(user_id, created_at);
+  `,
 ];
 
 /** The schema this build understands. A workspace above it cannot be opened. */

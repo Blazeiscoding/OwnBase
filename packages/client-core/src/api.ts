@@ -29,6 +29,7 @@ import type {
   SlashCommand,
   ThreadFollow,
   Reminder,
+  ChannelRemoval,
   ReportReason,
   ReportResolution,
   ReportedMessage,
@@ -69,9 +70,20 @@ export class ApiError extends Error {
     public status: number,
     public code: ErrorCode,
     message?: string,
+    /** How long the server asked to be left alone, from its Retry-After, when it said. */
+    public retryAfterMs?: number,
   ) {
     super(message ?? code);
   }
+}
+
+/** How long a message send waits for the workspace's answer. */
+export const SEND_TIMEOUT_MS = 30_000;
+
+/** Retry-After in seconds as milliseconds; a date or nothing gives undefined. */
+function retryAfter(header: string | null): number | undefined {
+  const seconds = Number(header);
+  return header && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
 }
 
 /** A session, as signing in or joining gives one. */
@@ -141,7 +153,7 @@ export class Api {
       } catch {
         /* non-JSON error body */
       }
-      throw new ApiError(res.status, code, message);
+      throw new ApiError(res.status, code, message, retryAfter(res.headers.get("retry-after")));
     }
     return (await res.json()) as T;
   }
@@ -658,8 +670,14 @@ export class Api {
     });
   }
 
+  /**
+   * A send carries a nonce, so one that waited too long for an answer can go
+   * again without posting twice; without a limit it showed "Sending…" forever.
+   */
   sendMessage(channelId: ID, body: SendMessageBody): Promise<{ message: Message }> {
-    return this.request("POST", `/api/channels/${channelId}/messages`, body);
+    return this.request("POST", `/api/channels/${channelId}/messages`, body, {
+      timeoutMs: SEND_TIMEOUT_MS,
+    });
   }
 
   /** With `expectedText`, refused as `message_changed` if the words are no longer those. */
@@ -724,7 +742,14 @@ export class Api {
           } catch {
             /* non-JSON error body */
           }
-          reject(new ApiError(xhr.status, code));
+          reject(
+            new ApiError(
+              xhr.status,
+              code,
+              undefined,
+              retryAfter(xhr.getResponseHeader("retry-after")),
+            ),
+          );
         }
       });
       xhr.addEventListener("error", () => reject(new ApiError(0, "network_error")));
@@ -899,6 +924,11 @@ export class Api {
 
   cancelReminder(messageId: ID): Promise<{ ok: true }> {
     return this.request("DELETE", `/api/messages/${messageId}/reminder`);
+  }
+
+  /** Reads notes that someone removed this account from channels; says which were there. */
+  readChannelRemovals(ids: ID[]): Promise<{ ids: ID[] }> {
+    return this.request("POST", "/api/activity/removals/read", { ids });
   }
 
   /** Replaces this account's choices in a poll; none takes the vote back (E6). */

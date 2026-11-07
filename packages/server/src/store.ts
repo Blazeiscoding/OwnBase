@@ -3,6 +3,7 @@ import type {
   App,
   CallNotice,
   Channel,
+  ChannelRemoval,
   ChannelPrefs,
   ChannelType,
   FileMeta,
@@ -131,6 +132,16 @@ interface MessageRow {
 }
 
 /** A reminder's row beside its message's conversation and thread. */
+interface ChannelRemovalRow {
+  id: string;
+  user_id: string;
+  channel_id: string;
+  channel_name: string;
+  channel_type: "public" | "private";
+  removed_by: string;
+  created_at: number;
+}
+
 interface ReminderRow {
   id: string;
   user_id: string;
@@ -3405,6 +3416,70 @@ export class Store {
       messages: this.hydrateMessages(page),
       nextCursor: rows.length > limit && last ? `${last.saved_at}:${last.id}` : null,
     };
+  }
+
+  // ---------- removals ----------
+
+  /** How many unread notes of removals the handshake carries, newest first. */
+  static readonly REMOVALS_SENT = 100;
+
+  private static removalFrom(row: ChannelRemovalRow): ChannelRemoval {
+    return {
+      id: row.id,
+      channelId: row.channel_id,
+      channelName: row.channel_name,
+      channelType: row.channel_type,
+      removedBy: row.removed_by,
+      createdAt: row.created_at,
+    };
+  }
+
+  /**
+   * Notes that `removedBy` removed `userId` from `channel`, for their
+   * Activity. A direct conversation has no note: nobody is removed from one.
+   */
+  addChannelRemoval(userId: ID, channel: Channel, removedBy: ID): ChannelRemoval | null {
+    if (channel.type !== "public" && channel.type !== "private") return null;
+    const row = this.db
+      .prepare(
+        `INSERT INTO channel_removals
+           (id, user_id, channel_id, channel_name, channel_type, removed_by, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
+      )
+      .get(
+        ulid(),
+        userId,
+        channel.id,
+        channel.name,
+        channel.type,
+        removedBy,
+        Date.now(),
+      ) as unknown as ChannelRemovalRow;
+    return Store.removalFrom(row);
+  }
+
+  /** One account's unread notes of removals, newest first. */
+  channelRemovals(userId: ID, limit = Store.REMOVALS_SENT): ChannelRemoval[] {
+    const rows = this.db
+      .prepare(
+        `SELECT * FROM channel_removals WHERE user_id = ?
+         ORDER BY created_at DESC, id DESC LIMIT ?`,
+      )
+      .all(userId, limit) as unknown as ChannelRemovalRow[];
+    return rows.map(Store.removalFrom);
+  }
+
+  /**
+   * Reads, and so clears, some of one account's notes of removals. Returns the
+   * ids that were there; another account's are left alone.
+   */
+  readChannelRemovals(userId: ID, ids: readonly ID[]): ID[] {
+    const remove = this.db.prepare(
+      "DELETE FROM channel_removals WHERE id = ? AND user_id = ? RETURNING id",
+    );
+    const read: ID[] = [];
+    for (const id of new Set(ids)) if (remove.get(id, userId)) read.push(id);
+    return read;
   }
 
   // ---------- reminders ----------

@@ -512,6 +512,11 @@ export const activityQuery = z.object({
   limit: z.coerce.number().int().positive().max(100).default(30),
 });
 
+/** The notes that someone removed this account from channels, read and cleared. */
+export const readRemovalsBody = z.object({
+  ids: z.array(z.string().min(1).max(100)).min(1).max(200),
+});
+
 export const threadHistoryQuery = z
   .object({
     before: z.string().min(1).optional(),

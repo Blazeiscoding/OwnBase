@@ -156,17 +156,79 @@ describe("a send that does not go through", () => {
     }
   });
 
-  it("asks for a moment when the workspace says too much came at once", async () => {
+  it("sends what came too fast again by itself, once the wait is over", async () => {
     const client = await online();
     vi.spyOn(client.api, "sendMessage").mockRejectedValueOnce(
-      new ApiError(429, "too_many_requests"),
+      new ApiError(429, "too_many_requests", undefined, 300),
     );
     client.send(general, "One of many");
     const state = await until(client, (s) => !!failed(s), "the rate limit");
     expect(failed(state)).toMatchObject({
       refused: false,
-      failureReason: "Too much sent at once. Press Retry in a moment.",
+      failureReason: "Too much sent at once. It is sent again in a moment.",
     });
+    await until(client, (s) => s.pending.length === 0, "the send going again");
+    expect(
+      server.store
+        .listMessages({ channelId: general, limit: 10 })
+        .filter((m) => m.text === "One of many"),
+    ).toHaveLength(1);
+  });
+
+  it("waits as long as a rate-limited server says, then sends each once", async () => {
+    // Two at once, then two a second: the burst of five a person can paste.
+    const limitedDir = mkdtempSync(join(tmpdir(), "ownbase-outbox-limited-"));
+    const limited = await createWorkspaceServer({
+      dataDir: limitedDir,
+      port: 0,
+      mdns: false,
+      rateLimits: { post: { burst: 2, perMinute: 120 } },
+    });
+    onTestFinished(async () => {
+      await limited.stop();
+      rmSync(limitedDir, { recursive: true, force: true });
+    });
+    const limitedBase = `http://127.0.0.1:${limited.port}`;
+    const { token: limitedToken } = await new Api(limitedBase).register({
+      handle: "kit",
+      displayName: "Kit",
+      password: "password123",
+    });
+    const channel = limited.store.getChannelByName("general")!.id;
+    const client = new WorkspaceClient(limitedBase, limitedToken);
+    onTestFinished(() => client.destroy());
+    client.connect();
+    await until(client, (s) => s.status === "online", "connection");
+
+    const words = ["one", "two", "three", "four", "five"];
+    for (const text of words) client.send(channel, text);
+    await until(client, (s) => s.pending.some((p) => p.failed), "the limit");
+    await until(client, (s) => s.pending.length === 0, "every send going again", 10_000);
+    const posted = limited.store
+      .listMessages({ channelId: channel, limit: 10 })
+      .map((m) => m.text)
+      .filter((text) => words.includes(text));
+    expect(posted.sort()).toEqual([...words].sort());
+  });
+
+  it("says when the workspace was reached but did not answer, or answered unreadably", async () => {
+    const client = await online();
+    const send = vi.spyOn(client.api, "sendMessage");
+    send.mockRejectedValueOnce(new DOMException("The operation timed out.", "TimeoutError"));
+    client.send(general, "Into the void");
+    let state = await until(client, (s) => !!failed(s), "the timeout");
+    expect(failed(state)).toMatchObject({
+      refused: false,
+      failureReason: "The workspace did not answer in time. Press Retry to send it again.",
+    });
+    client.discardSend(failed(state)!.nonce);
+
+    send.mockRejectedValueOnce(new SyntaxError("Unexpected end of JSON input"));
+    client.send(general, "Through a captive portal");
+    state = await until(client, (s) => !!failed(s), "the unreadable answer");
+    expect(failed(state)!.failureReason).toBe(
+      "The workspace's answer could not be read. Press Retry to send it again.",
+    );
   });
 
   it("sends what was lost on the way once the connection is back, but not what was refused", async () => {
