@@ -52,6 +52,16 @@ export function ProfileDialog(props: {
   const canBlock = useWorkspace((s) => s.blocked !== null);
   const blockedThem = useWorkspace((s) => s.blocked?.includes(props.userId) === true);
   const [blockError, setBlockError] = useState<string | null>(null);
+  // A deactivated account reads nothing new: its card says so, and offers
+  // only the conversation already had with it, to read back (V2).
+  const sharedDm = useWorkspace((s) =>
+    Object.values(s.channels).find(
+      (c) =>
+        c.type === "dm" &&
+        c.memberIds?.includes(props.userId) &&
+        c.memberIds.includes(s.self?.id ?? ""),
+    ),
+  );
   // Asked over the workspace; a card drawn alone, as in a test, has nothing to ask with.
   const confirm = useOptionalConfirm();
   // The press on Message this card is waiting on. Once the card is closed, or
@@ -104,9 +114,16 @@ export function ProfileDialog(props: {
       );
   }
 
-  const online = presence === "online";
-  const away = presence === "away";
-  const presenceWords = online ? "Active now" : away ? "Away" : "Offline";
+  const gone = user.deactivated && user.id !== selfId;
+  const online = !gone && presence === "online";
+  const away = !gone && presence === "away";
+  const presenceWords = gone
+    ? "Account deactivated"
+    : online
+      ? "Active now"
+      : away
+        ? "Away"
+        : "Offline";
   // Their clock, where their zone is known (E9).
   const local = theirTime(user, self, now);
   return (
@@ -184,7 +201,7 @@ export function ProfileDialog(props: {
               )}
             </p>
           )}
-          {user.id !== selfId && !user.isBot && !blockedThem && (
+          {user.id !== selfId && !user.isBot && !blockedThem && !gone && (
             <div className="mt-3 border-t border-edge pt-3">
               <FriendActions userId={user.id} />
             </div>
@@ -206,7 +223,22 @@ export function ProfileDialog(props: {
             Edit profile and status
           </button>
         )}
-        {user.id !== selfId && (
+        {gone && (
+          <p className="mt-3 text-[13px] text-ink-dim">
+            {user.displayName} cannot sign in or read new messages. An admin can reactivate the
+            account.
+          </p>
+        )}
+        {gone && sharedDm && (
+          <button
+            type="button"
+            onClick={() => props.onOpenDm(sharedDm.id)}
+            className={buttonClass("secondary", "mt-3 w-full")}
+          >
+            Open your messages
+          </button>
+        )}
+        {user.id !== selfId && !gone && (
           <button
             // Not `disabled`, so focus stays on the button while it works and it can try again.
             aria-disabled={opening || undefined}
@@ -216,7 +248,7 @@ export function ProfileDialog(props: {
             {opening ? "Opening…" : `Message ${user.displayName}`}
           </button>
         )}
-        {user.id !== selfId && !user.isBot && canBlock && (
+        {user.id !== selfId && !user.isBot && canBlock && (!gone || blockedThem) && (
           <button
             type="button"
             onClick={() => void toggleBlock(user.id, user.displayName)}

@@ -1,4 +1,5 @@
 import { parseSearchQuery, type FileType, type ID, type User } from "@ownbase/protocol";
+import { dateFormat } from "./readerLocale.js";
 
 /**
  * Search's filters as chips (UX-51). A filter is held as the modifier it adds
@@ -110,7 +111,7 @@ export const DATE_PRESETS = [
 ] as const;
 
 // Read in UTC, so a day written as YYYY-MM-DD is not moved a day by the reader's zone.
-const calendarDay = new Intl.DateTimeFormat(undefined, { timeZone: "UTC" });
+const calendarDay = dateFormat({ timeZone: "UTC" });
 
 /** A YYYY-MM-DD day in the reader's own date style. */
 export function dayLabel(day: string): string {

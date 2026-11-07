@@ -183,7 +183,8 @@ function tagOf(path: string): string {
  * here, which openapi.test.ts asks for by name.
  */
 export const TAG_WORDS: Record<string, string> = {
-  activity: "Mentions, replies and reactions addressed to the signed-in account.",
+  activity:
+    "Mentions, replies and reactions addressed to the signed-in account, and channels it was removed from.",
   admin: "Running the workspace: members, audit history, reports, copies and status.",
   apps: "Apps and integrations: bot users, tokens, scopes, webhooks, commands, events.",
   auth: "Accounts, signing in and out, guests and sessions.",

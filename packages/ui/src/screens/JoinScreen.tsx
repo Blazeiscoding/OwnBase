@@ -850,6 +850,9 @@ function AuthCard(props: {
   // it is asked for, and shown so the person sees what they are using.
   const [claimCode, setClaimCode] = useState(isFirstUser ? (props.presetClaimCode ?? "") : "");
   const [requiresClaim, setRequiresClaim] = useState(!!props.info.requiresClaim);
+  // An admin can make the workspace invite-only while this page is open: the
+  // refusal then brings the code's field, which the page did not show.
+  const [requiresInvite, setRequiresInvite] = useState(!!props.info.requiresInvite);
   const [error, setError] = useState<string | null>(null);
   // A form that was refused shakes its head. Each new refusal shakes it again:
   // one that replaces another takes the twin animation, which starts afresh.
@@ -1043,7 +1046,8 @@ function AuthCard(props: {
     } catch (err) {
       if (ticket !== attempt.current) return;
       if (err instanceof ApiError && err.code === "claim_required") setRequiresClaim(true);
-      setError(errorMessage(err, mode));
+      if (err instanceof ApiError && err.code === "invite_required") setRequiresInvite(true);
+      setError(errorMessage(err, mode, { inviteCode: !!inviteCode.trim() }));
       setBusy(false);
     }
   }
@@ -1456,7 +1460,7 @@ function AuthCard(props: {
                     </p>
                   )}
                 </div>
-                {mode === "register" && !isFirstUser && props.info.requiresInvite && (
+                {mode === "register" && !isFirstUser && requiresInvite && (
                   <div>
                     <label className={labelCls} htmlFor={`${id}-invite-code`}>
                       Invite code
@@ -1547,7 +1551,7 @@ const MODE_LABELS: Record<Mode, string> = {
   register: "Create account",
 };
 
-function errorMessage(err: unknown, mode: Mode): string {
+function errorMessage(err: unknown, mode: Mode, sent: { inviteCode?: boolean } = {}): string {
   if (err instanceof ApiError) {
     switch (err.code) {
       case "guest_access_off":
@@ -1563,7 +1567,11 @@ function errorMessage(err: unknown, mode: Mode): string {
       case "handle_taken":
         return "That username is taken. Did you mean to sign in?";
       case "invite_required":
-        return "This workspace needs an invite code to join.";
+        // A code that was good when the link was sent can be withdrawn, used
+        // up or run out meanwhile; the server does not say which.
+        return sent.inviteCode
+          ? "That invite code no longer works. It may have been withdrawn, used up or run out. Ask whoever invited you for a new one."
+          : "This workspace needs an invite code to join. Ask whoever invited you for one.";
       case "claim_required":
         return "Enter the workspace claim code shown on the host. The code you entered was not accepted.";
       case "sso_required":

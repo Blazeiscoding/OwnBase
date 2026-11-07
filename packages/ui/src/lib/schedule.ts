@@ -1,3 +1,5 @@
+import { readerLocale } from "./readerLocale.js";
+
 /** Preset times offered when scheduling a message. */
 export interface SchedulePreset {
   label: string;
@@ -8,6 +10,29 @@ export interface SchedulePreset {
 export function localDateTime(date: Date): string {
   const pad = (value: number) => String(value).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+/** Past this, a device's clock is far enough off to say so where a time is chosen. */
+export const CLOCK_SKEW_NOTED_MS = 5 * 60_000;
+
+/**
+ * What a device clock that far off the workspace's does to a time chosen on
+ * it, in words, or null when it is close enough. `skewMs` is how far the
+ * workspace's clock is ahead of the device's; negative when it is behind.
+ */
+export function clockSkewNote(skewMs: number | null): string | null {
+  if (skewMs === null || Math.abs(skewMs) < CLOCK_SKEW_NOTED_MS) return null;
+  const off = Math.abs(skewMs);
+  const [count, unit] =
+    off < 90 * 60_000
+      ? [Math.round(off / 60_000), "minute"]
+      : off < 48 * 3_600_000
+        ? [Math.round(off / 3_600_000), "hour"]
+        : [Math.round(off / 86_400_000), "day"];
+  const amount = `${count} ${unit}${count === 1 ? "" : "s"}`;
+  return skewMs > 0
+    ? `This device's clock is ${amount} behind, so this would happen ${amount} early. Set the right time in your device's settings.`
+    : `This device's clock is ${amount} ahead, so this would happen ${amount} late. Set the right time in your device's settings.`;
 }
 
 /** Next occurrence of `hour` on the given day offset, at minute 0. */
@@ -79,10 +104,10 @@ export function formatScheduleShort(ts: number, today = new Date()): string {
   const date = new Date(ts);
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
-  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = date.toLocaleTimeString(readerLocale(), { hour: "numeric", minute: "2-digit" });
   if (date.toDateString() === today.toDateString()) return `Today at ${time}`;
   if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${time}`;
-  const day = date.toLocaleDateString(undefined, {
+  const day = date.toLocaleDateString(readerLocale(), {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -97,8 +122,8 @@ export function formatScheduleTime(ts: number, today = new Date()): string {
   const tomorrow = new Date(today);
   tomorrow.setDate(today.getDate() + 1);
 
-  const time = date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  const time = date.toLocaleTimeString(readerLocale(), { hour: "numeric", minute: "2-digit" });
   if (date.toDateString() === today.toDateString()) return `Today at ${time}`;
   if (date.toDateString() === tomorrow.toDateString()) return `Tomorrow at ${time}`;
-  return `${date.toLocaleDateString(undefined, { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
+  return `${date.toLocaleDateString(readerLocale(), { weekday: "long", month: "short", day: "numeric" })} at ${time}`;
 }

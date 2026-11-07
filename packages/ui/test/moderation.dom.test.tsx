@@ -235,6 +235,36 @@ describe("blocking from someone's card", () => {
   });
 });
 
+describe("the card of someone deactivated while it is open", () => {
+  it("says so, and offers only the conversation already had, to read back", async () => {
+    const { client, shown, user } = workspace();
+    const onOpenDm = vi.fn();
+    shown(<ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={onOpenDm} />);
+    expect(screen.getByRole("button", { name: "Message Maya Chen" })).toBeVisible();
+    act(() =>
+      client.store.setState({
+        users: { ...client.state.users, U_MAYA: { ...maya, deactivated: true } },
+      }),
+    );
+    const card = screen.getByRole("dialog", { name: "Profile" });
+    expect(card).toHaveTextContent("Account deactivated");
+    expect(card).toHaveTextContent(
+      "Maya Chen cannot sign in or read new messages. An admin can reactivate the account.",
+    );
+    for (const gone of [/^Message Maya/, /friend/i, /^Block/])
+      expect(within(card).queryByRole("button", { name: gone })).toBeNull();
+    await user.click(within(card).getByRole("button", { name: "Open your messages" }));
+    expect(onOpenDm).toHaveBeenCalledWith("C_MAYA");
+
+    // With no conversation to read back, nothing to open.
+    act(() => {
+      const { C_MAYA: _dm, ...channels } = client.state.channels;
+      client.store.setState({ channels });
+    });
+    expect(within(card).queryByRole("button", { name: "Open your messages" })).toBeNull();
+  });
+});
+
 describe("a direct message with someone blocked", () => {
   function sidebar(blocked: string[]) {
     const { shown } = workspace(blocked);

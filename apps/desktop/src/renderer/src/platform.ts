@@ -104,6 +104,8 @@ interface OwnBaseBridge {
   screenSources: (quick: boolean) => Promise<ShareableSource[] | null>;
   chooseScreen: (id: string, sound: boolean) => Promise<void>;
   screenSound: boolean;
+  /** The system's regional format for dates and times, when Chromium's differs. */
+  readerLocale?: string;
   microphones?: () => Promise<{ defaultId: string | null; microphones: SystemMicrophoneDevice[] }>;
   openMicrophone?: (id: string) => Promise<{ session: number; sampleRate: number; name: string }>;
   closeMicrophone?: (session: number) => Promise<void>;

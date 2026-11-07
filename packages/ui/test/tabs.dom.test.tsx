@@ -216,7 +216,7 @@ describe("views that were pressed buttons", () => {
     render(
       <main>
         <ClientContext.Provider value={client}>
-          <ActivityPanel onClose={() => {}} onJump={() => {}} />
+          <ActivityPanel onClose={() => {}} onJump={() => {}} onOpenChannel={() => {}} />
         </ClientContext.Provider>
       </main>,
     );
