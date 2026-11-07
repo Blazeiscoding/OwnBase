@@ -11,6 +11,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import type { HostingEntry } from "../src/components/Sidebar.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { HostingStatus, Platform } from "../src/platform.js";
+import { hostingStub } from "./hostingStub.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -54,6 +55,7 @@ const webPlatform: Platform = {
 const hosting: HostingStatus = {
   running: true,
   phase: "running",
+  backgroundAvailable: true,
   workspaceName: "Rocket Team",
   port: 8543,
   lanUrls: ["192.168.1.20:8543"],
@@ -61,7 +63,7 @@ const hosting: HostingStatus = {
 const desktopPlatform: Platform = {
   ...webPlatform,
   kind: "desktop",
-  hosting: { status: async () => hosting, start: vi.fn(), stop: vi.fn() },
+  hosting: hostingStub({ status: async () => hosting }),
 };
 
 const madeInvite: Invite = {

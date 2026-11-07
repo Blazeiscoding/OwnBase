@@ -20,42 +20,39 @@ import { execFile } from "node:child_process";
 import { existsSync } from "node:fs";
 import { statfs } from "node:fs/promises";
 import { join } from "node:path";
-import { networkInterfaces } from "node:os";
 import { pathToFileURL } from "node:url";
 import { Bonjour, type Service } from "bonjour-service";
 import {
   DEEP_LINK_PROTOCOL,
-  DEFAULT_PORT,
   MDNS_SERVICE_TYPE,
   isIconVersion,
   isLinkableAddress,
   type DiscoveryTxt,
 } from "@ownbase/protocol";
+import type { DesktopCapabilities, DiscoveredServer } from "@ownbase/protocol/desktop";
 import type { OutboxChanges } from "@ownbase/client-core/outbox";
 import type { DraftChanges } from "@ownbase/client-core/drafts";
 import { applyRecordChanges, isRecordChanges } from "@ownbase/client-core/records";
 import { addTrustedAddress } from "@ownbase/client-core/trustedAddresses";
 import {
-  cloudflareIceServers,
-  createWorkspaceServer,
-  isTurn,
-  type CallRelay,
-  type WorkspaceServer,
-} from "@ownbase/server";
+  CHANNELS,
+  capabilitiesArgument,
+  type EventName,
+  type Events,
+  type WindowTheme,
+} from "../shared/bridge.js";
 import createBackupWorker from "./backupWorker?nodeWorker";
 import type { BackupJob, BackupReply } from "./backupWorker.js";
-import { createSettingsStorage } from "./settings.js";
-import {
-  CALL_RELAY_KEY,
-  decodeRelay,
-  encodeRelay,
-  resolveDraft,
-  summarize,
-  type CallRelaySummary,
-} from "./callRelay.js";
+import { createSettingsStorage, ownSettings as movedOut } from "./settings.js";
 import type { CredentialProtector } from "./credentials.js";
 import { ClosePreparation } from "./closePreparation.js";
-import { appRecipients, guarded, rendererUrlTrust, settingKey } from "./ipcBoundary.js";
+import {
+  answering,
+  appRecipients,
+  rendererUrlTrust,
+  settingKey,
+  type Handlers,
+} from "./ipcBoundary.js";
 import { writeGateReport } from "./releaseGate.js";
 import {
   PlaceCheckpoint,
@@ -73,27 +70,15 @@ import {
 import { SystemMicrophones, isEndpointId } from "./microphone.js";
 import { mergeOutboxSetting } from "./outboxStorage.js";
 import { mergeDraftsSetting } from "./draftsStorage.js";
-import { createHostingController } from "./hosting.js";
-import { startHostedServer } from "./hostedServer.js";
+import { HOSTING_KEYS, createHostingService, type LoginItem } from "./hostingService.js";
 import { backupTrayItems } from "./trayBackups.js";
 import { loginItemOptions, loginItemProblem, openedAtLogin } from "./loginItem.js";
-import { windowColours } from "./windowTheme.js";
+import { isWindowTheme, themeOfAppearance, windowColours } from "./windowTheme.js";
 import { MIN_WINDOW_SIZE, WINDOW_PLACE_KEY, placeToOpen, placeToSave } from "./windowPlace.js";
 import { ZOOM_KEY, nextZoomLevel, savedZoomLevel, zoomStep } from "./zoomKeys.js";
 import { contextMenuItems } from "./contextMenu.js";
 import { appMenuTemplate } from "./appMenu.js";
-import { READER_LOCALE_ARG, readerLocale, systemHourCycle } from "./regionalFormat.js";
-import { createCloudflaredInstaller, downloadedCloudflared } from "./cloudflaredInstall.js";
-import {
-  findCloudflared,
-  openConfiguredAddress,
-  openNamedTunnel,
-  openQuickTunnel,
-  probeHealth,
-  resolvePublicAddress,
-  validatePublicAddress,
-  type PublicAddressConfig,
-} from "./tunnel.js";
+import { readerLocale, systemHourCycle } from "./regionalFormat.js";
 
 const isDev = !!process.env.ELECTRON_RENDERER_URL;
 /** A setting from the environment, as OWNBASE_<name>. */
@@ -111,52 +96,22 @@ const rendererUrl = isDev
   : pathToFileURL(join(import.meta.dirname, "../renderer/index.html")).href;
 const trustedRenderer = rendererUrlTrust(rendererUrl);
 /**
- * Every request the main process answers comes from the app's own window,
- * its top frame, showing the app's page; anything else is refused before
- * its work starts (REV-14).
- */
-const handle = (
-  channel: string,
-  listener: (event: IpcMainInvokeEvent, ...args: any[]) => unknown,
-): void =>
-  ipcMain.handle(
-    channel,
-    guarded(() => mainWindow, trustedRenderer, listener),
-  );
-/**
  * Tells the app's window something, and no other window (F09): what is
- * pushed here includes drafts, unsent messages and invite links. `except` is
- * the window whose own change this is.
+ * pushed here includes invite links and hosting.
  */
-const pushToApp = (channel: string, args: unknown[], except?: number): void => {
-  for (const win of appRecipients(mainWindow, trustedRenderer, except))
-    win.webContents.send(channel, ...args);
-};
+function push<E extends EventName>(event: E, payload: Events[E]): void {
+  for (const win of appRecipients(mainWindow, trustedRenderer))
+    win.webContents.send(event, payload);
+}
 let rendererReady = false;
 let quitting = false;
 let quitReady = false;
 let quitTask: Promise<void> | null = null;
 
-handle("file:download", (_event, value: unknown) => {
-  if (!mainWindow || typeof value !== "string") throw new Error("Invalid download request");
-  const url = new URL(value);
-  if (
-    !/^https?:$/.test(url.protocol) ||
-    url.username ||
-    url.password ||
-    !/\/api\/files\/[0-9A-HJKMNP-TV-Z]{26}$/.test(url.pathname) ||
-    !/^[a-f0-9]{64}$/.test(url.searchParams.get("download") ?? "") ||
-    [...url.searchParams.keys()].some((key) => key !== "download")
-  )
-    throw new Error("Invalid download URL");
-  mainWindow.webContents.downloadURL(url.toString());
-});
-
 /** The browser's fake microphone and camera stand in for real ones, for tests. */
 const fakeMedia = (isDev || isTest) && appEnv("TEST_MEDIA") === "1";
 if (fakeMedia) {
   app.commandLine.appendSwitch("remote-debugging-port", "9222");
-  // Fake mic/camera so huddles can be exercised without real hardware.
   app.commandLine.appendSwitch("use-fake-device-for-media-stream");
   app.commandLine.appendSwitch("use-fake-ui-for-media-stream");
 }
@@ -171,7 +126,7 @@ function deliverDeepLink(url: string): void {
   const win = showMainWindow();
   if (win && rendererReady && appRecipients(win, trustedRenderer).length > 0) {
     pendingDeepLink = null;
-    pushToApp("deeplink", [url]);
+    push("deeplink", url);
   }
 }
 
@@ -208,29 +163,14 @@ if (!isTest && isDev && process.platform === "win32") {
   app.setAsDefaultProtocolClient(DEEP_LINK_PROTOCOL);
 }
 
-// A notification clicked while the window is minimized, or closed to the tray
-// while hosting, brings the window back as well as opening its message.
-handle("window:reveal", () => {
-  showMainWindow();
-});
-
-// Where the page is, kept here so a recovery can put it back (F08).
+/** Where the page is, kept here so a recovery can put it back (F08). */
 let place = new PlaceCheckpoint(trustedRenderer);
-handle("window:rememberPlace", (_event, url: unknown, state: unknown) => {
-  place.remember(url, state);
-});
-handle("window:takePlace", () => place.take());
 
-handle("deeplink:consume", () => {
-  rendererReady = true;
-  const url = pendingDeepLink;
-  pendingDeepLink = null;
-  return url;
-});
+// ---------- the huddle's screen picker ----------
 
-// The huddle's screen picker is the app's own: it lists every screen and
-// window with a picture of each, then names the one chosen, which the
-// getDisplayMedia request after it shares.
+// The picker is the app's own: it lists every screen and window with a
+// picture of each, then names the one chosen, which the getDisplayMedia
+// request after it shares.
 const screenSources = new SourceList((pictures) =>
   desktopCapturer.getSources({
     types: ["screen", "window"],
@@ -240,20 +180,6 @@ const screenSources = new SourceList((pictures) =>
 );
 const screenChoice = new ScreenChoice();
 const screenSound = screenSoundSupported(process.platform, process.getSystemVersion());
-handle("screen:sources", (_event, quick: unknown) =>
-  quick === true ? screenSources.quick() : screenSources.full(),
-);
-handle("screen:choose", async (_event, id: unknown, sound: unknown) => {
-  screenChoice.hold(
-    await findSource(id, () =>
-      desktopCapturer.getSources({
-        types: ["screen", "window"],
-        thumbnailSize: { width: 0, height: 0 },
-      }),
-    ),
-    sound === true && screenSound,
-  );
-});
 
 // ---------- microphones opened as other apps open them (Windows) ----------
 
@@ -270,18 +196,6 @@ const microphoneHelper = (() => {
   return existsSync(path) ? path : null;
 })();
 const microphones = new SystemMicrophones(microphoneHelper);
-handle("microphone:list", () => microphones.list());
-handle("microphone:open", async (event, id: unknown) => {
-  if (!isEndpointId(id)) throw new Error("Not a microphone.");
-  const { port1, port2 } = new MessageChannelMain();
-  const opened = await microphones.open(event.sender.id, id, port1);
-  // The page's end of the samples, which it hands to its audio worklet.
-  event.sender.postMessage("microphone:port", { session: opened.session }, [port2]);
-  return opened;
-});
-handle("microphone:close", (event, session: unknown) => {
-  if (typeof session === "number") microphones.close(event.sender.id, session);
-});
 
 // ---------- settings and OS-protected saved sign-ins ----------
 
@@ -293,14 +207,18 @@ const credentialProtector: CredentialProtector = {
   encryptString: (value) => safeStorage.encryptString(value),
   decryptString: (value) => safeStorage.decryptString(value),
 };
+/** What the window keeps, under whatever names it chooses. */
 const settings = createSettingsStorage(
   join(app.getPath("userData"), "settings.json"),
   credentialProtector,
 );
-const closePreparation = new ClosePreparation();
-handle("window:preparedClose", (event, id: unknown, saved: unknown) =>
-  closePreparation.acknowledge(event.sender.id, id, saved),
+/** What the main process keeps for itself, out of the window's reach. */
+const ownSettings = movedOut(
+  createSettingsStorage(join(app.getPath("userData"), "app-settings.json"), credentialProtector),
+  settings,
+  [...HOSTING_KEYS, WINDOW_PLACE_KEY, ZOOM_KEY],
 );
+const closePreparation = new ClosePreparation();
 
 /** Input stays in the live window until its owners and settings have acknowledged it (N03). */
 async function prepareLocalWrites(win: BrowserWindow | null, forQuit: boolean): Promise<boolean> {
@@ -343,52 +261,11 @@ async function prepareLocalWrites(win: BrowserWindow | null, forQuit: boolean): 
   }
 }
 
-handle("storage:get", (_e, key: unknown, options?: { strict?: boolean }) =>
-  settings.get(settingKey(key), { strict: options?.strict === true }),
-);
+// ---------- the window's own colours ----------
 
-// Stores a value only where none is, in the settings queue every window's
-// writes share, so a window that read nothing cannot replace another's (GL-01).
-handle("storage:initialize", (_e, key: unknown, value: unknown) =>
-  settings.update(settingKey(key), (current) =>
-    current === null || current === undefined ? value : current,
-  ),
-);
-
-// An approved address joins the trusted ones in the same queue, so two
-// windows approving another address at once both keep theirs (Q02).
-handle("storage:trustAddress", async (_e, key: unknown, address: unknown) => {
-  if (typeof address !== "string") throw new Error("Invalid workspace address.");
-  let addresses: string[] | null = null;
-  await settings.update(settingKey(key), (current) => {
-    const change = addTrustedAddress(current, address);
-    addresses = change.addresses;
-    return change.value;
-  });
-  return addresses;
-});
-
-const writeSetting = (key: string, value: unknown) => settings.set(key, value);
-
-/** Running workspaces that calls can be given a relay by, so a change reaches them at once. */
-const relayServers = new Set<WorkspaceServer>();
-let callRelay: Promise<CallRelay | null> | null = null;
-
-function savedCallRelay(): Promise<CallRelay | null> {
-  callRelay ??= settings
-    .get(CALL_RELAY_KEY, { strict: true })
-    .then((value) => decodeRelay(value, credentialProtector))
-    .catch((error: unknown) => {
-      // Read again next time: a locked key store may be unlocked by then.
-      callRelay = null;
-      throw error;
-    });
-  return callRelay;
-}
-/** The renderer's "appearance" setting, which the window's own colours follow. */
-const APPEARANCE_KEY = "appearance";
-/** Read at startup, before the window is made, and kept as the renderer saves it. */
-let savedAppearance: unknown = null;
+/** The theme the window's frame was last told, kept for the next start's first frame. */
+const WINDOW_THEME_KEY = "windowTheme";
+let windowTheme: WindowTheme = "system";
 /** The window's last size and place (windowPlace.ts), read at startup and kept as it moves. */
 let savedWindowPlace: unknown = null;
 /** Saves the open window's place now rather than after its pause; null without a window. */
@@ -398,6 +275,13 @@ let savedZoom = 0;
 /** The locale the page writes dates and times in (regionalFormat.ts), worked out at startup. */
 let pageLocale: string | null = null;
 
+/** A setting the main process keeps for the window itself; a failure costs only that setting. */
+function keepWindowSetting(key: string, value: unknown): void {
+  void ownSettings.set(key, value).catch((error: unknown) => {
+    console.error(`OwnBase: could not save ${key}.`, error);
+  });
+}
+
 /**
  * The window's background and title bar overlay in the page's theme: when the
  * theme is chosen, and, for the system's choice, when the system changes.
@@ -405,7 +289,7 @@ let pageLocale: string | null = null;
 function paintWindow(): void {
   const win = mainWindow;
   if (!win || win.isDestroyed()) return;
-  const colours = windowColours(savedAppearance, nativeTheme.shouldUseDarkColors);
+  const colours = windowColours(windowTheme, nativeTheme.shouldUseDarkColors);
   win.setBackgroundColor(colours.background);
   // Only Windows and Linux draw the window buttons on an overlay.
   if (process.platform !== "darwin")
@@ -413,66 +297,13 @@ function paintWindow(): void {
 }
 nativeTheme.on("updated", paintWindow);
 
-handle("storage:set", async (_e, key: unknown, value: unknown) => {
-  const name = settingKey(key);
-  await writeSetting(name, value);
-  if (name === APPEARANCE_KEY) {
-    savedAppearance = value;
-    paintWindow();
-  }
-});
-
-// Outbox changes from every window are merged here, one at a time; the other
-// windows hear what is stored now, so each can take on what it did not see.
-handle(
-  "storage:mergeOutbox",
-  async (event, key: unknown, changes: OutboxChanges, enveloped: boolean) => {
-    const { value, outbox } = await mergeOutboxSetting(
-      settings,
-      settingKey(key),
-      changes,
-      enveloped,
-    );
-    pushToApp("storage:outboxChanged", [key, value], event.sender.id);
-    return outbox;
-  },
-);
-
-// Drafts likewise: each window's changed drafts, merged here one at a time.
-handle(
-  "storage:mergeDrafts",
-  async (event, key: unknown, changes: DraftChanges, enveloped: boolean) => {
-    const { value, drafts } = await mergeDraftsSetting(
-      settings,
-      settingKey(key),
-      changes,
-      enveloped,
-    );
-    pushToApp("storage:draftsChanged", [key, value], event.sender.id);
-    return drafts;
-  },
-);
-
-// Records likewise: each window's changed names only, such as one account's
-// notification choice, so no window's whole copy erases another's (F02).
-handle("storage:mergeRecord", async (event, key: unknown, changes: unknown) => {
-  if (!isRecordChanges(changes)) throw new Error("Invalid record changes.");
-  let value: Record<string, string> = {};
-  await settings.update(
-    settingKey(key),
-    (current) => (value = applyRecordChanges(current, changes)),
-  );
-  pushToApp("storage:recordChanged", [key, value], event.sender.id);
-  return value;
-});
-
 // ---------- LAN discovery (mDNS browse) ----------
 
 const bonjour = new Bonjour();
 const discovered = new Map<string, Service>();
 
 /** What the Join screen lists: each advertisement at an address a link can reach. */
-function discoveredServers() {
+function discoveredServers(): DiscoveredServer[] {
   return [...discovered.values()].flatMap((s) => {
     const host = pickAddress(s.addresses ?? []);
     if (!host) return [];
@@ -492,11 +323,6 @@ function discoveredServers() {
   });
 }
 
-function publishDiscovered(): void {
-  const servers = discoveredServers();
-  pushToApp("lan:servers", [servers]);
-}
-
 /**
  * IPv4 when there is one, which every network and browser handles; otherwise
  * an IPv6 address a link can carry. Null when the only addresses are
@@ -514,7 +340,7 @@ function startDiscovery(): void {
   const browser = bonjour.find({ type: MDNS_SERVICE_TYPE });
   const seen = (service: Service) => {
     discovered.set(service.fqdn, service);
-    publishDiscovered();
+    push("lan:servers", discoveredServers());
   };
   browser.on("up", seen);
   // A workspace announcing again under the same name, as when its icon
@@ -523,105 +349,11 @@ function startDiscovery(): void {
   browser.on("srv-update", seen);
   browser.on("down", (service) => {
     discovered.delete(service.fqdn);
-    publishDiscovered();
+    push("lan:servers", discoveredServers());
   });
 }
 
-handle("lan:snapshot", () => discoveredServers());
-
-// ---------- "Open to LAN" hosting (server runs in this process) ----------
-
-function lanUrls(port: number): string[] {
-  const out: string[] = [];
-  for (const ifaces of Object.values(networkInterfaces())) {
-    for (const iface of ifaces ?? []) {
-      if (iface.family === "IPv4" && !iface.internal) out.push(`${iface.address}:${port}`);
-    }
-  }
-  return out;
-}
-
-function hostingStatus() {
-  const status = { ...hosting.status(), backgroundAvailable: !!tray && !tray.isDestroyed() };
-  // Offered only while Open to all lacks it, and shown until an install ends.
-  const install = cloudflaredInstaller.state();
-  return install && (status.tunnelAvailable === false || install.installing)
-    ? { ...status, cloudflaredInstall: install }
-    : status;
-}
-
-/** Where OwnBase keeps the cloudflared it downloads, when nothing here could install one. */
-const cloudflaredFolder = join(app.getPath("userData"), "cloudflared");
-
-/** Looked up again at most every few seconds, so installing it takes effect without a restart. */
-let cloudflaredLookup: { at: number; path: string | null } | null = null;
-function cloudflared(): string | null {
-  if (!cloudflaredLookup || Date.now() - cloudflaredLookup.at > 5_000)
-    cloudflaredLookup = {
-      at: Date.now(),
-      path: findCloudflared(
-        process.env,
-        existsSync,
-        process.platform,
-        downloadedCloudflared(cloudflaredFolder),
-      ),
-    };
-  return cloudflaredLookup.path;
-}
-
-const cloudflaredInstaller = createCloudflaredInstaller({
-  dir: cloudflaredFolder,
-  find: () => {
-    cloudflaredLookup = null;
-    return cloudflared();
-  },
-  onChange: () => publishHostingStatus(),
-});
-
-/**
- * The saved address, kept in memory because hosting status is read far more
- * often than it changes and a settings read cannot block a snapshot. Loaded
- * once at startup and updated by whoever writes it.
- */
-let savedPublicAddress: string | null = null;
-
-/** Read again on the same schedule, so a corrected setting needs no restart. */
-let publicAddressLookup: { at: number; config: PublicAddressConfig } | null = null;
-function publicAddressConfig(): PublicAddressConfig {
-  if (!publicAddressLookup || Date.now() - publicAddressLookup.at > 5_000)
-    publicAddressLookup = { at: Date.now(), config: resolvePublicAddress(savedPublicAddress) };
-  return publicAddressLookup.config;
-}
-
-/** Opening to all needs no cloudflared when something else already carries the address. */
-function publicAddressCarriedElsewhere(): boolean {
-  const config = publicAddressConfig();
-  return !!config && !("error" in config) && config.carrier === "elsewhere";
-}
-
-/** What the hosting status reports about the stable address, for display and editing. */
-function publicAddressStatus(): {
-  setting?: string;
-  locked?: boolean;
-  url?: string;
-  managed?: boolean;
-  error?: string;
-} {
-  const config = publicAddressConfig();
-  // A saved address the app can change, against one the environment fixed.
-  const fromEnvironment = !savedPublicAddress;
-  const setting =
-    savedPublicAddress ??
-    (config && !("error" in config) && config.carrier === "elsewhere" ? config.publicUrl : null);
-  return {
-    ...(setting ? { setting } : {}),
-    ...(setting && fromEnvironment ? { locked: true } : {}),
-    ...(config && "error" in config ? { error: config.error } : {}),
-    ...(config && !("error" in config)
-      ? { url: config.publicUrl, ...(config.carrier === "ownbase" ? { managed: true } : {}) }
-      : {}),
-  };
-}
+// ---------- hosting ----------
 
 /**
  * Runs a backup, check or restore on a worker thread, so the window and the
@@ -649,339 +381,210 @@ function inWorker<T>(job: BackupJob): Promise<T> {
   });
 }
 
-const hosting = createHostingController({
+/**
+ * The OS opens only an installed app at sign-in: a copy run from source would
+ * register Electron itself. Linux has no single place for it that Electron
+ * manages, so it is offered on Windows and macOS. Tests must never register
+ * the real app with the OS, so they get a stand-in.
+ */
+const loginItem: LoginItem | null = (() => {
+  if (!app.isPackaged || (process.platform !== "win32" && process.platform !== "darwin"))
+    return null;
+  if (isTest) {
+    let open = false;
+    return { get: () => open, set: (next) => void (open = next) };
+  }
+  const options = loginItemOptions(process.platform);
+  return {
+    get: () => app.getLoginItemSettings(options).openAtLogin,
+    set: (open) => {
+      app.setLoginItemSettings({ openAtLogin: open, ...options });
+      const problem = loginItemProblem(process.platform, open, app.getLoginItemSettings(options));
+      if (problem) throw new Error(problem);
+    },
+  };
+})();
+
+const hosting = createHostingService({
+  settings: ownSettings,
+  credentials: credentialProtector,
   dataRoot: join(app.getPath("userData"), "hosted"),
-  defaultPort: DEFAULT_PORT,
-  lanUrls,
-  settings,
-  backupWorkspace: (options) => inWorker({ kind: "backup", ...options }),
-  verifyBackup: (dir) => inWorker({ kind: "verify", dir }),
-  restoreWorkspace: (options) => inWorker({ kind: "restore", ...options }),
+  cloudflaredFolder: join(app.getPath("userData"), "cloudflared"),
+  webDistPath: app.isPackaged
+    ? join(process.resourcesPath, "web")
+    : join(import.meta.dirname, "../../../web/dist"),
+  inWorker,
   freeBytes: async (dir) => {
     const info = await statfs(dir);
     return info.bavail * info.bsize;
   },
-  openFolder: (path) => shell.openPath(path),
-  onChange: publishHostingStatus,
-  inventoryBackup: (dir) => inWorker({ kind: "inventory", dir }),
-  startServer: (request) =>
-    startHostedServer(request, {
-      createServer: createWorkspaceServer,
-      webDistPath: app.isPackaged
-        ? join(process.resourcesPath, "web")
-        : join(import.meta.dirname, "../../../web/dist"),
-      savedRelay: savedCallRelay,
-      relayServers,
-      publicAddressConfigured: () => {
-        const configured = publicAddressConfig();
-        return !!configured && !("error" in configured);
-      },
+  openPath: (path) => shell.openPath(path),
+  chooseFolder: async ({ title, buttonLabel, create }) => {
+    const options = {
+      title,
+      buttonLabel,
+      properties: (create ? ["openDirectory", "createDirectory"] : ["openDirectory"]) as (
+        "openDirectory" | "createDirectory"
+      )[],
+    };
+    const owner = mainWindow && !mainWindow.isDestroyed() ? mainWindow : null;
+    const choice = owner
+      ? await dialog.showOpenDialog(owner, options)
+      : await dialog.showOpenDialog(options);
+    return choice.canceled ? null : (choice.filePaths[0] ?? null);
+  },
+  backgroundAvailable: () => !!tray && !tray.isDestroyed(),
+  loginItem,
+  onChange: () => {
+    push("hosting:changed", hosting.status());
+    updateTray();
+  },
+});
+
+/** What this copy of the app can do, handed to the window as it is made. */
+const capabilities: Omit<DesktopCapabilities, "readerLocale"> = {
+  screenSound,
+  systemMicrophone: microphoneHelper !== null,
+  openAtLogin: loginItem !== null,
+};
+
+// ---------- every call the window makes ----------
+
+const handlers: Handlers<IpcMainInvokeEvent> = {
+  "file:download": (_event, value) => {
+    if (!mainWindow || typeof value !== "string") throw new Error("Invalid download request");
+    const url = new URL(value);
+    if (
+      !/^https?:$/.test(url.protocol) ||
+      url.username ||
+      url.password ||
+      !/\/api\/files\/[0-9A-HJKMNP-TV-Z]{26}$/.test(url.pathname) ||
+      !/^[a-f0-9]{64}$/.test(url.searchParams.get("download") ?? "") ||
+      [...url.searchParams.keys()].some((key) => key !== "download")
+    )
+      throw new Error("Invalid download URL");
+    mainWindow.webContents.downloadURL(url.toString());
+  },
+  "storage:get": (_event, key, options) =>
+    settings.get(settingKey(key), {
+      strict: (options as { strict?: unknown } | undefined)?.strict === true,
     }),
-  verifyLoopback: async (port, instanceId) =>
-    // Only a reply from something that is not this run proves the port leads
-    // elsewhere. A probe that cannot connect at all proves nothing, and must
-    // not produce a warning naming a program that may not be there.
-    (await probeHealth(
-      `http://127.0.0.1:${port}/api/health`,
-      AbortSignal.timeout(3_000),
-      instanceId,
-    )) !== "something-else",
-  tunnelAvailable: () => cloudflared() !== null || publicAddressCarriedElsewhere(),
-  publicAddress: publicAddressStatus,
-  savePublicAddress: async (address) => {
-    try {
-      await writeSetting("publicAddress", address);
-    } catch {
-      // Filesystem errors can contain the Windows account name and profile
-      // path. Give the renderer a useful message without leaking either.
-      throw new Error(
-        "OwnBase could not save the public address. Check that its settings folder is writable, then try again.",
-      );
-    }
-    savedPublicAddress = address;
-    publicAddressLookup = null;
-  },
-  openTunnel: (port, signal, instanceId) => {
-    cloudflaredLookup = null;
-    publicAddressLookup = null;
-    const configured = publicAddressConfig();
-    if (configured && "error" in configured) throw new Error(configured.error);
-    if (configured && !instanceId)
-      throw new Error(
-        "OwnBase cannot check that the public address leads to this workspace. Stop hosting, then start it again.",
-      );
-    // Nothing to install or start when something else already carries the
-    // address here; the workspace only has to answer at it.
-    if (configured?.carrier === "elsewhere")
-      return openConfiguredAddress({ ...configured, port, signal, instanceId: instanceId! });
-    const command = cloudflared();
-    if (!command)
-      throw new Error(
-        "A public link needs cloudflared, a free program from Cloudflare. Install it, then try again.",
-      );
-    if (configured)
-      return openNamedTunnel({ ...configured, command, port, signal, instanceId: instanceId! });
-    return openQuickTunnel({ command, port, signal, instanceId });
-  },
-});
-
-handle("hosting:status", () => hostingStatus());
-// Unreadable settings mean no remembered workspace, not a failed call: the
-// join screen simply shows no resume offer.
-handle("hosting:lastHosted", () => hosting.lastHosted());
-handle("hosting:list", () => hosting.list());
-handle("hosting:forget", (_e, folder: unknown) => hosting.forget(folder));
-handle("hosting:rename", (_e, request: unknown) => hosting.rename(request));
-// The window names a listed workspace; the controller finds its folder.
-handle("hosting:openFolder", (_e, folder: unknown) => hosting.openFolder(folder));
-// The same: the window names a listed workspace, and gets its icon or null.
-handle("hosting:icon", (_e, folder: unknown) => hosting.icon(folder));
-handle("hosting:setPort", (_e, request: unknown) => hosting.setPort(request));
-/**
- * Turns a workspace's scheduled backups on, changes them, or turns them off.
- * Only the system's folder dialog chooses where they go: the window can ask
- * for one, but never names a path itself.
- */
-handle(
-  "hosting:setAutoBackup",
-  async (event, folder: unknown, schedule: unknown, chooseFolder: unknown) => {
-    if (quitting) throw new Error("OwnBase is shutting down.");
-    if (schedule === null) return hosting.setAutoBackup({ folder, schedule: null });
-    const { everyDays, keep } = (schedule ?? {}) as Record<string, unknown>;
-    let destination: string | undefined;
-    if (chooseFolder === true) {
-      const owner = BrowserWindow.fromWebContents(event.sender);
-      const options = {
-        title: "Choose where to keep the backups",
-        buttonLabel: "Back up here",
-        properties: ["openDirectory", "createDirectory"] as ("openDirectory" | "createDirectory")[],
-      };
-      const choice = owner
-        ? await dialog.showOpenDialog(owner, options)
-        : await dialog.showOpenDialog(options);
-      // Choosing no folder changes nothing.
-      if (choice.canceled || !choice.filePaths[0]) return undefined;
-      destination = choice.filePaths[0];
-    }
-    const saved = await hosting.setAutoBackup({
-      folder,
-      schedule: { everyDays, keep, ...(destination ? { destination } : {}) },
+  "storage:set": (_event, key, value) => settings.set(settingKey(key), value),
+  // Stores a value only where none is, in the settings queue every write
+  // shares, so a window that read nothing cannot replace another's (GL-01).
+  "storage:initialize": (_event, key, value) =>
+    settings.update(settingKey(key), (current) =>
+      current === null || current === undefined ? value : current,
+    ),
+  // An approved address joins the trusted ones in the same queue, so two
+  // approvals at once both keep theirs (Q02).
+  "storage:trustAddress": async (_event, key, address) => {
+    if (typeof address !== "string") throw new Error("Invalid workspace address.");
+    let addresses: string[] | null = null;
+    await settings.update(settingKey(key), (current) => {
+      const change = addTrustedAddress(current, address);
+      addresses = change.addresses;
+      return change.value;
     });
-    // A workspace not backed up yet is due at once, so the first backup is made
-    // now, where the host can see it happen, rather than in a quarter of an hour.
-    void hosting.runDueBackups();
-    return saved;
+    return addresses;
   },
-);
-handle("hosting:runDueBackups", () => hosting.runDueBackups(true));
-handle("hosting:setReopenPublicOnLaunch", (_e, reopen: unknown) =>
-  hosting.setReopenPublicOnLaunch(reopen),
-);
-handle("hosting:setStartOnLaunch", (_e, folder: unknown) => hosting.setStartOnLaunch(folder));
-handle("hosting:dismissLaunchError", () => {
-  hosting.dismissLaunchError();
-  return hostingStatus();
-});
-
-// ---------- starting with the computer ----------
-
-/**
- * The OS opens only an installed app at sign-in: a copy run from source would
- * register Electron itself. Linux has no single place for it that Electron
- * manages, so it is offered on Windows and macOS.
- */
-const loginItemAvailable =
-  app.isPackaged && (process.platform === "win32" || process.platform === "darwin");
-/** Tests must never register the real app with the OS; they get this instead. */
-let testOpenAtLogin = false;
-
-function openAtLogin(): boolean | null {
-  if (!loginItemAvailable) return null;
-  if (isTest) return testOpenAtLogin;
-  return app.getLoginItemSettings(loginItemOptions(process.platform)).openAtLogin;
-}
-
-handle("hosting:openAtLogin", () => openAtLogin());
-handle("hosting:setOpenAtLogin", (_e, open: unknown) => {
-  if (typeof open !== "boolean")
-    throw new Error("Say whether to open at sign-in with true or false.");
-  if (!loginItemAvailable)
-    throw new Error("Opening at sign-in needs OwnBase installed on Windows or macOS.");
-  if (isTest) {
-    testOpenAtLogin = open;
-    return openAtLogin();
-  }
-  const options = loginItemOptions(process.platform);
-  app.setLoginItemSettings({ openAtLogin: open, ...options });
-  const problem = loginItemProblem(process.platform, open, app.getLoginItemSettings(options));
-  if (problem) throw new Error(problem);
-  return openAtLogin();
-});
-
-/** This computer's own network addresses, to notice when they change. */
-function addressKey(): string {
-  return lanUrls(0).sort().join(" ");
-}
-
-/**
- * A workspace announces itself on the interfaces there were when it started,
- * and the host dialog lists the addresses there were when it last looked.
- * After a wake, or a move to another network, both are redone. There is no
- * event for a network change, so the addresses are compared every few seconds.
- */
-function followNetworkChanges(): void {
-  let known = addressKey();
-  powerMonitor.on("resume", () => {
-    known = addressKey();
-    hosting.networkChanged();
-  });
-  setInterval(() => {
-    const now = addressKey();
-    if (now === known) return;
-    known = now;
-    hosting.networkChanged();
-  }, 10_000).unref();
-}
-handle("hosting:restore", async (event) => {
-  if (quitting) throw new Error("OwnBase is shutting down.");
-  const owner = BrowserWindow.fromWebContents(event.sender);
-  const options = {
-    title: "Choose the folder of a backup to restore",
-    buttonLabel: "Restore",
-    properties: ["openDirectory"] as "openDirectory"[],
-  };
-  const choice = owner
-    ? await dialog.showOpenDialog(owner, options)
-    : await dialog.showOpenDialog(options);
-  if (choice.canceled || !choice.filePaths[0]) return null;
-  return hosting.restore({ backupDir: choice.filePaths[0] });
-});
-handle("hosting:backups", (_e, folder: unknown) => hosting.listBackups(folder));
-handle("hosting:restoreOver", async (event, folder: unknown, backup: unknown) => {
-  if (quitting) throw new Error("OwnBase is shutting down.");
-  if (backup !== null) return hosting.restoreOver({ folder, backup });
-  const owner = BrowserWindow.fromWebContents(event.sender);
-  const options = {
-    title: "Choose the folder of an earlier backup",
-    buttonLabel: "Restore",
-    properties: ["openDirectory"] as "openDirectory"[],
-  };
-  const choice = owner
-    ? await dialog.showOpenDialog(owner, options)
-    : await dialog.showOpenDialog(options);
-  if (choice.canceled || !choice.filePaths[0]) return null;
-  return hosting.restoreOver({ folder, backupDir: choice.filePaths[0] });
-});
-handle("hosting:backup", async (event, folder: unknown) => {
-  if (quitting) throw new Error("OwnBase is shutting down.");
-  const owner = BrowserWindow.fromWebContents(event.sender);
-  const options = {
-    title: "Choose where to save the backup",
-    buttonLabel: "Back up here",
-    properties: ["openDirectory", "createDirectory"] as ("openDirectory" | "createDirectory")[],
-  };
-  const choice = owner
-    ? await dialog.showOpenDialog(owner, options)
-    : await dialog.showOpenDialog(options);
-  // Choosing no folder is not a failure: nothing happens.
-  if (choice.canceled || !choice.filePaths[0]) return null;
-  return hosting.backup({ folder, destination: choice.filePaths[0] });
-});
-handle("hosting:start", async (_e, opts: unknown) => {
-  if (quitting) throw new Error("OwnBase is shutting down. Try again after reopening it.");
-  if (trayStopPending) throw new Error("Wait for hosting to stop before starting a workspace.");
-  await hosting.start(opts);
-  return hostingStatus();
-});
-handle("hosting:stop", () => hosting.stop());
-handle("hosting:openToAll", async (_e, opts: unknown) => {
-  if (quitting) throw new Error("OwnBase is shutting down.");
-  await hosting.openToAll(opts);
-  return hostingStatus();
-});
-handle("hosting:endOpenToAll", async () => {
-  await hosting.endOpenToAll();
-  return hostingStatus();
-});
-handle("hosting:setInviteOnly", async (_e, value: unknown) => {
-  await hosting.setInviteOnly(value);
-  return hostingStatus();
-});
-handle("hosting:setAccessPolicy", async (_e, value: unknown) => {
-  await hosting.setAccessPolicy(value);
-  return hostingStatus();
-});
-/** Installs cloudflared for Open to all, and resolves once it can be used. */
-handle("hosting:installCloudflared", async () => {
-  if (quitting) throw new Error("OwnBase is shutting down.");
-  await cloudflaredInstaller.install();
-  return hostingStatus();
-});
-handle("hosting:setPublicAddress", async (_e, value: unknown) => {
-  if (typeof value !== "string") throw new Error("Enter the address as text.");
-  const address = value.trim();
-  // Refuse here rather than saving something Open to all would only reject
-  // later, when the setting is out of sight.
-  const saving = address ? validatePublicAddress(address) : null;
-  // The controller serializes this with opening/closing, secures registration
-  // before an external carrier can be trusted, and clears errors from the old
-  // carrier only after persistence succeeds.
-  await hosting.setPublicAddress(saving);
-  return hostingStatus();
-});
-
-// ---------- the TURN relay for calls between networks ----------
-
-async function relayStatus(): Promise<CallRelaySummary & { error?: string }> {
-  try {
-    const relay = await savedCallRelay();
-    const error = [...relayServers].map((server) => server.relayError()).find(Boolean);
-    return { ...summarize(relay), ...(error ? { error } : {}) };
-  } catch (error) {
-    return { kind: "none", error: error instanceof Error ? error.message : String(error) };
-  }
-}
-
-handle("hosting:relay", () => relayStatus());
-handle("hosting:setRelay", async (_e, draft: unknown) => {
-  const relay = resolveDraft(draft, await savedCallRelay().catch(() => null));
-  const stored = relay ? encodeRelay(relay, credentialProtector) : null;
-  try {
-    await writeSetting(CALL_RELAY_KEY, stored);
-  } catch {
-    // Filesystem errors can name the Windows account; say what to do instead.
-    throw new Error(
-      "OwnBase could not save the relay. Check that its settings folder is writable, then try again.",
+  "storage:mergeOutbox": async (_event, key, changes, enveloped) =>
+    (
+      await mergeOutboxSetting(
+        settings,
+        settingKey(key),
+        changes as OutboxChanges,
+        enveloped === true,
+      )
+    ).outbox,
+  "storage:mergeDrafts": async (_event, key, changes, enveloped) =>
+    (
+      await mergeDraftsSetting(
+        settings,
+        settingKey(key),
+        changes as DraftChanges,
+        enveloped === true,
+      )
+    ).drafts,
+  // Each changed name only, such as one account's notification choice, so no
+  // whole copy erases another's (F02).
+  "storage:mergeRecord": async (_event, key, changes) => {
+    if (!isRecordChanges(changes)) throw new Error("Invalid record changes.");
+    let value: Record<string, string> = {};
+    await settings.update(
+      settingKey(key),
+      (current) => (value = applyRecordChanges(current, changes)),
     );
-  }
-  callRelay = Promise.resolve(relay);
-  // Calls already connected keep their route; calls started from now, and
-  // retries of ones that did not connect, are given this relay.
-  for (const server of relayServers) server.setRelay(relay);
-  return relayStatus();
-});
-/**
- * The relay a draft describes, as a call would be given it, so the hosting
- * window can check it gives a route before anyone depends on it. A
- * Cloudflare password asked for here lasts ten minutes.
- */
-handle("hosting:testRelay", async (_e, draft: unknown) => {
-  const relay = resolveDraft(draft, await savedCallRelay().catch(() => null));
-  if (!relay) throw new Error("Choose a relay to test.");
-  const servers =
-    relay.kind === "cloudflare"
-      ? await cloudflareIceServers(relay, { ttl: 600 })
-      : [{ urls: relay.urls, username: relay.username, credential: relay.credential }];
-  return servers
-    .map((server) => ({ ...server, urls: [server.urls].flat().filter(isTurn) }))
-    .filter((server) => server.urls.length > 0);
-});
+    return value;
+  },
+  "lan:snapshot": () => discoveredServers(),
+  "deeplink:consume": () => {
+    rendererReady = true;
+    const url = pendingDeepLink;
+    pendingDeepLink = null;
+    return url;
+  },
+  // A notification clicked while the window is minimized, or closed to the
+  // tray while hosting, brings the window back as well as opening its message.
+  "window:reveal": () => {
+    showMainWindow();
+  },
+  "window:rememberPlace": (_event, url, state) => {
+    place.remember(url, state);
+  },
+  "window:takePlace": () => place.take(),
+  "window:preparedClose": (event, id, saved) => {
+    closePreparation.acknowledge(event.sender.id, id, saved);
+  },
+  "window:setTheme": async (_event, theme) => {
+    if (!isWindowTheme(theme)) throw new Error("Not a theme.");
+    windowTheme = theme;
+    paintWindow();
+    await ownSettings.set(WINDOW_THEME_KEY, theme);
+  },
+  "screen:sources": (_event, options) =>
+    (options as { quick?: unknown } | undefined)?.quick === true
+      ? screenSources.quick()
+      : screenSources.full(),
+  "screen:choose": async (_event, id, options) => {
+    screenChoice.hold(
+      await findSource(id, () =>
+        desktopCapturer.getSources({
+          types: ["screen", "window"],
+          thumbnailSize: { width: 0, height: 0 },
+        }),
+      ),
+      (options as { sound?: unknown } | undefined)?.sound === true && screenSound,
+    );
+  },
+  "microphone:list": () => microphones.list(),
+  "microphone:open": async (event, id) => {
+    if (!isEndpointId(id)) throw new Error("Not a microphone.");
+    const { port1, port2 } = new MessageChannelMain();
+    const opened = await microphones.open(event.sender.id, id, port1);
+    // The page's end of the samples, which it hands to its audio worklet.
+    event.sender.postMessage("microphone:port", { session: opened.session }, [port2]);
+    return opened;
+  },
+  "microphone:close": (event, session) => {
+    if (typeof session === "number") microphones.close(event.sender.id, session);
+  },
+  ...hosting.handlers,
+};
 
-function publishHostingStatus(): void {
-  const status = hostingStatus();
-  pushToApp("hosting:changed", [status]);
-  updateTray();
-}
+// Every request comes from the app's own window, its top frame, showing the
+// app's page; anything else is refused before its work starts (REV-14).
+for (const channel of CHANNELS)
+  ipcMain.handle(
+    channel,
+    answering(
+      () => mainWindow,
+      trustedRenderer,
+      handlers[channel] as Handlers<IpcMainInvokeEvent>[typeof channel],
+    ),
+  );
+
+// ---------- the tray, and quitting ----------
 
 function showMainWindow(): BrowserWindow | null {
   if (!app.isReady() || quitting) return null;
@@ -991,6 +594,12 @@ function showMainWindow(): BrowserWindow | null {
   if (!isTest) win.show();
   win.focus();
   return win;
+}
+
+/** While quitting, the tray offers nothing and hosting starts no new work. */
+function setQuitting(on: boolean): void {
+  quitting = on;
+  hosting.setQuitting(on);
 }
 
 async function confirmStopAndQuit(): Promise<boolean> {
@@ -1007,29 +616,23 @@ async function confirmStopAndQuit(): Promise<boolean> {
   return choice.response === 1;
 }
 
-let trayStopPending = false;
 // The tray's label already says hosting stops, so it does not ask first.
 async function stopFromTray(): Promise<void> {
-  if (trayStopPending || quitting) return;
-  trayStopPending = true;
-  updateTray();
   try {
-    await hosting.stop();
+    await hosting.stopFromTray();
   } catch {
     showMainWindow();
     await dialog.showMessageBox({
       type: "error",
       message: "OwnBase could not stop the workspace. Open Manage hosting and try again.",
     });
-  } finally {
-    trayStopPending = false;
-    updateTray();
   }
 }
 
 function updateTray(): void {
   if (!tray || tray.isDestroyed()) return;
   const status = hosting.status();
+  const trayStopping = hosting.stoppingFromTray();
   const label =
     status.phase === "starting"
       ? "Starting workspace…"
@@ -1078,7 +681,7 @@ function updateTray(): void {
       })),
       {
         label: "Stop hosting",
-        enabled: status.phase === "running" && !quitting && !trayStopPending,
+        enabled: status.phase === "running" && !quitting && !trayStopping,
         click: () => {
           void stopFromTray().catch(() => {});
         },
@@ -1086,7 +689,7 @@ function updateTray(): void {
       { type: "separator" },
       {
         label: status.phase === "stopped" ? "Quit OwnBase" : "Stop hosting and quit",
-        enabled: !quitting && !trayStopPending,
+        enabled: !quitting && !trayStopping,
         // The label already says hosting stops, so it does not ask again.
         click: () => quitOwnBase(true),
       },
@@ -1127,7 +730,7 @@ function createWindow(): void {
   // The deep and ink-dim colours of the page's theme (see windowTheme.ts): the
   // window shows this before the page paints, and the overlay sits on the
   // window's own surface, above the sidebar and the conversation card.
-  const colours = windowColours(savedAppearance, nativeTheme.shouldUseDarkColors);
+  const colours = windowColours(windowTheme, nativeTheme.shouldUseDarkColors);
   // Where it was last, if that is still on a screen (windowPlace.ts).
   const primary = screen.getPrimaryDisplay();
   const opening = placeToOpen(savedWindowPlace, [
@@ -1152,10 +755,10 @@ function createWindow(): void {
     },
     webPreferences: {
       preload: join(import.meta.dirname, "../preload/index.cjs"),
-      ...(pageLocale ? { additionalArguments: [READER_LOCALE_ARG + pageLocale] } : {}),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
+      additionalArguments: [capabilitiesArgument({ ...capabilities, readerLocale: pageLocale })],
     },
   });
 
@@ -1174,7 +777,7 @@ function createWindow(): void {
     // Full screen is a passing state, and minimized keeps its last place.
     if (win.isDestroyed() || win.isFullScreen() || win.isMinimized()) return;
     savedWindowPlace = placeToSave(win.getNormalBounds(), win.isMaximized());
-    void writeSetting(WINDOW_PLACE_KEY, savedWindowPlace).catch(() => {});
+    keepWindowSetting(WINDOW_PLACE_KEY, savedWindowPlace);
   };
   const savePlaceSoon = () => {
     if (placeTimer) clearTimeout(placeTimer);
@@ -1200,7 +803,7 @@ function createWindow(): void {
     if (quitReady || closeAllowed) return;
     if (quitting || hosting.status().phase !== "stopped") {
       event.preventDefault();
-      if (hostingStatus().backgroundAvailable) win.hide();
+      if (tray && !tray.isDestroyed()) win.hide();
       else win.minimize();
       return;
     }
@@ -1276,7 +879,7 @@ function createWindow(): void {
     event.preventDefault();
     savedZoom = nextZoomLevel(win.webContents.getZoomLevel(), step);
     win.webContents.setZoomLevel(savedZoom);
-    void writeSetting(ZOOM_KEY, savedZoom).catch(() => {});
+    keepWindowSetting(ZOOM_KEY, savedZoom);
   });
   win.webContents.on("did-finish-load", () => {
     if (!win.isDestroyed()) win.webContents.setZoomLevel(savedZoom);
@@ -1398,28 +1001,27 @@ void app.whenReady().then(async () => {
         return true;
       },
     ).catch(() => {});
-  // Unreadable settings mean no saved address, not a failed launch. The
-  // environment can still supply one, and Manage hosting can save a new one.
-  const stored = await settings.get("publicAddress").catch(() => null);
-  savedPublicAddress = typeof stored === "string" && stored.trim() ? stored.trim() : null;
-  // Unreadable, the window follows the system until the page saves a choice.
-  savedAppearance = await settings.get(APPEARANCE_KEY).catch(() => null);
+  await hosting.load();
+  // Unreadable, the window follows the system until the page says its theme.
+  const saved = await ownSettings.get(WINDOW_THEME_KEY).catch(() => null);
+  windowTheme = isWindowTheme(saved)
+    ? saved
+    : themeOfAppearance(await settings.get("appearance").catch(() => null));
   // Unreadable, the window opens at its usual size, centred.
-  savedWindowPlace = await settings.get(WINDOW_PLACE_KEY).catch(() => null);
-  savedZoom = savedZoomLevel(await settings.get(ZOOM_KEY).catch(() => null));
+  savedWindowPlace = await ownSettings.get(WINDOW_PLACE_KEY).catch(() => null);
+  savedZoom = savedZoomLevel(await ownSettings.get(ZOOM_KEY).catch(() => null));
   pageLocale = readerLocale({
     appLocale: app.getLocale(),
     systemLocale: app.getSystemLocale(),
     hourCycle: await hourCycle,
   });
-  publicAddressLookup = null;
   // No Ctrl+W, Ctrl+R or developer tools in the installed app (appMenu.ts).
   if (app.isPackaged)
     Menu.setApplicationMenu(Menu.buildFromTemplate(appMenuTemplate(process.platform)));
   const initial = deepLinkFromArgv(process.argv);
   if (initial && !pendingDeepLink) pendingDeepLink = initial;
   createTray();
-  followNetworkChanges();
+  hosting.followNetworkChanges((listener) => powerMonitor.on("resume", listener));
   // A scheduled backup that failed before the app last quit is said in the
   // tray from the start, not only once the window lists the workspaces.
   void hosting.list().then(updateTray, () => {});
@@ -1432,7 +1034,7 @@ void app.whenReady().then(async () => {
   // address failed to reopen is a failure nobody would otherwise see. Without
   // a sign-in the window opens, and hosting starts meanwhile: it enters
   // "starting" long before the window asks.
-  const loginSettings = loginItemAvailable && !isTest ? app.getLoginItemSettings() : {};
+  const loginSettings = loginItem && !isTest ? app.getLoginItemSettings() : {};
   if (openedAtLogin(process.platform, process.argv, loginSettings)) {
     const hosted = await hosting.startForLaunch().catch(() => null);
     if (!hosted?.running || !tray || hosting.status().launchError) createWindow();
@@ -1456,7 +1058,7 @@ app.on("window-all-closed", () => {
 
 app.on("will-quit", () => {
   microphones.closeAll();
-  cloudflaredInstaller.cancel();
+  hosting.cancelInstall();
 });
 
 app.on("before-quit", (event) => {
@@ -1470,19 +1072,19 @@ app.on("before-quit", (event) => {
  * first, for a choice that already said it stops hosting.
  */
 function quitOwnBase(stopConfirmed: boolean): void {
-  if (quitTask || trayStopPending) return;
-  quitting = true;
+  if (quitTask || hosting.stoppingFromTray()) return;
+  setQuitting(true);
   updateTray();
   quitTask = (async () => {
     if (!stopConfirmed && hosting.status().phase !== "stopped" && !(await confirmStopAndQuit())) {
-      quitting = false;
+      setQuitting(false);
       updateTray();
       return;
     }
     // Kept before the settings are saved for the last time.
     saveWindowPlaceNow?.();
     if (!(await prepareLocalWrites(mainWindow, true))) {
-      quitting = false;
+      setQuitting(false);
       updateTray();
       return;
     }
@@ -1509,7 +1111,7 @@ function quitOwnBase(stopConfirmed: boolean): void {
         // Only the user's explicit response to a failed shutdown may bypass draining.
         app.exit(1);
       } else {
-        quitting = false;
+        setQuitting(false);
         if (mainWindow && !mainWindow.isDestroyed()) mainWindow.setEnabled(true);
         showMainWindow();
         updateTray();
@@ -1518,7 +1120,7 @@ function quitOwnBase(stopConfirmed: boolean): void {
     .finally(() => {
       quitTask = null;
       if (!quitReady && quitting) {
-        quitting = false;
+        setQuitting(false);
         showMainWindow();
         updateTray();
       }

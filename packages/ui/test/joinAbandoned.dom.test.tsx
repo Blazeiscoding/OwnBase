@@ -21,7 +21,7 @@ const rocket: SavedServer = {
 };
 const six: SavedServer = { ...rocket, url: "http://six.test:8543", workspaceName: "Six Team" };
 
-const stopped: HostingStatus = { running: false, phase: "stopped" };
+const stopped: HostingStatus = { running: false, phase: "stopped", backgroundAvailable: true };
 const platform: Platform = {
   kind: "desktop",
   storage: { get: async () => null, set: async () => {} },

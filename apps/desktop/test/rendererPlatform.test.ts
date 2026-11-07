@@ -1,78 +1,199 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { electronPlatform, followPlace, systemMicrophone } from "../src/renderer/src/platform.js";
+import type { DesktopCapabilities } from "@ownbase/protocol/desktop";
+import type { Channel, EventName, OwnBaseBridge } from "../src/shared/bridge.js";
+import {
+  DesktopCallError,
+  electronPlatform,
+  followPlace,
+  invoker,
+  systemMicrophone,
+} from "../src/renderer/src/platform.js";
 
-type Bridge = Window["ownbase"];
+const NONE: DesktopCapabilities = {
+  readerLocale: null,
+  screenSound: false,
+  systemMicrophone: false,
+  openAtLogin: false,
+};
 
 /**
- * The renderer reads its bridge off `window` when the platform is built, so a
- * stub is enough to drive it; nothing else in the module touches the DOM.
+ * A bridge as the preload builds it: each call answered by `answer` (a value,
+ * or a thrown error that becomes the reply's failure), and events pushed with `push`.
  */
-function platformRejecting(reason: unknown) {
-  const failing = () => Promise.reject(reason);
-  (globalThis as { window?: unknown }).window = {
-    ownbase: {
-      hostingOpenToAll: failing,
-      hostingSetPublicAddress: failing,
-      hostingInstallCloudflared: failing,
-    } as unknown as Bridge,
+function fakeBridge(
+  answer: (channel: Channel, args: unknown[]) => unknown = () => undefined,
+  capabilities: Partial<DesktopCapabilities> = {},
+) {
+  const calls: [Channel, unknown[]][] = [];
+  const listeners = new Map<EventName, Set<(payload: never) => void>>();
+  const bridge: OwnBaseBridge = {
+    invoke: (async (channel: Channel, ...args: unknown[]) => {
+      calls.push([channel, args]);
+      try {
+        return { ok: true, value: await answer(channel, args) };
+      } catch (error) {
+        const { code = "failed", message } = error as { code?: string; message: string };
+        return { ok: false, error: { code, message } };
+      }
+    }) as OwnBaseBridge["invoke"],
+    on: (event, listener) => {
+      const set = listeners.get(event) ?? new Set();
+      listeners.set(event, set);
+      set.add(listener as (payload: never) => void);
+      return () => set.delete(listener as (payload: never) => void);
+    },
+    capabilities: { ...NONE, ...capabilities },
   };
-  return electronPlatform();
+  const push = (event: EventName, payload: unknown) => {
+    for (const listener of listeners.get(event) ?? []) listener(payload as never);
+  };
+  return { bridge, calls, push };
 }
 
-/** The whole message, since a leftover prefix would still contain the sentence. */
-async function messageFrom(call: Promise<unknown>): Promise<string> {
+async function failureOf(call: Promise<unknown>) {
   return call.then(
-    () => "resolved",
-    (reason: unknown) => (reason instanceof Error ? reason.message : String(reason)),
+    () => null,
+    (reason: unknown) => reason as DesktopCallError,
   );
 }
 
-afterEach(() => {
-  delete (globalThis as { window?: unknown }).window;
+describe("a desktop call", () => {
+  it("resolves to the value the main process answered, sending the arguments as given", async () => {
+    const { bridge, calls } = fakeBridge((_channel, [folder, name]) => ({
+      folder,
+      name: (name as string).trim(),
+    }));
+    const hosting = electronPlatform(bridge).hosting!;
+    expect(await hosting.rename("rocket-team", " Blue Team ")).toEqual({
+      folder: "rocket-team",
+      name: "Blue Team",
+    });
+    expect(calls).toEqual([["hosting:rename", ["rocket-team", " Blue Team "]]]);
+  });
+
+  it("rejects with the failure's code and the main process's own words", async () => {
+    const { bridge } = fakeBridge(() => {
+      throw { code: "registry-newer", message: "A newer version of OwnBase saved the list." };
+    });
+    const failure = await failureOf(electronPlatform(bridge).hosting!.list());
+    expect(failure).toBeInstanceOf(DesktopCallError);
+    expect(failure).toMatchObject({
+      code: "registry-newer",
+      message: "A newer version of OwnBase saved the list.",
+    });
+  });
+
+  it("drops Electron's prefix once when the bridge itself rejects", async () => {
+    const rejecting = (reason: unknown) => invoker({ invoke: () => Promise.reject(reason) });
+    const failure = await failureOf(
+      rejecting(
+        new Error(
+          "Error invoking remote method 'hosting:openToAll': TypeError: Stop using the current public address first.",
+        ),
+      )("hosting:openToAll", "invite_only"),
+    );
+    expect(failure).toMatchObject({
+      code: "internal",
+      message: "Stop using the current public address first.",
+    });
+
+    // Something to read is kept when the prefix is all there is.
+    const bare = "Error invoking remote method 'hosting:stop': Error: ";
+    expect(await failureOf(rejecting(new Error(bare))("hosting:stop"))).toMatchObject({
+      message: bare,
+    });
+    expect(await failureOf(rejecting("the connector went away")("hosting:stop"))).toMatchObject({
+      code: "internal",
+      message: "the connector went away",
+    });
+  });
+});
+
+describe("what the platform offers", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
+  it("follows the capabilities the main process decided", () => {
+    (globalThis as { window?: unknown }).window = new EventTarget();
+    const without = electronPlatform(fakeBridge().bridge);
+    expect(without.screenShare!.sound).toBe(false);
+    expect(without.systemMicrophone).toBeUndefined();
+    expect(without.hosting!.openAtLogin).toBeNull();
+
+    const withAll = electronPlatform(
+      fakeBridge(undefined, { screenSound: true, systemMicrophone: true, openAtLogin: true })
+        .bridge,
+    );
+    expect(withAll.screenShare!.sound).toBe(true);
+    expect(withAll.systemMicrophone).toBeDefined();
+    expect(withAll.hosting!.openAtLogin).not.toBeNull();
+  });
+
+  it("has no storage watchers, as the desktop app has one window", () => {
+    const { storage } = electronPlatform(fakeBridge().bridge);
+    expect(storage.watchOutbox).toBeUndefined();
+    expect(storage.watchDrafts).toBeUndefined();
+    expect(storage.watchRecord).toBeUndefined();
+  });
+
+  it("hears the hosting status only as it is pushed", () => {
+    const { bridge, push } = fakeBridge();
+    const heard: unknown[] = [];
+    const stop = electronPlatform(bridge).hosting!.subscribe((status) => heard.push(status));
+    push("hosting:changed", { phase: "running" });
+    stop();
+    push("hosting:changed", { phase: "stopped" });
+    expect(heard).toEqual([{ phase: "running" }]);
+  });
+
+  it("tells the window's frame the page's theme, and shrugs off a failure", async () => {
+    const { bridge, calls } = fakeBridge(() => {
+      throw new Error("no window");
+    });
+    expect(() => electronPlatform(bridge).setWindowTheme!("dark")).not.toThrow();
+    await vi.waitFor(() => expect(calls).toEqual([["window:setTheme", ["dark"]]]));
+  });
 });
 
 describe("handing over final local work before close", () => {
-  function preparingPlatform() {
-    let prepare!: (id: number) => void;
-    const prepared = vi.fn(async (_id: number, _saved: boolean) => {});
-    (globalThis as { window?: unknown }).window = {
-      ownbase: {
-        onPrepareClose: (listener: (id: number) => void) => {
-          prepare = listener;
-          return () => {};
-        },
-        preparedClose: prepared,
-      } as unknown as Bridge,
+  function preparing() {
+    const { bridge, calls, push } = fakeBridge();
+    const prepared = () =>
+      calls.filter(([channel]) => channel === "window:preparedClose").map(([, args]) => args);
+    return {
+      platform: electronPlatform(bridge),
+      prepared,
+      prepare: (id: number) => push("window:prepareClose", id),
     };
-    return { platform: electronPlatform(), prepared, prepare: (id: number) => prepare(id) };
   }
 
   it("captures every visible composer before persistence and holds the reply until writes finish", async () => {
-    const { platform, prepared, prepare } = preparingPlatform();
-    const calls: string[] = [];
+    const { platform, prepared, prepare } = preparing();
+    const order: string[] = [];
     let finish!: () => void;
     const writing = new Promise<void>((done) => {
       finish = done;
     });
     platform.onPrepareClose!("persist", async () => {
-      calls.push("persist");
+      order.push("persist");
       await writing;
     });
     platform.onPrepareClose!("capture", () => {
-      calls.push("channel");
+      order.push("channel");
     });
     platform.onPrepareClose!("capture", () => {
-      calls.push("thread");
+      order.push("thread");
     });
     prepare(51);
-    await vi.waitFor(() => expect(calls).toEqual(["channel", "thread", "persist"]));
-    expect(prepared).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(order).toEqual(["channel", "thread", "persist"]));
+    expect(prepared()).toEqual([]);
     finish();
-    await vi.waitFor(() => expect(prepared).toHaveBeenCalledWith(51, true));
+    await vi.waitFor(() => expect(prepared()).toEqual([[51, true]]));
   });
 
   it("reports a refused write, retries, and excludes owners that unmounted", async () => {
-    const { platform, prepared, prepare } = preparingPlatform();
+    const { platform, prepared, prepare } = preparing();
     const oldAccount = vi.fn();
     platform.onPrepareClose!("capture", oldAccount)();
     let failing = true;
@@ -80,180 +201,25 @@ describe("handing over final local work before close", () => {
       if (failing) throw new Error("disk full");
     });
     prepare(61);
-    await vi.waitFor(() => expect(prepared).toHaveBeenCalledWith(61, false));
+    await vi.waitFor(() => expect(prepared()).toEqual([[61, false]]));
     failing = false;
     prepare(62);
-    await vi.waitFor(() => expect(prepared).toHaveBeenCalledWith(62, true));
+    await vi.waitFor(() =>
+      expect(prepared()).toEqual([
+        [61, false],
+        [62, true],
+      ]),
+    );
     expect(oldAccount).not.toHaveBeenCalled();
-  });
-});
-
-describe("what the renderer shows when the main process refuses", () => {
-  it("shows the sentence the main process wrote, not the channel it arrived on", async () => {
-    const platform = platformRejecting(
-      new Error(
-        "Error invoking remote method 'hosting:setPublicAddress': Error: Use a public HTTPS hostname without a path, credentials, query, or fragment.",
-      ),
-    );
-
-    expect(await messageFrom(platform.hosting!.setPublicAddress!("http://localhost:8543"))).toBe(
-      "Use a public HTTPS hostname without a path, credentials, query, or fragment.",
-    );
-  });
-
-  it("does the same for opening to all, whatever the handler's error class was named", async () => {
-    const platform = platformRejecting(
-      new Error(
-        "Error invoking remote method 'hosting:openToAll': TypeError: Stop using the current public address before changing it.",
-      ),
-    );
-
-    expect(await messageFrom(platform.hosting!.openToAll!({ inviteOnly: true }))).toBe(
-      "Stop using the current public address before changing it.",
-    );
-  });
-
-  it("does the same for installing cloudflared, so the window can say what to do", async () => {
-    const platform = platformRejecting(
-      new Error(
-        "Error invoking remote method 'hosting:installCloudflared': Error: OwnBase could not reach Cloudflare's releases on GitHub. Check this computer's internet connection, then try again.",
-      ),
-    );
-
-    expect(await messageFrom(platform.hosting!.installCloudflared!())).toBe(
-      "OwnBase could not reach Cloudflare's releases on GitHub. Check this computer's internet connection, then try again.",
-    );
-  });
-
-  it("leaves a message that never went through Electron alone", async () => {
-    const platform = platformRejecting(new Error("The app is quitting."));
-
-    expect(await messageFrom(platform.hosting!.setPublicAddress!(""))).toBe("The app is quitting.");
-  });
-
-  it("keeps something to read when the prefix is the whole message", async () => {
-    const bare = "Error invoking remote method 'hosting:setPublicAddress': Error: ";
-    const platform = platformRejecting(new Error(bare));
-
-    expect(await messageFrom(platform.hosting!.setPublicAddress!(""))).toBe(bare);
-  });
-
-  it("names the workspace to rename or open by its folder, and repeats why it would not", async () => {
-    const renames: [string, string][] = [];
-    (globalThis as { window?: unknown }).window = {
-      ownbase: {
-        hostingRename: async (folder: string, name: string) => {
-          renames.push([folder, name]);
-          if (!name.trim())
-            throw new Error(
-              "Error invoking remote method 'hosting:rename': Error: Use a workspace name of 1 to 80 characters without control characters.",
-            );
-          return { folder, name: name.trim() };
-        },
-        hostingOpenFolder: async () => {
-          throw new Error(
-            "Error invoking remote method 'hosting:openFolder': Error: The folder for Rocket Team could not be opened.",
-          );
-        },
-      } as unknown as Bridge,
-    };
-    const hosting = electronPlatform().hosting!;
-
-    expect(await hosting.rename!("rocket-team", " Blue Team ")).toEqual({
-      folder: "rocket-team",
-      name: "Blue Team",
-    });
-    expect(await messageFrom(hosting.rename!("rocket-team", " "))).toBe(
-      "Use a workspace name of 1 to 80 characters without control characters.",
-    );
-    expect(renames).toEqual([
-      ["rocket-team", " Blue Team "],
-      ["rocket-team", " "],
-    ]);
-    expect(await messageFrom(hosting.openFolder!("rocket-team"))).toBe(
-      "The folder for Rocket Team could not be opened.",
-    );
-  });
-
-  it("reports a rejection that was never an Error at all", async () => {
-    const platform = platformRejecting("the connector went away");
-
-    expect(await messageFrom(platform.hosting!.setPublicAddress!(""))).toBe(
-      "the connector went away",
-    );
-  });
-});
-
-describe("the outbox every window shares", () => {
-  it("is merged in the main process and watched for the other windows' changes", async () => {
-    const merged = { outbox: 2, entries: [], removed: [] };
-    const calls: unknown[][] = [];
-    let notify: (key: string, stored: unknown) => void = () => {};
-    (globalThis as { window?: unknown }).window = {
-      ownbase: {
-        storageMergeOutbox: async (...args: unknown[]) => {
-          calls.push(args);
-          return merged;
-        },
-        onOutboxChanged: (cb: typeof notify) => {
-          notify = cb;
-          return () => {
-            notify = () => {};
-          };
-        },
-      } as unknown as Bridge,
-    };
-    const platform = electronPlatform();
-    const changes = { put: [], remove: [{ nonce: "A", rev: 1 }] };
-    expect(await platform.storage.mergeOutbox!("outbox-key", changes, true)).toBe(merged);
-    expect(calls).toEqual([["outbox-key", changes, true]]);
-
-    const heard: unknown[] = [];
-    const stop = platform.storage.watchOutbox!("outbox-key", (stored) => heard.push(stored));
-    notify("another-key", "not this one");
-    notify("outbox-key", "stored now");
-    stop();
-    notify("outbox-key", "after stopping");
-    expect(heard).toEqual(["stored now"]);
-  });
-});
-
-describe("the drafts every window shares", () => {
-  it("are merged in the main process and watched for the other windows' changes", async () => {
-    const merged = { C1: "stored now" };
-    const calls: unknown[][] = [];
-    let notify: (key: string, stored: unknown) => void = () => {};
-    (globalThis as { window?: unknown }).window = {
-      ownbase: {
-        storageMergeDrafts: async (...args: unknown[]) => {
-          calls.push(args);
-          return merged;
-        },
-        onDraftsChanged: (cb: typeof notify) => {
-          notify = cb;
-          return () => {
-            notify = () => {};
-          };
-        },
-      } as unknown as Bridge,
-    };
-    const platform = electronPlatform();
-    const changes = { put: { C1: "stored now" }, remove: ["C2"] };
-    expect(await platform.storage.mergeDrafts!("drafts-key", changes, true)).toBe(merged);
-    expect(calls).toEqual([["drafts-key", changes, true]]);
-
-    const heard: unknown[] = [];
-    const stop = platform.storage.watchDrafts!("drafts-key", (stored) => heard.push(stored));
-    notify("another-key", "not this one");
-    notify("drafts-key", "stored now");
-    stop();
-    notify("drafts-key", "after stopping");
-    expect(heard).toEqual(["stored now"]);
   });
 });
 
 /** The page reports where it is, and starts from where it was after a crash (F08). */
 describe("following the page's place", () => {
+  afterEach(() => {
+    delete (globalThis as { window?: unknown }).window;
+  });
+
   function page(state: unknown = null) {
     const listeners = new Map<string, () => void>();
     const history = {
@@ -280,8 +246,11 @@ describe("following the page's place", () => {
     vi.useFakeTimers();
     const { history, location, listeners } = page();
     const recovered = { ownbase: { server: "http://a", channelId: "C1", view: "saved" } };
-    const rememberPlace = vi.fn(async () => {});
-    await followPlace({ rememberPlace, takePlace: async () => recovered });
+    const { bridge, calls } = fakeBridge((channel) =>
+      channel === "window:takePlace" ? recovered : undefined,
+    );
+    const reports = () => calls.filter(([channel]) => channel === "window:rememberPlace");
+    await followPlace(bridge);
     expect(history.state).toEqual(recovered);
 
     history.pushState(
@@ -291,27 +260,27 @@ describe("following the page's place", () => {
     );
     history.replaceState({ ownbase: { server: "http://a", channelId: "C2", scroll: 1 } }, "");
     await vi.advanceTimersByTimeAsync(300);
-    expect(rememberPlace).toHaveBeenLastCalledWith(location.href, history.state);
-    const calls = rememberPlace.mock.calls.length;
+    expect(reports().at(-1)![1]).toEqual([location.href, history.state]);
+    const before = reports().length;
     listeners.get("popstate")!();
     await vi.advanceTimersByTimeAsync(300);
-    expect(rememberPlace.mock.calls.length).toBe(calls + 1);
+    expect(reports().length).toBe(before + 1);
     vi.useRealTimers();
   });
 
   it("leaves an entry the page already has, and carries on when the main process refuses", async () => {
     const { history } = page({ ownbase: { server: "http://a", channelId: "C9" } });
-    await followPlace({
-      rememberPlace: async () => {},
-      takePlace: async () => ({ ownbase: { server: "http://a", channelId: "C1" } }),
-    });
+    await followPlace(
+      fakeBridge(() => ({ ownbase: { server: "http://a", channelId: "C1" } })).bridge,
+    );
     expect(history.state).toEqual({ ownbase: { server: "http://a", channelId: "C9" } });
     page();
     await expect(
-      followPlace({
-        rememberPlace: async () => {},
-        takePlace: () => Promise.reject(new Error("no")),
-      }),
+      followPlace(
+        fakeBridge(() => {
+          throw new Error("no");
+        }).bridge,
+      ),
     ).resolves.toBeUndefined();
   });
 });
@@ -321,20 +290,14 @@ describe("notifications", () => {
     delete (globalThis as { Notification?: unknown }).Notification;
   });
 
-  /** What the renderer asks Electron to show, one entry per notification. */
-  function shown() {
+  it("tags each one briefly enough for Windows to show it", () => {
     const made: Array<{ title: string; body?: string; tag?: string }> = [];
-    (globalThis as { window?: unknown }).window = { ownbase: {} as Bridge };
     (globalThis as { Notification?: unknown }).Notification = class {
       constructor(title: string, options?: NotificationOptions) {
         made.push({ title, body: options?.body, tag: options?.tag });
       }
     };
-    return { platform: electronPlatform(), made };
-  }
-
-  it("tags each one briefly enough for Windows to show it", () => {
-    const { platform, made } = shown();
+    const platform = electronPlatform(fakeBridge().bridge);
     // How WorkspaceScreen tags a message: the account, then the message.
     const account = "http://192.168.1.20:8543 01M5NEH8VBQEKYEXT5BP4AH72Y";
     platform.notify("Bob", "one", undefined, { tag: `${account} 01M5NEH8VBQEKYEXT5BP4AH72Z` });
@@ -352,7 +315,6 @@ describe("notifications", () => {
     // Windows drops a notification whose tag runs past 54 characters, without
     // an error or a word from Electron (measured on Windows 11, Electron 44).
     for (const { tag } of made.slice(0, 3)) expect(tag!.length).toBeLessThanOrEqual(16);
-    // Still one tag per thing told about, so telling it again replaces it.
     expect(made[0]!.tag).not.toBe(made[1]!.tag);
     expect(made[2]!.tag).toBe(made[0]!.tag);
     expect(made[3]!.tag).toBeUndefined();
@@ -368,64 +330,58 @@ describe("microphones the app opens itself (Windows)", () => {
     return { target: target as unknown as Window, post };
   }
 
-  function bridge(session = 7) {
-    return {
-      microphones: vi.fn(async () => ({ defaultId: null, microphones: [] })),
-      openMicrophone: vi.fn(async () => ({ session, sampleRate: 48000, name: "Microphone (A)" })),
-      closeMicrophone: vi.fn(async () => {}),
-    };
+  function opening(session = 7, refusal?: { code: string; message: string }) {
+    const { bridge, calls } = fakeBridge((channel) => {
+      if (channel !== "microphone:open") return undefined;
+      if (refusal) throw refusal;
+      return { session, sampleRate: 48000, name: "Microphone (A)" };
+    });
+    const closed = () =>
+      calls.filter(([channel]) => channel === "microphone:close").map(([, [id]]) => id);
+    return { call: invoker(bridge), closed };
   }
-
-  it("is offered only where the bridge has it", () => {
-    expect(systemMicrophone({}, windowWithPorts().target)).toBeUndefined();
-  });
 
   it("hands over the port whether it arrives before or after the answer", async () => {
     const { target, post } = windowWithPorts();
-    const b = bridge();
-    const system = systemMicrophone(b, target)!;
+    const { call, closed } = opening();
+    const system = systemMicrophone(call, target);
 
     const early = new MessageChannel().port1;
     post({ type: "ownbase:microphone-port", session: 7 }, early);
     await expect(system.open("{a}")).resolves.toMatchObject({ port: early, sampleRate: 48000 });
 
     const late = new MessageChannel().port1;
-    const opening = system.open("{a}");
+    const pending = system.open("{a}");
     await new Promise((resolve) => setTimeout(resolve, 0));
     // Not this window's, and not this session's: both left alone.
     post({ type: "ownbase:microphone-port", session: 7 }, new MessageChannel().port1, {});
     post({ type: "ownbase:microphone-port", session: 8 }, new MessageChannel().port1);
     post({ type: "ownbase:microphone-port", session: 7 }, late);
-    const opened = await opening;
+    const opened = await pending;
     expect(opened.port).toBe(late);
 
     opened.close();
-    expect(b.closeMicrophone).toHaveBeenCalledWith(7);
+    await vi.waitFor(() => expect(closed()).toEqual([7]));
   });
 
   it("lets the microphone go when its sound never arrives", async () => {
     vi.useFakeTimers();
     try {
-      const b = bridge();
-      const opening = systemMicrophone(b, windowWithPorts().target)!.open("{a}");
-      const failed = expect(opening).rejects.toThrow("did not arrive");
+      const { call, closed } = opening();
+      const pending = systemMicrophone(call, windowWithPorts().target).open("{a}");
+      const failed = expect(pending).rejects.toThrow("did not arrive");
       await vi.advanceTimersByTimeAsync(5000);
       await failed;
-      expect(b.closeMicrophone).toHaveBeenCalledWith(7);
+      expect(closed()).toEqual([7]);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it("says why it would not open, without the IPC channel's prefix", async () => {
-    const b = bridge();
-    b.openMicrophone.mockRejectedValue(
-      new Error(
-        "Error invoking remote method 'microphone:open': Error: Too many microphones are open.",
-      ),
-    );
-    expect(await messageFrom(systemMicrophone(b, windowWithPorts().target)!.open("{a}"))).toBe(
-      "Too many microphones are open.",
-    );
+  it("says why it would not open", async () => {
+    const { call } = opening(7, { code: "failed", message: "Too many microphones are open." });
+    expect(
+      await failureOf(systemMicrophone(call, windowWithPorts().target).open("{a}")),
+    ).toMatchObject({ message: "Too many microphones are open." });
   });
 });

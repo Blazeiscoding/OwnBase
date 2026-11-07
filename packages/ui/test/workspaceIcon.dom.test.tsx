@@ -27,6 +27,7 @@ import {
   useCachedWorkspaceIcons,
 } from "../src/lib/workspaceIcon.js";
 import type { HostedWorkspaces, HostingStatus, Platform } from "../src/platform.js";
+import { hostingStub } from "./hostingStub.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -519,6 +520,11 @@ describe("the icon of a workspace hosted on this computer", () => {
     lastBackupAt: null,
     running: false,
     missing: false,
+    startsOnLaunch: false,
+    autoBackup: null,
+    autoBackupError: null,
+    restored: false,
+    iconVersion: null,
     ...more,
   });
 
@@ -531,13 +537,11 @@ describe("the icon of a workspace hosted on this computer", () => {
       ],
       unreadable: [],
     };
-    const hosting: Hosting = {
-      status: vi.fn(async (): Promise<HostingStatus> => ({ running: false, phase: "stopped" })),
+    const hosting = hostingStub({
       start: vi.fn(),
-      stop: vi.fn(),
       list: vi.fn(async () => hosted),
       icon: vi.fn(async () => "data:image/png;base64,AAAA"),
-    };
+    });
     render(<Harness hosting={hosting} />);
     const list = await screen.findByRole("region", { name: "Hosted on this computer" });
     const row = (name: string) => within(list).getByText(name).closest("li")!;
@@ -557,20 +561,19 @@ describe("the icon of a workspace hosted on this computer", () => {
   });
 
   it("shows the running one's icon beside its name, and refuses anything but a picture", async () => {
-    const hosting: Hosting = {
+    const hosting = hostingStub({
       status: vi.fn(async (): Promise<HostingStatus> => ({
         running: true,
         phase: "running",
+        backgroundAvailable: true,
         workspaceName: "Rocket Team",
         folder: "w-rocket",
         port: 8543,
         lanUrls: ["192.168.1.20:8543"],
         iconVersion: "v-live",
       })),
-      start: vi.fn(),
-      stop: vi.fn(),
       icon: vi.fn(async () => "data:image/webp;base64,AAAA"),
-    };
+    });
     render(<Harness hosting={hosting} />);
     const name = await screen.findByText("Rocket Team");
     await waitFor(() =>
@@ -585,6 +588,7 @@ describe("the icon of a workspace hosted on this computer", () => {
     vi.mocked(hosting.status).mockResolvedValue({
       running: true,
       phase: "running",
+      backgroundAvailable: true,
       workspaceName: "Rocket Team",
       folder: "w-rocket",
       port: 8543,

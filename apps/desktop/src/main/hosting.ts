@@ -2,6 +2,19 @@ import { existsSync } from "node:fs";
 import { mkdir, readdir, rm, stat } from "node:fs/promises";
 import { isAbsolute, join } from "node:path";
 import { ACCESS_POLICIES, type AccessPolicy } from "@ownbase/protocol";
+import {
+  isPort,
+  PORT_RULE,
+  type HostedBackup,
+  type HostedWorkspace as HostedWorkspaceView,
+  type HostingStart,
+  type HostingStatus,
+  type LastHosted,
+  type RestoredOver,
+  type RestoredWorkspace,
+  type RestoreInventory,
+} from "@ownbase/protocol/desktop";
+import { DesktopError } from "../shared/desktopError.js";
 import { TunnelCleanupError, type Tunnel } from "./tunnel.js";
 import {
   REGISTRY_KEY,
@@ -22,67 +35,8 @@ import {
   type HostedWorkspace,
 } from "./registry.js";
 
-export interface HostingSnapshot {
-  running: boolean;
-  phase: "stopped" | "starting" | "running" | "stopping";
-  workspaceName?: string;
-  /** The running workspace's entry in the list of hosted workspaces. */
-  folder?: string;
-  port?: number;
-  /**
-   * The running server's instance id, new on every start and also in its
-   * network announcement, so a discovered workspace can be recognised as
-   * this one rather than as anything else on the same port.
-   */
-  instanceId?: string;
-  dataDir?: string;
-  lanUrls?: string[];
-  warning?: string;
-  /** Published at a public address, for as long as this app is using it. */
-  openToAll?: { phase: "opening" } | { phase: "open"; url: string };
-  /** Why opening to all failed or ended, until it is tried again. */
-  openToAllError?: string;
-  /** Whether this computer has what opening to all needs. */
-  tunnelAvailable?: boolean;
-  /** A configured address that stays the same each time the link is opened. */
-  publicAddress?: string;
-  /** What the public address setting holds, valid or not, for editing. */
-  publicAddressSetting?: string;
-  /** Whether the environment set the address, so this app cannot change it. */
-  publicAddressLocked?: boolean;
-  /** Whether OwnBase runs the connector, rather than something else. */
-  publicAddressManaged?: boolean;
-  /** Why a configured stable address cannot be used, and what to correct. */
-  publicAddressError?: string;
-  /** Whether an account after the first needs an invite code. */
-  inviteOnly?: boolean;
-  /** Who may join: invited accounts, any account, or guests too. */
-  accessPolicy?: AccessPolicy;
-  /** The running workspace is the one chosen to start when OwnBase opens. */
-  startsOnLaunch?: boolean;
-  /**
-   * What did not happen when OwnBase opened: the workspace chosen to start
-   * with it did not start, or started on this network without reopening its
-   * stable address. Kept, whatever else runs meanwhile, until that part
-   * recovers or the host dismisses it.
-   */
-  launchError?: string;
-  /** Which part `launchError` is about. */
-  launchErrorPart?: "hosting" | "public-address";
-  /** The folder of the workspace `launchError` is about, when it is about one. */
-  launchErrorFolder?: string;
-  /** How many people are connected to the running workspace now. */
-  connected?: number;
-  /**
-   * The running workspace is a restored copy started only for looking inside:
-   * nothing queued is sent, no app is called, and only this computer reaches it.
-   */
-  isolated?: boolean;
-  /** The running workspace reopens its stable public address when it starts with OwnBase. */
-  reopensPublicOnLaunch?: boolean;
-  /** The running workspace's icon version, or null when it has none. */
-  iconVersion?: string | null;
-}
+/** The hosting status as the controller knows it; the app adds what it alone can tell. */
+export type HostingSnapshot = Omit<HostingStatus, "backgroundAvailable" | "cloudflaredInstall">;
 
 /** The settings key naming, by its folder, the workspace to start when the app opens. */
 export const START_ON_LAUNCH_KEY = "startOnLaunch";
@@ -106,36 +60,7 @@ export const OPEN_TO_ALL_ICE_SERVERS = [{ urls: "stun:stun.cloudflare.com:3478" 
  * writes for them. They reopen by name, so it names a workspace only when an
  * earlier version would find that workspace's folder from it.
  */
-export interface LastHosted {
-  workspaceName: string;
-  port: number;
-}
-
-/** One entry in the list of workspaces hosted on this computer, as the window sees it. */
-export interface HostedWorkspaceSummary {
-  folder: string;
-  name: string;
-  port: number;
-  lastHostedAt: number;
-  /** When a backup of it last finished, or null if none has here. */
-  lastBackupAt: number | null;
-  running: boolean;
-  /** Its folder is gone, so it cannot start. */
-  missing: boolean;
-  /** Chosen to start when OwnBase opens. */
-  startsOnLaunch: boolean;
-  /** Backed up by itself on a schedule, and where. */
-  autoBackup: AutoBackup | null;
-  /** Why the last scheduled backup did not finish, until one does. */
-  autoBackupError: string | null;
-  /** Restored from a backup and not yet put back in use. */
-  restored: boolean;
-  /**
-   * Its icon's version, from the running server or read from a stopped
-   * one's own database, or null when it has none or its folder is missing.
-   */
-  iconVersion: string | null;
-}
+export type LegacyLastHosted = Omit<LastHosted, "folder">;
 
 /** A scheduled backup whose last try did not finish, for the tray to say so (OPS-02). */
 export interface BackupAttention {
@@ -151,7 +76,7 @@ export interface BackupAttention {
  * Reads an earlier version's remembered workspace, refusing anything
  * malformed rather than starting hosting under a name or port nobody chose.
  */
-export function parseLastHosted(value: unknown): LastHosted | null {
+export function parseLastHosted(value: unknown): LegacyLastHosted | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const { workspaceName, port } = value as Record<string, unknown>;
   if (
@@ -289,32 +214,6 @@ interface HostingOptions {
   cleanupTimeoutMs?: number;
 }
 
-type StartRequest = ({ workspaceName: string } | { folder: string }) & {
-  port?: number;
-  /** Puts a restored workspace back in use, rather than starting it only to look inside. */
-  activate?: boolean;
-};
-
-/** What a restored backup brings with it, as the server's inventory reports it. */
-/** One backup of a hosted workspace in its backup folder, as `listBackups` finds it. */
-export interface HostedBackup {
-  /** The backup's folder name, which `restoreOver` takes. */
-  name: string;
-  /** When it was made, in milliseconds. */
-  at: number;
-  /** How much it holds, or null when it did not pass the check. */
-  bytes: number | null;
-  /** It failed the check a restore makes, so it cannot be restored. */
-  damaged: boolean;
-}
-
-export interface RestoreInventory {
-  appAddresses: { origin: string; uses: string[] }[];
-  scheduled: { waiting: number; earliestAt: number | null };
-  undeliveredEvents: number;
-  sessions: number;
-}
-
 /**
  * Why a workspace did not start, fit to show. A system error's own message
  * names paths, and with them the account, so it is described by its code.
@@ -337,13 +236,6 @@ function startFailure(error: unknown): Error {
   return error instanceof Error ? error : new Error("The workspace could not start.");
 }
 
-/** A port someone chose: a whole number a program may listen on. */
-function portOf(value: unknown): number {
-  if (typeof value !== "number" || !Number.isInteger(value) || value < 1 || value > 65535)
-    throw new Error("Choose a port from 1 to 65535.");
-  return value;
-}
-
 /** A name as typed, trimmed, for a new workspace or a rename alike. */
 function workspaceNameOf(value: unknown): string {
   if (
@@ -360,17 +252,14 @@ function workspaceNameOf(value: unknown): string {
  * `{ folder }` starts a workspace already in the list. `{ workspaceName }`
  * always makes a new one: nothing is ever found by its name.
  */
-function startOptions(value: unknown): StartRequest {
+function startOptions(value: unknown): HostingStart {
   if (!value || typeof value !== "object" || Array.isArray(value))
     throw new Error("Choose a workspace name before starting hosting.");
   const { workspaceName, folder, port, activate } = value as Record<string, unknown>;
   if (activate !== undefined && typeof activate !== "boolean")
     throw new Error("Say whether to put the workspace back in use with true or false.");
-  if (
-    port !== undefined &&
-    (typeof port !== "number" || !Number.isInteger(port) || port < 0 || port > 65535)
-  )
-    throw new Error("The hosting port must be a whole number from 0 to 65535.");
+  // 0 asks the system for any free port, which only tests ask for.
+  if (port !== undefined && port !== 0 && !isPort(port)) throw new Error(PORT_RULE);
   if (folder !== undefined) {
     if (typeof folder !== "string" || workspaceName !== undefined)
       throw new Error("Choose one workspace to start.");
@@ -383,7 +272,7 @@ function startOptions(value: unknown): StartRequest {
  * What earlier versions are told they hosted last. They reopen by name, so
  * it names the entry only when that name leads them to the entry's folder.
  */
-function legacyPointer(entry: HostedWorkspace | undefined): LastHosted | null {
+function legacyPointer(entry: HostedWorkspace | undefined): LegacyLastHosted | null {
   return entry && entry.folder === legacyFolder(entry.name)
     ? { workspaceName: entry.name, port: entry.port }
     : null;
@@ -475,6 +364,8 @@ export function createHostingController(options: HostingOptions) {
    */
   let portWarning: string | undefined;
   let metadataDirty = false;
+  /** Said in the status while the list in memory has changes the settings file lacks. */
+  let registryUnsaved: string | undefined;
   let stopFailed = false;
   let pending: Promise<unknown> = Promise.resolve();
   let closing = false;
@@ -547,8 +438,7 @@ export function createHostingController(options: HostingOptions) {
       ...(workspace ?? {}),
       ...(server ? { port: server.port, lanUrls: options.lanUrls(server.port) } : {}),
       ...(server?.instanceId ? { instanceId: server.instanceId } : {}),
-      ...(server?.inviteOnly ? { inviteOnly: server.inviteOnly() } : {}),
-      ...(server?.accessPolicy ? { accessPolicy: server.accessPolicy() } : {}),
+      ...(server?.accessPolicy || server?.inviteOnly ? { accessPolicy: policyOf(server) } : {}),
       ...(opening
         ? { openToAll: { phase: "opening" as const } }
         : tunnel
@@ -561,8 +451,8 @@ export function createHostingController(options: HostingOptions) {
       ...(address.locked ? { publicAddressLocked: true } : {}),
       ...(address.managed ? { publicAddressManaged: true } : {}),
       ...(address.error ? { publicAddressError: address.error } : {}),
-      ...(portWarning || warning
-        ? { warning: [portWarning, warning].filter(Boolean).join(" ") }
+      ...(portWarning || warning || registryUnsaved
+        ? { warning: [portWarning, warning, registryUnsaved].filter(Boolean).join(" ") }
         : {}),
       ...(server && workspace && launchFolder === workspace.folder ? { startsOnLaunch: true } : {}),
       ...(server?.connectedPeople ? { connected: server.connectedPeople() } : {}),
@@ -721,8 +611,7 @@ export function createHostingController(options: HostingOptions) {
       });
       unreadableFolders = unreadable;
       registry = [...known, ...adopted];
-      // Kept in memory if this fails, and written with the next change.
-      if (adopted.length > 0) await saveRegistry().catch(() => {});
+      if (adopted.length > 0) await keepRegistry();
       return registry;
     })().finally(() => {
       registryLoad = null;
@@ -730,8 +619,29 @@ export function createHostingController(options: HostingOptions) {
     return registryLoad;
   }
 
-  function saveRegistry(): Promise<void> {
-    return options.settings.set(REGISTRY_KEY, serializeRegistry(registry ?? []));
+  async function saveRegistry(): Promise<void> {
+    await options.settings.set(REGISTRY_KEY, serializeRegistry(registry ?? []));
+    if (registryUnsaved) {
+      registryUnsaved = undefined;
+      changed();
+    }
+  }
+
+  /**
+   * Saves the list where what is in memory is already the truth: the work it
+   * records is done. A failure is said in the status until a later save
+   * succeeds, which writes the whole list, so the file catches up.
+   */
+  async function keepRegistry(): Promise<boolean> {
+    try {
+      await saveRegistry();
+      return true;
+    } catch {
+      registryUnsaved =
+        "OwnBase could not save its list of hosted workspaces, so it may be out of date after a restart. Check that its settings folder is writable.";
+      changed();
+      return false;
+    }
   }
 
   function updateEntry(folder: string, change: Partial<HostedWorkspace>): void {
@@ -935,9 +845,11 @@ export function createHostingController(options: HostingOptions) {
         // so trying again does not leave empty workspaces in the list.
         if (created) {
           registry = list;
-          await saveRegistry()
-            .then(() => rm(join(options.dataRoot, entry.folder), { recursive: true, force: true }))
-            .catch(() => {});
+          // Kept while the list still names it, so it is adopted rather than lost.
+          if (await keepRegistry())
+            await rm(join(options.dataRoot, entry.folder), { recursive: true, force: true }).catch(
+              () => {},
+            );
         }
         changed();
         throw startFailure(error);
@@ -1013,7 +925,7 @@ export function createHostingController(options: HostingOptions) {
   }
 
   /** Every workspace hosted here, most recent first, and the folders that could not be read. */
-  async function list(): Promise<{ workspaces: HostedWorkspaceSummary[]; unreadable: string[] }> {
+  async function list(): Promise<{ workspaces: HostedWorkspaceView[]; unreadable: string[] }> {
     const entries = await loadRegistry();
     // The list is still worth showing when only this choice cannot be read.
     const starting = await readLaunchFolder().catch(() => null);
@@ -1152,8 +1064,7 @@ export function createHostingController(options: HostingOptions) {
     }
     const done = now();
     updateEntry(entry.folder, { lastBackupAt: done });
-    // The backup is made and verified either way. Only the date shown for it can be lost.
-    await saveRegistry().catch(() => {});
+    await keepRegistry();
     changed();
     return { path: out, at: done };
   }
@@ -1179,9 +1090,7 @@ export function createHostingController(options: HostingOptions) {
    * whose folder is gone comes back into that folder. One still here is left
    * alone: replacing it is a separate, confirmed step (`restoreOver`).
    */
-  function restore(
-    value: unknown,
-  ): Promise<{ folder: string; name: string; inventory: RestoreInventory | null }> {
+  function restore(value: unknown): Promise<RestoredWorkspace> {
     const { backupDir } = (value ?? {}) as Record<string, unknown>;
     if (typeof backupDir !== "string" || !isAbsolute(backupDir))
       return Promise.reject(new Error("Choose the folder of a backup to restore."));
@@ -1233,7 +1142,7 @@ export function createHostingController(options: HostingOptions) {
           await options.settings.set(START_ON_LAUNCH_KEY, null);
         } catch {
           registry = list;
-          await saveRegistry().catch(() => {});
+          await keepRegistry();
           throw unsaved();
         }
         launchFolder = null;
@@ -1245,7 +1154,7 @@ export function createHostingController(options: HostingOptions) {
         // that did arrive stays listed and held.
         if (!existsSync(dataDir)) {
           registry = list;
-          await saveRegistry().catch(() => {});
+          await keepRegistry();
           if (wasLaunch)
             await options.settings.set(START_ON_LAUNCH_KEY, entry.folder).then(
               () => (launchFolder = entry.folder),
@@ -1256,8 +1165,7 @@ export function createHostingController(options: HostingOptions) {
       }
       const name = manifest.workspaceName.trim().slice(0, 80) || entry.name;
       updateEntry(entry.folder, { name });
-      // The hold is saved already. Only the name shown for it can be lost.
-      await saveRegistry().catch(() => {});
+      await keepRegistry();
       const inventory = options.inventoryBackup
         ? await options.inventoryBackup(backupDir).catch(() => null)
         : null;
@@ -1324,12 +1232,7 @@ export function createHostingController(options: HostingOptions) {
    * workspace holds now is moved aside beside its folder, never deleted, and
    * the copy is held, as any restored one is, until it is put back in use.
    */
-  function restoreOver(value: unknown): Promise<{
-    folder: string;
-    name: string;
-    setAside: string | null;
-    inventory: RestoreInventory | null;
-  }> {
+  function restoreOver(value: unknown): Promise<RestoredOver> {
     const { folder, backup, backupDir } = (value ?? {}) as Record<string, unknown>;
     if (typeof folder !== "string")
       return Promise.reject(new Error("Choose a workspace to restore."));
@@ -1393,7 +1296,7 @@ export function createHostingController(options: HostingOptions) {
           await options.settings.set(START_ON_LAUNCH_KEY, null);
         } catch {
           registry = list;
-          await saveRegistry().catch(() => {});
+          await keepRegistry();
           throw unsaved();
         }
         launchFolder = null;
@@ -1405,7 +1308,7 @@ export function createHostingController(options: HostingOptions) {
         // The server's restore puts what was there back before it fails, so
         // the workspace is as it was; so is its place in the list.
         registry = list;
-        await saveRegistry().catch(() => {});
+        await keepRegistry();
         if (wasLaunch)
           await options.settings.set(START_ON_LAUNCH_KEY, listed.folder).then(
             () => (launchFolder = listed.folder),
@@ -1416,8 +1319,7 @@ export function createHostingController(options: HostingOptions) {
       const aside = (restored as { supersededDir?: unknown } | null)?.supersededDir;
       const name = manifest.workspaceName.trim().slice(0, 80) || listed.name;
       updateEntry(listed.folder, { name });
-      // The hold is saved already. Only the name shown for it can be lost.
-      await saveRegistry().catch(() => {});
+      await keepRegistry();
       const inventory = options.inventoryBackup
         ? await options.inventoryBackup(source).catch(() => null)
         : null;
@@ -1648,7 +1550,7 @@ export function createHostingController(options: HostingOptions) {
                 },
               },
             });
-            await saveRegistry().catch(() => {});
+            await keepRegistry();
             throw error;
           }
           const latest = registry?.find((e) => e.folder === entry.folder) ?? entry;
@@ -1685,7 +1587,7 @@ export function createHostingController(options: HostingOptions) {
                 },
               },
             });
-            await saveRegistry().catch(() => {});
+            await keepRegistry();
           }
           return true;
         });
@@ -1705,12 +1607,8 @@ export function createHostingController(options: HostingOptions) {
     const { folder, port } = (value ?? {}) as Record<string, unknown>;
     if (typeof folder !== "string")
       return Promise.reject(new Error("Choose a workspace to change the port of."));
-    let next: number;
-    try {
-      next = portOf(port);
-    } catch (error) {
-      return Promise.reject(error);
-    }
+    if (!isPort(port)) return Promise.reject(new Error(PORT_RULE));
+    const next = port;
     return serialized(async () => {
       if (closing) throw new Error("The app is quitting.");
       const entry = (await loadRegistry()).find((e) => e.folder === folder);
@@ -2027,7 +1925,7 @@ export function createHostingController(options: HostingOptions) {
    * now, and a start reads the name back from the server.
    */
   async function saveName(folder: string): Promise<void> {
-    await saveRegistry().catch(() => {});
+    await keepRegistry();
     // Earlier versions reopen what they last hosted by its name, and would
     // hand the old one to its server.
     const latest = mostRecent(registry ?? []);
@@ -2076,11 +1974,7 @@ export function createHostingController(options: HostingOptions) {
   }
 
   /** The workspace hosted most recently, for offering to start it again. */
-  async function lastHosted(): Promise<{
-    folder: string;
-    workspaceName: string;
-    port: number;
-  } | null> {
+  async function lastHosted(): Promise<LastHosted | null> {
     const latest = mostRecent(await loadRegistry().catch(() => []));
     return latest ? { folder: latest.folder, workspaceName: latest.name, port: latest.port } : null;
   }
@@ -2172,18 +2066,15 @@ export function createHostingController(options: HostingOptions) {
   /**
    * Opens the running workspace to all: a tunnel gives it an https address
    * anyone can reach, links are built on that address, and calls look for a
-   * route across networks. Joining keeps its rule unless `inviteOnly` is given.
+   * route across networks. Who may join becomes `accessPolicy`, invited
+   * accounts only unless it says otherwise.
    */
   function openToAll(value: unknown = {}): Promise<HostingSnapshot> {
     if (closing) return Promise.reject(new Error("The app is quitting."));
-    const { inviteOnly, accessPolicy } =
+    const { accessPolicy } =
       value && typeof value === "object" && !Array.isArray(value)
-        ? (value as { inviteOnly?: unknown; accessPolicy?: unknown })
+        ? (value as { accessPolicy?: unknown })
         : {};
-    if (inviteOnly !== undefined && typeof inviteOnly !== "boolean")
-      return Promise.reject(
-        new Error("Say whether joining needs an invite code with true or false."),
-      );
     if (accessPolicy !== undefined && !isAccessPolicy(accessPolicy))
       return Promise.reject(new Error(`Say who may join with one of ${ACCESS_POLICIES}.`));
     const request = publicRequest;
@@ -2222,7 +2113,10 @@ export function createHostingController(options: HostingOptions) {
       // Through a tunnel nothing counts as this computer's own, so the owner
       // would need the claim code to create their account. Theirs comes first.
       if (target.accountCount && target.accountCount() === 0)
-        throw new Error("Create your own account in the workspace first, then get a public link.");
+        throw new DesktopError(
+          "owner-account-missing",
+          "Create your own account in the workspace first, then get a public link.",
+        );
       const previousPolicy = policyOf(target);
       const closedPolicy: AccessPolicy = carriedElsewhere ? "invite_only" : previousPolicy;
       if (!tunnel) policyBeforeOpen = previousPolicy;
@@ -2237,8 +2131,7 @@ export function createHostingController(options: HostingOptions) {
           applyPolicy(target, closedPolicy);
       };
       openError = undefined;
-      if (accessPolicy !== undefined) applyPolicy(target, accessPolicy);
-      else target.setInviteOnly(inviteOnly ?? true);
+      applyPolicy(target, accessPolicy ?? "invite_only");
       if (tunnel) {
         publicReopened();
         changed();
@@ -2359,27 +2252,11 @@ export function createHostingController(options: HostingOptions) {
     if (!isAccessPolicy(value))
       return Promise.reject(new Error(`Say who may join with one of ${ACCESS_POLICIES}.`));
     return serialized(async () => {
-      if (!server?.setAccessPolicy || phase !== "running")
+      if (!server || (!server.setAccessPolicy && !server.setInviteOnly) || phase !== "running")
         throw new Error("Start hosting the workspace before changing who can join.");
       if (stopFailed || cleanupTunnel)
         throw new Error("Finish stopping the workspace before changing who can join.");
-      server.setAccessPolicy(value);
-      changed();
-      return status();
-    });
-  }
-
-  function setInviteOnly(value: unknown): Promise<HostingSnapshot> {
-    if (typeof value !== "boolean")
-      return Promise.reject(
-        new Error("Say whether joining needs an invite code with true or false."),
-      );
-    return serialized(async () => {
-      if (!server?.setInviteOnly || phase !== "running")
-        throw new Error("Start hosting the workspace before changing who can join.");
-      if (stopFailed || cleanupTunnel)
-        throw new Error("Finish stopping the workspace before changing who can join.");
-      server.setInviteOnly(value);
+      applyPolicy(server, value);
       changed();
       return status();
     });
@@ -2445,7 +2322,6 @@ export function createHostingController(options: HostingOptions) {
     shutdown,
     openToAll,
     endOpenToAll,
-    setInviteOnly,
     setAccessPolicy,
     setPublicAddress,
   };

@@ -5,16 +5,9 @@
  * Electron, so it can be exercised without it.
  */
 
-/** A screen or window as the renderer receives it. */
-export interface ShareableSource {
-  id: string;
-  name: string;
-  kind: "screen" | "window";
-  /** A picture of it as a data URL, or "" while there is none yet. */
-  thumbnail: string;
-  /** The icon of the app that owns a window as a data URL, or "" for a screen or an app without one. */
-  icon: string;
-}
+import type { ShareableSource } from "@ownbase/protocol/desktop";
+
+export type { ShareableSource };
 
 /** What is read from Electron's `NativeImage`. */
 interface Picture {

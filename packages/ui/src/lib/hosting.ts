@@ -31,7 +31,7 @@ export function useHostingStatus(hosting: Platform["hosting"]) {
       setError(false);
       return;
     }
-    const unsubscribe = hosting.subscribe?.((next) => {
+    const unsubscribe = hosting.subscribe((next) => {
       // A live change takes precedence over an older in-flight status read.
       revision.current++;
       setStatus(next);
@@ -41,7 +41,7 @@ export function useHostingStatus(hosting: Platform["hosting"]) {
     void refresh();
     return () => {
       revision.current++;
-      unsubscribe?.();
+      unsubscribe();
     };
   }, [hosting, refresh]);
 
@@ -56,10 +56,10 @@ export function useHostingStatus(hosting: Platform["hosting"]) {
  */
 export function useLastHosted(hosting: Platform["hosting"], status: HostingStatus | null) {
   const [lastHosted, setLastHosted] = useState<LastHosted | null>(null);
-  const phase = status ? (status.phase ?? (status.running ? "running" : "stopped")) : null;
+  const phase = status?.phase ?? null;
   const hosted = status?.running ? `${status.workspaceName ?? ""}:${status.port ?? ""}` : "";
   useEffect(() => {
-    if (!hosting?.lastHosted) return;
+    if (!hosting) return;
     let alive = true;
     hosting
       .lastHosted()

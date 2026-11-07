@@ -244,7 +244,7 @@ describe("signing in with two-step sign-in", () => {
     handle: "sam",
     lastUsedAt: 2,
   };
-  const stopped: HostingStatus = { running: false, phase: "stopped" };
+  const stopped: HostingStatus = { running: false, phase: "stopped", backgroundAvailable: true };
 
   /** The card for a saved workspace whose sign-in has expired, through its password. */
   async function atSecondStep() {

@@ -48,11 +48,11 @@ export async function hostedButStopped(
   hosting:
     | {
         status: () => Promise<HostingState>;
-        lastHosted?: () => Promise<LastHosted | null>;
+        lastHosted: () => Promise<LastHosted | null>;
       }
     | undefined,
 ): Promise<boolean> {
-  if (!hosting?.lastHosted) return false;
+  if (!hosting) return false;
   try {
     const [status, remembered] = await Promise.all([hosting.status(), hosting.lastHosted()]);
     return resumeTarget([server], status, remembered) !== null;

@@ -168,6 +168,7 @@ describe("shareableServer", () => {
   const hosting: HostingStatus = {
     running: true,
     phase: "running",
+    backgroundAvailable: true,
     port: 8543,
     lanUrls: ["172.28.64.1:8543", "100.101.2.3:8543", "192.168.1.20:8543"],
   };

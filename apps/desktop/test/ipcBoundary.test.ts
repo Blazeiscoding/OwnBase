@@ -1,8 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
+import { DesktopError } from "../src/shared/desktopError.js";
 import {
+  answering,
   appRecipients,
   fromTrustedWindow,
-  guarded,
   REFUSED,
   rendererUrlTrust,
   settingKey,
@@ -103,32 +104,61 @@ describe("a request to the main process", () => {
   });
 });
 
-describe("a guarded handler", () => {
-  it("runs for the app and gets the request's arguments", async () => {
-    const handler = vi.fn(
-      async (_event: IpcSender, key: string, value: number) => `${key}=${value}`,
-    );
-    const guardedHandler = guarded(() => mainWindow(), trusted, handler);
-    await expect(guardedHandler(request(), "theme", 2)).resolves.toBe("theme=2");
+describe("an answered call", () => {
+  it("runs for the app, gets the request's arguments and answers with what it resolved to", async () => {
+    const handler = vi.fn(async (_event: IpcSender, url: unknown) => `saved ${String(url)}`);
+    const answer = answering(() => mainWindow(), trusted, handler as never);
+    await expect(answer(request(), "a")).resolves.toEqual({ ok: true, value: "saved a" });
     expect(handler).toHaveBeenCalledOnce();
   });
 
-  it("refuses anything else before its work starts, naming nothing", () => {
+  it("refuses anything else before its work starts, naming nothing", async () => {
     const handler = vi.fn();
-    const guardedHandler = guarded(() => mainWindow(), trusted, handler);
-    expect(() => guardedHandler(request({ sender: 8 }), "servers")).toThrow(REFUSED);
-    expect(() => guardedHandler(request({ url: "about:blank" }), "servers")).toThrow(REFUSED);
+    const answer = answering(() => mainWindow(), trusted, handler);
+    for (const from of [request({ sender: 8 }), request({ url: "about:blank" })])
+      await expect(answer(from, "servers")).resolves.toEqual({
+        ok: false,
+        error: { code: "refused", message: REFUSED },
+      });
     expect(handler).not.toHaveBeenCalled();
     expect(REFUSED).not.toMatch(/servers|storage|hosting/);
   });
 
-  it("asks for the main window on every request, so a new window is the one trusted", () => {
+  it("asks for the main window on every request, so a new window is the one trusted", async () => {
     let current: TrustedWindow | null = null;
-    const handler = vi.fn(() => "ok");
-    const guardedHandler = guarded(() => current, trusted, handler);
-    expect(() => guardedHandler(request())).toThrow(REFUSED);
+    const answer = answering(
+      () => current,
+      trusted,
+      () => "ok" as never,
+    );
+    expect(await answer(request())).toMatchObject({ ok: false });
     current = mainWindow();
-    expect(guardedHandler(request())).toBe("ok");
+    expect(await answer(request())).toEqual({ ok: true, value: "ok" });
+  });
+
+  it("answers a failure with its code, never by rejecting", async () => {
+    const coded = answering(
+      () => mainWindow(),
+      trusted,
+      () => {
+        throw new DesktopError("quitting", "OwnBase is shutting down.");
+      },
+    );
+    await expect(coded(request())).resolves.toEqual({
+      ok: false,
+      error: { code: "quitting", message: "OwnBase is shutting down." },
+    });
+    const plain = answering(
+      () => mainWindow(),
+      trusted,
+      async () => {
+        throw new Error("The folder could not be opened.");
+      },
+    );
+    await expect(plain(request())).resolves.toEqual({
+      ok: false,
+      error: { code: "failed", message: "The folder could not be opened." },
+    });
   });
 });
 
@@ -156,8 +186,7 @@ describe("a settings key", () => {
 });
 
 /**
- * Who hears what the main process pushes (F09): drafts and unsent messages
- * merged from another window, invite links, hosting. Only the app's own
+ * Who hears what the main process pushes (F09): invite links, hosting. Only the app's own
  * window, live and showing the app's page; a foreign window loading the
  * same preload hears nothing, nor does the app's window once it has
  * navigated away.
@@ -175,11 +204,10 @@ describe("who hears what the main process pushes", () => {
     expect(appRecipients(win, trusted)).toEqual([win]);
   });
 
-  it("is nobody once the window has navigated away, closed, or is the one that changed it", () => {
+  it("is nobody once the window has navigated away or closed", () => {
     expect(appRecipients(recipient("about:blank"), trusted)).toEqual([]);
     expect(appRecipients(recipient("https://example.com/"), trusted)).toEqual([]);
     expect(appRecipients(recipient(PAGE, { destroyed: true }), trusted)).toEqual([]);
-    expect(appRecipients(recipient(PAGE), trusted, 7)).toEqual([]);
     expect(appRecipients(null, trusted)).toEqual([]);
   });
 });

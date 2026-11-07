@@ -10,6 +10,7 @@ import { ToastProvider } from "../src/components/Toast.js";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
 import { ShareableServerProvider } from "../src/components/ShareableServer.js";
 import { webPlatform, type HostingStatus, type Platform } from "../src/platform.js";
+import { hostingStub } from "./hostingStub.js";
 import { workspaceAddressTrustKey } from "../src/lib/workspaceAddressTrust.js";
 import { accessibilityProblems } from "./accessibility.js";
 import { copyBySelection, withoutClipboardApi } from "./clipboard.js";
@@ -44,6 +45,7 @@ const design: Channel = {
 const hostingHere: HostingStatus = {
   running: true,
   phase: "running",
+  backgroundAvailable: true,
   workspaceName: "Rocket Team",
   port: 8543,
   lanUrls: ["172.28.64.1:8543", "192.168.1.20:8543"],
@@ -99,7 +101,7 @@ async function inviteWith(options: {
   const platform: Platform = {
     ...webPlatform(),
     kind: "desktop",
-    ...(hosting ? { hosting: { status: async () => hosting, start: vi.fn(), stop: vi.fn() } } : {}),
+    ...(hosting ? { hosting: hostingStub({ status: async () => hosting }) } : {}),
   };
   const user = userEvent.setup();
   render(

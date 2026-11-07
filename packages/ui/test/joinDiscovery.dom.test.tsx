@@ -23,6 +23,7 @@ const info: ServerInfo = {
 const hosting: HostingStatus = {
   running: true,
   phase: "running",
+  backgroundAvailable: true,
   workspaceName: "Rocket Team",
   port: 8543,
   instanceId: "instance-here",

@@ -1,3 +1,6 @@
+import type { Args, Channel, Reply, Result } from "../shared/bridge.js";
+import { toFailure } from "../shared/desktopError.js";
+
 /**
  * Who may ask the main process for work (REV-14). Every request reaches the
  * same handlers: saved credentials and settings, hosting, files on disk. So
@@ -68,38 +71,53 @@ export interface Recipient {
 }
 
 /**
- * The windows allowed to hear what the main process pushes (F09): drafts,
- * unsent messages, choices, invite links, hosting. The same rule as for
+ * The windows allowed to hear what the main process pushes (F09): invite
+ * links, hosting, workspaces found nearby. The same rule as for
  * requests: the app's own window, live, showing the app's page. Any other
  * window, one loading the same preload or the app's window navigated away,
- * hears nothing, though it is refused only when it asks. `except` leaves out
- * the window whose own change is being told to the rest.
+ * hears nothing, though it is refused only when it asks.
  */
 export function appRecipients<W extends Recipient>(
   window: W | null,
   trusted: (url: string) => boolean,
-  except?: number,
 ): W[] {
   if (!window || window.isDestroyed() || window.webContents.isDestroyed()) return [];
-  if (window.webContents.id === except) return [];
   return trusted(window.webContents.getURL()) ? [window] : [];
 }
 
 /** What a refused request is told; it names no channel and echoes no input. */
 export const REFUSED = "This request did not come from the OwnBase window.";
 
+/** A call's arguments as they arrive: the window says what they are, but nothing checks it. */
+export type Untrusted<A extends unknown[]> = { [K in keyof A]: unknown };
+
+/** How the main process answers one call: whatever the contract says it resolves to. */
+export type Handler<C extends Channel, Event = unknown> = (
+  event: Event,
+  ...args: Untrusted<Args<C>>
+) => Result<C> | Promise<Result<C>>;
+
+export type Handlers<Event, C extends Channel = Channel> = { [K in C]: Handler<K, Event> };
+
 /**
  * Wraps a handler so it runs only for the trusted window, refusing anything
- * else before any of its work starts.
+ * else before any of its work starts, and answers with what it resolved to
+ * or why it failed. Nothing rejects through Electron, which would wrap the
+ * reason in words of its own and drop its code.
  */
-export function guarded<Event extends IpcSender, Args extends unknown[], Result>(
+export function answering<Event extends IpcSender, C extends Channel>(
   window: () => TrustedWindow | null,
   trusted: (url: string) => boolean,
-  handler: (event: Event, ...args: Args) => Result,
-): (event: Event, ...args: Args) => Result {
-  return (event, ...args) => {
-    if (!fromTrustedWindow(event, window(), trusted)) throw new Error(REFUSED);
-    return handler(event, ...args);
+  handler: Handler<C, Event>,
+): (event: Event, ...args: unknown[]) => Promise<Reply<C>> {
+  return async (event, ...args) => {
+    if (!fromTrustedWindow(event, window(), trusted))
+      return { ok: false, error: { code: "refused", message: REFUSED } };
+    try {
+      return { ok: true, value: await handler(event, ...(args as Untrusted<Args<C>>)) };
+    } catch (error) {
+      return { ok: false, error: toFailure(error) };
+    }
   };
 }
 

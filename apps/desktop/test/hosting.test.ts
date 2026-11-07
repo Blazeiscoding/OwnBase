@@ -834,7 +834,7 @@ describe("hosting a workspace from the desktop app", () => {
       await h.controller.start({ workspaceName: "Rocket Team" });
       expect(h.controller.status().accessPolicy).toBe("account_required");
       const changed = await h.controller.setAccessPolicy("guest_allowed");
-      expect(changed).toMatchObject({ accessPolicy: "guest_allowed", inviteOnly: false });
+      expect(changed).toMatchObject({ accessPolicy: "guest_allowed" });
       await expect(h.controller.setAccessPolicy("everyone")).rejects.toThrow(/Say who may join/);
       expect(h.accessPolicy).toBe("guest_allowed");
     });
@@ -842,7 +842,7 @@ describe("hosting a workspace from the desktop app", () => {
     it("lets guests in only while the public link is open, when asked to on opening", async () => {
       const h = harness({ publicAccess: true, policies: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" });
+      await h.controller.openToAll({ accessPolicy: "guest_allowed" });
       expect(h.events.slice(0, 2)).toEqual(["access:guest_allowed", "tunnel:open"]);
       expect(h.controller.status().accessPolicy).toBe("guest_allowed");
       // Closing puts back what the workspace had before, not the guests.
@@ -854,8 +854,7 @@ describe("hosting a workspace from the desktop app", () => {
       const h = harness({ publicAccess: true, policies: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.setAccessPolicy("guest_allowed");
-      // An older dialog says only that invites are off.
-      await h.controller.openToAll({ inviteOnly: false });
+      await h.controller.openToAll({ accessPolicy: "guest_allowed" });
       expect(h.controller.status().accessPolicy).toBe("guest_allowed");
       expect((await h.controller.endOpenToAll()).accessPolicy).toBe("guest_allowed");
     });
@@ -867,9 +866,9 @@ describe("hosting a workspace from the desktop app", () => {
       };
       await h.controller.start({ workspaceName: "Rocket Team" });
       await h.controller.setAccessPolicy("account_required");
-      await expect(
-        h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" }),
-      ).rejects.toThrow(/cloudflared/);
+      await expect(h.controller.openToAll({ accessPolicy: "guest_allowed" })).rejects.toThrow(
+        /cloudflared/,
+      );
       expect(h.accessPolicy).toBe("account_required");
     });
   });
@@ -887,7 +886,7 @@ describe("hosting a workspace from the desktop app", () => {
       expect(h.iceServers.at(-1)).toEqual([{ urls: "stun:stun.cloudflare.com:3478" }]);
       expect(opened).toMatchObject({
         running: true,
-        inviteOnly: true,
+        accessPolicy: "invite_only",
         openToAll: {
           phase: "open",
           url: "https://rocket-team.trycloudflare.com",
@@ -896,9 +895,9 @@ describe("hosting a workspace from the desktop app", () => {
 
       // A repeated request changes the joining rule without launching a
       // second connector.
-      await h.controller.openToAll({ inviteOnly: false });
+      await h.controller.openToAll({ accessPolicy: "account_required" });
       expect(h.tunnelStarts).toHaveLength(1);
-      expect(h.controller.status().inviteOnly).toBe(false);
+      expect(h.controller.status().accessPolicy).toBe("account_required");
 
       const closed = await h.controller.endOpenToAll();
       expect(h.tunnels[0]!.close).toHaveBeenCalledOnce();
@@ -906,7 +905,7 @@ describe("hosting a workspace from the desktop app", () => {
       expect(h.proxyTrust).toEqual([true, false]);
       expect(h.iceServers.at(-1)).toEqual([]);
       expect(closed.openToAll).toBeUndefined();
-      expect(closed.inviteOnly).toBe(false);
+      expect(closed.accessPolicy).toBe("account_required");
     });
 
     it("restores the previous joining rule when Cloudflare cannot open", async () => {
@@ -916,13 +915,13 @@ describe("hosting a workspace from the desktop app", () => {
       };
       await h.controller.start({ workspaceName: "Rocket Team" });
 
-      await expect(h.controller.openToAll({ inviteOnly: true })).rejects.toThrow(
+      await expect(h.controller.openToAll({ accessPolicy: "invite_only" })).rejects.toThrow(
         "Cloudflare is offline",
       );
       expect(h.policyCalls).toEqual([true, false]);
       expect(h.controller.status()).toMatchObject({
         running: true,
-        inviteOnly: false,
+        accessPolicy: "account_required",
         openToAllError: "Cloudflare is offline",
       });
     });
@@ -932,7 +931,7 @@ describe("hosting a workspace from the desktop app", () => {
       h.accountCount = 0;
       await h.controller.start({ workspaceName: "Rocket Team" });
 
-      await expect(h.controller.openToAll({ inviteOnly: true })).rejects.toThrow(
+      await expect(h.controller.openToAll({ accessPolicy: "invite_only" })).rejects.toThrow(
         /Create your own account/,
       );
       expect(h.policyCalls).toEqual([]);
@@ -944,7 +943,7 @@ describe("hosting a workspace from the desktop app", () => {
       const bound = deferred();
       h.beforeBind = () => bound.promise;
       const starting = h.controller.start({ workspaceName: "Rocket Team" });
-      const opening = h.controller.openToAll({ inviteOnly: true });
+      const opening = h.controller.openToAll({ accessPolicy: "invite_only" });
       const openingResult = expect(opening).rejects.toThrow("cancelled");
       const stopping = h.controller.stop();
 
@@ -965,12 +964,12 @@ describe("hosting a workspace from the desktop app", () => {
       const bound = deferred();
       h.beforeBind = () => bound.promise;
       const starting = h.controller.start({ workspaceName: "Rocket Team" });
-      const firstOpen = expect(h.controller.openToAll({ inviteOnly: true })).rejects.toThrow(
-        "cancelled",
-      );
-      const secondOpen = expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(
-        "cancelled",
-      );
+      const firstOpen = expect(
+        h.controller.openToAll({ accessPolicy: "invite_only" }),
+      ).rejects.toThrow("cancelled");
+      const secondOpen = expect(
+        h.controller.openToAll({ accessPolicy: "account_required" }),
+      ).rejects.toThrow("cancelled");
       const quitting = h.controller.shutdown();
 
       bound.resolve();
@@ -993,7 +992,7 @@ describe("hosting a workspace from the desktop app", () => {
           signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
         });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      const opening = h.controller.openToAll({ inviteOnly: true });
+      const opening = h.controller.openToAll({ accessPolicy: "invite_only" });
       const openingResult = expect(opening).rejects.toThrow("aborted");
       await vi.waitFor(() => expect(h.tunnelStarts).toHaveLength(1));
 
@@ -1011,9 +1010,9 @@ describe("hosting a workspace from the desktop app", () => {
           signal.addEventListener("abort", () => reject(new Error("aborted")), { once: true });
         });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      const opening = expect(h.controller.openToAll({ inviteOnly: true })).rejects.toThrow(
-        "aborted",
-      );
+      const opening = expect(
+        h.controller.openToAll({ accessPolicy: "invite_only" }),
+      ).rejects.toThrow("aborted");
       await vi.waitFor(() => expect(h.tunnelStarts).toHaveLength(1));
 
       // Quitting does not wait out a tunnel Cloudflare may take a minute over.
@@ -1034,9 +1033,9 @@ describe("hosting a workspace from the desktop app", () => {
       h.beforeTunnel = () => answer.promise;
       h.failNextTunnelClose = 2;
       await h.controller.start({ workspaceName: "Rocket Team" });
-      const opening = expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(
-        "process still running",
-      );
+      const opening = expect(
+        h.controller.openToAll({ accessPolicy: "account_required" }),
+      ).rejects.toThrow("process still running");
       await vi.waitFor(() => expect(h.tunnelStarts).toHaveLength(1));
       const ending = h.controller.endOpenToAll();
       answer.resolve();
@@ -1045,11 +1044,15 @@ describe("hosting a workspace from the desktop app", () => {
       await expect(ending).rejects.toThrow("process still running");
       expect(h.controller.status()).toMatchObject({
         running: true,
-        inviteOnly: true,
+        accessPolicy: "invite_only",
         openToAllError: expect.stringMatching(/could not finish closing/),
       });
-      await expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(/finish closing/);
-      await expect(h.controller.setInviteOnly(false)).rejects.toThrow(/Finish stopping/);
+      await expect(h.controller.openToAll({ accessPolicy: "account_required" })).rejects.toThrow(
+        /finish closing/,
+      );
+      await expect(h.controller.setAccessPolicy("account_required")).rejects.toThrow(
+        /Finish stopping/,
+      );
       expect(h.tunnels).toHaveLength(1);
       await h.controller.shutdown();
       expect(h.tunnels[0]!.close).toHaveBeenCalledTimes(3);
@@ -1064,11 +1067,11 @@ describe("hosting a workspace from the desktop app", () => {
         throw new TunnelCleanupError("connector did not stop", orphan);
       };
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(
+      await expect(h.controller.openToAll({ accessPolicy: "account_required" })).rejects.toThrow(
         "connector did not stop",
       );
       expect(h.controller.status()).toMatchObject({
-        inviteOnly: true,
+        accessPolicy: "invite_only",
         openToAllError: expect.stringMatching(/try closing it again/),
       });
       await expect(h.controller.openToAll({})).rejects.toThrow(/finish closing/);
@@ -1086,7 +1089,7 @@ describe("hosting a workspace from the desktop app", () => {
       h.failNextTunnelClose = 1;
       await expect(h.controller.openToAll({})).rejects.toThrow("process still running");
       expect(h.controller.status()).toMatchObject({
-        inviteOnly: true,
+        accessPolicy: "invite_only",
         openToAllError: expect.stringMatching(/Setting up the public link failed/),
       });
       await expect(h.controller.openToAll({})).rejects.toThrow(/finish closing/);
@@ -1097,7 +1100,7 @@ describe("hosting a workspace from the desktop app", () => {
     it("removes a dropped public address and reports why it ended", async () => {
       const h = harness({ publicAccess: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: true });
+      await h.controller.openToAll({ accessPolicy: "invite_only" });
 
       h.tunnels[0]!.drop("edge connection lost");
       expect(h.publicUrls.at(-1)).toBeNull();
@@ -1115,15 +1118,17 @@ describe("hosting a workspace from the desktop app", () => {
       h.servers[0]!.stop.mockRejectedValueOnce(new Error("drain failed"));
       await expect(h.controller.stop()).rejects.toThrow("drain failed");
 
-      await expect(h.controller.openToAll({ inviteOnly: true })).rejects.toThrow(/Finish stopping/);
-      await expect(h.controller.setInviteOnly(true)).rejects.toThrow(/Finish stopping/);
+      await expect(h.controller.openToAll({ accessPolicy: "invite_only" })).rejects.toThrow(
+        /Finish stopping/,
+      );
+      await expect(h.controller.setAccessPolicy("invite_only")).rejects.toThrow(/Finish stopping/);
       expect(h.tunnelStarts).toEqual([]);
     });
 
     it("keeps a public link visible when its process cannot be confirmed closed", async () => {
       const h = harness({ publicAccess: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: true });
+      await h.controller.openToAll({ accessPolicy: "invite_only" });
       h.tunnels[0]!.close.mockRejectedValueOnce(new Error("process still running"));
 
       await expect(h.controller.endOpenToAll()).rejects.toThrow("process still running");
@@ -1138,7 +1143,7 @@ describe("hosting a workspace from the desktop app", () => {
     it("keeps an established connector pending after a timed-out close until the same handle is retried", async () => {
       const h = harness({ publicAccess: true, cleanupTimeoutMs: 20 });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: false });
+      await h.controller.openToAll({ accessPolicy: "account_required" });
       let finish!: () => void;
       const closing = new Promise<void>((resolve) => {
         finish = resolve;
@@ -1146,10 +1151,12 @@ describe("hosting a workspace from the desktop app", () => {
       h.tunnels[0]!.close.mockReturnValue(closing);
 
       await expect(h.controller.endOpenToAll()).rejects.toThrow("did not finish closing in time");
-      await expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(
+      await expect(h.controller.openToAll({ accessPolicy: "account_required" })).rejects.toThrow(
         "finish closing the previous public link",
       );
-      await expect(h.controller.setInviteOnly(false)).rejects.toThrow("Finish stopping");
+      await expect(h.controller.setAccessPolicy("account_required")).rejects.toThrow(
+        "Finish stopping",
+      );
       expect(h.tunnelStarts).toHaveLength(1);
       expect(h.inviteOnly).toBe(true);
       expect(h.controller.status()).toHaveProperty("openToAllError");
@@ -1157,8 +1164,8 @@ describe("hosting a workspace from the desktop app", () => {
       finish();
       await h.controller.endOpenToAll();
       expect(h.tunnels[0]!.close).toHaveBeenCalledTimes(2);
-      await h.controller.setInviteOnly(false);
-      await h.controller.openToAll({ inviteOnly: true });
+      await h.controller.setAccessPolicy("account_required");
+      await h.controller.openToAll({ accessPolicy: "invite_only" });
       expect(h.tunnelStarts).toHaveLength(2);
       await h.controller.shutdown();
     });
@@ -1166,7 +1173,7 @@ describe("hosting a workspace from the desktop app", () => {
     it("closes the public link before the workspace it points at stops", async () => {
       const h = harness({ publicAccess: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: true });
+      await h.controller.openToAll({ accessPolicy: "invite_only" });
 
       await h.controller.stop();
       expect(h.tunnels[0]!.close).toHaveBeenCalledOnce();
@@ -1185,7 +1192,7 @@ describe("hosting a workspace from the desktop app", () => {
     it("ends the public link when the app quits", async () => {
       const h = harness({ publicAccess: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: true });
+      await h.controller.openToAll({ accessPolicy: "invite_only" });
 
       await h.controller.shutdown();
       expect(h.tunnels[0]!.close).toHaveBeenCalledOnce();
@@ -1196,7 +1203,7 @@ describe("hosting a workspace from the desktop app", () => {
     it("keeps the workspace up when its public link will not close on the way to stopping", async () => {
       const h = harness({ publicAccess: true });
       await h.controller.start({ workspaceName: "Rocket Team" });
-      await h.controller.openToAll({ inviteOnly: true });
+      await h.controller.openToAll({ accessPolicy: "invite_only" });
       h.tunnels[0]!.close.mockRejectedValueOnce(new Error("process still running"));
 
       await expect(h.controller.stop()).rejects.toThrow("process still running");
@@ -1655,6 +1662,23 @@ describe("renaming a hosted workspace", () => {
     expect(h.changes.at(-1)).toMatchObject({ workspaceName: "Blue Team" });
     expect(registryOf(h)).toEqual([{ ...entry, name: "Blue Team" }]);
     expect(readdirSync(h.dataRoot)).toEqual([entry!.folder]);
+  });
+
+  // Until U7 such a failure was swallowed, and the file silently fell behind.
+  it("says the list could not be saved, until a later save catches the file up", async () => {
+    const h = harness();
+    await h.controller.start({ workspaceName: "Rocket Team" });
+    const [entry] = registryOf(h);
+    h.unwritableKeys.add("hostedWorkspaces");
+    await h.controller.rename({ folder: entry!.folder, name: "Blue Team" });
+    expect(h.controller.status().warning).toMatch(/could not save its list of hosted workspaces/);
+    expect(h.changes.at(-1)?.warning).toMatch(/list of hosted workspaces/);
+    expect(registryOf(h)).toEqual([entry]);
+
+    h.unwritableKeys.delete("hostedWorkspaces");
+    await h.controller.rename({ folder: entry!.folder, name: "Green Team" });
+    expect(h.controller.status().warning ?? "").not.toMatch(/list of hosted workspaces/);
+    expect(registryOf(h)).toEqual([{ ...entry, name: "Green Team" }]);
   });
 
   it("renames a stopped workspace in its database without starting it, and never hands a start the name", async () => {
@@ -2319,7 +2343,7 @@ describe("a stable public address configured for this computer", () => {
     await h.controller.start({ workspaceName: "Rocket Team" });
     expect(h.controller.status()).toMatchObject({ publicAddress: configured });
 
-    await h.controller.openToAll({ inviteOnly: true });
+    await h.controller.openToAll({ accessPolicy: "invite_only" });
     // The connector is told which run to confirm, so the saved address cannot
     // publish a link to a workspace other than this one.
     expect(h.tunnelStarts.at(-1)).toMatchObject({ port: 8543, instanceId: "workspace-run-1" });
@@ -2327,10 +2351,10 @@ describe("a stable public address configured for this computer", () => {
     // client-address header before forwarding it from loopback.
     expect(h.proxyTrust).toEqual([]);
 
-    await h.controller.setInviteOnly(false);
+    await h.controller.setAccessPolicy("account_required");
     h.tunnels[0]!.drop("external route stopped answering");
     expect(h.controller.status()).toMatchObject({
-      inviteOnly: true,
+      accessPolicy: "invite_only",
       openToAllError: expect.stringMatching(/same address/),
     });
     expect(h.controller.status().openToAllError).not.toMatch(/new link/);
@@ -2360,7 +2384,7 @@ describe("a stable public address configured for this computer", () => {
     const started = await next.controller.startForLaunch();
     expect(started?.openToAll).toEqual({ phase: "open", url: expect.any(String) });
     expect(next.tunnelStarts).toHaveLength(1);
-    expect(next.controller.status().inviteOnly).toBe(true);
+    expect(next.controller.status().accessPolicy).toBe("invite_only");
     await next.controller.stop();
 
     // The address it was set up with changed: nothing is published by it.
@@ -2422,7 +2446,7 @@ describe("a stable public address configured for this computer", () => {
       launchErrorFolder: folder,
     });
     // An unrelated change leaves it: the address is still not open.
-    await next.controller.setInviteOnly(false);
+    await next.controller.setAccessPolicy("account_required");
     expect(next.controller.status().launchError).toMatch(/was not reopened/);
 
     // Trying again, and succeeding, is what it was waiting for.
@@ -2549,7 +2573,7 @@ describe("a stable public address configured for this computer", () => {
       publicAddress: () => ({ url: configured, managed: true }),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await h.controller.openToAll({ inviteOnly: true });
+    await h.controller.openToAll({ accessPolicy: "invite_only" });
     expect(h.proxyTrust).toEqual([true]);
   });
 
@@ -2559,11 +2583,11 @@ describe("a stable public address configured for this computer", () => {
       publicAddress: () => ({ url: configured, setting: configured }),
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await h.controller.openToAll({ inviteOnly: false });
-    expect(h.controller.status().inviteOnly).toBe(false);
+    await h.controller.openToAll({ accessPolicy: "account_required" });
+    expect(h.controller.status().accessPolicy).toBe("account_required");
 
     await h.controller.endOpenToAll();
-    expect(h.controller.status().inviteOnly).toBe(true);
+    expect(h.controller.status().accessPolicy).toBe("invite_only");
     expect(h.publicUrls.at(-1)).toBeNull();
   });
 
@@ -2577,8 +2601,10 @@ describe("a stable public address configured for this computer", () => {
     };
     await h.controller.start({ workspaceName: "Rocket Team" });
 
-    await expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(/did not reach/);
-    expect(h.controller.status().inviteOnly).toBe(true);
+    await expect(h.controller.openToAll({ accessPolicy: "account_required" })).rejects.toThrow(
+      /did not reach/,
+    );
+    expect(h.controller.status().accessPolicy).toBe("invite_only");
   });
 
   it("secures and saves a replacement address, clearing the previous carrier's error", async () => {
@@ -2587,12 +2613,14 @@ describe("a stable public address configured for this computer", () => {
       throw new Error("old carrier failed");
     };
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await expect(h.controller.openToAll({ inviteOnly: false })).rejects.toThrow(/old carrier/);
+    await expect(h.controller.openToAll({ accessPolicy: "account_required" })).rejects.toThrow(
+      /old carrier/,
+    );
     expect(h.controller.status().openToAllError).toMatch(/old carrier/);
 
     await h.controller.setPublicAddress(configured);
     expect(h.savedPublicAddresses).toEqual([configured]);
-    expect(h.controller.status().inviteOnly).toBe(true);
+    expect(h.controller.status().accessPolicy).toBe("invite_only");
     expect(h.controller.status().openToAllError).toBeUndefined();
   });
 
@@ -2604,10 +2632,10 @@ describe("a stable public address configured for this computer", () => {
       },
     });
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await h.controller.setInviteOnly(false);
+    await h.controller.setAccessPolicy("account_required");
 
     await expect(h.controller.setPublicAddress(configured)).rejects.toThrow(/settings unavailable/);
-    expect(h.controller.status().inviteOnly).toBe(true);
+    expect(h.controller.status().accessPolicy).toBe("invite_only");
     expect(h.savedPublicAddresses).toEqual([]);
   });
 
@@ -2618,7 +2646,9 @@ describe("a stable public address configured for this computer", () => {
     expect(h.controller.status()).toMatchObject({ publicAddressError: error });
     expect(h.controller.status()).not.toHaveProperty("publicAddress");
 
-    await expect(h.controller.openToAll({ inviteOnly: true })).rejects.toThrow(/Set both/);
+    await expect(h.controller.openToAll({ accessPolicy: "invite_only" })).rejects.toThrow(
+      /Set both/,
+    );
     expect(h.tunnelStarts).toEqual([]);
     expect(h.policyCalls).toEqual([]);
     expect(h.publicUrls).toEqual([]);
@@ -2627,7 +2657,7 @@ describe("a stable public address configured for this computer", () => {
   it("leaves a temporary address alone when nothing is configured", async () => {
     const h = harness({ publicAccess: true, publicAddress: () => ({}) });
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await h.controller.openToAll({ inviteOnly: true });
+    await h.controller.openToAll({ accessPolicy: "invite_only" });
     expect(h.controller.status()).not.toHaveProperty("publicAddress");
     expect(h.controller.status()).not.toHaveProperty("publicAddressError");
     expect(h.publicUrls.at(-1)).toBe("https://rocket-team.trycloudflare.com");
@@ -3545,7 +3575,7 @@ describe("following changes made inside a hosted workspace", () => {
   it("shows who may join after an admin changes it, and closing the public link keeps their choice", async () => {
     const h = harness({ publicAccess: true, policies: true });
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" });
+    await h.controller.openToAll({ accessPolicy: "guest_allowed" });
 
     changedInside(h, { accessPolicy: "invite_only" });
     expect(h.changes.at(-1)).toMatchObject({ accessPolicy: "invite_only" });
@@ -3560,7 +3590,7 @@ describe("following changes made inside a hosted workspace", () => {
   it("still lets guests the host let in for the link leave with it", async () => {
     const h = harness({ publicAccess: true, policies: true });
     await h.controller.start({ workspaceName: "Rocket Team" });
-    await h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" });
+    await h.controller.openToAll({ accessPolicy: "guest_allowed" });
     // A rename inside says nothing about who may join.
     changedInside(h, { workspaceName: "Blue Team" });
     expect((await h.controller.endOpenToAll()).accessPolicy).toBe("account_required");
@@ -3573,9 +3603,9 @@ describe("following changes made inside a hosted workspace", () => {
       changedInside(h, { accessPolicy: "invite_only" });
       throw new Error("cloudflared is not installed");
     };
-    await expect(
-      h.controller.openToAll({ inviteOnly: false, accessPolicy: "guest_allowed" }),
-    ).rejects.toThrow(/cloudflared/);
+    await expect(h.controller.openToAll({ accessPolicy: "guest_allowed" })).rejects.toThrow(
+      /cloudflared/,
+    );
     expect(h.accessPolicy).toBe("invite_only");
     expect(h.controller.status().accessPolicy).toBe("invite_only");
   });

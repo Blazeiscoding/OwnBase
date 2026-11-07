@@ -18,6 +18,16 @@ const PACKAGED =
 
 let launched: { app: ElectronApplication; data: string } | undefined;
 
+/** A call to the main process through the window's bridge, as the app's own page makes it. */
+async function call<T = any>(page: Page, channel: string, ...args: unknown[]): Promise<T> {
+  const reply = await page.evaluate(
+    ([name, values]) => (window as any).ownbase.invoke(name, ...values),
+    [channel, args] as [string, unknown[]],
+  );
+  if (!reply.ok) throw new Error(reply.error.message);
+  return reply.value as T;
+}
+
 test.afterEach(async ({}, info) => {
   if (!launched) return;
   const { app, data } = launched;
@@ -78,7 +88,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   const errors: string[] = [];
   page.on("pageerror", (err) => errors.push(err.message));
   await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
-  expect(await page.evaluate(() => typeof (window as any).ownbase.hostingStart)).toBe("function");
+  expect(await page.evaluate(() => typeof (window as any).ownbase.invoke)).toBe("function");
   // What the window was really created with. Electron has this method but
   // leaves it out of its types, so the one property read is named here.
   type CreatedWith = { getLastWebPreferences(): { sandbox?: boolean } };
@@ -118,7 +128,7 @@ test("packaged Windows app boots with sandbox, hosts a workspace, serves the web
   await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
   await dismissWelcome(page);
-  const status = await page.evaluate(() => (window as any).ownbase.hostingStatus());
+  const status = await call(page, "hosting:status");
   // The app grants its own notifications, so it has nothing to ask about;
   // refused, every notification it tried to show failed without a word.
   expect(await page.evaluate(() => Notification.permission)).toBe("granted");
@@ -360,7 +370,7 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // The saved sign-in still works, so the workspace opens with no password asked.
     await expect(page.locator("textarea")).toBeVisible();
     await expect(page.getByLabel("Password", { exact: true })).toHaveCount(0);
-    const resumed = await page.evaluate(() => (window as any).ownbase.hostingStatus());
+    const resumed = await call(page, "hosting:status");
     expect(resumed).toMatchObject({ running: true });
 
     // A name that differs only by punctuation is a separate workspace. Earlier
@@ -370,11 +380,8 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // On a port of its own: on the one Resume Test just left, the window,
     // still reconnecting to Resume Test, could reach it, be refused, and sign
     // out, depending only on when its next try fell.
-    const other = await page.evaluate(async () => {
-      const bridge = (window as any).ownbase;
-      await bridge.hostingStop();
-      return bridge.hostingStart({ workspaceName: "Resume-Test", port: 0 });
-    });
+    await call(page, "hosting:stop");
+    const other = await call(page, "hosting:start", { workspaceName: "Resume-Test", port: 0 });
     expect(other.folder).not.toBe(resumed.folder);
     expect(other.port).not.toBe(resumed.port);
     expect(await named(other.port)).toBe("Resume-Test");
@@ -389,24 +396,15 @@ test("restarting offers to host the last workspace again instead of reconnecting
         })) as unknown as typeof dialog.showOpenDialog;
       }, folder);
     await pick(backups);
-    const backedUp = await page.evaluate(
-      (folder) => (window as any).ownbase.hostingBackup(folder),
-      other.folder,
-    );
+    const backedUp = await call(page, "hosting:backup", other.folder);
     expect(backedUp.path).toContain("resume-test-");
-    const listed = await page.evaluate(async () => {
-      const bridge = (window as any).ownbase;
-      await bridge.hostingStop();
-      return bridge.hostingList();
-    });
+    await call(page, "hosting:stop");
+    const listed = await call(page, "hosting:list");
     expect(listed.workspaces.map((w: { name: string }) => w.name)).toEqual([
       "Resume-Test",
       "Resume Test",
     ]);
-    const back = await page.evaluate(
-      (folder) => (window as any).ownbase.hostingStart({ folder }),
-      resumed.folder,
-    );
+    const back = await call(page, "hosting:start", { folder: resumed.folder });
     expect(back.port).toBe(resumed.port);
     expect(await named(back.port)).toBe("Resume Test");
 
@@ -414,13 +412,13 @@ test("restarting offers to host the last workspace again instead of reconnecting
     // place in the list, without starting.
     rmSync(join(data, "hosted", other.folder), { recursive: true, force: true });
     await pick(backedUp.path);
-    expect(await page.evaluate(() => (window as any).ownbase.hostingRestore())).toEqual({
+    expect(await call(page, "hosting:restore")).toEqual({
       folder: other.folder,
       name: "Resume-Test",
       // What the backup would set off once put back in use, for the host to see first.
       inventory: expect.objectContaining({ sessions: expect.any(Number) }),
     });
-    const afterRestore = await page.evaluate(() => (window as any).ownbase.hostingList());
+    const afterRestore = await call(page, "hosting:list");
     expect(
       afterRestore.workspaces.find((w: { folder: string }) => w.folder === other.folder),
     ).toMatchObject({ missing: false, running: false, restored: true });
@@ -429,13 +427,11 @@ test("restarting offers to host the last workspace again instead of reconnecting
 
     // Renamed while stopped, the new name goes into its database and its
     // folder stays where it is.
-    expect(
-      await page.evaluate(
-        (folder) => (window as any).ownbase.hostingRename(folder, " Resume Renamed "),
-        other.folder,
-      ),
-    ).toEqual({ folder: other.folder, name: "Resume Renamed" });
-    const afterRename = await page.evaluate(() => (window as any).ownbase.hostingList());
+    expect(await call(page, "hosting:rename", other.folder, " Resume Renamed ")).toEqual({
+      folder: other.folder,
+      name: "Resume Renamed",
+    });
+    const afterRename = await call(page, "hosting:list");
     expect(
       afterRename.workspaces.find((w: { folder: string }) => w.folder === other.folder),
     ).toMatchObject({ name: "Resume Renamed", missing: false });
@@ -447,13 +443,8 @@ test("restarting offers to host the last workspace again instead of reconnecting
         return "";
       }) as typeof shell.openPath;
     });
-    await page.evaluate(
-      (folder) => (window as any).ownbase.hostingOpenFolder(folder),
-      other.folder,
-    );
-    await expect(
-      page.evaluate(() => (window as any).ownbase.hostingOpenFolder("../..")),
-    ).rejects.toThrow(/not in the list/);
+    await call(page, "hosting:openFolder", other.folder);
+    await expect(call(page, "hosting:openFolder", "../..")).rejects.toThrow(/not in the list/);
     expect(await app.evaluate(() => (globalThis as any).opened)).toEqual([
       join(data, "hosted", other.folder),
     ]);
@@ -536,7 +527,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
     await expect(page.locator("textarea")).toBeVisible();
     await dismissWelcome(page);
-    const hosted = await page.evaluate(() => (window as any).ownbase.hostingStatus());
+    const hosted = await call(page, "hosting:status");
 
     // Both choices, made in the host dialog.
     await page.getByRole("button", { name: "Manage hosting", exact: true }).click();
@@ -555,7 +546,7 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     });
     await atSignIn.check();
     await expect(atSignIn).toBeChecked();
-    expect(await page.evaluate(() => (window as any).ownbase.hostingOpenAtLogin())).toBe(true);
+    expect(await call(page, "hosting:openAtLogin:get")).toBe(true);
 
     // Backed up by itself into a folder the system asked for: the first
     // backup is made at once.
@@ -582,13 +573,10 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     // The manifest appears before verification finishes. Wait for the host to
     // record the completed scheduled backup, not merely its staged files.
     await expect
-      .poll(() =>
-        page.evaluate(async (folder) => {
-          const listed = await (window as any).ownbase.hostingList();
-          return listed.workspaces.find(
-            (workspace: { folder: string }) => workspace.folder === folder,
-          );
-        }, hosted.folder),
+      .poll(async () =>
+        (await call(page, "hosting:list")).workspaces.find(
+          (workspace: { folder: string }) => workspace.folder === hosted.folder,
+        ),
       )
       .toMatchObject({
         lastBackupAt: expect.any(Number),
@@ -607,11 +595,9 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     expect(await named(hosted.port)).toBe("Launch Test");
     await expect
       .poll(
-        () =>
-          page.evaluate(async () =>
-            ((await (window as any).ownbase.lanSnapshot()) as { name: string }[]).some(
-              (server) => server.name === "Launch Test",
-            ),
+        async () =>
+          ((await call(page, "lan:snapshot")) as { name: string }[]).some(
+            (server) => server.name === "Launch Test",
           ),
         { timeout: 15_000 },
       )
@@ -630,8 +616,8 @@ test("a workspace chosen to start with OwnBase starts when it opens, and at sign
     page = await app.firstWindow();
     await expect.poll(() => named(hosted.port).catch(() => null)).toBe("Launch Test");
     await expect(page.locator("textarea")).toBeVisible();
-    await page.evaluate(() => (window as any).ownbase.hostingSetStartOnLaunch(null));
-    const list = await page.evaluate(() => (window as any).ownbase.hostingList());
+    await call(page, "hosting:setStartOnLaunch", null);
+    const list = await call(page, "hosting:list");
     expect(list.workspaces[0]).toMatchObject({ name: "Launch Test", startsOnLaunch: false });
     await quitHosting();
   } finally {
@@ -665,10 +651,8 @@ test("a window whose page crashes comes back by itself, and hosting carries on (
   launched = { app, data };
   const page = await app.firstWindow();
   await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
-  const hosted = await page.evaluate(() =>
-    (window as any).ownbase.hostingStart({ workspaceName: "Crash-Test", port: 0 }),
-  );
-  expect(hosted.running).toBe(true);
+  const hosted = await call(page, "hosting:start", { workspaceName: "Crash-Test", port: 0 });
+  expect(hosted.port).toBeGreaterThan(0);
   const health = () =>
     fetch(`http://127.0.0.1:${hosted.port}/api/health`).then(
       (response) => response.status,
@@ -718,7 +702,7 @@ test("a window whose page crashes comes back by itself, and hosting carries on (
   await app.evaluate(async ({ BrowserWindow }) => {
     // Stop hosting from the window, so the test's close is not asked to.
     await BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(
-      "window.ownbase.hostingStop()",
+      "window.ownbase.invoke('hosting:stop')",
     );
   });
 });
@@ -782,8 +766,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
         };
       }) as unknown as typeof dialog.showMessageBox;
     }, closing);
-    if (closing === "stopped-hosting window close")
-      await page.evaluate(() => (window as any).ownbase.hostingStop());
+    if (closing === "stopped-hosting window close") await call(page, "hosting:stop");
     const marker = `the last keystroke before ${closing}`;
     // Neither the 250 ms composer debounce nor the 600 ms storage debounce is
     // awaited: the native close must capture and save the actual visible text.
@@ -814,7 +797,7 @@ for (const closing of ["app quit", "tray quit", "stopped-hosting window close"] 
     await expect(page.getByText("Find your workspace", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Start hosting Final Draft Test" }).click();
     await expect(page.locator("textarea")).toHaveValue(marker);
-    await page.evaluate(() => (window as any).ownbase.hostingStop());
+    await call(page, "hosting:stop");
   });
 }
 
@@ -837,16 +820,15 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
   await expect.poll(() => app.windows().length).toBe(2);
   const foreign = app.windows().find((window) => window !== page)!;
   const refused = await foreign.evaluate(async () => {
-    const outcome = (call: () => Promise<unknown>) =>
-      call().then(
-        () => "accepted",
-        (error: Error) => error.message,
-      );
+    const outcome = async (reply: Promise<{ ok: boolean; error?: { message: string } }>) => {
+      const answered = await reply;
+      return answered.ok ? "accepted" : answered.error!.message;
+    };
     const bridge = (window as any).ownbase;
     return {
-      read: await outcome(() => bridge.storageGet("servers")),
-      write: await outcome(() => bridge.storageSet("foreign", "written")),
-      hosting: await outcome(() => bridge.hostingStatus()),
+      read: await outcome(bridge.invoke("storage:get", "servers")),
+      write: await outcome(bridge.invoke("storage:set", "foreign", "written")),
+      hosting: await outcome(bridge.invoke("hosting:status")),
     };
   });
   expect(refused).toEqual({
@@ -855,49 +837,18 @@ test("a window that loads the app's preload elsewhere is refused, and told nothi
     hosting: expect.stringMatching(/did not come from the OwnBase window/),
   });
 
-  // It listens for what the app's own window changes, and hears none of it.
+  // It listens for what the main process tells the app's own window, and hears none of it.
   await foreign.evaluate(() => {
     const heard: unknown[] = [];
     (window as any).heard = heard;
     const bridge = (window as any).ownbase;
-    bridge.onDraftsChanged((key: string, stored: unknown) => heard.push({ key, stored }));
-    bridge.onOutboxChanged((key: string, stored: unknown) => heard.push({ key, stored }));
-    bridge.onRecordChanged((key: string, stored: unknown) => heard.push({ key, stored }));
+    for (const event of ["hosting:changed", "deeplink", "lan:servers"])
+      bridge.on(event, (payload: unknown) => heard.push({ event, payload }));
   });
-  const stored = await page.evaluate(async () => {
-    const bridge = (window as any).ownbase;
-    const drafts = await bridge.storageMergeDrafts(
-      "drafts:foreign-test",
-      { put: { C1: "a private draft" }, remove: [] },
-      false,
-    );
-    const outbox = await bridge.storageMergeOutbox(
-      "outbox:foreign-test",
-      {
-        put: [
-          {
-            nonce: "foreign-test-nonce",
-            channelId: "C1",
-            threadRootId: null,
-            text: "an unsent message",
-            userId: "U1",
-            createdAt: Date.now(),
-            attachments: [],
-            rev: 1,
-          },
-        ],
-        remove: [],
-      },
-      false,
-    );
-    const record = await bridge.storageMergeRecord("notification-previews", { "U1 here": "none" });
-    return { drafts, outbox: outbox.entries.length, record };
-  });
-  expect(stored).toEqual({
-    drafts: { C1: "a private draft" },
-    outbox: 1,
-    record: { "U1 here": "none" },
-  });
+  const hosted = await call(page, "hosting:start", { workspaceName: "Foreign-Test", port: 0 });
+  await expect.poll(async () => (await call(page, "hosting:status")).phase).toBe("running");
+  await call(page, "hosting:stop");
+  expect(hosted.port).toBeGreaterThan(0);
   await page.waitForTimeout(1_000);
   expect(await foreign.evaluate(() => (window as any).heard)).toEqual([]);
 });
@@ -959,7 +910,7 @@ test("a window that keeps crashing comes back where it was, Try again included (
   ]);
   await app.evaluate(async ({ BrowserWindow }) => {
     await BrowserWindow.getAllWindows()[0]!.webContents.executeJavaScript(
-      "window.ownbase.hostingStop()",
+      "window.ownbase.invoke('hosting:stop')",
     );
   });
 });
@@ -991,7 +942,7 @@ test("packaged Mac app boots with sandbox, hosts a workspace, serves the web cli
   await page.getByRole("button", { name: /^(Join|Create) workspace$/ }).click();
   await expect(page.locator("textarea")).toBeVisible();
   await dismissWelcome(page);
-  const status = await page.evaluate(() => (window as any).ownbase.hostingStatus());
+  const status = await call(page, "hosting:status");
   const web = await fetch(`http://127.0.0.1:${status.port}/`);
   expect(web.status).toBe(200);
   expect(await web.text()).toContain('<div id="root">');
@@ -1004,5 +955,5 @@ test("packaged Mac app boots with sandbox, hosts a workspace, serves the web cli
   await expect(page.getByText("Huddle in #general", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Leave", exact: true }).click();
   await page.screenshot({ path: info.outputPath("mac.png") });
-  await page.evaluate(() => (window as any).ownbase.hostingStop());
+  await call(page, "hosting:stop");
 });

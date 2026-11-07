@@ -1,3 +1,5 @@
+import type { WindowTheme } from "../shared/bridge.js";
+
 /**
  * The window's own colours: what it shows before the page paints, and the
  * title bar overlay that the system's window buttons are drawn on. Each is the
@@ -11,15 +13,25 @@ export const WINDOW_COLOURS = {
 
 export type WindowColours = (typeof WINDOW_COLOURS)[keyof typeof WINDOW_COLOURS];
 
+export function isWindowTheme(value: unknown): value is WindowTheme {
+  return value === "system" || value === "dark" || value === "light";
+}
+
+/** The colours for the page's theme: White and Onyx as chosen, the system's otherwise. */
+export function windowColours(theme: WindowTheme, systemDark: boolean): WindowColours {
+  const dark = theme === "dark" || (theme !== "light" && systemDark);
+  return WINDOW_COLOURS[dark ? "dark" : "light"];
+}
+
 /**
- * The colours for the appearance the renderer saved (its "appearance"
- * setting, `{ theme, density }`), read as the renderer reads it: White and
- * Onyx as chosen, the old high-contrast theme as Onyx, and anything else,
- * nothing saved included, as the system's choice.
+ * The theme in the appearance the page saved (`{ theme, density }`), read as
+ * the page reads it, for a first start before the page has told the window
+ * its theme: the old high-contrast theme as Onyx, anything else unknown as
+ * the system's choice.
  */
-export function windowColours(saved: unknown, systemDark: boolean): WindowColours {
+export function themeOfAppearance(saved: unknown): WindowTheme {
   const theme =
     typeof saved === "object" && saved !== null ? (saved as { theme?: unknown }).theme : null;
-  const dark = theme === "dark" || theme === "contrast" || (theme !== "light" && systemDark);
-  return WINDOW_COLOURS[dark ? "dark" : "light"];
+  if (theme === "contrast") return "dark";
+  return isWindowTheme(theme) ? theme : "system";
 }

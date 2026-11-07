@@ -44,6 +44,7 @@ const general: Channel = {
 const hostingHere: HostingStatus = {
   running: true,
   phase: "running",
+  backgroundAvailable: true,
   port: 8543,
   lanUrls: ["http://192.168.1.20:8543"],
   connected: 1,
@@ -130,7 +131,9 @@ describe("message rows under the link provider (REV-03)", () => {
     expect(await screen.findByTestId("link")).toHaveTextContent("http://192.168.1.20:8543");
     for (let connected = 2; connected < 12; connected++)
       expect(renderedBy({ ...hostingHere, connected })).toBe(0);
-    expect(renderedBy({ ...hostingHere, startsOnLaunch: true, inviteOnly: true })).toBe(0);
+    expect(renderedBy({ ...hostingHere, startsOnLaunch: true, accessPolicy: "invite_only" })).toBe(
+      0,
+    );
   });
 
   it("render every row when the address links carry changes", async () => {

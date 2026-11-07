@@ -12,7 +12,9 @@ import type {
   LastHosted,
   Platform,
   SavedServer,
+  StartedWorkspace,
 } from "../src/platform.js";
+import { hostingStub } from "./hostingStub.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const saved: SavedServer = {
@@ -50,10 +52,11 @@ const owner: User = {
   createdAt: 0,
 };
 
-const stopped: HostingStatus = { running: false, phase: "stopped" };
+const stopped: HostingStatus = { running: false, phase: "stopped", backgroundAvailable: true };
 const running: HostingStatus = {
   running: true,
   phase: "running",
+  backgroundAvailable: true,
   workspaceName: "Rocket Team",
   port: 8543,
 };
@@ -106,23 +109,22 @@ describe("finding the workspace to resume", () => {
 function joinWith(options: {
   hostingStatus?: HostingStatus | null;
   lastHosted?: LastHosted | null;
-  start?: (opts: HostingStart) => Promise<HostingStatus>;
+  start?: (opts: HostingStart) => Promise<StartedWorkspace>;
 }) {
   const start =
     options.start ??
-    (async () => ({ running: true, phase: "running", workspaceName: "Rocket Team", port: 8543 }));
+    (async () => ({ folder: "w-rocket", workspaceName: "Rocket Team", port: 8543 }));
   const startSpy = vi.fn(start);
   const onConnected = vi.fn();
   const platform: Platform = {
     kind: "desktop",
     storage: { get: async () => null, set: async () => {} },
     notify: () => {},
-    hosting: {
+    hosting: hostingStub({
       status: async () => options.hostingStatus ?? stopped,
       start: startSpy,
-      stop: async () => {},
       lastHosted: async () => options.lastHosted ?? null,
-    },
+    }),
   };
   render(
     <JoinScreen
@@ -155,15 +157,6 @@ describe("resuming a hosted workspace", () => {
     await waitFor(() => expect(onConnected).toHaveBeenCalledWith(saved));
     expect(me.mock.contexts[0]).toMatchObject({ baseUrl: saved.url });
     expect(screen.queryByLabelText("Password")).toBeNull();
-  });
-
-  it("starts it by name on an app too old to name its entry", async () => {
-    vi.spyOn(Api.prototype, "me").mockResolvedValue({ user: owner });
-    const { start, user } = joinWith({
-      lastHosted: { workspaceName: "Rocket Team", port: 8543 },
-    });
-    await user.click(screen.getByRole("button", { name: "Start hosting Rocket Team" }));
-    expect(start).toHaveBeenCalledWith({ workspaceName: "Rocket Team", port: 8543 });
   });
 
   it("asks for the password only when the saved sign-in stopped working", async () => {
@@ -222,10 +215,10 @@ describe("resuming a hosted workspace", () => {
 describe("what this computer hosted last", () => {
   it("is read again whenever hosting starts or stops", async () => {
     const lastHosted = vi
-      .fn<() => Promise<{ workspaceName: string; port: number } | null>>()
+      .fn<() => Promise<LastHosted | null>>()
       .mockResolvedValueOnce(null)
-      .mockResolvedValue({ workspaceName: "Beta", port: 8544 });
-    const hosting = { status: async () => stopped, start: vi.fn(), stop: vi.fn(), lastHosted };
+      .mockResolvedValue({ folder: "beta", workspaceName: "Beta", port: 8544 });
+    const hosting = hostingStub({ lastHosted });
     function Remembered({ status }: { status: HostingStatus | null }) {
       const value = useLastHosted(hosting, status);
       return <output>{value ? `${value.workspaceName} on ${value.port}` : "nothing"}</output>;
@@ -233,6 +226,7 @@ describe("what this computer hosted last", () => {
     const betaRunning: HostingStatus = {
       running: true,
       phase: "running",
+      backgroundAvailable: true,
       workspaceName: "Beta",
       port: 8544,
     };
