@@ -4110,7 +4110,7 @@ test("somebody with only a keyboard signs in, switches channel, replies, reacts,
     await page.keyboard.press("Enter");
     const diagnostics = page.getByRole("dialog", { name: "Diagnostics" });
     const report = diagnostics.getByLabel("Diagnostics report");
-    await expect(report).toContainText(/Server: v\S+, protocol 1/);
+    await expect(report).toContainText(/Server: v\S+, protocol 2/);
     await expect(report).toContainText("Connection: online");
     await page.keyboard.press("Escape");
     await expect(diagnostics).toHaveCount(0);
