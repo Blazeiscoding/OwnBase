@@ -1,5 +1,7 @@
 import { spawn as spawnProcess } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
+import type { SystemMicrophones } from "@ownbase/protocol/desktop";
+import type { OpenedMicrophone } from "../shared/bridge.js";
 
 /**
  * Microphones the app opens itself on Windows, as other apps there open them
@@ -11,20 +13,7 @@ import type { Readable, Writable } from "node:stream";
  * worklet, so they never wait on the page's own thread.
  */
 
-/** What Windows lists: every active microphone, and the default one's id. */
-export interface SystemMicrophoneList {
-  defaultId: string | null;
-  microphones: { id: string; name: string }[];
-}
-
-export const NO_MICROPHONES: SystemMicrophoneList = { defaultId: null, microphones: [] };
-
-/** An open microphone, as the page is told of it. */
-export interface OpenedMicrophone {
-  session: number;
-  sampleRate: number;
-  name: string;
-}
+export const NO_MICROPHONES: SystemMicrophones = { defaultId: null, microphones: [] };
 
 /** The main process's end of the port the page reads samples from. */
 export interface SamplePort {
@@ -61,7 +50,7 @@ const PER_OWNER = 4;
 const MAX_ID = 512;
 
 /** Reads what the helper's `list` printed; anything else is no microphones. */
-export function parseMicrophoneList(text: string): SystemMicrophoneList {
+export function parseMicrophoneList(text: string): SystemMicrophones {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -159,7 +148,7 @@ export class SystemMicrophones {
   ) {}
 
   /** What Windows lists; none where the app does not open microphones itself, or the helper fails. */
-  async list(): Promise<SystemMicrophoneList> {
+  async list(): Promise<SystemMicrophones> {
     if (!this.helper) return NO_MICROPHONES;
     const helper = this.spawn(this.helper, ["list"]);
     return new Promise((resolve) => {

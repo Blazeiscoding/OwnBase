@@ -5,6 +5,8 @@ import { chmod, mkdir, open, readFile, rename, rm, writeFile } from "node:fs/pro
 import { join } from "node:path";
 import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
+import type { CloudflaredInstall } from "@ownbase/protocol/desktop";
+import { lookup } from "./lookup.js";
 
 /**
  * Installs Cloudflare's cloudflared for Open to all with what this computer
@@ -14,17 +16,7 @@ import { gunzip } from "node:zlib";
  */
 
 /** How cloudflared gets installed: a package manager this computer has, or a download. */
-export type InstallRoute = "winget" | "homebrew" | "download";
-
-/** What installing would do, or is doing, for the hosting status. */
-export interface InstallState {
-  /** How the next install starts, or how the one under way is going now. */
-  via: InstallRoute;
-  installing?: true;
-  /** Bytes downloaded so far, and of how many, once a download has started. */
-  received?: number;
-  total?: number;
-}
+export type InstallRoute = CloudflaredInstall["via"];
 
 const NAMES: Record<Exclude<InstallRoute, "download">, string> = {
   winget: "winget",
@@ -406,6 +398,11 @@ export interface InstallerOptions {
   find: () => string | null;
   /** Called whenever what `state()` says changes. */
   onChange: () => void;
+  /**
+   * Whether OwnBase was pointed at one cloudflared (`pinnedCloudflared`).
+   * Installing another would change nothing, so none is offered.
+   */
+  pinned?: boolean;
   env?: NodeJS.ProcessEnv;
   platform?: NodeJS.Platform;
   arch?: string;
@@ -430,24 +427,15 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
   const arch = options.arch ?? process.arch;
   const lifetime = new AbortController();
   let installing: Promise<string> | null = null;
-  let progress: InstallState | null = null;
-  let lookup: { at: number; route: InstallRoute | null } | null = null;
+  let progress: CloudflaredInstall | null = null;
+  const route = lookup<InstallRoute | null>(() =>
+    options.pinned
+      ? null
+      : (findPackageManager(env, options.exists, platform)?.route ??
+        (releaseAsset(platform, arch) ? "download" : null)),
+  );
 
-  /** How the next install starts, looked up again at most every few seconds. */
-  function route(): InstallRoute | null {
-    if (!lookup || Date.now() - lookup.at > 5_000) {
-      // A cloudflared this app was pointed at is the only one it will use,
-      // so installing another changes nothing.
-      const route = env.OWNBASE_CLOUDFLARED
-        ? null
-        : (findPackageManager(env, options.exists, platform)?.route ??
-          (releaseAsset(platform, arch) ? "download" : null));
-      lookup = { at: Date.now(), route };
-    }
-    return lookup.route;
-  }
-
-  function report(next: InstallState): void {
+  function report(next: CloudflaredInstall): void {
     progress = next;
     options.onChange();
   }
@@ -455,7 +443,7 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
   async function run(): Promise<string> {
     const already = options.find();
     if (already) return already;
-    if (env.OWNBASE_CLOUDFLARED)
+    if (options.pinned)
       throw new Error(
         "OWNBASE_CLOUDFLARED names the cloudflared to use, but there is no file there. Correct it, then press Check again.",
       );
@@ -499,17 +487,21 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
 
   return {
     /** What the window shows: how installing goes, or would. Null where it cannot. */
-    state(): InstallState | null {
+    state(): CloudflaredInstall | null {
       if (progress) return progress;
-      const via = route();
+      const via = route.get();
       return via ? { via } : null;
+    },
+    /** Looks again for how to install, as something may have been installed or removed. */
+    forget(): void {
+      route.forget();
     },
     /** Installs cloudflared, or joins the install under way. Resolves to its path. */
     install(): Promise<string> {
       installing ??= run().finally(() => {
         installing = null;
         progress = null;
-        lookup = null;
+        route.forget();
         options.onChange();
       });
       return installing;

@@ -8,6 +8,11 @@ import { isAbsolute, join } from "node:path";
 /** winget's folder for the portable cloudflared it installs for one account. */
 const WINGET_PACKAGE = "Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe";
 
+/** The cloudflared this app was pointed at with OWNBASE_CLOUDFLARED, the only one it then uses. */
+export function pinnedCloudflared(env: NodeJS.ProcessEnv = process.env): string | null {
+  return env.OWNBASE_CLOUDFLARED || null;
+}
+
 /**
  * Where to find Cloudflare's cloudflared: a path set for this app, then PATH,
  * then where its Windows installer and winget put it, then the usual package
@@ -20,8 +25,8 @@ export function findCloudflared(
   platform: NodeJS.Platform = process.platform,
   downloaded?: string,
 ): string | null {
-  const configured = env.OWNBASE_CLOUDFLARED;
-  if (configured) return exists(configured) ? configured : null;
+  const pinned = pinnedCloudflared(env);
+  if (pinned) return exists(pinned) ? pinned : null;
   const windows = platform === "win32";
   const file = windows ? "cloudflared.exe" : "cloudflared";
   const candidates = (env.PATH ?? env.Path ?? "")

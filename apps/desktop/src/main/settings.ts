@@ -23,6 +23,27 @@ export interface SettingsStorage {
   drain(): Promise<void>;
 }
 
+/**
+ * Moves `keys` from one settings file to another, as the main process took
+ * its own settings out of the file the window writes. One already in `to` is
+ * kept there, and every one found is then removed from `from`. Throws, moving
+ * nothing more, while either file cannot be read, so it can be tried again.
+ */
+export async function moveSettings(
+  from: SettingsStorage,
+  to: SettingsStorage,
+  keys: readonly string[],
+): Promise<void> {
+  for (const key of keys) {
+    const value = await from.get(key, { strict: true, distinguishMissing: true });
+    if (value === undefined) continue;
+    if ((await to.get(key, { strict: true, distinguishMissing: true })) === undefined)
+      await to.set(key, value);
+    // A value of undefined leaves the key out of the file.
+    await from.set(key, undefined);
+  }
+}
+
 /** All callers share one queue so a legacy migration cannot race another settings write. */
 export function createSettingsStorage(
   filePath: string,

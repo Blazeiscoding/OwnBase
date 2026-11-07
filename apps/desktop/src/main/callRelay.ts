@@ -1,26 +1,10 @@
 import { callRelaySchema, type CallRelay } from "@ownbase/server";
+import type { CallRelaySetting } from "@ownbase/protocol/desktop";
+import { DesktopError } from "../shared/desktopError.js";
 import type { CredentialProtector } from "./credentials.js";
 
 /** The settings key for the TURN relay that calls hosted on this computer are given. */
 export const CALL_RELAY_KEY = "callRelay";
-
-/**
- * What the hosting window is shown of the relay: everything but its secret,
- * which stays in this process once saved.
- */
-export type CallRelaySummary =
-  | { kind: "none" }
-  | { kind: "cloudflare"; keyId: string }
-  | { kind: "custom"; urls: string[]; username: string };
-
-/**
- * What the hosting window sends. A secret left out keeps the one saved, as
- * long as it belongs to the same key or the same username.
- */
-export type CallRelayDraft =
-  | { kind: "none" }
-  | { kind: "cloudflare"; keyId: string; apiToken?: string }
-  | { kind: "custom"; urls: string[]; username: string; credential?: string };
 
 /** How the relay is kept in the settings file: its secret encrypted by the OS. */
 interface StoredCallRelay {
@@ -33,7 +17,8 @@ interface StoredCallRelay {
   secret: string;
 }
 
-export function summarize(relay: CallRelay | null): CallRelaySummary {
+/** What the hosting window is shown of the relay: everything but its secret. */
+export function summarize(relay: CallRelay | null): CallRelaySetting {
   if (!relay) return { kind: "none" };
   if (relay.kind === "cloudflare") return { kind: "cloudflare", keyId: relay.keyId };
   return { kind: "custom", urls: relay.urls, username: relay.username };
@@ -48,34 +33,37 @@ export function resolveDraft(draft: unknown, saved: CallRelay | null): CallRelay
   if (kind === "cloudflare") {
     const { keyId, apiToken } = draft as Record<string, unknown>;
     const id = text(keyId);
-    if (!id) throw new Error("Enter the TURN key ID.");
+    if (!id) throw new DesktopError("relay-key-id", "Enter the TURN key ID.");
     const token =
       text(apiToken) || (saved?.kind === "cloudflare" && saved.keyId === id ? saved.apiToken : "");
-    if (!token) throw new Error("Enter the TURN key's API token.");
+    if (!token) throw new DesktopError("relay-api-token", "Enter the TURN key's API token.");
     const parsed = callRelaySchema.safeParse({ kind, keyId: id, apiToken: token });
     if (!parsed.success)
-      throw new Error(
-        /keyId/.test(parsed.error.message)
-          ? "A TURN key ID has only letters, digits, hyphens and underscores."
-          : "An API token has no spaces.",
-      );
+      throw parsed.error.issues.some((issue) => issue.path[0] === "keyId")
+        ? new DesktopError(
+            "relay-key-id",
+            "A TURN key ID has only letters, digits, hyphens and underscores.",
+          )
+        : new DesktopError("relay-api-token", "An API token has no spaces.");
     return parsed.data;
   }
   if (kind === "custom") {
     const { urls, username, credential } = draft as Record<string, unknown>;
     const addresses = (Array.isArray(urls) ? urls : []).map(text).filter(Boolean);
-    if (addresses.length === 0) throw new Error("Enter the relay's address.");
+    if (addresses.length === 0) throw new DesktopError("relay-urls", "Enter the relay's address.");
     if (addresses.some((url) => !/^turns?:\S+$/.test(url)))
-      throw new Error(
+      throw new DesktopError(
+        "relay-urls",
         "A relay address starts with turn: or turns:, like turn:relay.example.org:3478.",
       );
-    if (addresses.length > 8) throw new Error("Enter at most eight relay addresses.");
+    if (addresses.length > 8)
+      throw new DesktopError("relay-urls", "Enter at most eight relay addresses.");
     const user = text(username);
-    if (!user) throw new Error("Enter the relay's username.");
+    if (!user) throw new DesktopError("relay-username", "Enter the relay's username.");
     const password =
       text(credential) ||
       (saved?.kind === "custom" && saved.username === user ? saved.credential : "");
-    if (!password) throw new Error("Enter the relay's password.");
+    if (!password) throw new DesktopError("relay-credential", "Enter the relay's password.");
     const parsed = callRelaySchema.safeParse({
       kind,
       urls: addresses,

@@ -5,6 +5,11 @@ import { isAbsolute, join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { holdWorkspace } from "@ownbase/server/ownership";
 import { ICON_META_KEYS, readStoredIcon } from "@ownbase/server/workspaceIcon";
+import type {
+  AutoBackup as AutoBackupView,
+  BackupFailureKind,
+} from "@ownbase/protocol/desktop";
+import { DesktopError } from "../shared/desktopError.js";
 
 /**
  * A workspace this computer hosts, as the settings file remembers it. The
@@ -38,20 +43,12 @@ export interface HostedWorkspace {
   restoredHold?: number;
 }
 
-/** How often, and where, a workspace is backed up without being asked. */
-export interface AutoBackup {
-  /** An absolute path the host chose in the system's folder dialog. */
-  destination: string;
-  /** 1 for daily, 7 for weekly. */
-  everyDays: 1 | 7;
-  /** How many of its own backups to keep there; older ones are removed. */
-  keep: number;
-  /**
-   * When this schedule last made a backup into its destination. Absent until
-   * it has, so a new or changed destination is due at once, whatever other
-   * backups the workspace has had elsewhere.
-   */
-  lastAt?: number;
+/**
+ * How often, and where, a workspace is backed up without being asked, with
+ * what the window is not shown. `lastAt` is absent until this schedule has
+ * made a backup into its destination, so a new or changed one is due at once.
+ */
+export interface AutoBackup extends AutoBackupView {
   /** When it last tried, whether or not that finished (OPS-02). */
   lastAttemptAt?: number;
   /** The folder its last finished backup was made in. */
@@ -67,17 +64,7 @@ export interface AutoBackup {
   warning?: string;
 }
 
-/** What someone can do about a scheduled backup that did not finish. */
-export type BackupFailureKind =
-  /** Its folder cannot be reached: a drive or share not connected, or removed. */
-  | "destination"
-  /** There is not enough room in it. */
-  | "space"
-  /** The workspace's own folder is gone, or holds a different workspace. */
-  | "source"
-  /** The backup was made, but older ones there could not be removed. */
-  | "cleanup"
-  | "other";
+export type { BackupFailureKind };
 
 export interface BackupFailure {
   at: number;
@@ -160,9 +147,10 @@ export const REGISTRY_KEY = "hostedWorkspaces";
 const FOLDER = /^[a-z0-9-]{1,64}$/;
 
 /** A present registry must never be mistaken for a missing, migratable one. */
-export class RegistryFormatError extends Error {
+export class RegistryFormatError extends DesktopError {
   constructor(kind: "newer" | "unsupported" | "invalid") {
     super(
+      kind === "newer" ? "registry-newer" : kind === "unsupported" ? "registry-unsupported" : "registry-damaged",
       kind === "newer"
         ? "A newer version of OwnBase saved the list of hosted workspaces. Update OwnBase to open it. The list was not changed."
         : kind === "unsupported"

@@ -104,8 +104,15 @@ const REUSE_MS = 60 * 60 * 1000;
 /** After a refusal, calls go without a relay for this long before asking again. */
 const RETRY_MS = 30 * 1000;
 
-/** Why Cloudflare gave no password, in words a host can act on. */
-export class RelayError extends Error {}
+/** Why Cloudflare gave no password, in words a host can act on, and which half of the key it refused. */
+export class RelayError extends Error {
+  constructor(
+    message: string,
+    readonly field?: "keyId" | "apiToken",
+  ) {
+    super(message);
+  }
+}
 
 /**
  * Asks Cloudflare for STUN and TURN servers with a password that lasts `ttl`
@@ -135,8 +142,9 @@ export async function cloudflareIceServers(
     throw new RelayError("Could not reach Cloudflare's TURN service.");
   }
   if (response.status === 401 || response.status === 403)
-    throw new RelayError("Cloudflare refused the API token for this TURN key.");
-  if (response.status === 404) throw new RelayError("Cloudflare has no TURN key with that ID.");
+    throw new RelayError("Cloudflare refused the API token for this TURN key.", "apiToken");
+  if (response.status === 404)
+    throw new RelayError("Cloudflare has no TURN key with that ID.", "keyId");
   if (!response.ok) throw new RelayError(`Cloudflare's TURN service answered ${response.status}.`);
   let body: unknown;
   try {
