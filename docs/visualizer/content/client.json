@@ -18,28 +18,27 @@
     {
       "path": "packages/client-core/src/api.ts",
       "plain": "Turns each thing you do, like signing in, searching or uploading a file, into a request to the server and reads its answer.",
-      "summary": "Turns workspace operations into typed HTTP requests.",
+      "summary": "Api: one method for each REST endpoint, its path, body, answer and timeout read from the endpoint table.",
       "details": [
-        "The private request helper adds the bearer token and JSON body, combines caller cancellation with optional deadlines, and translates non-success responses into ApiError with a status and code.",
-        "Methods cover authentication, profiles, channels, message history and search, reactions, schedules, app administration, audit entries and operating status. UI code calls these methods instead of constructing endpoints repeatedly.",
-        "File uploads expose progress and cancellation. File bytes use authenticated fetch; a separately scoped download ticket supports native downloads without placing the session token into a download URL.",
-        "normalizeServerUrl interprets addresses typed by a person and rejects unsupported URL shapes. This normalizer is distinct from the stricter exact-address normalization used for local-work trust.",
-        "listPins takes a page size and passes on the server's total, which older servers leave out.",
-        "postToWebhook posts to an incoming webhook's URL without the session token and reads Slack's plain-text ok, for Send test message (UX-63). runCommand's answer carries the server's reason in message when the app failed.",
-        "renameWorkspace and setAccessPolicy call PUT /api/admin/workspace/name and /access-policy, for Workspace settings.",
-        "setWorkspaceIcon sends a Blob as itself with its own type (request sends a Blob raw rather than as JSON), removeWorkspaceIcon deletes it, and workspaceIcon fetches the public icon by version without the session, rejecting with no_icon on 404 (UX-60).",
-        "setLinkPreviews calls PUT /api/admin/workspace/link-previews, removeLinkPreview DELETE /api/link-previews/:id, and fetchPreviewImage reads a preview's picture with the session token, through the same private fetchBytes as fetchFile (E2).",
-        "setThreadMute calls PUT /api/messages/:id/mute with muted (E3).",
-        "getMessage calls GET /api/channels/:id/messages/:messageId for one message, which the card under a link to it shows; a 404 means gone or not readable by this account.",
-        "setReminder, cancelReminder and listReminders call PUT and DELETE /api/messages/:id/reminder and GET /api/reminders (E4).",
-        "votePoll and closePoll call PUT /api/messages/:id/poll/votes and POST /api/messages/:id/poll/close (E6).",
-        "listSharedFiles calls GET /api/files with the file browser's filter and cursor (E7).",
-        "createSidebarSection, renameSidebarSection, deleteSidebarSection and orderSidebarSections call the sidebar section routes (E8).",
-        "setAvatar and removeAvatar call PUT and DELETE /api/me/avatar; fetchAvatar fetches GET /api/users/:id/avatar?v= with the session's token, which the browser may keep for that version (E9).",
-        "login always sends twoStep: true, which an older server does not read, and its LoginResult is a session (SignedIn) or the second step's challenge, which signInSecondStep answers with a code or a recovery code (E11). twoStep, startTwoStep, enableTwoStep, newRecoveryCodes and disableTwoStep are the account's own calls and resetTwoStep an admin's; listAllUsers may say twoStep.",
-        "blockUser, unblockUser, reportMessage, listReports and resolveReport are E12's calls."
+        "Every method calls the Transport with an entry of endpoints, so no path, response shape or timeout is written here; method names and arguments are the ones UI code already calls.",
+        "Routes an extension offers (sign-in with another service, settings panels) are called at the path the server gave, checked by serverPath, with the shape extensionRoutes declares.",
+        "downloadUrl and workspaceCopyUrl ask for a one-time ticket and build the address with it, so a native download carries no session token; nothing is asked of /api/server-info first.",
+        "uploadFile sends a form through the transport's upload, which reports progress; postToWebhook posts to a webhook's own URL without the session, as any other tool would (UX-63).",
+        "login always sends twoStep: true (E11). normalizeServerUrl interprets addresses typed by a person, distinct from the stricter exact-address normalization used for local-work trust."
       ],
       "concepts": ["HTTP", "typed boundary", "cancellation", "download tickets"]
+    },
+    {
+      "path": "packages/client-core/src/transport.ts",
+      "plain": "The one way the apps talk to a workspace server over HTTP: it builds each address, sends the sign-in, gives up after the route's time limit and reads every refusal the same way.",
+      "summary": "Transport (json, bytes, upload, postToWebhook) and ApiError, driven by an endpoint's declaration (untangle U2).",
+      "details": [
+        "url() fills the path from the declaration with every id encoded and adds the query; every call gets the endpoint's declared timeout, combined with the caller's own cancellation.",
+        "A Blob body is sent as itself with its own type, anything else as JSON. Every answer that is not a success is read into ApiError with its status, ErrorCode, message and Retry-After.",
+        "upload uses XMLHttpRequest, the only browser API that reports an upload's progress; bytes reads files and pictures; postToWebhook sends no session, since a webhook's address is its whole authority.",
+        "CallInput types each call's params, query and body from the declaration, so a call that leaves out a path id or sends the wrong body fails to compile."
+      ],
+      "concepts": ["HTTP client", "timeouts", "error codes", "untangle U2"]
     },
     {
       "path": "packages/client-core/src/workspace.ts",
