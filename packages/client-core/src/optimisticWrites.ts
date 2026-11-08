@@ -15,7 +15,10 @@ export type WriteKey =
   | { kind: "prefs"; channelId: ID }
   /** Following, muting or marking a thread unread, sent in the order chosen (Q09). */
   | { kind: "threadFollow"; rootId: ID }
-  /** Reading a thread, which waits for nothing: only the latest read is worth sending. */
+  /**
+   * Reading a thread, which waits for no follow or mute: it moves only the
+   * cursor. Reads made while one is out go as the latest of them.
+   */
   | { kind: "threadRead"; rootId: ID };
 
 function keyOf(key: WriteKey): string {

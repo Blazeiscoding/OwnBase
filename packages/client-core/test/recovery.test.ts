@@ -49,6 +49,36 @@ async function disconnect() {
 }
 
 describe("connection recovery", () => {
+  it("starts over from a whole snapshot when applying an event fails, rather than replaying it again", async () => {
+    const doomed = (await owner.sendMessage(channelId, { text: "to be deleted" })).message;
+    await expect
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === doomed.id))
+      .toBe(true);
+    // A fault in this client: applying the deletion throws, every time it is applied.
+    const invalidate = vi.spyOn(client.files, "invalidateMessage").mockImplementation(() => {
+      throw new Error("a fault in this client");
+    });
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const connection = client as unknown as {
+      reconnectDelay: number;
+      applyReady(snapshot: { replayFrom: number | null }): void;
+    };
+    connection.reconnectDelay = 10;
+    const ready = vi.spyOn(connection, "applyReady");
+
+    await owner.deleteMessage(doomed.id);
+    await expect.poll(() => ready.mock.calls.length).toBe(1);
+    expect(ready.mock.calls[0]![0].replayFrom).toBeNull();
+    await expect.poll(() => client.state.status).toBe("online");
+    // What the snapshot brings back no longer has it; the event is not heard twice.
+    await expect
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === doomed.id))
+      .toBe(false);
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    expect(invalidate).toHaveBeenCalledOnce();
+    expect(ready).toHaveBeenCalledOnce();
+  });
+
   it("sends from plain HTTP origins without the secure-context randomUUID API", async () => {
     vi.stubGlobal("crypto", {
       getRandomValues: globalThis.crypto.getRandomValues.bind(globalThis.crypto),

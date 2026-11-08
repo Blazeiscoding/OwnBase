@@ -308,6 +308,14 @@ describe("WorkspaceClient", () => {
     const reacted = await until(client, (s) => (find(s)?.reactions.length ?? 0) > 0, "reaction");
     expect(find(reacted)!.reactions[0]).toEqual({ emoji: "🎯", userIds: [bobId] });
 
+    // Alice adds hers: shown at once, and still there once the server has it.
+    const aliceId = client.state.self!.id;
+    const reacting = client.toggleReaction(find(client.state)!, "🎯");
+    expect(find(client.state)!.reactions).toEqual([{ emoji: "🎯", userIds: [bobId, aliceId] }]);
+    expect(await reacting).toBeNull();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(find(client.state)!.reactions).toEqual([{ emoji: "🎯", userIds: [bobId, aliceId] }]);
+
     const pinning = client.togglePin(find(client.state)!);
     expect(find(client.state)!.pinned).toBe(true); // optimistic
     expect(await pinning).toBeNull();
@@ -355,7 +363,10 @@ describe("WorkspaceClient", () => {
     expect(await client.toggleSaved(message.id)).toBeInstanceOf(ApiError);
     expect(client.state.saved[message.id]).toBeUndefined();
 
-    expect(await client.toggleReaction(find(), "\u{1F3AF}")).toBeInstanceOf(ApiError);
+    const reacting = client.toggleReaction(find(), "\u{1F3AF}");
+    expect(find().reactions).toEqual([{ emoji: "\u{1F3AF}", userIds: [client.state.self!.id] }]);
+    expect(await reacting).toMatchObject({ code: "network_error" });
+    expect(find().reactions).toEqual([]);
     client.destroy();
   });
 

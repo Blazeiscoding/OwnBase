@@ -1743,7 +1743,6 @@ export class WorkspaceClient {
       .sort((a, b) => a.seq - b.seq);
   }
 
-  /** Whether a history answer is still wanted when it arrives. */
   private stillWanted(channelId: ID, epoch: number, ticket: TimelineLoad): boolean {
     return (
       !this.stopped &&
@@ -2530,7 +2529,6 @@ export class WorkspaceClient {
     });
   }
 
-  /** The held copy of a message, or the one given where none is held. */
   private heldOr(message: Message): Message {
     return this.state.messages[message.id] ?? message;
   }

@@ -49,11 +49,12 @@
         "A huddle goes on through a dropped socket: holdHuddle keeps the session (its media does not pass through the socket) and only a refusal that will not stop ends it. On the next ready snapshot resumeHuddle asks to go on with huddle.join: if the snapshot still lists this device in the room, every peer connection stays; if not, it closes its peers and dials again once let in. A refused rejoin, or huddle.moved from the server, ends the call and sets huddleEnded with the reason, which useHuddleEndedNotice shows once.",
         "WorkspaceClient combines Api, FileCache and a Zustand store. The store holds authenticated identity, users, channels, memberships, read cursors, loaded history, drafts, pending sends, app replies, forms and huddle state.",
         "The WebSocket hello includes the session token, protocol version and last observed event sequence. Ready snapshots and replay events rebuild the replica; reconnect delay grows up to 30 seconds. Authentication, forced-password and protocol refusals stop ordinary reconnect loops.",
+        "Server messages are handled by exhaustive switches. An error while applying an event is a fault in this client: it is reported, and the connection starts over from a whole snapshot rather than asking for what it missed, which would replay the same event and fail again in a loop (U3).",
         "onIncomingMessage, onMessageDeleted and onReminderDue run through tellApp, which reports a hook's failure to the console and lets the event apply. Before, a hook that threw (Android's Chrome throws from a page's new Notification) stopped the event and was taken for a bad message from the server, which closed the socket, so every message that should have notified cost a reconnect.",
         "History requests carry identity and snapshot watermarks so late HTTP pages can be reconciled with socket events. Identical loads share work; superseded, revoked or evicted history requests are aborted. A timeline holds at most 300 messages and inactive history is bounded by a 20-entry cache limit. loadTimeline({ unreadAfter }) asks GET /messages/since/:seq, in the same request ticket, when the whole newest page is unread and older ones exist, and keeps the newest page from a server without it (X3).",
         "send creates a random request nonce and an optimistic PendingMessage, uploads files, posts the message and reconciles the response or socket echo by nonce. The outbox accepts up to 50 waiting sends per account. A known server refusal waits for deliberate Retry; an uncertain outcome can retry the same nonce.",
         "Restored outbox entries contain attachment descriptions rather than File objects. Missing attachment bytes and sends older than the retry window remain visibly failed instead of silently sending incomplete or stale content. destroy releases sockets, timers, media, previews and cached files.",
-        "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choice sequencing covers pins, saves, snooze and channel preferences. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation. changedContent records, per conversation, the seq of the latest edit, deletion, pin, history removal or own departure, so views holding copied messages can ask again without loaded history (Q07, Q08).",
+        "The N05 fix binds submitModal and dismissModal to a view ID, and N10 sends retention roots to FileCache even when old thread history has been evicted. Choices shown before the server has them (pins, saves, votes, reactions, snooze, channel preferences, thread follows) go through OptimisticWrites and answer with the server's error. Since Q09 the requests that say whether a thread is followed go one at a time per thread, and since Q10 a failed Mark unread rolls back only while it is still the latest mark for its conversation. changedContent records, per conversation, the seq of the latest edit, deletion, pin, history removal or own departure, so views holding copied messages can ask again without loaded history (Q07, Q08).",
         "joinHuddle loads the call code on demand, gives the session a way to re-read /api/rtc-config, sends huddle.report only to servers that advertise huddleReports (an older server closes the socket on an unknown message), and keeps the last call's log for Diagnostics after leaving.",
         "memberChanges holds, per conversation, the seq of the latest member.joined or member.left, so views that ask for a channel's members (the header's faces, the Members panel) ask again (UX-23).",
         "stars says the server keeps a star per conversation (ReadySnapshot.stars, UX-20). A star is one more channel preference: it goes through setChannelPrefs, shows at once, waits its turn behind other choices for the same conversation, and goes back if refused. An older server sends no flag and no starred, which reads as unstarred.",
@@ -254,6 +255,30 @@
         "snoozedUntil and isSnoozed read Do Not Disturb; notifications, the incoming-call ring, the sidebar and the account settings share them."
       ],
       "concepts": ["selectors", "unread", "untangle U1"]
+    },
+    {
+      "path": "packages/client-core/src/messageCache.ts",
+      "plain": "Where the app keeps the messages it has loaded: each one once, with the channel timelines and threads listing them by id, and the one place that applies changes to them.",
+      "summary": "MessageCache, reduceMessages, keepMessages, windowTimeline and the timelineMessages, threadReplies and threadRootMessage selectors.",
+      "details": [
+        "messages holds each loaded message once; timelines and threads hold ids. A message no list names any more is let go (forgetUnlisted), so a thread page and the timeline showing the same message share one copy and one edit reaches both.",
+        "reduceMessages applies one message event (created, updated, deleted, reactions, pins, history removed) to the cache. Live events, events replayed onto a page read before them, and a send's own answer all go through it. It is one switch over the event union, so an event left out fails to compile.",
+        "messageSeqs records the seq through which each held message reflects every event about it. A page read at an earlier seq does not replace a copy that already shows a later event, and an event at or below it is not applied twice.",
+        "The selectors return the same array while nothing in it changed, so a list does not render again when some other message does (REV-03)."
+      ],
+      "concepts": ["normalized cache", "reducer", "exhaustive switch", "untangle U3"]
+    },
+    {
+      "path": "packages/client-core/src/optimisticWrites.ts",
+      "plain": "Shows a choice such as a pin, a reaction or a notification setting at once, sends it, and puts things back if the server refuses, without an earlier failure undoing a later choice.",
+      "summary": "OptimisticWrites, keyed by a typed WriteKey; failureOf turns any failure into an ApiError.",
+      "details": [
+        "Pins, saves, poll votes, reactions, link preview removals, Do Not Disturb, the default notification level, the order of sidebar sections, channel preferences, and thread follows, mutes and reads all go through write(key, change, spec).",
+        "Per key one request is out at a time, so the server takes them in the order chosen. Changes made meanwhile wait, merged, and go as one request. What is shown is the server's last word with every change still out on top.",
+        "A refusal shows the server's last word, unless something else has replaced what was shown since. A spec can keep the refused part (channel preferences show it with Retry), and a later choice about the same setting replaces it.",
+        "Each write resolves with the server's ApiError, or null, so the screen can say what went wrong. A closed client sends nothing more (REV-11)."
+      ],
+      "concepts": ["optimistic update", "ordering", "rollback", "untangle U3"]
     },
     {
       "path": "packages/client-core/src/replies.ts",
@@ -1159,6 +1184,15 @@
         "Uses the scheduling formatter for a consistent resume label."
       ],
       "concepts": ["Do Not Disturb", "calendar intent"]
+    },
+    {
+      "path": "packages/ui/src/lib/failure.ts",
+      "plain": "Says why something you did was refused, when the app knows, after saying what did not happen.",
+      "summary": "failureText turns an action's ApiError into a sentence for a notice.",
+      "details": [
+        "A lost connection, too many requests and a server fault each have their own words; a refusal that carries a sentence of its own shows it; a bare code is not shown."
+      ],
+      "concepts": ["error messages", "untangle U3"]
     },
     {
       "path": "packages/ui/src/lib/shortcuts.ts",

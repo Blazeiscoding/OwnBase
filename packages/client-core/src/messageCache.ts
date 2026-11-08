@@ -130,7 +130,6 @@ function referenced(cache: MessageCache): Set<ID> {
   return ids;
 }
 
-/** Lets go of those of `ids` no list names any more. */
 export function forgetUnlisted(cache: MessageCache, ids: Iterable<ID>): MessageCache {
   const candidates = [...ids].filter((id) => id in cache.messages);
   if (candidates.length === 0) return cache;
@@ -146,7 +145,6 @@ export function forgetUnlisted(cache: MessageCache, ids: Iterable<ID>): MessageC
   return { ...cache, messages, messageSeqs };
 }
 
-/** Lets go of every message no list names. */
 export function forgetAllUnlisted(cache: MessageCache): MessageCache {
   return forgetUnlisted(cache, Object.keys(cache.messages));
 }
