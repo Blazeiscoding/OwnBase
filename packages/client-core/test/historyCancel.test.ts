@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Channel, Message } from "@ownbase/protocol";
-import { ApiError, WorkspaceClient } from "../src/index.js";
+import { ApiError, WorkspaceClient, type Api } from "../src/index.js";
 
 /**
  * History transfers stop once nothing will use them, and an identical request
@@ -68,7 +68,7 @@ function client(channelIds = ["C1"]) {
   return c;
 }
 
-type Page = { messages: Message[]; readThroughSeq?: number; seq?: number };
+type Page = Awaited<ReturnType<Api["listMessages"]>>;
 
 describe("history requests (REV-05)", () => {
   it("shares one request between identical first loads of a conversation", async () => {
@@ -80,7 +80,7 @@ describe("history requests (REV-05)", () => {
     const first = c.loadTimeline("C1");
     const second = c.loadTimeline("C1");
     expect(list).toHaveBeenCalledTimes(1);
-    pages.calls[0]!.answer({ messages: [message("M1")], seq: 1 });
+    pages.calls[0]!.answer({ messages: [message("M1")], readThroughSeq: 1, seq: 1 });
     await Promise.all([first, second]);
     expect(c.state.timelines.C1?.items.map((m) => m.id)).toEqual(["M1"]);
   });
@@ -93,6 +93,7 @@ describe("history requests (REV-05)", () => {
       messages: [message("M5", "C1", 5)],
       hasMoreOlder: true,
       hasMoreNewer: true,
+      threadRootId: null,
       seq: 1,
     });
     const tail = c.loadTimeline("C1");
@@ -121,6 +122,7 @@ describe("history requests (REV-05)", () => {
         ? older.start(opts.signal)
         : Promise.resolve({
             messages: Array.from({ length: 50 }, (_, i) => message(`${id}-M${i}`, id, i + 1)),
+            readThroughSeq: 50,
             seq: 1,
           }),
     );
