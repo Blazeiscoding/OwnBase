@@ -119,7 +119,10 @@ function hanasActivity(options: { threads?: boolean } = {}) {
           : all.filter((m) => !isRead(client, m)),
     nextCursor: null,
   }));
-  vi.spyOn(client.api, "markRead").mockResolvedValue({ ok: true });
+  vi.spyOn(client.api, "markRead").mockImplementation(async (_channelId, seq) => ({
+    ok: true,
+    seq,
+  }));
   vi.spyOn(client.api, "markThreadRead").mockImplementation(async (rootId, seq) => ({
     state: { ...client.state.threadFollows[rootId]!, lastReadSeq: seq, revision: 2 },
   }));

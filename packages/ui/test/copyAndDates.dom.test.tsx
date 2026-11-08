@@ -197,7 +197,11 @@ describe("a direct message in Saved", () => {
 describe("the start of a direct message", () => {
   it("names the person in its heading only", async () => {
     const client = samsClient();
-    vi.spyOn(client.api, "listMessages").mockResolvedValue({ messages: [], readThroughSeq: 0 });
+    vi.spyOn(client.api, "listMessages").mockResolvedValue({
+      messages: [],
+      readThroughSeq: 0,
+      seq: 0,
+    });
     render(
       <ToastProvider>
         <ConfirmProvider>
@@ -220,7 +224,11 @@ describe("the start of a direct message", () => {
 
   it("opens the person's profile from their picture and their name", async () => {
     const client = samsClient();
-    vi.spyOn(client.api, "listMessages").mockResolvedValue({ messages: [], readThroughSeq: 0 });
+    vi.spyOn(client.api, "listMessages").mockResolvedValue({
+      messages: [],
+      readThroughSeq: 0,
+      seq: 0,
+    });
     const onOpenProfile = vi.fn();
     render(
       <ToastProvider>

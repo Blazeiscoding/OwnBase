@@ -129,7 +129,10 @@ function workspace(removals: ChannelRemoval[]) {
         : [],
     nextCursor: null,
   }));
-  vi.spyOn(client.api, "markRead").mockResolvedValue({ ok: true });
+  vi.spyOn(client.api, "markRead").mockImplementation(async (_channelId, seq) => ({
+    ok: true,
+    seq,
+  }));
   const read = vi
     .spyOn(client.api, "readChannelRemovals")
     .mockImplementation(async (ids) => ({ ids }));
