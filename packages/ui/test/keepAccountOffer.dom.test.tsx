@@ -7,6 +7,8 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { held } from "./heldMessages.js";
+import { timelineMessages } from "@ownbase/client-core";
 
 /**
  * UX-44: a guest is offered Keep this account in the sidebar once they have
@@ -55,9 +57,7 @@ const message = (id: string, userId: string, threadRootId: string | null = null)
   actions: [],
 });
 
-const timeline = (items: Message[]) => ({
-  [general.id]: { items, hasMore: false, hasMoreNewer: false, loaded: true },
-});
+const timeline = (items: Message[]) => held({ timelines: { [general.id]: { items } } });
 
 const OFFER = { name: "You're a guest for a day" };
 
@@ -105,7 +105,7 @@ function sidebar(
     users: { [self.id]: self },
     channels: { [general.id]: general },
     memberships: { [general.id]: 0 },
-    timelines: timeline(options.messages ?? [message("M_1", "U_OWNER")]),
+    ...timeline(options.messages ?? [message("M_1", "U_OWNER")]),
     status: "online",
   });
   const onCreateAccount = vi.fn();
@@ -170,7 +170,7 @@ describe("offering a guest to keep their account", () => {
     act(() =>
       client.store.setState((s) => ({
         pending: [],
-        timelines: timeline([...s.timelines[general.id]!.items, message("M_2", "U_G")]),
+        ...timeline([...timelineMessages(s, general.id), message("M_2", "U_G")]),
       })),
     );
     const offer = await screen.findByRole("region", OFFER);
@@ -189,7 +189,7 @@ describe("offering a guest to keep their account", () => {
     const { client } = sidebar();
     await settle();
     expect(screen.queryByRole("region", OFFER)).toBeNull();
-    act(() => client.store.setState({ threads: { M_1: [message("M_R", "U_G", "M_1")] } }));
+    act(() => client.store.setState(held({ threads: { M_1: [message("M_R", "U_G", "M_1")] } })));
     expect(await screen.findByRole("region", OFFER)).toBeVisible();
   });
 
@@ -244,7 +244,7 @@ describe("offering a guest to keep their account", () => {
     client.store.setState({
       self: person("U_G", "guest"),
       workspaceId,
-      timelines: timeline([message("M_2", "U_G")]),
+      ...timeline([message("M_2", "U_G")]),
     });
     const again = render(
       <context.PlatformContext.Provider value={platform}>

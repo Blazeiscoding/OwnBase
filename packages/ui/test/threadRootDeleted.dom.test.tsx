@@ -8,6 +8,7 @@ import type { Platform } from "../src/platform.js";
 import { ThreadPanel } from "../src/components/ThreadPanel.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { held } from "./heldMessages.js";
 
 /** A thread whose first message is deleted while a reply to it is being written. */
 const person = (id: string, displayName: string): User => ({
@@ -76,18 +77,20 @@ function open(draft?: string) {
     channels: { [general.id]: general },
     memberships: { [general.id]: 9 },
     status: "online",
-    threadPages: {
-      [root.id]: {
-        channelId: general.id,
-        root,
-        hasMoreOlder: false,
-        hasMoreNewer: false,
-        loading: false,
-        loaded: true,
-        error: null,
+    ...held({
+      threadPages: {
+        [root.id]: {
+          channelId: general.id,
+          root,
+          hasMoreOlder: false,
+          hasMoreNewer: false,
+          loading: false,
+          loaded: true,
+          error: null,
+        },
       },
-    },
-    threads: { [root.id]: [] },
+      threads: { [root.id]: [] },
+    }),
     drafts: draft ? { [draftKey]: draft } : {},
   });
   vi.spyOn(client, "loadThread").mockResolvedValue(undefined);

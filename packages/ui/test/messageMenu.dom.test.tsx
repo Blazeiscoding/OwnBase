@@ -72,7 +72,7 @@ function messageFrom(author: User, self: User) {
     channels: { C_GENERAL: general },
     status: "online",
   });
-  const react = vi.spyOn(client, "toggleReaction").mockResolvedValue(true);
+  const react = vi.spyOn(client, "toggleReaction").mockResolvedValue(null);
   const onOpenThread = vi.fn();
   render(
     <ToastProvider>
@@ -137,8 +137,8 @@ describe("a message's menu", () => {
 
   it("does what each item names", async () => {
     const { client, user, onOpenThread } = messageFrom(sam, sam);
-    const pin = vi.spyOn(client, "togglePin").mockResolvedValue(true);
-    const save = vi.spyOn(client, "toggleSaved").mockResolvedValue(true);
+    const pin = vi.spyOn(client, "togglePin").mockResolvedValue(null);
+    const save = vi.spyOn(client, "toggleSaved").mockResolvedValue(null);
 
     await user.click(within(await openMenu(user, "Sam Rivera")).getByText("Reply in thread"));
     expect(onOpenThread).toHaveBeenCalledWith("M_1");
@@ -234,7 +234,7 @@ describe("a message's reactions", () => {
       channels: { C_GENERAL: general },
       status: "online",
     });
-    const react = vi.spyOn(client, "toggleReaction").mockResolvedValue(true);
+    const react = vi.spyOn(client, "toggleReaction").mockResolvedValue(null);
     render(
       <ToastProvider>
         <ConfirmProvider>
@@ -272,8 +272,8 @@ describe("a message's reactions", () => {
 describe("one key per action on a focused message", () => {
   it("edits, opens the thread, saves, pins, reacts and deletes your own message", async () => {
     const { client, onOpenThread, user } = messageFrom(sam, sam);
-    const pin = vi.spyOn(client, "togglePin").mockResolvedValue(true);
-    const save = vi.spyOn(client, "toggleSaved").mockResolvedValue(true);
+    const pin = vi.spyOn(client, "togglePin").mockResolvedValue(null);
+    const save = vi.spyOn(client, "toggleSaved").mockResolvedValue(null);
     const unread = vi.spyOn(client, "markUnread").mockImplementation(() => {});
     const remove = vi.spyOn(client.api, "deleteMessage").mockResolvedValue({ ok: true } as never);
     const row = screen.getByRole("article", { name: "Message from Sam Rivera" });

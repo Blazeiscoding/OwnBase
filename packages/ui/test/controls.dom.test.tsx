@@ -415,11 +415,15 @@ describe("message actions", () => {
     // The pin flips back on its own. Without the notice that revert is the
     // only sign anything happened, and the toolbar that started it is gone.
     await choose(user, "Unpin from channel");
-    expect(await screen.findByText("Could not unpin that message.")).toBeVisible();
+    expect(
+      await screen.findByText("Could not unpin that message. Check your connection and try again."),
+    ).toBeVisible();
 
     await user.click(screen.getByRole("button", { name: "Try again" }));
     expect(unpin).toHaveBeenCalledTimes(2);
-    expect(screen.queryByText("Could not unpin that message.")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Could not unpin that message. Check your connection and try again."),
+    ).not.toBeInTheDocument();
   });
 });
 

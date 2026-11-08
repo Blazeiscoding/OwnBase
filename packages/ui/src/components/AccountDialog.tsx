@@ -28,6 +28,8 @@ import { TwoStepSettings } from "./TwoStepSettings.js";
 import { LinkedSignIns } from "./LinkedSignIns.js";
 import { BlockedPeople } from "./Blocking.js";
 import { buttonClass } from "./Button.js";
+import { useOptionalToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 import { isImeKey } from "../lib/textInput.js";
 import { When } from "./When.js";
 
@@ -631,6 +633,7 @@ export function AccountDialog({
 function NotificationSettings() {
   const platform = usePlatform();
   const client = useClient();
+  const toast = useOptionalToast();
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const [permission, setPermission] = useState(browserPermission);
   const [asking, setAsking] = useState(false);
@@ -694,7 +697,12 @@ function NotificationSettings() {
           {pausedUntil !== null ? (
             <button
               className={buttonClass("secondary")}
-              onClick={() => client.snoozeNotificationsUntil(null)}
+              onClick={() =>
+                void client.snoozeNotificationsUntil(null).then((error) => {
+                  if (error)
+                    toast?.({ message: failureText("Could not resume notifications.", error) });
+                })
+              }
             >
               Resume notifications
             </button>
@@ -709,7 +717,10 @@ function NotificationSettings() {
                     : `Pause for ${option.label}`
                 }
                 onClick={() => {
-                  client.snoozeNotificationsUntil(option.until());
+                  void client.snoozeNotificationsUntil(option.until()).then((error) => {
+                    if (error)
+                      toast?.({ message: failureText("Could not pause notifications.", error) });
+                  });
                   setNow(new Date());
                 }}
               >
@@ -759,8 +770,8 @@ function DefaultLevelSettings() {
               checked={level === option.value}
               onChange={() => {
                 setFailed(false);
-                void client.setNotifyDefault(option.value).then((kept) => {
-                  if (kept) saved();
+                void client.setNotifyDefault(option.value).then((error) => {
+                  if (!error) saved();
                   else setFailed(true);
                 });
               }}

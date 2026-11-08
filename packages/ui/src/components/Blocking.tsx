@@ -15,9 +15,9 @@ function useUnblock(userId: ID) {
     if (busy) return;
     setBusy(true);
     setFailed(false);
-    const ok = await client.setBlocked(userId, false);
+    const error = await client.setBlocked(userId, false);
     setBusy(false);
-    setFailed(!ok);
+    setFailed(error !== null);
   }
   return { busy, failed, unblock };
 }

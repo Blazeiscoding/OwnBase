@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ID, Message } from "@ownbase/protocol";
+import { timelineMessages } from "@ownbase/client-core";
+import { failureText } from "../lib/failure.js";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
@@ -279,12 +281,15 @@ export function PinsPanel(props: {
           kind: "success",
           action: { label: "Undo", run: () => setPinned(message, true) },
         });
-    void client.togglePin({ ...message, pinned: !pin }).then((ok) => {
-      if (ok) return;
+    void client.togglePin({ ...message, pinned: !pin }).then((error) => {
+      if (!error) return;
       hideUndo?.();
       mark(pin);
       toast?.({
-        message: pin ? "Could not pin that message again." : "Could not unpin that message.",
+        message: failureText(
+          pin ? "Could not pin that message again." : "Could not unpin that message.",
+          error,
+        ),
         kind: "error",
         action: { label: "Try again", run: () => setPinned(message, pin) },
       });
@@ -292,7 +297,7 @@ export function PinsPanel(props: {
   }
   // Re-fetch whenever the set of pinned messages in view changes.
   const pinSignature = useWorkspace((s) =>
-    (s.timelines[props.channelId]?.items ?? [])
+    timelineMessages(s, props.channelId)
       .filter((m) => m.pinned)
       .map((m) => m.id)
       .join(","),
@@ -344,11 +349,14 @@ export function SavedPanel(props: {
           kind: "success",
           action: { label: "Undo", run: () => setSaved(message, true) },
         });
-    void client.toggleSaved(message.id, save).then((ok) => {
-      if (ok) return;
+    void client.toggleSaved(message.id, save).then((error) => {
+      if (!error) return;
       hideUndo?.();
       toast?.({
-        message: save ? "Could not put that back in Saved." : "Could not remove that from Saved.",
+        message: failureText(
+          save ? "Could not put that back in Saved." : "Could not remove that from Saved.",
+          error,
+        ),
         action: { label: "Try again", run: () => setSaved(message, save) },
       });
     });

@@ -207,7 +207,9 @@ describe("a reminder from a message's menu", () => {
         name: /^In 20 minutes/,
       }),
     );
-    expect(await screen.findByText("Could not set that reminder.")).toBeVisible();
+    expect(
+      await screen.findByText("Could not set that reminder. Check your connection and try again."),
+    ).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Try again" }));
     await waitFor(() => expect(setReminder).toHaveBeenCalledTimes(2));
     expect(setReminder.mock.calls[1]![1]).toBe(setReminder.mock.calls[0]![1]);

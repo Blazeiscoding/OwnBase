@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { FileMeta, ID, ReplyReference } from "@ownbase/protocol";
-import { readableText, type PollDraft } from "@ownbase/client-core";
+import {
+  readableText,
+  threadReplies,
+  threadRootMessage,
+  type PollDraft,
+} from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { PendingStatus } from "./PendingStatus.js";
 import { Composer } from "./Composer.js";
@@ -18,6 +23,7 @@ import { rememberThreadPosition, rememberedThreadPosition } from "../lib/threadP
 import { channelTitle } from "../lib/format.js";
 import { writeClipboard } from "../lib/useCopy.js";
 import { useOptionalToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 
 interface Props {
   channelId: ID;
@@ -39,15 +45,12 @@ export function ThreadPanel({
   onOpenProfile,
 }: Props) {
   const client = useClient();
+  const toast = useOptionalToast();
   // The reply box takes focus itself; the panel only hands it back on closing.
   const { panel } = usePanelFocus({ takeFocus: false });
   const page = useWorkspace((s) => s.threadPages[rootId]);
-  const root = useWorkspace((s) =>
-    s.threadPages[rootId]?.loaded
-      ? s.threadPages[rootId]!.root
-      : (s.timelines[channelId]?.items.find((m) => m.id === rootId) ?? null),
-  );
-  const replies = useWorkspace((s) => s.threads[rootId]);
+  const root = useWorkspace((s) => threadRootMessage(s, rootId));
+  const replies = useWorkspace((s) => threadReplies(s, rootId));
   const follows = useWorkspace((s) => s.threadFollows[rootId]?.following ?? false);
   const muted = useWorkspace((s) => s.threadFollows[rootId]?.muted === true);
   const pending = useWorkspace((s) => s.pending).filter((p) => p.threadRootId === rootId);
@@ -222,7 +225,17 @@ export function ThreadPanel({
             side="bottom"
           >
             <button
-              onClick={() => client.setThreadFollow(rootId, !follows)}
+              onClick={() =>
+                void client.setThreadFollow(rootId, !follows).then((error) => {
+                  if (error)
+                    toast?.({
+                      message: failureText(
+                        follows ? "Could not stop following." : "Could not follow this thread.",
+                        error,
+                      ),
+                    });
+                })
+              }
               aria-pressed={follows}
               className={`mr-1 flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[12px] font-medium transition-colors ${
                 follows
@@ -245,7 +258,17 @@ export function ThreadPanel({
             side="bottom"
           >
             <button
-              onClick={() => client.setThreadMute(rootId, !muted)}
+              onClick={() =>
+                void client.setThreadMute(rootId, !muted).then((error) => {
+                  if (error)
+                    toast?.({
+                      message: failureText(
+                        muted ? "Could not unmute this thread." : "Could not mute this thread.",
+                        error,
+                      ),
+                    });
+                })
+              }
               aria-label="Mute thread"
               aria-pressed={muted}
               className={`mr-1 flex size-7 items-center justify-center rounded-full transition-colors ${

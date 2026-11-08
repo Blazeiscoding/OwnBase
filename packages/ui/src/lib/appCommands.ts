@@ -1,5 +1,6 @@
 import { userMentionsIn, type ID } from "@ownbase/protocol";
 import type { CommandHint, WorkspaceClient } from "@ownbase/client-core";
+import { failureText } from "./failure.js";
 
 /**
  * Slash commands the app runs itself, as Slack's built-in ones: the small
@@ -85,8 +86,8 @@ export async function runAppCommand(
       case "away":
       case "active": {
         const away = name === "away";
-        if (!(await client.setAway(away)))
-          return { ok: false, said: `Your presence was not changed. ${offline}` };
+        const error = await client.setAway(away);
+        if (error) return { ok: false, said: failureText("Your presence was not changed.", error) };
         return { ok: true, said: away ? "You are shown as away." : "You are shown as active." };
       }
       case "status": {
