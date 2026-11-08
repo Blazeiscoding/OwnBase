@@ -468,6 +468,26 @@ describe("single sign-on through an OpenID provider", () => {
     expect(back.text).toContain("Account settings");
   });
 
+  it("tells a guest who asks to link one why they cannot", async () => {
+    await start();
+    const { owner } = await people();
+    await setUp(owner);
+    await call(
+      "/api/admin/workspace/access-policy",
+      owner.token,
+      { accessPolicy: "guest_allowed" },
+      "PUT",
+    );
+    const guest = (await call("/api/auth/guest", undefined, { displayName: "Visitor" }))
+      .data as Account;
+    expect(await call("/api/sso/connect", guest.token)).toEqual({
+      status: 403,
+      data: { error: "guest_not_allowed", message: "Guests sign in with their name alone." },
+    });
+    // Whether one is linked is a member's question.
+    expect((await call("/api/sso/connect", guest.token, undefined, "GET")).status).toBe(403);
+  });
+
   it("makes accounts for new people with a verified address at the domains given", async () => {
     await start();
     const { owner } = await people();

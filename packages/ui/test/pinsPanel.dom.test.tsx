@@ -78,7 +78,10 @@ function renderPins(listPins: (cursor?: string) => Promise<Page>, self: User = s
   };
   const spy = vi
     .spyOn(client.api, "listPins")
-    .mockImplementation((_channel, _signal, cursor) => listPins(cursor));
+    .mockImplementation(async (_channel, _signal, cursor) => {
+      const page = await listPins(cursor);
+      return { ...page, total: page.messages.length };
+    });
   render(
     <ToastProvider>
       <PlatformContext.Provider value={platform}>

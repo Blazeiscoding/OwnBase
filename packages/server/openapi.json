@@ -3,7 +3,7 @@
   "info": {
     "title": "OwnBase REST API",
     "version": "2",
-    "description": "The REST routes under /api/ that the first-party clients use, and the Slack-compatible methods apps call. The native routes are not a stable public API: they change with the clients, and the version here is the client protocol's (`PROTOCOL_VERSION`). docs/INTEGRATIONS.md is the contract for apps.\n\nGenerated from the server's source and the zod schemas it validates requests with, by packages/server/test/openapi.test.ts, which fails when this file is out of date. Rewrite it with `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.\n\nThe WebSocket at /ws, incoming webhooks at /hooks/, the web client's files and the enterprise edition's routes are not described here."
+    "description": "The REST routes under /api/ that the first-party clients use, and the Slack-compatible methods apps call. The native routes are not a stable public API: they change with the clients, and the version here is the client protocol's (`PROTOCOL_VERSION`). docs/INTEGRATIONS.md is the contract for apps.\n\nGenerated from the endpoint table in @ownbase/protocol and the zod schemas the server validates requests with, by packages/server/test/openapi.test.ts, which fails when this file is out of date. Rewrite it with `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.\n\nThe WebSocket at /ws, incoming webhooks at /hooks/, the web client's files and the enterprise edition's routes are not described here."
   },
   "servers": [
     {
@@ -201,6 +201,17 @@
         "description": "The workspace's icon, for anyone: the Join screen shows it beside the workspace's name before anyone signs in. Its type is the one its bytes were checked to be. Asked for by its current version, the answer never changes, since another picture has another version, so it is kept for a year; asked for otherwise, it is checked again each time.\n\nAnyone may call this, signed in or not.",
         "x-access": "anyone",
         "security": [],
+        "parameters": [
+          {
+            "name": "v",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Done."
@@ -231,7 +242,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -261,7 +272,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -370,9 +381,8 @@
         "tags": [
           "auth"
         ],
-        "description": "Anyone may call this, signed in or not. Guests may call it too.",
+        "description": "Anyone may call this, signed in or not.",
         "x-access": "anyone",
-        "x-guests": true,
         "security": [],
         "responses": {
           "200": {
@@ -734,6 +744,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "v",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 64
+            }
           }
         ],
         "responses": {
@@ -1061,7 +1080,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -1204,6 +1223,16 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteMemberBody"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Done."
@@ -1604,7 +1633,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -2102,8 +2131,28 @@
             }
           }
         ],
+        "requestBody": {
+          "required": true,
+          "description": "One file, as the form's `file` field.",
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "file": {
+                    "type": "string",
+                    "format": "binary"
+                  }
+                },
+                "required": [
+                  "file"
+                ]
+              }
+            }
+          }
+        },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -2256,6 +2305,15 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
             }
           }
         ],
@@ -2543,6 +2601,15 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "download",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 128
+            }
           }
         ],
         "responses": {
@@ -2603,7 +2670,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -2812,7 +2879,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -3020,7 +3087,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -3151,6 +3218,24 @@
             }
           }
         ],
+        "requestBody": {
+          "required": false,
+          "description": "Slack's arguments for this method, as listed in docs/INTEGRATIONS.md.",
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Done."
@@ -3951,7 +4036,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -4060,7 +4145,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -4524,7 +4609,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -5073,7 +5158,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "Done."
           },
           "default": {
@@ -5320,8 +5405,8 @@
           "admin"
         ],
         "summary": "The panels the extensions add to Workspace settings, for the owner (P9).",
-        "description": "The panels the extensions add to Workspace settings, for the owner (P9).\n\nNeeds a signed-in account.",
-        "x-access": "member",
+        "description": "The panels the extensions add to Workspace settings, for the owner (P9).\n\nNeeds the workspace owner.",
+        "x-access": "owner",
         "security": [
           {
             "session": []
@@ -5717,6 +5802,19 @@
             "type": "boolean"
           }
         }
+      },
+      "InviteMemberBody": {
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64
+          }
+        },
+        "required": [
+          "userId"
+        ]
       },
       "ChannelManagerBody": {
         "type": "object",

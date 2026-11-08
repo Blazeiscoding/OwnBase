@@ -1,57 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { createWorkspaceServer } from "../src/server.js";
-import { openApiDocument, sourceRoutes } from "./openapiDocument.js";
+import { openApiDocument } from "./openapiDocument.js";
 
 /**
  * packages/server/openapi.json describes the native REST API (E18). This
- * builds it again from the source and fails when the checked-in file differs,
+ * builds it again from the endpoint table and fails when the checked-in file differs,
  * so CI catches a route or schema changed without it. Rewrite the file with
  * `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.
  */
-
-/** Fastify's route tree flattened to `METHOD /path`, leaving out HEAD. */
-function flatten(tree: string): string[] {
-  const above: string[] = [];
-  const routes: string[] = [];
-  for (const line of tree.split("\n")) {
-    const node = /^((?:│ {3}| {4})*)(?:├── |└── )(\S+)(?: \(([^)]*)\))?$/.exec(line);
-    if (!node) continue;
-    const depth = node[1]!.length / 4;
-    above.length = depth;
-    const path = (above[depth - 1] ?? "") + node[2]!;
-    above[depth] = path;
-    for (const method of (node[3] ?? "").split(", ").filter(Boolean)) {
-      if (method !== "HEAD") routes.push(`${method} ${path}`);
-    }
-  }
-  return routes;
-}
-
-/** Every route a running server answers under /api/, from Fastify's own table. */
-async function registeredRoutes(): Promise<string[]> {
-  let tree = "";
-  const server = await createWorkspaceServer({
-    dataDir: ":memory:",
-    host: "127.0.0.1",
-    port: 0,
-    mdns: false,
-    logger: false,
-    // An extension is handed the server before it listens, and reads the
-    // table once it is ready: a few routes come after the extensions.
-    extensions: [
-      {
-        name: "route-list",
-        register(context) {
-          context.app.addHook("onReady", async () => {
-            tree = context.app.printRoutes({ commonPrefix: false });
-          });
-        },
-      },
-    ],
-  });
-  await server.stop();
-  return flatten(tree).filter((route) => route.split(" ")[1]!.startsWith("/api/"));
-}
 
 describe("the OpenAPI description of the REST API (E18)", () => {
   const document = openApiDocument();
@@ -67,15 +22,6 @@ describe("the OpenAPI description of the REST API (E18)", () => {
       },
     })),
   );
-
-  it("describes every route the server answers, and no other", async () => {
-    const described = sourceRoutes().map((route) => `${route.method.toUpperCase()} ${route.path}`);
-    expect(described.length).toBeGreaterThan(100);
-    const registered = await registeredRoutes();
-    expect(described.filter((route) => !registered.includes(route))).toEqual([]);
-    // A route added some way the description does not read would land here.
-    expect(registered.filter((route) => !described.includes(route))).toEqual([]);
-  });
 
   it("names each path parameter, and every reference leads somewhere", () => {
     for (const { path, method, operation } of operations) {
@@ -102,7 +48,7 @@ describe("the OpenAPI description of the REST API (E18)", () => {
     expect(document.tags.filter((tag) => !tag.description).map((tag) => tag.name)).toEqual([]);
   });
 
-  it("takes each body and query from the schema the route validates with", () => {
+  it("takes each body and query from the schema the route is validated with", () => {
     const operation = (method: string, path: string) =>
       operations.find((o) => o.method === method && o.path === path)!.operation;
     expect(

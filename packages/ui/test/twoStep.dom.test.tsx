@@ -367,7 +367,7 @@ describe("signing in with two-step sign-in", () => {
 });
 
 describe("resetting someone's two-step sign-in", () => {
-  async function people(twoStep: boolean | undefined) {
+  async function people(twoStep: boolean) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     client.store.setState({
       self: sam,
@@ -376,8 +376,8 @@ describe("resetting someone's two-step sign-in", () => {
     });
     vi.spyOn(client.api, "listAllUsers").mockResolvedValue({
       users: [
-        { ...sam, lastSeenAt: null },
-        { ...alex, lastSeenAt: null, ...(twoStep === undefined ? {} : { twoStep }) },
+        { ...sam, lastSeenAt: null, twoStep: false },
+        { ...alex, lastSeenAt: null, twoStep },
       ],
     });
     const reset = vi.spyOn(client.api, "resetTwoStep").mockResolvedValue({ ok: true });
@@ -431,13 +431,10 @@ describe("resetting someone's two-step sign-in", () => {
     ).toBeNull();
   });
 
-  it("is not offered for someone without it, or by a server that does not say", async () => {
-    for (const twoStep of [false, undefined]) {
-      const { dialog, user } = await people(twoStep);
-      const menu = await openMenu(dialog, user);
-      expect(menu.getByRole("menuitem", { name: "Reset password" })).toBeVisible();
-      expect(menu.queryByRole("menuitem", { name: "Reset two-step sign-in" })).toBeNull();
-      cleanup();
-    }
+  it("is not offered for someone without it", async () => {
+    const { dialog, user } = await people(false);
+    const menu = await openMenu(dialog, user);
+    expect(menu.getByRole("menuitem", { name: "Reset password" })).toBeVisible();
+    expect(menu.queryByRole("menuitem", { name: "Reset two-step sign-in" })).toBeNull();
   });
 });

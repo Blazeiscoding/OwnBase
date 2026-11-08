@@ -188,8 +188,7 @@ export function ConversationMenu(props: {
 }
 
 interface Pins {
-  /** Null from a server too old to count them: there are some. */
-  total: number | null;
+  total: number;
   newest: Message | undefined;
 }
 
@@ -212,7 +211,7 @@ export function PinnedBar(props: { channelId: ID; open: boolean; onToggle: () =>
     const controller = new AbortController();
     client.api.listPins(props.channelId, controller.signal, undefined, 1).then(
       (r) => {
-        const pins = { total: r.total ?? (r.messages.length ? null : 0), newest: r.messages[0] };
+        const pins = { total: r.total, newest: r.messages[0] };
         remembered(client).set(key, pins);
         if (!controller.signal.aborted) setAnswer({ key, pins });
       },
@@ -225,7 +224,7 @@ export function PinnedBar(props: { channelId: ID; open: boolean; onToggle: () =>
   const pins =
     answer?.key === key ? answer.pins : (remembered(client).get(key) as Pins | undefined);
   if (!pins || pins.total === 0) return null;
-  const count = pins.total === null ? "Pinned" : `${pins.total} pinned`;
+  const count = `${pins.total} pinned`;
   const preview = pins.newest ? notificationBody(client.state, pins.newest) : "";
 
   return (

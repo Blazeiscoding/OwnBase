@@ -246,21 +246,9 @@ describe("the pinned line", () => {
     await waitFor(() => expect(screen.queryByRole("button", { name: /pinned:/ })).toBeNull());
   });
 
-  it("is not there without pins, and says only Pinned to a server that does not count", async () => {
+  it("is not there without pins", async () => {
     const { pins } = await workspace();
     await waitFor(() => expect(pins).toHaveBeenCalled());
     expect(screen.queryByRole("button", { name: /pinned/i })).toBeNull();
-    cleanup();
-
-    const older = await workspace({ pins: [pinned] });
-    older.pins.mockResolvedValue({ messages: [pinned], nextCursor: "next" });
-    act(() =>
-      older.client.store.setState((s) => ({
-        changedContent: { ...s.changedContent, [general.id]: 9 },
-      })),
-    );
-    expect(
-      await screen.findByRole("button", { name: "Pinned: Standup moves to 10:30" }),
-    ).toBeInTheDocument();
   });
 });

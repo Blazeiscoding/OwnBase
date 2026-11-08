@@ -19,6 +19,7 @@ import {
 } from "@ownbase/protocol";
 import type { Store } from "./store.js";
 import { hashToken } from "./auth.js";
+import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
 import { socketMessage } from "./socketSchema.js";
 import { CallLog } from "./callLog.js";
 import type { RateLimiter } from "./limits.js";
@@ -369,14 +370,8 @@ export class Gateway {
           this.refuse(ws, "auth_failed", "invalid token");
           return;
         }
-        // The REST side refuses a locked account; the socket has to as well, or
-        // a temporary password would still hand over the whole workspace.
         if (this.store.mustChangePassword(user.id)) {
-          this.refuse(
-            ws,
-            "password_change_required",
-            "Choose a new password before using this workspace.",
-          );
+          this.refuse(ws, "password_change_required", PASSWORD_CHANGE_REQUIRED);
           return;
         }
         // Everything the handshake reads is read before this socket joins

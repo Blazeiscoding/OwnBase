@@ -5,7 +5,13 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
-import { PROTOCOL_VERSION, type ServerToClient, type User } from "@ownbase/protocol";
+import {
+  endpoint,
+  json,
+  PROTOCOL_VERSION,
+  type ServerToClient,
+  type User,
+} from "@ownbase/protocol";
 import type { ExtensionContext, ServerExtension } from "../src/extensions.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 import { codeFor, stepAt } from "../src/twoStep.js";
@@ -53,16 +59,43 @@ async function ready(token: string) {
   return frames.find((f) => f.type === "ready") as Extract<ServerToClient, { type: "ready" }>;
 }
 
+const probeEndpoints = {
+  anyone: endpoint({
+    method: "GET",
+    path: "/api/probe/anyone",
+    access: "member",
+    answer: json<{ handle: string }>(),
+  }),
+  admins: endpoint({
+    method: "GET",
+    path: "/api/probe/admins",
+    access: "admin",
+    answer: json<{ handle: string }>(),
+  }),
+  owner: endpoint({
+    method: "GET",
+    path: "/api/probe/owner",
+    access: "owner",
+    answer: json<{ handle: string }>(),
+  }),
+  members: endpoint({
+    method: "GET",
+    path: "/api/probe/members",
+    access: "owner",
+    answer: json<{ members: number }>(),
+  }),
+};
+
 /** An extension with a route for each kind of person, and what it was told. */
 function probe() {
   const seen = { members: [] as number[], stopped: 0 };
   const extension: ServerExtension = {
     name: "probe",
-    register({ app, requireUser, requireAdmin, requireOwner, memberCount }) {
-      app.get("/api/probe/anyone", async (req) => ({ handle: requireUser(req).handle }));
-      app.get("/api/probe/admins", async (req) => ({ handle: requireAdmin(req).handle }));
-      app.get("/api/probe/owner", async (req) => ({ handle: requireOwner(req).handle }));
-      app.get("/api/probe/members", async () => {
+    register({ route, memberCount }) {
+      route(probeEndpoints.anyone, async ({ user }) => ({ handle: user.handle }));
+      route(probeEndpoints.admins, async ({ user }) => ({ handle: user.handle }));
+      route(probeEndpoints.owner, async ({ user }) => ({ handle: user.handle }));
+      route(probeEndpoints.members, async () => {
         seen.members.push(memberCount());
         return { members: memberCount() };
       });

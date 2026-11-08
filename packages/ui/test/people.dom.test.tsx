@@ -55,7 +55,7 @@ async function people(
     status: "online",
   });
   const list = vi.spyOn(client.api, "listAllUsers").mockResolvedValue({
-    users: users.map((u) => ({ ...u, lastSeenAt: null })),
+    users: users.map((u) => ({ ...u, lastSeenAt: null, twoStep: false })),
   });
   fill(client.api);
   const onClose = vi.fn();
@@ -144,8 +144,8 @@ describe("people's load, confirmations and refusals", () => {
       .mockRejectedValueOnce(new TypeError("Failed to fetch"))
       .mockResolvedValue({
         users: [
-          { ...owner, lastSeenAt: null },
-          { ...member, lastSeenAt: seen },
+          { ...owner, lastSeenAt: null, twoStep: false },
+          { ...member, lastSeenAt: seen, twoStep: false },
         ],
       });
     render(

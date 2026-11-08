@@ -27,6 +27,15 @@ export const registerBody = z.object({
   claimCode: z.string().max(128).optional(),
 });
 
+/** A one-time sign-in code from a way of signing in besides a password (P9), and its secret. */
+export const redeemSignInBody = z.object({
+  code: z.string().max(256),
+  verifier: z.string().max(256),
+});
+
+/** A settings panel's values, by field key (P9). */
+export const settingsValuesBody = z.record(z.string().max(64), z.union([z.string(), z.boolean()]));
+
 /** Joining as a guest, where the workspace allows it: a name and nothing else. */
 export const guestJoinBody = z.object({
   displayName: z.string().trim().min(1).max(80),
@@ -232,6 +241,15 @@ export const updateChannelBody = z.object({
 
 export const channelManagerBody = z.object({ manager: z.boolean() });
 
+export const inviteMemberBody = z.object({ userId: z.string().min(1).max(64) });
+
+/** A picture asked for by its version, which may then be kept for good. */
+export const workspaceIconQuery = z.object({ v: z.string().max(64).optional() });
+export const avatarQuery = workspaceIconQuery;
+
+/** A one-time ticket standing in for the session, on a browser's navigation. */
+export const downloadQuery = z.object({ download: z.string().max(128).optional() });
+
 export const sendMessageBody = z
   .object({
     text: z.string().max(MESSAGE_TEXT_MAX),
@@ -433,11 +451,10 @@ export const workspaceNameSchema = z
 /** An owner or admin renaming the workspace. */
 export const workspaceNameBody = z.object({ name: workspaceNameSchema });
 
-/** An owner or admin changing who may join. */
 /** Turns link previews on or off for the workspace (E2). */
 export const linkPreviewsBody = z.object({ enabled: z.boolean() });
-export type LinkPreviewsBody = z.infer<typeof linkPreviewsBody>;
 
+/** An owner or admin changing who may join. */
 export const accessPolicyBody = z.object({
   accessPolicy: z.enum([
     "invite_only",
@@ -530,31 +547,12 @@ export const threadHistoryQuery = z
   );
 
 export type RegisterBody = z.infer<typeof registerBody>;
-export type LoginBody = z.infer<typeof loginBody>;
-export type GuestJoinBody = z.infer<typeof guestJoinBody>;
-export type GuestAccountBody = z.infer<typeof guestAccountBody>;
 export type UpdateMeBody = z.infer<typeof updateMeBody>;
 export type CreateChannelBody = z.infer<typeof createChannelBody>;
 export type UpdateChannelBody = z.infer<typeof updateChannelBody>;
 export type SendMessageBody = z.input<typeof sendMessageBody>;
-export type PollVotesBody = z.infer<typeof pollVotesBody>;
-export type SharedFilesQuery = z.input<typeof sharedFilesQuery>;
-export type EditMessageBody = z.infer<typeof editMessageBody>;
-export type MarkReadBody = z.infer<typeof markReadBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;
 export type ChannelPrefsBody = z.infer<typeof channelPrefsBody>;
-export type NotifyDefaultBody = z.infer<typeof notifyDefaultBody>;
 export type ScheduleMessageBody = z.infer<typeof scheduleMessageBody>;
-export type RescheduleBody = z.infer<typeof rescheduleBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;
-export type ChangePasswordBody = z.infer<typeof changePasswordBody>;
-export type CreateAppBody = z.infer<typeof createAppBody>;
-export type AppScopesBody = z.infer<typeof appScopesBody>;
-export type CreateWebhookBody = z.infer<typeof createWebhookBody>;
 export type CreateCommandBody = z.infer<typeof createCommandBody>;
-export type CreateSubscriptionBody = z.infer<typeof createSubscriptionBody>;
-export type InteractivityBody = z.infer<typeof interactivityBody>;
-export type MessageActionBody = z.infer<typeof messageActionBody>;
-export type ViewSubmitBody = z.infer<typeof viewSubmitBody>;
-export type AdminUserBody = z.infer<typeof adminUserBody>;
-export type RunCommandBody = z.infer<typeof runCommandBody>;

@@ -55,7 +55,10 @@ function browse(memberCounts?: Record<string, number>) {
     status: "online",
   });
   const join = vi.spyOn(client.api, "joinChannel");
-  vi.spyOn(client.api, "listChannels").mockResolvedValue({ channels: [], memberCounts });
+  vi.spyOn(client.api, "listChannels").mockResolvedValue({
+    channels: [],
+    memberCounts: memberCounts ?? {},
+  });
   const onOpen = vi.fn();
   render(
     <ClientContext.Provider value={client}>

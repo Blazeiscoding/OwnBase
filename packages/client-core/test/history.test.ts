@@ -471,30 +471,6 @@ describe("timeline snapshot reconciliation", () => {
     expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
   });
 
-  it("loads quiet legacy pages and refuses an ambiguous legacy response after live changes", async () => {
-    const root = (await owner.sendMessage(channelId, { text: "root" })).message;
-    await caughtUp();
-    const read = client.api.listMessages.bind(client.api);
-    const legacy = async (...args: Parameters<Api["listMessages"]>) => {
-      const { seq: _seq, ...page } = await read(...args);
-      return page;
-    };
-    const spy = vi.spyOn(client.api, "listMessages").mockImplementation(legacy);
-    await client.loadTimeline(channelId);
-    expect(timelineMessages(client.state, channelId)[0]?.id).toBe(root.id);
-    const hold = holdPage(legacy);
-    spy.mockImplementationOnce(hold.read);
-    const loading = client.loadTimeline(channelId, { latest: true });
-    await hold.captured;
-    await owner.editMessage(root.id, "latest text");
-    await caughtUp();
-    hold.release();
-    await expect(loading).rejects.toMatchObject({ code: "history_changed" });
-    expect(timelineMessages(client.state, channelId)[0]?.text).toBe("latest text");
-    await client.loadTimeline(channelId, { latest: true });
-    expect(timelineMessages(client.state, channelId)[0]?.text).toBe("latest text");
-  });
-
   it("applies retention invalidation to a captured page before it can reinstall purged history", async () => {
     const root = (await owner.sendMessage(channelId, { text: "root" })).message;
     await caughtUp();

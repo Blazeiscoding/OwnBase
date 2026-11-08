@@ -7,6 +7,7 @@ import { timelineMessages } from "../src/messageCache.js";
 let server: WorkspaceServer;
 let client: WorkspaceClient;
 let owner: Api;
+let ownerToken: string;
 let channelId: string;
 let memberId: string;
 
@@ -26,6 +27,7 @@ beforeEach(async () => {
     password: "password123",
   });
   memberId = b.user.id;
+  ownerToken = a.token;
   owner = new Api(base, a.token);
   client = new WorkspaceClient(base, b.token);
   client.connect();
@@ -208,10 +210,7 @@ describe("connection recovery", () => {
     await owner.sendMessage(channel.id, { text: "Private history" });
     await client.loadTimeline(channel.id);
     expect(timelineMessages(client.state, channel.id)).toHaveLength(1);
-    const elsewhere = new WorkspaceClient(
-      owner.baseUrl,
-      (owner as unknown as { token: string }).token,
-    );
+    const elsewhere = new WorkspaceClient(owner.baseUrl, ownerToken);
     elsewhere.connect();
     await expect.poll(() => elsewhere.state.status).toBe("online");
 

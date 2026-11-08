@@ -8,3 +8,8 @@ export * from "./huddle.js";
 export * from "./permissions.js";
 export * from "./plan.js";
 export * from "./errors.js";
+export * from "./endpoint.js";
+export * from "./endpoints.js";
+
+/** Every request schema by its name, for the server to find what the endpoint table names. */
+export * as requestSchemas from "./rest.js";
