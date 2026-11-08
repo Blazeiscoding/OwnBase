@@ -30,13 +30,12 @@ import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { appCommand, runAppCommand, withAppCommands } from "../lib/appCommands.js";
 import { useOptionalToast } from "./Toast.js";
-import { whenKeptLocally } from "../lib/localWork.js";
 import {
   readWorkspaceStorage,
   workspaceStorageKey,
   writeWorkspaceStorage,
   type WorkspaceStorageKey,
-} from "../lib/workspaceStorage.js";
+} from "@ownbase/client-core";
 import {
   FormattingToolbar,
   formatList,
@@ -515,7 +514,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setAttachmentNote(null);
     // The words stay here, and in the saved draft, until the device keeps the
     // send itself: until then a closed window would lose them (GL-02).
-    const kept = queued && trimmed ? whenKeptLocally(client, queued) : null;
+    const kept = queued && trimmed ? client.kept.whenKept(queued) : null;
     if (!kept) return clearSent(draftKey);
     const sending = { draftKey, nonce: queued! };
     setSaving(sending);

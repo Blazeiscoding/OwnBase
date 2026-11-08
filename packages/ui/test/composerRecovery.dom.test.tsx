@@ -4,7 +4,7 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { Composer } from "../src/components/Composer.js";
-import { workspaceStorageKey } from "../src/lib/workspaceStorage.js";
+import { workspaceStorageKey } from "@ownbase/client-core";
 import type { Platform } from "../src/platform.js";
 
 const sam: User = {

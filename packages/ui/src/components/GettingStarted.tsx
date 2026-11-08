@@ -6,7 +6,7 @@ import {
   readWorkspaceStorage,
   workspaceStorageKey,
   writeWorkspaceStorage,
-} from "../lib/workspaceStorage.js";
+} from "@ownbase/client-core";
 import { Icon } from "./Icon.js";
 
 interface Saved {

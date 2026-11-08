@@ -1,9 +1,9 @@
+import type { StorageHost } from "./deviceStorage.js";
 import {
   normalizeWorkspaceAddress,
   readTrustedAddresses,
   type StoredTrustedAddresses,
-} from "@ownbase/client-core";
-import type { Platform } from "../platform.js";
+} from "./trustedAddresses.js";
 
 export interface WorkspaceAddressAccess {
   address: string;
@@ -21,9 +21,13 @@ function parseAddresses(stored: unknown): string[] {
   return addresses;
 }
 
-const queues = new WeakMap<Platform, Map<string, Promise<void>>>();
+const queues = new WeakMap<StorageHost, Map<string, Promise<void>>>();
 
-function serialized<T>(platform: Platform, key: string, operation: () => Promise<T>): Promise<T> {
+function serialized<T>(
+  platform: StorageHost,
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
   const queue = queues.get(platform) ?? new Map<string, Promise<void>>();
   queues.set(platform, queue);
   const result = (queue.get(key) ?? Promise.resolve()).then(operation);
@@ -38,7 +42,7 @@ function serialized<T>(platform: Platform, key: string, operation: () => Promise
   return result;
 }
 
-async function readAddresses(platform: Platform, key: string): Promise<string[] | null> {
+async function readAddresses(platform: StorageHost, key: string): Promise<string[] | null> {
   const stored = await platform.storage.get<unknown>(key, { strict: true });
   return stored === null ? null : parseAddresses(stored);
 }
@@ -48,7 +52,7 @@ async function readAddresses(platform: Platform, key: string): Promise<string[] 
  * Public workspace/user IDs alone never approve a subsequent address.
  */
 export function checkWorkspaceAddress(
-  platform: Platform,
+  platform: StorageHost,
   workspaceId: string,
   userId: string,
   baseUrl: string,
@@ -78,7 +82,7 @@ export function checkWorkspaceAddress(
 
 /** Call only after the person explicitly approves sharing local work with this address. */
 export function trustWorkspaceAddress(
-  platform: Platform,
+  platform: StorageHost,
   workspaceId: string,
   userId: string,
   baseUrl: string,
@@ -106,7 +110,7 @@ export function trustWorkspaceAddress(
  * recording any: nothing when there are none or they cannot be read.
  */
 export async function trustedWorkspaceAddresses(
-  platform: Platform,
+  platform: StorageHost,
   workspaceId: string,
   userId: string,
 ): Promise<string[]> {

@@ -14,11 +14,8 @@ import {
   updateWorkspaceStorage,
   workspaceStorageKey,
   writeWorkspaceStorage,
-} from "../src/lib/workspaceStorage.js";
-import {
-  trustWorkspaceAddress,
-  workspaceAddressTrustKey,
-} from "../src/lib/workspaceAddressTrust.js";
+} from "@ownbase/client-core/deviceStorage";
+import { trustWorkspaceAddress, workspaceAddressTrustKey } from "@ownbase/client-core/addressTrust";
 import { sharedDevice } from "./sharedDevice.js";
 
 /**

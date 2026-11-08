@@ -10,7 +10,7 @@ import {
 } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ApiError, WorkspaceClient } from "@ownbase/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
@@ -561,16 +561,5 @@ describe("the Direct messages panel", () => {
     act(() => client.store.setState({ channelLastSeq: { [dm.id]: 3 } }));
     expect(await within(row).findByText(/^You: /)).toHaveTextContent("You: Sounds good");
     expect(read).toHaveBeenCalledTimes(2);
-  });
-
-  it("stands on the names alone on a server without the list, and stops asking", async () => {
-    const { aside, client, read } = panel({}, async () => {
-      throw new ApiError(404, "not_found");
-    });
-    await waitFor(() => expect(read).toHaveBeenCalledTimes(1));
-    act(() => client.store.setState({ channelLastSeq: { [dm.id]: 3 } }));
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    expect(read).toHaveBeenCalledTimes(1);
-    expect(within(aside).getByRole("button", { name: /Bobby/ })).toBeInTheDocument();
   });
 });

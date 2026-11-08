@@ -8,7 +8,7 @@ import { SearchDialog } from "../src/components/SearchDialog.js";
 import { localDay } from "../src/lib/searchFilters.js";
 import type { ComponentProps } from "react";
 import type { RecentSearch } from "../src/lib/recentSearches.js";
-import { workspaceStorageKey } from "../src/lib/workspaceStorage.js";
+import { workspaceStorageKey } from "@ownbase/client-core";
 import { accessibilityProblems } from "./accessibility.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";

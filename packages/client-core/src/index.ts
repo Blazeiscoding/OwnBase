@@ -18,6 +18,21 @@ export { HuddleSession, SCREEN_SHARE_QUALITY, testMicrophone } from "./huddle.js
 export { CALL_CAUSES } from "./callLog.js";
 export type { ClientEvents, ClientListener } from "./events.js";
 export { PagedList } from "./pagedList.js";
+export {
+  readWorkspaceStorage,
+  updateWorkspaceStorage,
+  workspaceStorageKey,
+  writeWorkspaceStorage,
+} from "./deviceStorage.js";
+export type { DeviceStorage, StorageHost, WorkspaceStorageKey } from "./deviceStorage.js";
+export {
+  checkWorkspaceAddress,
+  trustWorkspaceAddress,
+  trustedWorkspaceAddresses,
+} from "./addressTrust.js";
+export type { WorkspaceAddressAccess } from "./addressTrust.js";
+export { LocalWork } from "./localWork.js";
+export type { LocalOutcome, LocalWorkStatus } from "./localWork.js";
 export type { Page, PagedListState } from "./pagedList.js";
 export type {
   ActivityAsk,

@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { describe, expect, it } from "vitest";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { useRecentSearches } from "../src/lib/recentSearches.js";
-import { workspaceStorageKey } from "../src/lib/workspaceStorage.js";
+import { workspaceStorageKey } from "@ownbase/client-core";
 import type { Platform } from "../src/platform.js";
 
 /**

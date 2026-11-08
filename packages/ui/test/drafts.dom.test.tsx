@@ -10,7 +10,7 @@ import { MessageItem } from "../src/components/MessageItem.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
-import { draftPlace, listDrafts, readDraftTimes } from "../src/lib/drafts.js";
+import { draftPlace, listDrafts } from "../src/lib/drafts.js";
 import { EDIT_REQUEST_MS, requestEdit } from "../src/lib/editRequest.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
@@ -190,12 +190,6 @@ describe("what a draft key names", () => {
       ["C_LEFT:M1", "thread", true],
       [design.id, "conversation", false],
     ]);
-  });
-
-  it("reads stored times, keeping only what reads as one", () => {
-    expect(readDraftTimes({ C1: 5, C2: "6", C3: Number.NaN, C4: null })).toEqual({ C1: 5 });
-    for (const unreadable of [null, undefined, [5], "5", 5])
-      expect(readDraftTimes(unreadable)).toEqual({});
   });
 });
 

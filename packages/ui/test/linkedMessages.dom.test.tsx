@@ -139,7 +139,7 @@ describe("a link to a message", () => {
     );
     expect(await within(row).findByText("Friday works.")).toBeVisible();
     expect(within(row).getByText("Posted in a thread in #design")).toBeVisible();
-    expect(getMessage).toHaveBeenCalledWith("C_DESIGN", "M_REPLY");
+    expect(getMessage).toHaveBeenCalledWith("C_DESIGN", "M_REPLY", undefined);
   });
 
   it("shows nothing for one deleted, or in a conversation this account cannot read", async () => {
@@ -152,7 +152,7 @@ describe("a link to a message", () => {
     );
     await waitFor(() => expect(getMessage).toHaveBeenCalledTimes(1));
     // Only the conversation this account can read was asked about.
-    expect(getMessage).toHaveBeenCalledWith("C_DESIGN", "M_GONE");
+    expect(getMessage).toHaveBeenCalledWith("C_DESIGN", "M_GONE", undefined);
     await act(() => Promise.resolve());
     expect(within(row).queryByText(/^Posted in/)).toBeNull();
   });

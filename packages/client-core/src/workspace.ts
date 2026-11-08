@@ -40,6 +40,7 @@ import { AccountActions } from "./account.js";
 import { AdminActions } from "./admin.js";
 import { AppActions } from "./apps.js";
 import { Lists } from "./lists.js";
+import { LocalLedger } from "./localWork.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
@@ -643,6 +644,8 @@ export class WorkspaceClient {
   readonly admin: AdminActions;
   readonly apps: AppActions;
   readonly lists: Lists;
+  /** The sends waiting to hear whether this device keeps their words (GL-02). */
+  readonly kept = new LocalLedger();
   private ws: WebSocket | null = null;
   private reconnectDelay = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
