@@ -1,10 +1,8 @@
-import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type ServerToClient } from "@ownbase/protocol";
 import {
   createWorkspaceServer,
-  GUEST_ROUTES,
   GUEST_SESSION_TTL_MS,
   type WorkspaceServer,
 } from "../src/server.js";
@@ -346,17 +344,5 @@ describe("a guest", () => {
       memberIds: [owner.user.id],
     });
     expect(dm.status).toBe(201);
-  });
-});
-
-describe("the routes open to guests", () => {
-  it("each name a route the server has", () => {
-    const source = readFileSync(new URL("../src/server.ts", import.meta.url), "utf8");
-    const routes = new Set(
-      [...source.matchAll(/app\.(get|post|put|patch|delete)(?:<[^>]*>)?\(\s*"([^"]+)"/g)].map(
-        ([, method, url]) => `${method!.toUpperCase()} ${url}`,
-      ),
-    );
-    expect([...GUEST_ROUTES].filter((route) => !routes.has(route))).toEqual([]);
   });
 });

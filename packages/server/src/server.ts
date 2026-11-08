@@ -4575,7 +4575,8 @@ async function startWorkspaceServer(
 
   /** A picture as it arrived, by the rules a workspace icon and a profile picture share. */
   const checkedPicture = (req: FastifyRequest, bytes: Buffer, noun?: string): WorkspaceIcon => {
-    const checked = checkIcon(bytes, bytes.length ? req.headers["content-type"] : undefined, noun);
+    const type = Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined;
+    const checked = checkIcon(bytes, type, noun);
     if ("refused" in checked)
       throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
     return checked.icon;

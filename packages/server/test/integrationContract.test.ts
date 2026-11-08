@@ -3,7 +3,14 @@ import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { APP_EVENT_TYPES, APP_SCOPES, eventScopes, type WorkspaceEvent } from "@ownbase/protocol";
+import {
+  APP_EVENT_TYPES,
+  APP_SCOPES,
+  endpoints,
+  eventScopes,
+  type EndpointSpec,
+  type WorkspaceEvent,
+} from "@ownbase/protocol";
 import { INPUT_ELEMENTS } from "../src/blockKit.js";
 import { signatureHeaders, toSlackEvent } from "../src/integrations.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
@@ -45,12 +52,11 @@ describe("the Web API methods the document lists", () => {
   const documented = tableAfter("The supported methods").map(([method]) => method!);
 
   it("are exactly the ones the server implements", () => {
-    const source = read("../src/server.ts");
-    const implemented = [...source.matchAll(/app\.post\("\/api\/([a-z]+(?:\.[A-Za-z]+)+)"/g)].map(
-      (m) => m[1]!,
-    );
+    const implemented = Object.values(endpoints as Record<string, EndpointSpec>)
+      .filter((endpoint) => endpoint.access === "bot")
+      .map((endpoint) => endpoint.path.slice("/api/".length));
     expect(documented.length).toBeGreaterThan(0);
-    expect([...documented].sort()).toEqual([...new Set(implemented)].sort());
+    expect([...documented].sort()).toEqual(implemented.sort());
   });
 
   describe("against a running server", () => {
