@@ -219,7 +219,7 @@ describe("WorkspaceClient", () => {
 
     const reconnected = new WorkspaceClient(base, aliceToken);
     const heard: [string, boolean][] = [];
-    reconnected.onIncomingMessage = (message, { live }) => heard.push([message.text, live]);
+    reconnected.on("message", (message, { live }) => heard.push([message.text, live]));
     reconnected.store.setState({ lastSeq: seqBefore });
     reconnected.connect();
     await until(reconnected, (s) => s.status === "online");
@@ -236,9 +236,9 @@ describe("WorkspaceClient", () => {
   it("keeps a message, and the connection, when telling about it fails", async () => {
     const client = new WorkspaceClient(base, aliceToken);
     // Android's Chrome throws from a page's `new Notification`.
-    client.onIncomingMessage = () => {
+    client.on("message", () => {
       throw new TypeError("Failed to construct 'Notification': Illegal constructor.");
-    };
+    });
     const failed = vi.spyOn(console, "error").mockImplementation(() => {});
     onTestFinished(() => failed.mockRestore());
     client.connect();
@@ -276,8 +276,8 @@ describe("WorkspaceClient", () => {
 
     const reconnected = new WorkspaceClient(base, aliceToken);
     const heard: string[] = [];
-    reconnected.onIncomingMessage = (incoming) => heard.push(`created ${incoming.id}`);
-    reconnected.onMessageDeleted = (id) => heard.push(`deleted ${id}`);
+    reconnected.on("message", (incoming) => heard.push(`created ${incoming.id}`));
+    reconnected.on("messageDeleted", (id) => heard.push(`deleted ${id}`));
     reconnected.store.setState({ lastSeq: seqBefore });
     reconnected.connect();
     await until(reconnected, (s) => s.status === "online");

@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import type { FileKind, FileMeta, ID, SharedFile } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatBytes, formatFull, formatWhen } from "../lib/format.js";
-import { usePagedList } from "../lib/pagedList.js";
+import { useOpenList } from "../lib/pagedList.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useTabs } from "../lib/useTabs.js";
 import {
@@ -31,9 +31,6 @@ const KIND_NAMES: Record<Kind, string> = {
 /** How long typing rests before the list is asked again. */
 const SEARCH_REST_MS = 250;
 
-/** A listed file, known by its own id as the paged list needs. */
-type Row = SharedFile & { id: string };
-
 /**
  * Every file shared in the conversations this person can read (E7), newest
  * first, from the server a page at a time. Narrowed by kind, by who shared it,
@@ -56,7 +53,6 @@ export function FilesPanel({
   const channels = useWorkspace((s) => s.channels);
   const memberships = useWorkspace((s) => s.memberships);
   const selfId = useWorkspace((s) => s.self?.id);
-  const changedContent = useWorkspace((s) => s.changedContent);
   const [kind, setKind] = useState<Kind>("all");
   const [userId, setUserId] = useState("");
   const [channelId, setChannelId] = useState(initialChannelId ?? "");
@@ -81,29 +77,12 @@ export function FilesPanel({
     ...(search ? { q: search } : {}),
   };
   const filtered = Object.keys(filter).length > 0;
-  const paged = usePagedList<Row>(
-    (cursor, signal) =>
-      client.api.listSharedFiles(filter, cursor, signal).then((page) => ({
-        items: page.files.map((f) => ({ ...f, id: f.file.id })),
-        nextCursor: page.nextCursor,
-      })),
-    JSON.stringify(filter),
-  );
-  const { list, items } = paged;
+  const [list, paged] = useOpenList(() => client.lists.files(filter), JSON.stringify(filter));
+  const { items } = paged;
 
   useEffect(() => {
-    // Another list starts at its top.
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [kind, userId, channelId, search]);
-
-  // A message listed here was edited or deleted, or its conversation lost
-  // history: what is listed may be out of date.
-  const heardChanges = useRef(changedContent);
-  useEffect(() => {
-    const before = heardChanges.current;
-    heardChanges.current = changedContent;
-    if (items?.some((f) => changedContent[f.channelId] !== before[f.channelId])) list.refresh();
-  }, [list, changedContent, items]);
+  }, [list]);
 
   const people = useMemo(
     () =>

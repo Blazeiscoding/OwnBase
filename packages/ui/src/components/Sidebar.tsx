@@ -1238,11 +1238,12 @@ export function AccountMenu(props: {
   const items: MenuItem[] = [];
   /** Sets a status straight from the menu: two clicks for the common ones, each ending when it usually does. */
   const setStatus = (statusEmoji: string, statusText: string, statusExpiresAt: number | null) => {
-    client.api.updateMe({ statusEmoji, statusText, statusExpiresAt }).catch(() => {
-      toast?.({
-        message: "Could not change your status. Check your connection and try again.",
-        kind: "error",
-      });
+    void client.updateProfile({ statusEmoji, statusText, statusExpiresAt }).then((error) => {
+      if (error)
+        toast?.({
+          message: "Could not change your status. Check your connection and try again.",
+          kind: "error",
+        });
     });
   };
   if (!props.guest && self) {

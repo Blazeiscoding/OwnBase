@@ -16,6 +16,17 @@ export {
 export type { NotifyDecision, OnScreen } from "./notify.js";
 export { HuddleSession, SCREEN_SHARE_QUALITY, testMicrophone } from "./huddle.js";
 export { CALL_CAUSES } from "./callLog.js";
+export type { ClientEvents, ClientListener } from "./events.js";
+export { PagedList } from "./pagedList.js";
+export type { Page, PagedListState } from "./pagedList.js";
+export type {
+  ActivityAsk,
+  FileFilter,
+  ScheduledList,
+  ScheduledListState,
+  SharedFileRow,
+  ThreadDetail,
+} from "./lists.js";
 export {
   cameraConstraints,
   canChooseSpeaker,

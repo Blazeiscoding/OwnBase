@@ -32,7 +32,7 @@ export function NewChannelDialog(props: { onClose: () => void; onCreated: (ch: C
     setBusy(true);
     setError(null);
     try {
-      const { channel } = await client.api.createChannel({
+      const channel = await client.createChannel({
         type: isPrivate ? "private" : "public",
         name: slug,
         ...(description.trim() ? { description: description.trim() } : {}),
@@ -214,7 +214,7 @@ export function GuestAccountDialog(props: {
     }
     setBusy(true);
     try {
-      const { token, user } = await client.api.createAccountFromGuest({
+      const { token, user } = await client.account.keepAsAccount({
         handle: handle.trim().toLowerCase(),
         password,
       });
@@ -306,8 +306,8 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
   const [counts, setCounts] = useState<Record<ID, number>>({});
   useEffect(() => {
     const controller = new AbortController();
-    client.api
-      .listChannels(controller.signal)
+    client
+      .browseChannels(controller.signal)
       .then((answer) => setCounts(answer.memberCounts ?? {}))
       .catch(() => {});
     return () => controller.abort();
@@ -348,7 +348,7 @@ export function BrowseChannelsDialog(props: { onClose: () => void; onOpen: (id: 
     setJoining(channel.id);
     setError(null);
     try {
-      await client.api.joinChannel(channel.id);
+      await client.joinChannel(channel.id);
       props.onOpen(channel.id);
     } catch {
       setError(`Could not join #${channel.name}. Check your connection and try again.`);

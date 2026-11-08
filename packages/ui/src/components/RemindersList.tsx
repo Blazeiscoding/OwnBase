@@ -44,7 +44,7 @@ export function RemindersList({ onJump }: { onJump: (channelId: ID, messageId: I
 
   useEffect(() => {
     const controller = new AbortController();
-    client.api.listReminders(controller.signal).then(
+    client.reminders(controller.signal).then(
       ({ reminders }) => {
         setItems(reminders);
         setFailed(false);

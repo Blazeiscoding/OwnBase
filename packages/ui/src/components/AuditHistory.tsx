@@ -170,7 +170,7 @@ export function AuditHistory() {
     inFlight.current = true;
     setBusy(true);
     try {
-      const page = await client.api.listAudit(before);
+      const page = await client.admin.audit(before);
       if (!alive.current) return;
       setEntries((current) => {
         if (!before || !current) return page.entries;

@@ -36,7 +36,7 @@ export function ReportsDialog({ onClose }: { onClose: () => void }) {
     const mine = ++version.current;
     setLoading(true);
     try {
-      const result = await client.api.listReports();
+      const result = await client.admin.reports();
       if (!alive.current || mine !== version.current) return;
       setReports(result.reports);
       setLoadError(false);
@@ -75,7 +75,7 @@ export function ReportsDialog({ onClose }: { onClose: () => void }) {
     setError(null);
     setNotice(null);
     try {
-      await client.api.resolveReport(item.messageId, action);
+      await client.admin.resolveReport(item.messageId, action);
       if (!alive.current) return;
       setReports((list) => list?.filter((other) => other.messageId !== item.messageId) ?? list);
       setNotice(

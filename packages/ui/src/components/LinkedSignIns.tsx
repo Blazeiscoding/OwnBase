@@ -5,7 +5,6 @@ import { useClient, useWorkspace } from "../context.js";
 import { buttonClass } from "./Button.js";
 
 /** A path on the workspace's own server, with a query of plain values: nothing else is opened. */
-const LINK = /^\/api\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9=&_-]*)?$/;
 
 /**
  * The workspace's single sign-on in Account settings, under Security (P9):
@@ -29,14 +28,10 @@ export function LinkedSignIns() {
 
   const load = useCallback(async () => {
     try {
-      const info = await client.api.serverInfo();
-      const linkable = (info.signIn?.methods ?? []).filter((m) => m.connect);
-      const states = await Promise.all(
-        linkable.map(async (m) => [m.id, await client.api.signInConnection(m.connect!)] as const),
-      );
+      const linked = await client.account.linkedSignIns();
       if (!alive.current) return;
-      setMethods(linkable);
-      setLinks(Object.fromEntries(states));
+      setMethods(linked.methods);
+      setLinks(linked.links);
     } catch {
       // Asked again next time Account settings opens; nothing here is urgent.
     }
@@ -61,10 +56,9 @@ export function LinkedSignIns() {
     setBusy(true);
     setError(null);
     try {
-      const { url } = await client.api.connectSignIn(method.connect!);
+      const url = await client.account.linkSignInUrl(method);
       // In a new tab, or the system's browser in the desktop app: this window stays signed in.
-      if (!LINK.test(url)) throw new ApiError(502, "invalid_response");
-      window.open(`${client.api.baseUrl}${url}`, "_blank", "noopener");
+      window.open(url, "_blank", "noopener");
       if (alive.current) setAway(true);
     } catch (err) {
       if (alive.current) setError(problem(err, "Linking did not start."));
@@ -77,7 +71,7 @@ export function LinkedSignIns() {
     setBusy(true);
     setError(null);
     try {
-      const now = await client.api.disconnectSignIn(method.connect!);
+      const now = await client.account.unlinkSignIn(method);
       if (alive.current) setLinks((current) => ({ ...current, [method.id]: now }));
     } catch (err) {
       if (alive.current) setError(problem(err, "Could not unlink it."));

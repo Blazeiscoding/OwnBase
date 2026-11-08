@@ -43,7 +43,7 @@ export function ShareableServerProvider(props: { platform: Platform; children: R
     let applied = 0;
     const refresh = () => {
       const request = ++revision;
-      void client.api
+      void client
         .serverInfo()
         .then((info) => {
           // A later successful read wins. If that later read fails, an older

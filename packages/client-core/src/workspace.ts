@@ -22,8 +22,13 @@ import {
   type ServerNotice,
   type ForwardReference,
   type ReplyReference,
+  type CreateChannelBody,
+  type ReportReason,
+  type ScheduleMessageBody,
   type SendMessageBody,
   type ServerToClient,
+  type UpdateChannelBody,
+  type UpdateMeBody,
   type ThreadFollow,
   type Reminder,
   type ChannelRemoval,
@@ -31,9 +36,14 @@ import {
   type User,
 } from "@ownbase/protocol";
 import { Api, ApiError, type CommandHint } from "./api.js";
+import { AccountActions } from "./account.js";
+import { AdminActions } from "./admin.js";
+import { AppActions } from "./apps.js";
+import { Lists } from "./lists.js";
 import { FileCache, previewImageKey } from "./fileCache.js";
 import { AvatarCache } from "./avatars.js";
 import { captureFailure } from "./capture.js";
+import { ClientEmitter, type ClientEvents, type ClientListener } from "./events.js";
 import { isThreadUnread } from "./selectors.js";
 import {
   THREAD_WINDOW,
@@ -621,10 +631,18 @@ export function isMessageRead(
  */
 export class WorkspaceClient {
   readonly store: StoreApi<WorkspaceState>;
+  /**
+   * The server's REST API, for this client's own use and for tests that stand
+   * in for the server. Everything else asks the client, so the store hears.
+   */
   readonly api: Api;
   readonly files: FileCache;
   /** Profile pictures, fetched with this session and kept as object URLs (E9). */
   readonly avatars: AvatarCache;
+  readonly account: AccountActions;
+  readonly admin: AdminActions;
+  readonly apps: AppActions;
+  readonly lists: Lists;
   private ws: WebSocket | null = null;
   private reconnectDelay = 1000;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -636,27 +654,11 @@ export class WorkspaceClient {
    * because applying what was missed failed once and would fail again.
    */
   private wantsSnapshot = false;
-  /**
-   * A message from someone else has landed. `live` is false while replaying
-   * what was missed during a disconnect, which `@here` has to know about.
-   */
-  onIncomingMessage: ((msg: Message, context: { live: boolean }) => void) | null = null;
-  /** A message was deleted, so whatever was about to be said of it is not news. */
-  onMessageDeleted: ((messageId: ID) => void) | null = null;
-  /** One of this account's reminders came due now; the app hooks its notification here. */
-  onReminderDue: ((reminder: Reminder, message: Message) => void) | null = null;
+  private readonly events = new ClientEmitter();
 
-  /**
-   * Tells the app through one of the hooks above. What the app does with it
-   * can fail on its own (Android's Chrome throws from a page's `new
-   * Notification`), and that must not stop the event being applied.
-   */
-  private tellApp<A extends unknown[]>(hook: ((...args: A) => void) | null, ...args: A): void {
-    try {
-      hook?.(...args);
-    } catch (error) {
-      console.error(error);
-    }
+  /** Listens for one kind of news from this workspace; the function returned stops listening. */
+  on<K extends keyof ClientEvents>(event: K, listener: ClientListener<K>): () => void {
+    return this.events.on(event, listener);
   }
 
   /**
@@ -705,6 +707,12 @@ export class WorkspaceClient {
     this.files = new FileCache(this.api, undefined, (fileId) => this.fileOwner(fileId));
     this.avatars = new AvatarCache((userId, version) => this.api.fetchAvatar(userId, version));
     this.store = createStore<WorkspaceState>(() => ({ ...initialState }));
+    this.account = new AccountActions(this.api);
+    this.admin = new AdminActions(this.api, (users) =>
+      users.forEach((user) => this.keepUser(user)),
+    );
+    this.apps = new AppActions(this.api);
+    this.lists = new Lists(this.api, this.store);
     // A session that has ended keeps nothing it downloaded (F07).
     this.store.subscribe((now, before) => {
       if (
@@ -1207,7 +1215,7 @@ export class WorkspaceClient {
         if (!s.channels[message.channelId]) break;
         this.arrived(s, patch, message);
         if (message.userId !== s.self?.id)
-          this.tellApp(this.onIncomingMessage, message, { live: seq > this.connectedAtSeq });
+          this.events.emit("message", message, { live: seq > this.connectedAtSeq });
         break;
       }
       case "message.updated": {
@@ -1249,7 +1257,7 @@ export class WorkspaceClient {
       }
       case "message.deleted": {
         changed(event.channelId);
-        this.tellApp(this.onMessageDeleted, event.messageId);
+        this.events.emit("messageDeleted", event.messageId);
         // Its poll went with it.
         if (s.pollChoices[event.messageId]) {
           const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
@@ -1514,7 +1522,7 @@ export class WorkspaceClient {
         });
         // Told once as it comes due; the same reminder told again is not news.
         if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
-          this.tellApp(this.onReminderDue, event.reminder, event.message);
+          this.events.emit("reminderDue", event.reminder, event.message);
         break;
       }
       case "reminder.removed": {
@@ -3706,7 +3714,7 @@ export class WorkspaceClient {
   /** Changes this account's own profile; resolves with the server's refusal, or null. */
   private async changeSelf(request: () => Promise<{ user: User }>): Promise<ApiError | null> {
     try {
-      this.keepSelf((await request()).user);
+      this.keepUser((await request()).user);
       return null;
     } catch (error) {
       return failureOf(error);
@@ -3733,8 +3741,8 @@ export class WorkspaceClient {
     return this.changeSelf(() => this.api.removeAvatar());
   }
 
-  /** This account as the server now has it, shown at once rather than when its event comes. */
-  private keepSelf(user: User): void {
+  /** An account as the server now has it, shown at once rather than when its event comes. */
+  private keepUser(user: User): void {
     if (this.stopped) return;
     this.store.setState((s) => ({
       self: s.self?.id === user.id ? user : s.self,
@@ -3758,15 +3766,172 @@ export class WorkspaceClient {
     if (zone) void this.setTimeZone(zone);
   }
 
+  /** Changes this account's name or status; resolves with the server's refusal, or null. */
+  updateProfile(body: UpdateMeBody): Promise<ApiError | null> {
+    return this.changeSelf(() => this.api.updateMe(body));
+  }
+
+  /** Asks, accepts or ends a friendship; resolves with the server's refusal, or null. */
+  async setFriendship(
+    userId: ID,
+    action: "request" | "accept" | "remove",
+  ): Promise<ApiError | null> {
+    try {
+      const { friends } = await this.api.updateFriend(userId, action);
+      if (!this.stopped) this.store.setState({ friends });
+      return null;
+    } catch (error) {
+      return failureOf(error);
+    }
+  }
+
+  private signingOut = false;
+
+  /**
+   * Signs this session out. Doing so closes the connection, which reads as a
+   * sign-in that ended, often before the answer arrives; `signedOutOnPurpose`
+   * tells the two apart.
+   */
+  async signOut(): Promise<void> {
+    this.signingOut = true;
+    try {
+      await this.api.logout();
+    } catch (error) {
+      this.signingOut = false;
+      throw error;
+    }
+  }
+
+  /** Whether this session ended because someone here signed it out. */
+  get signedOutOnPurpose(): boolean {
+    return this.signingOut;
+  }
+
+  serverInfo() {
+    return this.api.serverInfo();
+  }
+
+  private fileLimit: Promise<number | null> | null = null;
+
+  /**
+   * The largest file this workspace takes, asked once: null where the server
+   * does not say, or could not be asked, which is asked again next time.
+   */
+  maxFileBytes(): Promise<number | null> {
+    this.fileLimit ??= this.api.storageUsage().then(
+      (usage) => (Number.isFinite(usage.maxFileBytes) ? usage.maxFileBytes : null),
+      () => {
+        this.fileLimit = null;
+        return null;
+      },
+    );
+    return this.fileLimit;
+  }
+
+  search(q: string, limit?: number, opts?: { cursor?: ID; channelId?: ID; signal?: AbortSignal }) {
+    return this.api.search(q, limit, opts);
+  }
+
+  /** One message, for the card under a link to it; a 404 when it is gone or not readable. */
+  getMessage(channelId: ID, messageId: ID, signal?: AbortSignal) {
+    return this.api.getMessage(channelId, messageId, signal);
+  }
+
+  /** With `expectedText`, refused as `message_changed` if the words are no longer those. */
+  editMessage(messageId: ID, text: string, expectedText?: string) {
+    return this.api.editMessage(messageId, text, expectedText);
+  }
+
+  deleteMessage(messageId: ID) {
+    return this.api.deleteMessage(messageId);
+  }
+
+  /** Presses a button an app put on a message. */
+  runMessageAction(messageId: ID, actionId: string) {
+    return this.api.runMessageAction(messageId, actionId);
+  }
+
+  /** Reports a message to the workspace's admins (E12), with why and anything to add. */
+  reportMessage(messageId: ID, reason: ReportReason, note?: string) {
+    return this.api.reportMessage(messageId, reason, note);
+  }
+
+  /** Uploads one file to a channel; attach the returned id to a message. */
+  uploadFile(
+    channelId: ID,
+    file: Blob,
+    name: string,
+    opts?: { onProgress?: (fraction: number) => void; signal?: AbortSignal },
+  ) {
+    return this.api.uploadFile(channelId, file, name, opts);
+  }
+
+  scheduleMessage(channelId: ID, body: ScheduleMessageBody) {
+    return this.api.scheduleMessage(channelId, body);
+  }
+
+  /** An address that downloads the file once, within a minute, by a browser's navigation. */
+  downloadUrl(fileId: ID) {
+    return this.api.downloadUrl(fileId);
+  }
+
+  reminders(signal?: AbortSignal) {
+    return this.api.listReminders(signal);
+  }
+
+  /** The newest message in each direct conversation this account is in. */
+  latestDirectMessages(signal?: AbortSignal) {
+    return this.api.latestDirectMessages(signal);
+  }
+
+  /** Every channel this account can see, with how many active people each room holds. */
+  browseChannels(signal?: AbortSignal) {
+    return this.api.listChannels(signal);
+  }
+
+  updateChannel(channelId: ID, body: UpdateChannelBody) {
+    return this.api.updateChannel(channelId, body);
+  }
+
+  joinChannel(channelId: ID) {
+    return this.api.joinChannel(channelId);
+  }
+
+  leaveChannel(channelId: ID) {
+    return this.api.leaveChannel(channelId);
+  }
+
+  channelMembers(channelId: ID) {
+    return this.api.channelMembers(channelId);
+  }
+
+  addToChannel(channelId: ID, userId: ID) {
+    return this.api.inviteMember(channelId, userId);
+  }
+
+  removeFromChannel(channelId: ID, userId: ID) {
+    return this.api.removeChannelMember(channelId, userId);
+  }
+
+  setChannelManager(channelId: ID, userId: ID, manager: boolean) {
+    return this.api.setChannelManager(channelId, userId, manager);
+  }
+
   sendTyping(channelId: ID): void {
     this.sendSocket({ type: "typing", channelId });
   }
 
-  async openDm(userIds: ID[]): Promise<Channel> {
-    const { channel } = await this.api.createChannel({
+  openDm(userIds: ID[]): Promise<Channel> {
+    return this.createChannel({
       type: userIds.length === 1 ? "dm" : "group_dm",
       memberIds: userIds,
-    } as never);
+    });
+  }
+
+  /** Makes a conversation this account is in, shown at once rather than when its event comes. */
+  async createChannel(body: CreateChannelBody): Promise<Channel> {
+    const { channel } = await this.api.createChannel(body);
+    if (this.stopped) return channel;
     this.store.setState((s) => ({
       channels: { ...s.channels, [channel.id]: channel },
       memberships: { ...s.memberships, [channel.id]: s.memberships[channel.id] ?? 0 },

@@ -49,7 +49,7 @@ export function ReportMessageDialog({
     setBusy(true);
     setError(null);
     try {
-      await client.api.reportMessage(message.id, reason, note);
+      await client.reportMessage(message.id, reason, note);
       toast({ message: "Reported. The workspace's admins will look at it.", kind: "success" });
       onClose();
     } catch (err) {

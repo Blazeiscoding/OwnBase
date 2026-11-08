@@ -4,7 +4,7 @@ import {
   PagedList,
   type Page,
   type PagedListState,
-} from "../src/lib/pagedList.js";
+} from "../src/pagedList.js";
 
 /**
  * A list read a page at a time that stays current (UX-08): more is read after
@@ -32,9 +32,9 @@ function harness() {
           fail: () => reject(new TypeError("Failed to fetch")),
         });
       }),
-    (state) => states.push(state),
-    250,
+    { delayMs: 250 },
   );
+  list.subscribe((state) => states.push(state));
   const ids = () => list.current.items?.map((row) => row.id) ?? null;
   return { list, asks, states, ids };
 }

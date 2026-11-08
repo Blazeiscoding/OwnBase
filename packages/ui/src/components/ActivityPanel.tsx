@@ -5,6 +5,7 @@ import {
   isThreadUnread,
   isUnread,
   notificationBody,
+  PagedList,
 } from "@ownbase/client-core";
 import type { ChannelRemoval, ID, Message } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
@@ -18,7 +19,7 @@ import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useTabs } from "../lib/useTabs.js";
-import { usePagedList } from "../lib/pagedList.js";
+import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { RemindersList } from "./RemindersList.js";
 import { markEverythingRead } from "../lib/readAll.js";
@@ -31,6 +32,7 @@ import { When } from "./When.js";
 const MODES = ["all", "mentions", "threads", "reminders"] as const;
 type ActivityMode = (typeof MODES)[number];
 const ASKS = { all: "unread", mentions: "mentions", threads: "threads" } as const;
+const nothing = async () => ({ items: [], nextCursor: null });
 const NAMES: Record<ActivityMode, string> = {
   all: "All",
   mentions: "Mentions",
@@ -48,12 +50,6 @@ const EMPTY: Record<Exclude<ActivityMode, "reminders">, string> = {
   mentions: "No mentions yet.",
   threads: "No unread replies in threads you follow.",
 };
-/**
- * How long a sign that Activity may be out of date waits for others like it,
- * so a burst of read, edit and count changes is one load (REV-05).
- */
-export const ACTIVITY_REFRESH_DELAY_MS = 250;
-
 /** The messages of one conversation, or of one thread in Threads, newest first. */
 export interface ActivityGroup {
   key: string;
@@ -128,30 +124,11 @@ export function ActivityPanel({
   const memberships = useWorkspace((s) => s.memberships);
   const threadFollows = useWorkspace((s) => s.threadFollows);
   const repliesRead = useWorkspace((s) => s.repliesRead);
-  const mentionCounts = useWorkspace((s) => s.mentionCounts);
-  const removedHistory = useWorkspace((s) => s.removedHistory);
-  const changedContent = useWorkspace((s) => s.changedContent);
   const saved = useWorkspace((s) => s.saved);
   const dueReminders = useWorkspace(dueReminderCount);
   const modes: readonly ActivityMode[] = MODES;
   const [chosen, setMode] = useState<ActivityMode>("all");
   const mode = modes.includes(chosen) ? chosen : "all";
-  // In All, a new message anywhere, or a new reply in a thread, may belong
-  // here; in Threads, only a new reply.
-  const arrivals = useWorkspace((s) =>
-    mode === "mentions"
-      ? ""
-      : [
-          ...(mode === "all"
-            ? Object.entries(s.channelLastSeq)
-                .filter(([channelId]) => channelId in s.memberships)
-                .map(([channelId, seq]) => `${channelId}:${seq}`)
-            : []),
-          ...Object.values(s.threadFollows).map((f) => `${f.rootId}:${f.lastSeq}`),
-        ]
-          .sort()
-          .join(","),
-  );
   /** Whether anything is unread anywhere, which Mark all read reads. */
   const unreadAnywhere = useWorkspace(
     (s) =>
@@ -168,46 +145,17 @@ export function ActivityPanel({
     selected: mode,
     onSelect: setMode,
   });
-  // Another tab is another list, read from the top. A sign that what is
-  // shown may be out of date reads it again in place, and a burst of them is
-  // one read, with what is shown kept meanwhile (REV-05).
-  const paged = usePagedList<Message>(
-    (cursor, signal) =>
-      mode === "reminders"
-        ? Promise.resolve({ items: [], nextCursor: null })
-        : client.api
-            .activity(ASKS[mode], { cursor, signal })
-            .then((page) => ({ items: page.messages, nextCursor: page.nextCursor })),
+  // Reminders is a list of its own, RemindersList; its tab reads nothing here.
+  const [list, paged] = useOpenList(
+    () =>
+      mode === "reminders" ? new PagedList<Message>(nothing) : client.lists.activity(ASKS[mode]),
     mode,
-    ACTIVITY_REFRESH_DELAY_MS,
   );
-  const { list, items: result } = paged;
+  const { items: result } = paged;
 
   useEffect(() => {
-    // Another list starts at its top.
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [mode]);
-
-  // Each of these says the list may be out of date. The server refreshes the
-  // mention counts for mention edits even when a count stays the same, so every
-  // change of them is a reason to look again.
-  const heard = useRef({ mode, mentionCounts, arrivals, changedContent, removedHistory });
-  useEffect(() => {
-    const before = heard.current;
-    heard.current = { mode, mentionCounts, arrivals, changedContent, removedHistory };
-    // Another tab is read from the top already.
-    if (before.mode !== mode) return;
-    const shown = (seqs: Record<ID, number>, was: Record<ID, number>) =>
-      result?.some((m) => seqs[m.channelId] !== was[m.channelId]) ?? false;
-    if (
-      before.mentionCounts !== mentionCounts ||
-      before.arrivals !== arrivals ||
-      // Edited or deleted, or retention took threads from a conversation shown here.
-      shown(changedContent, before.changedContent) ||
-      shown(removedHistory, before.removedHistory)
-    )
-      list.refresh();
-  }, [list, mode, mentionCounts, arrivals, changedContent, removedHistory, result]);
+  }, [list]);
 
   const unread = (message: Message) =>
     !isMessageRead(message, { memberships, threadFollows, repliesRead });

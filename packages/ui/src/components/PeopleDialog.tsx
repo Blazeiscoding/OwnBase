@@ -73,7 +73,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const result = await client.api.listAllUsers();
+      const result = await client.admin.people();
       if (!alive.current) return;
       setPeople(result.users);
       setLoadError(false);
@@ -125,11 +125,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     setNotice(null);
     setBusy(person.id);
     try {
-      const result = await client.api.updateUserAdmin(person.id, patch);
-      // Shown now, rather than when the socket's copy of the change arrives.
-      client.store.setState((state) => ({
-        users: { ...state.users, [result.user.id]: result.user },
-      }));
+      await client.admin.changePerson(person.id, patch);
       setNotice(changeNotice(person.displayName, patch));
     } catch (err) {
       setError(
@@ -159,12 +155,12 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     setNotice(null);
     try {
       if (action.kind === "reset") {
-        const result = await client.api.resetPassword(action.person.id);
+        const result = await client.admin.resetPassword(action.person.id);
         if (!alive.current) return;
         setIssued({ person: action.person, password: result.temporaryPassword });
         setReveal(false);
       } else if (action.kind === "twoStep") {
-        await client.api.resetTwoStep(action.person.id);
+        await client.admin.resetTwoStep(action.person.id);
         if (!alive.current) return;
         const { id } = action.person;
         setPeople((list) => list?.map((p) => (p.id === id ? { ...p, twoStep: false } : p)) ?? list);
@@ -172,16 +168,8 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
           `${action.person.displayName}'s two-step sign-in is off. They can set it up again in Account settings.`,
         );
       } else {
-        const result = await client.api.transferOwnership(action.person.id);
+        await client.admin.transferOwnership(action.person.id);
         if (!alive.current) return;
-        client.store.setState((state) => ({
-          users: {
-            ...state.users,
-            [result.owner.id]: result.owner,
-            [result.previousOwner.id]: result.previousOwner,
-          },
-          self: state.self?.id === result.previousOwner.id ? result.previousOwner : state.self,
-        }));
         setNotice(
           `${action.person.displayName} now owns this workspace. You are an administrator.`,
         );

@@ -576,7 +576,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
       for (const file of attached) {
         let id = scheduleUploads.current.get(file);
         if (!id) {
-          const { file: uploaded } = await client.api.uploadFile(channelId, file, file.name, {
+          const { file: uploaded } = await client.uploadFile(channelId, file, file.name, {
             signal: controller.signal,
           });
           if (!current()) return;
@@ -650,7 +650,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     storageKey: WorkspaceStorageKey,
     context: object,
   ) {
-    const { scheduled } = await client.api.scheduleMessage(channelId, body);
+    const { scheduled } = await client.scheduleMessage(channelId, body);
     if (scheduleContext.current !== context) return;
     // If clearing recovery fails, leave the same request available for retry.
     await writeWorkspaceStorage(platform, storageKey, null);

@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerInfo } from "@ownbase/protocol";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
-import { signOutOnPurpose, signedOutHow, type SignedOutFrom } from "../src/lib/signOut.js";
+import { signedOutHow, type SignedOutFrom } from "../src/lib/signOut.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
 
 /**
@@ -114,18 +114,19 @@ describe("why a workspace stopped", () => {
   it("is not news while this window signs out on purpose", async () => {
     const leaving = client();
     let during: string | undefined = "unset";
-    await signOutOnPurpose(leaving, async () => {
+    vi.spyOn(leaving.api, "logout").mockImplementation(async () => {
       during = signedOutHow(leaving, "auth_failed");
+      return { ok: true };
     });
+    await leaving.signOut();
     expect(during).toBeUndefined();
     expect(signedOutHow(leaving, "auth_failed")).toBeUndefined();
   });
 
   it("is news again after a sign-out that failed", async () => {
     const staying = client();
-    await expect(
-      signOutOnPurpose(staying, () => Promise.reject(new Error("offline"))),
-    ).rejects.toThrow("offline");
+    vi.spyOn(staying.api, "logout").mockRejectedValue(new Error("offline"));
+    await expect(staying.signOut()).rejects.toThrow("offline");
     expect(signedOutHow(staying, "auth_failed")).toBe("ended");
   });
 

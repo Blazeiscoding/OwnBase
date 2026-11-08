@@ -317,7 +317,7 @@ export function SearchDialog(props: {
       const known = client.state.changedContent;
       const question = keyOf(asked);
       try {
-        const found = await client.api.search(asked.query, PAGE_SIZE, {
+        const found = await client.search(asked.query, PAGE_SIZE, {
           cursor,
           channelId: asked.channelId,
           signal,
@@ -349,7 +349,6 @@ export function SearchDialog(props: {
       }
     },
     askedKey,
-    undefined,
     // The answer to the last question stays on show until the next one's comes.
     { keep: true },
   );

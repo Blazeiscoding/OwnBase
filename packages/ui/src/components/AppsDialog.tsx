@@ -130,8 +130,8 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       const version = ++loadVersion.current;
       loadInFlight.current = true;
       if (!quiet) setLoading(true);
-      void client.api
-        .listApps()
+      void client.apps
+        .list()
         .then((result) => {
           if (!alive.current || version !== loadVersion.current) return;
           setApps(result.apps);
@@ -202,7 +202,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
     setCreateError(null);
     setBusy(true);
     try {
-      adopt(await client.api.createApp({ name: name.trim(), scopes }));
+      adopt(await client.apps.create({ name: name.trim(), scopes }));
       setName("");
       setScopes([...DEFAULT_APP_SCOPES]);
     } catch {
@@ -234,7 +234,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       `Replace ${a.name}'s bot token?`,
       "The current token stops working immediately. Whatever uses it fails until you give it the new one.",
       async () => {
-        const r = await client.api.replaceAppToken(a.id);
+        const r = await client.apps.replaceToken(a.id);
         setSecrets((s) => ({ ...s, [a.id]: r.token }));
       },
     );
@@ -244,7 +244,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       `Replace ${a.name}'s signing secret?`,
       "The app will reject requests from this workspace until it has the new one.",
       async () => {
-        await client.api.replaceSigningSecret(a.id);
+        await client.apps.replaceSigningSecret(a.id);
         load();
       },
     );
@@ -254,7 +254,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
       `Replace the webhook URL for #${channelName}?`,
       "Anything posting to the current URL will stop working.",
       async () => {
-        const r = await client.api.replaceWebhookUrl(webhookId);
+        const r = await client.apps.replaceWebhookUrl(webhookId);
         setHookUrls((h) => ({ ...h, [webhookId]: `${client.baseUrl}${r.url}` }));
         load();
       },
@@ -262,7 +262,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
 
   /** Returns the webhook's URL, which the server shows only this once. */
   async function addWebhook(appId: ID, channelId: ID): Promise<string> {
-    const r = await client.api.createWebhook(appId, { channelId });
+    const r = await client.apps.createWebhook(appId, channelId);
     // The path comes back relative; show the address a tool would actually call.
     const url = `${client.baseUrl}${r.url}`;
     setHookUrls((h) => ({ ...h, [r.webhook.id]: url }));
@@ -283,7 +283,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
         rooms={rooms}
         hookUrls={hookUrls}
         makeApp={async (appName) =>
-          adopt(await client.api.createApp({ name: appName, scopes: [...DEFAULT_APP_SCOPES] }))
+          adopt(await client.apps.create({ name: appName, scopes: [...DEFAULT_APP_SCOPES] }))
         }
         makeWebhook={addWebhook}
         onChanged={load}
@@ -373,7 +373,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                   setBusy(true);
                   setRotateError(null);
                   try {
-                    await client.api.deleteApp(a.id);
+                    await client.apps.remove(a.id);
                     load();
                     void client.loadCommands();
                   } catch {
@@ -424,7 +424,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                         });
                         if (!go) return;
                         try {
-                          await client.api.deleteWebhook(w.id);
+                          await client.apps.removeWebhook(w.id);
                           load();
                         } catch {
                           toast?.({
@@ -701,7 +701,7 @@ function WebhookTemplate({
     if (!url || !channel || sending) return;
     setSending(true);
     try {
-      await client.api.postToWebhook(url, ci ? CI_TEST_MESSAGE : WEBHOOK_EXAMPLE);
+      await client.apps.postToWebhook(url, ci ? CI_TEST_MESSAGE : WEBHOOK_EXAMPLE);
       setResult({ url, ok: true, text: `Posted to #${channel.name}.` });
     } catch (err) {
       setResult({ url, ok: false, text: webhookTestError(err, channel.name) });
@@ -826,7 +826,7 @@ function CommandTemplate({
     setError(null);
     try {
       const target = await choice.ensureApp();
-      const r = await client.api.createCommand(target.id, { command: name, url: url.trim() });
+      const r = await client.apps.createCommand(target.id, { command: name, url: url.trim() });
       setMade(r.command);
       onChanged();
       // The composer's hint list is loaded once, so refresh it now.
@@ -849,7 +849,7 @@ function CommandTemplate({
     const typed = `/${ready.command} test`;
     setRunning(true);
     try {
-      const answer = await client.api.runCommand(channel.id, { text: typed });
+      const answer = await client.apps.runCommand(channel.id, typed);
       setResult({
         key: runKey,
         ok: answer.ok,
@@ -1091,7 +1091,7 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
     }
     setBusy(true);
     try {
-      await client.api.createCommand(app.id, {
+      await client.apps.createCommand(app.id, {
         command: command.trim(),
         url: url.trim(),
         description: description.trim(),
@@ -1126,7 +1126,7 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
             </span>
             <button
               onClick={async () => {
-                await client.api.deleteCommand(c.id);
+                await client.apps.removeCommand(c.id);
                 onChanged();
                 void client.loadCommands();
               }}
@@ -1295,7 +1295,7 @@ function AppScopes({ app, onChanged }: { app: AppDetail; onChanged: () => void }
     setError(null);
     const attempt = ++saving.current;
     try {
-      await client.api.setAppScopes(app.id, next);
+      await client.apps.setScopes(app.id, next);
       onChanged();
     } catch {
       if (attempt !== saving.current) return;
@@ -1387,7 +1387,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
     setError(null);
     try {
       const granted = app.scopes ?? [];
-      await client.api.setAppScopes(
+      await client.apps.setScopes(
         app.id,
         APP_SCOPES.filter((scope) => granted.includes(scope) || missing.includes(scope)),
       );
@@ -1409,7 +1409,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
     setUrlProblem(null);
     setBusy(true);
     try {
-      await client.api.createSubscription(app.id, { url: url.trim(), eventTypes: types });
+      await client.apps.subscribe(app.id, { url: url.trim(), eventTypes: types });
       setUrl("");
       setTypes([]);
       onChanged();
@@ -1443,7 +1443,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
                     setRetrying(sub.id);
                     setError(null);
                     try {
-                      await client.api.retrySubscription(sub.id);
+                      await client.apps.retrySubscription(sub.id);
                       onChanged();
                     } catch {
                       setError("Could not retry those deliveries.");
@@ -1458,7 +1458,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
               )}
               <button
                 onClick={async () => {
-                  await client.api.deleteSubscription(sub.id);
+                  await client.apps.removeSubscription(sub.id);
                   onChanged();
                 }}
                 className="text-ink-faint hover:text-alert"
@@ -1569,7 +1569,7 @@ function InteractivityUrl({ app, onChanged }: { app: AppDetail; onChanged: () =>
     setError(null);
     setSaved(null);
     try {
-      await client.api.setInteractivityUrl(app.id, url.trim());
+      await client.apps.setInteractivityUrl(app.id, url.trim());
       setSaved(url);
       onChanged();
     } catch (err) {

@@ -109,9 +109,9 @@ export function DiagnosticsDialog({
       });
     };
     void Promise.all([
-      client.api.serverInfo().catch(failure),
-      admin ? client.api.workspaceStatus().catch(statusFailure) : undefined,
-      admin ? client.api.callLog().catch(statusFailure) : undefined,
+      client.serverInfo().catch(failure),
+      admin ? client.admin.workspaceStatus().catch(statusFailure) : undefined,
+      admin ? client.admin.callLog().catch(statusFailure) : undefined,
     ]).then(([server, workspace, calls]) => alive && take(server, workspace, calls));
     return () => {
       alive = false;

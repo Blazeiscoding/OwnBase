@@ -238,13 +238,11 @@ const LATEST_DELAY_MS = 250;
  * The newest message in each direct conversation, by conversation, read
  * while `active` and again (once a burst settles) whenever one of them gets a
  * message or has one edited or deleted. What was read stays on show while the
- * next read is out. A server without the list says so once, and is not asked
- * again: the names stand alone, as they did.
+ * next read is out.
  */
 function useLatestDirectMessages(active: boolean): Record<ID, Message> {
   const client = useClient();
   const [latest, setLatest] = useState<Record<ID, Message>>({});
-  const unsupported = useRef(false);
   const read = useRef(false);
   const signature = useWorkspace((s) =>
     Object.values(s.channels)
@@ -254,19 +252,17 @@ function useLatestDirectMessages(active: boolean): Record<ID, Message> {
       .join(","),
   );
   useEffect(() => {
-    if (!active || unsupported.current) return;
+    if (!active) return;
     const controller = new AbortController();
     const timer = setTimeout(
       () => {
-        client.api
+        client
           .latestDirectMessages(controller.signal)
           .then(({ messages }) => {
             read.current = true;
             setLatest(Object.fromEntries(messages.map((m) => [m.channelId, m])));
           })
-          .catch((error: unknown) => {
-            if (error instanceof ApiError && error.status === 404) unsupported.current = true;
-          });
+          .catch(() => {});
       },
       read.current ? LATEST_DELAY_MS : 0,
     );

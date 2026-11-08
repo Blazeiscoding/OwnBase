@@ -115,7 +115,7 @@ export function MessageEditor({ message, onClose }: { message: Message; onClose:
       // What this window has of the message: the words the edit started from,
       // or, once the author has seen they changed and chosen to save anyway,
       // the words they chose to replace. Anything newer is refused.
-      await client.api.editMessage(message.id, draft.trim(), message.text);
+      await client.editMessage(message.id, draft.trim(), message.text);
       if (!alive.current) return;
       client.setDraft(draftKey, "");
       onClose();

@@ -11,6 +11,7 @@ import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
+import { emit } from "./clientEvents.js";
 
 /** Reminders (E4): set from a message, listed in Activity, counted and told. */
 const person = (id: string, displayName: string): User => ({
@@ -359,7 +360,7 @@ describe("a reminder come due", () => {
   it("raises a notification, but not during Do Not Disturb", async () => {
     const { client, notify } = screenWith({});
     await screen.findByRole("button", { name: /Activity/ });
-    act(() => client.onReminderDue?.(reminder(invoice.id, 1, 2), invoice));
+    act(() => emit(client, "reminderDue", reminder(invoice.id, 1, 2), invoice));
     expect(notify).toHaveBeenCalledWith(
       "Reminder: Priya Shah in #general",
       expect.any(String),
@@ -370,7 +371,7 @@ describe("a reminder come due", () => {
 
     const quiet = screenWith({}, { ...sam, dndUntil: Date.now() + 3_600_000 });
     await screen.findByRole("button", { name: /Activity/ });
-    act(() => quiet.client.onReminderDue?.(reminder(invoice.id, 1, 2), invoice));
+    act(() => emit(quiet.client, "reminderDue", reminder(invoice.id, 1, 2), invoice));
     expect(quiet.notify).not.toHaveBeenCalled();
   });
 });
