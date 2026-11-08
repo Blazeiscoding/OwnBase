@@ -77,7 +77,9 @@ describe("changes whose answer the client keeps", () => {
   it("says why a friendship did not change, and leaves the list as it was", async () => {
     const { client } = signedIn();
     vi.spyOn(client.api, "updateFriend").mockRejectedValue(new ApiError(400, "invalid_friend"));
-    expect(await client.setFriendship("U_KAI", "request")).toMatchObject({ code: "invalid_friend" });
+    expect(await client.setFriendship("U_KAI", "request")).toMatchObject({
+      code: "invalid_friend",
+    });
     expect(client.state.friends).toEqual([]);
   });
 
