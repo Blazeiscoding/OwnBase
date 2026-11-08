@@ -448,11 +448,10 @@ export const workspaceNameSchema = z
 /** An owner or admin renaming the workspace. */
 export const workspaceNameBody = z.object({ name: workspaceNameSchema });
 
-/** An owner or admin changing who may join. */
 /** Turns link previews on or off for the workspace (E2). */
 export const linkPreviewsBody = z.object({ enabled: z.boolean() });
-export type LinkPreviewsBody = z.infer<typeof linkPreviewsBody>;
 
+/** An owner or admin changing who may join. */
 export const accessPolicyBody = z.object({
   accessPolicy: z.enum([
     "invite_only",
@@ -545,31 +544,12 @@ export const threadHistoryQuery = z
   );
 
 export type RegisterBody = z.infer<typeof registerBody>;
-export type LoginBody = z.infer<typeof loginBody>;
-export type GuestJoinBody = z.infer<typeof guestJoinBody>;
-export type GuestAccountBody = z.infer<typeof guestAccountBody>;
 export type UpdateMeBody = z.infer<typeof updateMeBody>;
 export type CreateChannelBody = z.infer<typeof createChannelBody>;
 export type UpdateChannelBody = z.infer<typeof updateChannelBody>;
 export type SendMessageBody = z.input<typeof sendMessageBody>;
-export type PollVotesBody = z.infer<typeof pollVotesBody>;
-export type SharedFilesQuery = z.input<typeof sharedFilesQuery>;
-export type EditMessageBody = z.infer<typeof editMessageBody>;
-export type MarkReadBody = z.infer<typeof markReadBody>;
 export type CreateInviteBody = z.infer<typeof createInviteBody>;
 export type ChannelPrefsBody = z.infer<typeof channelPrefsBody>;
-export type NotifyDefaultBody = z.infer<typeof notifyDefaultBody>;
 export type ScheduleMessageBody = z.infer<typeof scheduleMessageBody>;
-export type RescheduleBody = z.infer<typeof rescheduleBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;
-export type ChangePasswordBody = z.infer<typeof changePasswordBody>;
-export type CreateAppBody = z.infer<typeof createAppBody>;
-export type AppScopesBody = z.infer<typeof appScopesBody>;
-export type CreateWebhookBody = z.infer<typeof createWebhookBody>;
 export type CreateCommandBody = z.infer<typeof createCommandBody>;
-export type CreateSubscriptionBody = z.infer<typeof createSubscriptionBody>;
-export type InteractivityBody = z.infer<typeof interactivityBody>;
-export type MessageActionBody = z.infer<typeof messageActionBody>;
-export type ViewSubmitBody = z.infer<typeof viewSubmitBody>;
-export type AdminUserBody = z.infer<typeof adminUserBody>;
-export type RunCommandBody = z.infer<typeof runCommandBody>;
