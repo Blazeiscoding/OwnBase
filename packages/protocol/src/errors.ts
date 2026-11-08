@@ -97,6 +97,7 @@ export const ERROR_CODES = [
   "message_changed",
   "message_deleted",
   "message_not_found",
+  "msg_too_long",
   "nonce_conflict",
   "not_a_thread_root",
   "not_your_message",
@@ -147,9 +148,10 @@ export const ERROR_CODES = [
   "view_not_found",
   "view_submitting",
 
-  // Posting to an incoming webhook, in Slack's words
+  // Posting as an app or to an incoming webhook, in Slack's words
   "invalid_payload",
   "invalid_webhook",
+  "missing_scope",
   "no_text",
   "not_in_channel",
 

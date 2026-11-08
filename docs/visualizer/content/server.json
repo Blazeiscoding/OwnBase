@@ -14,6 +14,18 @@
       "concepts": ["authentication", "scrypt", "session hashing"]
     },
     {
+      "path": "packages/server/src/messages/posting.ts",
+      "plain": "The one place that decides whether a message may be posted, whoever it comes from: a person, an app, a webhook or the server's own timer.",
+      "summary": "createPosting({ store, mutate, ration, queuePreviews, scheduledLimits }) gives post() and schedule(); slackRefusal words a refusal for Slack's transports (untangle U4).",
+      "details": [
+        "A Poster says who is posting: a person, an app's bot through chat.postMessage, an incoming webhook, or an app's answer to a command or button. post() spends the poster's budget (post per account or bot, hook per webhook), except when delivering a scheduled message (spent when queued) or the server's note about a call.",
+        "In one transaction it checks the channel (a person needs access; a bot must be in it, or for a public channel hold chat:write.public through the Web API), a deactivated account, an archived channel, guests making polls, the 12,000-character MESSAGE_TEXT_MAX and an empty message, the send key's replay, polls, thread roots, reply targets, held files and forwards, then writes the message and its events; fan-out and link previews follow the commit.",
+        "schedule() refuses at queuing time what sending would refuse later, spends the budget once, and replays a repeated send key.",
+        "Every refusal is an HttpError. The REST router answers it as { error, message }; slackRefusal maps it to Slack's word and status (channel_archived as channel_not_found, empty_message as no_text) and throws a 429 on so its retry-after reaches Slack's SDKs. ScopeNeeded carries the scope a refusal names."
+      ],
+      "concepts": ["posting rules", "rate limits", "Slack compatibility", "error mapping"]
+    },
+    {
       "path": "packages/server/src/httpError.ts",
       "plain": "How the server turns a request down: a status and one of the listed reasons, sent back as the error.",
       "summary": "HttpError(statusCode, code: ErrorCode, message?, retryAfter?), shared by the server's routes and ee's single sign-on.",
@@ -445,13 +457,13 @@
       "summary": "Composes the workspace HTTP API, authorization, background work and lifecycle.",
       "details": [
         "Creates the exclusive workspace owner, upgraded Store, Fastify routes, Gateway, attachment budget and timers. Shared validation and permission checks enforce auth, membership, roles and password-change restrictions.",
-        "Message creation atomically validates target/thread/files, checks account-scoped nonce identity, writes the message, send key and event, and completes a schedule when applicable. Fan-out happens after commit.",
+        "Every way a message is posted (REST, chat.postMessage, incoming webhooks, slash-command and button answers, scheduled delivery, missed-call notes) is a thin adapter over messages/posting.ts, turning its wire input into one post() call and the refusal back into its own wire shape: REST through the router, Slack's methods, webhooks and response urls through slackRefusal, scheduled delivery into held or failed reasons.",
         "Event subscribers are queued inside the event transaction; per-event actor, bot membership and body work is reused across subscribers. Delivery and file-removal pumps have limits, retries and operational failure reporting.",
         "Every change to an account's scheduled queue (queued, edited, moved, cancelled, sent, failed, or held for a new reason) sends that account's own sockets a private scheduled event, announced by scheduledEvents in the ready snapshot, so an open Scheduled list reads the queue again at once (UX-08).",
         "Retention removes whole eligible threads in bounded passes and publishes history.removed after commit. Upload streams reserve chunks before writing so simultaneous uploads cannot exceed the storage budget.",
         "N08 permits one callback in flight per modal ID, returns 409 view_submitting to overlap, and releases exclusion for correction/retry. A foreign account cannot consume the owner's form.",
         "E18b: each person has one stack of at most three open views (viewStacks, in memory with the 30-minute openViews map). views.open starts a new stack and closes the old; views.push stacks on this app's stack or opens as views.open; views.update changes a view by view_id or external_id, refusing a stale hash, rationed like posting. A view_submission answer may update, push or clear; anything else closes the submitted view and those above it, and the result names closedViewIds. Only the top view can be submitted; POST /api/views/:id/close lets the person close their own. Every change is sent as view.open with the whole stack, or view.close when none is left.",
-        "E18c scopes: chat.postMessage needs chat:write, and chat:write.public for a public channel its bot is not in; a refusal is Slack's missing_scope with needed and provided, and every Web API answer carries x-oauth-scopes. enqueueSubscriberDeliveries skips an app whose scopes do not cover eventScope(type, channel kind). PUT /api/apps/:id/scopes (admin) replaces the list and logs app.scopes_changed with what was added and removed. Apps made through the API without a list get every scope.",
+        "E18c scopes: chat.postMessage needs chat:write, and chat:write.public for a public channel its bot is not in (both enforced by messages/posting.ts); a refusal is Slack's missing_scope with needed and provided, and every Web API answer carries x-oauth-scopes. enqueueSubscriberDeliveries skips an app whose scopes do not cover eventScope(type, channel kind). PUT /api/apps/:id/scopes (admin) replaces the list and logs app.scopes_changed with what was added and removed. Apps made through the API without a list get every scope.",
         "N09 checks a pressed message's text/edit/actions fingerprint before delayed replace/delete. A missing or externally changed origin is a no-op; the same response URL can advance its own result.",
         "Shutdown stops new work, aborts outbound requests and closes sockets/listeners/database/ownership in coordinated retryable cleanup. The library also exposes operations used by desktop hosting.",
         "The file is an orchestration boundary with many domains; narrower modules carry SQL, crypto, networking and parsing. Callback exclusion cannot promise exactly-once business effects after an uncertain external retry.",

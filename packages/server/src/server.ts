@@ -82,6 +82,7 @@ import {
   SEND_RETRY_WINDOW_MS,
   updateChannelBody,
   updateMeBody,
+  type ErrorCode,
   type EventEnvelope,
   type ID,
   type MemberNotice,
@@ -157,6 +158,7 @@ import { isMissingAsset, webCacheControl } from "./webClient.js";
 import { eventActorId, signatureHeaders, toSlackEvent } from "./integrations.js";
 import { BUILTIN_COMMANDS } from "./commands.js";
 import { HttpError } from "./httpError.js";
+import { createPosting, requireMessageText, slackRefusal } from "./messages/posting.js";
 import { createRouter } from "./route.js";
 import { secretToken, ulid } from "./ids.js";
 import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
@@ -1394,177 +1396,18 @@ async function startWorkspaceServer(
     return eventDeliveryFlush;
   };
 
-  /** Posts a message and fans it out. Used by the API and the scheduler alike. */
-  const postMessage = (input: {
-    channelId: ID;
-    userId: ID;
-    text: string;
-    threadRootId: ID | null;
-    nonce: string | null;
-    fileIds: ID[];
-    actions?: MessageAction[];
-    /** For a reply: show it in the channel's own timeline as well. */
-    broadcast?: boolean;
-    /** The message this one answers in place, in the same conversation. */
-    replyToId?: ID | null;
-    /** Notify that message's author. */
-    replyPing?: boolean;
-    /** A message to pass on under this one, from anywhere the sender can read. */
-    forwardFromId?: ID | null;
-    /** Makes it a poll, its words the question (E6). */
-    poll?: { options: string[]; multiple: boolean; anonymous: boolean } | null;
-    /** Marks this queue row delivered in the same transaction as the message. */
-    scheduledId?: ID;
-    /** Makes it the server's note about a call (E10); never from a request. */
-    call?: CallNotice;
-  }) => {
-    const events: EventEnvelope[] = [];
-    const message = store.transaction(() => {
-      const channel = store.getChannel(input.channelId);
-      if (!channel || !store.canAccess(channel.id, input.userId))
-        throw new HttpError(404, "channel_not_found");
-      if (store.getUser(input.userId)?.deactivated) throw new HttpError(403, "account_deactivated");
-      const requestHash = hashToken(
-        JSON.stringify([
-          input.channelId,
-          input.text,
-          input.threadRootId,
-          input.broadcast ?? false,
-          [...input.fileIds].sort(),
-          // Absent unless it answers something, so a request recorded before still matches.
-          ...(input.replyToId ? [input.replyToId, input.replyPing ?? false] : []),
-          ...(input.forwardFromId ? [{ forward: input.forwardFromId }] : []),
-          ...(input.poll ? [{ poll: input.poll }] : []),
-        ]),
-      );
-      if (input.nonce !== null) {
-        const previous = store.messageRequest(input.userId, input.nonce);
-        if (previous) {
-          const existing = store.getMessage(previous.messageId);
-          if (!existing) throw new HttpError(409, "message_deleted");
-          if (
-            (previous.requestHash !== null && previous.requestHash !== requestHash) ||
-            existing.channelId !== input.channelId ||
-            existing.threadRootId !== input.threadRootId
-          ) {
-            throw new HttpError(409, "nonce_conflict");
-          }
-          return existing;
-        }
-        // Posted once, then removed with the workspace's older history.
-        if (store.messageRequestPurged(input.userId, input.nonce))
-          throw new HttpError(
-            409,
-            "message_deleted",
-            "This was already sent, and has since been removed with older messages.",
-          );
-      }
-      if (channel.archived) throw new HttpError(400, "channel_archived");
-      // A poll is a question and its choices; files or a forward would be a second message.
-      if (input.poll && (input.fileIds.length > 0 || input.forwardFromId))
-        throw new HttpError(400, "bad_poll", "A poll cannot carry files or a forwarded message.");
-      if (input.threadRootId) {
-        const root = store.getMessage(input.threadRootId);
-        if (!root || root.channelId !== channel.id || root.threadRootId)
-          throw new HttpError(400, "bad_thread_root");
-      }
-      // A reply answers something in its own conversation: in a channel, what
-      // the channel shows; in a thread, its first message or another reply.
-      // Deleted since it was chosen, it still goes and says so; removed with
-      // older history, it goes as an ordinary message.
-      const target = input.replyToId ? store.replyTarget(input.replyToId) : null;
-      if (
-        target &&
-        (target.channelId !== channel.id ||
-          (input.threadRootId
-            ? input.replyToId !== input.threadRootId && target.threadRootId !== input.threadRootId
-            : target.threadRootId !== null && !target.broadcast))
-      )
-        throw new HttpError(400, "bad_reply_target");
-      if (channel.type === "public" && !store.isMember(channel.id, input.userId)) {
-        store.addMember(channel.id, input.userId);
-        events.push(
-          recordEvent(
-            { type: "member.joined", channelId: channel.id, userId: input.userId },
-            channel.id,
-          ),
-        );
-      }
-      // A file a scheduled message is waiting to send is already promised.
-      if (store.filesHeldBySchedule(input.fileIds, input.scheduledId ?? null))
-        throw new HttpError(
-          409,
-          "attachments_scheduled",
-          "One of these files is part of a scheduled message. Cancel that message to use it here.",
-        );
-      // A forward passes on something its sender can read now, wherever it is.
-      // A forward with nothing of its own passes on what it forwards instead,
-      // so a message forwarded twice still shows itself rather than an empty card.
-      let forwardedFromId: ID | null = null;
-      if (input.forwardFromId) {
-        const readable = (id: ID) => {
-          const found = store.forwardSource(id);
-          return found && !found.deleted && store.canAccess(found.channelId, input.userId)
-            ? found
-            : null;
-        };
-        const picked = readable(input.forwardFromId);
-        if (!picked)
-          throw new HttpError(
-            404,
-            "message_not_found",
-            "That message is no longer there to forward.",
-          );
-        // One whose original its sender cannot read, or that is gone, has
-        // nothing to pass on: its own card is all it shows.
-        const source =
-          picked.bare && picked.forwardedFromId ? readable(picked.forwardedFromId) : picked;
-        if (!source)
-          throw new HttpError(
-            409,
-            "forward_unavailable",
-            "What that message forwards is private or deleted, so it cannot be passed on.",
-          );
-        forwardedFromId = source.id;
-      }
-      const created = store.createMessage({
-        ...input,
-        replyToId: target ? input.replyToId : null,
-        forwardedFromId,
-      });
-      if (input.poll) store.createPoll(created.id, input.poll);
-      if (
-        !store.attachFiles(
-          input.fileIds,
-          created.id,
-          input.channelId,
-          input.userId,
-          input.scheduledId ?? null,
-        )
-      )
-        throw new HttpError(400, "invalid_attachments");
-      const hydrated = store.getMessage(created.id)!;
-      if (input.nonce !== null)
-        store.recordMessageRequest(input.userId, input.nonce, created.id, requestHash);
-      if (input.scheduledId) store.markScheduledSent(input.scheduledId, created.id);
-      events.push(recordEvent({ type: "message.created", message: hydrated }, input.channelId));
-      return hydrated;
-    });
-    publishCommitted(events.map((envelope) => ({ envelope, channelId: input.channelId })));
-    queuePreviews(message);
-    return message;
-  };
+  const posting = createPosting({ store, mutate, ration, queuePreviews, scheduledLimits });
 
   /**
    * The note a ring nobody answered leaves in its direct message, as from the
    * person who rang (E10). One who can no longer post there, deactivated or
-   * gone from it, leaves none: postMessage refuses it as it would them.
+   * gone from it, leaves none: posting refuses it as it would them.
    */
   const postMissedCall = (channelId: ID, callerId: ID): void => {
     try {
-      postMessage({
+      posting.post({
+        poster: { kind: "person", userId: callerId },
         channelId,
-        userId: callerId,
         text: MISSED_CALL_TEXT,
         threadRootId: null,
         nonce: null,
@@ -2924,23 +2767,10 @@ async function startWorkspaceServer(
     };
   });
 
-  route(endpoints.sendMessage, async ({ reply, user: me, body, params }) => {
-    // Keyed on the account, not the address: a whole office behind one address
-    // should not share one person's allowance.
-    ration("post", me.id);
-    const channel = requireChannelAccess(params.id, me);
-    if (channel.archived) throw new HttpError(400, "channel_archived");
-    // As with uploads: a guest takes part, and votes, but does not make polls.
-    if (body.poll && me.role === "guest")
-      throw new HttpError(
-        403,
-        "guest_not_allowed",
-        "Guests cannot make polls. Create an account to make one.",
-      );
-
-    const message = postMessage({
-      channelId: channel.id,
-      userId: me.id,
+  route(endpoints.sendMessage, async ({ user: me, body, params }) => {
+    const message = posting.post({
+      poster: { kind: "person", userId: me.id },
+      channelId: params.id,
       text: body.text,
       threadRootId: body.threadRootId ?? null,
       nonce: body.nonce ?? null,
@@ -3800,7 +3630,6 @@ async function startWorkspaceServer(
     ration("hookByAddress", callerAddress(req));
     const found = store.webhookForToken(hashToken(params.token));
     if (!found) return reply.status(404).send({ ok: false, error: "invalid_webhook" });
-    ration("hook", found.webhook.id);
 
     let payload: { text?: unknown; blocks?: unknown } = {};
     const raw = req.body as Record<string, unknown> | string | undefined;
@@ -3822,26 +3651,20 @@ async function startWorkspaceServer(
       }
     }
 
-    const text = payloadToText(payload);
-    if (!text) return reply.status(400).send({ ok: false, error: "no_text" });
-
-    const channel = store.getChannel(found.webhook.channelId);
-    if (!channel || channel.archived) {
-      return reply.status(404).send({ ok: false, error: "channel_not_found" });
+    try {
+      posting.post({
+        poster: { kind: "webhook", app: found.app, webhookId: found.webhook.id },
+        channelId: found.webhook.channelId,
+        text: payloadToText(payload),
+        threadRootId: null,
+        nonce: null,
+        fileIds: [],
+        actions: blocksToActions(payload.blocks),
+      });
+    } catch (err) {
+      const refused = slackRefusal(err);
+      return reply.status(refused.status).send({ ok: false, error: refused.error });
     }
-
-    if (channel.type !== "public" && !store.isMember(channel.id, found.app.botUserId)) {
-      return reply.status(403).send({ ok: false, error: "not_in_channel" });
-    }
-    postMessage({
-      channelId: channel.id,
-      userId: found.app.botUserId,
-      text,
-      threadRootId: null,
-      nonce: null,
-      fileIds: [],
-      actions: blocksToActions(payload.blocks),
-    });
     // Slack replies with the literal string "ok"; tools check for it.
     return reply.type("text/plain").send("ok");
   });
@@ -3914,54 +3737,43 @@ async function startWorkspaceServer(
 
   route(endpoints.chatPostMessage, async ({ req, reply, bot: owner }) => {
     reply.header("x-accepted-oauth-scopes", "chat:write");
-    if (!owner.scopes?.includes("chat:write")) return missingScope(owner, "chat:write");
-    // A bot stuck in a loop is the version of this that nobody is watching.
-    ration("post", owner.botUserId);
-
     const body = (req.body ?? {}) as {
-      channel?: string;
+      channel?: unknown;
       text?: unknown;
       blocks?: unknown;
-      thread_ts?: string;
+      thread_ts?: unknown;
     };
-    if (typeof body.channel !== "string" || !body.channel) return slackError("channel_not_found");
-
     // Slack accepts an id or a #name; so do we.
-    const named = body.channel.replace(/^#/, "");
-    const channel = store.getChannel(body.channel) ?? store.getChannelByName(named);
-    if (!channel || channel.archived) return slackError("channel_not_found");
-
-    // A public channel the bot was never added to takes Slack's
-    // chat:write.public; anything else needs the bot in it.
-    if (!store.isMember(channel.id, owner.botUserId)) {
-      if (channel.type !== "public") return slackError("not_in_channel");
-      if (!owner.scopes?.includes("chat:write.public")) {
-        return { ...slackError("not_in_channel"), needed: "chat:write.public" };
-      }
-    }
-
-    const blocks = structured(body.blocks);
-    const text = payloadToText({ text: body.text, blocks });
-    if (!text) return slackError("no_text");
+    const named = typeof body.channel === "string" ? body.channel : "";
+    const channel = named
+      ? (store.getChannel(named) ?? store.getChannelByName(named.replace(/^#/, "")))
+      : null;
 
     let threadRootId: ID | null = null;
-    if (body.thread_ts) {
+    if (channel && typeof body.thread_ts === "string" && body.thread_ts) {
       const root = store.getMessage(body.thread_ts);
       // An unknown thread parent is not worth failing the whole send over.
       if (root && root.channelId === channel.id && !root.threadRootId) threadRootId = root.id;
     }
 
-    const message = postMessage({
-      channelId: channel.id,
-      userId: owner.botUserId,
-      text,
-      threadRootId,
-      nonce: null,
-      fileIds: [],
-      actions: blocksToActions(blocks),
-    });
-    // `ts` is Slack's message identifier; ours is the message id.
-    return { ok: true, channel: channel.id, ts: message.id, message };
+    const blocks = structured(body.blocks);
+    try {
+      const message = posting.post({
+        poster: { kind: "bot", app: owner },
+        channelId: channel?.id ?? named,
+        text: payloadToText({ text: body.text, blocks }),
+        threadRootId,
+        nonce: null,
+        fileIds: [],
+        actions: blocksToActions(blocks),
+      });
+      // `ts` is Slack's message identifier; ours is the message id.
+      return { ok: true, channel: message.channelId, ts: message.id, message };
+    } catch (err) {
+      const { error, needed } = slackRefusal(err);
+      if (error === "missing_scope" && needed) return missingScope(owner, needed);
+      return needed ? { ...slackError(error), needed } : slackError(error);
+    }
   });
 
   // ---------- slash commands ----------
@@ -4028,6 +3840,17 @@ async function startWorkspaceServer(
     return store.canAccess(channel.id, invoker.id);
   };
 
+  /** Why a call to an app came to nothing, in words for the person who made it. */
+  const whyAppCallFailed = (err: unknown): string => {
+    if (err instanceof HttpError) {
+      const reason = err.message.replace(/\.$/, "");
+      return `its answer could not be posted: ${reason.charAt(0).toLowerCase()}${reason.slice(1)}`;
+    }
+    return err instanceof OutboundError && err.code === "blocked_host"
+      ? err.message
+      : "the app did not answer";
+  };
+
   /** A private note back to the person who ran the command. */
   const sayEphemeral = (channelId: ID, toUserId: ID, fromUserId: ID, text: string): void => {
     gateway.sendToUser(toUserId, {
@@ -4043,7 +3866,9 @@ async function startWorkspaceServer(
   /**
    * Turns whatever an app answered with into a message. `in_channel` posts for
    * everyone as the bot; anything else stays private to the person who typed
-   * the command, which is Slack's default and the safer one.
+   * the command, which is Slack's default and the safer one. An answer that
+   * may not be posted throws its refusal, for the caller to answer in its
+   * own shape.
    */
   const deliverCommandReply = (
     target: Omit<ResponseTarget, "expiresAt" | "usesLeft">,
@@ -4095,6 +3920,7 @@ async function startWorkspaceServer(
       }
       const replacement = payloadToText(payload);
       if (replacement) {
+        requireMessageText(replacement);
         const updated = updateMessage(existing, replacement, true);
         // An app may use this response URL again to update its own result;
         // only intervening changes from another operation invalidate it.
@@ -4107,9 +3933,9 @@ async function startWorkspaceServer(
     if (!text) return;
 
     if (payload.response_type === "in_channel") {
-      postMessage({
+      posting.post({
+        poster: { kind: "appReply", botUserId: target.botUserId },
         channelId: target.channelId,
-        userId: target.botUserId,
         text,
         threadRootId: target.threadRootId,
         nonce: null,
@@ -4205,11 +4031,9 @@ async function startWorkspaceServer(
       const text = builtin.run(argText, me);
       if (text === null)
         throw new HttpError(400, "usage", `Use it like this: /${name} ${builtin.usageHint}`);
-      // Built-ins create ordinary messages, so they spend the sender's post budget.
-      ration("post", me.id);
-      postMessage({
+      posting.post({
+        poster: { kind: "person", userId: me.id },
         channelId: channel.id,
-        userId: me.id,
         text,
         threadRootId,
         nonce: null,
@@ -4275,10 +4099,7 @@ async function startWorkspaceServer(
         deliverCommandReply(target, res.body, res.contentType);
         return { ok: true };
       } catch (err) {
-        const why =
-          err instanceof OutboundError && err.code === "blocked_host"
-            ? err.message
-            : "the app did not answer";
+        const why = whyAppCallFailed(err);
         sayEphemeral(channel.id, me.id, found.app.botUserId, `\`/${name}\` failed: ${why}.`);
         return { ok: false, error: "command_failed", message: why };
       }
@@ -4299,7 +4120,12 @@ async function startWorkspaceServer(
 
     const raw = req.body;
     const text = typeof raw === "string" ? raw : JSON.stringify(raw ?? {});
-    deliverCommandReply(target, text, "application/json", target.originMessageId);
+    try {
+      deliverCommandReply(target, text, "application/json", target.originMessageId);
+    } catch (err) {
+      const refused = slackRefusal(err);
+      return reply.status(refused.status).send({ ok: false, error: refused.error });
+    }
     return { ok: true };
   });
 
@@ -5023,10 +4849,7 @@ async function startWorkspaceServer(
         showStack(me.id, closed);
         return { ok: true, closedViewIds: closed.length > 0 ? closed : [open.view.id] };
       } catch (err) {
-        const why =
-          err instanceof OutboundError && err.code === "blocked_host"
-            ? err.message
-            : "the app did not answer";
+        const why = whyAppCallFailed(err);
         return { ok: false, errors: {}, message: `That did not go through: ${why}.` };
       }
     } finally {
@@ -5184,10 +5007,7 @@ async function startWorkspaceServer(
         deliverCommandReply(target, res.body, res.contentType, message.id);
         return { ok: true };
       } catch (err) {
-        const why =
-          err instanceof OutboundError && err.code === "blocked_host"
-            ? err.message
-            : "the app did not answer";
+        const why = whyAppCallFailed(err);
         sayEphemeral(channel.id, me.id, owner.botUserId, `That button failed: ${why}.`);
         return { ok: false, error: "action_failed" };
       }
@@ -5275,90 +5095,16 @@ async function startWorkspaceServer(
   const scheduledChanged = (userId: ID) => gateway.sendToUser(userId, { type: "scheduled" });
 
   route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
-    const channel = requireChannelAccess(params.id, me);
-    const fileIds = body.fileIds ?? [];
-    // Only a reply can also be shown in the channel, as with an ordinary send.
-    const broadcast = !!body.threadRootId && body.alsoSendToChannel === true;
-    const requestHash = hashToken(
-      JSON.stringify([
-        channel.id,
-        body.text,
-        body.threadRootId ?? null,
-        [...fileIds].sort(),
-        body.sendAt,
-        // Absent when false, so a request recorded before this existed still matches.
-        ...(broadcast ? [true] : []),
-      ]),
-    );
-    const result = store.transaction(() => {
-      if (body.nonce) {
-        const previous = store.scheduledRequest(me.id, body.nonce);
-        if (previous) {
-          if (previous.requestHash !== requestHash) throw new HttpError(409, "nonce_conflict");
-          const scheduled = store.getScheduled(previous.scheduledId);
-          if (!scheduled)
-            throw new HttpError(
-              410,
-              "scheduled_removed",
-              "This message was already scheduled, and has since been removed. OwnBase will not schedule it again.",
-            );
-          return { scheduled, replayed: true };
-        }
-      }
-      if (channel.archived) throw new HttpError(400, "channel_archived");
-      if (body.sendAt <= Date.now()) {
-        throw new HttpError(400, "send_at_in_past", "Choose a time in the future.");
-      }
-      // Queuing validates what sending validates, so a message cannot sit in the
-      // queue for hours only to be rejected when it comes due.
-      if (body.threadRootId) {
-        const root = store.getMessage(body.threadRootId);
-        if (!root || root.channelId !== channel.id || root.threadRootId) {
-          throw new HttpError(400, "bad_thread_root");
-        }
-      }
-      if (
-        new Set(fileIds).size !== fileIds.length ||
-        !store.unattachedFiles(fileIds, channel.id, me.id)
-      ) {
-        throw new HttpError(400, "invalid_attachments");
-      }
-      if (store.filesHeldBySchedule(fileIds)) {
-        throw new HttpError(
-          409,
-          "attachments_scheduled",
-          "One of these files is already part of another scheduled message.",
-        );
-      }
-      // A replay above has already returned, so a retry never meets these.
-      if (store.outstandingScheduled(me.id) >= scheduledLimits.perAccount) {
-        throw new HttpError(
-          409,
-          "scheduled_limit",
-          `You already have ${scheduledLimits.perAccount} messages waiting to be sent. Send or cancel some before scheduling more.`,
-        );
-      }
-      if (store.outstandingScheduled() >= scheduledLimits.perWorkspace) {
-        throw new HttpError(
-          409,
-          "scheduled_limit",
-          "This workspace has as many scheduled messages waiting as it holds. Try again once some have been sent.",
-        );
-      }
-      // Queuing a message is posting it later, so it spends the post budget here,
-      // once. Delivery spends nothing, so an accepted message is never held back.
-      ration("post", me.id);
-      const scheduled = store.scheduleMessage({
-        channelId: channel.id,
-        userId: me.id,
-        text: body.text,
-        threadRootId: body.threadRootId ?? null,
-        fileIds,
-        sendAt: body.sendAt,
-        broadcast,
-      });
-      if (body.nonce) store.recordScheduledRequest(me.id, body.nonce, scheduled.id, requestHash);
-      return { scheduled, replayed: false };
+    const result = posting.schedule({
+      userId: me.id,
+      channelId: params.id,
+      text: body.text,
+      threadRootId: body.threadRootId ?? null,
+      fileIds: body.fileIds ?? [],
+      sendAt: body.sendAt,
+      // Only a reply can also be shown in the channel, as with an ordinary send.
+      broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
+      nonce: body.nonce ?? null,
     });
     if (result.replayed) reply.status(200);
     else scheduledChanged(me.id);
@@ -5958,18 +5704,33 @@ async function startWorkspaceServer(
       });
     }
   };
+  /**
+   * What the author can clear holds a row until they do; what they cannot
+   * fails it. Either way it is said in words for their list.
+   */
+  const heldBecause = (item: ScheduledMessage, code: ErrorCode | null): string | null => {
+    switch (code) {
+      case "channel_not_found":
+        return store.getChannel(item.channelId)
+          ? "You are no longer a member of that channel."
+          : "That channel no longer exists.";
+      case "channel_archived":
+        return "That channel is archived.";
+      case "account_deactivated":
+        return "Your account is deactivated.";
+      default:
+        return null;
+    }
+  };
+  const failedBecause = (code: ErrorCode | null): string | null =>
+    code === "bad_thread_root"
+      ? "The message this replied to was deleted."
+      : code === "invalid_attachments"
+        ? "Its attachments are no longer available."
+        : null;
+
   /** Posts one due scheduled message, or records why it waits or failed. */
   const sendScheduled = (item: ScheduledMessage, retryAt: number): void => {
-    const channel = store.getChannel(item.channelId);
-    const held = !channel
-      ? "That channel no longer exists."
-      : channel.archived
-        ? "That channel is archived."
-        : !store.canAccess(channel.id, item.userId)
-          ? "You are no longer a member of that channel."
-          : store.getUser(item.userId)?.deactivated
-            ? "Your account is deactivated."
-            : null;
     // A row held again for the same reason looks no different to its author.
     const hold = (reason: string) => {
       store.holdScheduled(item.id, reason, retryAt);
@@ -5979,14 +5740,10 @@ async function startWorkspaceServer(
       store.failScheduled(item.id, reason);
       scheduledChanged(item.userId);
     };
-    if (held) {
-      hold(held);
-      return;
-    }
     try {
-      postMessage({
+      posting.post({
+        poster: { kind: "person", userId: item.userId },
         channelId: item.channelId,
-        userId: item.userId,
         text: item.text,
         threadRootId: item.threadRootId,
         broadcast: item.broadcast,
@@ -5997,15 +5754,13 @@ async function startWorkspaceServer(
       scheduledChanged(item.userId);
     } catch (err) {
       const code = err instanceof HttpError ? err.code : null;
-      if (code === "bad_thread_root") {
-        fail("The message this replied to was deleted.");
-      } else if (code === "invalid_attachments") {
-        fail("Its attachments are no longer available.");
-      } else if (store.countScheduledAttempt(item.id) >= SCHEDULED_ATTEMPTS) {
+      const held = heldBecause(item, code);
+      const failed = failedBecause(code);
+      if (held) hold(held);
+      else if (failed) fail(failed);
+      else if (store.countScheduledAttempt(item.id) >= SCHEDULED_ATTEMPTS)
         fail("Sending failed repeatedly, so it was not posted.");
-      } else {
-        hold("Sending failed. It will be tried again shortly.");
-      }
+      else hold("Sending failed. It will be tried again shortly.");
     }
   };
   // Each queue on its own, so one failing neither stops the server starting
