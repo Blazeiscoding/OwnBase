@@ -22,7 +22,7 @@ export interface PagedListState<T> {
 }
 
 /** How long a sign that the list may be out of date waits for others like it. */
-export const PAGED_REFRESH_DELAY_MS = 250;
+const PAGED_REFRESH_DELAY_MS = 250;
 /** Reading again goes no further than this many pages, however far the reader went. */
 export const PAGED_REFRESH_PAGES = 10;
 

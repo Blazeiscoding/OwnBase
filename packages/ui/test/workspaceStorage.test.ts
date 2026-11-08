@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
-import {
-  unwrapStoredDrafts,
-  unwrapStoredOutbox,
-  type StoredOutboxEntry,
-} from "@ownbase/client-core";
+import { unwrapStoredDrafts, unwrapStoredOutbox } from "@ownbase/client-core";
+import type { StoredOutboxEntry } from "@ownbase/client-core/outbox";
 import type { Platform } from "../src/platform.js";
 import {
   mergeWorkspaceDrafts,

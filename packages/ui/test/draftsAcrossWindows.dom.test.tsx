@@ -1,6 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { WorkspaceClient, readStoredDrafts } from "@ownbase/client-core";
+import { WorkspaceClient } from "@ownbase/client-core";
+import { readStoredDrafts } from "@ownbase/client-core/drafts";
 import type { Channel, User } from "@ownbase/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Composer } from "../src/components/Composer.js";

@@ -210,3 +210,124 @@ export async function listMediaDevices(): Promise<MediaDeviceLists> {
 export function canChooseSpeaker(): boolean {
   return typeof HTMLMediaElement !== "undefined" && "setSinkId" in HTMLMediaElement.prototype;
 }
+
+/**
+ * How sharp and how smooth a shared screen is sent: at most this many lines
+ * of picture, at most this many frames a second. Each viewer is encoded
+ * separately in a mesh, so even a 4K screen is sent at no more than 1080p.
+ * That is still sharp text.
+ */
+export interface ScreenShareQuality {
+  height: 720 | 1080;
+  frameRate: 15 | 30 | 60;
+}
+
+export const SCREEN_SHARE_QUALITY: ScreenShareQuality = { height: 1080, frameRate: 15 };
+
+/** How often a microphone's level is measured. */
+export const LEVEL_POLL_MS = 120;
+
+/** What the browser would have said, had it offered a way to ask at all. */
+export function unsupported(kind: string): DOMException {
+  return new DOMException(`No way to reach the ${kind} here.`, "NotSupportedError");
+}
+
+/** The loudest of the latest samples, from 0 (silence) to 1. */
+export function peakLevel(analyser: AnalyserNode, samples: Uint8Array<ArrayBuffer>): number {
+  analyser.getByteTimeDomainData(samples);
+  let peak = 0;
+  for (const sample of samples) peak = Math.max(peak, Math.abs(sample - 128));
+  return peak / 128;
+}
+
+/** A microphone opened only to hear whether it works (CALL-01). */
+export interface MicrophoneTest {
+  /** The device's name, where the browser gives one; empty otherwise. */
+  label: string;
+  /** What it hears, for playing back to the person testing it. */
+  stream: MediaStream;
+  /** False where the browser cannot measure sound, so no level will come. */
+  metered: boolean;
+  /** Whether what it hears went through the strong noise filter. */
+  filtered: boolean;
+  /** Whether the system opened it, as other apps on this computer hear it. */
+  system: boolean;
+  /** Closes the microphone. Safe to call more than once. */
+  stop(): void;
+}
+
+/**
+ * Opens the microphone the way a huddle would with the settings being tried,
+ * through the strong noise filter when it is chosen, and reports how loud it
+ * is several times a second, until stopped, so someone can check it before a
+ * call and hear what others would. Nothing is sent anywhere. Rejects as
+ * `startLocalAudio` does, for `captureFailure` to word. As in a call, the
+ * system opens it where the app can and none of the browser's processing is
+ * chosen.
+ */
+export async function testMicrophone(
+  onLevel: (level: number) => void,
+  settings: MicrophoneSettings = {},
+  noiseFilter?: NoiseFilter,
+  systemMicrophone?: OpenSystemMicrophone,
+): Promise<MicrophoneTest> {
+  if (!navigator.mediaDevices?.getUserMedia) throw unsupported("microphone");
+  const filter = wantsNoiseFilter(settings) ? noiseFilter : undefined;
+  let system: SystemMicrophone | null = null;
+  if (systemMicrophone && wantsSystemMicrophone(settings, !!filter)) {
+    // As in a call: the browser opens it when the system does not.
+    system = await systemMicrophone(settings.deviceId).catch(() => null);
+  }
+  let device: MediaStream | null = system
+    ? null
+    : await navigator.mediaDevices.getUserMedia(microphoneConstraints(settings, !!filter));
+  let filtered: FilteredMicrophone | null = null;
+  if (filter) {
+    try {
+      filtered = await filter(system?.stream ?? device!);
+    } catch {
+      // As in a call: the browser's own suppression stands in.
+      system?.stop();
+      system = null;
+      device?.getTracks().forEach((track) => track.stop());
+      device = await navigator.mediaDevices.getUserMedia(microphoneConstraints(settings));
+    }
+  }
+  const stream = filtered?.stream ?? system?.stream ?? device!;
+  let context: AudioContext | null = null;
+  let timer: ReturnType<typeof setInterval> | null = null;
+  const Ctx = (globalThis as { AudioContext?: typeof AudioContext }).AudioContext;
+  if (Ctx) {
+    try {
+      context = new Ctx();
+      void context.resume().catch(() => {});
+      const analyser = context.createAnalyser();
+      analyser.fftSize = 256;
+      context.createMediaStreamSource(stream).connect(analyser);
+      const samples = new Uint8Array(new ArrayBuffer(analyser.fftSize));
+      timer = setInterval(() => onLevel(peakLevel(analyser, samples)), LEVEL_POLL_MS);
+    } catch {
+      // The microphone opened; only the meter is missing.
+      void context?.close().catch(() => {});
+      context = null;
+    }
+  }
+  return {
+    // The device's name: the filter's output is named for the audio node.
+    label: system?.label ?? device?.getAudioTracks()[0]?.label ?? "",
+    stream,
+    metered: timer !== null,
+    filtered: filtered !== null,
+    system: system !== null,
+    stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      filtered?.stop();
+      filtered = null;
+      system?.stop();
+      device?.getTracks().forEach((track) => track.stop());
+      void context?.close().catch(() => {});
+      context = null;
+    },
+  };
+}

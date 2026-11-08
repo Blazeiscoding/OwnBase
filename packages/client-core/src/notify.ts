@@ -26,7 +26,7 @@ export type NotifyDecision =
     }
   | { notify: true; reason: "dm" | "mention" | "broadcast" | "all" };
 
-export interface NotifyContext {
+interface NotifyContext {
   now?: number;
   /**
    * Whether this message is arriving as it is sent, rather than being replayed

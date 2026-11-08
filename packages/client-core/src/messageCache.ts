@@ -54,7 +54,7 @@ export interface MessageCache {
  * a long scrollback, or a long sitting in a busy channel, grows one flat list
  * until every keystroke restyles thousands of nodes.
  */
-export const MAX_TIMELINE_ITEMS = 300;
+const MAX_TIMELINE_ITEMS = 300;
 export const THREAD_WINDOW = 300;
 
 export type MessageEvent = Extract<
