@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * A connected client when retention removes old conversation (RECHECK-09):
@@ -67,7 +68,7 @@ describe("a connected client when retention removes old conversation", () => {
     await client.toggleSaved(old.id, true);
     await expect.poll(() => client.state.mentionCounts[channelId]).toBe(1);
     await expect.poll(() => client.state.threadFollows[old.id]?.following).toBe(true);
-    const shown = () => client.state.timelines[channelId]!.items.map((m) => m.id);
+    const shown = () => timelineMessages(client.state, channelId).map((m) => m.id);
     await expect.poll(shown).toEqual(expect.arrayContaining([old.id, reply.id]));
 
     age();

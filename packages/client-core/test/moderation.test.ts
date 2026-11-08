@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
+import { Api, WorkspaceClient, type WorkspaceState, ApiError } from "../src/index.js";
 
 /**
  * Blocking and reporting on the client (E12): a block reaches every device
@@ -68,7 +68,7 @@ describe("blocking on the client", () => {
     const laptop = await online("maya");
     const phone = await online("maya");
     expect(laptop.state.blocked).toEqual([]);
-    expect(await laptop.setBlocked(accounts.sam!.id, true)).toBe(true);
+    expect(await laptop.setBlocked(accounts.sam!.id, true)).toBeNull();
     expect(laptop.state.blocked).toEqual([accounts.sam!.id]);
     await until(phone, (s) => s.blocked?.includes(accounts.sam!.id) === true, "the other device");
     // A device coming online later has it from the snapshot.
@@ -77,13 +77,13 @@ describe("blocking on the client", () => {
     // The answer is kept as well, for a device whose socket is not up yet.
     const offline = new WorkspaceClient(base, accounts.maya!.token);
     onTestFinished(() => offline.destroy());
-    expect(await offline.setBlocked(accounts.owner!.id, true)).toBe(true);
+    expect(await offline.setBlocked(accounts.owner!.id, true)).toBeNull();
     expect(offline.state.blocked).toEqual([accounts.sam!.id, accounts.owner!.id]);
-    expect(await offline.setBlocked(accounts.owner!.id, false)).toBe(true);
-    expect(await phone.setBlocked(accounts.sam!.id, false)).toBe(true);
+    expect(await offline.setBlocked(accounts.owner!.id, false)).toBeNull();
+    expect(await phone.setBlocked(accounts.sam!.id, false)).toBeNull();
     await until(laptop, (s) => s.blocked?.length === 0, "unblocked everywhere");
     // Refused, it says so and keeps what it had.
-    expect(await laptop.setBlocked(accounts.maya!.id, true)).toBe(false);
+    expect(await laptop.setBlocked(accounts.maya!.id, true)).toBeInstanceOf(ApiError);
     expect(laptop.state.blocked).toEqual([]);
   });
 });

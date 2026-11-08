@@ -1178,7 +1178,7 @@ export class WorkspaceClient {
     if (!s.pending.some((p) => p.userId === message.userId && p.nonce === message.nonce)) return;
     if (message.seq > s.lastSeq) this.acknowledgedMessages.add(message.id);
     const envelope = { seq: message.seq, event: { type: "message.created" as const, message } };
-    const patch: Partial<WorkspaceState> = reduceMessages(s, envelope, false);
+    const patch: Partial<WorkspaceState> = liveMessages(s, envelope, false);
     this.arrived(s, patch, message);
     this.holdForLoads(envelope);
     this.store.setState(patch);
@@ -1353,7 +1353,7 @@ export class WorkspaceClient {
     }
     if (isMessageEvent(event)) {
       const message = { ...envelope, event };
-      Object.assign(patch, reduceMessages({ ...s, ...patch }, message, true));
+      Object.assign(patch, liveMessages({ ...s, ...patch }, message, true));
       this.holdForLoads(message);
     }
     this.store.setState(patch);
@@ -1506,8 +1506,6 @@ export class WorkspaceClient {
         break;
       case "thread.follow":
         this.applyThreadFollow(event.state);
-        this.writes.heard({ kind: "threadFollow", rootId: event.state.rootId }, event.state);
-        this.writes.heard({ kind: "threadRead", rootId: event.state.rootId }, event.state);
         break;
       case "reminder": {
         const known = s.reminders[event.reminder.messageId];
@@ -1515,11 +1513,7 @@ export class WorkspaceClient {
           reminders: { ...s.reminders, [event.reminder.messageId]: event.reminder },
         });
         // Told once as it comes due; the same reminder told again is not news.
-        if (
-          event.message &&
-          event.reminder.dueAt !== null &&
-          known?.dueAt !== event.reminder.dueAt
-        )
+        if (event.message && event.reminder.dueAt !== null && known?.dueAt !== event.reminder.dueAt)
           this.tellApp(this.onReminderDue, event.reminder, event.message);
         break;
       }
@@ -2018,7 +2012,12 @@ export class WorkspaceClient {
   ): Promise<void> {
     let answer: Awaited<ReturnType<Api["listMessagesAfter"]>>;
     try {
-      answer = await this.api.listMessagesAfter(channelId, newest, PAGE_SIZE, ticket.controller.signal);
+      answer = await this.api.listMessagesAfter(
+        channelId,
+        newest,
+        PAGE_SIZE,
+        ticket.controller.signal,
+      );
     } catch (error) {
       if (stoppedOnPurpose(ticket.controller)) return;
       throw error;
@@ -2189,7 +2188,9 @@ export class WorkspaceClient {
             ...s.threadPages[threadRootId]!,
             loading: false,
             ...(gone ? { rootGone: true, loaded: true } : {}),
-            error: gone ? "This thread is no longer available." : "Could not load replies. Try again.",
+            error: gone
+              ? "This thread is no longer available."
+              : "Could not load replies. Try again.",
           },
         },
       }));
@@ -2681,9 +2682,12 @@ export class WorkspaceClient {
   }
 
   /**
-   * How a thread's follow state is shown while a write about it is out. An
-   * answer older than what another write has shown since does not replace it;
-   * a refusal puts back exactly what was there, including "no row at all".
+   * How a thread's follow state is shown while a write about it is out. The
+   * server's answer is its whole state after the request, so its echoes are
+   * not heard here: they go through `applyThreadFollow` like any other
+   * device's. An answer older than what has been shown since, such as a
+   * read's while a follow is out, does not replace it; a refusal puts back
+   * exactly what was there, including "no row at all".
    */
   private threadSpec<P>(
     rootId: ID,
@@ -2692,15 +2696,19 @@ export class WorkspaceClient {
     return {
       ...steps,
       read: () => this.state.threadFollows[rootId],
-      show: (value) =>
+      show: (value, { saving, refused }) => {
+        if (value && !saving && !refused) return this.applyThreadFollow(value);
         this.store.setState((s) => {
           const threadFollows = { ...s.threadFollows };
           if (value) threadFollows[rootId] = value;
           else delete threadFollows[rootId];
           return { threadFollows };
-        }),
+        });
+      },
       same: (a, b) =>
-        a?.following === b?.following && !!a?.muted === !!b?.muted && a?.lastReadSeq === b?.lastReadSeq,
+        a?.following === b?.following &&
+        !!a?.muted === !!b?.muted &&
+        a?.lastReadSeq === b?.lastReadSeq,
     };
   }
 
@@ -3777,6 +3785,21 @@ export class WorkspaceClient {
  */
 function joined(repliesRead: Record<ID, number>, channelId: ID, seq: number) {
   return { ...repliesRead, [channelId]: seq };
+}
+
+/**
+ * A message event as it happens, rather than replayed onto a page: a channel
+ * at its newest end lets go of its oldest messages past the cap.
+ */
+function liveMessages(
+  cache: MessageCache,
+  envelope: EventEnvelope & { event: MessageEvent },
+  inOrder: boolean,
+): MessageCache {
+  const next = reduceMessages(cache, envelope, inOrder);
+  return envelope.event.type === "message.created"
+    ? windowTimeline(next, envelope.event.message.channelId, "oldest")
+    : next;
 }
 
 function withSaved(saved: Record<ID, true>, messageId: ID, on: boolean): Record<ID, true> {

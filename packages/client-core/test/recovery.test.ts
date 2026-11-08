@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 import { Api, ApiError, OUTBOX_LIMIT, WorkspaceClient } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
@@ -56,7 +57,7 @@ describe("connection recovery", () => {
       client.send(channelId, "LAN browser send");
       await expect
         .poll(() =>
-          client.state.timelines[channelId]?.items.some((m) => m.text === "LAN browser send"),
+          timelineMessages(client.state, channelId).some((m) => m.text === "LAN browser send"),
         )
         .toBe(true);
       expect(client.state.pending).toHaveLength(0);
@@ -68,7 +69,7 @@ describe("connection recovery", () => {
   it("replays changes into already-loaded history without rolling back snapshot metadata", async () => {
     const edited = (await owner.sendMessage(channelId, { text: "before edit" })).message;
     const deleted = (await owner.sendMessage(channelId, { text: "before delete" })).message;
-    await expect.poll(() => client.state.timelines[channelId]?.items.length).toBe(2);
+    await expect.poll(() => timelineMessages(client.state, channelId).length).toBe(2);
     await client.loadThread(edited.id, channelId);
     await disconnect();
     await owner.editMessage(edited.id, "after edit");
@@ -83,9 +84,9 @@ describe("connection recovery", () => {
     await owner.updateChannel(channelId, { topic: "latest" });
     client.connect();
     await expect
-      .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === missed.id))
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === missed.id))
       .toBe(true);
-    const items = client.state.timelines[channelId]!.items;
+    const items = timelineMessages(client.state, channelId);
     expect(items.some((m) => m.id === deleted.id)).toBe(false);
     expect(items.find((m) => m.id === edited.id)).toMatchObject({
       text: "after edit",
@@ -93,7 +94,7 @@ describe("connection recovery", () => {
       replyCount: 1,
       reactions: [{ emoji: "yes" }],
     });
-    expect(client.state.threads[edited.id]?.map((m) => m.id)).toEqual([reply.id]);
+    expect(client.state.threads[edited.id]).toEqual([reply.id]);
     expect(client.state.channels[channelId]?.topic).toBe("latest");
     expect(client.state.lastSeq).toBe(server.store.currentSeq());
   });
@@ -110,7 +111,7 @@ describe("connection recovery", () => {
     server.store.pruneEvents(1);
     client.connect();
     await expect
-      .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === newest.id))
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === newest.id))
       .toBe(true);
     expect(client.state.drafts[channelId]).toBe("Keep my draft");
     // Lost on the way, not refused: it goes again once the workspace is back.
@@ -127,12 +128,12 @@ describe("connection recovery", () => {
     client.send(channelId, "HTTP acknowledgement");
     await expect.poll(() => client.state.pending.length).toBe(0);
     expect(
-      client.state.timelines[channelId]?.items.filter((m) => m.text === "HTTP acknowledgement"),
+      timelineMessages(client.state, channelId).filter((m) => m.text === "HTTP acknowledgement"),
     ).toHaveLength(1);
     client.connect();
     await expect.poll(() => client.state.status).toBe("online");
     expect(
-      client.state.timelines[channelId]?.items.filter((m) => m.text === "HTTP acknowledgement"),
+      timelineMessages(client.state, channelId).filter((m) => m.text === "HTTP acknowledgement"),
     ).toHaveLength(1);
   });
 
@@ -176,7 +177,7 @@ describe("connection recovery", () => {
     await expect.poll(() => client.state.channels[channel.id]?.name).toBe("private-room");
     await owner.sendMessage(channel.id, { text: "Private history" });
     await client.loadTimeline(channel.id);
-    expect(client.state.timelines[channel.id]?.items).toHaveLength(1);
+    expect(timelineMessages(client.state, channel.id)).toHaveLength(1);
     const elsewhere = new WorkspaceClient(
       owner.baseUrl,
       (owner as unknown as { token: string }).token,
@@ -461,10 +462,10 @@ describe("reconnecting more than once", () => {
       client.connect();
       await expect.poll(() => client.state.status).toBe("online");
       await expect
-        .poll(() => client.state.timelines[channelId]?.items.some((m) => m.text === text))
+        .poll(() => timelineMessages(client.state, channelId).some((m) => m.text === text))
         .toBe(true);
     }
-    const texts = client.state.timelines[channelId]!.items.map((m) => m.text);
+    const texts = timelineMessages(client.state, channelId).map((m) => m.text);
     // Each message once, in the order it was sent: a replay that overlapped
     // what was already applied would show one of them twice.
     expect(texts.filter((t) => t.startsWith("round "))).toEqual(sent);
@@ -486,9 +487,9 @@ describe("sequence numbers with gaps in them", () => {
 
     client.connect();
     await expect
-      .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === visible.id))
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === visible.id))
       .toBe(true);
-    const items = client.state.timelines[channelId]!.items;
+    const items = timelineMessages(client.state, channelId);
     expect(items.some((m) => m.text.includes("not for you"))).toBe(false);
     expect(client.state.channels[secret.id]).toBeUndefined();
     // Caught up to where the server is, not to the last thing it was shown;
@@ -500,7 +501,7 @@ describe("sequence numbers with gaps in them", () => {
     client.connect();
     await expect.poll(() => client.state.status).toBe("online");
     expect(
-      client.state.timelines[channelId]!.items.filter((m) => m.id === visible.id),
+      timelineMessages(client.state, channelId).filter((m) => m.id === visible.id),
     ).toHaveLength(1);
   });
 });
@@ -508,7 +509,7 @@ describe("sequence numbers with gaps in them", () => {
 describe("a server that has gone backwards", () => {
   it("starts again rather than waiting for sequence numbers that will not come", async () => {
     await owner.sendMessage(channelId, { text: "before the rollback" });
-    await expect.poll(() => client.state.timelines[channelId]?.items.length).toBe(1);
+    await expect.poll(() => timelineMessages(client.state, channelId).length).toBe(1);
     await disconnect();
 
     // What a restore from backup looks like from here: the client is holding a
@@ -521,7 +522,7 @@ describe("a server that has gone backwards", () => {
     client.connect();
     await expect.poll(() => client.state.status).toBe("online");
     await expect
-      .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === after.id))
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === after.id))
       .toBe(true);
     // Asking to resume from a cursor the server cannot honour has to mean
     // reloading, not sitting quietly waiting for events that will never arrive.

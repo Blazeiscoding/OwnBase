@@ -46,6 +46,8 @@ function keyOf(key: WriteKey): string {
 export interface WriteStatus<P> {
   saving: boolean;
   failed: P | null;
+  /** What is shown is put back after a refusal, over whatever answer was shown before. */
+  refused: boolean;
 }
 
 /**
@@ -193,7 +195,7 @@ export class OptimisticWrites {
     this.entries.clear();
   }
 
-  private publish<V, P>(entry: Entry<V, P>): void {
+  private publish<V, P>(entry: Entry<V, P>, refused = false): void {
     const { spec } = entry;
     let value = entry.confirmed;
     if (entry.inFlight !== null) value = apply(spec, value, entry.inFlight);
@@ -202,6 +204,7 @@ export class OptimisticWrites {
     spec.show(value, {
       saving: entry.inFlight !== null || entry.queued !== null,
       failed: spec.keepFailed ? entry.failed : null,
+      refused,
     });
   }
 
@@ -232,7 +235,8 @@ export class OptimisticWrites {
     entry.inFlight = null;
     if (error && spec.keepFailed) {
       const lost = entry.queued === null ? change : unreplaced(spec, change, entry.queued);
-      if (lost !== null) entry.failed = entry.failed === null ? lost : merge(spec, entry.failed, lost);
+      if (lost !== null)
+        entry.failed = entry.failed === null ? lost : merge(spec, entry.failed, lost);
     }
     const already =
       !error &&
@@ -249,7 +253,7 @@ export class OptimisticWrites {
       // Chosen while this was out, and already what the server has.
       settle(entry.waiting.splice(0), null);
       if (entry.failed === null) this.entries.delete(id);
-      if (!error || Object.is(spec.read(), entry.shown)) this.publish(entry);
+      if (!error || Object.is(spec.read(), entry.shown)) this.publish(entry, !!error);
     }
     settle(answering, error);
   }

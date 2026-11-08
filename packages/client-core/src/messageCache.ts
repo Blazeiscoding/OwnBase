@@ -125,7 +125,8 @@ function referenced(cache: MessageCache): Set<ID> {
   const ids = new Set<ID>();
   for (const timeline of Object.values(cache.timelines)) for (const id of timeline.ids) ids.add(id);
   for (const replies of Object.values(cache.threads)) for (const id of replies) ids.add(id);
-  for (const [rootId, page] of Object.entries(cache.threadPages)) if (!page.rootGone) ids.add(rootId);
+  for (const [rootId, page] of Object.entries(cache.threadPages))
+    if (!page.rootGone) ids.add(rootId);
   return ids;
 }
 
@@ -211,8 +212,12 @@ export function windowTimeline(
     drop === "oldest"
       ? { ...timeline, ids: timeline.ids.slice(excess), hasMore: true }
       : { ...timeline, ids: timeline.ids.slice(0, MAX_TIMELINE_ITEMS), hasMoreNewer: true };
-  const dropped = drop === "oldest" ? timeline.ids.slice(0, excess) : timeline.ids.slice(MAX_TIMELINE_ITEMS);
-  return forgetUnlisted({ ...cache, timelines: { ...cache.timelines, [channelId]: next } }, dropped);
+  const dropped =
+    drop === "oldest" ? timeline.ids.slice(0, excess) : timeline.ids.slice(MAX_TIMELINE_ITEMS);
+  return forgetUnlisted(
+    { ...cache, timelines: { ...cache.timelines, [channelId]: next } },
+    dropped,
+  );
 }
 
 /**
@@ -270,7 +275,12 @@ export function reduceMessages(
               threadPages = { ...threadPages, [rootId]: { ...page, hasMoreOlder: true } };
           }
         }
-        if (timeline?.loaded && !timeline.hasMoreNewer && newer(rootId) && timeline.ids.includes(rootId))
+        if (
+          timeline?.loaded &&
+          !timeline.hasMoreNewer &&
+          newer(rootId) &&
+          timeline.ids.includes(rootId)
+        )
           timelines = {
             ...timelines,
             [message.channelId]: {
@@ -345,7 +355,9 @@ export function reduceMessages(
     case "pin.added":
     case "pin.removed": {
       const pinned = event.type === "pin.added";
-      change(event.messageId, (message) => (message.pinned === pinned ? message : { ...message, pinned }));
+      change(event.messageId, (message) =>
+        message.pinned === pinned ? message : { ...message, pinned },
+      );
       break;
     }
     case "history.removed": {
@@ -397,8 +409,7 @@ function messagesOf(ids: readonly ID[], messages: Record<ID, Message>): Message[
     if (message) out.push(message);
   }
   const before = resolved.get(ids);
-  if (before && before.length === out.length && before.every((m, i) => m === out[i]))
-    return before;
+  if (before && before.length === out.length && before.every((m, i) => m === out[i])) return before;
   resolved.set(ids, out);
   return out;
 }

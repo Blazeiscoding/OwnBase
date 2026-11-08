@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, WorkspaceClient, unreadRemovalCount } from "../src/index.js";
+import { Api, WorkspaceClient, unreadRemovalCount, ApiError } from "../src/index.js";
 
 /**
  * Notes that someone else removed this account from a channel, as a client
@@ -72,11 +72,11 @@ describe("notes of removals", () => {
     });
     await expect.poll(() => unreadRemovalCount(other.state)).toBe(1);
 
-    expect(await client.readChannelRemovals([note!.id])).toBe(true);
+    expect(await client.readChannelRemovals([note!.id])).toBeNull();
     expect(client.state.channelRemovals).toEqual({});
     await expect.poll(() => unreadRemovalCount(other.state)).toBe(0);
     // Read again, as another device did first: nothing to do.
-    expect(await client.readChannelRemovals([note!.id])).toBe(true);
+    expect(await client.readChannelRemovals([note!.id])).toBeNull();
   });
 
   it("leave none behind for leaving by oneself", async () => {
@@ -106,7 +106,7 @@ describe("notes of removals", () => {
     expect(unreadRemovalCount(client.state)).toBe(0);
     fail(new Error("offline"));
     // and back when it could not be read.
-    expect(await reading).toBe(false);
+    expect(await reading).toBeInstanceOf(ApiError);
     expect(client.state.channelRemovals).toEqual({ [note!.id]: note });
   });
 

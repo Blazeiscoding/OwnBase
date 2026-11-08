@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { Message } from "@ownbase/protocol";
 import { Api, WorkspaceClient, previewImageKey, type WorkspaceState } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * Link previews on the client (E2): a message's previews arrive after it,
@@ -57,7 +58,7 @@ async function online(token = aliceToken) {
 }
 
 const held = (client: WorkspaceClient, channelId: string, id: string): Message | undefined =>
-  client.state.timelines[channelId]?.items.find((m) => m.id === id);
+  timelineMessages(client.state, channelId).find((m) => m.id === id);
 
 beforeAll(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-previews-"));
@@ -160,7 +161,7 @@ describe("link previews on the client", () => {
       () => (held(client, general.id, message.id)?.previews?.length ?? 0) === 1,
       "its preview",
     );
-    const shown = state.timelines[general.id]!.items.find((m) => m.id === message.id)!;
+    const shown = timelineMessages(state, general.id).find((m) => m.id === message.id)!;
     const preview = shown.previews![0]!;
 
     const refusal = vi
@@ -168,11 +169,13 @@ describe("link previews on the client", () => {
       .mockRejectedValueOnce(new Error("offline"));
     const refused = client.removeLinkPreview(shown, preview.id);
     expect(held(client, general.id, message.id)!.previews).toEqual([]);
-    await expect(refused).rejects.toThrow("offline");
+    expect(await refused).toMatchObject({ code: "network_error", message: "offline" });
     expect(held(client, general.id, message.id)!.previews).toEqual([preview]);
     refusal.mockRestore();
 
-    await client.removeLinkPreview(held(client, general.id, message.id)!, preview.id);
+    expect(
+      await client.removeLinkPreview(held(client, general.id, message.id)!, preview.id),
+    ).toBeNull();
     // The server's own word, which may already be here, leaves it out.
     expect(held(client, general.id, message.id)!.previews ?? []).toEqual([]);
   });

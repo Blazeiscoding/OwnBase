@@ -74,7 +74,7 @@ describe("the default for what notifies", () => {
     expect(laptop.state.notifyDefault).toBe("mentions");
     expect(laptop.state.prefs[general]).toMatchObject({ notifyChosen: false });
 
-    expect(await laptop.setNotifyDefault("all")).toBe(true);
+    expect(await laptop.setNotifyDefault("all")).toBeNull();
     expect(laptop.state.notifyDefault).toBe("all");
     await until(phone, (s) => s.notifyDefault === "all", "the phone hearing of it");
     await laptop.setNotifyDefault("mentions");
@@ -90,7 +90,7 @@ describe("the default for what notifies", () => {
     const saving = client.setNotifyDefault("nothing");
     expect(client.state.notifyDefault).toBe("nothing");
     refuse();
-    expect(await saving).toBe(false);
+    expect(await saving).toBeInstanceOf(ApiError);
     expect(client.state.notifyDefault).toBe("mentions");
   });
 

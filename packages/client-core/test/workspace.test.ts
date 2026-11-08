@@ -3,8 +3,9 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, WorkspaceClient, isUnread, normalizeServerUrl } from "../src/index.js";
+import { Api, WorkspaceClient, isUnread, normalizeServerUrl, ApiError } from "../src/index.js";
 import type { WorkspaceState } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 let server: WorkspaceServer;
 let base: string;
@@ -173,7 +174,7 @@ describe("WorkspaceClient", () => {
       client,
       (s) =>
         s.pending.length === 0 &&
-        (s.timelines[general.id]?.items ?? []).filter((m) => m.text === "optimistic hello")
+        (timelineMessages(s, general.id) ?? []).filter((m) => m.text === "optimistic hello")
           .length === 1,
       "reconciliation",
     );
@@ -200,7 +201,7 @@ describe("WorkspaceClient", () => {
     await reconnected.loadTimeline(general.id);
     await until(
       reconnected,
-      (s) => (s.timelines[general.id]?.items ?? []).some((m) => m.text === "you missed this"),
+      (s) => (timelineMessages(s, general.id) ?? []).some((m) => m.text === "you missed this"),
       "replayed message",
     );
     reconnected.destroy();
@@ -253,7 +254,7 @@ describe("WorkspaceClient", () => {
     await new Api(base, bobToken).sendMessage(general.id, { text: "told or not" });
     await until(
       client,
-      (s) => (s.timelines[general.id]?.items ?? []).some((m) => m.text === "told or not"),
+      (s) => (timelineMessages(s, general.id) ?? []).some((m) => m.text === "told or not"),
       "the message",
     );
     // It arrived as it was sent, not after the socket was dropped and reopened.
@@ -295,12 +296,12 @@ describe("WorkspaceClient", () => {
     const { message } = await client.api.sendMessage(general.id, { text: "mark me up" });
     await until(
       client,
-      (s) => (s.timelines[general.id]?.items ?? []).some((m) => m.id === message.id),
+      (s) => (timelineMessages(s, general.id) ?? []).some((m) => m.id === message.id),
       "message arrival",
     );
 
     const find = (s: WorkspaceState) =>
-      (s.timelines[general.id]?.items ?? []).find((m) => m.id === message.id);
+      (timelineMessages(s, general.id) ?? []).find((m) => m.id === message.id);
 
     // Bob reacts; the reaction shows up here.
     await new Api(base, bobToken).addReaction(message.id, "🎯");
@@ -309,18 +310,18 @@ describe("WorkspaceClient", () => {
 
     const pinning = client.togglePin(find(client.state)!);
     expect(find(client.state)!.pinned).toBe(true); // optimistic
-    expect(await pinning).toBe(true);
+    expect(await pinning).toBeNull();
     await until(client, (s) => find(s)!.pinned, "pin confirmed");
 
-    expect(await client.toggleSaved(message.id)).toBe(true);
+    expect(await client.toggleSaved(message.id)).toBeNull();
     await until(client, (s) => !!s.saved[message.id], "saved");
 
     // Trying a save again repeats it, rather than flipping a state that has
     // since changed and undoing what the person asked for.
-    expect(await client.toggleSaved(message.id, true)).toBe(true);
+    expect(await client.toggleSaved(message.id, true)).toBeNull();
     expect(client.state.saved[message.id]).toBe(true);
 
-    expect(await client.toggleSaved(message.id)).toBe(true);
+    expect(await client.toggleSaved(message.id)).toBeNull();
     await until(client, (s) => !s.saved[message.id], "unsaved");
     client.destroy();
   });
@@ -335,10 +336,10 @@ describe("WorkspaceClient", () => {
     const { message } = await client.api.sendMessage(general.id, { text: "refuse me" });
     await until(
       client,
-      (s) => (s.timelines[general.id]?.items ?? []).some((m) => m.id === message.id),
+      (s) => (timelineMessages(s, general.id) ?? []).some((m) => m.id === message.id),
       "message arrival",
     );
-    const find = () => client.state.timelines[general.id]!.items.find((m) => m.id === message.id)!;
+    const find = () => timelineMessages(client.state, general.id).find((m) => m.id === message.id)!;
     const wasPinned = find().pinned;
 
     // A refusal that only reverted would leave whoever asked with no sign
@@ -348,13 +349,13 @@ describe("WorkspaceClient", () => {
     client.api.saveMessage = () => Promise.reject(new Error("offline"));
     client.api.addReaction = () => Promise.reject(new Error("offline"));
 
-    expect(await client.togglePin(find())).toBe(false);
+    expect(await client.togglePin(find())).toBeInstanceOf(ApiError);
     expect(find().pinned).toBe(wasPinned);
 
-    expect(await client.toggleSaved(message.id)).toBe(false);
+    expect(await client.toggleSaved(message.id)).toBeInstanceOf(ApiError);
     expect(client.state.saved[message.id]).toBeUndefined();
 
-    expect(await client.toggleReaction(find(), "\u{1F3AF}")).toBe(false);
+    expect(await client.toggleReaction(find(), "\u{1F3AF}")).toBeInstanceOf(ApiError);
     client.destroy();
   });
 
@@ -422,10 +423,10 @@ describe("WorkspaceClient", () => {
     release();
     await loading;
 
-    const texts = client.state.timelines[channel.id]!.items.map((m) => m.text);
+    const texts = timelineMessages(client.state, channel.id).map((m) => m.text);
     expect(texts).toEqual(["before anyone looked", "posted meanwhile", "edited meanwhile"]);
     expect(texts).not.toContain("deleted meanwhile");
-    expect(client.state.timelines[channel.id]!.items.map((m) => m.id)).toContain(late.id);
+    expect(timelineMessages(client.state, channel.id).map((m) => m.id)).toContain(late.id);
   });
 
   it("keeps a bounded window of messages while scrolling a long channel", async () => {
@@ -443,23 +444,23 @@ describe("WorkspaceClient", () => {
     const window = () => client.state.timelines[channel.id]!;
 
     await client.loadTimeline(channel.id);
-    expect(window().items).toHaveLength(50);
+    expect(window().ids).toHaveLength(50);
 
     // Five more pages fill the window exactly; nothing has been dropped yet.
     for (let i = 0; i < 5; i++) await client.loadTimeline(channel.id, { older: true });
-    expect(window().items).toHaveLength(300);
+    expect(window().ids).toHaveLength(300);
     expect(window().hasMoreNewer).toBe(false);
 
     // Past that, the newest end goes and is marked pageable again.
-    const newestBefore = window().items[299]!.id;
+    const newestBefore = window().ids[299]!;
     await client.loadTimeline(channel.id, { older: true });
-    expect(window().items).toHaveLength(300);
+    expect(window().ids).toHaveLength(300);
     expect(window().hasMoreNewer).toBe(true);
-    expect(window().items[299]!.id < newestBefore).toBe(true);
+    expect(window().ids[299]! < newestBefore).toBe(true);
 
     // Paging back down trades the other end, and stays bounded either way.
     await client.loadNewer(channel.id);
-    expect(window().items).toHaveLength(300);
+    expect(window().ids).toHaveLength(300);
     expect(window().hasMore).toBe(true);
   }, 60_000); // 400 real HTTP writes, not just the paging: 15 s in a full parallel run.
 
@@ -477,17 +478,17 @@ describe("WorkspaceClient", () => {
     // A full window, sitting at the tail rather than anchored mid-history.
     await client.loadTimeline(channel.id);
     for (let i = 0; i < 5; i++) await client.loadTimeline(channel.id, { older: true });
-    expect(window().items).toHaveLength(300);
-    const oldestBefore = window().items[0]!.id;
+    expect(window().ids).toHaveLength(300);
+    const oldestBefore = window().ids[0]!;
 
     await new Api(base, bobToken).sendMessage(channel.id, { text: "one more" });
     await until(
       client,
-      (s) => (s.timelines[channel.id]?.items ?? []).some((m) => m.text === "one more"),
+      (s) => (timelineMessages(s, channel.id) ?? []).some((m) => m.text === "one more"),
       "live message",
     );
-    expect(window().items).toHaveLength(300);
-    expect(window().items[0]!.id > oldestBefore).toBe(true);
+    expect(window().ids).toHaveLength(300);
+    expect(window().ids[0]! > oldestBefore).toBe(true);
     expect(window().hasMore).toBe(true);
   }, 20_000);
 });

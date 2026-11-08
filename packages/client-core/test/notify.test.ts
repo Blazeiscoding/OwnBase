@@ -97,6 +97,8 @@ function state(over: Partial<WorkspaceState> = {}): WorkspaceState {
     presence: {},
     typing: {},
     lastSeq: 0,
+    messages: {},
+    messageSeqs: {},
     timelines: {},
     threads: {},
     threadPages: {},
