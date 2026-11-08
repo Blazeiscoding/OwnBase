@@ -8,6 +8,7 @@ import { ThreadPanel } from "../src/components/ThreadPanel.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { held } from "./heldMessages.js";
 
 /**
  * Reading a thread moves the thread's cursor and nothing else: a channel
@@ -74,18 +75,20 @@ function workspace() {
     memberships: { [design.id]: root.seq },
     channelLastSeq: { [design.id]: mention.seq },
     mentionCounts: { [design.id]: 2 },
-    threadPages: {
-      [root.id]: {
-        channelId: design.id,
-        root,
-        hasMoreOlder: false,
-        hasMoreNewer: false,
-        loading: false,
-        loaded: true,
-        error: null,
+    ...held({
+      threadPages: {
+        [root.id]: {
+          channelId: design.id,
+          root,
+          hasMoreOlder: false,
+          hasMoreNewer: false,
+          loading: false,
+          loaded: true,
+          error: null,
+        },
       },
-    },
-    threads: { [root.id]: [reply] },
+      threads: { [root.id]: [reply] },
+    }),
     status: "online",
   });
   vi.spyOn(client, "loadThread").mockResolvedValue(undefined);

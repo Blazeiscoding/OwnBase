@@ -13,6 +13,7 @@ import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { useOptionalToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
@@ -229,10 +230,10 @@ export function ActivityPanel({
 
   /** Reads notes of removals, saying so if the server could not be told. */
   function readRemovals(ids: ID[]) {
-    void client.readChannelRemovals(ids).then((read) => {
-      if (!read)
+    void client.readChannelRemovals(ids).then((error) => {
+      if (error)
         toast?.({
-          message: "Could not mark that read. Check your connection and try again.",
+          message: failureText("Could not mark that read.", error),
           kind: "error",
         });
     });

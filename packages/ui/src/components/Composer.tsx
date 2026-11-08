@@ -1,6 +1,12 @@
 import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { MESSAGE_TEXT_MAX, type ID, type ScheduleMessageBody } from "@ownbase/protocol";
-import { ApiError, OUTBOX_LIMIT, quoteOf } from "@ownbase/client-core";
+import {
+  ApiError,
+  OUTBOX_LIMIT,
+  quoteOf,
+  threadReplies,
+  timelineMessages,
+} from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes } from "../lib/format.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
@@ -746,7 +752,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     ) {
       // Up in an empty box edits your last message here, as in Slack.
       const s = client.store.getState();
-      const items = threadRootId ? s.threads[threadRootId] : s.timelines[channelId]?.items;
+      const items = threadRootId ? threadReplies(s, threadRootId) : timelineMessages(s, channelId);
       const mine = lastEditable(items, s.self?.id);
       if (mine) {
         e.preventDefault();

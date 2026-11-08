@@ -6,6 +6,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient } from "../src/index.js";
 import { FileCache } from "../src/fileCache.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * Downloaded attachments go when their message is deleted or their
@@ -152,7 +153,7 @@ describe("cached attachments (F07)", () => {
     ).message;
     await expect
       .poll(() =>
-        client.state.timelines[general]!.items.some((message) => message.id === recent.id),
+        timelineMessages(client.state, general).some((message) => message.id === recent.id),
       )
       .toBe(true);
     const recentUrl = await client.files.get(recentFile.id);

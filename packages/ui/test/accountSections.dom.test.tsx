@@ -255,9 +255,12 @@ describe("the notifications section", () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.setSystemTime(new Date(2026, 8, 26, 14, 0));
     const { client, dialog, user } = settings("notifications");
-    const snooze = vi.spyOn(client, "snoozeNotificationsUntil").mockImplementation((until) => {
-      client.store.setState({ self: { ...sam, dndUntil: until } });
-    });
+    const snooze = vi
+      .spyOn(client, "snoozeNotificationsUntil")
+      .mockImplementation(async (until) => {
+        client.store.setState({ self: { ...sam, dndUntil: until } });
+        return null;
+      });
     const status = within(dialog).getByText(/A pause stops notifications/);
     expect(status).toHaveAttribute("role", "status");
 

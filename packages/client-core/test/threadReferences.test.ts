@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Channel, EventEnvelope, Message, ServerToClient } from "@ownbase/protocol";
-import { WorkspaceClient } from "../src/index.js";
+import { WorkspaceClient, threadReplies, threadRootMessage } from "../src/index.js";
 
 /**
  * A channel's events touch few of its open threads (REV-03). Threads an event
- * does not touch keep their reply arrays and pages, so nothing showing them
- * renders again; the ones it does touch still change.
+ * does not touch read back as the same replies and root, so nothing showing
+ * them renders again; the ones it does touch still change.
  */
 const THREADS = 20;
 const REPLIES = 300;
@@ -53,15 +53,19 @@ afterEach(() => {
 function cached() {
   const c = new WorkspaceClient("http://127.0.0.1:9", "token");
   clients.push(c);
-  const threads: Record<string, Message[]> = {};
+  const messages: Record<string, Message> = {};
+  const threads: Record<string, string[]> = {};
   const threadPages: Record<string, any> = {};
   for (let t = 0; t < THREADS; t++) {
-    threads[rootId(t)] = Array.from({ length: REPLIES }, (_, r) =>
+    const replies = Array.from({ length: REPLIES }, (_, r) =>
       message(replyId(t, r), { threadRootId: rootId(t) }),
     );
+    for (const reply of replies) messages[reply.id] = reply;
+    messages[rootId(t)] = message(rootId(t), { replyCount: REPLIES });
+    threads[rootId(t)] = replies.map((reply) => reply.id);
     threadPages[rootId(t)] = {
       channelId: "C1",
-      root: message(rootId(t), { replyCount: REPLIES }),
+      rootGone: false,
       hasMoreOlder: false,
       hasMoreNewer: false,
       loaded: true,
@@ -74,6 +78,7 @@ function cached() {
     lastSeq: 100,
     channels: { C1: channel },
     memberships: { C1: 100 },
+    messages,
     threads,
     threadPages,
   });
@@ -81,16 +86,23 @@ function cached() {
   const connection = c as unknown as { handleServerMessage(message: ServerToClient): void };
   const send = (event: EventEnvelope["event"]) =>
     connection.handleServerMessage({ type: "event", envelope: { seq: ++seq, event } });
-  /** Which threads got a new reply array or page from `event`. */
+  /** Which threads read back as other replies or another root after `event`. */
   const changedBy = (event: EventEnvelope["event"]) => {
     const before = c.state;
+    const shown = Object.keys(before.threads).map((id) => [
+      id,
+      threadReplies(before, id),
+      threadRootMessage(before, id),
+    ]);
     send(event);
     const after = c.state;
-    return Object.keys(before.threads).filter(
-      (id) =>
-        after.threads[id] !== before.threads[id] ||
-        after.threadPages[id] !== before.threadPages[id],
-    );
+    return shown
+      .filter(
+        ([id, replies, root]) =>
+          threadReplies(after, id as string) !== replies ||
+          threadRootMessage(after, id as string) !== root,
+      )
+      .map(([id]) => id);
   };
   return { c, changedBy };
 }
@@ -98,7 +110,6 @@ function cached() {
 describe("open threads and the events of their channel (REV-03)", () => {
   it("keep every thread as it was for events that touch none of them", () => {
     const { c, changedBy } = cached();
-    const threads = c.state.threads;
     expect(changedBy({ type: "message.created", message: message("M-new") })).toEqual([]);
     expect(
       changedBy({ type: "message.updated", message: message("M-other", { text: "edited" }) }),
@@ -120,7 +131,6 @@ describe("open threads and the events of their channel (REV-03)", () => {
         threadRootId: null,
       }),
     ).toEqual([]);
-    expect(c.state.threads).toBe(threads);
   });
 
   it("change only the thread an event belongs to", () => {
@@ -131,14 +141,14 @@ describe("open threads and the events of their channel (REV-03)", () => {
         message: message("R03-new", { threadRootId: rootId(3) }),
       }),
     ).toEqual([rootId(3)]);
-    expect(c.state.threads[rootId(3)]?.at(-1)?.id).toBe("R03-new");
+    expect(c.state.threads[rootId(3)]?.at(-1)).toBe("R03-new");
     expect(
       changedBy({
         type: "message.updated",
         message: message(replyId(5, 7), { threadRootId: rootId(5), text: "edited" }),
       }),
     ).toEqual([rootId(5)]);
-    expect(c.state.threads[rootId(5)]?.[7]?.text).toBe("edited");
+    expect(threadReplies(c.state, rootId(5))?.[7]?.text).toBe("edited");
     expect(
       changedBy({
         type: "reaction.added",
@@ -157,7 +167,7 @@ describe("open threads and the events of their channel (REV-03)", () => {
         threadRootId: null,
       }),
     ).toEqual([rootId(9)]);
-    expect(c.state.threadPages[rootId(9)]?.root).toBeNull();
+    expect(threadRootMessage(c.state, rootId(9))).toBeNull();
     expect(c.state.threads[rootId(9)]).toEqual([]);
   });
 
@@ -183,6 +193,6 @@ describe("open threads and the events of their channel (REV-03)", () => {
     });
     await loading;
     // The reply that arrived meanwhile is replayed onto the page it loaded.
-    expect(c.state.threads[rootId(2)]?.map((m) => m.id)).toEqual([replyId(2, 0), "R02-live"]);
+    expect(c.state.threads[rootId(2)]).toEqual([replyId(2, 0), "R02-live"]);
   });
 });

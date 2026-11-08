@@ -30,11 +30,7 @@ const closedHere = new Set<string>();
  * that failed, waits in `pending` instead.
  */
 function hasPosted(state: WorkspaceState, selfId: ID): boolean {
-  for (const timeline of Object.values(state.timelines))
-    if (timeline.items.some((message) => message.userId === selfId)) return true;
-  for (const replies of Object.values(state.threads))
-    if (replies.some((message) => message.userId === selfId)) return true;
-  return false;
+  return Object.values(state.messages).some((message) => message.userId === selfId);
 }
 
 /**

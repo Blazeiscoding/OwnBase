@@ -7,6 +7,7 @@ import { JumpToLatestBar, MessageTimeline } from "../src/components/MessageTimel
 import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { held } from "./heldMessages.js";
 
 /**
  * The New line goes above the first message not yet read, and only where that
@@ -70,9 +71,7 @@ function timeline(
     users: { [sam.id]: sam, [maya.id]: maya },
     channels: { [general.id]: general },
     memberships: { [general.id]: readUpTo },
-    timelines: window
-      ? { [general.id]: { ...window, hasMoreNewer: window.hasMoreNewer ?? false, loaded: true } }
-      : {},
+    ...held({ timelines: window ? { [general.id]: window } : {} }),
     status: "online",
   });
   const load = vi.spyOn(client, "loadTimeline").mockResolvedValue(undefined);

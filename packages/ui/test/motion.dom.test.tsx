@@ -10,6 +10,7 @@ import { MessageTimeline } from "../src/components/MessageTimeline.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider, useToast } from "../src/components/Toast.js";
 import { useTabs } from "../src/lib/useTabs.js";
+import { held } from "./heldMessages.js";
 
 /**
  * jsdom runs no animations, so the app moves nothing there. These tests give
@@ -253,9 +254,7 @@ const message = (n: number, userId = ana.id): Message =>
 describe("messages arriving", () => {
   it("rise in when they come live, yours brightens, and history already there is still", () => {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
-    const timeline = (items: Message[]) => ({
-      timelines: { [general.id]: { items, hasMore: false, hasMoreNewer: false, loaded: true } },
-    });
+    const timeline = (items: Message[]) => held({ timelines: { [general.id]: { items } } });
     client.store.setState({
       self: sam,
       users: { [sam.id]: sam, [ana.id]: ana },

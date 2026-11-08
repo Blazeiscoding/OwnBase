@@ -9,6 +9,7 @@ import { MessageItem } from "../src/components/MessageItem.js";
 import { ThreadPanel } from "../src/components/ThreadPanel.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { held } from "./heldMessages.js";
 
 /** Muting a thread (E3): from its header, and from its first message in the channel. */
 const person = (id: string, displayName: string): User => ({
@@ -74,18 +75,20 @@ function workspace(following = true) {
     memberships: { [general.id]: 9 },
     status: "online",
     threadFollows: { [root.id]: follow },
-    threadPages: {
-      [root.id]: {
-        channelId: general.id,
-        root,
-        hasMoreOlder: false,
-        hasMoreNewer: false,
-        loading: false,
-        loaded: true,
-        error: null,
+    ...held({
+      threadPages: {
+        [root.id]: {
+          channelId: general.id,
+          root,
+          hasMoreOlder: false,
+          hasMoreNewer: false,
+          loading: false,
+          loaded: true,
+          error: null,
+        },
       },
-    },
-    threads: { [root.id]: [] },
+      threads: { [root.id]: [] },
+    }),
   });
   vi.spyOn(client, "loadThread").mockResolvedValue(undefined);
   const setThreadMute = vi

@@ -12,7 +12,8 @@ import {
 import { writeClipboard } from "../lib/useCopy.js";
 import { browserLink } from "../lib/deeplink.js";
 import type { FileMeta, ID, Message } from "@ownbase/protocol";
-import { forwardSource, type ForwardSource } from "@ownbase/client-core";
+import { forwardSource, type ApiError, type ForwardSource } from "@ownbase/client-core";
+import { failureText } from "../lib/failure.js";
 import { OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import { onlyEmoji } from "../lib/emoji.js";
 import { formatFull, formatTime } from "../lib/format.js";
@@ -209,11 +210,11 @@ const MessageRow = memo(function MessageRow({
    * The row that started one is hover-only and may be gone by the time the
    * refusal arrives, so the notice carries the news and the second attempt.
    */
-  function reportRefusal(failure: string, run: () => Promise<boolean>) {
-    void run().then((ok) => {
-      if (ok) return;
+  function reportRefusal(failure: string, run: () => Promise<ApiError | null>) {
+    void run().then((error) => {
+      if (!error) return;
       toast({
-        message: failure,
+        message: failureText(failure, error),
         action: { label: "Try again", run: () => reportRefusal(failure, run) },
       });
     });
@@ -250,22 +251,22 @@ const MessageRow = memo(function MessageRow({
   function remind(at: Date) {
     setReminding(false);
     const when = at.getTime();
-    void client.setReminder(message.id, when).then((ok) =>
+    void client.setReminder(message.id, when).then((error) =>
       toast(
-        ok
+        !error
           ? { message: `Reminder set for ${formatReminderTime(when)}.`, kind: "success" }
           : {
-              message: "Could not set that reminder.",
+              message: failureText("Could not set that reminder.", error),
               action: { label: "Try again", run: () => remind(at) },
             },
       ),
     );
   }
   function finishReminder() {
-    void client.cancelReminder(message.id).then((ok) => {
-      if (!ok)
+    void client.cancelReminder(message.id).then((error) => {
+      if (error)
         toast({
-          message: "Could not remove that reminder.",
+          message: failureText("Could not remove that reminder.", error),
           action: { label: "Try again", run: finishReminder },
         });
     });
@@ -378,7 +379,11 @@ const MessageRow = memo(function MessageRow({
             id: "mute",
             label: threadMuted ? "Unmute thread" : "Mute thread",
             icon: "bellOff",
-            onSelect: () => client.setThreadMute(message.id, !threadMuted),
+            onSelect: () =>
+              reportRefusal(
+                threadMuted ? "Could not unmute that thread." : "Could not mute that thread.",
+                () => client.setThreadMute(message.id, !threadMuted),
+              ),
           },
         ]
       : [];

@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { Message, Reminder } from "@ownbase/protocol";
-import { Api, WorkspaceClient } from "../src/index.js";
+import { Api, WorkspaceClient, ApiError } from "../src/index.js";
 
 /** Reminders (E4) as a client keeps them, against a real server. */
 const DAY = 24 * 60 * 60_000;
@@ -54,18 +54,18 @@ describe("reminders", () => {
     const message = await say("Order the cake");
     const at = Date.now() + 3_600_000;
 
-    expect(await client.setReminder(message.id, at)).toBe(true);
+    expect(await client.setReminder(message.id, at)).toBeNull();
     expect(client.state.reminders?.[message.id]).toMatchObject({ remindAt: at, dueAt: null });
     await expect.poll(() => other.state.reminders?.[message.id]?.remindAt).toBe(at);
 
-    expect(await client.setReminder(message.id, at + 60_000)).toBe(true);
+    expect(await client.setReminder(message.id, at + 60_000)).toBeNull();
     await expect.poll(() => other.state.reminders?.[message.id]?.remindAt).toBe(at + 60_000);
 
-    expect(await client.cancelReminder(message.id)).toBe(true);
+    expect(await client.cancelReminder(message.id)).toBeNull();
     expect(client.state.reminders?.[message.id]).toBeUndefined();
     await expect.poll(() => other.state.reminders?.[message.id]).toBeUndefined();
     // Already gone, as when another device finished it first.
-    expect(await client.cancelReminder(message.id)).toBe(true);
+    expect(await client.cancelReminder(message.id)).toBeNull();
   });
 
   it("keeps what the server answered, before its echo arrives", async () => {
@@ -79,17 +79,17 @@ describe("reminders", () => {
       dueAt: null,
     };
     vi.spyOn(client.api, "setReminder").mockResolvedValueOnce({ reminder });
-    expect(await client.setReminder(message.id, reminder.remindAt)).toBe(true);
+    expect(await client.setReminder(message.id, reminder.remindAt)).toBeNull();
     expect(client.state.reminders?.[message.id]).toEqual(reminder);
   });
 
   it("says false when the server refuses, and changes nothing", async () => {
     const message = await say("Too late");
-    expect(await client.setReminder(message.id, Date.now() - 1_000)).toBe(false);
+    expect(await client.setReminder(message.id, Date.now() - 1_000)).toBeInstanceOf(ApiError);
     expect(client.state.reminders?.[message.id]).toBeUndefined();
     vi.spyOn(client.api, "cancelReminder").mockRejectedValueOnce(new Error("offline"));
     await client.setReminder(message.id, Date.now() + 60_000);
-    expect(await client.cancelReminder(message.id)).toBe(false);
+    expect(await client.cancelReminder(message.id)).toBeInstanceOf(ApiError);
     expect(client.state.reminders?.[message.id]).toBeDefined();
   });
 

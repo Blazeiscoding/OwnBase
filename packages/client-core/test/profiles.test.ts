@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { crc32, deflateSync } from "node:zlib";
 import { currentZoneName } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
+import { Api, WorkspaceClient, type WorkspaceState, ApiError } from "../src/index.js";
 
 /**
  * Profiles on the client (E9): the device's time zone is kept for an account
@@ -103,13 +103,13 @@ describe("profiles on the client", () => {
     const device = currentZoneName(Intl.DateTimeFormat().resolvedOptions().timeZone);
     const laptop = await online();
     await until(laptop, (s) => s.self?.timeZone === device, "the detected zone");
-    expect(await laptop.setTimeZone("Pacific/Auckland")).toBe(true);
+    expect(await laptop.setTimeZone("Pacific/Auckland")).toBeNull();
     expect(laptop.state.self?.timeZone).toBe("Pacific/Auckland");
     // Another device signing in keeps the one chosen.
     const phone = await online();
     await new Promise((settled) => setTimeout(settled, 200));
     expect(phone.state.self?.timeZone).toBe("Pacific/Auckland");
-    expect(await laptop.setTimeZone("Not/A_Zone")).toBe(false);
+    expect(await laptop.setTimeZone("Not/A_Zone")).toBeInstanceOf(ApiError);
   });
 
   it("make the account away when every device is idle, or by hand", async () => {
@@ -127,11 +127,11 @@ describe("profiles on the client", () => {
     phone.setIdle(false);
     await until(watcher, () => seen() === "online", "alice back");
 
-    expect(await laptop.setAway(true)).toBe(true);
+    expect(await laptop.setAway(true)).toBeNull();
     expect(laptop.state.self?.away).toBe(true);
     await until(watcher, () => seen() === "away", "alice away by hand");
     await until(phone, (s) => s.users[aliceId]?.away === true, "her phone to hear it");
-    expect(await phone.setAway(false)).toBe(true);
+    expect(await phone.setAway(false)).toBeNull();
     await until(watcher, () => seen() === "online", "alice back by hand");
   });
 
@@ -154,7 +154,7 @@ describe("profiles on the client", () => {
   it("keep a picture, and fetch it with the session into an object URL", async () => {
     const laptop = await online();
     const watcher = await online(bobToken);
-    expect(await laptop.setAvatar(png())).toBe(true);
+    expect(await laptop.setAvatar(png())).toBeNull();
     const version = laptop.state.self!.avatarVersion!;
     expect(version).toMatch(/^[0-9a-f]{16}$/);
     await until(watcher, (s) => s.users[aliceId]?.avatarVersion === version, "bob to hear it");
@@ -168,7 +168,7 @@ describe("profiles on the client", () => {
     // A picture that is not there is none.
     expect(await watcher.avatars.load(aliceId, "0000000000000000")).toBeNull();
 
-    expect(await laptop.removeAvatar()).toBe(true);
+    expect(await laptop.removeAvatar()).toBeNull();
     expect(laptop.state.self!.avatarVersion).toBeUndefined();
   });
 
@@ -202,16 +202,16 @@ describe("profiles on the client", () => {
     onTestFinished(() => quiet.destroy());
     const { user } = await quiet.api.me();
     quiet.store.setState({ self: user, users: { [user.id]: user } });
-    expect(await quiet.setTimeZone("Europe/Oslo")).toBe(true);
+    expect(await quiet.setTimeZone("Europe/Oslo")).toBeNull();
     expect(quiet.state.self?.timeZone).toBe("Europe/Oslo");
-    expect(await quiet.setAway(true)).toBe(true);
+    expect(await quiet.setAway(true)).toBeNull();
     expect(quiet.state.self?.away).toBe(true);
-    expect(await quiet.setAway(false)).toBe(true);
+    expect(await quiet.setAway(false)).toBeNull();
     expect(quiet.state.self?.away).toBeUndefined();
-    expect(await quiet.setAvatar(png())).toBe(true);
+    expect(await quiet.setAvatar(png())).toBeNull();
     expect(quiet.state.self?.avatarVersion).toMatch(/^[0-9a-f]{16}$/);
     expect(quiet.state.users[user.id]?.avatarVersion).toBe(quiet.state.self?.avatarVersion);
-    expect(await quiet.removeAvatar()).toBe(true);
+    expect(await quiet.removeAvatar()).toBeNull();
     expect(quiet.state.self?.avatarVersion).toBeUndefined();
   });
 });

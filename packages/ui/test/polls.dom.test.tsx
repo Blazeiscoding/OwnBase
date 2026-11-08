@@ -15,6 +15,8 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { held } from "./heldMessages.js";
+import { timelineMessages } from "@ownbase/client-core";
 
 /**
  * Polls (E6): a poll's card votes and shows the count at once, takes a vote
@@ -81,7 +83,7 @@ const lunch = (poll: Partial<Poll> = {}, over: Partial<Message> = {}): Message =
 
 /** The message as the store holds it, so votes heard back redraw it. */
 function Held() {
-  const message = useWorkspace((s) => s.timelines.C_GENERAL!.items[0]!);
+  const message = useWorkspace((s) => timelineMessages(s, "C_GENERAL")[0]!);
   return <MessageItem message={message} compact={false} />;
 }
 
@@ -94,9 +96,7 @@ function shown(message: Message, opts: { self?: User; told?: Record<string, numb
     memberships: { C_GENERAL: 0 },
     status: "online",
     pollChoices: opts.told ?? {},
-    timelines: {
-      C_GENERAL: { items: [message], hasMore: false, hasMoreNewer: false, loaded: true },
-    },
+    ...held({ timelines: { C_GENERAL: { items: [message] } } }),
   });
   const votePoll = vi
     .spyOn(client.api, "votePoll")

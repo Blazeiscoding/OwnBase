@@ -7,6 +7,7 @@ import { PinsPanel } from "../src/components/MessageListPanel.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { ApiError } from "@ownbase/client-core";
 
 /**
  * The Pinned panel holds its own copy of a conversation's pinned messages. A
@@ -183,7 +184,7 @@ describe("the Pinned panel", () => {
       messages: [pinned("M1", "House rules", 2)],
       nextCursor: null,
     }));
-    vi.spyOn(client.api, "unpinMessage").mockRejectedValue(new Error("forbidden"));
+    vi.spyOn(client.api, "unpinMessage").mockRejectedValue(new ApiError(403, "guest_restricted"));
     const row = (await within(panel).findByText("House rules")).closest("li")!;
     await user.click(within(row).getByRole("button", { name: "Unpin from channel" }));
     expect(await screen.findByText("Could not unpin that message.")).toBeTruthy();

@@ -9,6 +9,7 @@ import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
+import { held } from "./heldMessages.js";
 
 /**
  * Back, Forward and a reload return to where a conversation was being read.
@@ -73,7 +74,7 @@ describe("returning to where a conversation was being read", () => {
       users: { [sam.id]: sam },
       channels: { [general.id]: general },
       memberships: { [general.id]: 20 },
-      timelines: { [general.id]: { items, hasMore: false, hasMoreNewer: false, loaded: true } },
+      ...held({ timelines: { [general.id]: { items } } }),
       status: "online",
     });
     // Already held here: the request answers at once, and its frame comes at once too.

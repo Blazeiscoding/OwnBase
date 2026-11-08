@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Channel, Message } from "@ownbase/protocol";
 import { ApiError, WorkspaceClient, type Api } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * History transfers stop once nothing will use them, and an identical request
@@ -82,7 +83,7 @@ describe("history requests (REV-05)", () => {
     expect(list).toHaveBeenCalledTimes(1);
     pages.calls[0]!.answer({ messages: [message("M1")], readThroughSeq: 1, seq: 1 });
     await Promise.all([first, second]);
-    expect(c.state.timelines.C1?.items.map((m) => m.id)).toEqual(["M1"]);
+    expect(timelineMessages(c.state, "C1").map((m) => m.id)).toEqual(["M1"]);
   });
 
   it("stops the transfer a jump replaces, and the replaced load settles without an error", async () => {
@@ -100,7 +101,7 @@ describe("history requests (REV-05)", () => {
     await c.jumpToMessage("C1", "M5");
     expect(pages.calls[0]!.signal?.aborted).toBe(true);
     await expect(tail).resolves.toBeUndefined();
-    expect(c.state.timelines.C1?.items.map((m) => m.id)).toEqual(["M5"]);
+    expect(timelineMessages(c.state, "C1").map((m) => m.id)).toEqual(["M5"]);
   });
 
   it("stops a conversation's transfer when this person loses it", async () => {
@@ -193,7 +194,7 @@ describe("thread requests (REV-05)", () => {
       seq: 1,
     });
     await Promise.all([first, second]);
-    expect(c.state.threads.R1?.map((m) => m.id)).toEqual(["M2"]);
+    expect(c.state.threads.R1).toEqual(["M2"]);
   });
 
   it("stops a thread page another replaces, without an error on the page", async () => {
@@ -215,6 +216,6 @@ describe("thread requests (REV-05)", () => {
     });
     await atReply;
     expect(c.state.threadPages.R1).toMatchObject({ error: null, loading: false, loaded: true });
-    expect(c.state.threads.R1?.map((m) => m.id)).toEqual(["M7"]);
+    expect(c.state.threads.R1).toEqual(["M7"]);
   });
 });

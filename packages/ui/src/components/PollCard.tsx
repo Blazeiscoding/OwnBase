@@ -7,6 +7,7 @@ import { useConfirm } from "./Confirm.js";
 import { Icon } from "./Icon.js";
 import { Mrkdwn } from "./Mrkdwn.js";
 import { useToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 
 /** How many faces an option shows before the rest are only counted. */
 const FACES = 3;
@@ -59,11 +60,14 @@ export function PollCard({
       : poll.multiple
         ? [...mine, option]
         : [option];
-    void client.vote(message, next).then((ok) => {
-      if (!ok)
+    void client.vote(message, next).then((error) => {
+      if (error)
         toast({
-          message:
-            "Your vote did not go through. The poll may have closed. Check it and try again.",
+          message: failureText(
+            "Your vote did not go through.",
+            error,
+            "The poll may have closed. Check it and try again.",
+          ),
         });
     });
   }
@@ -74,8 +78,9 @@ export function PollCard({
       body: "Nobody can vote once it closes, and the votes so far are final.",
       confirmLabel: "Close poll",
     });
-    if (sure && !(await client.closePoll(message)))
-      toast({ message: "Could not close the poll. Check your connection and try again." });
+    if (!sure) return;
+    const error = await client.closePoll(message);
+    if (error) toast({ message: failureText("Could not close the poll.", error) });
   }
 
   return (
