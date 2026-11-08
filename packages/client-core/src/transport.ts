@@ -47,22 +47,23 @@ async function refusal(res: Response): Promise<ApiError> {
   return apiError(res.status, text, res.headers.get("retry-after"));
 }
 
-type BodyGiven<E extends EndpointSpec> = E["body"] extends "image"
-  ? Blob
-  : E["body"] extends "slack"
-    ? unknown
-    : BodyIn<E>;
+type BodyGiven<B> = B extends "image" ? Blob : B extends "slack" ? unknown : BodyIn<{ body: B }>;
+
+// A file goes as a form of its own, beside the input: see `upload`.
+type BodyPart<E> = E extends { body: infer B }
+  ? B extends "file"
+    ? { body?: undefined }
+    : E extends { bodyOptional: true }
+      ? { body?: BodyGiven<B> }
+      : { body: BodyGiven<B> }
+  : { body?: undefined };
 
 /** What a call names: its path's parameters, its query and its body, as the endpoint declares. */
 export type CallInput<E extends EndpointSpec> = ([keyof ParamsIn<E>] extends [never]
   ? { params?: undefined }
   : { params: ParamsIn<E> }) &
-  (E["query"] extends undefined ? { query?: undefined } : { query?: QueryIn<E> }) &
-  (E["body"] extends undefined
-    ? { body?: undefined }
-    : E["bodyOptional"] extends true
-      ? { body?: BodyGiven<E> }
-      : { body: BodyGiven<E> });
+  (E extends { query: object } ? { query?: QueryIn<E> } : { query?: undefined }) &
+  BodyPart<E>;
 
 export interface CallOptions {
   signal?: AbortSignal;
@@ -89,9 +90,9 @@ export class Transport {
     this.token = token;
   }
 
-  url(endpoint: EndpointSpec, input: { params?: object; query?: object } = {}): string {
+  url(endpoint: EndpointSpec, input: { params?: unknown; query?: unknown } = {}): string {
     const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(input.query ?? {}))
+    for (const [key, value] of Object.entries((input.query ?? {}) as object))
       if (value !== undefined && value !== null && value !== "") query.set(key, String(value));
     const path = fillPath(endpoint.path, input.params as Record<string, unknown> | undefined);
     return `${this.baseUrl}${path}${query.size > 0 ? `?${query}` : ""}`;

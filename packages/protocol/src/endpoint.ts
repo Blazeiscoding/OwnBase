@@ -84,19 +84,14 @@ export type PathParams<P extends string> = { [K in ParamNames<P>]: string };
 /** The path parameters a client gives: text, or a number such as a seq. */
 export type ParamsIn<E extends EndpointSpec> = { [K in ParamNames<E["path"]>]: string | number };
 
-export type QueryOf<E extends EndpointSpec> = E["query"] extends z.ZodType
-  ? z.output<E["query"]>
-  : undefined;
-export type QueryIn<E extends EndpointSpec> = E["query"] extends z.ZodType
-  ? z.input<E["query"]>
-  : undefined;
+// An endpoint that declares no query or body has no such key at all, so each
+// reads the key by matching on it rather than by indexing, which would give
+// `unknown` for a missing key.
+export type QueryOf<E> = E extends { query: infer Q extends z.ZodType } ? z.output<Q> : undefined;
+export type QueryIn<E> = E extends { query: infer Q extends z.ZodType } ? z.input<Q> : undefined;
 
-export type BodyOf<E extends EndpointSpec> = E["body"] extends z.ZodType
-  ? z.output<E["body"]>
-  : undefined;
-export type BodyIn<E extends EndpointSpec> = E["body"] extends z.ZodType
-  ? z.input<E["body"]>
-  : undefined;
+export type BodyOf<E> = E extends { body: infer B extends z.ZodType } ? z.output<B> : undefined;
+export type BodyIn<E> = E extends { body: infer B extends z.ZodType } ? z.input<B> : undefined;
 
 /** What a JSON route answers with. */
 export type AnswerOf<E extends EndpointSpec> = E["answer"] extends JsonAnswer<infer T> ? T : never;
