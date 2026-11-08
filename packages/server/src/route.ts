@@ -17,7 +17,7 @@ import {
   type QueryOf,
   type User,
 } from "@ownbase/protocol";
-import { HttpError } from "./httpError.js";
+import { HttpError, passwordChangeRequired } from "./httpError.js";
 
 declare module "fastify" {
   interface FastifyContextConfig {
@@ -82,13 +82,6 @@ export type Route = <E extends Endpoint, H extends RouteHandler<E>>(
   endpoint: E,
   handler: H,
 ) => void;
-
-export const passwordChangeRequired = () =>
-  new HttpError(
-    403,
-    "password_change_required",
-    "Choose a new password before using this workspace.",
-  );
 
 export interface RouterOptions {
   app: FastifyInstance;
