@@ -25,7 +25,6 @@ declare module "fastify" {
   }
 }
 
-/** The signed-in caller, for each kind of access. */
 type CallerOf<E extends EndpointSpec> = E["access"] extends "public" | "bot"
   ? undefined
   : E extends { ticket: true }

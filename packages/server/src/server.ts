@@ -2739,11 +2739,10 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  route(endpoints.inviteMember, async ({ req, user: me, params }) => {
+  route(endpoints.inviteMember, async ({ user: me, params, body }) => {
     const channel = requireChannelAccess(params.id, me);
-    const { userId } = (req.body ?? {}) as { userId?: string };
-    const invited = typeof userId === "string" ? store.getUser(userId) : null;
-    if (!invited || typeof userId !== "string") throw new HttpError(400, "unknown_user");
+    const invited = store.getUser(body.userId);
+    if (!invited) throw new HttpError(400, "unknown_user");
     if (channel.type === "dm" || channel.type === "group_dm") {
       throw new HttpError(400, "cannot_invite_to_dm");
     }
@@ -2752,9 +2751,9 @@ async function startWorkspaceServer(
       throw new HttpError(403, "channel_invite_forbidden");
     }
     mutate((emit, afterCommit) => {
-      if (store.addMember(channel.id, userId)) {
-        afterCommit(() => gateway.updateChannelAccess(channel.id, userId));
-        emit({ type: "member.joined", channelId: channel.id, userId }, channel.id);
+      if (store.addMember(channel.id, invited.id)) {
+        afterCommit(() => gateway.updateChannelAccess(channel.id, invited.id));
+        emit({ type: "member.joined", channelId: channel.id, userId: invited.id }, channel.id);
       }
     });
     return { ok: true };
