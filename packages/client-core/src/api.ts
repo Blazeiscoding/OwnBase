@@ -1,104 +1,32 @@
-import { errorCodeOf, type ErrorCode } from "@ownbase/protocol";
-import type {
-  AccessPolicy,
-  CallLogEntry,
-  App,
-  AppScope,
-  Channel,
-  ChannelPrefs,
-  ChannelPrefsBody,
-  NotifyLevel,
-  UnreadSummary,
-  CreateChannelBody,
-  CreateInviteBody,
-  FileKind,
-  FileMeta,
-  Friendship,
-  ID,
-  AuditEntry,
-  Invite,
-  Message,
-  SendMessageBody,
-  ScheduledMessage,
-  ScheduleMessageBody,
-  ServerInfo,
-  SettingsPanel,
-  SignInConnection,
-  StorageUsage,
-  SessionInfo,
-  SlashCommand,
-  ThreadFollow,
-  Reminder,
-  ChannelRemoval,
-  ReportReason,
-  ReportResolution,
-  ReportedMessage,
-  SharedFile,
-  SidebarSection,
-  ReminderItem,
-  FollowedThread,
-  EventSubscription,
-  EditScheduledBody,
-  UpdateChannelBody,
-  UpdateMeBody,
-  User,
-  WorkspaceCopy,
-  WorkspaceStatus,
-  Webhook,
+import {
+  endpoint,
+  endpoints,
+  extensionRoutes,
+  type AccessPolicy,
+  type AppScope,
+  type ChannelPrefsBody,
+  type CreateChannelBody,
+  type CreateCommandBody,
+  type CreateInviteBody,
+  type EditScheduledBody,
+  type FileKind,
+  type ID,
+  type NotifyLevel,
+  type RegisterBody,
+  type ReportReason,
+  type ReportResolution,
+  type ScheduleMessageBody,
+  type SendMessageBody,
+  type UpdateChannelBody,
+  type UpdateMeBody,
 } from "@ownbase/protocol";
+import { ApiError, Transport } from "./transport.js";
 
-/** One entry in the composer's `/` hint list. */
-export interface CommandHint {
-  command: string;
-  description: string;
-  usageHint: string;
-  /** Answered by the server itself rather than an installed app. */
-  builtin: boolean;
-}
-
-/** An app with everything hanging off it, as the admin screen needs it. */
-export interface AppDetail extends App {
-  webhooks: Webhook[];
-  commands: SlashCommand[];
-  subscriptions: EventSubscription[];
-  /** Readable by admins: apps need it to verify our signatures. */
-  signingSecret: string;
-}
-
-export class ApiError extends Error {
-  constructor(
-    public status: number,
-    public code: ErrorCode,
-    message?: string,
-    /** How long the server asked to be left alone, from its Retry-After, when it said. */
-    public retryAfterMs?: number,
-  ) {
-    super(message ?? code);
-  }
-}
+export { ApiError };
+export type { AppDetail, CommandHint, LoginResult, SignedIn } from "@ownbase/protocol";
 
 /** How long a message send waits for the workspace's answer. */
-export const SEND_TIMEOUT_MS = 30_000;
-
-/** Retry-After in seconds as milliseconds; a date or nothing gives undefined. */
-function retryAfter(header: string | null): number | undefined {
-  const seconds = Number(header);
-  return header && Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
-}
-
-/** A session, as signing in or joining gives one. */
-export interface SignedIn {
-  token: string;
-  user: User;
-  /** The password used was issued by someone else, and must be replaced first. */
-  mustChangePassword?: boolean;
-}
-
-/**
- * What a password gets: a session, or, for an account with two-step sign-in
- * (E11), the challenge its second step answers before `expiresAt`.
- */
-export type LoginResult = SignedIn | { twoStep: { challenge: string; expiresAt: number } };
+export const SEND_TIMEOUT_MS = endpoints.sendMessage.timeoutMs;
 
 /**
  * A path the server gave for one of its own routes. Anything else is refused
@@ -109,200 +37,161 @@ export function serverPath(path: string): string {
   return path;
 }
 
-/** Typed REST client for one workspace server. */
+/** A one-time download ticket, before it is put in an address. */
+function ticket(result: { token: unknown }): string {
+  if (typeof result.token !== "string" || !/^[a-f0-9]{64}$/.test(result.token))
+    throw new ApiError(502, "invalid_response");
+  return result.token;
+}
+
+/**
+ * A workspace server's REST API, a method for each endpoint in `endpoints`.
+ * Paths, bodies, answers and timeouts all come from there.
+ */
 export class Api {
-  constructor(
-    public baseUrl: string,
-    private token: string | null = null,
-  ) {}
+  private readonly http: Transport;
+
+  constructor(baseUrl: string, token: string | null = null) {
+    this.http = new Transport(baseUrl, token);
+  }
+
+  get baseUrl(): string {
+    return this.http.baseUrl;
+  }
 
   setToken(token: string | null): void {
-    this.token = token;
+    this.http.setToken(token);
   }
 
-  private async request<T>(
-    method: string,
-    path: string,
-    body?: unknown,
-    opts?: { timeoutMs?: number; signal?: AbortSignal },
-  ): Promise<T> {
-    // A file is sent as itself, with its own type; anything else as JSON.
-    const file = typeof Blob !== "undefined" && body instanceof Blob ? body : null;
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      method,
-      headers: {
-        ...(body !== undefined
-          ? { "content-type": file ? file.type || "application/octet-stream" : "application/json" }
-          : {}),
-        ...(this.token ? { authorization: `Bearer ${this.token}` } : {}),
-      },
-      body: file ?? (body !== undefined ? JSON.stringify(body) : undefined),
-      signal: opts?.timeoutMs
-        ? opts.signal
-          ? AbortSignal.any([opts.signal, AbortSignal.timeout(opts.timeoutMs)])
-          : AbortSignal.timeout(opts.timeoutMs)
-        : opts?.signal,
-    });
-    if (!res.ok) {
-      let code: ErrorCode = "http_error";
-      let message: string | undefined;
-      try {
-        const data = (await res.json()) as { error?: unknown; message?: string };
-        code = errorCodeOf(data.error);
-        message = data.message;
-      } catch {
-        /* non-JSON error body */
-      }
-      throw new ApiError(res.status, code, message, retryAfter(res.headers.get("retry-after")));
-    }
-    return (await res.json()) as T;
+  serverInfo() {
+    return this.http.json(endpoints.serverInfo);
   }
 
-  serverInfo(timeoutMs = 4000): Promise<ServerInfo> {
-    return this.request<ServerInfo>("GET", "/api/server-info", undefined, { timeoutMs });
+  storageUsage(signal?: AbortSignal) {
+    return this.http.json(endpoints.storageUsage, {}, { signal });
   }
 
-  storageUsage(signal?: AbortSignal): Promise<StorageUsage> {
-    return this.request("GET", "/api/storage", undefined, { timeoutMs: 10_000, signal });
-  }
-
+  /** An address that downloads the file once, within a minute, by a browser's navigation. */
   async downloadUrl(fileId: ID): Promise<string> {
-    const result = await this.request<{ token: string; expiresAt: number }>(
-      "POST",
-      `/api/files/${fileId}/download-token`,
-      undefined,
-      { timeoutMs: 10_000 },
-    );
-    if (typeof result.token !== "string" || !/^[a-f0-9]{64}$/.test(result.token))
-      throw new ApiError(502, "invalid_response");
-    return `${this.baseUrl}/api/files/${encodeURIComponent(fileId)}?download=${result.token}`;
+    const issued = await this.http.json(endpoints.fileDownloadToken, { params: { id: fileId } });
+    return this.http.url(endpoints.file, {
+      params: { id: fileId },
+      query: { download: ticket(issued) },
+    });
   }
 
-  rtcConfig(): Promise<RTCConfiguration> {
-    return this.request("GET", "/api/rtc-config", undefined, { timeoutMs: 5000 });
+  rtcConfig() {
+    return this.http.json(endpoints.rtcConfig);
   }
 
-  friends(): Promise<{ friends: Friendship[] }> {
-    return this.request("GET", "/api/friends");
+  friends() {
+    return this.http.json(endpoints.friends);
   }
 
-  updateFriend(
-    userId: ID,
-    action: "request" | "accept" | "remove",
-  ): Promise<{ friends: Friendship[] }> {
-    return this.request(
-      { request: "POST", accept: "PUT", remove: "DELETE" }[action],
-      `/api/friends/${encodeURIComponent(userId)}`,
-    );
+  updateFriend(userId: ID, action: "request" | "accept" | "remove") {
+    const route = {
+      request: endpoints.requestFriend,
+      accept: endpoints.acceptFriend,
+      remove: endpoints.removeFriend,
+    }[action];
+    return this.http.json(route, { params: { id: userId } });
   }
 
-  register(body: {
-    handle: string;
-    displayName: string;
-    password: string;
-    inviteCode?: string;
-    claimCode?: string;
-  }): Promise<{ token: string; user: User }> {
-    return this.request("POST", "/api/auth/register", body);
+  register(body: RegisterBody) {
+    return this.http.json(endpoints.register, { body });
   }
 
   /**
    * Signs in with a password. This client always says it can answer a second
-   * step (E11), which an older server does not read; an account with
-   * two-step sign-in then gets a challenge in place of a session.
+   * step (E11); an account with two-step sign-in then gets a challenge in
+   * place of a session.
    */
-  login(body: { handle: string; password: string }): Promise<LoginResult> {
-    return this.request("POST", "/api/auth/login", { ...body, twoStep: true });
+  login(body: { handle: string; password: string }) {
+    return this.http.json(endpoints.login, { body: { ...body, twoStep: true } });
   }
 
   /**
    * The second step of signing in (E11): the first step's challenge, and a
    * code from the authenticator app or one of the recovery codes.
    */
-  signInSecondStep(
-    body: { challenge: string } & ({ code: string } | { recoveryCode: string }),
-  ): Promise<SignedIn & { recoveryCodesLeft: number }> {
-    return this.request("POST", "/api/auth/two-step", body);
+  signInSecondStep(body: { challenge: string } & ({ code: string } | { recoveryCode: string })) {
+    return this.http.json(endpoints.signInSecondStep, { body });
   }
 
   /**
    * Signs in with the one-time code a way of signing in besides a password
    * came back with (P9), and the secret this client began it with.
    */
-  redeemSignIn(path: string, body: { code: string; verifier: string }): Promise<SignedIn> {
-    return this.request("POST", serverPath(path), body, { timeoutMs: 20_000 });
+  redeemSignIn(path: string, body: { code: string; verifier: string }) {
+    const route = endpoint({ ...extensionRoutes.redeemSignIn, path: serverPath(path) });
+    return this.http.json(route, { body });
   }
 
   /** Whether the signed-in person has linked their account to a way of signing in (P9). */
-  signInConnection(path: string): Promise<SignInConnection> {
-    return this.request("GET", serverPath(path), undefined, { timeoutMs: 10_000 });
+  signInConnection(path: string) {
+    return this.http.json(
+      endpoint({ ...extensionRoutes.signInConnection, path: serverPath(path) }),
+    );
   }
 
   /** Where to link it: a path on this server, opened in a browser (P9). */
-  connectSignIn(path: string): Promise<{ url: string }> {
-    return this.request("POST", serverPath(path), undefined, { timeoutMs: 10_000 });
+  connectSignIn(path: string) {
+    return this.http.json(endpoint({ ...extensionRoutes.connectSignIn, path: serverPath(path) }));
   }
 
-  disconnectSignIn(path: string): Promise<SignInConnection> {
-    return this.request("DELETE", serverPath(path), undefined, { timeoutMs: 10_000 });
+  disconnectSignIn(path: string) {
+    return this.http.json(
+      endpoint({ ...extensionRoutes.disconnectSignIn, path: serverPath(path) }),
+    );
   }
 
   /** The panels the server's extensions add to Workspace settings, for the owner (P9). */
-  extensionSettings(): Promise<{ panels: SettingsPanel[] }> {
-    return this.request("GET", "/api/admin/extension-settings", undefined, { timeoutMs: 10_000 });
+  extensionSettings() {
+    return this.http.json(endpoints.extensionSettings);
   }
 
   /** Saves a panel's values where it says, as `{ [key]: value }`. */
-  saveExtensionSettings(path: string, values: Record<string, string | boolean>): Promise<unknown> {
-    return this.request("PUT", serverPath(path), values, { timeoutMs: 20_000 });
+  saveExtensionSettings(path: string, values: Record<string, string | boolean>) {
+    const route = endpoint({ ...extensionRoutes.saveSettings, path: serverPath(path) });
+    return this.http.json(route, { body: values });
   }
 
   /** Joins with a display name alone, where the workspace allows guests. */
-  joinAsGuest(displayName: string): Promise<{ token: string; user: User }> {
-    return this.request("POST", "/api/auth/guest", { displayName });
+  joinAsGuest(displayName: string) {
+    return this.http.json(endpoints.joinAsGuest, { body: { displayName } });
   }
 
   /**
    * Keeps a guest's identity as an account. Every guest session ends,
    * this one included; the token returned replaces it.
    */
-  createAccountFromGuest(body: {
-    handle: string;
-    password: string;
-  }): Promise<{ token: string; user: User }> {
-    return this.request("POST", "/api/auth/guest/account", body, { timeoutMs: 20_000 });
+  createAccountFromGuest(body: { handle: string; password: string }) {
+    return this.http.json(endpoints.createAccountFromGuest, { body });
   }
 
-  logout(): Promise<{ ok: true }> {
-    return this.request("POST", "/api/auth/logout", undefined, { timeoutMs: 10_000 });
+  logout() {
+    return this.http.json(endpoints.logout);
   }
 
-  changePassword(currentPassword: string, newPassword: string): Promise<{ ok: true }> {
-    return this.request(
-      "POST",
-      "/api/auth/password",
-      { currentPassword, newPassword },
-      { timeoutMs: 20_000 },
-    );
+  changePassword(currentPassword: string, newPassword: string) {
+    return this.http.json(endpoints.changePassword, { body: { currentPassword, newPassword } });
   }
 
-  listSessions(): Promise<{ sessions: SessionInfo[] }> {
-    return this.request("GET", "/api/auth/sessions", undefined, { timeoutMs: 10_000 });
+  listSessions() {
+    return this.http.json(endpoints.listSessions);
   }
 
-  revokeSession(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/auth/sessions/${encodeURIComponent(id)}`, undefined, {
-      timeoutMs: 10_000,
-    });
+  revokeSession(id: ID) {
+    return this.http.json(endpoints.revokeSession, { params: { id } });
   }
 
-  revokeOtherSessions(): Promise<{ revoked: number }> {
-    return this.request("DELETE", "/api/auth/sessions", undefined, { timeoutMs: 10_000 });
+  revokeOtherSessions() {
+    return this.http.json(endpoints.revokeOtherSessions);
   }
 
   /** Whether this account asks for a code at sign-in, and how many recovery codes it has left (E11). */
-  twoStep(): Promise<{ enabled: boolean; recoveryCodesLeft: number }> {
-    return this.request("GET", "/api/me/two-step", undefined, { timeoutMs: 10_000 });
+  twoStep() {
+    return this.http.json(endpoints.twoStep);
   }
 
   /**
@@ -310,140 +199,100 @@ export class Api {
    * authenticator app scans for it. Nothing changes until a code from it is
    * given to `enableTwoStep`.
    */
-  startTwoStep(password: string): Promise<{ secret: string; uri: string }> {
-    return this.request("POST", "/api/me/two-step", { password }, { timeoutMs: 20_000 });
+  startTwoStep(password: string) {
+    return this.http.json(endpoints.startTwoStep, { body: { password } });
   }
 
   /** Turns two-step sign-in on with a code from the new key; the recovery codes, shown once. */
-  enableTwoStep(code: string): Promise<{ recoveryCodes: string[] }> {
-    return this.request("POST", "/api/me/two-step/enable", { code }, { timeoutMs: 10_000 });
+  enableTwoStep(code: string) {
+    return this.http.json(endpoints.enableTwoStep, { body: { code } });
   }
 
   /** A new set of recovery codes in place of the old (E11), shown once. */
-  newRecoveryCodes(password: string): Promise<{ recoveryCodes: string[] }> {
-    return this.request(
-      "POST",
-      "/api/me/two-step/recovery-codes",
-      { password },
-      { timeoutMs: 20_000 },
-    );
+  newRecoveryCodes(password: string) {
+    return this.http.json(endpoints.newRecoveryCodes, { body: { password } });
   }
 
-  /** Turns two-step sign-in off (E11). */
-  disableTwoStep(password: string): Promise<{ ok: true }> {
-    return this.request("POST", "/api/me/two-step/disable", { password }, { timeoutMs: 20_000 });
+  disableTwoStep(password: string) {
+    return this.http.json(endpoints.disableTwoStep, { body: { password } });
   }
 
   /** Turns someone's two-step sign-in off, for one who lost their app and codes. Admins only. */
-  resetTwoStep(userId: ID): Promise<{ ok: true }> {
-    return this.request(
-      "POST",
-      `/api/admin/users/${encodeURIComponent(userId)}/two-step/reset`,
-      undefined,
-      { timeoutMs: 10_000 },
-    );
+  resetTwoStep(userId: ID) {
+    return this.http.json(endpoints.resetTwoStep, { params: { id: userId } });
   }
 
   /** Blocks someone for this account (E12); everyone it has blocked now. */
-  blockUser(userId: ID): Promise<{ blocked: ID[] }> {
-    return this.request("PUT", `/api/me/blocks/${encodeURIComponent(userId)}`, undefined, {
-      timeoutMs: 10_000,
-    });
+  blockUser(userId: ID) {
+    return this.http.json(endpoints.blockUser, { params: { id: userId } });
   }
 
-  /** Unblocks someone for this account (E12); everyone it has blocked now. */
-  unblockUser(userId: ID): Promise<{ blocked: ID[] }> {
-    return this.request("DELETE", `/api/me/blocks/${encodeURIComponent(userId)}`, undefined, {
-      timeoutMs: 10_000,
-    });
+  unblockUser(userId: ID) {
+    return this.http.json(endpoints.unblockUser, { params: { id: userId } });
   }
 
   /** Reports a message to the workspace's admins (E12), with why and anything to add. */
-  reportMessage(messageId: ID, reason: ReportReason, note = ""): Promise<{ ok: true }> {
-    return this.request(
-      "POST",
-      `/api/messages/${encodeURIComponent(messageId)}/report`,
-      { reason, ...(note.trim() ? { note: note.trim() } : {}) },
-      { timeoutMs: 10_000 },
-    );
+  reportMessage(messageId: ID, reason: ReportReason, note = "") {
+    return this.http.json(endpoints.reportMessage, {
+      params: { id: messageId },
+      body: { reason, ...(note.trim() ? { note: note.trim() } : {}) },
+    });
   }
 
   /** The reported messages waiting for an admin (E12). Admins only. */
-  listReports(): Promise<{ reports: ReportedMessage[] }> {
-    return this.request("GET", "/api/admin/reports", undefined, { timeoutMs: 10_000 });
+  listReports() {
+    return this.http.json(endpoints.listReports);
   }
 
   /** Settles a reported message: dismissed, removed, or removed with its author deactivated (E12). Admins only. */
-  resolveReport(messageId: ID, action: ReportResolution): Promise<{ ok: true }> {
-    return this.request(
-      "POST",
-      `/api/admin/reports/${encodeURIComponent(messageId)}/resolve`,
-      { action },
-      { timeoutMs: 20_000 },
-    );
+  resolveReport(messageId: ID, action: ReportResolution) {
+    return this.http.json(endpoints.resolveReport, { params: { id: messageId }, body: { action } });
   }
 
-  resetPassword(userId: ID): Promise<{ temporaryPassword: string }> {
-    return this.request(
-      "POST",
-      `/api/admin/users/${encodeURIComponent(userId)}/password`,
-      undefined,
-      { timeoutMs: 20_000 },
-    );
+  resetPassword(userId: ID) {
+    return this.http.json(endpoints.resetPassword, { params: { id: userId } });
   }
 
   /**
    * Renames the workspace, for its owner and admins. Everyone signed in hears
    * `workspace.renamed`.
    */
-  renameWorkspace(name: string): Promise<{ workspaceName: string }> {
-    return this.request("PUT", "/api/admin/workspace/name", { name }, { timeoutMs: 10_000 });
+  renameWorkspace(name: string) {
+    return this.http.json(endpoints.renameWorkspace, { body: { name } });
   }
 
   /**
    * Changes who may join, for the owner and admins. Leaving guests allowed signs
    * every guest out. Everyone signed in hears `workspace.accessPolicy`.
    */
-  setAccessPolicy(accessPolicy: AccessPolicy): Promise<{ accessPolicy: AccessPolicy }> {
-    return this.request(
-      "PUT",
-      "/api/admin/workspace/access-policy",
-      { accessPolicy },
-      { timeoutMs: 10_000 },
-    );
+  setAccessPolicy(accessPolicy: AccessPolicy) {
+    return this.http.json(endpoints.setAccessPolicy, { body: { accessPolicy } });
   }
 
   /**
    * Turns link previews on or off for new messages, for the owner and admins
    * (E2). Everyone signed in hears `workspace.linkPreviews`.
    */
-  setLinkPreviews(enabled: boolean): Promise<{ enabled: boolean }> {
-    return this.request(
-      "PUT",
-      "/api/admin/workspace/link-previews",
-      { enabled },
-      { timeoutMs: 10_000 },
-    );
+  setLinkPreviews(enabled: boolean) {
+    return this.http.json(endpoints.setLinkPreviews, { body: { enabled } });
   }
 
   /** Takes a preview off the sender's own message, for good. */
-  removeLinkPreview(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/link-previews/${id}`);
+  removeLinkPreview(id: ID) {
+    return this.http.json(endpoints.removeLinkPreview, { params: { id } });
   }
 
   /**
    * Sets the workspace's icon, for the owner and admins: a PNG, JPEG or WebP
    * image of at most `WORKSPACE_ICON_MAX_BYTES`, sent as itself. Everyone
-   * signed in hears `workspace.icon`. A server without
-   * `ReadySnapshot.workspaceIcon` has no such route.
+   * signed in hears `workspace.icon`.
    */
-  setWorkspaceIcon(image: Blob): Promise<{ iconVersion: string }> {
-    return this.request("PUT", "/api/admin/workspace/icon", image, { timeoutMs: 30_000 });
+  setWorkspaceIcon(image: Blob) {
+    return this.http.json(endpoints.setWorkspaceIcon, { body: image });
   }
 
-  /** Removes the workspace's icon, for the owner and admins. */
-  removeWorkspaceIcon(): Promise<{ iconVersion: null }> {
-    return this.request("DELETE", "/api/admin/workspace/icon", undefined, { timeoutMs: 10_000 });
+  removeWorkspaceIcon() {
+    return this.http.json(endpoints.removeWorkspaceIcon);
   }
 
   /**
@@ -451,190 +300,126 @@ export class Api {
    * by its version, so the browser keeps it until the version changes.
    * Rejects with `no_icon` when the workspace has none.
    */
-  async workspaceIcon(version: string, signal?: AbortSignal): Promise<Blob> {
-    const res = await fetch(`${this.baseUrl}/api/workspace/icon?v=${encodeURIComponent(version)}`, {
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(20_000)])
-        : AbortSignal.timeout(20_000),
-    });
-    if (!res.ok) throw new ApiError(res.status, res.status === 404 ? "no_icon" : "http_error");
-    return res.blob();
+  workspaceIcon(version: string, signal?: AbortSignal) {
+    return this.http.bytes(endpoints.workspaceIcon, { query: { v: version } }, { signal });
   }
 
-  transferOwnership(userId: ID): Promise<{ owner: User; previousOwner: User }> {
-    return this.request("POST", `/api/admin/users/${encodeURIComponent(userId)}/owner`, undefined, {
-      timeoutMs: 10_000,
-    });
+  transferOwnership(userId: ID) {
+    return this.http.json(endpoints.transferOwnership, { params: { id: userId } });
   }
 
-  me(): Promise<{ user: User }> {
-    return this.request("GET", "/api/me");
+  me() {
+    return this.http.json(endpoints.me);
   }
 
-  updateMe(body: UpdateMeBody): Promise<{ user: User }> {
-    return this.request("PATCH", "/api/me", body);
+  updateMe(body: UpdateMeBody) {
+    return this.http.json(endpoints.updateMe, { body });
   }
 
   /** Keeps this picture as this account's own (E9): the image itself, made small first. */
-  setAvatar(image: Blob): Promise<{ user: User }> {
-    return this.request("PUT", "/api/me/avatar", image, { timeoutMs: 30_000 });
+  setAvatar(image: Blob) {
+    return this.http.json(endpoints.setAvatar, { body: image });
   }
 
   /** Removes this account's picture; its initials show again. */
-  removeAvatar(): Promise<{ user: User }> {
-    return this.request("DELETE", "/api/me/avatar", undefined, { timeoutMs: 10_000 });
+  removeAvatar() {
+    return this.http.json(endpoints.removeAvatar);
   }
 
   /**
    * Someone's picture, named by its version, which the browser may keep:
    * another picture has another version.
    */
-  async fetchAvatar(userId: ID, version: string): Promise<Blob> {
-    const res = await fetch(
-      `${this.baseUrl}/api/users/${userId}/avatar?v=${encodeURIComponent(version)}`,
-      {
-        headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
-        signal: AbortSignal.timeout(30_000),
-      },
-    );
-    if (!res.ok) throw new ApiError(res.status, "avatar_unavailable");
-    return res.blob();
+  fetchAvatar(userId: ID, version: string) {
+    return this.http.bytes(endpoints.avatar, { params: { id: userId }, query: { v: version } });
   }
 
-  listUsers(): Promise<{ users: User[] }> {
-    return this.request("GET", "/api/users");
+  listUsers() {
+    return this.http.json(endpoints.listUsers);
   }
 
-  /**
-   * Every channel this account can see. `memberCounts` (how many active
-   * people each room holds) is absent from older servers.
-   */
-  listChannels(
-    signal?: AbortSignal,
-  ): Promise<{ channels: Channel[]; memberCounts?: Record<ID, number> }> {
-    return this.request("GET", "/api/channels", undefined, { signal, timeoutMs: 10_000 });
+  /** Every channel this account can see, with how many active people each room holds. */
+  listChannels(signal?: AbortSignal) {
+    return this.http.json(endpoints.listChannels, {}, { signal });
   }
 
-  createChannel(body: CreateChannelBody): Promise<{ channel: Channel }> {
-    return this.request("POST", "/api/channels", body, { timeoutMs: 10_000 });
+  createChannel(body: CreateChannelBody) {
+    return this.http.json(endpoints.createChannel, { body });
   }
 
-  updateChannel(id: ID, body: UpdateChannelBody): Promise<{ channel: Channel }> {
-    return this.request("PATCH", `/api/channels/${id}`, body, { timeoutMs: 10_000 });
+  updateChannel(id: ID, body: UpdateChannelBody) {
+    return this.http.json(endpoints.updateChannel, { params: { id }, body });
   }
 
-  joinChannel(id: ID): Promise<{ ok: true }> {
-    return this.request("POST", `/api/channels/${id}/join`);
+  joinChannel(id: ID) {
+    return this.http.json(endpoints.joinChannel, { params: { id } });
   }
 
-  leaveChannel(id: ID): Promise<{ ok: true }> {
-    return this.request("POST", `/api/channels/${id}/leave`, undefined, { timeoutMs: 10_000 });
+  leaveChannel(id: ID) {
+    return this.http.json(endpoints.leaveChannel, { params: { id } });
   }
 
-  inviteMember(channelId: ID, userId: ID): Promise<{ ok: true }> {
-    return this.request("POST", `/api/channels/${channelId}/invite-member`, { userId });
+  inviteMember(channelId: ID, userId: ID) {
+    return this.http.json(endpoints.inviteMember, { params: { id: channelId }, body: { userId } });
   }
 
-  channelMembers(id: ID): Promise<{ memberIds: ID[] }> {
-    return this.request("GET", `/api/channels/${id}/members`, undefined, { timeoutMs: 10_000 });
+  channelMembers(id: ID) {
+    return this.http.json(endpoints.channelMembers, { params: { id } });
   }
 
-  setChannelManager(channelId: ID, userId: ID, manager: boolean): Promise<{ channel: Channel }> {
-    return this.request(
-      "PATCH",
-      `/api/channels/${channelId}/managers/${userId}`,
-      { manager },
-      { timeoutMs: 10_000 },
-    );
-  }
-
-  removeChannelMember(channelId: ID, userId: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/channels/${channelId}/members/${userId}`, undefined, {
-      timeoutMs: 10_000,
+  setChannelManager(channelId: ID, userId: ID, manager: boolean) {
+    return this.http.json(endpoints.setChannelManager, {
+      params: { id: channelId, userId },
+      body: { manager },
     });
   }
 
-  markRead(channelId: ID, seq: number, signal?: AbortSignal): Promise<{ ok: true; seq?: number }> {
-    return this.request(
-      "POST",
-      `/api/channels/${channelId}/read`,
-      { seq },
-      { timeoutMs: 10_000, signal },
+  removeChannelMember(channelId: ID, userId: ID) {
+    return this.http.json(endpoints.removeChannelMember, { params: { id: channelId, userId } });
+  }
+
+  markRead(channelId: ID, seq: number, signal?: AbortSignal) {
+    return this.http.json(
+      endpoints.markRead,
+      { params: { id: channelId }, body: { seq } },
+      { signal },
     );
   }
 
   listMessages(
     channelId: ID,
     opts: { before?: ID; limit?: number; threadRootId?: ID; signal?: AbortSignal } = {},
-  ): Promise<{ messages: Message[]; readThroughSeq?: number; seq?: number }> {
-    const params = new URLSearchParams();
-    if (opts.before) params.set("before", opts.before);
-    if (opts.limit) params.set("limit", String(opts.limit));
-    if (opts.threadRootId) params.set("threadRootId", opts.threadRootId);
-    const qs = params.size > 0 ? `?${params}` : "";
-    return this.request("GET", `/api/channels/${channelId}/messages${qs}`, undefined, {
-      timeoutMs: 10_000,
-      signal: opts.signal,
-    });
+  ) {
+    const { signal, ...query } = opts;
+    return this.http.json(endpoints.listMessages, { params: { id: channelId }, query }, { signal });
   }
 
   /** A window of messages centred on one, for jumping to it. */
-  listMessagesAround(
-    channelId: ID,
-    messageId: ID,
-    limit = 50,
-    signal?: AbortSignal,
-  ): Promise<{
-    messages: Message[];
-    hasMoreOlder: boolean;
-    hasMoreNewer: boolean;
-    threadRootId?: ID | null;
-    seq?: number;
-  }> {
-    return this.request(
-      "GET",
-      `/api/channels/${channelId}/messages/around/${messageId}?limit=${limit}`,
-      undefined,
-      { timeoutMs: 10_000, signal },
+  listMessagesAround(channelId: ID, messageId: ID, limit = 50, signal?: AbortSignal) {
+    return this.http.json(
+      endpoints.listMessagesAround,
+      { params: { id: channelId, messageId }, query: { limit } },
+      { signal },
     );
   }
 
   /**
    * A window centred on the first message after `seq`, where someone who had
-   * read up to it takes up reading again. 404 when nothing was said since, or
-   * from a server too old to offer it.
+   * read up to it takes up reading again. 404 when nothing was said since.
    */
-  listMessagesSince(
-    channelId: ID,
-    seq: number,
-    limit = 50,
-    signal?: AbortSignal,
-  ): Promise<{
-    messages: Message[];
-    hasMoreOlder: boolean;
-    hasMoreNewer: boolean;
-    targetId: ID;
-    seq: number;
-  }> {
-    return this.request(
-      "GET",
-      `/api/channels/${channelId}/messages/since/${seq}?limit=${limit}`,
-      undefined,
-      { timeoutMs: 10_000, signal },
+  listMessagesSince(channelId: ID, seq: number, limit = 50, signal?: AbortSignal) {
+    return this.http.json(
+      endpoints.listMessagesSince,
+      { params: { id: channelId, seq }, query: { limit } },
+      { signal },
     );
   }
 
-  listMessagesAfter(
-    channelId: ID,
-    afterId: ID,
-    limit = 50,
-    signal?: AbortSignal,
-  ): Promise<{ messages: Message[]; seq?: number }> {
-    return this.request(
-      "GET",
-      `/api/channels/${channelId}/messages/after/${afterId}?limit=${limit}`,
-      undefined,
-      { timeoutMs: 10_000, signal },
+  listMessagesAfter(channelId: ID, afterId: ID, limit = 50, signal?: AbortSignal) {
+    return this.http.json(
+      endpoints.listMessagesAfter,
+      { params: { id: channelId, messageId: afterId }, query: { limit } },
+      { signal },
     );
   }
 
@@ -642,248 +427,150 @@ export class Api {
     channelId: ID,
     rootId: ID,
     opts: { before?: ID; after?: ID; around?: ID; limit?: number; signal?: AbortSignal } = {},
-  ): Promise<{
-    root: Message;
-    messages: Message[];
-    hasMoreOlder: boolean;
-    hasMoreNewer: boolean;
-    seq: number;
-  }> {
-    const { signal, ...params } = opts;
-    const query = new URLSearchParams();
-    for (const [key, value] of Object.entries(params))
-      if (value !== undefined) query.set(key, String(value));
-    return this.request(
-      "GET",
-      `/api/channels/${encodeURIComponent(channelId)}/threads/${encodeURIComponent(rootId)}?${query}`,
-      undefined,
-      { timeoutMs: 10_000, signal },
+  ) {
+    const { signal, ...query } = opts;
+    return this.http.json(
+      endpoints.threadHistory,
+      { params: { id: channelId, rootId }, query },
+      { signal },
     );
   }
 
   /** One message, for the card under a link to it; a 404 when it is gone or not readable. */
-  getMessage(channelId: ID, messageId: ID, signal?: AbortSignal): Promise<{ message: Message }> {
-    return this.request("GET", `/api/channels/${channelId}/messages/${messageId}`, undefined, {
-      timeoutMs: 10_000,
-      signal,
-    });
+  getMessage(channelId: ID, messageId: ID, signal?: AbortSignal) {
+    return this.http.json(
+      endpoints.getMessage,
+      { params: { id: channelId, messageId } },
+      { signal },
+    );
   }
 
   /**
    * A send carries a nonce, so one that waited too long for an answer can go
-   * again without posting twice; without a limit it showed "Sending…" forever.
+   * again without posting twice.
    */
-  sendMessage(channelId: ID, body: SendMessageBody): Promise<{ message: Message }> {
-    return this.request("POST", `/api/channels/${channelId}/messages`, body, {
-      timeoutMs: SEND_TIMEOUT_MS,
-    });
+  sendMessage(channelId: ID, body: SendMessageBody) {
+    return this.http.json(endpoints.sendMessage, { params: { id: channelId }, body });
   }
 
   /** With `expectedText`, refused as `message_changed` if the words are no longer those. */
-  editMessage(id: ID, text: string, expectedText?: string): Promise<{ message: Message }> {
-    return this.request(
-      "PATCH",
-      `/api/messages/${id}`,
-      { text, expectedText },
-      { timeoutMs: 10_000 },
-    );
+  editMessage(id: ID, text: string, expectedText?: string) {
+    return this.http.json(endpoints.editMessage, { params: { id }, body: { text, expectedText } });
   }
 
-  deleteMessage(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/messages/${id}`);
+  deleteMessage(id: ID) {
+    return this.http.json(endpoints.deleteMessage, { params: { id } });
   }
 
-  addReaction(messageId: ID, emoji: string): Promise<{ ok: true }> {
-    return this.request("PUT", `/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`);
+  addReaction(messageId: ID, emoji: string) {
+    return this.http.json(endpoints.addReaction, { params: { id: messageId, emoji } });
   }
 
-  removeReaction(messageId: ID, emoji: string): Promise<{ ok: true }> {
-    return this.request(
-      "DELETE",
-      `/api/messages/${messageId}/reactions/${encodeURIComponent(emoji)}`,
-    );
+  removeReaction(messageId: ID, emoji: string) {
+    return this.http.json(endpoints.removeReaction, { params: { id: messageId, emoji } });
   }
 
   /** Uploads one file to a channel; attach the returned id to a message. */
-  async uploadFile(
+  uploadFile(
     channelId: ID,
     file: Blob,
     name: string,
     opts: { onProgress?: (fraction: number) => void; signal?: AbortSignal } = {},
-  ): Promise<{ file: FileMeta }> {
+  ) {
     const form = new FormData();
     form.append("file", file, name);
-
-    // XHR rather than fetch: it reports upload progress, which large files need.
-    return new Promise((resolve, reject) => {
-      if (opts.signal?.aborted) {
-        reject(new ApiError(0, "aborted"));
-        return;
-      }
-      const xhr = new XMLHttpRequest();
-      xhr.open("POST", `${this.baseUrl}/api/channels/${channelId}/files`);
-      xhr.timeout = 300_000;
-      if (this.token) xhr.setRequestHeader("authorization", `Bearer ${this.token}`);
-      xhr.upload.addEventListener("progress", (e) => {
-        if (e.lengthComputable) opts.onProgress?.(e.loaded / e.total);
-      });
-      xhr.addEventListener("load", () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          try {
-            resolve(JSON.parse(xhr.responseText) as { file: FileMeta });
-          } catch {
-            reject(new ApiError(0, "invalid_response"));
-          }
-        } else {
-          let code: ErrorCode = "http_error";
-          try {
-            code = errorCodeOf((JSON.parse(xhr.responseText) as { error?: unknown }).error);
-          } catch {
-            /* non-JSON error body */
-          }
-          reject(
-            new ApiError(
-              xhr.status,
-              code,
-              undefined,
-              retryAfter(xhr.getResponseHeader("retry-after")),
-            ),
-          );
-        }
-      });
-      xhr.addEventListener("error", () => reject(new ApiError(0, "network_error")));
-      xhr.addEventListener("abort", () => reject(new ApiError(0, "aborted")));
-      xhr.addEventListener("timeout", () => reject(new ApiError(0, "upload_timeout")));
-      const abort = () => xhr.abort();
-      opts.signal?.addEventListener("abort", abort, { once: true });
-      xhr.addEventListener("loadend", () => opts.signal?.removeEventListener("abort", abort));
-      xhr.send(form);
-    });
+    return this.http.upload(endpoints.uploadFile, { params: { id: channelId } }, form, opts);
   }
 
-  /** Raw bytes of an upload, fetched with the session token. */
   /** A link preview's picture, which the server fetched from the page (E2). */
-  fetchPreviewImage(previewId: ID, signal?: AbortSignal): Promise<Blob> {
-    return this.fetchBytes(`/api/link-previews/${previewId}/image`, signal);
+  fetchPreviewImage(previewId: ID, signal?: AbortSignal) {
+    return this.http.bytes(endpoints.previewImage, { params: { id: previewId } }, { signal });
   }
 
-  fetchFile(fileId: ID, signal?: AbortSignal): Promise<Blob> {
-    return this.fetchBytes(`/api/files/${fileId}`, signal);
+  fetchFile(fileId: ID, signal?: AbortSignal) {
+    return this.http.bytes(endpoints.file, { params: { id: fileId } }, { signal });
   }
 
-  private async fetchBytes(path: string, signal?: AbortSignal): Promise<Blob> {
-    const res = await fetch(`${this.baseUrl}${path}`, {
-      headers: this.token ? { authorization: `Bearer ${this.token}` } : {},
-      // Bypass bytes cached by older servers that marked this URL immutable.
-      cache: "no-store",
-      signal: signal
-        ? AbortSignal.any([signal, AbortSignal.timeout(300_000)])
-        : AbortSignal.timeout(300_000),
-    });
-    if (!res.ok)
-      throw new ApiError(res.status, res.status === 404 ? "file_not_found" : "http_error");
-    return res.blob();
+  scheduleMessage(channelId: ID, body: ScheduleMessageBody) {
+    return this.http.json(endpoints.scheduleMessage, { params: { id: channelId }, body });
   }
 
-  async scheduleMessage(
-    channelId: ID,
-    body: ScheduleMessageBody,
-  ): Promise<{ scheduled: ScheduledMessage }> {
-    return this.request("POST", `/api/channels/${channelId}/scheduled`, body, {
-      timeoutMs: 15_000,
-    });
+  listScheduled(signal?: AbortSignal) {
+    return this.http.json(endpoints.listScheduled, {}, { signal });
   }
 
-  listScheduled(signal?: AbortSignal): Promise<{ scheduled: ScheduledMessage[] }> {
-    return this.request("GET", "/api/scheduled", undefined, { signal, timeoutMs: 10_000 });
-  }
-
-  cancelScheduled(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/scheduled/${id}`, undefined, { timeoutMs: 10_000 });
+  cancelScheduled(id: ID) {
+    return this.http.json(endpoints.cancelScheduled, { params: { id } });
   }
 
   /** Requeues a held or failed message. A past time sends it on the next flush. */
-  rescheduleMessage(id: ID, sendAt: number): Promise<{ scheduled: ScheduledMessage }> {
-    return this.request("PATCH", `/api/scheduled/${id}`, { sendAt }, { timeoutMs: 10_000 });
+  rescheduleMessage(id: ID, sendAt: number) {
+    return this.http.json(endpoints.rescheduleMessage, { params: { id }, body: { sendAt } });
   }
 
-  editScheduledMessage(id: ID, body: EditScheduledBody): Promise<{ scheduled: ScheduledMessage }> {
-    return this.request("PATCH", `/api/scheduled/${id}/text`, body, { timeoutMs: 10_000 });
+  editScheduledMessage(id: ID, body: EditScheduledBody) {
+    return this.http.json(endpoints.editScheduledMessage, { params: { id }, body });
   }
 
-  setChannelPrefs(channelId: ID, body: ChannelPrefsBody): Promise<{ prefs: ChannelPrefs }> {
-    return this.request("PATCH", `/api/channels/${channelId}/prefs`, body);
+  setChannelPrefs(channelId: ID, body: ChannelPrefsBody) {
+    return this.http.json(endpoints.setChannelPrefs, { params: { id: channelId }, body });
   }
 
   /** What conversations notify about unless one is set on its own (v53). */
-  setNotifyDefault(level: NotifyLevel): Promise<{ level: NotifyLevel }> {
-    return this.request("PUT", "/api/me/notify-default", { level }, { timeoutMs: 10_000 });
+  setNotifyDefault(level: NotifyLevel) {
+    return this.http.json(endpoints.setNotifyDefault, { body: { level } });
   }
 
-  /** What waits in this workspace, for a device showing another one. 404 from older servers. */
-  unreadSummary(): Promise<UnreadSummary> {
-    return this.request("GET", "/api/me/unread", undefined, { timeoutMs: 10_000 });
+  /** What waits in this workspace, for a device showing another one. */
+  unreadSummary() {
+    return this.http.json(endpoints.unreadSummary);
   }
 
-  pinMessage(id: ID): Promise<{ ok: true }> {
-    return this.request("PUT", `/api/messages/${id}/pin`);
+  pinMessage(id: ID) {
+    return this.http.json(endpoints.pinMessage, { params: { id } });
   }
 
-  unpinMessage(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/messages/${id}/pin`);
+  unpinMessage(id: ID) {
+    return this.http.json(endpoints.unpinMessage, { params: { id } });
   }
 
-  /** `total` counts every pin, from servers that say; older ones leave it out. */
-  listPins(
-    channelId: ID,
-    signal?: AbortSignal,
-    cursor?: string,
-    limit = 30,
-  ): Promise<{ messages: Message[]; nextCursor: string | null; total?: number }> {
-    const query = new URLSearchParams({ limit: String(limit) });
-    if (cursor) query.set("cursor", cursor);
-    return this.request("GET", `/api/channels/${channelId}/pins?${query}`, undefined, {
-      signal,
-      timeoutMs: 10_000,
-    });
+  listPins(channelId: ID, signal?: AbortSignal, cursor?: string, limit = 30) {
+    return this.http.json(
+      endpoints.listPins,
+      { params: { id: channelId }, query: { limit, cursor } },
+      { signal },
+    );
   }
 
-  saveMessage(id: ID): Promise<{ ok: true }> {
-    return this.request("PUT", `/api/messages/${id}/save`);
+  saveMessage(id: ID) {
+    return this.http.json(endpoints.saveMessage, { params: { id } });
   }
 
-  unsaveMessage(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/messages/${id}/save`);
+  unsaveMessage(id: ID) {
+    return this.http.json(endpoints.unsaveMessage, { params: { id } });
   }
 
-  listSaved(
-    cursor?: string,
-    signal?: AbortSignal,
-  ): Promise<{ messages: Message[]; nextCursor: string | null }> {
-    const query = new URLSearchParams({ limit: "30" });
-    if (cursor) query.set("cursor", cursor);
-    return this.request("GET", `/api/saved?${query}`, undefined, { signal, timeoutMs: 10_000 });
+  listSaved(cursor?: string, signal?: AbortSignal) {
+    return this.http.json(endpoints.listSaved, { query: { limit: 30, cursor } }, { signal });
   }
 
   /** Adds a section at the end of this account's sidebar (E8). */
-  createSidebarSection(
-    name: string,
-  ): Promise<{ section: SidebarSection; sections: SidebarSection[] }> {
-    return this.request("POST", "/api/sidebar-sections", { name });
+  createSidebarSection(name: string) {
+    return this.http.json(endpoints.createSidebarSection, { body: { name } });
   }
 
-  renameSidebarSection(id: ID, name: string): Promise<{ sections: SidebarSection[] }> {
-    return this.request("PATCH", `/api/sidebar-sections/${id}`, { name });
+  renameSidebarSection(id: ID, name: string) {
+    return this.http.json(endpoints.renameSidebarSection, { params: { id }, body: { name } });
   }
 
   /** Deletes a section; its conversations go back where they would be. */
-  deleteSidebarSection(id: ID): Promise<{ sections: SidebarSection[] }> {
-    return this.request("DELETE", `/api/sidebar-sections/${id}`);
+  deleteSidebarSection(id: ID) {
+    return this.http.json(endpoints.deleteSidebarSection, { params: { id } });
   }
 
   /** Puts every one of this account's sections in this order. */
-  orderSidebarSections(ids: ID[]): Promise<{ sections: SidebarSection[] }> {
-    return this.request("PUT", "/api/sidebar-sections/order", { ids });
+  orderSidebarSections(ids: ID[]) {
+    return this.http.json(endpoints.orderSidebarSections, { body: { ids } });
   }
 
   /** A page of the files shared in conversations this account can read (E7). */
@@ -891,271 +578,229 @@ export class Api {
     filter: { kind?: FileKind; userId?: ID; channelId?: ID; q?: string },
     cursor?: string,
     signal?: AbortSignal,
-  ): Promise<{ files: SharedFile[]; nextCursor: string | null }> {
-    const query = new URLSearchParams({ limit: "30" });
-    if (filter.kind) query.set("kind", filter.kind);
-    if (filter.userId) query.set("userId", filter.userId);
-    if (filter.channelId) query.set("channelId", filter.channelId);
-    if (filter.q) query.set("q", filter.q);
-    if (cursor) query.set("cursor", cursor);
-    return this.request("GET", `/api/files?${query}`, undefined, { signal, timeoutMs: 10_000 });
+  ) {
+    return this.http.json(
+      endpoints.listSharedFiles,
+      { query: { limit: 30, ...filter, cursor } },
+      { signal },
+    );
   }
 
-  markUnread(channelId: ID, seq: number): Promise<{ ok: true; seq: number }> {
-    return this.request("POST", `/api/channels/${channelId}/unread`, { seq });
+  markUnread(channelId: ID, seq: number) {
+    return this.http.json(endpoints.markUnread, { params: { id: channelId }, body: { seq } });
   }
 
-  markThreadUnread(rootId: ID, seq: number): Promise<{ state: ThreadFollow }> {
-    return this.request("POST", `/api/messages/${rootId}/thread/unread`, { seq });
+  markThreadUnread(rootId: ID, seq: number) {
+    return this.http.json(endpoints.markThreadUnread, { params: { id: rootId }, body: { seq } });
   }
 
-  setThreadFollow(rootId: ID, following: boolean): Promise<{ state: ThreadFollow }> {
-    return this.request("PUT", `/api/messages/${rootId}/follow`, { following });
+  setThreadFollow(rootId: ID, following: boolean) {
+    return this.http.json(endpoints.setThreadFollow, {
+      params: { id: rootId },
+      body: { following },
+    });
   }
 
-  setThreadMute(rootId: ID, muted: boolean): Promise<{ state: ThreadFollow }> {
-    return this.request("PUT", `/api/messages/${rootId}/mute`, { muted });
+  setThreadMute(rootId: ID, muted: boolean) {
+    return this.http.json(endpoints.setThreadMute, { params: { id: rootId }, body: { muted } });
   }
 
-  setReminder(messageId: ID, at: number): Promise<{ reminder: Reminder }> {
-    return this.request("PUT", `/api/messages/${messageId}/reminder`, { at });
+  setReminder(messageId: ID, at: number) {
+    return this.http.json(endpoints.setReminder, { params: { id: messageId }, body: { at } });
   }
 
-  cancelReminder(messageId: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/messages/${messageId}/reminder`);
+  cancelReminder(messageId: ID) {
+    return this.http.json(endpoints.cancelReminder, { params: { id: messageId } });
   }
 
   /** Reads notes that someone removed this account from channels; says which were there. */
-  readChannelRemovals(ids: ID[]): Promise<{ ids: ID[] }> {
-    return this.request("POST", "/api/activity/removals/read", { ids });
+  readChannelRemovals(ids: ID[]) {
+    return this.http.json(endpoints.readChannelRemovals, { body: { ids } });
   }
 
   /** Replaces this account's choices in a poll; none takes the vote back (E6). */
-  votePoll(messageId: ID, choices: number[]): Promise<{ message: Message; choices: number[] }> {
-    return this.request("PUT", `/api/messages/${messageId}/poll/votes`, { choices });
+  votePoll(messageId: ID, choices: number[]) {
+    return this.http.json(endpoints.votePoll, { params: { id: messageId }, body: { choices } });
   }
 
-  closePoll(messageId: ID): Promise<{ message: Message }> {
-    return this.request("POST", `/api/messages/${messageId}/poll/close`);
+  closePoll(messageId: ID) {
+    return this.http.json(endpoints.closePoll, { params: { id: messageId } });
   }
 
-  listReminders(signal?: AbortSignal): Promise<{ reminders: ReminderItem[] }> {
-    return this.request("GET", "/api/reminders", undefined, { signal });
+  listReminders(signal?: AbortSignal) {
+    return this.http.json(endpoints.listReminders, {}, { signal });
   }
 
-  markThreadRead(rootId: ID, seq: number): Promise<{ state: ThreadFollow }> {
-    return this.request("POST", `/api/messages/${rootId}/thread/read`, { seq });
+  markThreadRead(rootId: ID, seq: number) {
+    return this.http.json(endpoints.markThreadRead, { params: { id: rootId }, body: { seq } });
   }
 
-  listFollowedThreads(
-    opts: { cursor?: string; unreadOnly?: boolean } = {},
-    signal?: AbortSignal,
-  ): Promise<{ threads: FollowedThread[]; nextCursor: string | null }> {
-    const query = new URLSearchParams({ limit: "30" });
-    if (opts.cursor) query.set("cursor", opts.cursor);
-    if (opts.unreadOnly) query.set("unreadOnly", "true");
-    return this.request("GET", `/api/threads/followed?${query}`, undefined, {
-      signal,
-      timeoutMs: 10_000,
-    });
+  listFollowedThreads(opts: { cursor?: string; unreadOnly?: boolean } = {}, signal?: AbortSignal) {
+    return this.http.json(
+      endpoints.listFollowedThreads,
+      {
+        query: {
+          limit: 30,
+          cursor: opts.cursor,
+          ...(opts.unreadOnly ? { unreadOnly: "true" as const } : {}),
+        },
+      },
+      { signal },
+    );
   }
 
-  /**
-   * The newest message in each direct conversation this account is in, for
-   * the list of direct messages. An older server has no such list: 404.
-   */
-  latestDirectMessages(signal?: AbortSignal): Promise<{ messages: Message[] }> {
-    return this.request("GET", "/api/conversations/latest", undefined, {
-      signal,
-      timeoutMs: 10_000,
-    });
+  /** The newest message in each direct conversation this account is in, for the list of direct messages. */
+  latestDirectMessages(signal?: AbortSignal) {
+    return this.http.json(endpoints.latestDirectMessages, {}, { signal });
   }
 
   // ---------- apps and integrations (admin only) ----------
 
-  /** The bot token comes back once here and is never retrievable again. */
-  /** Left without scopes, the app may do everything, as before scopes (E18c). */
-  createApp(body: {
-    name: string;
-    scopes?: AppScope[];
-  }): Promise<{ app: App; botUser: User; token: string; signingSecret: string }> {
-    return this.request("POST", "/api/apps", body);
+  /**
+   * The bot token comes back once here and is never retrievable again. Left
+   * without scopes, the app may do everything (E18c).
+   */
+  createApp(body: { name: string; scopes?: AppScope[] }) {
+    return this.http.json(endpoints.createApp, { body });
   }
 
   /** Replaces what an app may do (E18c). */
-  setAppScopes(appId: ID, scopes: AppScope[]): Promise<{ app: App }> {
-    return this.request("PUT", `/api/apps/${appId}/scopes`, { scopes });
+  setAppScopes(appId: ID, scopes: AppScope[]) {
+    return this.http.json(endpoints.setAppScopes, { params: { id: appId }, body: { scopes } });
   }
 
-  listApps(): Promise<{ apps: AppDetail[] }> {
-    return this.request("GET", "/api/apps");
+  listApps() {
+    return this.http.json(endpoints.listApps);
   }
 
-  deleteApp(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/apps/${id}`);
+  deleteApp(id: ID) {
+    return this.http.json(endpoints.deleteApp, { params: { id } });
   }
 
-  createWebhook(appId: ID, body: { channelId: ID }): Promise<{ webhook: Webhook; url: string }> {
-    return this.request("POST", `/api/apps/${appId}/webhooks`, body);
+  createWebhook(appId: ID, body: { channelId: ID }) {
+    return this.http.json(endpoints.createWebhook, { params: { id: appId }, body });
   }
 
   /** Replaces every bot token the app has; the old ones stop working at once. */
-  replaceAppToken(appId: ID): Promise<{ token: string }> {
-    return this.request("POST", `/api/apps/${appId}/token`);
+  replaceAppToken(appId: ID) {
+    return this.http.json(endpoints.replaceAppToken, { params: { id: appId } });
   }
 
-  replaceSigningSecret(appId: ID): Promise<{ signingSecret: string }> {
-    return this.request("POST", `/api/apps/${appId}/signing-secret`);
+  replaceSigningSecret(appId: ID) {
+    return this.http.json(endpoints.replaceSigningSecret, { params: { id: appId } });
   }
 
   /** A new URL for the same webhook and channel; the old URL stops working. */
-  replaceWebhookUrl(id: ID): Promise<{ webhook: Webhook; url: string }> {
-    return this.request("POST", `/api/webhooks/${id}/url`);
+  replaceWebhookUrl(id: ID) {
+    return this.http.json(endpoints.replaceWebhookUrl, { params: { id } });
   }
 
-  deleteWebhook(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/webhooks/${id}`);
+  deleteWebhook(id: ID) {
+    return this.http.json(endpoints.deleteWebhook, { params: { id } });
   }
 
-  /**
-   * Posts to an incoming webhook the way any other tool would, so a test
-   * proves the URL itself works. The URL is the webhook's whole authority, so
-   * no session token goes with it, and success is Slack's plain-text "ok"
-   * rather than JSON, which `request` would fail to read.
-   */
-  async postToWebhook(url: string, payload: { text: string }): Promise<void> {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (res.ok) return;
-    let code: ErrorCode = "http_error";
-    try {
-      code = errorCodeOf(((await res.json()) as { error?: unknown }).error);
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiError(res.status, code);
+  /** Posts to an incoming webhook's URL as any other tool would, so a test proves the URL works. */
+  postToWebhook(url: string, payload: { text: string }): Promise<void> {
+    return this.http.postToWebhook(endpoints.postToWebhook, url, payload);
   }
 
-  createCommand(
-    appId: ID,
-    body: { command: string; url: string; description?: string; usageHint?: string },
-  ): Promise<{ command: SlashCommand }> {
-    return this.request("POST", `/api/apps/${appId}/commands`, body);
+  createCommand(appId: ID, body: CreateCommandBody) {
+    return this.http.json(endpoints.createCommand, { params: { id: appId }, body });
   }
 
-  deleteCommand(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/commands/${id}`);
+  deleteCommand(id: ID) {
+    return this.http.json(endpoints.deleteCommand, { params: { id } });
   }
 
   /** The server calls the URL to verify it before this resolves. */
-  createSubscription(
-    appId: ID,
-    body: { url: string; eventTypes?: string[] },
-  ): Promise<{ subscription: EventSubscription }> {
-    return this.request("POST", `/api/apps/${appId}/subscriptions`, body);
+  createSubscription(appId: ID, body: { url: string; eventTypes?: string[] }) {
+    return this.http.json(endpoints.createSubscription, { params: { id: appId }, body });
   }
 
-  deleteSubscription(id: ID): Promise<{ ok: true }> {
-    return this.request("DELETE", `/api/subscriptions/${id}`);
+  deleteSubscription(id: ID) {
+    return this.http.json(endpoints.deleteSubscription, { params: { id } });
   }
 
-  retrySubscription(id: ID): Promise<{ ok: true; retried: number; waiting?: number }> {
-    return this.request("POST", `/api/subscriptions/${id}/retry`);
+  retrySubscription(id: ID) {
+    return this.http.json(endpoints.retrySubscription, { params: { id } });
   }
 
   /** Every command that can be typed here, built-ins included. */
-  listCommands(): Promise<{ commands: CommandHint[] }> {
-    return this.request("GET", "/api/commands");
+  listCommands() {
+    return this.http.json(endpoints.listCommands);
   }
 
-  /**
-   * A command whose app failed answers `ok: false` with why, in `message`;
-   * older servers leave the reason out and only tell the channel.
-   */
-  runCommand(
-    channelId: ID,
-    body: { text: string; threadRootId?: ID },
-  ): Promise<{ ok: boolean; error?: string; message?: string }> {
-    return this.request("POST", `/api/channels/${channelId}/commands`, body);
+  /** A command whose app failed answers `ok: false` with why, in `message`. */
+  runCommand(channelId: ID, body: { text: string; threadRootId?: ID }) {
+    return this.http.json(endpoints.runCommand, { params: { id: channelId }, body });
   }
 
   /** Presses a button an app put on a message. */
-  runMessageAction(messageId: ID, actionId: string): Promise<{ ok: boolean; error?: string }> {
-    return this.request("POST", `/api/messages/${messageId}/actions`, { actionId });
+  runMessageAction(messageId: ID, actionId: string) {
+    return this.http.json(endpoints.runMessageAction, {
+      params: { id: messageId },
+      body: { actionId },
+    });
   }
 
   /**
    * Sends a filled-in modal; field errors come back keyed by block id. Once
    * accepted, `closedViewIds` names the forms that closed (E18b).
    */
-  submitView(
-    viewId: ID,
-    values: Record<string, Record<string, string | string[]>>,
-  ): Promise<{
-    ok: boolean;
-    errors?: Record<string, string>;
-    message?: string;
-    closedViewIds?: ID[];
-  }> {
-    return this.request("POST", `/api/views/${viewId}/submit`, { values });
+  submitView(viewId: ID, values: Record<string, Record<string, string | string[]>>) {
+    return this.http.json(endpoints.submitView, { params: { id: viewId }, body: { values } });
   }
 
   /** Closes a modal and any stacked on it, for the person's other devices. */
-  closeView(viewId: ID): Promise<{ ok: boolean }> {
-    return this.request("POST", `/api/views/${viewId}/close`);
+  closeView(viewId: ID) {
+    return this.http.json(endpoints.closeView, { params: { id: viewId } });
   }
 
   /**
    * Everyone with an account, with when they were last seen, and whether they
-   * have two-step sign-in (E11; an older server does not say). Admins only.
+   * have two-step sign-in (E11). Admins only.
    */
-  listAllUsers(): Promise<{
-    users: (User & { lastSeenAt: number | null; twoStep?: boolean })[];
-  }> {
-    return this.request("GET", "/api/admin/users", undefined, { timeoutMs: 10_000 });
+  listAllUsers() {
+    return this.http.json(endpoints.listAllUsers);
   }
 
   /** Change someone's role, or take their access away. Admins only. */
   updateUserAdmin(
     userId: ID,
     patch: { role?: "member" | "admin"; deactivated?: boolean; canInvite?: boolean },
-  ): Promise<{ user: User }> {
-    return this.request("PATCH", `/api/admin/users/${userId}`, patch);
+  ) {
+    return this.http.json(endpoints.updateUserAdmin, { params: { id: userId }, body: patch });
   }
 
-  setInteractivityUrl(appId: ID, url: string): Promise<{ app: App }> {
-    return this.request("PUT", `/api/apps/${appId}/interactivity`, { url });
+  setInteractivityUrl(appId: ID, url: string) {
+    return this.http.json(endpoints.setInteractivityUrl, { params: { id: appId }, body: { url } });
   }
 
-  createInvite(body: CreateInviteBody = {}): Promise<{ invite: Invite }> {
-    return this.request("POST", "/api/invites", body);
+  createInvite(body: CreateInviteBody = {}) {
+    return this.http.json(endpoints.createInvite, { body });
+  }
+
+  /** What happened in huddles lately, for the owner and admins. Memory only. */
+  callLog() {
+    return this.http.json(endpoints.callLog);
   }
 
   /**
    * Whether the server is keeping up: sizes, queues and timings, never what is
    * in them. The owner and admins only (OPS-10).
    */
-  /** What happened in huddles lately, for the owner and admins. Memory only. */
-  callLog(): Promise<{ entries: CallLogEntry[] }> {
-    return this.request("GET", "/api/admin/calls", undefined, { timeoutMs: 10_000 });
-  }
-
-  workspaceStatus(): Promise<WorkspaceStatus> {
-    return this.request("GET", "/api/admin/status", undefined, { timeoutMs: 10_000 });
+  workspaceStatus() {
+    return this.http.json(endpoints.workspaceStatus);
   }
 
   /** The copy of the workspace its owner can download, if one is being made or kept. */
-  workspaceCopy(): Promise<{ copy: WorkspaceCopy | null }> {
-    return this.request("GET", "/api/admin/copy", undefined, { timeoutMs: 10_000 });
+  workspaceCopy() {
+    return this.http.json(endpoints.workspaceCopy);
   }
 
   /** Starts a copy for the owner to download, or gives the one being made. */
-  makeWorkspaceCopy(): Promise<{ copy: WorkspaceCopy }> {
-    return this.request("POST", "/api/admin/copy", undefined, { timeoutMs: 10_000 });
+  makeWorkspaceCopy() {
+    return this.http.json(endpoints.makeWorkspaceCopy);
   }
 
   /**
@@ -1163,62 +808,47 @@ export class Api {
    * navigation, so the browser streams a copy of any size straight to disk.
    */
   async workspaceCopyUrl(id: string): Promise<string> {
-    const result = await this.request<{ token: string; expiresAt: number }>(
-      "POST",
-      "/api/admin/copy/download-token",
-      undefined,
-      { timeoutMs: 10_000 },
-    );
-    if (typeof result.token !== "string" || !/^[a-f0-9]{64}$/.test(result.token))
-      throw new ApiError(502, "invalid_response");
-    return `${this.baseUrl}/api/admin/copy/${encodeURIComponent(id)}?download=${result.token}`;
+    const issued = await this.http.json(endpoints.copyDownloadToken);
+    return this.http.url(endpoints.copyFile, {
+      params: { id },
+      query: { download: ticket(issued) },
+    });
   }
 
   /** A page of what administrators have changed, newest first. */
-  listAudit(before?: string): Promise<{ entries: AuditEntry[]; nextCursor: string | null }> {
-    return this.request(
-      "GET",
-      `/api/admin/audit${before ? `?before=${encodeURIComponent(before)}` : ""}`,
-    );
+  listAudit(before?: string) {
+    return this.http.json(endpoints.listAudit, { query: { before } });
   }
 
   /** Every invite for an administrator; one's own for everyone else. Newest first. */
-  listInvites(): Promise<{ invites: Invite[] }> {
-    return this.request("GET", "/api/invites");
+  listInvites() {
+    return this.http.json(endpoints.listInvites);
   }
 
   /** Stops an invite letting anyone else in. Already-revoked is not an error. */
-  revokeInvite(code: string): Promise<{ invite: Invite }> {
-    return this.request("DELETE", `/api/invites/${encodeURIComponent(code)}`);
+  revokeInvite(code: string) {
+    return this.http.json(endpoints.revokeInvite, { params: { code } });
   }
 
   activity(
     mode: "unread" | "mentions" | "threads",
     opts: { cursor?: ID; signal?: AbortSignal } = {},
-  ): Promise<{ messages: Message[]; nextCursor: ID | null }> {
-    const params = new URLSearchParams({ mode });
-    if (opts.cursor) params.set("cursor", opts.cursor);
-    return this.request("GET", `/api/activity?${params}`, undefined, {
-      signal: opts.signal,
-      timeoutMs: 10_000,
-    });
+  ) {
+    return this.http.json(
+      endpoints.activity,
+      { query: { mode, cursor: opts.cursor } },
+      { signal: opts.signal },
+    );
   }
 
-  search(
-    q: string,
-    limit = 30,
-    opts: { cursor?: ID; channelId?: ID; signal?: AbortSignal } = {},
-  ): Promise<{ messages: Message[]; nextCursor: ID | null }> {
-    const params = new URLSearchParams({ q, limit: String(limit) });
-    if (opts.cursor) params.set("cursor", opts.cursor);
-    if (opts.channelId) params.set("channelId", opts.channelId);
+  search(q: string, limit = 30, opts: { cursor?: ID; channelId?: ID; signal?: AbortSignal } = {}) {
     // Dates in the query name days on the reader's calendar, not the server's.
-    const timeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    if (timeZone) params.set("tz", timeZone);
-    return this.request("GET", `/api/search?${params}`, undefined, {
-      timeoutMs: 10_000,
-      signal: opts.signal,
-    });
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || undefined;
+    return this.http.json(
+      endpoints.search,
+      { query: { q, limit, cursor: opts.cursor, channelId: opts.channelId, tz } },
+      { signal: opts.signal },
+    );
   }
 }
 

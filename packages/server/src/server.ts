@@ -13,6 +13,7 @@ import multipart from "@fastify/multipart";
 import { ZodError } from "zod";
 import {
   DEFAULT_WORKSPACE_NAME,
+  endpoints,
   PROTOCOL_VERSION,
   channelPermissions,
   canRemoveChannelMember,
@@ -156,6 +157,7 @@ import { isMissingAsset, webCacheControl } from "./webClient.js";
 import { eventActorId, signatureHeaders, toSlackEvent } from "./integrations.js";
 import { BUILTIN_COMMANDS } from "./commands.js";
 import { HttpError } from "./httpError.js";
+import { createRouter } from "./route.js";
 import { secretToken, ulid } from "./ids.js";
 import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
 import {
@@ -253,74 +255,6 @@ const isAccessPolicy = (value: unknown): value is AccessPolicy =>
 /** Guests read and take part in public channels; private rooms and DMs are closed to them. */
 const guestRestricted = () =>
   new HttpError(403, "guest_restricted", "Guests can only be in public channels.");
-
-/**
- * Everything a guest may ask of the server: reading and taking part in public
- * channels (messages, replies, reactions, files already shared, huddles),
- * keeping their own place (read state, saved items, followed threads,
- * preferences, profile), searching what they can read, and leaving or keeping
- * their identity as an account. Everything else, from creating rooms and DMs
- * to invites, uploads, pins, apps and scheduling, is refused in `requireUser`.
- * Channel visibility still decides which channels these reach.
- */
-export const GUEST_ROUTES = new Set([
-  "GET /api/rtc-config",
-  "POST /api/auth/logout",
-  "POST /api/auth/guest/account",
-  "GET /api/me",
-  "PATCH /api/me",
-  "GET /api/users",
-  "GET /api/users/:id/avatar",
-  "GET /api/friends",
-  "PUT /api/me/blocks/:id",
-  "DELETE /api/me/blocks/:id",
-  "POST /api/messages/:id/report",
-  "GET /api/channels",
-  "POST /api/channels/:id/join",
-  "POST /api/channels/:id/leave",
-  "GET /api/channels/:id/members",
-  "POST /api/channels/:id/read",
-  "POST /api/channels/:id/unread",
-  "GET /api/channels/:id/messages",
-  "POST /api/channels/:id/messages",
-  "GET /api/channels/:id/threads/:rootId",
-  "GET /api/channels/:id/messages/around/:messageId",
-  "GET /api/channels/:id/messages/since/:seq",
-  "GET /api/channels/:id/messages/after/:messageId",
-  "GET /api/channels/:id/messages/:messageId",
-  "PATCH /api/messages/:id",
-  "DELETE /api/messages/:id",
-  "GET /api/files",
-  "GET /api/files/:id",
-  "POST /api/files/:id/download-token",
-  "PUT /api/messages/:id/reactions/:emoji",
-  "DELETE /api/messages/:id/reactions/:emoji",
-  "PUT /api/messages/:id/poll/votes",
-  "GET /api/channels/:id/pins",
-  "PUT /api/messages/:id/save",
-  "DELETE /api/messages/:id/save",
-  "PATCH /api/channels/:id/prefs",
-  "PUT /api/me/notify-default",
-  "GET /api/me/unread",
-  "POST /api/sidebar-sections",
-  "PATCH /api/sidebar-sections/:id",
-  "DELETE /api/sidebar-sections/:id",
-  "PUT /api/sidebar-sections/order",
-  "PUT /api/messages/:id/follow",
-  "PUT /api/messages/:id/mute",
-  "PUT /api/messages/:id/reminder",
-  "DELETE /api/messages/:id/reminder",
-  "GET /api/reminders",
-  "POST /api/messages/:id/thread/read",
-  "POST /api/messages/:id/thread/unread",
-  "GET /api/threads/followed",
-  "GET /api/saved",
-  "GET /api/scheduled",
-  "GET /api/commands",
-  "GET /api/activity",
-  "POST /api/activity/removals/read",
-  "GET /api/search",
-]);
 
 export interface ServerOptions {
   /** Directory holding workspace.db and uploads. Use ":memory:" for tests. */
@@ -1979,24 +1913,6 @@ async function startWorkspaceServer(
     return reply.sendFile("index.html");
   });
 
-  app.setErrorHandler((err, _req, reply) => {
-    if (err instanceof ZodError) {
-      return reply.status(400).send({ error: "invalid_request", details: err.issues });
-    }
-    if (err instanceof HttpError) {
-      if (err.retryAfter !== undefined) reply.header("retry-after", String(err.retryAfter));
-      return reply.status(err.statusCode).send({ error: err.code, message: err.message });
-    }
-    const fastifyErr = err as { statusCode?: number; message?: string };
-    if (typeof fastifyErr.statusCode === "number" && fastifyErr.statusCode < 500) {
-      return reply
-        .status(fastifyErr.statusCode)
-        .send({ error: "bad_request", message: fastifyErr.message });
-    }
-    app.log.error(err);
-    return reply.status(500).send({ error: "internal" });
-  });
-
   // ---------- auth plumbing ----------
 
   const bearerToken = (req: FastifyRequest): string | null => {
@@ -2027,38 +1943,17 @@ async function startWorkspaceServer(
     return originFromConnection(req.socket.localAddress, req.socket.localPort);
   };
 
-  /**
-   * Routes an account may reach while it still holds a password someone else
-   * chose: replacing that password, and getting out.
-   */
-  const ALLOWED_WHILE_LOCKED = new Set(["/api/auth/password", "/api/auth/logout"]);
-
-  const requireUser = (req: FastifyRequest): User => {
-    const token = bearerToken(req);
-    const user = token ? store.getSessionUser(hashToken(token)) : null;
-    if (!user) throw new HttpError(401, "unauthorized");
-    // Also here rather than per route: a route added later is closed to
-    // guests until someone decides otherwise.
-    if (user.role === "guest" && !GUEST_ROUTES.has(`${req.method} ${req.routeOptions.url}`)) {
-      throw new HttpError(
-        403,
-        "guest_not_allowed",
-        "Guests cannot do this. Create an account to do it.",
-      );
-    }
-    // Checked here rather than per route, so a route added later is covered.
-    if (
-      !ALLOWED_WHILE_LOCKED.has(req.routeOptions.url ?? "") &&
-      store.mustChangePassword(user.id)
-    ) {
-      throw new HttpError(
-        403,
-        "password_change_required",
-        "Choose a new password before using this workspace.",
-      );
-    }
-    return user;
-  };
+  const { route, signedIn: requireUser } = createRouter({
+    app,
+    log: app.log,
+    sessionUser: (req) => {
+      const token = bearerToken(req);
+      return token ? store.getSessionUser(hashToken(token)) : null;
+    },
+    mustChangePassword: (userId) => store.mustChangePassword(userId),
+    botCaller: (req) => slackCaller(req),
+    sayScopes: (reply, caller) => sayScopes(reply, caller),
+  });
 
   const requireChannelAccess = (channelId: ID, user: User) => {
     const channel = store.getChannel(channelId);
@@ -2070,14 +1965,13 @@ async function startWorkspaceServer(
 
   // ---------- unauthenticated ----------
 
-  app.get("/api/health", async (_req, reply) => {
+  route(endpoints.health, async ({ reply }) => {
     db.prepare("SELECT 1").get();
     reply.header("Cache-Control", "no-store");
     return { status: "ok", instanceId };
   });
 
-  app.get("/api/rtc-config", async (req, reply) => {
-    const user = requireUser(req);
+  route(endpoints.rtcConfig, async ({ reply, user }) => {
     reply.header("Cache-Control", "no-store");
     return { iceServers: withRelay(iceServers, await relay.servers(user.id)) };
   });
@@ -2110,7 +2004,7 @@ async function startWorkspaceServer(
       : undefined;
   };
 
-  app.get("/api/server-info", async (req): Promise<ServerInfo> => {
+  route(endpoints.serverInfo, async ({ req }) => {
     const userCount = store.userCount();
     const signIn = signInInfo();
     return {
@@ -2130,14 +2024,7 @@ async function startWorkspaceServer(
     };
   });
 
-  /**
-   * The workspace's icon, for anyone: the Join screen shows it beside the
-   * workspace's name before anyone signs in. Its type is the one its bytes
-   * were checked to be. Asked for by its current version, the answer never
-   * changes, since another picture has another version, so it is kept for a
-   * year; asked for otherwise, it is checked again each time.
-   */
-  app.get<{ Querystring: { v?: unknown } }>("/api/workspace/icon", async (req, reply) => {
+  route(endpoints.workspaceIcon, async ({ req, reply, query }) => {
     ration("publicByAddress", callerAddress(req));
     const current = icon;
     if (!current) {
@@ -2151,7 +2038,7 @@ async function startWorkspaceServer(
       .header("etag", etag)
       .header(
         "cache-control",
-        req.query.v === current.version ? "public, max-age=31536000, immutable" : "no-cache",
+        query.v === current.version ? "public, max-age=31536000, immutable" : "no-cache",
       );
     if (req.headers["if-none-match"] === etag) return reply.status(304).send();
     return reply.header("content-length", String(current.bytes.length)).send(current.bytes);
@@ -2167,8 +2054,7 @@ async function startWorkspaceServer(
     }
   };
 
-  app.post("/api/auth/register", async (req, reply) => {
-    const body = registerBody.parse(req.body);
+  route(endpoints.register, async ({ req, body }) => {
     ration("authByAddress", callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
     beginAuth();
@@ -2243,17 +2129,10 @@ async function startWorkspaceServer(
     // A handle that is now yours was not a guess at someone else's, and a new
     // account mistyping its own password twice should not then be locked out.
     authSucceeded(body.handle);
-    return reply.status(201).send({ token, user });
+    return { token, user };
   });
 
-  /**
-   * Joining with a display name alone, where the host allows guests. The
-   * policy is read inside the same write that creates the guest, so a page
-   * that still says guests are welcome cannot let one in after the host said
-   * no. Rationed by address like any sign-in, and bounded in number.
-   */
-  app.post("/api/auth/guest", async (req, reply) => {
-    const body = guestJoinBody.parse(req.body);
+  route(endpoints.joinAsGuest, async ({ req, body }) => {
     ration("authByAddress", callerAddress(req));
     const { token, user } = mutate((emit) => {
       if (accessPolicy() !== "guest_allowed")
@@ -2280,17 +2159,10 @@ async function startWorkspaceServer(
       store.createSession(tokenHash, user.id, deviceName(req), GUEST_SESSION_TTL_MS);
       return { token, user };
     });
-    return reply.status(201).send({ token, user });
+    return { token, user };
   });
 
-  /**
-   * A guest keeping who they are as an account: same id, so their messages
-   * and rooms stay theirs. Only while accounts can be created without an
-   * invite, and a new session replaces every guest one.
-   */
-  app.post("/api/auth/guest/account", async (req) => {
-    const me = requireUser(req);
-    const body = guestAccountBody.parse(req.body);
+  route(endpoints.createAccountFromGuest, async ({ req, user: me, body }) => {
     if (me.role !== "guest") throw new HttpError(400, "not_a_guest");
     ration("authByAddress", callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
@@ -2322,8 +2194,7 @@ async function startWorkspaceServer(
     return { token, user };
   });
 
-  app.post("/api/auth/login", async (req) => {
-    const body = loginBody.parse(req.body);
+  route(endpoints.login, async ({ req, body }) => {
     // Keyed on the handle as well as the address: an account is worth
     // protecting from many machines, and an address from many accounts.
     ration("authByAddress", callerAddress(req));
@@ -2400,13 +2271,7 @@ async function startWorkspaceServer(
     { userId: ID; passwordHash: string; expiresAt: number; tries: number }
   >();
 
-  /**
-   * The second step of signing in (E11): a code from the authenticator app,
-   * each step's once, or a recovery code, each once. A few wrong ones send
-   * the person back to their password.
-   */
-  app.post("/api/auth/two-step", async (req) => {
-    const body = twoStepSignInBody.parse(req.body);
+  route(endpoints.signInSecondStep, async ({ req, body }) => {
     ration("authByAddress", callerAddress(req));
     const key = hashToken(body.challenge);
     const held = twoStepChallenges.get(key);
@@ -2472,7 +2337,7 @@ async function startWorkspaceServer(
     };
   });
 
-  app.post("/api/auth/logout", async (req) => {
+  route(endpoints.logout, async ({ req }) => {
     const token = bearerToken(req);
     if (token) {
       const tokenHash = hashToken(token);
@@ -2482,14 +2347,7 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /**
-   * Changing a password proves you know the current one, then signs out
-   * everywhere else. A password is usually changed because someone else might
-   * know it; leaving their sessions running would defeat the whole exercise.
-   */
-  app.post("/api/auth/password", async (req) => {
-    const me = requireUser(req);
-    const body = changePasswordBody.parse(req.body);
+  route(endpoints.changePassword, async ({ req, user: me, body }) => {
     // The current password is guessable here too, by whoever has the session.
     ration("authByHandle", me.handle.toLowerCase());
     const auth = store.getUserAuthByHandle(me.handle);
@@ -2555,17 +2413,12 @@ async function startWorkspaceServer(
   /** Keys being set up, waiting for their first code (E11), by account. In memory. */
   const twoStepSetups = new Map<ID, { secret: string; expiresAt: number }>();
 
-  /** Whether two-step sign-in is on, and how many recovery codes are left (E11). */
-  app.get("/api/me/two-step", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.twoStep, async ({ user: me }) => {
     const second = store.twoStep(me.id);
     return { enabled: second.secret !== null, recoveryCodesLeft: second.codesLeft };
   });
 
-  /** Starts setting two-step sign-in up: a new key and what an app scans for it (E11). */
-  app.post("/api/me/two-step", async (req) => {
-    const me = requireUser(req);
-    const body = twoStepPasswordBody.parse(req.body);
+  route(endpoints.startTwoStep, async ({ user: me, body }) => {
     await confirmPassword(me, body.password);
     if (store.twoStep(me.id).secret)
       throw new HttpError(409, "two_step_on", "Two-step sign-in is already on.");
@@ -2574,14 +2427,7 @@ async function startWorkspaceServer(
     return { secret, uri: otpauthUri(secret, workspaceName(), me.handle) };
   });
 
-  /**
-   * Turns two-step sign-in on once a code from the new key is right (E11),
-   * and gives the recovery codes, which are never shown again. Other devices
-   * stay signed in; it is asked for at each sign-in from now on.
-   */
-  app.post("/api/me/two-step/enable", async (req) => {
-    const me = requireUser(req);
-    const body = twoStepCodeBody.parse(req.body);
+  route(endpoints.enableTwoStep, async ({ user: me, body }) => {
     const setup = twoStepSetups.get(me.id);
     if (!setup || setup.expiresAt <= Date.now()) {
       twoStepSetups.delete(me.id);
@@ -2607,10 +2453,7 @@ async function startWorkspaceServer(
     return { recoveryCodes };
   });
 
-  /** A new set of recovery codes in place of the old (E11), shown once. */
-  app.post("/api/me/two-step/recovery-codes", async (req) => {
-    const me = requireUser(req);
-    const body = twoStepPasswordBody.parse(req.body);
+  route(endpoints.newRecoveryCodes, async ({ user: me, body }) => {
     await confirmPassword(me, body.password);
     if (!store.twoStep(me.id).secret)
       throw new HttpError(409, "two_step_off", "Two-step sign-in is off.");
@@ -2624,18 +2467,13 @@ async function startWorkspaceServer(
     return { recoveryCodes };
   });
 
-  /** Turns two-step sign-in off (E11). */
-  app.post("/api/me/two-step/disable", async (req) => {
-    const me = requireUser(req);
-    const body = twoStepPasswordBody.parse(req.body);
+  route(endpoints.disableTwoStep, async ({ user: me, body }) => {
     await confirmPassword(me, body.password);
     store.transaction(() => store.disableTwoStep(me.id));
     return { ok: true };
   });
 
-  /** Everywhere this account is signed in, so its owner can see and end them. */
-  app.get("/api/auth/sessions", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.listSessions, async ({ req, user: me }) => {
     const current = hashToken(bearerToken(req)!);
     const currentId = store.sessionIdFor(current);
     return {
@@ -2645,17 +2483,14 @@ async function startWorkspaceServer(
     };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/auth/sessions/:id", async (req) => {
-    const me = requireUser(req);
-    const revoked = store.revokeSessions(me.id, { id: req.params.id });
+  route(endpoints.revokeSession, async ({ user: me, params }) => {
+    const revoked = store.revokeSessions(me.id, { id: params.id });
     if (revoked.length === 0) throw new HttpError(404, "session_not_found");
     for (const tokenHash of revoked) gateway.disconnectSession(tokenHash);
     return { ok: true };
   });
 
-  /** "Sign out my other devices" — the one asking stays signed in. */
-  app.delete("/api/auth/sessions", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.revokeOtherSessions, async ({ req, user: me }) => {
     const keep = hashToken(bearerToken(req)!);
     const revoked = store.revokeSessions(me.id, { exceptTokenHash: keep });
     for (const tokenHash of revoked) gateway.disconnectSession(tokenHash);
@@ -2664,11 +2499,9 @@ async function startWorkspaceServer(
 
   // ---------- me / users ----------
 
-  app.get("/api/me", async (req) => ({ user: requireUser(req) }));
+  route(endpoints.me, async ({ user }) => ({ user }));
 
-  app.patch("/api/me", async (req) => {
-    const me = requireUser(req);
-    const body = updateMeBody.parse(req.body);
+  route(endpoints.updateMe, async ({ user: me, body }) => {
     const statusChanged =
       body.statusText !== undefined ||
       body.statusEmoji !== undefined ||
@@ -2690,39 +2523,29 @@ async function startWorkspaceServer(
     return result;
   });
 
-  /**
-   * Someone's profile picture, for whoever is signed in (E9). A request
-   * naming its version may keep it for good: another picture has another.
-   */
-  app.get<{ Params: { id: string }; Querystring: { v?: unknown } }>(
-    "/api/users/:id/avatar",
-    async (req, reply) => {
-      requireUser(req);
-      const picture = store.avatar(req.params.id);
-      // A version that is not the picture's names one that is gone: the
-      // bytes now are another picture's, kept for good under that name.
-      if (!picture || (req.query.v !== undefined && req.query.v !== picture.version)) {
-        reply.header("cache-control", "no-store");
-        throw new HttpError(404, "no_avatar", "They have no profile picture.");
-      }
-      const etag = `"${picture.version}"`;
-      reply
-        .header("content-type", picture.type)
-        .header("x-content-type-options", "nosniff")
-        .header("content-security-policy", "default-src 'none'; sandbox")
-        .header("etag", etag)
-        .header(
-          "cache-control",
-          req.query.v === picture.version ? "private, max-age=31536000, immutable" : "no-cache",
-        );
-      if (req.headers["if-none-match"] === etag) return reply.status(304).send();
-      return reply.header("content-length", String(picture.bytes.length)).send(picture.bytes);
-    },
-  );
+  route(endpoints.avatar, async ({ req, reply, params, query }) => {
+    const picture = store.avatar(params.id);
+    // A version that is not the picture's names one that is gone: the
+    // bytes now are another picture's, kept for good under that name.
+    if (!picture || (query.v !== undefined && query.v !== picture.version)) {
+      reply.header("cache-control", "no-store");
+      throw new HttpError(404, "no_avatar", "They have no profile picture.");
+    }
+    const etag = `"${picture.version}"`;
+    reply
+      .header("content-type", picture.type)
+      .header("x-content-type-options", "nosniff")
+      .header("content-security-policy", "default-src 'none'; sandbox")
+      .header("etag", etag)
+      .header(
+        "cache-control",
+        query.v === picture.version ? "private, max-age=31536000, immutable" : "no-cache",
+      );
+    if (req.headers["if-none-match"] === etag) return reply.status(304).send();
+    return reply.header("content-length", String(picture.bytes.length)).send(picture.bytes);
+  });
 
-  /** Removes this account's profile picture; its initials show again. */
-  app.delete("/api/me/avatar", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.removeAvatar, async ({ user: me }) => {
     return mutate((emit) => {
       const user = store.setAvatar(me.id, null);
       emit({ type: "user.updated", user }, null);
@@ -2730,8 +2553,7 @@ async function startWorkspaceServer(
     });
   });
 
-  app.get("/api/users", async (req) => {
-    requireUser(req);
+  route(endpoints.listUsers, async () => {
     return { users: store.listUsers() };
   });
 
@@ -2741,10 +2563,9 @@ async function startWorkspaceServer(
     for (const id of [a, b])
       gateway.sendToUser(id, { type: "friends", friends: store.listFriends(id) });
   };
-  app.get("/api/friends", async (req) => ({ friends: store.listFriends(requireUser(req).id) }));
-  app.post<{ Params: { id: string } }>("/api/friends/:id", async (req) => {
-    const me = requireUser(req);
-    const other = store.getUser(req.params.id);
+  route(endpoints.friends, async ({ user }) => ({ friends: store.listFriends(user.id) }));
+  route(endpoints.requestFriend, async ({ user: me, params }) => {
+    const other = store.getUser(params.id);
     if (!other || other.deactivated || other.isBot || other.id === me.id)
       throw new HttpError(400, "invalid_friend");
     if (other.role === "guest") throw guestRestricted();
@@ -2752,27 +2573,19 @@ async function startWorkspaceServer(
     publishFriends(me.id, other.id);
     return { friends: store.listFriends(me.id) };
   });
-  app.put<{ Params: { id: string } }>("/api/friends/:id", async (req) => {
-    const me = requireUser(req);
-    if (!store.acceptFriend(me.id, req.params.id)) throw new HttpError(404, "request_not_found");
-    publishFriends(me.id, req.params.id);
+  route(endpoints.acceptFriend, async ({ user: me, params }) => {
+    if (!store.acceptFriend(me.id, params.id)) throw new HttpError(404, "request_not_found");
+    publishFriends(me.id, params.id);
     return { friends: store.listFriends(me.id) };
   });
-  app.delete<{ Params: { id: string } }>("/api/friends/:id", async (req) => {
-    const me = requireUser(req);
-    store.removeFriend(me.id, req.params.id);
-    publishFriends(me.id, req.params.id);
+  route(endpoints.removeFriend, async ({ user: me, params }) => {
+    store.removeFriend(me.id, params.id);
+    publishFriends(me.id, params.id);
     return { friends: store.listFriends(me.id) };
   });
 
-  /**
-   * Blocks someone for this account (E12): it hears nothing from them, and
-   * they are told nothing. Blocking also ends a friendship or a request between
-   * the two, as it does elsewhere; that alone reaches them, as an unfriending.
-   */
-  app.put<{ Params: { id: string } }>("/api/me/blocks/:id", async (req) => {
-    const me = requireUser(req);
-    const other = store.getUser(req.params.id);
+  route(endpoints.blockUser, async ({ user: me, params }) => {
+    const other = store.getUser(params.id);
     if (!other) throw new HttpError(404, "user_not_found");
     if (other.id === me.id) throw new HttpError(400, "cannot_block_self");
     if (other.isBot)
@@ -2795,10 +2608,8 @@ async function startWorkspaceServer(
     return { blocked: store.blockedIds(me.id) };
   });
 
-  /** Unblocks someone for this account (E12). */
-  app.delete<{ Params: { id: string } }>("/api/me/blocks/:id", async (req) => {
-    const me = requireUser(req);
-    if (store.setBlocked(me.id, req.params.id, false)) {
+  route(endpoints.unblockUser, async ({ user: me, params }) => {
+    if (store.setBlocked(me.id, params.id, false)) {
       gateway.sendToUser(me.id, { type: "blocks", blocked: store.blockedIds(me.id) });
       // A request they sent meanwhile shows now.
       gateway.sendToUser(me.id, { type: "friends", friends: store.listFriends(me.id) });
@@ -2807,8 +2618,7 @@ async function startWorkspaceServer(
     return { blocked: store.blockedIds(me.id) };
   });
 
-  app.get("/api/channels", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.listChannels, async ({ user: me }) => {
     // How many active people each channel holds, for the channel browser.
     return {
       channels: store.listChannelsVisibleTo(me.id),
@@ -2816,9 +2626,7 @@ async function startWorkspaceServer(
     };
   });
 
-  app.post("/api/channels", async (req, reply) => {
-    const me = requireUser(req);
-    const body = createChannelBody.parse(req.body);
+  route(endpoints.createChannel, async ({ user: me, body }) => {
     return mutate((emit) => {
       if (body.type === "public" || body.type === "private") {
         if (store.getChannelByName(body.name)) throw new HttpError(409, "name_taken");
@@ -2852,7 +2660,6 @@ async function startWorkspaceServer(
         for (const userId of memberIds) {
           emit({ type: "member.joined", channelId: channel.id, userId }, channel.id);
         }
-        reply.status(201);
         return { channel };
       }
 
@@ -2880,18 +2687,15 @@ async function startWorkspaceServer(
         dmKey,
       });
       emit({ type: "channel.created", channel }, channel.id);
-      reply.status(201);
       return { channel };
     });
   });
 
-  app.patch<{ Params: { id: string } }>("/api/channels/:id", async (req) => {
-    const me = requireUser(req);
-    const existing = requireChannelAccess(req.params.id, me);
+  route(endpoints.updateChannel, async ({ user: me, body, params }) => {
+    const existing = requireChannelAccess(params.id, me);
     if (existing.type === "dm" || existing.type === "group_dm") {
       throw new HttpError(400, "cannot_edit_dm");
     }
-    const body = updateChannelBody.parse(req.body);
     if (!channelPermissions(me, existing, store.isMember(existing.id, me.id)).manage) {
       throw new HttpError(403, "channel_management_required");
     }
@@ -2905,9 +2709,8 @@ async function startWorkspaceServer(
     });
   });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/join", async (req) => {
-    const me = requireUser(req);
-    const channel = store.getChannel(req.params.id);
+  route(endpoints.joinChannel, async ({ user: me, params }) => {
+    const channel = store.getChannel(params.id);
     if (!channel || channel.type !== "public") throw new HttpError(404, "channel_not_found");
     if (channel.archived) throw new HttpError(400, "channel_archived");
     mutate((emit) => {
@@ -2918,9 +2721,8 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/leave", async (req) => {
-    const me = requireUser(req);
-    const channel = requireChannelAccess(req.params.id, me);
+  route(endpoints.leaveChannel, async ({ user: me, params }) => {
+    const channel = requireChannelAccess(params.id, me);
     if (channel.type === "dm") throw new HttpError(400, "cannot_leave_dm");
     mutate((emit, afterCommit) => {
       if (store.removeMember(channel.id, me.id)) {
@@ -2935,9 +2737,8 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/invite-member", async (req) => {
-    const me = requireUser(req);
-    const channel = requireChannelAccess(req.params.id, me);
+  route(endpoints.inviteMember, async ({ req, user: me, params }) => {
+    const channel = requireChannelAccess(params.id, me);
     const { userId } = (req.body ?? {}) as { userId?: string };
     const invited = typeof userId === "string" ? store.getUser(userId) : null;
     if (!invited || typeof userId !== "string") throw new HttpError(400, "unknown_user");
@@ -2957,82 +2758,69 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.delete<{ Params: { id: string; userId: string } }>(
-    "/api/channels/:id/members/:userId",
-    async (req) => {
-      const me = requireUser(req);
-      const channel = requireChannelAccess(req.params.id, me);
-      const target = store.getUser(req.params.userId);
-      if (
-        !canRemoveChannelMember(me, target ?? undefined, channel, store.isMember(channel.id, me.id))
-      ) {
-        throw new HttpError(403, "channel_removal_forbidden");
-      }
-      mutate((emit, afterCommit) => {
-        if (store.removeMember(channel.id, req.params.userId)) {
-          afterCommit(() => gateway.updateChannelAccess(channel.id, req.params.userId));
-          // They hear who removed them, in Activity, wherever they are.
-          const removal = store.addChannelRemoval(req.params.userId, channel, me.id);
-          if (removal)
-            afterCommit(() =>
-              gateway.sendToUser(req.params.userId, { type: "channel.removal", removal }),
-            );
-          if (channel.managerIds?.includes(req.params.userId))
-            emit({ type: "channel.updated", channel: store.getChannel(channel.id)! }, channel.id);
-          emit(
-            { type: "member.left", channelId: channel.id, userId: req.params.userId },
-            channel.id,
+  route(endpoints.removeChannelMember, async ({ user: me, params }) => {
+    const channel = requireChannelAccess(params.id, me);
+    const target = store.getUser(params.userId);
+    if (
+      !canRemoveChannelMember(me, target ?? undefined, channel, store.isMember(channel.id, me.id))
+    ) {
+      throw new HttpError(403, "channel_removal_forbidden");
+    }
+    mutate((emit, afterCommit) => {
+      if (store.removeMember(channel.id, params.userId)) {
+        afterCommit(() => gateway.updateChannelAccess(channel.id, params.userId));
+        // They hear who removed them, in Activity, wherever they are.
+        const removal = store.addChannelRemoval(params.userId, channel, me.id);
+        if (removal)
+          afterCommit(() =>
+            gateway.sendToUser(params.userId, { type: "channel.removal", removal }),
           );
-        }
-      });
-      return { ok: true };
-    },
-  );
-
-  app.patch<{ Params: { id: string; userId: string } }>(
-    "/api/channels/:id/managers/:userId",
-    async (req) => {
-      const me = requireUser(req);
-      const channel = requireChannelAccess(req.params.id, me);
-      const target = store.getUser(req.params.userId);
-      const { manager } = channelManagerBody.parse(req.body);
-      if (
-        !canSetChannelManager(
-          me,
-          target ?? undefined,
-          channel,
-          store.isMember(channel.id, me.id),
-          manager,
-        )
-      ) {
-        throw new HttpError(403, "channel_manager_assignment_forbidden");
+        if (channel.managerIds?.includes(params.userId))
+          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! }, channel.id);
+        emit({ type: "member.left", channelId: channel.id, userId: params.userId }, channel.id);
       }
-      if (!store.isMember(channel.id, req.params.userId))
-        throw new HttpError(409, "channel_membership_required");
-      return mutate((emit) => {
-        const changed = store.setChannelManager(channel.id, req.params.userId, manager);
-        const updated = store.getChannel(channel.id)!;
-        if (changed) emit({ type: "channel.updated", channel: updated }, channel.id);
-        return { channel: updated };
-      });
-    },
-  );
-
-  app.get<{ Params: { id: string } }>("/api/channels/:id/members", async (req) => {
-    const me = requireUser(req);
-    requireChannelAccess(req.params.id, me);
-    return { memberIds: store.memberIds(req.params.id) };
+    });
+    return { ok: true };
   });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/read", async (req) => {
-    const me = requireUser(req);
-    requireChannelAccess(req.params.id, me);
-    const { seq } = markReadBody.parse(req.body);
-    if (!store.isMember(req.params.id, me.id)) throw new HttpError(404, "channel_not_found");
-    const { seq: acknowledged, threads } = store.markRead(req.params.id, me.id, seq);
+  route(endpoints.setChannelManager, async ({ user: me, body, params }) => {
+    const channel = requireChannelAccess(params.id, me);
+    const target = store.getUser(params.userId);
+    const { manager } = body;
+    if (
+      !canSetChannelManager(
+        me,
+        target ?? undefined,
+        channel,
+        store.isMember(channel.id, me.id),
+        manager,
+      )
+    ) {
+      throw new HttpError(403, "channel_manager_assignment_forbidden");
+    }
+    if (!store.isMember(channel.id, params.userId))
+      throw new HttpError(409, "channel_membership_required");
+    return mutate((emit) => {
+      const changed = store.setChannelManager(channel.id, params.userId, manager);
+      const updated = store.getChannel(channel.id)!;
+      if (changed) emit({ type: "channel.updated", channel: updated }, channel.id);
+      return { channel: updated };
+    });
+  });
+
+  route(endpoints.channelMembers, async ({ user: me, params }) => {
+    requireChannelAccess(params.id, me);
+    return { memberIds: store.memberIds(params.id) };
+  });
+
+  route(endpoints.markRead, async ({ user: me, body, params }) => {
+    requireChannelAccess(params.id, me);
+    const { seq } = body;
+    if (!store.isMember(params.id, me.id)) throw new HttpError(404, "channel_not_found");
+    const { seq: acknowledged, threads } = store.markRead(params.id, me.id, seq);
     gateway.sendToUser(me.id, {
       type: "channel.read",
-      channelId: req.params.id,
+      channelId: params.id,
       seq: acknowledged,
     });
     // Replies also sent to the channel were read there, and so in their threads.
@@ -3044,137 +2832,103 @@ async function startWorkspaceServer(
     return { ok: true, seq: acknowledged };
   });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/unread", async (req) => {
-    const me = requireUser(req);
-    requireChannelAccess(req.params.id, me);
-    const { seq } = markUnreadBody.parse(req.body);
-    if (!store.isMember(req.params.id, me.id)) throw new HttpError(404, "channel_not_found");
-    const seqNow = store.markUnread(req.params.id, me.id, seq);
+  route(endpoints.markUnread, async ({ user: me, body, params }) => {
+    requireChannelAccess(params.id, me);
+    const { seq } = body;
+    if (!store.isMember(params.id, me.id)) throw new HttpError(404, "channel_not_found");
+    const seqNow = store.markUnread(params.id, me.id, seq);
     if (seqNow === null) throw new HttpError(400, "invalid_unread_target");
-    gateway.sendToUser(me.id, { type: "channel.unread", channelId: req.params.id, seq: seqNow });
+    gateway.sendToUser(me.id, { type: "channel.unread", channelId: params.id, seq: seqNow });
     pushMentionCounts([me.id]);
     return { ok: true, seq: seqNow };
   });
 
   // ---------- messages ----------
 
-  app.get<{ Params: { id: string; rootId: string } }>(
-    "/api/channels/:id/threads/:rootId",
-    async (req) => {
-      const me = requireUser(req);
-      requireChannelAccess(req.params.id, me);
-      const query = threadHistoryQuery.parse(req.query);
-      const root = store.getMessage(req.params.rootId);
-      if (!root || root.channelId !== req.params.id || root.threadRootId)
-        throw new HttpError(404, "thread_not_found");
-      if (query.around) {
-        const target = store.getMessage(query.around);
-        if (!target || target.channelId !== root.channelId || target.threadRootId !== root.id)
-          throw new HttpError(404, "message_not_found");
-      }
-      return {
-        root,
-        ...store.threadHistory(root.channelId, root.id, query),
-        seq: store.currentSeq(),
-      };
-    },
-  );
+  route(endpoints.threadHistory, async ({ user: me, query, params }) => {
+    requireChannelAccess(params.id, me);
+    const root = store.getMessage(params.rootId);
+    if (!root || root.channelId !== params.id || root.threadRootId)
+      throw new HttpError(404, "thread_not_found");
+    if (query.around) {
+      const target = store.getMessage(query.around);
+      if (!target || target.channelId !== root.channelId || target.threadRootId !== root.id)
+        throw new HttpError(404, "message_not_found");
+    }
+    return {
+      root,
+      ...store.threadHistory(root.channelId, root.id, query),
+      seq: store.currentSeq(),
+    };
+  });
 
-  app.get<{ Params: { id: string } }>("/api/channels/:id/messages", async (req) => {
-    const me = requireUser(req);
-    requireChannelAccess(req.params.id, me);
-    const q = messageHistoryQuery.parse(req.query);
+  route(endpoints.listMessages, async ({ user: me, query: q, params }) => {
+    requireChannelAccess(params.id, me);
     const messages = store.listMessages({
-      channelId: req.params.id,
+      channelId: params.id,
       before: q.before,
       limit: q.limit,
       threadRootId: q.threadRootId,
     });
     return {
       messages,
-      readThroughSeq: store.lastMessageSeq(req.params.id),
+      readThroughSeq: store.lastMessageSeq(params.id),
       seq: store.currentSeq(),
     };
   });
 
-  app.get<{ Params: { id: string; messageId: string } }>(
-    "/api/channels/:id/messages/around/:messageId",
-    async (req) => {
-      const me = requireUser(req);
-      requireChannelAccess(req.params.id, me);
-      const { limit } = messageHistoryQuery.parse(req.query);
-      const target = store.getMessage(req.params.messageId);
-      if (!target || target.channelId !== req.params.id)
-        throw new HttpError(404, "message_not_found");
-      const rootId = target.threadRootId ?? target.id;
-      if (target.threadRootId && !store.getMessage(rootId))
-        throw new HttpError(404, "thread_not_found");
-      return {
-        ...store.listMessagesAround(req.params.id, rootId, limit),
-        threadRootId: target.threadRootId,
-        seq: store.currentSeq(),
-      };
-    },
-  );
+  route(endpoints.listMessagesAround, async ({ user: me, query, params }) => {
+    requireChannelAccess(params.id, me);
+    const { limit } = query;
+    const target = store.getMessage(params.messageId);
+    if (!target || target.channelId !== params.id) throw new HttpError(404, "message_not_found");
+    const rootId = target.threadRootId ?? target.id;
+    if (target.threadRootId && !store.getMessage(rootId))
+      throw new HttpError(404, "thread_not_found");
+    return {
+      ...store.listMessagesAround(params.id, rootId, limit),
+      threadRootId: target.threadRootId,
+      seq: store.currentSeq(),
+    };
+  });
 
-  // A window of history centred on the first message after `seq`, where
-  // someone who had read up to it takes up reading again. A conversation with
-  // more unread than one page opens there, at its New line, not at the newest.
-  // Their own messages are skipped: 404 when nobody else has written since.
-  app.get<{ Params: { id: string; seq: string } }>(
-    "/api/channels/:id/messages/since/:seq",
-    async (req) => {
-      const me = requireUser(req);
-      requireChannelAccess(req.params.id, me);
-      const { limit } = messageHistoryQuery.parse(req.query);
-      const seq = Number(req.params.seq);
-      if (!/^\d{1,15}$/.test(req.params.seq) || !Number.isSafeInteger(seq))
-        throw new HttpError(400, "invalid_seq");
-      const target = store.firstMessageAfterSeq(req.params.id, seq, me.id);
-      if (!target) throw new HttpError(404, "message_not_found");
-      return {
-        ...store.listMessagesAround(req.params.id, target, limit),
-        targetId: target,
-        seq: store.currentSeq(),
-      };
-    },
-  );
+  route(endpoints.listMessagesSince, async ({ user: me, query, params }) => {
+    requireChannelAccess(params.id, me);
+    const { limit } = query;
+    const seq = Number(params.seq);
+    if (!/^\d{1,15}$/.test(params.seq) || !Number.isSafeInteger(seq))
+      throw new HttpError(400, "invalid_seq");
+    const target = store.firstMessageAfterSeq(params.id, seq, me.id);
+    if (!target) throw new HttpError(404, "message_not_found");
+    return {
+      ...store.listMessagesAround(params.id, target, limit),
+      targetId: target,
+      seq: store.currentSeq(),
+    };
+  });
 
-  // One message, for the card under a link to it. Asked by each reader, so a
-  // message in a private conversation shows only to the people in it.
-  app.get<{ Params: { id: string; messageId: string } }>(
-    "/api/channels/:id/messages/:messageId",
-    async (req) => {
-      const me = requireUser(req);
-      requireChannelAccess(req.params.id, me);
-      const message = store.getMessage(req.params.messageId);
-      if (!message || message.channelId !== req.params.id)
-        throw new HttpError(404, "message_not_found");
-      return { message };
-    },
-  );
+  route(endpoints.getMessage, async ({ user: me, params }) => {
+    requireChannelAccess(params.id, me);
+    const message = store.getMessage(params.messageId);
+    if (!message || message.channelId !== params.id) throw new HttpError(404, "message_not_found");
+    return { message };
+  });
 
-  app.get<{ Params: { id: string; messageId: string } }>(
-    "/api/channels/:id/messages/after/:messageId",
-    async (req) => {
-      const me = requireUser(req);
-      requireChannelAccess(req.params.id, me);
-      const { limit } = messageHistoryQuery.parse(req.query);
-      return {
-        messages: store.listMessagesAfter(req.params.id, req.params.messageId, limit),
-        seq: store.currentSeq(),
-      };
-    },
-  );
+  route(endpoints.listMessagesAfter, async ({ user: me, query, params }) => {
+    requireChannelAccess(params.id, me);
+    const { limit } = query;
+    return {
+      messages: store.listMessagesAfter(params.id, params.messageId, limit),
+      seq: store.currentSeq(),
+    };
+  });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/messages", async (req, reply) => {
-    const me = requireUser(req);
+  route(endpoints.sendMessage, async ({ reply, user: me, body, params }) => {
     // Keyed on the account, not the address: a whole office behind one address
     // should not share one person's allowance.
     ration("post", me.id);
-    const channel = requireChannelAccess(req.params.id, me);
+    const channel = requireChannelAccess(params.id, me);
     if (channel.archived) throw new HttpError(400, "channel_archived");
-    const body = sendMessageBody.parse(req.body);
     // As with uploads: a guest takes part, and votes, but does not make polls.
     if (body.poll && me.role === "guest")
       throw new HttpError(
@@ -3197,12 +2951,11 @@ async function startWorkspaceServer(
       forwardFromId: body.forwardFrom ?? null,
       poll: body.poll ?? null,
     });
-    return reply.status(201).send({ message });
+    return { message };
   });
 
-  app.patch<{ Params: { id: string } }>("/api/messages/:id", async (req) => {
-    const me = requireUser(req);
-    const existing = store.getMessage(req.params.id);
+  route(endpoints.editMessage, async ({ user: me, body, params }) => {
+    const existing = store.getMessage(params.id);
     if (!existing || !store.canAccess(existing.channelId, me.id)) {
       throw new HttpError(404, "message_not_found");
     }
@@ -3213,7 +2966,6 @@ async function startWorkspaceServer(
     // It says what happened to a call, not what its caller wrote.
     if (existing.call)
       throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
-    const body = editMessageBody.parse(req.body);
     // Words already the new ones are a retry whose answer was lost, not a conflict.
     if (
       body.expectedText !== undefined &&
@@ -3229,9 +2981,8 @@ async function startWorkspaceServer(
     return { message: updateMessage(existing, body.text) };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/messages/:id", async (req) => {
-    const me = requireUser(req);
-    const existing = store.getMessage(req.params.id);
+  route(endpoints.deleteMessage, async ({ user: me, params }) => {
+    const existing = store.getMessage(params.id);
     if (!existing || !store.canAccess(existing.channelId, me.id)) {
       throw new HttpError(404, "message_not_found");
     }
@@ -3251,15 +3002,8 @@ async function startWorkspaceServer(
         gateway.sendToUser(user.id, { type: "reports", open });
   };
 
-  /**
-   * Reports a message to the workspace's admins (E12), by anyone who can read
-   * it but its author. Reporting it again while the first report is open
-   * changes nothing, and its author is told nothing.
-   */
-  app.post<{ Params: { id: string } }>("/api/messages/:id/report", async (req) => {
-    const me = requireUser(req);
-    const body = reportMessageBody.parse(req.body);
-    const message = store.getMessage(req.params.id);
+  route(endpoints.reportMessage, async ({ user: me, body, params }) => {
+    const message = store.getMessage(params.id);
     if (!message || !store.canAccess(message.channelId, me.id)) {
       throw new HttpError(404, "message_not_found");
     }
@@ -3271,17 +3015,11 @@ async function startWorkspaceServer(
 
   // ---------- link previews ----------
 
-  /**
-   * A preview's picture, for whoever can read its message. The server fetched
-   * it and checked its first bytes; it is sent as the type those bytes say,
-   * never sniffed again by the browser, and kept by nothing on the way.
-   */
-  app.get<{ Params: { id: string } }>("/api/link-previews/:id/image", async (req, reply) => {
-    const me = requireUser(req);
-    const owner = store.previewOwner(req.params.id);
+  route(endpoints.previewImage, async ({ reply, user: me, params }) => {
+    const owner = store.previewOwner(params.id);
     if (!owner || !store.canAccess(owner.channelId, me.id))
       throw new HttpError(404, "preview_not_found");
-    const image = store.previewImage(req.params.id);
+    const image = store.previewImage(params.id);
     if (!image) throw new HttpError(404, "preview_not_found");
     return reply
       .header("content-type", image.type)
@@ -3291,15 +3029,13 @@ async function startWorkspaceServer(
       .send(Buffer.from(image.bytes));
   });
 
-  /** The sender takes a preview off their message; an edit keeping the link leaves it off. */
-  app.delete<{ Params: { id: string } }>("/api/link-previews/:id", async (req) => {
-    const me = requireUser(req);
-    const owner = store.previewOwner(req.params.id);
+  route(endpoints.removeLinkPreview, async ({ user: me, params }) => {
+    const owner = store.previewOwner(params.id);
     if (!owner || !store.canAccess(owner.channelId, me.id))
       throw new HttpError(404, "preview_not_found");
     if (owner.authorId !== me.id) throw new HttpError(403, "not_your_message");
     mutate((emit) => {
-      store.removePreview(req.params.id);
+      store.removePreview(params.id);
       emit(
         {
           type: "message.updated",
@@ -3314,8 +3050,7 @@ async function startWorkspaceServer(
 
   // ---------- files ----------
 
-  app.get("/api/storage", async (req) => {
-    requireUser(req);
+  route(endpoints.storageUsage, async () => {
     return {
       usedBytes: storage.usedBytes,
       limitBytes: storage.limitBytes,
@@ -3325,10 +3060,9 @@ async function startWorkspaceServer(
     };
   });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/files", async (req, reply) => {
-    const me = requireUser(req);
+  route(endpoints.uploadFile, async ({ req, user: me, params }) => {
     ration("upload", me.id);
-    const channel = requireChannelAccess(req.params.id, me);
+    const channel = requireChannelAccess(params.id, me);
     if (!filesDir) throw new HttpError(501, "uploads_disabled");
 
     const part = await req.file();
@@ -3381,7 +3115,7 @@ async function startWorkspaceServer(
         width: dims?.width ?? null,
         height: dims?.height ?? null,
       });
-      return reply.status(201).send({ file });
+      return { file };
     } catch (err) {
       try {
         await unlink(blobPath(id));
@@ -3409,19 +3143,12 @@ async function startWorkspaceServer(
    */
   const DOWNLOAD_TOKEN_TTL_MS = 60_000;
 
-  /**
-   * The file browser's page (E7): files shared in conversations the asker can
-   * read, newest first, by kind, sharer, conversation and words in the name.
-   */
-  app.get("/api/files", async (req) => {
-    const me = requireUser(req);
-    const query = sharedFilesQuery.parse(req.query);
+  route(endpoints.listSharedFiles, async ({ user: me, query }) => {
     return store.listSharedFiles(me.id, query);
   });
 
-  app.post<{ Params: { id: string } }>("/api/files/:id/download-token", async (req, reply) => {
-    const me = requireUser(req);
-    const file = store.getFile(req.params.id);
+  route(endpoints.fileDownloadToken, async ({ req, reply, user: me, params }) => {
+    const file = store.getFile(params.id);
     if (!file || !filesDir || !store.canAccess(file.channelId, me.id)) {
       throw new HttpError(404, "file_not_found");
     }
@@ -3443,139 +3170,122 @@ async function startWorkspaceServer(
     return { token, expiresAt };
   });
 
-  app.get<{ Params: { id: string }; Querystring: { download?: string } }>(
-    "/api/files/:id",
-    async (req, reply) => {
-      // A ticket stands in for the header a navigation cannot carry. Whoever
-      // spends it still has to pass the checks its issuer passed.
-      const ticket = req.query.download;
-      let viewerId: ID;
-      let sessionHash: string;
-      if (ticket !== undefined) {
-        if (req.method !== "GET" || typeof ticket !== "string" || !/^[a-f0-9]{64}$/.test(ticket))
-          throw new HttpError(404, "file_not_found");
-        reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
-        const spent = store.consumeDownloadToken(hashToken(ticket));
-        if (!spent || spent.fileId !== req.params.id) throw new HttpError(404, "file_not_found");
-        const viewer = store.getSessionUser(spent.sessionHash);
-        if (!viewer || viewer.id !== spent.userId || store.mustChangePassword(viewer.id)) {
-          throw new HttpError(404, "file_not_found");
-        }
-        viewerId = viewer.id;
-        sessionHash = spent.sessionHash;
-      } else {
-        viewerId = requireUser(req).id;
-        sessionHash = hashToken(bearerToken(req)!);
+  route(endpoints.file, async ({ req, reply, params, query, user }) => {
+    // A ticket stands in for the header a navigation cannot carry. Whoever
+    // spends it still has to pass the checks its issuer passed.
+    const ticket = query.download;
+    let viewerId: ID;
+    let sessionHash: string;
+    if (!user) {
+      if (req.method !== "GET" || !ticket || !/^[a-f0-9]{64}$/.test(ticket))
+        throw new HttpError(404, "file_not_found");
+      reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
+      const spent = store.consumeDownloadToken(hashToken(ticket));
+      if (!spent || spent.fileId !== params.id) throw new HttpError(404, "file_not_found");
+      const viewer = store.getSessionUser(spent.sessionHash);
+      if (!viewer || viewer.id !== spent.userId || store.mustChangePassword(viewer.id)) {
+        throw new HttpError(404, "file_not_found");
       }
+      viewerId = viewer.id;
+      sessionHash = spent.sessionHash;
+    } else {
+      viewerId = user.id;
+      sessionHash = hashToken(bearerToken(req)!);
+    }
 
-      const file = store.getFile(req.params.id);
-      if (!file || !filesDir || !store.canAccess(file.channelId, viewerId)) {
-        throw new HttpError(404, "file_not_found");
-      }
-      let body;
-      let handle;
-      try {
-        handle = await open(blobPath(file.id), "r");
-        const stored = await handle.stat();
-        if (!stored.isFile() || stored.size !== file.size) throw new Error("file unavailable");
-        // Disk access yields; sign-out, deletion or private-room departure may have happened.
-        const current = store.getSessionUser(sessionHash);
-        if (
-          !current ||
-          !store.getFile(file.id) ||
-          store.mustChangePassword(current.id) ||
-          !store.canAccess(file.channelId, current.id)
-        )
-          throw new Error("file access changed");
-        body = handle.createReadStream();
-      } catch {
-        await handle?.close();
-        throw new HttpError(404, "file_not_found");
-      }
-      const encodedName = encodeURIComponent(file.name);
-      // A member can lose access after a download. A fresh request must reach
-      // the server so the current session and channel permissions are checked.
-      return reply
-        .header("content-type", file.mime)
-        .header("x-content-type-options", "nosniff")
-        .header("content-length", String(file.size))
-        .header("cache-control", "no-store")
-        .header("referrer-policy", "no-referrer")
-        .header("accept-ranges", "none")
-        .header(
-          "content-disposition",
-          `${ticket ? "attachment" : "inline"}; filename*=UTF-8''${encodedName}`,
-        )
-        .send(body);
-    },
-  );
+    const file = store.getFile(params.id);
+    if (!file || !filesDir || !store.canAccess(file.channelId, viewerId)) {
+      throw new HttpError(404, "file_not_found");
+    }
+    let body;
+    let handle;
+    try {
+      handle = await open(blobPath(file.id), "r");
+      const stored = await handle.stat();
+      if (!stored.isFile() || stored.size !== file.size) throw new Error("file unavailable");
+      // Disk access yields; sign-out, deletion or private-room departure may have happened.
+      const current = store.getSessionUser(sessionHash);
+      if (
+        !current ||
+        !store.getFile(file.id) ||
+        store.mustChangePassword(current.id) ||
+        !store.canAccess(file.channelId, current.id)
+      )
+        throw new Error("file access changed");
+      body = handle.createReadStream();
+    } catch {
+      await handle?.close();
+      throw new HttpError(404, "file_not_found");
+    }
+    const encodedName = encodeURIComponent(file.name);
+    // A member can lose access after a download. A fresh request must reach
+    // the server so the current session and channel permissions are checked.
+    return reply
+      .header("content-type", file.mime)
+      .header("x-content-type-options", "nosniff")
+      .header("content-length", String(file.size))
+      .header("cache-control", "no-store")
+      .header("referrer-policy", "no-referrer")
+      .header("accept-ranges", "none")
+      .header(
+        "content-disposition",
+        `${ticket ? "attachment" : "inline"}; filename*=UTF-8''${encodedName}`,
+      )
+      .send(body);
+  });
 
   // ---------- reactions ----------
 
-  app.put<{ Params: { id: string; emoji: string } }>(
-    "/api/messages/:id/reactions/:emoji",
-    async (req) => {
-      const me = requireUser(req);
-      const msg = store.getMessage(req.params.id);
-      if (!msg || !store.canAccess(msg.channelId, me.id)) {
-        throw new HttpError(404, "message_not_found");
+  route(endpoints.addReaction, async ({ user: me, params }) => {
+    const msg = store.getMessage(params.id);
+    if (!msg || !store.canAccess(msg.channelId, me.id)) {
+      throw new HttpError(404, "message_not_found");
+    }
+    const emoji = decodeURIComponent(params.emoji).slice(0, 64);
+    mutate((emit) => {
+      if (store.addReaction(msg.id, me.id, emoji)) {
+        emit(
+          {
+            type: "reaction.added",
+            channelId: msg.channelId,
+            messageId: msg.id,
+            emoji,
+            userId: me.id,
+          },
+          msg.channelId,
+        );
       }
-      const emoji = decodeURIComponent(req.params.emoji).slice(0, 64);
-      mutate((emit) => {
-        if (store.addReaction(msg.id, me.id, emoji)) {
-          emit(
-            {
-              type: "reaction.added",
-              channelId: msg.channelId,
-              messageId: msg.id,
-              emoji,
-              userId: me.id,
-            },
-            msg.channelId,
-          );
-        }
-      });
-      return { ok: true };
-    },
-  );
+    });
+    return { ok: true };
+  });
 
-  app.delete<{ Params: { id: string; emoji: string } }>(
-    "/api/messages/:id/reactions/:emoji",
-    async (req) => {
-      const me = requireUser(req);
-      const msg = store.getMessage(req.params.id);
-      if (!msg || !store.canAccess(msg.channelId, me.id)) {
-        throw new HttpError(404, "message_not_found");
+  route(endpoints.removeReaction, async ({ user: me, params }) => {
+    const msg = store.getMessage(params.id);
+    if (!msg || !store.canAccess(msg.channelId, me.id)) {
+      throw new HttpError(404, "message_not_found");
+    }
+    const emoji = decodeURIComponent(params.emoji).slice(0, 64);
+    mutate((emit) => {
+      if (store.removeReaction(msg.id, me.id, emoji)) {
+        emit(
+          {
+            type: "reaction.removed",
+            channelId: msg.channelId,
+            messageId: msg.id,
+            emoji,
+            userId: me.id,
+          },
+          msg.channelId,
+        );
       }
-      const emoji = decodeURIComponent(req.params.emoji).slice(0, 64);
-      mutate((emit) => {
-        if (store.removeReaction(msg.id, me.id, emoji)) {
-          emit(
-            {
-              type: "reaction.removed",
-              channelId: msg.channelId,
-              messageId: msg.id,
-              emoji,
-              userId: me.id,
-            },
-            msg.channelId,
-          );
-        }
-      });
-      return { ok: true };
-    },
-  );
+    });
+    return { ok: true };
+  });
 
   // ---------- polls (E6) ----------
 
-  /**
-   * A voter's choices, replacing any before; none takes the vote back. Readers
-   * are told the new count by a `message.updated` that says `pollOnly`, and the
-   * voter's own devices what they chose, which an anonymous poll says to nobody.
-   */
-  app.put<{ Params: { id: string } }>("/api/messages/:id/poll/votes", async (req) => {
-    const me = requireUser(req);
-    const msg = store.getMessage(req.params.id);
+  route(endpoints.votePoll, async ({ user: me, body, params }) => {
+    const msg = store.getMessage(params.id);
     if (!msg || !store.canAccess(msg.channelId, me.id))
       throw new HttpError(404, "message_not_found");
     const rules = store.pollRules(msg.id);
@@ -3583,7 +3293,7 @@ async function startWorkspaceServer(
     if (store.getChannel(msg.channelId)?.archived) throw new HttpError(400, "channel_archived");
     if (rules.closedAt !== null)
       throw new HttpError(409, "poll_closed", "This poll is closed, so its votes are final.");
-    const { choices } = pollVotesBody.parse(req.body);
+    const { choices } = body;
     const chosen = [...new Set(choices)];
     if (chosen.some((c) => c >= rules.options))
       throw new HttpError(400, "bad_choice", "That choice is not in this poll.");
@@ -3603,10 +3313,8 @@ async function startWorkspaceServer(
     return { message, choices: store.pollChoices(msg.id, me.id) };
   });
 
-  /** Its author closes a poll for good: the votes stand and nobody can change them. */
-  app.post<{ Params: { id: string } }>("/api/messages/:id/poll/close", async (req) => {
-    const me = requireUser(req);
-    const msg = store.getMessage(req.params.id);
+  route(endpoints.closePoll, async ({ user: me, params }) => {
+    const msg = store.getMessage(params.id);
     if (!msg || !store.canAccess(msg.channelId, me.id))
       throw new HttpError(404, "message_not_found");
     if (!store.pollRules(msg.id))
@@ -3622,12 +3330,6 @@ async function startWorkspaceServer(
   });
 
   // ---------- apps, webhooks and the Slack-compatible API ----------
-
-  const requireAdmin = (req: FastifyRequest): User => {
-    const me = requireUser(req);
-    if (!isAdministrator(me.role)) throw new HttpError(403, "admin_only");
-    return me;
-  };
 
   // ---------- operational status (OPS-10) ----------
 
@@ -3679,13 +3381,7 @@ async function startWorkspaceServer(
     };
   };
 
-  /**
-   * For the owner and admins: whether the server is keeping up, from counts,
-   * sizes and times alone. Nothing from a conversation, an app's delivery
-   * error or a credential is in it.
-   */
-  app.get("/api/admin/status", async (req, reply): Promise<WorkspaceStatus> => {
-    requireAdmin(req);
+  route(endpoints.workspaceStatus, async ({ reply }) => {
     reply.header("Cache-Control", "no-store");
     const counts = store.operationalCounts();
     let diskFreeBytes: number | null = null;
@@ -3737,14 +3433,6 @@ async function startWorkspaceServer(
 
   // ---------- a copy for the owner to download (P4) ----------
 
-  /** The owner alone: a copy holds every conversation and every app's secrets. */
-  const requireOwner = (req: FastifyRequest): User => {
-    const me = requireUser(req);
-    if (me.role !== "owner")
-      throw new HttpError(403, "owner_only", "Only the workspace's owner can download a copy.");
-    return me;
-  };
-
   /** Room left beyond a copy, so making one never fills the disk the workspace writes to. */
   const COPY_HEADROOM_BYTES = 64 * 1024 * 1024;
 
@@ -3771,14 +3459,12 @@ async function startWorkspaceServer(
     expiresAt: number;
   }>(16);
 
-  app.get("/api/admin/copy", async (req, reply): Promise<{ copy: CopyState | null }> => {
-    requireOwner(req);
+  route(endpoints.workspaceCopy, async ({ reply }) => {
     reply.header("cache-control", "no-store");
     return { copy: copies?.state() ?? null };
   });
 
-  app.post("/api/admin/copy", async (req, reply): Promise<{ copy: CopyState }> => {
-    const me = requireOwner(req);
+  route(endpoints.makeWorkspaceCopy, async ({ reply, user: me }) => {
     reply.header("cache-control", "no-store");
     if (!copies)
       throw new HttpError(409, "copies_unavailable", "A workspace kept in memory has no copy.");
@@ -3810,8 +3496,7 @@ async function startWorkspaceServer(
     return { copy: made };
   });
 
-  app.post("/api/admin/copy/download-token", async (req, reply) => {
-    const me = requireOwner(req);
+  route(endpoints.copyDownloadToken, async ({ req, reply, user: me }) => {
     const current = copies?.state();
     if (current?.state !== "ready")
       throw new HttpError(404, "no_copy", "There is no copy ready to download.");
@@ -3827,66 +3512,52 @@ async function startWorkspaceServer(
     return { token, expiresAt };
   });
 
-  /**
-   * The copy as one zip. A ticket stands in for the header a download in the
-   * browser cannot carry, and whoever spends it must still be the owner,
-   * signed in with the session that asked for it.
-   */
-  app.get<{ Params: { id: string }; Querystring: { download?: string } }>(
-    "/api/admin/copy/:id",
-    async (req, reply) => {
-      reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
-      const ticket = req.query.download;
-      let ownerId: ID;
-      if (ticket !== undefined) {
-        if (typeof ticket !== "string" || !/^[a-f0-9]{64}$/.test(ticket))
-          throw new HttpError(404, "no_copy");
-        const hash = hashToken(ticket);
-        const spent = copyTickets.get(hash);
-        copyTickets.delete(hash);
-        const owner = spent ? store.getSessionUser(spent.sessionHash) : null;
-        if (
-          !spent ||
-          spent.copyId !== req.params.id ||
-          !owner ||
-          owner.id !== spent.userId ||
-          owner.role !== "owner" ||
-          store.mustChangePassword(owner.id)
-        )
-          throw new HttpError(404, "no_copy");
-        ownerId = owner.id;
-      } else {
-        ownerId = requireOwner(req).id;
-      }
-      const zip = copies?.open(req.params.id);
-      if (!zip) throw new HttpError(404, "no_copy", "That copy is gone. Make a new one.");
-      store.recordAudit({
-        actorId: ownerId,
-        action: "workspace.copy_downloaded",
-        targetType: "workspace",
-        targetId: null,
-        details: { bytes: zip.length },
-      });
-      const day = new Date().toISOString().slice(0, 10);
-      const name = `${workspaceName()} ${day}.zip`;
-      return reply
-        .header("content-type", "application/zip")
-        .header("x-content-type-options", "nosniff")
-        .header("content-length", String(zip.length))
-        .header(
-          "content-disposition",
-          `attachment; filename="workspace-${day}.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,
-        )
-        .send(zip.stream);
-    },
-  );
+  route(endpoints.copyFile, async ({ reply, params, query, user }) => {
+    reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
+    const ticket = query.download;
+    let ownerId: ID;
+    if (!user) {
+      if (!ticket || !/^[a-f0-9]{64}$/.test(ticket)) throw new HttpError(404, "no_copy");
+      const hash = hashToken(ticket);
+      const spent = copyTickets.get(hash);
+      copyTickets.delete(hash);
+      const owner = spent ? store.getSessionUser(spent.sessionHash) : null;
+      if (
+        !spent ||
+        spent.copyId !== params.id ||
+        !owner ||
+        owner.id !== spent.userId ||
+        owner.role !== "owner" ||
+        store.mustChangePassword(owner.id)
+      )
+        throw new HttpError(404, "no_copy");
+      ownerId = owner.id;
+    } else {
+      ownerId = user.id;
+    }
+    const zip = copies?.open(params.id);
+    if (!zip) throw new HttpError(404, "no_copy", "That copy is gone. Make a new one.");
+    store.recordAudit({
+      actorId: ownerId,
+      action: "workspace.copy_downloaded",
+      targetType: "workspace",
+      targetId: null,
+      details: { bytes: zip.length },
+    });
+    const day = new Date().toISOString().slice(0, 10);
+    const name = `${workspaceName()} ${day}.zip`;
+    return reply
+      .header("content-type", "application/zip")
+      .header("x-content-type-options", "nosniff")
+      .header("content-length", String(zip.length))
+      .header(
+        "content-disposition",
+        `attachment; filename="workspace-${day}.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,
+      )
+      .send(zip.stream);
+  });
 
-  /**
-   * For the owner and admins: what happened in huddles lately (see
-   * `CallLog`), in the conversations they can see themselves. Memory only.
-   */
-  app.get("/api/admin/calls", async (req, reply): Promise<{ entries: CallLogEntry[] }> => {
-    const me = requireAdmin(req);
+  route(endpoints.callLog, async ({ reply, user: me }) => {
     reply.header("Cache-Control", "no-store");
     return { entries: gateway.calls.entries((channelId) => store.canAccess(channelId, me.id)) };
   });
@@ -3920,10 +3591,7 @@ async function startWorkspaceServer(
   /** Identifies an invite in the audit log without writing down the code itself. */
   const inviteFingerprint = (code: string) => hashToken(code).slice(0, 12);
 
-  app.post("/api/apps", async (req, reply) => {
-    const me = requireAdmin(req);
-    const body = createAppBody.parse(req.body);
-
+  route(endpoints.createApp, async ({ req, user: me, body }) => {
     // A bot posts as a real (non-human) user, so messages render normally.
     beginAuth();
     let credentials: Awaited<ReturnType<typeof hashPassword>>;
@@ -3932,7 +3600,7 @@ async function startWorkspaceServer(
     } finally {
       authJobs--;
     }
-    requireAdmin(req);
+    requireUser(req);
     const result = mutate((emit) => {
       const { hash, salt } = credentials;
       const bot = store.createBotUser(botHandle(body.name), body.name, hash, salt);
@@ -3960,11 +3628,10 @@ async function startWorkspaceServer(
       // stays readable to admins because verification needs the key itself.
       return { app: created, botUser: bot, token, signingSecret };
     });
-    return reply.status(201).send(result);
+    return result;
   });
 
-  app.get("/api/apps", async (req) => {
-    requireAdmin(req);
+  route(endpoints.listApps, async () => {
     const apps = store.listApps();
     return {
       apps: apps.map((a) => ({
@@ -3977,19 +3644,9 @@ async function startWorkspaceServer(
     };
   });
 
-  /**
-   * What an app may do (E18c): Slack's scope names, replacing the whole list.
-   * Its tokens hold the new list from the next call; events already queued
-   * for it were let through under the old one and are still sent.
-   *
-   * Logged with what was added and taken away, which is what an operator
-   * looks for when an app starts or stops seeing something.
-   */
-  app.put<{ Params: { id: string } }>("/api/apps/:id/scopes", async (req) => {
-    const me = requireAdmin(req);
-    const body = appScopesBody.parse(req.body);
+  route(endpoints.setAppScopes, async ({ user: me, body, params }) => {
     return store.transaction(() => {
-      const target = store.getApp(req.params.id);
+      const target = store.getApp(params.id);
       if (!target) throw new HttpError(404, "not_found");
       const before = target.scopes ?? [];
       store.setAppScopes(target.id, body.scopes);
@@ -4009,17 +3666,8 @@ async function startWorkspaceServer(
     });
   });
 
-  /**
-   * A new bot token, replacing every one the app had. For a token that has
-   * leaked, and for an admin who closed the dialog before copying the one they
-   * were shown at creation, which is otherwise a working app nobody can use.
-   *
-   * Logged without the token: who replaced which app's credentials is what an
-   * operator wants to find afterwards.
-   */
-  app.post<{ Params: { id: string } }>("/api/apps/:id/token", async (req) => {
-    const me = requireAdmin(req);
-    const target = store.getApp(req.params.id);
+  route(endpoints.replaceAppToken, async ({ req, user: me, params }) => {
+    const target = store.getApp(params.id);
     if (!target) throw new HttpError(404, "not_found");
     const token = secretToken("xoxb-");
     store.transaction(() => {
@@ -4036,15 +3684,8 @@ async function startWorkspaceServer(
     return { token };
   });
 
-  /**
-   * A new signing secret. Every request signed from here on uses it, including
-   * event deliveries already waiting in the queue, which are signed when they
-   * are sent rather than when they were queued. The app refuses them until it
-   * has the new secret, which is the point when the old one has leaked.
-   */
-  app.post<{ Params: { id: string } }>("/api/apps/:id/signing-secret", async (req) => {
-    const me = requireAdmin(req);
-    const target = store.getApp(req.params.id);
+  route(endpoints.replaceSigningSecret, async ({ req, user: me, params }) => {
+    const target = store.getApp(params.id);
     if (!target) throw new HttpError(404, "not_found");
     const signingSecret = secretToken();
     store.transaction(() => {
@@ -4061,9 +3702,8 @@ async function startWorkspaceServer(
     return { signingSecret };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/apps/:id", async (req) => {
-    const me = requireAdmin(req);
-    const target = store.getApp(req.params.id);
+  route(endpoints.deleteApp, async ({ user: me, params }) => {
+    const target = store.getApp(params.id);
     if (!target) throw new HttpError(404, "not_found");
     store.transaction(() => {
       store.deleteApp(target.id);
@@ -4078,11 +3718,9 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.post<{ Params: { id: string } }>("/api/apps/:id/webhooks", async (req, reply) => {
-    const me = requireAdmin(req);
-    const owner = store.getApp(req.params.id);
+  route(endpoints.createWebhook, async ({ user: me, body, params }) => {
+    const owner = store.getApp(params.id);
     if (!owner) throw new HttpError(404, "not_found");
-    const body = createWebhookBody.parse(req.body);
     const channel = requireChannelAccess(body.channelId, me);
 
     const token = secretToken();
@@ -4105,19 +3743,13 @@ async function startWorkspaceServer(
       }
       return created;
     });
-    return reply.status(201).send({ webhook, url: `/hooks/${token}` });
+    return { webhook, url: `/hooks/${token}` };
   });
 
-  /**
-   * A new URL for an existing webhook. The secret is the whole of a webhook's
-   * authority, so a URL pasted somewhere public has to be replaceable without
-   * removing the webhook and choosing its channel again.
-   */
-  app.post<{ Params: { id: string } }>("/api/webhooks/:id/url", async (req) => {
-    const me = requireAdmin(req);
+  route(endpoints.replaceWebhookUrl, async ({ req, user: me, params }) => {
     const token = secretToken();
     const webhook = store.transaction(() => {
-      const replaced = store.replaceWebhookToken(req.params.id, hashToken(token));
+      const replaced = store.replaceWebhookToken(params.id, hashToken(token));
       if (replaced) {
         store.recordAudit({
           actorId: me.id,
@@ -4141,10 +3773,9 @@ async function startWorkspaceServer(
     return { webhook, url: `/hooks/${token}` };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/webhooks/:id", async (req) => {
-    const me = requireAdmin(req);
+  route(endpoints.deleteWebhook, async ({ user: me, params }) => {
     const deleted = store.transaction(() => {
-      const webhook = store.getWebhook(req.params.id);
+      const webhook = store.getWebhook(params.id);
       if (!webhook || !store.deleteWebhook(webhook.id)) return false;
       store.recordAudit({
         actorId: me.id,
@@ -4163,15 +3794,10 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /**
-   * Incoming webhook, shaped like Slack's: POST a JSON body with `text` and/or
-   * `blocks`. Form-encoded `payload=<json>` is accepted too, since many older
-   * integrations send it that way.
-   */
-  app.post<{ Params: { token: string } }>("/hooks/:token", async (req, reply) => {
+  route(endpoints.postToWebhook, async ({ req, reply, params }) => {
     // Before the lookup, so a wrong token costs as much as a right one.
     ration("hookByAddress", callerAddress(req));
-    const found = store.webhookForToken(hashToken(req.params.token));
+    const found = store.webhookForToken(hashToken(params.token));
     if (!found) return reply.status(404).send({ ok: false, error: "invalid_webhook" });
     ration("hook", found.webhook.id);
 
@@ -4271,15 +3897,7 @@ async function startWorkspaceServer(
     }
   };
 
-  /**
-   * Slack's auth.test. Bolt calls it before it will start, and gives up if it
-   * fails, so without it no Bolt app could run against this server at all.
-   * `bot_id` is the app's id: this server has no separate bot identity.
-   */
-  app.post("/api/auth.test", async (req, reply) => {
-    const owner = slackCaller(req);
-    if (!owner) return slackError("invalid_auth");
-    sayScopes(reply, owner);
+  route(endpoints.authTest, async ({ req, bot: owner }) => {
     const bot = store.getUser(owner.botUserId)!;
     return {
       ok: true,
@@ -4293,14 +3911,7 @@ async function startWorkspaceServer(
     };
   });
 
-  /**
-   * Slack Web API compatible send, so existing bot code works by pointing at
-   * this server. Errors use Slack's `{ok:false, error}` shape.
-   */
-  app.post("/api/chat.postMessage", async (req, reply) => {
-    const owner = slackCaller(req);
-    if (!owner) return slackError("invalid_auth");
-    sayScopes(reply, owner);
+  route(endpoints.chatPostMessage, async ({ req, reply, bot: owner }) => {
     reply.header("x-accepted-oauth-scopes", "chat:write");
     if (!owner.scopes?.includes("chat:write")) return missingScope(owner, "chat:write");
     // A bot stuck in a loop is the version of this that nobody is watching.
@@ -4509,11 +4120,9 @@ async function startWorkspaceServer(
     }
   };
 
-  app.post<{ Params: { id: string } }>("/api/apps/:id/commands", async (req, reply) => {
-    const me = requireAdmin(req);
-    const owner = store.getApp(req.params.id);
+  route(endpoints.createCommand, async ({ user: me, body, params }) => {
+    const owner = store.getApp(params.id);
     if (!owner) throw new HttpError(404, "not_found");
-    const body = createCommandBody.parse(req.body);
     if (BUILTIN_COMMANDS.has(body.command) || store.slashCommandByName(body.command)) {
       throw new HttpError(409, "command_taken", `/${body.command} is already in use`);
     }
@@ -4539,13 +4148,12 @@ async function startWorkspaceServer(
       });
       return created;
     });
-    return reply.status(201).send({ command });
+    return { command };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/commands/:id", async (req) => {
-    const me = requireAdmin(req);
+  route(endpoints.deleteCommand, async ({ user: me, params }) => {
     const deleted = store.transaction(() => {
-      const command = store.getSlashCommand(req.params.id);
+      const command = store.getSlashCommand(params.id);
       if (!command || !store.deleteSlashCommand(command.id)) return false;
       store.recordAudit({
         actorId: me.id,
@@ -4564,9 +4172,7 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /** Every command anyone can run, for the composer's hint list. */
-  app.get("/api/commands", async (req) => {
-    requireUser(req);
+  route(endpoints.listCommands, async () => {
     const builtins = [...BUILTIN_COMMANDS.entries()].map(([command, b]) => ({
       command,
       description: b.description,
@@ -4582,12 +4188,9 @@ async function startWorkspaceServer(
     return { commands: [...builtins, ...fromApps] };
   });
 
-  /** Runs `/whatever …` typed in a channel. */
-  app.post<{ Params: { id: string } }>("/api/channels/:id/commands", async (req) => {
-    const me = requireUser(req);
-    const channel = requireChannelAccess(req.params.id, me);
+  route(endpoints.runCommand, async ({ req, user: me, body, params }) => {
+    const channel = requireChannelAccess(params.id, me);
     if (channel.archived) throw new HttpError(400, "channel_archived");
-    const body = runCommandBody.parse(req.body);
     const threadRootId = body.threadRootId ?? null;
 
     const parsed = /^\/([a-zA-Z0-9_-]+)\s*([\s\S]*)$/.exec(body.text.trim());
@@ -4683,16 +4286,15 @@ async function startWorkspaceServer(
     }
   });
 
-  /** Slack's `response_url`: how an app replies after its first few seconds. */
-  app.post<{ Params: { token: string } }>("/api/commands/response/:token", async (req, reply) => {
-    const target = responseTargets.get(req.params.token);
+  route(endpoints.commandResponse, async ({ req, reply, params }) => {
+    const target = responseTargets.get(params.token);
     if (!target || target.expiresAt < Date.now() || !capabilityHolds(target)) {
       // A url whose app, channel or audience has gone is spent, not merely
       // unusable this once: keeping it would only invite the same call again.
-      responseTargets.delete(req.params.token);
+      responseTargets.delete(params.token);
       return reply.status(404).send({ ok: false, error: "expired_url" });
     }
-    if (--target.usesLeft <= 0) responseTargets.delete(req.params.token);
+    if (--target.usesLeft <= 0) responseTargets.delete(params.token);
 
     const raw = req.body;
     const text = typeof raw === "string" ? raw : JSON.stringify(raw ?? {});
@@ -4702,25 +4304,13 @@ async function startWorkspaceServer(
 
   // ---------- people ----------
 
-  /**
-   * Everyone with an account, for an admin who has to run this workspace: who
-   * they are, what they can do, and when they were last seen. Bots are in the
-   * list because a forgotten bot is exactly the account worth noticing.
-   */
-  /**
-   * What administrators have changed, newest first, for a workspace that has
-   * to be able to say who deactivated someone or replaced an app's token.
-   */
-  app.get("/api/admin/audit", async (req) => {
-    requireAdmin(req);
-    const query = auditQuery.parse(req.query);
+  route(endpoints.listAudit, async ({ query }) => {
     const entries = store.listAudit({ before: query.before, limit: query.limit + 1 });
     const page = entries.slice(0, query.limit);
     return { entries: page, nextCursor: entries.length > query.limit ? page.at(-1)!.id : null };
   });
 
-  app.get("/api/admin/users", async (req) => {
-    requireAdmin(req);
+  route(endpoints.listAllUsers, async () => {
     const lastSeen = store.lastSeenByUser();
     const twoStepIds = store.twoStepUserIds();
     return {
@@ -4733,20 +4323,8 @@ async function startWorkspaceServer(
     };
   });
 
-  /**
-   * Change what someone can do, or take their access away.
-   *
-   * The rules are about who may act on whom, and they are deliberately narrow:
-   * the owner is untouchable and cannot be locked out of their own server, an
-   * admin cannot demote or deactivate another admin (a workspace should not be
-   * losable to an argument between two of them), and nobody can act on
-   * themselves — an admin cannot quietly promote themselves to owner or lock
-   * themselves out by accident.
-   */
-  app.patch<{ Params: { id: string } }>("/api/admin/users/:id", async (req) => {
-    const me = requireAdmin(req);
-    const body = adminUserBody.parse(req.body);
-    const target = store.getUser(req.params.id);
+  route(endpoints.updateUserAdmin, async ({ user: me, body, params }) => {
+    const target = store.getUser(params.id);
     if (!target) throw new HttpError(404, "user_not_found");
     if (target.id === me.id) throw new HttpError(400, "cannot_change_self");
     if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
@@ -4826,11 +4404,8 @@ async function startWorkspaceServer(
    * not their own, an app's or a guest's; never the owner's; another admin's
    * only as the owner. The admin asking, and whom.
    */
-  const resettable = (
-    req: FastifyRequest<{ Params: { id: string } }>,
-  ): { me: User; target: User } => {
-    const me = requireAdmin(req);
-    const target = store.getUser(req.params.id);
+  const resettable = (me: User, targetId: ID): { me: User; target: User } => {
+    const target = store.getUser(targetId);
     if (!target) throw new HttpError(404, "user_not_found");
     if (target.id === me.id) throw new HttpError(400, "cannot_reset_self");
     if (target.isBot) throw new HttpError(400, "bots_have_no_password");
@@ -4846,14 +4421,9 @@ async function startWorkspaceServer(
     return { me, target };
   };
 
-  /**
-   * Password recovery for an installation with no email: an admin issues a
-   * temporary password and reads it to the person over whatever channel they
-   * trust. It is shown once, all their sessions end, and they are expected to
-   * change it. Who may be reset is resettable's to say.
-   */
-  app.post<{ Params: { id: string } }>("/api/admin/users/:id/password", async (req) => {
-    const authorize = () => resettable(req);
+  route(endpoints.resetPassword, async ({ req, params }) => {
+    // Checked again after hashing, which yields.
+    const authorize = () => resettable(requireUser(req), params.id);
     authorize();
     const temporaryPassword = secretToken().slice(0, 16);
     beginAuth();
@@ -4882,13 +4452,8 @@ async function startWorkspaceServer(
     return { temporaryPassword };
   });
 
-  /**
-   * Turns someone's two-step sign-in off, for one who lost their authenticator
-   * app and recovery codes (E11). Their devices stay signed in; their next
-   * sign-in asks for the password alone, and they can set it up again.
-   */
-  app.post<{ Params: { id: string } }>("/api/admin/users/:id/two-step/reset", async (req) => {
-    const { me: actor, target } = resettable(req);
+  route(endpoints.resetTwoStep, async ({ user, params }) => {
+    const { me: actor, target } = resettable(user, params.id);
     store.transaction(() => {
       if (!store.disableTwoStep(target.id))
         throw new HttpError(409, "two_step_off", "Their two-step sign-in is already off.");
@@ -4903,13 +4468,7 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /**
-   * The reported messages waiting for an admin (E12), each with its reports:
-   * the message itself even from a conversation the admin is not in, since
-   * whoever reported it showed it to them, and null once its author deleted it.
-   */
-  app.get("/api/admin/reports", async (req) => {
-    requireAdmin(req);
+  route(endpoints.listReports, async () => {
     const reports: ReportedMessage[] = [];
     for (const open of store.openReports()) {
       const channel = store.getChannel(open.channelId);
@@ -4919,16 +4478,9 @@ async function startWorkspaceServer(
     return { reports };
   });
 
-  /**
-   * Settles a reported message (E12): dismissed, removed, or removed with its
-   * author deactivated, by People's rules for deactivating. Every open report
-   * of it closes, and the record says what was done and to whom, never what
-   * the message said.
-   */
-  app.post<{ Params: { id: string } }>("/api/admin/reports/:id/resolve", async (req) => {
-    const me = requireAdmin(req);
-    const { action } = resolveReportBody.parse(req.body);
-    const open = store.openReports().find((held) => held.messageId === req.params.id);
+  route(endpoints.resolveReport, async ({ user: me, body, params }) => {
+    const { action } = body;
+    const open = store.openReports().find((held) => held.messageId === params.id);
     if (!open) throw new HttpError(404, "report_not_found");
     const author = store.getUser(open.authorId);
     if (action === "deactivate" && author) {
@@ -4967,15 +4519,8 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /**
-   * Hands the workspace to someone else. Only the owner can do it, and they
-   * become an admin rather than losing their access — a workspace with no owner
-   * is the state this whole area exists to prevent.
-   */
-  app.post<{ Params: { id: string } }>("/api/admin/users/:id/owner", async (req) => {
-    const me = requireUser(req);
-    if (me.role !== "owner") throw new HttpError(403, "owner_only");
-    const target = store.getUser(req.params.id);
+  route(endpoints.transferOwnership, async ({ user: me, params }) => {
+    const target = store.getUser(params.id);
     if (!target) throw new HttpError(404, "user_not_found");
     if (target.id === me.id) throw new HttpError(400, "already_owner");
     if (target.isBot || target.deactivated || target.role === "guest")
@@ -4998,36 +4543,18 @@ async function startWorkspaceServer(
 
   // ---------- workspace settings (UX-60) ----------
 
-  /**
-   * The workspace's name, for its owner and admins. The host renames it by
-   * the same rule, so the two cannot drift apart.
-   */
-  app.put("/api/admin/workspace/name", async (req) => {
-    const me = requireAdmin(req);
-    const { name } = workspaceNameBody.parse(req.body);
+  route(endpoints.renameWorkspace, async ({ user: me, body }) => {
+    const { name } = body;
     return { workspaceName: renameWorkspace(name, me.id) };
   });
 
-  /**
-   * Who may join, for its owner and admins: the stored choice every start
-   * keeps, and the same one the desktop host changes. Leaving guests allowed
-   * signs every guest out at once.
-   */
-  app.put("/api/admin/workspace/access-policy", async (req) => {
-    const me = requireAdmin(req);
-    const body = accessPolicyBody.parse(req.body);
+  route(endpoints.setAccessPolicy, async ({ user: me, body }) => {
     changeAccessPolicy(body.accessPolicy, me.id);
     return { accessPolicy: accessPolicy() };
   });
 
-  /**
-   * Link previews for new messages, on or off, for the owner and admins (E2).
-   * Turning them off adds none from then on; the previews messages already
-   * have stay, and their senders can remove them.
-   */
-  app.put("/api/admin/workspace/link-previews", async (req) => {
-    const me = requireAdmin(req);
-    const { enabled } = linkPreviewsBody.parse(req.body);
+  route(endpoints.setLinkPreviews, async ({ user: me, body }) => {
+    const { enabled } = body;
     if (enabled !== linkPreviewsOn()) {
       store.transaction(() => {
         store.setMeta("link_previews", enabled ? "on" : "off");
@@ -5044,47 +4571,30 @@ async function startWorkspaceServer(
     return { enabled: linkPreviewsOn() };
   });
 
-  /**
-   * The workspace's icon, for its owner and admins. It arrives as the image
-   * itself, typed by its Content-Type, rather than inside JSON or a form: one
-   * small file, read whole. Only this route reads every body as bytes, so
-   * whatever type it says it is, the icon's own check answers.
-   */
-  await app.register(async (scope) => {
-    scope.removeAllContentTypeParsers();
-    scope.addContentTypeParser("*", { parseAs: "buffer" }, (_req, body, done) => done(null, body));
-    /** This account's profile picture, sent whole as the image itself, as the icon is (E9). */
-    scope.put("/api/me/avatar", async (req) => {
-      const me = requireUser(req);
-      const checked = checkIcon(
-        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
-        Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined,
-        "profile picture",
-      );
-      if ("refused" in checked)
-        throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
-      return mutate((emit) => {
-        const user = store.setAvatar(me.id, checked.icon);
-        emit({ type: "user.updated", user }, null);
-        return { user };
-      });
-    });
-    scope.put("/api/admin/workspace/icon", async (req) => {
-      const me = requireAdmin(req);
-      const checked = checkIcon(
-        Buffer.isBuffer(req.body) ? req.body : Buffer.alloc(0),
-        Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined,
-      );
-      if ("refused" in checked)
-        throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
-      changeIcon(checked.icon, me.id);
-      return { iconVersion: checked.icon.version };
+  /** A picture as it arrived, by the rules a workspace icon and a profile picture share. */
+  const checkedPicture = (req: FastifyRequest, bytes: Buffer, noun?: string): WorkspaceIcon => {
+    const checked = checkIcon(bytes, bytes.length ? req.headers["content-type"] : undefined, noun);
+    if ("refused" in checked)
+      throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
+    return checked.icon;
+  };
+
+  route(endpoints.setAvatar, async ({ req, user: me, body }) => {
+    const picture = checkedPicture(req, body, "profile picture");
+    return mutate((emit) => {
+      const user = store.setAvatar(me.id, picture);
+      emit({ type: "user.updated", user }, null);
+      return { user };
     });
   });
 
-  /** Removes the icon, for the owner and admins; the workspace shows its coloured square again. */
-  app.delete("/api/admin/workspace/icon", async (req) => {
-    const me = requireAdmin(req);
+  route(endpoints.setWorkspaceIcon, async ({ req, user: me, body }) => {
+    const picture = checkedPicture(req, body);
+    changeIcon(picture, me.id);
+    return { iconVersion: picture.version };
+  });
+
+  route(endpoints.removeWorkspaceIcon, async ({ user: me }) => {
     changeIcon(null, me.id);
     return { iconVersion: null };
   });
@@ -5295,43 +4805,21 @@ async function startWorkspaceServer(
     return { ok: true, view: describeView(openViews.get(read.view.id)!) };
   };
 
-  /** Slack's views.open: a new form for the person who just asked for one. */
-  app.post("/api/views.open", async (req, reply) => {
-    const owner = slackCaller(req);
-    if (!owner) return slackError("invalid_auth");
-    sayScopes(reply, owner);
+  route(endpoints.viewsOpen, async ({ req, bot: owner }) => {
     const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
     const trigger = spendTrigger(owner, body.trigger_id);
     if ("error" in trigger) return slackError(trigger.error);
     return placeView(owner, trigger, structured(body.view), false);
   });
 
-  /**
-   * Slack's views.push: a form on top of the one the person has open from
-   * this app, which they come back to when this one closes. With none open,
-   * it opens as views.open would.
-   */
-  app.post("/api/views.push", async (req, reply) => {
-    const owner = slackCaller(req);
-    if (!owner) return slackError("invalid_auth");
-    sayScopes(reply, owner);
+  route(endpoints.viewsPush, async ({ req, bot: owner }) => {
     const body = (req.body ?? {}) as { trigger_id?: unknown; view?: unknown };
     const trigger = spendTrigger(owner, body.trigger_id);
     if ("error" in trigger) return slackError(trigger.error);
     return placeView(owner, trigger, structured(body.view), true);
   });
 
-  /**
-   * Slack's views.update: changes a form the person still has open, without
-   * a trigger, which is how an app shows "Loading" at once and the real form
-   * when it has it. What they typed into an input that keeps its block and
-   * action ids stays, as on Slack. A `hash` from an earlier answer refuses
-   * the change if the view has changed since, so two updates cannot cross.
-   */
-  app.post("/api/views.update", async (req, reply) => {
-    const owner = slackCaller(req);
-    if (!owner) return slackError("invalid_auth");
-    sayScopes(reply, owner);
+  route(endpoints.viewsUpdate, async ({ req, bot: owner }) => {
     // An app updating in a loop pushes a form at someone with every call.
     ration("post", owner.botUserId);
     const body = (req.body ?? {}) as {
@@ -5369,31 +4857,18 @@ async function startWorkspaceServer(
     return { ok: true, view: describeView(openViews.get(found.view.id)!) };
   });
 
-  /**
-   * The person closed a form: it and anything stacked on it go, and their
-   * other devices follow. Their own stack only, so nobody can close another
-   * person's form. The app is not told, as on Slack without notify_on_close.
-   */
-  app.post<{ Params: { id: string } }>("/api/views/:id/close", async (req) => {
-    const me = requireUser(req);
-    const closed = closeFrom(me.id, req.params.id);
+  route(endpoints.closeView, async ({ user: me, params }) => {
+    const closed = closeFrom(me.id, params.id);
     if (closed.length > 0) showStack(me.id, closed);
     return { ok: true };
   });
 
-  /**
-   * Someone filled the form in and pressed submit. The values go to the app as
-   * Slack's `view_submission`; field errors it answers with come back to the
-   * client so they can be shown against the fields they belong to.
-   */
-  app.post<{ Params: { id: string } }>("/api/views/:id/submit", async (req) => {
-    const me = requireUser(req);
-    const body = viewSubmitBody.parse(req.body);
-    const open = openViews.get(req.params.id);
+  route(endpoints.submitView, async ({ user: me, body, params }) => {
+    const open = openViews.get(params.id);
     // A view belongs to the one person it was opened for.
     if (!open || open.userId !== me.id || open.expiresAt < Date.now()) {
       // A request from another account must not consume the owner's view.
-      if (!open || open.expiresAt < Date.now()) openViews.delete(req.params.id);
+      if (!open || open.expiresAt < Date.now()) openViews.delete(params.id);
       throw new HttpError(404, "view_not_found");
     }
     // Only the form on top is in front of the person; one under it waits
@@ -5594,23 +5069,15 @@ async function startWorkspaceServer(
     }
   };
 
-  /**
-   * Where this app's button clicks are delivered. Verified the same way a
-   * subscription URL is: an endpoint that cannot echo the challenge has not
-   * agreed to receive anything, which is also what stops this server being
-   * aimed at an unrelated host.
-   */
-  app.put<{ Params: { id: string } }>("/api/apps/:id/interactivity", async (req) => {
-    requireAdmin(req);
-    const owner = store.getApp(req.params.id);
+  route(endpoints.setInteractivityUrl, async ({ req, body, params }) => {
+    const owner = store.getApp(params.id);
     if (!owner) throw new HttpError(404, "not_found");
-    const body = interactivityBody.parse(req.body);
 
     const record = (url: string) =>
       store.transaction(() => {
         // Verification waited on another server; access and the app may have
         // changed while this request was away from the event loop.
-        const me = requireAdmin(req);
+        const me = requireUser(req);
         const current = store.getApp(owner.id);
         if (!current) throw new HttpError(404, "not_found");
         store.setInteractivityUrl(current.id, url);
@@ -5623,7 +5090,7 @@ async function startWorkspaceServer(
             ? { name: current.name, host: hostOf(url) }
             : { name: current.name, cleared: true },
         });
-        return store.getApp(current.id);
+        return store.getApp(current.id)!;
       });
     if (!body.url) {
       return { app: record("") };
@@ -5632,15 +5099,8 @@ async function startWorkspaceServer(
     return { app: record(body.url) };
   });
 
-  /**
-   * Someone pressed a button. This posts Slack's `block_actions` payload to
-   * the owning app and renders whatever comes back, so an integration written
-   * for Slack works unchanged.
-   */
-  app.post<{ Params: { id: string } }>("/api/messages/:id/actions", async (req) => {
-    const me = requireUser(req);
-    const body = messageActionBody.parse(req.body);
-    const message = store.getMessage(req.params.id);
+  route(endpoints.runMessageAction, async ({ req, user: me, body, params }) => {
+    const message = store.getMessage(params.id);
     if (!message) throw new HttpError(404, "message_not_found");
     const channel = requireChannelAccess(message.channelId, me);
     if (channel.archived) throw new HttpError(400, "channel_archived");
@@ -5736,16 +5196,14 @@ async function startWorkspaceServer(
 
   // ---------- outgoing event subscriptions ----------
 
-  app.post<{ Params: { id: string } }>("/api/apps/:id/subscriptions", async (req, reply) => {
-    requireAdmin(req);
-    const owner = store.getApp(req.params.id);
+  route(endpoints.createSubscription, async ({ req, body, params }) => {
+    const owner = store.getApp(params.id);
     if (!owner) throw new HttpError(404, "not_found");
-    const body = createSubscriptionBody.parse(req.body);
 
     await verifyCallbackUrl(body.url, owner.id);
 
     const subscription = store.transaction(() => {
-      const me = requireAdmin(req);
+      const me = requireUser(req);
       const current = store.getApp(owner.id);
       if (!current) throw new HttpError(404, "not_found");
       const created = store.createSubscription({
@@ -5762,13 +5220,12 @@ async function startWorkspaceServer(
       });
       return created;
     });
-    return reply.status(201).send({ subscription });
+    return { subscription };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/subscriptions/:id", async (req) => {
-    const me = requireAdmin(req);
+  route(endpoints.deleteSubscription, async ({ user: me, params }) => {
     const deleted = store.transaction(() => {
-      const subscription = store.getSubscription(req.params.id);
+      const subscription = store.getSubscription(params.id);
       if (!subscription || !store.deleteSubscription(subscription.id)) return false;
       store.recordAudit({
         actorId: me.id,
@@ -5787,9 +5244,8 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.post<{ Params: { id: string } }>("/api/subscriptions/:id/retry", async (req) => {
-    const me = requireAdmin(req);
-    const subscription = store.getSubscription(req.params.id);
+  route(endpoints.retrySubscription, async ({ user: me, params }) => {
+    const subscription = store.getSubscription(params.id);
     if (!subscription) throw new HttpError(404, "not_found");
     const { retried, waiting } = store.transaction(() => {
       const result = store.retryFailedEventDeliveries(subscription.id);
@@ -5816,10 +5272,8 @@ async function startWorkspaceServer(
   /** Tells the author's devices their queue changed, so a list open there reads it again. */
   const scheduledChanged = (userId: ID) => gateway.sendToUser(userId, { type: "scheduled" });
 
-  app.post<{ Params: { id: string } }>("/api/channels/:id/scheduled", async (req, reply) => {
-    const me = requireUser(req);
-    const channel = requireChannelAccess(req.params.id, me);
-    const body = scheduleMessageBody.parse(req.body);
+  route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
+    const channel = requireChannelAccess(params.id, me);
     const fileIds = body.fileIds ?? [];
     // Only a reply can also be shown in the channel, as with an ordinary send.
     const broadcast = !!body.threadRootId && body.alsoSendToChannel === true;
@@ -5908,14 +5362,12 @@ async function startWorkspaceServer(
     return reply.status(result.replayed ? 200 : 201).send({ scheduled: result.scheduled });
   });
 
-  app.get("/api/scheduled", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.listScheduled, async ({ user: me }) => {
     return { scheduled: store.listScheduled(me.id) };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/scheduled/:id", async (req) => {
-    const me = requireUser(req);
-    const scheduled = store.getScheduled(req.params.id);
+  route(endpoints.cancelScheduled, async ({ user: me, params }) => {
+    const scheduled = store.getScheduled(params.id);
     // Only the author may cancel, and a missing one is simply gone.
     if (!scheduled || scheduled.userId !== me.id) throw new HttpError(404, "not_found");
     store.deleteScheduled(scheduled.id);
@@ -5923,28 +5375,23 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /** The recovery path for a held or failed message: a past time sends it now. */
-  app.patch<{ Params: { id: string } }>("/api/scheduled/:id", async (req) => {
-    const me = requireUser(req);
-    const scheduled = store.getScheduled(req.params.id);
+  route(endpoints.rescheduleMessage, async ({ user: me, body, params }) => {
+    const scheduled = store.getScheduled(params.id);
     if (!scheduled || scheduled.userId !== me.id || scheduled.status === "sent") {
       throw new HttpError(404, "not_found");
     }
-    const body = rescheduleBody.parse(req.body);
     requireChannelAccess(scheduled.channelId, me);
     store.rescheduleMessage(scheduled.id, body.sendAt);
     scheduledChanged(me.id);
     return { scheduled: store.getScheduled(scheduled.id)! };
   });
 
-  app.patch<{ Params: { id: string } }>("/api/scheduled/:id/text", async (req) => {
-    const me = requireUser(req);
-    const scheduled = store.getScheduled(req.params.id);
+  route(endpoints.editScheduledMessage, async ({ user: me, body, params }) => {
+    const scheduled = store.getScheduled(params.id);
     if (!scheduled || scheduled.userId !== me.id || scheduled.status === "sent") {
       throw new HttpError(404, "not_found");
     }
     requireChannelAccess(scheduled.channelId, me);
-    const body = editScheduledBody.parse(req.body);
     if (!body.text.trim() && scheduled.fileIds.length === 0) {
       throw new HttpError(400, "empty_message", "A message needs text or attachments.");
     }
@@ -5970,9 +5417,8 @@ async function startWorkspaceServer(
     return message;
   };
 
-  app.put<{ Params: { id: string } }>("/api/messages/:id/pin", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.pinMessage, async ({ user: me, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     mutate((emit) => {
       if (store.addPin(message.channelId, message.id, me.id)) {
         emit(
@@ -5984,9 +5430,8 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/messages/:id/pin", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.unpinMessage, async ({ user: me, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     mutate((emit) => {
       if (store.removePin(message.id)) {
         emit(
@@ -5998,59 +5443,49 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  app.get<{ Params: { id: string } }>("/api/channels/:id/pins", async (req) => {
-    const me = requireUser(req);
-    requireChannelAccess(req.params.id, me);
-    const query = pinnedMessagesQuery.parse(req.query);
-    return store.listPins(req.params.id, query.limit, query.cursor);
+  route(endpoints.listPins, async ({ user: me, query, params }) => {
+    requireChannelAccess(params.id, me);
+    return store.listPins(params.id, query.limit, query.cursor);
   });
 
-  app.put<{ Params: { id: string } }>("/api/messages/:id/save", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.saveMessage, async ({ user: me, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     if (store.addSaved(me.id, message.id)) {
       gateway.sendToUser(me.id, { type: "saved", messageId: message.id, saved: true });
     }
     return { ok: true };
   });
 
-  app.delete<{ Params: { id: string } }>("/api/messages/:id/save", async (req) => {
-    const me = requireUser(req);
-    if (store.removeSaved(me.id, req.params.id)) {
-      gateway.sendToUser(me.id, { type: "saved", messageId: req.params.id, saved: false });
+  route(endpoints.unsaveMessage, async ({ user: me, params }) => {
+    if (store.removeSaved(me.id, params.id)) {
+      gateway.sendToUser(me.id, { type: "saved", messageId: params.id, saved: false });
     }
     return { ok: true };
   });
 
-  app.patch<{ Params: { id: string } }>("/api/channels/:id/prefs", async (req) => {
-    const me = requireUser(req);
-    const channel = requireChannelAccess(req.params.id, me);
-    if (!store.isMember(req.params.id, me.id)) throw new HttpError(400, "not_a_member");
-    const body = channelPrefsBody.parse(req.body ?? {});
+  route(endpoints.setChannelPrefs, async ({ user: me, body, params }) => {
+    const channel = requireChannelAccess(params.id, me);
+    if (!store.isMember(params.id, me.id)) throw new HttpError(400, "not_a_member");
     // A channel is left rather than closed; only a direct conversation hides.
     if (typeof body.hiddenSeq === "number" && channel.type !== "dm" && channel.type !== "group_dm")
       throw new HttpError(400, "not_direct", "Only a direct conversation can be closed.");
     if (body.sectionId && !store.ownsSidebarSection(me.id, body.sectionId))
       throw new HttpError(404, "section_not_found", "That section is not in your sidebar.");
-    const prefs = store.setChannelPrefs(req.params.id, me.id, body);
+    const prefs = store.setChannelPrefs(params.id, me.id, body);
     if (!prefs) throw new HttpError(404, "channel_not_found");
     // Preferences are personal: only this user's own devices need to know.
-    gateway.sendToUser(me.id, { type: "prefs", channelId: req.params.id, prefs });
+    gateway.sendToUser(me.id, { type: "prefs", channelId: params.id, prefs });
     return { prefs };
   });
 
-  /** What this account's conversations notify about unless one is set on its own (v53). */
-  app.put("/api/me/notify-default", async (req) => {
-    const me = requireUser(req);
-    const { level } = notifyDefaultBody.parse(req.body ?? {});
+  route(endpoints.setNotifyDefault, async ({ user: me, body }) => {
+    const { level } = body;
     store.setNotifyDefault(me.id, level);
     gateway.sendToUser(me.id, { type: "notify.default", level });
     return { level };
   });
 
-  /** What waits here, for a device of this account that has another workspace open. */
-  app.get("/api/me/unread", async (req): Promise<UnreadSummary> => {
-    const me = requireUser(req);
+  route(endpoints.unreadSummary, async ({ user: me }) => {
     return store.unreadSummary(me.id);
   });
 
@@ -6063,9 +5498,8 @@ async function startWorkspaceServer(
     return sections;
   };
 
-  app.post("/api/sidebar-sections", async (req, reply) => {
-    const me = requireUser(req);
-    const { name } = sidebarSectionBody.parse(req.body ?? {});
+  route(endpoints.createSidebarSection, async ({ user: me, body }) => {
+    const { name } = body;
     if (store.sidebarSections(me.id).length >= SIDEBAR_SECTIONS_MAX)
       throw new HttpError(
         409,
@@ -6073,21 +5507,18 @@ async function startWorkspaceServer(
         `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections.`,
       );
     const section = store.createSidebarSection(me.id, name);
-    return reply.status(201).send({ section, sections: sectionsChanged(me.id) });
+    return { section, sections: sectionsChanged(me.id) };
   });
 
-  app.patch<{ Params: { id: string } }>("/api/sidebar-sections/:id", async (req) => {
-    const me = requireUser(req);
-    const { name } = sidebarSectionBody.parse(req.body ?? {});
-    if (!store.renameSidebarSection(me.id, req.params.id, name))
+  route(endpoints.renameSidebarSection, async ({ user: me, body, params }) => {
+    const { name } = body;
+    if (!store.renameSidebarSection(me.id, params.id, name))
       throw new HttpError(404, "section_not_found");
     return { sections: sectionsChanged(me.id) };
   });
 
-  /** Deletes a section; its conversations go back where they would be. */
-  app.delete<{ Params: { id: string } }>("/api/sidebar-sections/:id", async (req) => {
-    const me = requireUser(req);
-    const freed = store.transaction(() => store.deleteSidebarSection(me.id, req.params.id));
+  route(endpoints.deleteSidebarSection, async ({ user: me, params }) => {
+    const freed = store.transaction(() => store.deleteSidebarSection(me.id, params.id));
     if (!freed) throw new HttpError(404, "section_not_found");
     for (const channelId of freed) {
       const prefs = store.getChannelPrefs(channelId, me.id);
@@ -6096,30 +5527,25 @@ async function startWorkspaceServer(
     return { sections: sectionsChanged(me.id) };
   });
 
-  app.put("/api/sidebar-sections/order", async (req) => {
-    const me = requireUser(req);
-    const { ids } = sidebarSectionOrderBody.parse(req.body ?? {});
+  route(endpoints.orderSidebarSections, async ({ user: me, body }) => {
+    const { ids } = body;
     const ordered = store.transaction(() => store.orderSidebarSections(me.id, ids));
     if (!ordered) throw new HttpError(409, "sections_changed", "Your sections changed. Try again.");
     return { sections: sectionsChanged(me.id) };
   });
 
-  app.put<{ Params: { id: string } }>("/api/messages/:id/follow", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.setThreadFollow, async ({ user: me, body, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const body = threadFollowBody.parse(req.body ?? {});
     const state = store.setThreadFollow(me.id, message.id, body.following);
     if (!state) throw new HttpError(404, "message_not_found");
     gateway.sendToUser(me.id, { type: "thread.follow", state });
     return { state };
   });
 
-  app.put<{ Params: { id: string } }>("/api/messages/:id/mute", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.setThreadMute, async ({ user: me, body, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const body = threadMuteBody.parse(req.body ?? {});
     const state = store.setThreadMute(me.id, message.id, body.muted);
     if (!state) throw new HttpError(404, "message_not_found");
     // Personal, as following is: only this account's own devices hear of it.
@@ -6127,10 +5553,9 @@ async function startWorkspaceServer(
     return { state };
   });
 
-  app.put<{ Params: { id: string } }>("/api/messages/:id/reminder", async (req, reply) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
-    const { at } = reminderBody.parse(req.body ?? {});
+  route(endpoints.setReminder, async ({ reply, user: me, body, params }) => {
+    const message = requireVisibleMessage(params.id, me);
+    const { at } = body;
     const now = Date.now();
     if (at <= now) throw new HttpError(400, "reminder_in_past", "Choose a time in the future.");
     if (at > now + reminderLimits.maxAheadMs) {
@@ -6150,25 +5575,21 @@ async function startWorkspaceServer(
     return reply.status(existing ? 200 : 201).send({ reminder });
   });
 
-  app.delete<{ Params: { id: string } }>("/api/messages/:id/reminder", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.cancelReminder, async ({ user: me, params }) => {
     // Done or cancelled, whatever has become of the message since.
-    if (!store.deleteReminder(me.id, req.params.id)) throw new HttpError(404, "not_found");
-    gateway.sendToUser(me.id, { type: "reminder.removed", messageId: req.params.id });
+    if (!store.deleteReminder(me.id, params.id)) throw new HttpError(404, "not_found");
+    gateway.sendToUser(me.id, { type: "reminder.removed", messageId: params.id });
     armReminders();
     return { ok: true };
   });
 
-  app.get("/api/reminders", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.listReminders, async ({ user: me }) => {
     return { reminders: store.listReminders(me.id) };
   });
 
-  app.post<{ Params: { id: string } }>("/api/messages/:id/thread/read", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.markThreadRead, async ({ user: me, body, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const body = threadReadBody.parse(req.body ?? {});
     const state = store.markThreadRead(me.id, message.id, body.seq);
     if (!state) throw new HttpError(404, "message_not_found");
     gateway.sendToUser(me.id, { type: "thread.follow", state });
@@ -6177,11 +5598,10 @@ async function startWorkspaceServer(
     return { state };
   });
 
-  app.post<{ Params: { id: string } }>("/api/messages/:id/thread/unread", async (req) => {
-    const me = requireUser(req);
-    const message = requireVisibleMessage(req.params.id, me);
+  route(endpoints.markThreadUnread, async ({ user: me, body, params }) => {
+    const message = requireVisibleMessage(params.id, me);
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const { seq } = markUnreadBody.parse(req.body);
+    const { seq } = body;
     const state = store.markThreadUnread(me.id, message.id, seq);
     if (!state) {
       if (!store.threadFollow(me.id, message.id)) throw new HttpError(404, "message_not_found");
@@ -6193,32 +5613,21 @@ async function startWorkspaceServer(
     return { state };
   });
 
-  app.get("/api/threads/followed", async (req) => {
-    const me = requireUser(req);
-    const query = followedThreadsQuery.parse(req.query);
+  route(endpoints.listFollowedThreads, async ({ user: me, query }) => {
     return store.followedThreads(me.id, query.limit, query.cursor, query.unreadOnly === "true");
   });
 
-  /**
-   * The newest message in each direct conversation the caller is in, newest
-   * first, so a list of direct messages can say who said what last. Replies
-   * in a thread count only when also sent to the conversation.
-   */
-  app.get("/api/conversations/latest", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.latestDirectMessages, async ({ user: me }) => {
     return { messages: store.latestDirectMessages(me.id) };
   });
 
-  app.get("/api/saved", async (req) => {
-    const me = requireUser(req);
-    const query = savedMessagesQuery.parse(req.query);
+  route(endpoints.listSaved, async ({ user: me, query }) => {
     return store.listSaved(me.id, query.limit, query.cursor);
   });
 
   // ---------- invites & search ----------
 
-  app.post("/api/invites", async (req, reply) => {
-    const me = requireUser(req);
+  route(endpoints.createInvite, async ({ user: me, body }) => {
     // A code is a way into the workspace, so making one is something a member
     // is given. Owners and admins always may; see `canInvite` on the user.
     if (!me.canInvite) {
@@ -6228,7 +5637,6 @@ async function startWorkspaceServer(
         "Only people an administrator has allowed can create invite codes.",
       );
     }
-    const body = createInviteBody.parse(req.body ?? {});
     const invite = store.transaction(() => {
       const created = store.createInvite({
         createdBy: me.id,
@@ -6244,29 +5652,17 @@ async function startWorkspaceServer(
       });
       return created;
     });
-    return reply.status(201).send({ invite });
+    return { invite };
   });
 
-  /**
-   * The invites someone can do something about: every one for an administrator,
-   * and a member's own for everyone else. Codes are credentials for an
-   * invite-only workspace, so a member is never shown anyone else's.
-   */
-  app.get("/api/invites", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.listInvites, async ({ user: me }) => {
     const admin = isAdministrator(me.role);
     return { invites: store.listInvites(admin ? {} : { createdBy: me.id }) };
   });
 
-  /**
-   * Withdraws an invite, for a link that has been shared further than meant.
-   * Its creator or an administrator may; anyone else is told there is no such
-   * invite, so trying codes cannot confirm which ones exist.
-   */
-  app.delete<{ Params: { code: string } }>("/api/invites/:code", async (req) => {
-    const me = requireUser(req);
+  route(endpoints.revokeInvite, async ({ req, user: me, params }) => {
     const admin = isAdministrator(me.role);
-    const invite = store.getInvite(req.params.code);
+    const invite = store.getInvite(params.code);
     if (!invite || (!admin && invite.createdBy !== me.id)) {
       throw new HttpError(404, "invite_not_found");
     }
@@ -6285,30 +5681,23 @@ async function startWorkspaceServer(
       // Without the code: the log is not somewhere a credential should end up.
       req.log.info({ createdBy: invite.createdBy, by: me.id }, "invite revoked");
     }
-    return { invite: store.getInvite(invite.code) };
+    return { invite: store.getInvite(invite.code)! };
   });
 
-  app.get("/api/activity", async (req) => {
-    const me = requireUser(req);
-    const query = activityQuery.parse(req.query);
+  route(endpoints.activity, async ({ user: me, query }) => {
     const matches = store.activityMessages(me.id, { ...query, limit: query.limit + 1 });
     const messages = matches.slice(0, query.limit);
     return { messages, nextCursor: matches.length > query.limit ? messages.at(-1)!.id : null };
   });
 
-  // Reads notes that someone removed this account from channels, which clears
-  // them on every device. One already read, or not this account's, is passed over.
-  app.post("/api/activity/removals/read", async (req) => {
-    const me = requireUser(req);
-    const { ids } = readRemovalsBody.parse(req.body);
+  route(endpoints.readChannelRemovals, async ({ user: me, body }) => {
+    const { ids } = body;
     const read = store.readChannelRemovals(me.id, ids);
     if (read.length > 0) gateway.sendToUser(me.id, { type: "channel.removals.read", ids: read });
     return { ids: read };
   });
 
-  app.get("/api/search", async (req) => {
-    const me = requireUser(req);
-    const q = searchQuery.parse(req.query);
+  route(endpoints.search, async ({ user: me, query: q }) => {
     if (q.channelId) requireChannelAccess(q.channelId, me);
     if (q.tz !== undefined && !isTimeZone(q.tz))
       throw new HttpError(
@@ -6333,13 +5722,6 @@ async function startWorkspaceServer(
   });
 
   // ---------- extensions (P6) ----------
-
-  const ownerOnly = (req: FastifyRequest) => {
-    const me = requireUser(req);
-    if (me.role !== "owner")
-      throw new HttpError(403, "owner_only", "Only the workspace's owner can do this.");
-    return me;
-  };
 
   /** A member made by an extension, such as single sign-on's first sign-in (P9). */
   const createMember = async (input: { handle: string; displayName: string }) => {
@@ -6366,9 +5748,7 @@ async function startWorkspaceServer(
     const prefix = `extension:${extension.name}:`;
     await extension.register?.({
       app,
-      requireUser,
-      requireAdmin,
-      requireOwner: ownerOnly,
+      route,
       memberCount: () => planMembers(store.listUsers()),
       log: app.log.child({ extension: extension.name }),
       storage: {
@@ -6401,9 +5781,7 @@ async function startWorkspaceServer(
     });
   }
 
-  // The panels the extensions add to Workspace settings, for the owner (P9).
-  app.get("/api/admin/extension-settings", async (req, reply) => {
-    ownerOnly(req);
+  route(endpoints.extensionSettings, async ({ reply }) => {
     reply.header("cache-control", "no-store");
     return { panels: extensions.flatMap((extension) => extension.settingsPanels?.() ?? []) };
   });

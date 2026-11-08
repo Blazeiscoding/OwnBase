@@ -27,6 +27,12 @@ export const registerBody = z.object({
   claimCode: z.string().max(128).optional(),
 });
 
+/** A one-time sign-in code from a way of signing in besides a password (P9), and its secret. */
+export const redeemSignInBody = z.object({ code: z.string().max(256), verifier: z.string().max(256) });
+
+/** A settings panel's values, by field key (P9). */
+export const settingsValuesBody = z.record(z.string().max(64), z.union([z.string(), z.boolean()]));
+
 /** Joining as a guest, where the workspace allows it: a name and nothing else. */
 export const guestJoinBody = z.object({
   displayName: z.string().trim().min(1).max(80),
@@ -231,6 +237,15 @@ export const updateChannelBody = z.object({
 });
 
 export const channelManagerBody = z.object({ manager: z.boolean() });
+
+export const inviteMemberBody = z.object({ userId: z.string().min(1).max(64) });
+
+/** A picture asked for by its version, which may then be kept for good. */
+export const workspaceIconQuery = z.object({ v: z.string().max(64).optional() });
+export const avatarQuery = workspaceIconQuery;
+
+/** A one-time ticket standing in for the session, on a browser's navigation. */
+export const downloadQuery = z.object({ download: z.string().max(128).optional() });
 
 export const sendMessageBody = z
   .object({

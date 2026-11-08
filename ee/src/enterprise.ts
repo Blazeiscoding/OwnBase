@@ -9,6 +9,7 @@ import {
 import { trustedLicenseKeys } from "./keys.js";
 import { featuresOn, readLicense, type LicenseClaims, type LicenseState } from "./license.js";
 import { singleSignOn } from "./sso.js";
+import { eeEndpoints } from "./endpoints.js";
 
 /** Within this long of its end, the owner is told an active license is ending. */
 export const ENDING_SOON_MS = 30 * 24 * 60 * 60 * 1000;
@@ -141,8 +142,7 @@ export function enterprise(opts: {
     has: (feature) => featuresOn(license()).has(feature),
     register(context) {
       members = context.memberCount;
-      context.app.get("/api/admin/license", async (req, reply): Promise<LicenseView> => {
-        context.requireAdmin(req);
+      context.route(eeEndpoints.license, async ({ reply }) => {
         reply.header("cache-control", "no-store");
         const at = license();
         return {

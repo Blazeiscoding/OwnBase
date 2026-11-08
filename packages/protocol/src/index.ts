@@ -8,3 +8,5 @@ export * from "./huddle.js";
 export * from "./permissions.js";
 export * from "./plan.js";
 export * from "./errors.js";
+export * from "./endpoint.js";
+export * from "./endpoints.js";

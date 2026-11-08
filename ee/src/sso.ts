@@ -8,6 +8,7 @@ import {
 } from "@ownbase/protocol";
 import type { ExtensionContext } from "@ownbase/server/extensions";
 import { HttpError } from "@ownbase/server/httpError";
+import { eeEndpoints, TEXT_MAX } from "./endpoints.js";
 import {
   authorizationUrl,
   discover,
@@ -75,7 +76,6 @@ const PROVIDER_MS = 60 * 60 * 1000;
 /** Sign-ins and codes waiting at once, at most: the oldest give way. */
 const WAITING_MAX = 500;
 const COOKIE = "ownbase_sso";
-const TEXT_MAX = 500;
 
 interface Flow {
   nonce: string;
@@ -113,8 +113,6 @@ interface Reply {
   header(name: string, value: string): Reply;
   send(payload?: unknown): Reply;
 }
-type Query = { Querystring: Record<string, string | undefined> };
-
 const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
 
 /**
@@ -122,14 +120,14 @@ const escape = (text: string) => text.replace(/[&<>"']/g, (c) => `&#${c.charCode
  * app: something went wrong, an account was linked, or the desktop app is
  * being opened.
  */
-function page(
-  reply: Reply,
+function page<R extends Reply>(
+  reply: R,
   status: number,
   title: string,
   text: string,
   link?: { href: string; label: string },
   open?: string,
-): Reply {
+): R {
   const html = `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 ${open ? `<meta http-equiv="refresh" content="0;url=${escape(open)}">` : ""}<title>${escape(title)} · OwnBase</title>
@@ -139,11 +137,11 @@ ${open ? `<meta http-equiv="refresh" content="0;url=${escape(open)}">` : ""}<tit
     .code(status)
     .header("content-type", "text/html; charset=utf-8")
     .header("cache-control", "no-store")
-    .send(html);
+    .send(html) as R;
 }
 
-const redirect = (reply: Reply, location: string) =>
-  reply.code(302).header("location", location).header("cache-control", "no-store").send();
+const redirect = <R extends Reply>(reply: R, location: string) =>
+  reply.code(302).header("location", location).header("cache-control", "no-store").send() as R;
 
 const readCookie = (req: Request): string | undefined =>
   req.headers.cookie
@@ -320,11 +318,10 @@ export function singleSignOn(opts: {
 
   function register(given: ExtensionContext) {
     context = given;
-    const { app } = given;
+    const { route } = given;
     const back = () => ({ href: `${base()}/`, label: "Back to OwnBase" });
 
-    /** The button: off to the provider, with what the way back must bring. */
-    app.get<Query>("/api/sso/start", async (req, reply) => {
+    route(eeEndpoints.ssoStart, async ({ reply, query: q }) => {
       const s = settings();
       if (!configured(s) || !base())
         return page(
@@ -333,7 +330,6 @@ export function singleSignOn(opts: {
           "Single sign-on is off",
           "This workspace does not use single sign-on. Sign in with your password.",
         );
-      const q = req.query;
       let begun: Pick<Flow, "client" | "challenge" | "linkUserId">;
       if (q.link !== undefined) {
         const key = s256(q.link);
@@ -398,9 +394,7 @@ export function singleSignOn(opts: {
       );
     });
 
-    /** The way back from the provider: an account linked, or a code for the app. */
-    app.get<Query>("/api/sso/callback", async (req, reply) => {
-      const q = req.query;
+    route(eeEndpoints.ssoCallback, async ({ req, reply, query: q }) => {
       const flow = q.state ? flows.get(q.state) : undefined;
       if (q.state) flows.delete(q.state);
       reply.header("set-cookie", cookie("", 0));
@@ -550,11 +544,7 @@ export function singleSignOn(opts: {
       return redirect(reply, `${base()}/#/sso/${code}`);
     });
 
-    /** The app's code and its secret, for a session. */
-    app.post("/api/sso/redeem", async (req) => {
-      const body = (req.body ?? {}) as { code?: unknown; verifier?: unknown };
-      if (typeof body.code !== "string" || typeof body.verifier !== "string")
-        throw new HttpError(400, "invalid_request", "A code and its verifier are needed.");
+    route(eeEndpoints.ssoRedeem, async ({ req, body }) => {
       const key = s256(body.code);
       const held = codes.get(key);
       codes.delete(key);
@@ -567,9 +557,7 @@ export function singleSignOn(opts: {
       return given.startSession(held.userId, req);
     });
 
-    /** Whether the person signed in here has linked the provider's account. */
-    app.get("/api/sso/connect", async (req, reply): Promise<SignInConnection> => {
-      const me = given.requireUser(req);
+    route(eeEndpoints.ssoConnection, async ({ reply, user: me }) => {
       reply.header("cache-control", "no-store");
       const identity = linkedTo(me.id);
       return identity
@@ -577,9 +565,7 @@ export function singleSignOn(opts: {
         : { connected: false };
     });
 
-    /** Where to go to link it: a one-time link, for the browser that opens it. */
-    app.post("/api/sso/connect", async (req) => {
-      const me = given.requireUser(req);
+    route(eeEndpoints.ssoConnect, async ({ user: me }) => {
       if (me.role === "guest")
         throw new HttpError(403, "guest_not_allowed", "Guests sign in with their name alone.");
       if (!configured(settings()) || !base())
@@ -596,8 +582,7 @@ export function singleSignOn(opts: {
       return { url: `/api/sso/start?link=${ticket}` };
     });
 
-    app.delete("/api/sso/connect", async (req): Promise<SignInConnection> => {
-      const me = given.requireUser(req);
+    route(eeEndpoints.ssoDisconnect, async ({ user: me }) => {
       // Without it they could not sign in again.
       if (me.role !== "owner" && required())
         throw new HttpError(
@@ -609,20 +594,11 @@ export function singleSignOn(opts: {
       return { connected: false };
     });
 
-    /** The owner's settings, from the panel: what is sent changes, a secret left empty stays. */
-    app.put("/api/sso/settings", async (req) => {
-      given.requireOwner(req);
-      const body = (req.body ?? {}) as Record<string, unknown>;
+    route(eeEndpoints.ssoSettings, async ({ body }) => {
       const next: SsoSettings = { ...settings() };
       for (const key of ["name", "issuer", "clientId", "clientSecret", "domains"] as const) {
         const value = body[key];
         if (value === undefined) continue;
-        if (typeof value !== "string" || value.length > TEXT_MAX)
-          throw new HttpError(
-            400,
-            "invalid_request",
-            `${key} must be text of up to ${TEXT_MAX} characters.`,
-          );
         if (key === "domains") {
           const domains = parseDomains(value);
           if (!domains)
@@ -638,10 +614,7 @@ export function singleSignOn(opts: {
       }
       for (const key of ["newAccounts", "required"] as const) {
         const value = body[key];
-        if (value === undefined) continue;
-        if (typeof value !== "boolean")
-          throw new HttpError(400, "invalid_request", `${key} is on or off.`);
-        next[key] = value;
+        if (value !== undefined) next[key] = value;
       }
       if (!next.issuer) {
         // Off: nothing more is needed, and anyone may turn it off.

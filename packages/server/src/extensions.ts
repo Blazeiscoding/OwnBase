@@ -1,4 +1,5 @@
 import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
+import type { Route } from "./route.js";
 import type {
   ExtensionStatus,
   ServerNotice,
@@ -55,14 +56,12 @@ export interface ExtensionStorage {
 
 /** What an extension may use of the server it is part of. */
 export interface ExtensionContext {
-  /** Routes go here, under /api/ like the server's own. */
   app: FastifyInstance;
-  /** The signed-in person, or the request fails as the server's own routes do. */
-  requireUser(req: FastifyRequest): User;
-  /** The signed-in owner or an admin, or the request fails. */
-  requireAdmin(req: FastifyRequest): User;
-  /** The signed-in owner, or the request fails. */
-  requireOwner(req: FastifyRequest): User;
+  /**
+   * Registers a route the extension declares, as the server registers its
+   * own: signed in, checked and validated by its declaration.
+   */
+  route: Route;
   /** People who can sign in now, as a plan counts them (`planMembers`). */
   memberCount(): number;
   log: FastifyBaseLogger;
