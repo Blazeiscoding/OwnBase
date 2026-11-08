@@ -28,7 +28,10 @@ export const registerBody = z.object({
 });
 
 /** A one-time sign-in code from a way of signing in besides a password (P9), and its secret. */
-export const redeemSignInBody = z.object({ code: z.string().max(256), verifier: z.string().max(256) });
+export const redeemSignInBody = z.object({
+  code: z.string().max(256),
+  verifier: z.string().max(256),
+});
 
 /** A settings panel's values, by field key (P9). */
 export const settingsValuesBody = z.record(z.string().max(64), z.union([z.string(), z.boolean()]));
