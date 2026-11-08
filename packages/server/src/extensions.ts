@@ -1,4 +1,4 @@
-import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
+import type { FastifyBaseLogger, FastifyRequest } from "fastify";
 import type { Route } from "./route.js";
 import type {
   ExtensionStatus,
@@ -56,7 +56,6 @@ export interface ExtensionStorage {
 
 /** What an extension may use of the server it is part of. */
 export interface ExtensionContext {
-  app: FastifyInstance;
   /**
    * Registers a route the extension declares, as the server registers its
    * own: signed in, checked and validated by its declaration.

@@ -28,30 +28,44 @@ declare module "fastify" {
 /** The signed-in caller, for each kind of access. */
 type CallerOf<E extends EndpointSpec> = E["access"] extends "public" | "bot"
   ? undefined
-  : E["ticket"] extends true
+  : E extends { ticket: true }
     ? User | null
     : User;
 
+/**
+ * The reply of a route that answers with JSON: its headers and status, but
+ * not its answer, which is what the handler returns. A sent reply is
+ * thenable, so returning one would satisfy any declared answer.
+ */
+export interface JsonReply {
+  header(name: string, value: string): JsonReply;
+  status(statusCode: number): JsonReply;
+  hasHeader(name: string): boolean;
+}
+
+/** Slack's arguments, read by the route itself, may also be refused by it, with a status of its own. */
+type SendsItself<E> = E extends { answer: JsonAnswer<unknown> }
+  ? E extends { body: "slack" }
+    ? true
+    : false
+  : true;
+
 export interface RouteContext<E extends EndpointSpec> {
   req: FastifyRequest;
-  reply: FastifyReply;
+  reply: SendsItself<E> extends true ? FastifyReply : JsonReply;
   /** Who is signed in; null for a request a download ticket stands in for. */
   user: CallerOf<E>;
   /** The app calling, for a Slack Web API method. */
   bot: E["access"] extends "bot" ? App : undefined;
   params: PathParams<E["path"]>;
   query: QueryOf<E>;
-  body: E["body"] extends "image" ? Buffer : E["body"] extends "slack" ? unknown : BodyOf<E>;
+  body: E extends { body: "image" } ? Buffer : E extends { body: "slack" } ? unknown : BodyOf<E>;
 }
 
-/**
- * What a handler returns: the declared JSON, or, for bytes, text and pages,
- * the reply it sent. A route taking Slack's arguments may also answer with a
- * status of its own, as Slack does for a `response_url` that has expired.
- */
+/** What a handler returns: the declared JSON, or the reply it sent. */
 type HandlerResult<E extends EndpointSpec> =
   E["answer"] extends JsonAnswer<infer T>
-    ? E["body"] extends "slack"
+    ? SendsItself<E> extends true
       ? T | FastifyReply
       : T
     : FastifyReply;

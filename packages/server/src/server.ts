@@ -2626,7 +2626,7 @@ async function startWorkspaceServer(
     };
   });
 
-  route(endpoints.createChannel, async ({ user: me, body }) => {
+  route(endpoints.createChannel, async ({ reply, user: me, body }) => {
     return mutate((emit) => {
       if (body.type === "public" || body.type === "private") {
         if (store.getChannelByName(body.name)) throw new HttpError(409, "name_taken");
@@ -2673,8 +2673,10 @@ async function startWorkspaceServer(
       const dmKey = memberIds.join(":");
       const existing = store.findDmByKey(dmKey);
       if (existing) {
-        if ([...(existing.memberIds ?? [])].sort().join(":") === dmKey)
+        if ([...(existing.memberIds ?? [])].sort().join(":") === dmKey) {
+          reply.status(200);
           return { channel: existing };
+        }
         // Legacy groups may still have the original key after someone left.
         // Never restore that person's access to the group's intervening history.
         store.retireDmKey(existing.id);
@@ -5358,8 +5360,9 @@ async function startWorkspaceServer(
       if (body.nonce) store.recordScheduledRequest(me.id, body.nonce, scheduled.id, requestHash);
       return { scheduled, replayed: false };
     });
-    if (!result.replayed) scheduledChanged(me.id);
-    return reply.status(result.replayed ? 200 : 201).send({ scheduled: result.scheduled });
+    if (result.replayed) reply.status(200);
+    else scheduledChanged(me.id);
+    return { scheduled: result.scheduled };
   });
 
   route(endpoints.listScheduled, async ({ user: me }) => {
@@ -5572,7 +5575,8 @@ async function startWorkspaceServer(
     const reminder = store.setReminder(me.id, message.id, at);
     gateway.sendToUser(me.id, { type: "reminder", reminder });
     armReminders();
-    return reply.status(existing ? 200 : 201).send({ reminder });
+    reply.status(existing ? 200 : 201);
+    return { reminder };
   });
 
   route(endpoints.cancelReminder, async ({ user: me, params }) => {
@@ -5747,7 +5751,6 @@ async function startWorkspaceServer(
   for (const extension of extensions) {
     const prefix = `extension:${extension.name}:`;
     await extension.register?.({
-      app,
       route,
       memberCount: () => planMembers(store.listUsers()),
       log: app.log.child({ extension: extension.name }),
