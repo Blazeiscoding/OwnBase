@@ -86,8 +86,9 @@ export {
   selfIsAdministrator,
   waitsForAttention,
 } from "./selectors.js";
+export { threadReplies, threadRootMessage, timelineMessages } from "./messageCache.js";
+export type { ChannelTimeline, ThreadPage } from "./messageCache.js";
 export type {
-  ChannelTimeline,
   EphemeralMessage,
   ConnectionStatus,
   LocalAttachment,
