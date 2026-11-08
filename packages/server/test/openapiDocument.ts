@@ -3,45 +3,44 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { z } from "zod";
 import * as protocol from "@ownbase/protocol";
-import { GUEST_ROUTES } from "../src/server.js";
+import { endpoints, type EndpointSpec } from "@ownbase/protocol";
 
 /**
- * The OpenAPI description of the native REST API (E18), built from what the
- * server already says about each route: the route itself in server.ts, the
- * zod schema its handler parses the body or query with, which of the access
- * checks it calls, and the comment above it. Nothing is written twice, so it
- * cannot drift from the code without the check in openapi.test.ts noticing.
+ * The OpenAPI description of the native REST API (E18), built from the
+ * endpoint table in @ownbase/protocol: each route's method, path, access,
+ * the zod schemas its body and query are validated with, and the comment
+ * above it. Nothing is written twice, so it cannot drift from the code
+ * without the check in openapi.test.ts noticing.
  *
- * Answers are described in words only: the server has no schemas for them.
+ * Answers are described in words only: the table types them for TypeScript
+ * and has no schemas for them.
  */
 
 const here = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(resolve(here, "../src/server.ts"), "utf8").replace(/\r\n/g, "\n");
+const tableSource = readFileSync(resolve(here, "../../protocol/src/endpoints.ts"), "utf8").replace(
+  /\r\n/g,
+  "\n",
+);
 
 type Method = "get" | "post" | "put" | "patch" | "delete";
 type Access = "anyone" | "bot" | "member" | "admin" | "owner";
 
-/** One route as server.ts declares it. */
-export interface SourceRoute {
+/** One route, as the table declares it. */
+export interface DescribedRoute {
   method: Method;
   /** Fastify's form, `/api/channels/:id`. */
   path: string;
-  body: string | null;
-  /** The body may be left out. */
-  bodyOptional: boolean;
-  /** The body is a file itself, typed by its Content-Type, not JSON. */
-  bytes: boolean;
-  query: string | null;
+  endpoint: EndpointSpec;
   access: Access;
+  guests: boolean;
   comment: string;
 }
 
-/** A route on the server, or on a scope of it such as the one that reads bodies as bytes. */
-const ROUTE = /^ +(?:app|scope)\.(get|post|put|patch|delete)(?:<[^\n]*?>)?\(\s*"(\/api\/[^"]+)"/gm;
-
-/** The doc comment, or the run of line comments, directly above a route. */
-function commentAbove(start: number): string {
-  const before = source.slice(0, start).trimEnd();
+/** The doc comment, or the run of line comments, directly above a table entry. */
+function commentAbove(name: string): string {
+  const at = tableSource.indexOf(`\n  ${name}: endpoint(`);
+  if (at < 0) throw new Error(`${name} is not in endpoints.ts`);
+  const before = tableSource.slice(0, at).trimEnd();
   if (before.endsWith("*/")) {
     const open = before.lastIndexOf("/**");
     return before
@@ -61,81 +60,37 @@ function commentAbove(start: number): string {
   return lines.join("\n").trim();
 }
 
-const RANK: Access[] = ["anyone", "bot", "member", "admin", "owner"];
+const ACCESS: Record<EndpointSpec["access"], Access> = {
+  public: "anyone",
+  guest: "member",
+  member: "member",
+  admin: "admin",
+  owner: "owner",
+  bot: "bot",
+};
 
-/** The strictest check some code makes of who is calling, through any helper that makes one. */
-function accessOf(code: string, helpers: Map<string, Access>): Access {
-  let strictest: Access = "anyone";
-  const raise = (access: Access) => {
-    if (RANK.indexOf(access) > RANK.indexOf(strictest)) strictest = access;
-  };
-  // A lone `if (me.role !== "owner") throw`, not one alternative in an admin check.
-  if (/\brequireOwner\(req\b/.test(code) || /\(\w+\.role !== "owner"\) throw/.test(code)) {
-    raise("owner");
-  }
-  if (/\brequireAdmin\(req\b/.test(code)) raise("admin");
-  if (/\brequireUser\(req\b/.test(code)) raise("member");
-  if (/\bslackCaller\(req\b/.test(code)) raise("bot");
-  for (const [name, access] of helpers) {
-    if (new RegExp(`\\b${name}\\(req\\b`).test(code)) raise(access);
-  }
-  return strictest;
-}
-
-/**
- * Helpers that take the request and check who is calling, such as the one
- * every reset of another account goes through, by the check each makes.
- */
-function accessHelpers(): Map<string, Access> {
-  const helpers = new Map<string, Access>();
-  const defined = [...source.matchAll(/^ {2}const (\w+) = (?:async )?\(\s*req\b/gm)].map(
-    (match) => {
-      const end = source.indexOf("\n  };", match.index);
-      return { name: match[1]!, code: source.slice(match.index, end < 0 ? undefined : end) };
-    },
-  );
-  // Twice, for a helper that calls another.
-  for (let pass = 0; pass < 2; pass++) {
-    for (const { name, code } of defined) {
-      const access = accessOf(code.slice(code.indexOf("=>")), helpers);
-      if (access !== "anyone") helpers.set(name, access);
-    }
-  }
-  return helpers;
-}
-
-/** Every route in server.ts, in the order it is declared. */
-export function sourceRoutes(): SourceRoute[] {
-  const helpers = accessHelpers();
-  const found = [...source.matchAll(ROUTE)];
-  return found.map((match, i) => {
-    const handler = source.slice(match.index, found[i + 1]?.index ?? source.length);
-    const parsed = (from: "body" | "query") =>
-      new RegExp(`\\b(\\w+)\\.parse\\(req\\.${from}\\b`).exec(handler)?.[1] ?? null;
-    return {
-      method: match[1] as Method,
-      path: match[2]!,
-      body: parsed("body"),
-      // `req.body ?? {}`: a route that takes an empty body as well.
-      bodyOptional: /\.parse\(req\.body \?\?/.test(handler),
-      bytes: /\bBuffer\.isBuffer\(req\.body\)/.test(handler),
-      query: parsed("query"),
-      access: accessOf(handler, helpers),
-      comment: commentAbove(match.index),
-    };
-  });
+/** Every route under /api/ in the table, in the order it is declared. */
+export function describedRoutes(): DescribedRoute[] {
+  return Object.entries(endpoints as Record<string, EndpointSpec>)
+    .filter(([, endpoint]) => endpoint.path.startsWith("/api/"))
+    .map(([name, endpoint]) => ({
+      method: endpoint.method.toLowerCase() as Method,
+      path: endpoint.path,
+      endpoint,
+      access: ACCESS[endpoint.access],
+      guests: endpoint.access === "guest",
+      comment: commentAbove(name),
+    }));
 }
 
 /** `CreateChannelBody` for `createChannelBody`, as a component's name. */
 const componentName = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
-/** A protocol schema by the name the server imports it as. */
-function schemaNamed(name: string): z.ZodType {
-  const schema = (protocol as unknown as Record<string, unknown>)[name];
-  if (!(schema instanceof z.ZodType)) {
-    throw new Error(`server.ts parses with ${name}, which @ownbase/protocol does not export`);
-  }
-  return schema;
+/** The name @ownbase/protocol exports a schema by. */
+function nameOf(schema: z.ZodType): string {
+  const found = Object.entries(protocol).find(([, value]) => value === schema);
+  if (!found) throw new Error("a body schema in the endpoint table is not exported by name");
+  return found[0];
 }
 
 /** What the server accepts, as OpenAPI 3.0 reads it. */
@@ -232,7 +187,7 @@ function operationIdOf(method: Method, path: string): string {
 }
 
 export function openApiDocument() {
-  const routes = sourceRoutes();
+  const routes = describedRoutes();
   const schemas: Record<string, unknown> = {
     Error: {
       type: "object",
@@ -259,7 +214,7 @@ export function openApiDocument() {
   for (const route of routes) {
     const path = route.path.replace(/:(\w+)/g, "{$1}");
     const description = prose(route.comment);
-    const guests = GUEST_ROUTES.has(`${route.method.toUpperCase()} ${route.path}`);
+    const { endpoint, guests } = route;
     const parameters: unknown[] = [...route.path.matchAll(/:(\w+)/g)].map(([, name]) => ({
       name,
       in: "path",
@@ -267,8 +222,8 @@ export function openApiDocument() {
       schema: { type: "string" },
     }));
 
-    if (route.query) {
-      const query = jsonSchema(schemaNamed(route.query));
+    if (endpoint.query) {
+      const query = jsonSchema(endpoint.query);
       for (const [name, schema] of Object.entries(query.properties ?? {})) {
         parameters.push({
           name,
@@ -280,23 +235,37 @@ export function openApiDocument() {
     }
 
     let requestBody: unknown;
-    if (route.body) {
-      const name = componentName(route.body);
+    if (typeof endpoint.body === "object") {
+      const name = componentName(nameOf(endpoint.body));
       if (!schemas[name]) {
-        const { $schema: _, ...schema } = jsonSchema(schemaNamed(route.body));
+        const { $schema: _, ...schema } = jsonSchema(endpoint.body);
         schemas[name] = schema;
       }
       requestBody = {
-        required: !route.bodyOptional,
+        required: !endpoint.bodyOptional,
         content: { "application/json": { schema: { $ref: `#/components/schemas/${name}` } } },
       };
-    } else if (route.bytes) {
+    } else if (endpoint.body === "image") {
       requestBody = {
         required: true,
         description: "The image itself, typed by its Content-Type.",
         content: { "image/*": { schema: { type: "string", format: "binary" } } },
       };
-    } else if (route.access === "bot" && route.method === "post") {
+    } else if (endpoint.body === "file") {
+      requestBody = {
+        required: true,
+        description: "One file, as the form's `file` field.",
+        content: {
+          "multipart/form-data": {
+            schema: {
+              type: "object",
+              properties: { file: { type: "string", format: "binary" } },
+              required: ["file"],
+            },
+          },
+        },
+      };
+    } else if (endpoint.body === "slack") {
       // Slack's methods read their arguments by hand, as JSON or a form.
       requestBody = {
         required: false,
@@ -339,7 +308,7 @@ export function openApiDocument() {
               "429": { $ref: "#/components/responses/RateLimited" },
             }
           : {
-              "200": { description: "Done." },
+              [String(endpoint.status ?? 200)]: { description: "Done." },
               default: { $ref: "#/components/responses/Error" },
             },
     };
@@ -356,7 +325,7 @@ export function openApiDocument() {
       version: String(protocol.PROTOCOL_VERSION),
       description: [
         "The REST routes under /api/ that the first-party clients use, and the Slack-compatible methods apps call. The native routes are not a stable public API: they change with the clients, and the version here is the client protocol's (`PROTOCOL_VERSION`). docs/INTEGRATIONS.md is the contract for apps.",
-        "Generated from the server's source and the zod schemas it validates requests with, by packages/server/test/openapi.test.ts, which fails when this file is out of date. Rewrite it with `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.",
+        "Generated from the endpoint table in @ownbase/protocol and the zod schemas the server validates requests with, by packages/server/test/openapi.test.ts, which fails when this file is out of date. Rewrite it with `pnpm --filter @ownbase/server exec vitest run test/openapi.test.ts -u`.",
         "The WebSocket at /ws, incoming webhooks at /hooks/, the web client's files and the enterprise edition's routes are not described here.",
       ].join("\n\n"),
     },

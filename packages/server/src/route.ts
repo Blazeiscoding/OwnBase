@@ -113,6 +113,13 @@ export interface Router {
 export function createRouter(opts: RouterOptions): Router {
   const { app } = opts;
 
+  // A route registered any other way would skip signing in and validation.
+  app.addHook("onRoute", (added) => {
+    if (/^\/(api|hooks)\//.test(added.url) && !added.config?.endpoint) {
+      throw new Error(`${String(added.method)} ${added.url} is not a declared endpoint`);
+    }
+  });
+
   app.setErrorHandler((err, _req, reply) => {
     if (err instanceof ZodError) {
       return reply.status(400).send({ error: "invalid_request", details: err.issues });
