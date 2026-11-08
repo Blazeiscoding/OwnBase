@@ -1,4 +1,5 @@
 import type { z } from "zod";
+import type * as rest from "./rest.js";
 
 /**
  * Who may call a route:
@@ -33,12 +34,28 @@ export const text = { kind: "text" } as const;
 export const page = { kind: "page" } as const;
 
 /**
+ * A request schema in rest.ts, by its name. The table names schemas rather
+ * than holding them, so a client that imports the table for its paths does
+ * not also download every schema (#57); the server finds each one by name in
+ * `requestSchemas`. A schema of an extension's own, which no client imports,
+ * may be given as itself.
+ */
+export type SchemaName = {
+  [K in keyof typeof rest]: (typeof rest)[K] extends z.ZodType ? K : never;
+}[keyof typeof rest];
+
+export type SchemaRef = SchemaName | z.ZodType;
+
+/** The schema a reference names. */
+export type SchemaOf<S> = S extends SchemaName ? (typeof rest)[S] : S extends z.ZodType ? S : never;
+
+/**
  * What a route reads: JSON its schema validates; `image`, the bytes of one
  * picture typed by its Content-Type; `file`, a multipart upload of one file;
  * or `slack`, Slack's arguments as JSON or a form, which the route reads
  * itself so that a refusal keeps Slack's shape.
  */
-export type BodyKind = z.ZodType | "image" | "file" | "slack";
+export type BodyKind = SchemaRef | "image" | "file" | "slack";
 
 export interface EndpointSpec {
   method: HttpMethod;
@@ -52,7 +69,7 @@ export interface EndpointSpec {
    * browser navigation that cannot send one.
    */
   ticket?: true;
-  query?: z.ZodType;
+  query?: SchemaRef;
   body?: BodyKind;
   /** The body may be left out, and reads as `{}`. */
   bodyOptional?: true;
@@ -87,11 +104,19 @@ export type ParamsIn<E extends EndpointSpec> = { [K in ParamNames<E["path"]>]: s
 // An endpoint that declares no query or body has no such key at all, so each
 // reads the key by matching on it rather than by indexing, which would give
 // `unknown` for a missing key.
-export type QueryOf<E> = E extends { query: infer Q extends z.ZodType } ? z.output<Q> : undefined;
-export type QueryIn<E> = E extends { query: infer Q extends z.ZodType } ? z.input<Q> : undefined;
+export type QueryOf<E> = E extends { query: infer Q extends SchemaRef }
+  ? z.output<SchemaOf<Q>>
+  : undefined;
+export type QueryIn<E> = E extends { query: infer Q extends SchemaRef }
+  ? z.input<SchemaOf<Q>>
+  : undefined;
 
-export type BodyOf<E> = E extends { body: infer B extends z.ZodType } ? z.output<B> : undefined;
-export type BodyIn<E> = E extends { body: infer B extends z.ZodType } ? z.input<B> : undefined;
+export type BodyOf<E> = E extends { body: infer B extends SchemaRef }
+  ? z.output<SchemaOf<B>>
+  : undefined;
+export type BodyIn<E> = E extends { body: infer B extends SchemaRef }
+  ? z.input<SchemaOf<B>>
+  : undefined;
 
 /** What a JSON route answers with. */
 export type AnswerOf<E extends EndpointSpec> = E["answer"] extends JsonAnswer<infer T> ? T : never;

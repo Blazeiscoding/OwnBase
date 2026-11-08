@@ -62,7 +62,7 @@ type BodyPart<E> = E extends { body: infer B }
 export type CallInput<E extends EndpointSpec> = ([keyof ParamsIn<E>] extends [never]
   ? { params?: undefined }
   : { params: ParamsIn<E> }) &
-  (E extends { query: object } ? { query?: QueryIn<E> } : { query?: undefined }) &
+  (E extends { query: unknown } ? { query?: QueryIn<E> } : { query?: undefined }) &
   BodyPart<E>;
 
 export interface CallOptions {

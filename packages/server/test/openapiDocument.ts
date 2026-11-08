@@ -86,11 +86,11 @@ export function describedRoutes(): DescribedRoute[] {
 /** `CreateChannelBody` for `createChannelBody`, as a component's name. */
 const componentName = (name: string) => name.charAt(0).toUpperCase() + name.slice(1);
 
-/** The name @ownbase/protocol exports a schema by. */
-function nameOf(schema: z.ZodType): string {
-  const found = Object.entries(protocol).find(([, value]) => value === schema);
-  if (!found) throw new Error("a body schema in the endpoint table is not exported by name");
-  return found[0];
+/** The schema the table names. */
+function schemaNamed(name: string): z.ZodType {
+  const schema = (protocol.requestSchemas as Record<string, unknown>)[name];
+  if (!(schema instanceof z.ZodType)) throw new Error(`${name} is not a request schema`);
+  return schema;
 }
 
 /** What the server accepts, as OpenAPI 3.0 reads it. */
@@ -222,8 +222,8 @@ export function openApiDocument() {
       schema: { type: "string" },
     }));
 
-    if (endpoint.query) {
-      const query = jsonSchema(endpoint.query);
+    if (typeof endpoint.query === "string") {
+      const query = jsonSchema(schemaNamed(endpoint.query));
       for (const [name, schema] of Object.entries(query.properties ?? {})) {
         parameters.push({
           name,
@@ -235,21 +235,25 @@ export function openApiDocument() {
     }
 
     let requestBody: unknown;
-    if (typeof endpoint.body === "object") {
-      const name = componentName(nameOf(endpoint.body));
+    if (endpoint.body === "image") {
+      requestBody = {
+        required: true,
+        description: "The image itself, typed by its Content-Type.",
+        content: { "image/*": { schema: { type: "string", format: "binary" } } },
+      };
+    } else if (
+      typeof endpoint.body === "string" &&
+      endpoint.body !== "file" &&
+      endpoint.body !== "slack"
+    ) {
+      const name = componentName(endpoint.body);
       if (!schemas[name]) {
-        const { $schema: _, ...schema } = jsonSchema(endpoint.body);
+        const { $schema: _, ...schema } = jsonSchema(schemaNamed(endpoint.body));
         schemas[name] = schema;
       }
       requestBody = {
         required: !endpoint.bodyOptional,
         content: { "application/json": { schema: { $ref: `#/components/schemas/${name}` } } },
-      };
-    } else if (endpoint.body === "image") {
-      requestBody = {
-        required: true,
-        description: "The image itself, typed by its Content-Type.",
-        content: { "image/*": { schema: { type: "string", format: "binary" } } },
       };
     } else if (endpoint.body === "file") {
       requestBody = {

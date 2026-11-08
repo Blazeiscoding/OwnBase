@@ -5,9 +5,10 @@ import type {
   FastifyRequest,
   RouteOptions,
 } from "fastify";
-import { ZodError } from "zod";
+import { ZodError, ZodType } from "zod";
 import {
   isAdministrator,
+  requestSchemas,
   type App,
   type BodyOf,
   type Endpoint,
@@ -15,6 +16,7 @@ import {
   type JsonAnswer,
   type PathParams,
   type QueryOf,
+  type SchemaRef,
   type User,
 } from "@ownbase/protocol";
 import { HttpError, passwordChangeRequired } from "./httpError.js";
@@ -104,6 +106,14 @@ export interface Router {
   signedIn(req: FastifyRequest): User;
 }
 
+/** The schema an endpoint names, from the protocol's request schemas. */
+function schemaFor(ref: SchemaRef | undefined): ZodType | undefined {
+  if (ref === undefined || typeof ref !== "string") return ref;
+  const found = (requestSchemas as Record<string, unknown>)[ref];
+  if (!(found instanceof ZodType)) throw new Error(`${ref} is not a request schema`);
+  return found;
+}
+
 /**
  * Registers every REST route from its declaration: signs the caller in,
  * checks their access, validates the params, query and body, and answers
@@ -158,6 +168,11 @@ export function createRouter(opts: RouterOptions): Router {
   };
 
   const route: Route = (endpoint, handler) => {
+    const query = schemaFor(endpoint.query);
+    const body =
+      endpoint.body === "image" || endpoint.body === "file" || endpoint.body === "slack"
+        ? undefined
+        : schemaFor(endpoint.body);
     const options: RouteOptions = {
       method: endpoint.method,
       url: endpoint.path,
@@ -182,15 +197,14 @@ export function createRouter(opts: RouterOptions): Router {
           user,
           bot,
           params: req.params,
-          query: endpoint.query?.parse(req.query),
-          body:
-            typeof endpoint.body === "object"
-              ? endpoint.body.parse(req.body ?? (endpoint.bodyOptional ? {} : undefined))
-              : endpoint.body === "image"
-                ? Buffer.isBuffer(req.body)
-                  ? req.body
-                  : Buffer.alloc(0)
-                : req.body,
+          query: query?.parse(req.query),
+          body: body
+            ? body.parse(req.body ?? (endpoint.bodyOptional ? {} : undefined))
+            : endpoint.body === "image"
+              ? Buffer.isBuffer(req.body)
+                ? req.body
+                : Buffer.alloc(0)
+              : req.body,
         } as RouteContext<typeof endpoint>;
         if (endpoint.status) reply.status(endpoint.status);
         return handler(context) as Promise<unknown>;
