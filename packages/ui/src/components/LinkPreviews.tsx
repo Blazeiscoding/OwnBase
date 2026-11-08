@@ -5,6 +5,7 @@ import { useFileResource } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
 import { useToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 
 /** Only web addresses become links, whatever a preview's address says. */
 function webAddress(url: string): string | null {
@@ -54,9 +55,13 @@ function PreviewCard({
   const wide = !!image && isWide(image);
 
   function remove() {
-    client
-      .removeLinkPreview(message, preview.id)
-      .catch(() => toast({ message: "The preview was not removed. Try again.", kind: "error" }));
+    void client.removeLinkPreview(message, preview.id).then((error) => {
+      if (error)
+        toast({
+          message: failureText("The preview was not removed.", error, "Try again."),
+          kind: "error",
+        });
+    });
   }
 
   return (

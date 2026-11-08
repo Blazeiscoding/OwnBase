@@ -148,16 +148,20 @@ describe("a message's link previews", () => {
     cleanup();
 
     const { client, user } = shown(message(), priya);
-    const remove = vi.spyOn(client, "removeLinkPreview").mockResolvedValue();
+    const remove = vi.spyOn(client, "removeLinkPreview").mockResolvedValue(null);
     await user.click(screen.getByRole("button", { name: "Remove the preview of Launch day" }));
     expect(remove).toHaveBeenCalledWith(expect.objectContaining({ id: "M_1" }), "P_LAUNCH");
   });
 
   it("says so when a removal is refused", async () => {
     const { client, user } = shown(message(), priya);
-    vi.spyOn(client, "removeLinkPreview").mockRejectedValue(new Error("offline"));
+    vi.spyOn(client, "removeLinkPreview").mockResolvedValue(
+      new ApiError(0, "network_error", "offline"),
+    );
     await user.click(screen.getByRole("button", { name: "Remove the preview of The plan" }));
-    expect(await screen.findByText("The preview was not removed. Try again.")).toBeVisible();
+    expect(
+      await screen.findByText("The preview was not removed. Check your connection and try again."),
+    ).toBeVisible();
   });
 
   it("make a link only of a web address, and show nothing for a message without them", () => {

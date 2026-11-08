@@ -9,6 +9,7 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { linkedMessages } from "../src/lib/linkedMessages.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { held as cached } from "./heldMessages.js";
 
 /** A link to a message in this workspace shows that message in a card under the words. */
 const person = (id: string, displayName: string): User => ({
@@ -80,9 +81,7 @@ function shown(item: Message, held: Message[] = [], answer?: (getMessage: Answer
     },
     memberships: { C_GENERAL: 0, C_DESIGN: 0 },
     status: "online",
-    timelines: {
-      C_DESIGN: { items: held, hasMore: false, hasMoreNewer: false, loaded: true },
-    },
+    ...cached({ timelines: { C_DESIGN: { items: held } } }),
   });
   const getMessage = vi.spyOn(client.api, "getMessage");
   answer?.(getMessage);
@@ -120,10 +119,7 @@ describe("a link to a message", () => {
     // An edit there shows here as it is made.
     act(() =>
       client.store.setState((s) => ({
-        timelines: {
-          ...s.timelines,
-          C_DESIGN: { ...s.timelines.C_DESIGN!, items: [{ ...plan, text: "Ship it Monday." }] },
-        },
+        messages: { ...s.messages, [plan.id]: { ...plan, text: "Ship it Monday." } },
       })),
     );
     expect(within(row).getByText("Ship it Monday.")).toBeVisible();

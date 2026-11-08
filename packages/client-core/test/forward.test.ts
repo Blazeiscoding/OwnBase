@@ -14,6 +14,7 @@ import {
   type WorkspaceState,
 } from "../src/index.js";
 import { quoteChanges, requote } from "../src/replies.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * Forwarding on the client (E1): a send carries the message it passes on and
@@ -65,7 +66,7 @@ async function online() {
 }
 
 const held = (client: WorkspaceClient, channelId: string, id: string) =>
-  client.state.timelines[channelId]?.items.find((m) => m.id === id);
+  timelineMessages(client.state, channelId).find((m) => m.id === id);
 
 beforeAll(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-forward-"));
@@ -98,10 +99,10 @@ describe("forwarding on the client", () => {
     const sent = await until(
       client,
       (s) =>
-        s.pending.length === 0 && !!s.timelines[general.id]?.items.some((m) => m.text === "FYI"),
+        s.pending.length === 0 && !!timelineMessages(s, general.id).some((m) => m.text === "FYI"),
       "delivery",
     );
-    const forward = sent.timelines[general.id]!.items.find((m) => m.text === "FYI")!;
+    const forward = timelineMessages(sent, general.id).find((m) => m.text === "FYI")!;
     expect(forward.forwardedFrom).toMatchObject({
       id: original.id,
       channelId: news.id,
@@ -137,7 +138,7 @@ describe("forwarding on the client", () => {
       "the deletion",
     );
     expect(
-      after.timelines[general.id]!.items.find((m) => m.id === forward.id)!.forwardedFrom,
+      timelineMessages(after, general.id).find((m) => m.id === forward.id)!.forwardedFrom,
     ).toEqual({
       id: original.id,
       channelId: news.id,

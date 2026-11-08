@@ -9,7 +9,7 @@ import {
   type SidebarSection,
   type UnreadSummary,
 } from "@ownbase/protocol";
-import { blockedPartner, isSnoozed, isUnread } from "@ownbase/client-core";
+import { ApiError, blockedPartner, isSnoozed, isUnread } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { channelTitle } from "../lib/format.js";
@@ -28,6 +28,7 @@ import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { KeepAccountOffer } from "./KeepAccountOffer.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
 import { useOptionalToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 import { useOptionalConfirm } from "./Confirm.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
@@ -489,8 +490,11 @@ export function Sidebar(props: Props) {
     const order = (to: number) => {
       const ids = list.map((s) => s.id).filter((id) => id !== section.id);
       ids.splice(to, 0, section.id);
-      void client.orderSidebarSections(ids).then((ok) => {
-        if (!ok) toast?.({ message: "Could not move that section. The order did not change." });
+      void client.orderSidebarSections(ids).then((error) => {
+        if (error)
+          toast?.({
+            message: failureText("Could not move that section. The order did not change.", error),
+          });
       });
     };
     const items: MenuItem[] = [
@@ -534,10 +538,9 @@ export function Sidebar(props: Props) {
             confirmLabel: "Delete section",
             destructive: true,
           }));
-        if (sure && !(await client.deleteSidebarSection(section.id)))
-          toast?.({
-            message: "Could not delete that section. Check your connection and try again.",
-          });
+        if (!sure) return;
+        const error = await client.deleteSidebarSection(section.id);
+        if (error) toast?.({ message: failureText("Could not delete that section.", error) });
       },
     });
     return { label: section.name, items };
@@ -873,15 +876,15 @@ export function Sidebar(props: Props) {
             initial={naming.mode === "rename" ? naming.section.name : ""}
             onClose={() => setNaming(null)}
             onSubmit={async (name) => {
-              if (naming.mode === "rename")
-                return (await client.renameSidebarSection(naming.section.id, name))
-                  ? null
-                  : "Could not rename the section. Check your connection and try again.";
+              if (naming.mode === "rename") {
+                const error = await client.renameSidebarSection(naming.section.id, name);
+                return error && failureText("Could not rename the section.", error);
+              }
               const made = await client.createSidebarSection(name);
-              if (!made)
+              if (made instanceof ApiError)
                 return sections.length >= SIDEBAR_SECTIONS_MAX
                   ? `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections. Delete one to make another.`
-                  : "Could not create the section. Check your connection and try again.";
+                  : failureText("Could not create the section.", made);
               const moveId = naming.moveId;
               if (moveId && channels[moveId]) {
                 moved.current = { id: moveId, section: `section:${made.id}` };
@@ -1282,11 +1285,10 @@ export function AccountMenu(props: {
       icon: awayByHand ? "sun" : "moon",
       section: true,
       onSelect: () =>
-        void client.setAway(!awayByHand).then((ok) => {
-          if (!ok)
+        void client.setAway(!awayByHand).then((error) => {
+          if (error)
             toast?.({
-              message:
-                "Could not change whether you show as away. Check your connection and try again.",
+              message: failureText("Could not change whether you show as away.", error),
               kind: "error",
             });
         }),
@@ -1428,6 +1430,7 @@ function AccountHeading(props: { guest: boolean; snoozed: boolean; away: boolean
 
 /** While notifications are paused: until when, and a way to resume now. */
 function SnoozedNotice({ until }: { until: number }) {
+  const toast = useOptionalToast();
   const client = useClient();
   const resumesAt = resumeTime(until, new Date());
   return (
@@ -1437,7 +1440,11 @@ function SnoozedNotice({ until }: { until: number }) {
       </span>
       <span className="min-w-0 flex-1 text-[12px] text-ink-dim">Paused until {resumesAt}</span>
       <button
-        onClick={() => client.snoozeNotifications(null)}
+        onClick={() =>
+          void client.snoozeNotifications(null).then((error) => {
+            if (error) toast?.({ message: failureText("Could not resume notifications.", error) });
+          })
+        }
         className="rounded px-1 text-[12px] font-medium text-ink hover:underline"
       >
         Resume
@@ -1449,6 +1456,7 @@ function SnoozedNotice({ until }: { until: number }) {
 /** Do Not Disturb: pause notifications for a while. */
 function SnoozeControl() {
   const client = useClient();
+  const toast = useOptionalToast();
   return (
     <Menu
       label="Pause notifications"
@@ -1458,7 +1466,10 @@ function SnoozeControl() {
         id: o.label,
         label: o.label,
         section: index === 0 ? "Pause notifications" : undefined,
-        onSelect: () => client.snoozeNotificationsUntil(o.until()),
+        onSelect: () =>
+          void client.snoozeNotificationsUntil(o.until()).then((error) => {
+            if (error) toast?.({ message: failureText("Could not pause notifications.", error) });
+          }),
       }))}
       triggerClassName="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"
       triggerContent={

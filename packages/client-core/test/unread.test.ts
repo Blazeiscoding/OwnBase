@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import { Api, WorkspaceClient, isMessageRead, unreadThreadCount } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
@@ -45,8 +46,8 @@ async function incoming(text: string, threadRootId?: string) {
   await expect
     .poll(() =>
       threadRootId
-        ? client.state.threads[threadRootId]?.some((m) => m.id === message.id)
-        : client.state.timelines[channelId]?.items.some((m) => m.id === message.id),
+        ? client.state.threads[threadRootId]?.includes(message.id)
+        : timelineMessages(client.state, channelId).some((m) => m.id === message.id),
     )
     .toBe(true);
   return message;
@@ -334,12 +335,13 @@ describe("reading a thread", () => {
 
     const second = await incoming("Second", root.id);
     client.markThreadRead(root.id);
-    await markThreadRead.mock.results[1]!.value;
     expect(client.state.threadFollows[root.id]?.lastReadSeq).toBe(second.seq);
 
     refuse();
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await expect.poll(() => markThreadRead.mock.calls.length).toBe(2);
+    await markThreadRead.mock.results[1]!.value;
     expect(client.state.threadFollows[root.id]?.lastReadSeq).toBe(second.seq);
+    expect(server.store.threadFollow(member.id, root.id)?.lastReadSeq).toBe(second.seq);
   });
 
   it("counts a reply toward the channel's badge only when it is also sent to the channel", async () => {
@@ -568,9 +570,7 @@ describe("agreeing with the server about replies", () => {
       threadRootId: root.id,
       alsoSendToChannel: true,
     });
-    await expect
-      .poll(() => client.state.threads[root.id]?.some((m) => m.id === reply.id))
-      .toBe(true);
+    await expect.poll(() => client.state.threads[root.id]?.includes(reply.id)).toBe(true);
     client.markRead(channelId, reply.seq, { explicit: true });
     await expect.poll(lastRead).toBe(reply.seq);
     await expect.poll(() => client.state.mentionCounts[channelId] ?? 0).toBe(0);

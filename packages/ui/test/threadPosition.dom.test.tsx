@@ -8,6 +8,7 @@ import { ToastProvider } from "../src/components/Toast.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { rememberThreadPosition, rememberedThreadPosition } from "../src/lib/threadPosition.js";
 import type { Platform } from "../src/platform.js";
+import { held } from "./heldMessages.js";
 
 /**
  * A long thread left partway through opens again where it was left (IMP-02),
@@ -65,18 +66,20 @@ function openThread(targetId?: string) {
     users: { [sam.id]: sam },
     channels: { [design.id]: design },
     memberships: { [design.id]: root.seq },
-    threadPages: {
-      [root.id]: {
-        channelId: design.id,
-        root: { ...root, replyCount: replies.length },
-        hasMoreOlder: false,
-        hasMoreNewer: false,
-        loading: false,
-        loaded: true,
-        error: null,
+    ...held({
+      threadPages: {
+        [root.id]: {
+          channelId: design.id,
+          root: { ...root, replyCount: replies.length },
+          hasMoreOlder: false,
+          hasMoreNewer: false,
+          loading: false,
+          loaded: true,
+          error: null,
+        },
       },
-    },
-    threads: { [root.id]: replies },
+      threads: { [root.id]: replies },
+    }),
     status: "online",
   });
   const loadThread = vi.spyOn(client, "loadThread").mockResolvedValue(undefined);

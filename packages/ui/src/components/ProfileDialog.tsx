@@ -15,6 +15,7 @@ import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
 import { useOptionalConfirm } from "./Confirm.js";
 import { useOptionalToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import {
   CLEAR_AFTER,
@@ -107,10 +108,9 @@ export function ProfileDialog(props: {
       if (!go) return;
     }
     setBlockError(null);
-    if (!(await client.setBlocked(userId, !blockedThem)))
-      setBlockError(
-        `Could not ${blockedThem ? "unblock" : "block"} ${name}. Check your connection and try again.`,
-      );
+    const error = await client.setBlocked(userId, !blockedThem);
+    if (error)
+      setBlockError(failureText(`Could not ${blockedThem ? "unblock" : "block"} ${name}.`, error));
   }
 
   const gone = user.deactivated && user.id !== selfId;
@@ -311,10 +311,10 @@ export function ProfileForm() {
   async function choosePicture(file: File) {
     setPicture({ busy: true, problem: null });
     try {
-      const ok = await client.setAvatar(await prepareIcon(file, "a profile picture"));
+      const error = await client.setAvatar(await prepareIcon(file, "a profile picture"));
       setPicture({
         busy: false,
-        problem: ok ? null : "Your picture was not changed. Check your connection and try again.",
+        problem: error && failureText("Your picture was not changed.", error),
       });
     } catch (err) {
       setPicture({
@@ -329,18 +329,18 @@ export function ProfileForm() {
 
   async function removePicture() {
     setPicture({ busy: true, problem: null });
-    const ok = await client.removeAvatar();
+    const error = await client.removeAvatar();
     setPicture({
       busy: false,
-      problem: ok ? null : "Your picture was not removed. Check your connection and try again.",
+      problem: error && failureText("Your picture was not removed.", error),
     });
   }
 
   async function chooseZone(zone: string) {
     setZoneNote(null);
-    const ok = await client.setTimeZone(zone);
-    if (ok) toast?.({ message: "Time zone saved.", kind: "success" });
-    else setZoneNote("Your time zone was not saved. Try again.");
+    const error = await client.setTimeZone(zone);
+    if (!error) toast?.({ message: "Time zone saved.", kind: "success" });
+    else setZoneNote(failureText("Your time zone was not saved.", error, "Try again."));
   }
 
   async function save(e: React.FormEvent) {

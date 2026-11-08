@@ -105,7 +105,7 @@ describe("the commands the app runs", () => {
       said: "/leave works in channels, not in direct messages.",
     });
     expect(leave).not.toHaveBeenCalled();
-    const prefs = vi.spyOn(client, "setChannelPrefs").mockImplementation(() => {});
+    const prefs = vi.spyOn(client, "setChannelPrefs").mockResolvedValue(null);
     expect(await runAppCommand("mute", "", { client, channelId: "D1" })).toEqual({
       ok: true,
       said: "This conversation is muted.",
@@ -115,7 +115,9 @@ describe("the commands the app runs", () => {
 
   it("show you away, and say so when that fails", async () => {
     const client = workspace();
-    vi.spyOn(client, "setAway").mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    vi.spyOn(client, "setAway")
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(new ApiError(0, "network_error", "offline"));
     expect((await runAppCommand("away", "", { client, channelId: "C1" })).said).toBe(
       "You are shown as away.",
     );

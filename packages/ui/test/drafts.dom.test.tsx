@@ -15,6 +15,7 @@ import { EDIT_REQUEST_MS, requestEdit } from "../src/lib/editRequest.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { held } from "./heldMessages.js";
 
 /** Drafts (E5): every unsent draft on this device, newest first, opened where it was written. */
 const person = (id: string, displayName: string): User => ({
@@ -297,9 +298,7 @@ describe("opening a draft from the Drafts panel", () => {
     client.store.setState({
       self,
       users: { [sam.id]: self, [priya.id]: priya },
-      timelines: {
-        [general.id]: { items: [root, release], hasMore: false, hasMoreNewer: false, loaded: true },
-      },
+      ...held({ timelines: { [general.id]: { items: [root, release] } } }),
     });
     writeRoute(client.baseUrl, { channelId: general.id, threadRootId: null }, "replace");
     vi.spyOn(client, "loadTimeline").mockResolvedValue();

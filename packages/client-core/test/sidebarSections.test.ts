@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, WorkspaceClient, type WorkspaceState } from "../src/index.js";
+import { Api, ApiError, WorkspaceClient, type WorkspaceState } from "../src/index.js";
 
 /**
  * Sidebar sections on the client (E8): the list comes with the snapshot and
@@ -45,6 +45,11 @@ async function online() {
   return client;
 }
 const names = (s: WorkspaceState) => (s.sidebarSections ?? []).map((section) => section.name);
+async function made<T>(answer: Promise<T | ApiError>): Promise<T> {
+  const value = await answer;
+  if (value instanceof ApiError) throw value;
+  return value;
+}
 
 beforeAll(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-client-sections-"));
@@ -66,25 +71,25 @@ describe("sidebar sections on the client", () => {
     const phone = await online();
     expect(laptop.state.sidebarSections).toEqual([]);
 
-    const work = await laptop.createSidebarSection("  Work ");
+    const work = await made(laptop.createSidebarSection("  Work "));
     expect(work).toEqual({ id: expect.any(String), name: "Work" });
     expect(names(laptop.state)).toEqual(["Work"]);
     await until(phone, (s) => names(s).join() === "Work", "the phone to hear it");
     // A device signing in now has it from the start.
     expect(names((await online()).state)).toEqual(["Work"]);
 
-    expect(await laptop.renameSidebarSection(work!.id, "Projects")).toBe(true);
+    expect(await laptop.renameSidebarSection(work.id, "Projects")).toBeNull();
     expect(names(laptop.state)).toEqual(["Projects"]);
     await until(phone, (s) => names(s).join() === "Projects", "the rename");
 
     // A conversation moved in shows there at once, and on the other device.
     const general = Object.values(laptop.state.channels).find((c) => c.name === "general")!;
-    laptop.setChannelPrefs(general.id, { sectionId: work!.id, starred: false });
-    expect(laptop.state.prefs[general.id]?.sectionId).toBe(work!.id);
-    await until(phone, (s) => s.prefs[general.id]?.sectionId === work!.id, "the move");
+    laptop.setChannelPrefs(general.id, { sectionId: work.id, starred: false });
+    expect(laptop.state.prefs[general.id]?.sectionId).toBe(work.id);
+    await until(phone, (s) => s.prefs[general.id]?.sectionId === work.id, "the move");
 
     // Deleting the section lets it go, here and there.
-    expect(await laptop.deleteSidebarSection(work!.id)).toBe(true);
+    expect(await laptop.deleteSidebarSection(work.id)).toBeNull();
     expect(laptop.state.sidebarSections).toEqual([]);
     await until(
       phone,
@@ -96,13 +101,13 @@ describe("sidebar sections on the client", () => {
   it("show a new order at once, and what the server last said when it is refused", async () => {
     const laptop = await online();
     const phone = await online();
-    const a = (await laptop.createSidebarSection("Alpha"))!;
-    const b = (await laptop.createSidebarSection("Beta"))!;
+    const a = await made(laptop.createSidebarSection("Alpha"));
+    const b = await made(laptop.createSidebarSection("Beta"));
     await until(phone, (s) => names(s).join() === "Alpha,Beta", "the phone's list");
 
     const ordered = laptop.orderSidebarSections([b.id, a.id]);
     expect(names(laptop.state)).toEqual(["Beta", "Alpha"]);
-    expect(await ordered).toBe(true);
+    expect(await ordered).toBeNull();
     await until(phone, (s) => names(s).join() === "Beta,Alpha", "the phone's order");
 
     // Another device adds one while the laptop's order is on its way, so the
@@ -119,7 +124,7 @@ describe("sidebar sections on the client", () => {
     });
     const stale = laptop.orderSidebarSections([a.id, b.id]);
     expect(names(laptop.state)).toEqual(["Alpha", "Beta"]);
-    expect(await stale).toBe(false);
+    expect(await stale).toBeInstanceOf(ApiError);
     expect(names(laptop.state)).toEqual(["Beta", "Alpha", "Gamma"]);
     vi.restoreAllMocks();
 
@@ -129,9 +134,9 @@ describe("sidebar sections on the client", () => {
 
   it("are refused, not invented, where the server refuses", async () => {
     const laptop = await online();
-    expect(await laptop.createSidebarSection("   ")).toBeNull();
-    expect(await laptop.renameSidebarSection("S_MISSING", "Name")).toBe(false);
-    expect(await laptop.deleteSidebarSection("S_MISSING")).toBe(false);
+    expect(await laptop.createSidebarSection("   ")).toBeInstanceOf(ApiError);
+    expect(await laptop.renameSidebarSection("S_MISSING", "Name")).toMatchObject({ status: 404 });
+    expect(await laptop.deleteSidebarSection("S_MISSING")).toMatchObject({ status: 404 });
     expect(laptop.state.sidebarSections).toEqual([]);
   });
 });

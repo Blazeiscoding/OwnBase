@@ -11,6 +11,7 @@ import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { Tooltip } from "./Tooltip.js";
 import { useToast } from "./Toast.js";
+import { failureText } from "../lib/failure.js";
 
 const TimePopover = lazy(() =>
   import("./TimePopover.js").then((module) => ({ default: module.TimePopover })),
@@ -58,22 +59,22 @@ export function RemindersList({ onJump }: { onJump: (channelId: ID, messageId: I
   function change(item: ReminderItem, at: Date) {
     setChanging(null);
     const when = at.getTime();
-    void client.setReminder(item.message.id, when).then((ok) =>
+    void client.setReminder(item.message.id, when).then((error) =>
       toast(
-        ok
+        !error
           ? { message: `Reminder set for ${formatReminderTime(when)}.`, kind: "success" }
           : {
-              message: "Could not set that reminder.",
+              message: failureText("Could not set that reminder.", error),
               action: { label: "Try again", run: () => change(item, at) },
             },
       ),
     );
   }
   function finish(item: ReminderItem) {
-    void client.cancelReminder(item.message.id).then((ok) => {
-      if (!ok)
+    void client.cancelReminder(item.message.id).then((error) => {
+      if (error)
         toast({
-          message: "Could not remove that reminder.",
+          message: failureText("Could not remove that reminder.", error),
           action: { label: "Try again", run: () => finish(item) },
         });
     });

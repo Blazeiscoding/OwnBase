@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { ChannelPrefs, Message } from "@ownbase/protocol";
-import { Api, WorkspaceClient } from "../src/index.js";
+import { Api, WorkspaceClient, ApiError } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
@@ -288,12 +289,12 @@ describe("toggles on a message", () => {
     await client.loadTimeline(channelId);
     const { message } = await owner.sendMessage(channelId, { text: "keep this", nonce: "keep" });
     await expect
-      .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === message.id))
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === message.id))
       .toBe(true);
     return message;
   }
   const shownMessage = (id: string) =>
-    client.state.timelines[channelId]!.items.find((m) => m.id === id)!;
+    timelineMessages(client.state, channelId).find((m) => m.id === id)!;
 
   it("keeps the latest save choice when an earlier one fails", async () => {
     const message = await postedMessage();
@@ -311,7 +312,7 @@ describe("toggles on a message", () => {
 
     // The first fails; the latest, which waited for it, goes and is kept.
     fail();
-    expect(await last).toBe(true);
+    expect(await last).toBeNull();
     // It used to put back what was there before the first: not saved.
     expect(client.state.saved[message.id]).toBe(true);
     expect((await elsewhere.listSaved()).messages.map((m) => m.id)).toContain(message.id);
@@ -332,7 +333,7 @@ describe("toggles on a message", () => {
     await expect.poll(() => shownMessage(message.id).pinned).toBe(true);
 
     fail();
-    expect(await last).toBe(true);
+    expect(await last).toBeNull();
     expect(shownMessage(message.id).pinned).toBe(true);
   });
 });
@@ -364,12 +365,12 @@ describe("choices that reach the server out of order, or not at all", () => {
     await client.loadTimeline(channelId);
     const { message } = await owner.sendMessage(channelId, { text: "choose", nonce: "choose" });
     await expect
-      .poll(() => client.state.timelines[channelId]?.items.some((m) => m.id === message.id))
+      .poll(() => timelineMessages(client.state, channelId).some((m) => m.id === message.id))
       .toBe(true);
     return message;
   }
   const shownPinned = (id: string) =>
-    client.state.timelines[channelId]!.items.find((m) => m.id === id)!.pinned;
+    timelineMessages(client.state, channelId).find((m) => m.id === id)!.pinned;
   const serverPinned = async (id: string) =>
     (await owner.listPins(channelId)).messages.some((m) => m.id === id);
   const serverSaved = async (id: string) =>
@@ -387,7 +388,7 @@ describe("choices that reach the server out of order, or not at all", () => {
     expect(unpin).not.toHaveBeenCalled();
     expect(shownPinned(message.id)).toBe(false);
     pin.forward();
-    expect(await unpinning).toBe(true);
+    expect(await unpinning).toBeNull();
     expect(unpin).toHaveBeenCalledOnce();
     expect(await serverPinned(message.id)).toBe(false);
     expect(shownPinned(message.id)).toBe(false);
@@ -402,7 +403,7 @@ describe("choices that reach the server out of order, or not at all", () => {
     await settle();
     expect(unsave).not.toHaveBeenCalled();
     save.forward();
-    expect(await unsaving).toBe(true);
+    expect(await unsaving).toBeNull();
     expect(await serverSaved(message.id)).toBe(false);
     expect(client.state.saved[message.id]).toBeUndefined();
   });
@@ -426,7 +427,10 @@ describe("choices that reach the server out of order, or not at all", () => {
     vi.spyOn(client.api, "unpinMessage").mockRejectedValueOnce(new Error("offline"));
     const pinning = client.togglePin(message);
     const unpinning = client.togglePin({ ...message, pinned: true });
-    expect(await Promise.all([pinning, unpinning])).toEqual([false, false]);
+    expect(await Promise.all([pinning, unpinning])).toEqual([
+      expect.any(ApiError),
+      expect.any(ApiError),
+    ]);
     // It used to show pinned: the opposite of the unpin that failed.
     expect(shownPinned(message.id)).toBe(false);
     expect(await serverPinned(message.id)).toBe(false);
@@ -438,7 +442,10 @@ describe("choices that reach the server out of order, or not at all", () => {
     vi.spyOn(client.api, "unsaveMessage").mockRejectedValueOnce(new Error("offline"));
     const saving = client.toggleSaved(message.id, true);
     const unsaving = client.toggleSaved(message.id, false);
-    expect(await Promise.all([saving, unsaving])).toEqual([false, false]);
+    expect(await Promise.all([saving, unsaving])).toEqual([
+      expect.any(ApiError),
+      expect.any(ApiError),
+    ]);
     expect(client.state.saved[message.id]).toBeUndefined();
     expect(await serverSaved(message.id)).toBe(false);
   });
@@ -446,8 +453,8 @@ describe("choices that reach the server out of order, or not at all", () => {
   it("shows what the server kept when the pin lands and the unpin after it fails", async () => {
     const message = await postedMessage();
     vi.spyOn(client.api, "unpinMessage").mockRejectedValueOnce(new Error("offline"));
-    expect(await client.togglePin(message)).toBe(true);
-    expect(await client.togglePin({ ...message, pinned: true })).toBe(false);
+    expect(await client.togglePin(message)).toBeNull();
+    expect(await client.togglePin({ ...message, pinned: true })).toBeInstanceOf(ApiError);
     expect(shownPinned(message.id)).toBe(true);
     expect(await serverPinned(message.id)).toBe(true);
   });
@@ -461,7 +468,7 @@ describe("choices that reach the server out of order, or not at all", () => {
     await settle();
     expect(shownPinned(message.id)).toBe(false);
     unpin.forward();
-    expect(await unpinning).toBe(true);
+    expect(await unpinning).toBeNull();
     await settle();
     expect(shownPinned(message.id)).toBe(false);
     expect(await serverPinned(message.id)).toBe(false);
@@ -515,7 +522,7 @@ describe("choices that reach the server out of order, or not at all", () => {
     replacement.connect();
     try {
       await expect.poll(() => replacement.state.status).toBe("online");
-      expect(await scene.replace(replacement, message)).toBe(true);
+      expect(await scene.replace(replacement, message)).toBeNull();
       old.forward();
       await settle();
       expect(queued).not.toHaveBeenCalled();
@@ -556,7 +563,7 @@ describe("choices that reach the server out of order, or not at all", () => {
     connection.ws.close();
     await expect.poll(() => client.state.status).toBe("online");
     pin.forward();
-    expect(await pinning).toBe(true);
+    expect(await pinning).toBeNull();
     await settle();
     expect(await serverPinned(message.id)).toBe(true);
     expect(shownPinned(message.id)).toBe(true);

@@ -196,7 +196,7 @@ describe("blocking from someone's card", () => {
     const { client, shown, user } = workspace();
     const setBlocked = vi.spyOn(client, "setBlocked").mockImplementation(async (id, blocked) => {
       client.store.setState({ blocked: blocked ? [id] : [] });
-      return true;
+      return null;
     });
     shown(<ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Block Maya Chen" }));
@@ -217,7 +217,7 @@ describe("blocking from someone's card", () => {
 
   it("says when the block did not take", async () => {
     const { client, shown, user } = workspace();
-    vi.spyOn(client, "setBlocked").mockResolvedValue(false);
+    vi.spyOn(client, "setBlocked").mockResolvedValue(new ApiError(0, "network_error", "offline"));
     shown(<ProfileDialog userId="U_MAYA" onClose={vi.fn()} onOpenDm={vi.fn()} />);
     await user.click(screen.getByRole("button", { name: "Block Maya Chen" }));
     await user.click(screen.getByRole("button", { name: "Block" }));
@@ -297,7 +297,9 @@ describe("a direct message with someone blocked", () => {
 
   it("offers Unblock in place of the composer", async () => {
     const { client, shown, user } = workspace(["U_MAYA"]);
-    const setBlocked = vi.spyOn(client, "setBlocked").mockResolvedValue(false);
+    const setBlocked = vi
+      .spyOn(client, "setBlocked")
+      .mockResolvedValue(new ApiError(0, "network_error", "offline"));
     shown(<BlockedComposer userId="U_MAYA" />);
     expect(screen.getByText(/You blocked Maya Chen/)).toBeVisible();
     await user.click(screen.getByRole("button", { name: "Unblock" }));
@@ -355,7 +357,7 @@ describe("a direct message with a deactivated account", () => {
 describe("blocked people in Account settings", () => {
   it("lists them with Unblock, and says when there are none", async () => {
     const { client, shown, user } = workspace(["U_MAYA", "U_LEE"]);
-    const setBlocked = vi.spyOn(client, "setBlocked").mockResolvedValue(true);
+    const setBlocked = vi.spyOn(client, "setBlocked").mockResolvedValue(null);
     shown(<BlockedPeople />);
     const list = screen.getByRole("list", { name: "Blocked people" });
     expect(within(list).getAllByRole("listitem")).toHaveLength(2);

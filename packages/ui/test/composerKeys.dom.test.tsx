@@ -7,6 +7,7 @@ import { Composer } from "../src/components/Composer.js";
 import { useEditRequest } from "../src/lib/editRequest.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";
+import { held } from "./heldMessages.js";
 
 /**
  * The composer's keyboard and formatting: which key sends under each setting,
@@ -367,21 +368,20 @@ describe("Up in an empty box", () => {
     const asked = vi.fn();
     const user = userEvent.setup();
     const { client, box } = await renderComposer();
-    client.store.setState({
-      timelines: {
-        [design.id]: {
-          items: [
-            message("M_OLD", sam.id),
-            message("M_MINE", sam.id),
-            message("M_POLL", sam.id, { poll: { question: "?", options: [] } }),
-            message("M_THEIRS", "U_OTHER"),
-          ] as never,
-          hasMore: false,
-          hasMoreNewer: false,
-          loaded: true,
+    client.store.setState(
+      held({
+        timelines: {
+          [design.id]: {
+            items: [
+              message("M_OLD", sam.id),
+              message("M_MINE", sam.id),
+              message("M_POLL", sam.id, { poll: { question: "?", options: [] } }),
+              message("M_THEIRS", "U_OTHER"),
+            ] as never,
+          },
         },
-      },
-    });
+      }),
+    );
     // A row on screen for M_MINE takes the request.
     renderHook(() => useEditRequest("M_MINE", true, asked));
     box.focus();

@@ -10,8 +10,10 @@ import {
   readStoredOutbox,
   shownPoll,
   storedPending,
+  ApiError,
   type WorkspaceState,
 } from "../src/index.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * Polls on the client (E6): one goes through the outbox like any message; a
@@ -57,11 +59,11 @@ async function online(token = aliceToken) {
 }
 
 const held = (client: WorkspaceClient, channelId: string, id: string): Message | undefined =>
-  client.state.timelines[channelId]?.items.find((m) => m.id === id);
+  timelineMessages(client.state, channelId).find((m) => m.id === id);
 /** The poll as this client shows it, with what its account has chosen. */
 const shown = (client: WorkspaceClient, message: Message, s = client.state) =>
   shownPoll(
-    s.timelines[message.channelId]!.items.find((m) => m.id === message.id)!,
+    timelineMessages(s, message.channelId).find((m) => m.id === message.id)!,
     s.self?.id,
     s.pollChoices,
     s.pollPicks,
@@ -125,7 +127,7 @@ describe("polls on the client", () => {
     // One whose poll is not one is refused, as any malformed entry is.
     expect(readStoredOutbox([{ ...stored!, poll: { options: "Pizza" } }])).toBeNull();
     await until(client, (s) => s.pending.length === 0, "the send");
-    const message = client.state.timelines[general.id]!.items.at(-1)!;
+    const message = timelineMessages(client.state, general.id).at(-1)!;
     expect(message.text).toBe("Where for lunch?");
     expect(message.poll).toMatchObject({ voters: 0, closedAt: null, multiple: false });
     // A question that starts like a command is still a question.
@@ -135,7 +137,7 @@ describe("polls on the client", () => {
       }),
     ).toBe(true);
     await until(client, (s) => s.pending.length === 0, "the second send");
-    expect(client.state.timelines[general.id]!.items.at(-1)!.text).toBe("/shrug or /me?");
+    expect(timelineMessages(client.state, general.id).at(-1)!.text).toBe("/shrug or /me?");
   });
 
   it("show a vote at once, then as the server has it, on every client and as no edit", async () => {
@@ -152,7 +154,7 @@ describe("polls on the client", () => {
     expect(shown(alice.client, message).mine).toEqual([1]);
     expect(counts(alice.client, message)).toEqual([0, 1, 0]);
     expect(shown(alice.client, message).poll.options[1]!.voterIds).toEqual([aliceId]);
-    expect(await voted).toBe(true);
+    expect(await voted).toBeNull();
 
     // Then as the server has it, with nothing held here.
     await until(alice.client, (s) => !s.pollPicks[message.id], "the pick to settle");
@@ -175,7 +177,7 @@ describe("polls on the client", () => {
     const first = alice.client.vote(latest, [0]);
     const second = alice.client.vote(latest, [2]);
     expect(shown(alice.client, message).mine).toEqual([2]);
-    expect(await Promise.all([first, second])).toEqual([true, true]);
+    expect(await Promise.all([first, second])).toEqual([null, null]);
     await until(alice.client, (s) => !s.pollPicks[message.id], "the last pick to settle");
     expect(counts(alice.client, message)).toEqual([0, 0, 1]);
     await until(bob.client, () => counts(bob.client, message)[2] === 1, "bob to see it moved");
@@ -188,14 +190,14 @@ describe("polls on the client", () => {
     await until(alice.client, () => !!held(alice.client, message.channelId, message.id), "it");
     const totals: number[] = [];
     const stop = alice.client.store.subscribe((s) => {
-      if (s.timelines[message.channelId]?.items.some((m) => m.id === message.id))
+      if (timelineMessages(s, message.channelId).some((m) => m.id === message.id))
         totals.push(counts(alice.client, message, s).reduce((a, b) => a + b, 0));
     });
     onTestFinished(stop);
 
     const voted = alice.client.vote(held(alice.client, message.channelId, message.id)!, [0]);
     expect(counts(alice.client, message)).toEqual([1, 0]);
-    expect(await voted).toBe(true);
+    expect(await voted).toBeNull();
     await until(
       alice.client,
       (s) =>
@@ -219,9 +221,9 @@ describe("polls on the client", () => {
     expect(bob.client.state.pollChoices![message.id]).toBeUndefined();
 
     // Taking it back is heard on her other device too.
-    expect(await alice.client.vote(held(alice.client, message.channelId, message.id)!, [])).toBe(
-      true,
-    );
+    expect(
+      await alice.client.vote(held(alice.client, message.channelId, message.id)!, []),
+    ).toBeNull();
     await until(phone.client, (s) => !s.pollChoices![message.id], "the phone to hear it");
     await until(phone.client, () => counts(phone.client, message)[0] === 0, "the count");
     expect(Math.max(...totals)).toBe(1);
@@ -234,10 +236,12 @@ describe("polls on the client", () => {
     await until(alice.client, () => !!held(alice.client, message.channelId, message.id), "it");
     await until(bob.client, () => !!held(bob.client, message.channelId, message.id), "it");
 
-    expect(await alice.client.closePoll(held(alice.client, message.channelId, message.id)!)).toBe(
-      false,
-    );
-    expect(await bob.client.closePoll(held(bob.client, message.channelId, message.id)!)).toBe(true);
+    expect(
+      await alice.client.closePoll(held(alice.client, message.channelId, message.id)!),
+    ).toMatchObject({
+      code: "not_your_message",
+    });
+    expect(await bob.client.closePoll(held(bob.client, message.channelId, message.id)!)).toBeNull();
     expect(held(bob.client, message.channelId, message.id)!.poll!.closedAt).toEqual(
       expect.any(Number),
     );
@@ -249,7 +253,7 @@ describe("polls on the client", () => {
         ...s.timelines,
         [message.channelId]: {
           ...s.timelines[message.channelId]!,
-          items: s.timelines[message.channelId]!.items.map((m) =>
+          items: timelineMessages(s, message.channelId).map((m) =>
             m.id === message.id ? stale : m,
           ),
         },
@@ -257,7 +261,7 @@ describe("polls on the client", () => {
     }));
     const voted = alice.client.vote(stale, [0]);
     expect(shown(alice.client, message).mine).toEqual([0]);
-    expect(await voted).toBe(false);
+    expect(await voted).toBeInstanceOf(ApiError);
     expect(alice.client.state.pollPicks[message.id]).toBeUndefined();
     expect(shown(alice.client, message).mine).toEqual([]);
     expect(counts(alice.client, message)).toEqual([0, 0]);

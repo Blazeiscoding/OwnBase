@@ -4,6 +4,7 @@ import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { FileMeta, Message, ServerToClient } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Lightbox } from "../src/components/Attachments.js";
+import { held } from "./heldMessages.js";
 
 /** An open image whose message is deleted, or whose conversation is lost, says so (F07). */
 const file: FileMeta = {
@@ -96,7 +97,7 @@ describe("an open image that is taken away (F07)", () => {
       pinned: false,
       actions: [],
     };
-    client.store.setState({ threads: { M_ROOT: [reply] } });
+    client.store.setState(held({ threads: { M_ROOT: [reply] } }));
     const fetchFile = vi.spyOn(client.api, "fetchFile").mockResolvedValue(new Blob(["png!"]));
     open(client);
     expect(await screen.findByRole("img", { name: "plan.png" })).toBeVisible();

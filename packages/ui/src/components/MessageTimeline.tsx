@@ -1,6 +1,6 @@
 import { memo, useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import type { FileMeta, ID } from "@ownbase/protocol";
-import type { EphemeralMessage, PendingMessage } from "@ownbase/client-core";
+import { timelineMessages, type EphemeralMessage, type PendingMessage } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, sameDay } from "../lib/format.js";
 import { MessageItem } from "./MessageItem.js";
@@ -163,7 +163,7 @@ export const MessageTimeline = memo(function MessageTimeline({
     };
   }, [client, channelId, highlightMessageId]);
 
-  const items = timeline?.items ?? [];
+  const items = useWorkspace((s) => timelineMessages(s, channelId));
   // Where the New line goes is known only with something already read loaded
   // above it, or nothing older at all: otherwise the first unread may be
   // further up, and a line above the oldest loaded would say it was here.
@@ -772,7 +772,7 @@ export function JumpToLatestBar({ channelId, onJump }: { channelId: ID; onJump?:
   // Opened at what was missed, rather than jumped back to something read.
   const catchingUp = useWorkspace((s) => {
     const read = s.memberships[channelId] ?? 0;
-    return read > 0 && !!s.timelines[channelId]?.items.some((m) => m.seq > read);
+    return read > 0 && timelineMessages(s, channelId).some((m) => m.seq > read);
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(false);

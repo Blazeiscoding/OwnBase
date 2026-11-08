@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
 import type { Message, ServerToClient } from "@ownbase/protocol";
 import { Api, ApiError, WorkspaceClient } from "../src/index.js";
+import { threadReplies, threadRootMessage, timelineMessages } from "../src/messageCache.js";
 
 let server: WorkspaceServer;
 let client: WorkspaceClient;
@@ -147,20 +148,31 @@ describe("timeline snapshot reconciliation", () => {
       await loading;
 
       const timeline = client.state.timelines[channelId]!;
-      expect(timeline.items.find((m) => m.id === root.id)).toMatchObject({
-        text: "edited while history was on its way",
-        pinned: true,
-        replyCount: 1,
-        reactions: [{ emoji: "yes", userIds: [root.userId] }],
-      });
-      expect(timeline.items.some((m) => m.id === gone.id)).toBe(false);
-      expect(timeline.items.some((m) => m.id === live.id) || timeline.hasMoreNewer).toBe(true);
-      expect(new Set(timeline.items.map((m) => m.id)).size).toBe(timeline.items.length);
-      expect(timeline.items.map((m) => m.id)).toEqual(timeline.items.map((m) => m.id).sort());
+      expect(timelineMessages(client.state, channelId).find((m) => m.id === root.id)).toMatchObject(
+        {
+          text: "edited while history was on its way",
+          pinned: true,
+          replyCount: 1,
+          reactions: [{ emoji: "yes", userIds: [root.userId] }],
+        },
+      );
+      expect(timelineMessages(client.state, channelId).some((m) => m.id === gone.id)).toBe(false);
+      expect(
+        timelineMessages(client.state, channelId).some((m) => m.id === live.id) ||
+          timeline.hasMoreNewer,
+      ).toBe(true);
+      expect(new Set(timelineMessages(client.state, channelId).map((m) => m.id)).size).toBe(
+        timelineMessages(client.state, channelId).length,
+      );
+      expect(timelineMessages(client.state, channelId).map((m) => m.id)).toEqual(
+        timelineMessages(client.state, channelId)
+          .map((m) => m.id)
+          .sort(),
+      );
       expect(incoming).toHaveBeenCalledTimes(2);
       if (kind !== "around") {
         expect(timeline.hasMoreNewer).toBe(false);
-        expect(timeline.items.at(-1)?.id).toBe(live.id);
+        expect(timelineMessages(client.state, channelId).at(-1)?.id).toBe(live.id);
         expect(timeline.readThroughSeq).toBe(live.seq);
       }
     },
@@ -181,9 +193,9 @@ describe("timeline snapshot reconciliation", () => {
     await caughtUp();
     beginRead.resolve();
     await loading;
-    expect(client.state.timelines[channelId]?.items.find((m) => m.id === root.id)?.replyCount).toBe(
-      1,
-    );
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === root.id)?.replyCount,
+    ).toBe(1);
   });
 
   it("keeps snapshot rows current when older socket frames arrive after the page", async () => {
@@ -199,11 +211,11 @@ describe("timeline snapshot reconciliation", () => {
     await expect.poll(() => socket.events.length).toBe(7);
     await client.loadTimeline(channelId);
     const expected = { text: "snapshot text", replyCount: 1, reactions: [], pinned: false };
-    expect(client.state.timelines[channelId]?.items[0]).toMatchObject(expected);
+    expect(timelineMessages(client.state, channelId)[0]).toMatchObject(expected);
     socket.release();
     await caughtUp();
-    expect(client.state.timelines[channelId]?.items).toHaveLength(1);
-    expect(client.state.timelines[channelId]?.items[0]).toMatchObject(expected);
+    expect(timelineMessages(client.state, channelId)).toHaveLength(1);
+    expect(timelineMessages(client.state, channelId)[0]).toMatchObject(expected);
   });
 
   it("preserves different row watermarks when an older page arrives ahead of socket events", async () => {
@@ -221,14 +233,22 @@ describe("timeline snapshot reconciliation", () => {
     await expect.poll(() => socket.events.length).toBe(3);
     await client.loadTimeline(channelId, { older: true });
     let timeline = client.state.timelines[channelId]!;
-    expect(timeline.items.find((m) => m.id === olderRoot.id)?.replyCount).toBe(1);
-    expect(timeline.items.find((m) => m.id === currentRoot.id)?.replyCount).toBe(0);
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === olderRoot.id)?.replyCount,
+    ).toBe(1);
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === currentRoot.id)?.replyCount,
+    ).toBe(0);
     socket.release();
     await caughtUp();
     timeline = client.state.timelines[channelId]!;
-    expect(timeline.items.find((m) => m.id === olderRoot.id)?.replyCount).toBe(1);
-    expect(timeline.items.find((m) => m.id === currentRoot.id)?.replyCount).toBe(1);
-    expect(timeline.items.at(-1)?.id).toBe(arrival.id);
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === olderRoot.id)?.replyCount,
+    ).toBe(1);
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === currentRoot.id)?.replyCount,
+    ).toBe(1);
+    expect(timelineMessages(client.state, channelId).at(-1)?.id).toBe(arrival.id);
     expect(timeline.readThroughSeq).toBe(arrival.seq);
   });
 
@@ -256,12 +276,12 @@ describe("timeline snapshot reconciliation", () => {
     await caughtUp();
     hold.release();
     await loading;
-    expect(client.state.timelines[channelId]?.items.find((m) => m.id === root.id)).toMatchObject({
+    expect(timelineMessages(client.state, channelId).find((m) => m.id === root.id)).toMatchObject({
       replyCount: 1,
       pinned: false,
       reactions: [],
     });
-    expect(client.state.timelines[channelId]?.items.at(-1)?.id).toBe(broadcast.id);
+    expect(timelineMessages(client.state, channelId).at(-1)?.id).toBe(broadcast.id);
     expect(client.state.timelines[channelId]?.readThroughSeq).toBe(broadcast.seq);
   });
 
@@ -280,15 +300,15 @@ describe("timeline snapshot reconciliation", () => {
       await pinRelease.promise;
       return pin(...args);
     });
-    const pinning = client.togglePin(client.state.timelines[channelId]!.items[0]!);
-    expect(client.state.timelines[channelId]?.items[0]?.pinned).toBe(true);
+    const pinning = client.togglePin(timelineMessages(client.state, channelId)[0]!);
+    expect(timelineMessages(client.state, channelId)[0]?.pinned).toBe(true);
     history.release();
     await loading;
-    expect(client.state.timelines[channelId]?.items[0]?.pinned).toBe(true);
+    expect(timelineMessages(client.state, channelId)[0]?.pinned).toBe(true);
     pinRelease.resolve();
-    expect(await pinning).toBe(true);
+    expect(await pinning).toBeNull();
     await caughtUp();
-    expect(client.state.timelines[channelId]?.items[0]?.pinned).toBe(true);
+    expect(timelineMessages(client.state, channelId)[0]?.pinned).toBe(true);
   });
 
   it("keeps older-page continuity when live arrivals trim the captured window", async () => {
@@ -298,7 +318,7 @@ describe("timeline snapshot reconciliation", () => {
     await caughtUp();
     await client.loadTimeline(channelId);
     for (let i = 0; i < 5; i++) await client.loadTimeline(channelId, { older: true });
-    expect(client.state.timelines[channelId]?.items).toHaveLength(300);
+    expect(timelineMessages(client.state, channelId)).toHaveLength(300);
     const hold = holdPage(client.api.listMessages.bind(client.api));
     vi.spyOn(client.api, "listMessages").mockImplementationOnce(hold.read);
     const loading = client.loadTimeline(channelId, { older: true });
@@ -306,10 +326,10 @@ describe("timeline snapshot reconciliation", () => {
     await owner.sendMessage(channelId, { text: "trim one" });
     await owner.sendMessage(channelId, { text: "trim two" });
     await caughtUp();
-    expect(client.state.timelines[channelId]?.items[0]?.id).toBe(messages[32]?.id);
+    expect(timelineMessages(client.state, channelId)[0]?.id).toBe(messages[32]?.id);
     hold.release();
     await loading;
-    expect(client.state.timelines[channelId]?.items.map((m) => m.id)).toEqual(
+    expect(timelineMessages(client.state, channelId).map((m) => m.id)).toEqual(
       messages.slice(0, 300).map((m) => m.id),
     );
     expect(client.state.timelines[channelId]?.hasMoreNewer).toBe(true);
@@ -324,8 +344,8 @@ describe("timeline snapshot reconciliation", () => {
     await caughtUp();
     await client.loadThread(root.id, channelId, "latest", first.id);
     expect(client.state.threadPages[root.id]).toMatchObject({ loaded: true, error: null });
-    expect(client.state.threadPages[root.id]?.root?.id).toBe(root.id);
-    expect(client.state.threads[root.id]?.map((m) => m.text)).toEqual(["second"]);
+    expect(threadRootMessage(client.state, root.id)?.id).toBe(root.id);
+    expect(threadReplies(client.state, root.id)?.map((m) => m.text)).toEqual(["second"]);
   });
 
   it("drops a deleted thread when a deletion frame could not go out, and takes later messages (REV-10)", async () => {
@@ -351,7 +371,7 @@ describe("timeline snapshot reconciliation", () => {
 
     await expect.poll(() => client.state.status).toBe("online");
     await caughtUp();
-    const timeline = client.state.timelines[channelId]?.items.map((m) => m.id) ?? [];
+    const timeline = timelineMessages(client.state, channelId).map((m) => m.id) ?? [];
     expect(timeline).not.toContain(root.id);
     expect(timeline).toContain(later.id);
     expect(client.state.threads[root.id] ?? []).toEqual([]);
@@ -373,16 +393,16 @@ describe("timeline snapshot reconciliation", () => {
     await expect.poll(() => client.state.pending.length).toBe(0);
     hold.release();
     await loading;
-    expect(client.state.timelines[channelId]?.items.find((m) => m.id === root.id)?.replyCount).toBe(
-      1,
-    );
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === root.id)?.replyCount,
+    ).toBe(1);
     client.connect();
     await expect.poll(() => client.state.status).toBe("online");
     await caughtUp();
-    expect(client.state.timelines[channelId]?.items.find((m) => m.id === root.id)?.replyCount).toBe(
-      1,
-    );
-    expect(client.state.threadPages[root.id]?.root?.replyCount).toBe(1);
+    expect(
+      timelineMessages(client.state, channelId).find((m) => m.id === root.id)?.replyCount,
+    ).toBe(1);
+    expect(threadRootMessage(client.state, root.id)?.replyCount).toBe(1);
     expect(client.state.threads[root.id]).toHaveLength(1);
   });
 
@@ -399,7 +419,7 @@ describe("timeline snapshot reconciliation", () => {
     expect(await client.jumpToMessage(channelId, messages.at(-1)!.id)).toBeNull();
     hold.release();
     await loading;
-    expect(client.state.timelines[channelId]?.items).toHaveLength(60);
+    expect(timelineMessages(client.state, channelId)).toHaveLength(60);
     const holds = (client as unknown as { timelineHolds: Map<string, unknown> }).timelineHolds;
     expect(holds.size).toBe(0);
   });
@@ -418,7 +438,7 @@ describe("timeline snapshot reconciliation", () => {
     hold.release();
     expect(await first).toBeUndefined();
     expect(client.state.timelines[channelId]).toBe(newestWindow);
-    expect(newestWindow?.items.at(-1)?.id).toBe(messages.at(-1)?.id);
+    expect(newestWindow?.ids.at(-1)).toBe(messages.at(-1)?.id);
   });
 
   it("keeps the current window recoverable when the event buffer overflows", async () => {
@@ -441,11 +461,14 @@ describe("timeline snapshot reconciliation", () => {
       });
     hold.release();
     await expect(loading).rejects.toMatchObject({ code: "history_changed" });
-    expect(client.state.timelines[channelId]?.items[0]?.text).toBe("edit 2001");
+    expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
     const holds = (client as unknown as { timelineHolds: Map<string, unknown> }).timelineHolds;
     expect(holds.size).toBe(0);
     await client.loadTimeline(channelId, { latest: true });
-    expect(client.state.timelines[channelId]?.items[0]?.text).toBe("root");
+    expect(client.state.timelines[channelId]).toMatchObject({ loaded: true, hasMoreNewer: false });
+    expect(holds.size).toBe(0);
+    // The edits above are later than anything the page says, so they stand over it.
+    expect(timelineMessages(client.state, channelId)[0]?.text).toBe("edit 2001");
   });
 
   it("loads quiet legacy pages and refuses an ambiguous legacy response after live changes", async () => {
@@ -458,7 +481,7 @@ describe("timeline snapshot reconciliation", () => {
     };
     const spy = vi.spyOn(client.api, "listMessages").mockImplementation(legacy);
     await client.loadTimeline(channelId);
-    expect(client.state.timelines[channelId]?.items[0]?.id).toBe(root.id);
+    expect(timelineMessages(client.state, channelId)[0]?.id).toBe(root.id);
     const hold = holdPage(legacy);
     spy.mockImplementationOnce(hold.read);
     const loading = client.loadTimeline(channelId, { latest: true });
@@ -467,9 +490,9 @@ describe("timeline snapshot reconciliation", () => {
     await caughtUp();
     hold.release();
     await expect(loading).rejects.toMatchObject({ code: "history_changed" });
-    expect(client.state.timelines[channelId]?.items[0]?.text).toBe("latest text");
+    expect(timelineMessages(client.state, channelId)[0]?.text).toBe("latest text");
     await client.loadTimeline(channelId, { latest: true });
-    expect(client.state.timelines[channelId]?.items[0]?.text).toBe("latest text");
+    expect(timelineMessages(client.state, channelId)[0]?.text).toBe("latest text");
   });
 
   it("applies retention invalidation to a captured page before it can reinstall purged history", async () => {
@@ -489,7 +512,7 @@ describe("timeline snapshot reconciliation", () => {
     });
     hold.release();
     await loading;
-    expect(client.state.timelines[channelId]?.items).toEqual([]);
+    expect(timelineMessages(client.state, channelId)).toEqual([]);
   });
 });
 
@@ -506,7 +529,7 @@ describe("opening where reading stopped (X3)", () => {
     const messages = await said(130);
     await client.loadTimeline(channelId, { unreadAfter: messages[40]!.seq });
     const timeline = client.state.timelines[channelId]!;
-    const ids = timeline.items.map((m) => m.id);
+    const ids = timelineMessages(client.state, channelId).map((m) => m.id);
     // Some of what was read above it, the first unread, and what follows.
     expect(ids).toContain(messages[39]!.id);
     expect(ids).toContain(messages[41]!.id);
@@ -521,7 +544,7 @@ describe("opening where reading stopped (X3)", () => {
     const messages = await said(130);
     const since = vi.spyOn(client.api, "listMessagesSince");
     await client.loadTimeline(channelId, { unreadAfter: messages[100]!.seq });
-    expect(client.state.timelines[channelId]!.items.at(-1)?.id).toBe(messages.at(-1)!.id);
+    expect(timelineMessages(client.state, channelId).at(-1)?.id).toBe(messages.at(-1)!.id);
     expect(client.state.timelines[channelId]!.hasMoreNewer).toBe(false);
     await client.loadTimeline(channelId, { latest: true, unreadAfter: messages[10]!.seq });
     expect(client.state.timelines[channelId]!.hasMoreNewer).toBe(false);
@@ -535,7 +558,7 @@ describe("opening where reading stopped (X3)", () => {
     );
     await client.loadTimeline(channelId, { unreadAfter: messages[5]!.seq });
     const timeline = client.state.timelines[channelId]!;
-    expect(timeline.items.at(-1)?.id).toBe(messages.at(-1)!.id);
+    expect(timelineMessages(client.state, channelId).at(-1)?.id).toBe(messages.at(-1)!.id);
     expect(timeline.hasMoreNewer).toBe(false);
     expect(timeline.readThroughSeq).toBe(messages.at(-1)!.seq);
   });
@@ -551,7 +574,7 @@ describe("opening where reading stopped (X3)", () => {
     await caughtUp();
     hold.release();
     await loading;
-    const items = client.state.timelines[channelId]!.items;
+    const items = timelineMessages(client.state, channelId);
     expect(items.find((m) => m.id === messages[31]!.id)?.text).toBe("edited on the way");
     expect(items.some((m) => m.id === messages[32]!.id)).toBe(false);
   });
@@ -581,7 +604,7 @@ describe("scoped history invalidation", () => {
     timeline.release();
     thread.release();
     await Promise.all([loadingTimeline, loadingThread]);
-    expect(client.state.timelines[channelId]?.items[0]?.id).toBe(root.id);
+    expect(timelineMessages(client.state, channelId)[0]?.id).toBe(root.id);
     expect(client.state.threadPages[root.id]).toMatchObject({ loaded: true, loading: false });
   });
 
@@ -639,7 +662,7 @@ describe("paging forward (F14)", () => {
 
     await Promise.all([client.loadNewer(channelId), client.loadNewer(channelId)]);
     expect(after).toHaveBeenCalledTimes(1);
-    const ids = client.state.timelines[channelId]!.items.map((m) => m.id);
+    const ids = timelineMessages(client.state, channelId).map((m) => m.id);
     expect(new Set(ids).size).toBe(ids.length);
     const order = messages.map((m) => m.id).filter((id) => ids.includes(id));
     expect(ids.filter((id) => order.includes(id))).toEqual(order);

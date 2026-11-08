@@ -111,17 +111,10 @@ function Card(props: {
 function useLinkedMessage({ channelId, messageId }: LinkedMessage): Message | null {
   const client = useClient();
   const readable = useWorkspace((s) => !!s.channels[channelId]);
-  const timeline = useWorkspace((s) => s.timelines[channelId]);
-  const threads = useWorkspace((s) => s.threads);
-  const held = useMemo(() => {
-    const top = timeline?.items.find((m) => m.id === messageId);
-    if (top) return top;
-    for (const replies of Object.values(threads)) {
-      const reply = replies.find((m) => m.id === messageId);
-      if (reply) return reply.channelId === channelId ? reply : undefined;
-    }
-    return undefined;
-  }, [timeline, threads, channelId, messageId]);
+  const held = useWorkspace((s) => {
+    const message = s.messages[messageId];
+    return message?.channelId === channelId ? message : undefined;
+  });
   const changed = useWorkspace((s) => s.changedContent[channelId] ?? 0);
   const [asked, setAsked] = useState<{ id: ID; message: Message | null } | null>(null);
   useEffect(() => {

@@ -129,7 +129,11 @@ describe("removing a message from the Saved panel", () => {
         name: "Remove from Saved",
       }),
     );
-    expect(await screen.findByText("Could not remove that from Saved.")).toBeVisible();
+    expect(
+      await screen.findByText(
+        "Could not remove that from Saved. Check your connection and try again.",
+      ),
+    ).toBeVisible();
     // Its Undo would have nothing to undo.
     expect(screen.queryByText("Removed from Saved.")).toBeNull();
     expect(within(panel).getByText("Ship list for Friday")).toBeVisible();

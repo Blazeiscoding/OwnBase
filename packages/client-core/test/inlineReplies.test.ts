@@ -13,6 +13,7 @@ import {
   type WorkspaceState,
 } from "../src/index.js";
 import { quoteChanges, requote } from "../src/replies.js";
+import { timelineMessages } from "../src/messageCache.js";
 
 /**
  * Inline replies on the client: a send carries what it answers, and replies
@@ -57,7 +58,7 @@ async function online(token: string) {
 }
 
 const held = (client: WorkspaceClient, channelId: string, id: string) =>
-  client.state.timelines[channelId]?.items.find((m) => m.id === id);
+  timelineMessages(client.state, channelId).find((m) => m.id === id);
 
 beforeAll(async () => {
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-replies-"));
@@ -89,10 +90,10 @@ describe("inline replies on the client", () => {
     const sent = await until(
       client,
       (s) =>
-        s.pending.length === 0 && !!s.timelines[general.id]?.items.some((m) => m.text === "Tacos"),
+        s.pending.length === 0 && !!timelineMessages(s, general.id).some((m) => m.text === "Tacos"),
       "delivery",
     );
-    const reply = sent.timelines[general.id]!.items.find((m) => m.text === "Tacos")!;
+    const reply = timelineMessages(sent, general.id).find((m) => m.text === "Tacos")!;
     expect(reply.replyTo).toMatchObject({ id: original.id, text: "Pizza or tacos?", ping: true });
   });
 
@@ -118,7 +119,7 @@ describe("inline replies on the client", () => {
       () => held(client, general.id, reply.id)?.replyTo?.deleted === true,
       "deletion",
     );
-    expect(after.timelines[general.id]!.items.find((m) => m.id === reply.id)!.replyTo).toEqual({
+    expect(timelineMessages(after, general.id).find((m) => m.id === reply.id)!.replyTo).toEqual({
       id: original.id,
       userId: "",
       text: "",
@@ -144,7 +145,7 @@ describe("inline replies on the client", () => {
     });
     await until(first.client, () => !!held(first.client, general.id, toDeleted.id), "replies");
     const seqBefore = first.client.state.lastSeq;
-    const timeline = first.client.state.timelines[general.id]!;
+    const { messages, messageSeqs, timelines } = first.client.state;
     first.client.destroy();
 
     await bob.editMessage(edited.id, "Draft two");
@@ -156,7 +157,9 @@ describe("inline replies on the client", () => {
     again.store.setState({
       lastSeq: seqBefore,
       channels: first.client.state.channels,
-      timelines: { [general.id]: timeline },
+      messages,
+      messageSeqs,
+      timelines: { [general.id]: timelines[general.id]! },
     });
     again.connect();
     await until(
