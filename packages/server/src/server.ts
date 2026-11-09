@@ -26,13 +26,13 @@ import { dirname, join, resolve } from "node:path";
 import { monitorEventLoopDelay } from "node:perf_hooks";
 import { registerAccounts } from "./accounts/feature.js";
 import { hashPassword, hashToken, newSessionToken } from "./auth.js";
-import type { BackupManifest } from "./backup.js";
-import { backupWorkspace, separateDirectories } from "./backup.js";
+import type { BackupManifest } from "./backups/backup.js";
+import { backupWorkspace, separateDirectories } from "./backups/backup.js";
 import {
   BackupSchedule,
   type BackupScheduleStatus,
   type ScheduledBackups,
-} from "./backupSchedule.js";
+} from "./backups/backupSchedule.js";
 import {
   blocksToActions,
   parseView,
@@ -76,7 +76,7 @@ import { advertise, type MdnsHandle } from "./mdns.js";
 import { registerMessages, type RetentionStatus } from "./messages/feature.js";
 import { requireMessageText, slackRefusal } from "./messages/posting.js";
 import { OutboundError, postToUrl } from "./outbound.js";
-import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
+import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./relay.js";
@@ -88,8 +88,13 @@ import { registerSearch } from "./search/feature.js";
 import { Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
 import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
-import { WorkspaceCopies } from "./workspaceCopy.js";
-import { checkIcon, ICON_META_KEYS, storedIconRows, type WorkspaceIcon } from "./workspaceIcon.js";
+import { WorkspaceCopies } from "./backups/workspaceCopy.js";
+import {
+  checkIcon,
+  ICON_META_KEYS,
+  storedIconRows,
+  type WorkspaceIcon,
+} from "./admin/workspaceIcon.js";
 
 export { GUEST_SESSION_TTL_MS } from "./accounts/feature.js";
 export type { RetentionStatus } from "./messages/feature.js";

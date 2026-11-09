@@ -11,7 +11,7 @@ import {
   restoreWorkspace,
   verifyBackup,
   type BackupManifest,
-} from "../src/backup.js";
+} from "../src/backups/backup.js";
 import { SCHEMA_VERSION } from "../src/db.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
 

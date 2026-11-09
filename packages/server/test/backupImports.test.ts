@@ -33,8 +33,8 @@ function graph(entry: string): { modules: string[]; packages: string[] } {
 
 describe("what a backup job loads", () => {
   it("is the backup module, the schema and the ownership lock, with zod", () => {
-    expect(graph("backup.ts")).toEqual({
-      modules: ["backup.ts", "db.ts", "ownership.ts", "version.ts"],
+    expect(graph("backups/backup.ts")).toEqual({
+      modules: ["backups/backup.ts", "core/ownership.ts", "db.ts", "version.ts"],
       packages: ["zod"],
     });
   });
@@ -50,8 +50,8 @@ describe("what a backup job loads", () => {
 
   it("is published on its own entry, for the desktop app's worker", async () => {
     const manifest = JSON.parse(readFileSync(join(src, "../package.json"), "utf8"));
-    expect(manifest.exports["./backup"]).toBe("./src/backup.ts");
-    const backup = await import("../src/backup.js");
+    expect(manifest.exports["./backup"]).toBe("./src/backups/backup.ts");
+    const backup = await import("../src/backups/backup.js");
     for (const name of ["backupWorkspace", "verifyBackup", "inventoryBackup", "restoreWorkspace"])
       expect(typeof backup[name as keyof typeof backup]).toBe("function");
   });

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, symlinkSync } 
 import { createServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { backupWorkspace, restoreWorkspace } from "../src/backup.js";
+import { backupWorkspace, restoreWorkspace } from "../src/backups/backup.js";
 import {
   holdFolder,
   holdWorkspace,
@@ -12,7 +12,7 @@ import {
   WORKSPACE_OWNER,
   WORKSPACE_PATH_LOCK,
   WorkspaceInUseError,
-} from "../src/ownership.js";
+} from "../src/core/ownership.js";
 import { listAccounts } from "../src/recover.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
@@ -139,7 +139,7 @@ describe("one workspace folder, one server", () => {
         "--input-type=module",
         "-e",
         `import { holdWorkspace } from ${JSON.stringify(
-          new URL("../src/ownership.ts", import.meta.url).href,
+          new URL("../src/core/ownership.ts", import.meta.url).href,
         )};
          // Kept, as a server keeps it: a hold nothing refers to is closed when collected.
          globalThis.hold = holdWorkspace(${JSON.stringify(dataDir)}, "a test holder");
@@ -247,7 +247,7 @@ describe("the path a workspace folder is at", () => {
         "--input-type=module",
         "-e",
         `import { holdWorkspacePath } from ${JSON.stringify(
-          new URL("../src/ownership.ts", import.meta.url).href,
+          new URL("../src/core/ownership.ts", import.meta.url).href,
         )};
          globalThis.hold = holdWorkspacePath(${JSON.stringify(dataDir)});
          console.log("held");

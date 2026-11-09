@@ -180,12 +180,12 @@ test("workspace subpaths and literal dynamic imports connect to actual local imp
   expectImport(
     "apps/desktop/src/main/backupWorker.ts",
     "@ownbase/server/backup",
-    "packages/server/src/backup.ts",
+    "packages/server/src/backups/backup.ts",
   );
   expectImport(
     "apps/desktop/src/main/registry.ts",
     "@ownbase/server/ownership",
-    "packages/server/src/ownership.ts",
+    "packages/server/src/core/ownership.ts",
   );
   expectImport(
     "apps/desktop/src/main/draftsStorage.ts",

@@ -150,7 +150,7 @@
       "concepts": ["two-step sign-in", "TOTP", "RFC 6238", "recovery codes", "E11"]
     },
     {
-      "path": "packages/server/src/backup.ts",
+      "path": "packages/server/src/backups/backup.ts",
       "plain": "Makes a complete backup of the workspace and its files, checks it, and puts a backup back in place when the host restores one.",
       "summary": "Captures, verifies, inventories and restores portable workspace backups.",
       "details": [
@@ -163,7 +163,7 @@
       "concepts": ["backup", "checksum", "WAL snapshot", "path lock"]
     },
     {
-      "path": "packages/server/src/backupSchedule.ts",
+      "path": "packages/server/src/backups/backupSchedule.ts",
       "plain": "Lets the server back itself up on a timer into dated folders, keeping the newest few, so a host does not have to remember to.",
       "summary": "Schedules verified backups, prunes old ones and reports how they are going.",
       "details": [
@@ -175,7 +175,7 @@
       "concepts": ["scheduled backup", "retention of copies", "child process", "P3"]
     },
     {
-      "path": "packages/server/src/offsite.ts",
+      "path": "packages/server/src/backups/offsite.ts",
       "plain": "Sends each scheduled backup, as one zip, to a bucket somewhere else such as Cloudflare R2, so losing the server's disk does not lose the backups too.",
       "summary": "Uploads verified backups to an S3-compatible bucket and keeps the newest few there.",
       "details": [
@@ -327,7 +327,7 @@
       "concepts": ["attachment metadata", "layout stability"]
     },
     {
-      "path": "packages/server/src/workspaceCopy.ts",
+      "path": "packages/server/src/backups/workspaceCopy.ts",
       "plain": "Makes a fresh copy of the workspace for its owner to download, and unpacks a downloaded copy so it can be restored.",
       "summary": "Owns the owner's downloadable copy and the zip form of a backup.",
       "details": [
@@ -339,7 +339,7 @@
       "concepts": ["data portability", "download ticket", "backup", "P4"]
     },
     {
-      "path": "packages/server/src/workspaceIcon.ts",
+      "path": "packages/server/src/admin/workspaceIcon.ts",
       "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
       "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
       "details": [
@@ -352,7 +352,7 @@
       "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
     },
     {
-      "path": "packages/server/src/zip.ts",
+      "path": "packages/server/src/backups/zip.ts",
       "plain": "Packs a workspace copy into one zip file, and unpacks one, without any outside library.",
       "summary": "Writes stored ZIP/ZIP64 archives with exact lengths and reads stored or deflated entries back.",
       "details": [
@@ -459,7 +459,7 @@
       "concepts": ["link previews", "SSRF guard", "HTML metadata"]
     },
     {
-      "path": "packages/server/src/ownership.ts",
+      "path": "packages/server/src/core/ownership.ts",
       "plain": "Makes sure only one server at a time can open and change a workspace folder.",
       "summary": "Ensures one process owns a writable workspace folder at a time.",
       "details": [
@@ -1676,14 +1676,14 @@
         {
           "title": "Copy the database at one moment",
           "description": "The server copies its database as it stands, including the most recent saves, and lists the uploaded files the backup needs. If a file is deleted while the backup runs, the backup fails. To be sure a backup is complete, take it while the server is stopped.",
-          "files": ["packages/server/src/backup.ts"],
+          "files": ["packages/server/src/backups/backup.ts"],
           "detail": "VACUUM INTO reads committed SQLite/WAL state; snapshot file inventory identifies required blobs. Missing concurrent-deleted blobs fail capture, so stopped-server capture is the way to guarantee completeness."
         },
         {
           "title": "Or let the server back itself up",
           "description": "A host can ask the server to take a backup on a timer into a folder of dated copies, keeping the newest few. Each is the same checked backup. While one copies files, the server holds off removing deleted ones, so the copy is complete without stopping anything, and the copying happens in a separate process so chat does not wait.",
           "files": [
-            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/backups/backupSchedule.ts",
             "packages/server/src/server.ts",
             "packages/server/src/main.ts"
           ],
@@ -1693,8 +1693,8 @@
           "title": "And send each one somewhere else",
           "description": "A host can also have every scheduled backup sent as one zip to a storage bucket elsewhere, such as Cloudflare R2, keeping the newest few there. If the server's disk is lost, the backups are not. A send that fails is tried again within the hour without taking a new backup.",
           "files": [
-            "packages/server/src/offsite.ts",
-            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/backups/offsite.ts",
+            "packages/server/src/backups/backupSchedule.ts",
             "packages/server/src/main.ts",
             "ee/cloud/src/controlPlane.ts"
           ],
@@ -1704,8 +1704,8 @@
           "title": "Or download a copy as the owner",
           "description": "The owner can ask for a copy from Workspace settings without reaching the server. It is a fresh backup, checked like any other, sent as one zip file through a link that works once. The same zip restores the workspace here or on the owner's own server.",
           "files": [
-            "packages/server/src/workspaceCopy.ts",
-            "packages/server/src/zip.ts",
+            "packages/server/src/backups/workspaceCopy.ts",
+            "packages/server/src/backups/zip.ts",
             "packages/server/src/server.ts",
             "packages/ui/src/components/WorkspaceSettings.tsx"
           ],
@@ -1714,14 +1714,14 @@
         {
           "title": "Check the backup before keeping it",
           "description": "The copied database and files must match their recorded sizes and fingerprints, the expected layout and counts, and the database's own health check. Every file reference must be valid, with nothing listed twice and nothing pointing outside the backup. Only then does the server move the finished backup to its final place.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/db.ts"],
+          "files": ["packages/server/src/backups/backup.ts", "packages/server/src/db.ts"],
           "detail": "Staged database and files must match checksums/sizes, schema/counts, integrity and references, with no manifest duplicates or path escape. Only then is the complete capture renamed to its destination."
         },
         {
           "title": "See what a restored copy would do",
           "description": "Without changing anything, the host can list which outside apps a restored copy would contact, which scheduled messages are waiting, which app calls never went out and which sign-ins still work. A separate isolated mode runs the copy without calling apps or sending scheduled messages, so it can be looked at safely.",
           "files": [
-            "packages/server/src/backup.ts",
+            "packages/server/src/backups/backup.ts",
             "packages/server/src/main.ts",
             "packages/server/src/server.ts"
           ],
@@ -1730,20 +1730,23 @@
         {
           "title": "Prepare the restore beside the original",
           "description": "Restore refuses to start if a server is using the workspace. It copies the checked backup next to the workspace folder and checks the copy again. The old workspace moves to a set-aside folder so it can still be recovered.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"],
+          "files": [
+            "packages/server/src/backups/backup.ts",
+            "packages/server/src/core/ownership.ts"
+          ],
           "detail": "Restore refuses an already held workspace, copies the verified backup beside the target and verifies staged bytes. The old workspace is moved to a superseded folder for recovery."
         },
         {
           "title": "No other server can slip in while folders swap",
           "description": "Restore has to let go of the workspace folder for a moment to rename it, because Windows will not rename a folder with a file open inside it. It keeps a second claim beside the folder the whole time, so a server started in that moment is refused and makes no workspace of its own there. If the swap fails, the original goes back where it was.",
-          "files": ["packages/server/src/backup.ts"],
+          "files": ["packages/server/src/backups/backup.ts"],
           "detail": "Restore holds a sibling path lock from before staging until publication or rollback is complete, and releases the in-folder hold only for the renames. holdWorkspace takes the path lock before mkdir, so a concurrent start gets WorkspaceInUseError and the target stays absent until the staged copy is renamed in."
         },
         {
           "title": "Start the restored workspace as usual",
           "description": "The next server to start takes sole hold of the restored workspace and upgrades its database if needed, keeping a copy from before the upgrade. The host applies settings that belong to the computer separately, such as the public address, how long history is kept and call connection settings.",
           "files": [
-            "packages/server/src/ownership.ts",
+            "packages/server/src/core/ownership.ts",
             "packages/server/src/db.ts",
             "packages/server/src/config.ts",
             "packages/server/src/server.ts"

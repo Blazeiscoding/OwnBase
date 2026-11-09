@@ -3,7 +3,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
-import { holdWorkspace, WorkspaceInUseError } from "../src/ownership.js";
+import { holdWorkspace, WorkspaceInUseError } from "../src/core/ownership.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**

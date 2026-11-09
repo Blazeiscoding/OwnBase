@@ -5,17 +5,17 @@ import { createServer, type IncomingMessage, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { backupWorkspace, verifyBackup } from "../src/backup.js";
-import { BackupSchedule, backupFolderName } from "../src/backupSchedule.js";
+import { backupWorkspace, verifyBackup } from "../src/backups/backup.js";
+import { BackupSchedule, backupFolderName } from "../src/backups/backupSchedule.js";
 import {
   OffsiteBackups,
   parseOffsiteUrl,
   pieces,
   signRequest,
   type OffsiteUploader,
-} from "../src/offsite.js";
+} from "../src/backups/offsite.js";
 import { createWorkspaceServer } from "../src/server.js";
-import { unzipBackup } from "../src/workspaceCopy.js";
+import { unzipBackup } from "../src/backups/workspaceCopy.js";
 import { Readable } from "node:stream";
 
 const HOUR = 3600_000;
