@@ -11,7 +11,13 @@ const DRIFT = 10;
  * Chrome says so itself with a context menu event; iOS Safari never does, so
  * the hold is timed here. The click that ends a hold is not a click.
  */
-export function useLongPress(onLongPress: (() => void) | undefined) {
+export function useLongPress(
+  onLongPress: (() => void) | undefined,
+  options: {
+    /** A press this hold leaves alone, such as one on a control inside it. */
+    skip?: (target: Element) => boolean;
+  } = {},
+) {
   const run = useRef(onLongPress);
   run.current = onLongPress;
   const press = useRef<{ x: number; y: number; timer: number } | null>(null);
@@ -28,6 +34,7 @@ export function useLongPress(onLongPress: (() => void) | undefined) {
       cancel();
       held.current = false;
       if (!run.current || event.touches.length !== 1) return;
+      if (options.skip?.(event.target as Element)) return;
       if (typeof matchMedia !== "function" || !matchMedia("(hover: none)").matches) return;
       const touch = event.touches[0]!;
       press.current = {
