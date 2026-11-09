@@ -897,10 +897,12 @@ export class MessageStore {
     const direct = userMentionsIn(text);
     const roomWideToken = broadcastsIn(text).size > 0;
     if (direct.size === 0 && !roomWideToken) return [];
-    const channel = this.store.getChannel(channelId);
+    const channel = this.store.channels.get(channelId);
     if (!channel) return [];
     if (roomWideToken && isRoom(channel.type))
-      return this.store.memberIds(channelId).filter((id) => id !== exclude);
-    return [...direct].filter((id) => id !== exclude && this.store.isMember(channelId, id));
+      return this.store.channels.memberIds(channelId).filter((id) => id !== exclude);
+    return [...direct].filter(
+      (id) => id !== exclude && this.store.channels.isMember(channelId, id),
+    );
   }
 }

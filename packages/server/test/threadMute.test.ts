@@ -92,7 +92,7 @@ beforeEach(async () => {
     password: "password123",
   });
   peer = { token: second.body.token, id: second.body.user.id };
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -129,7 +129,7 @@ describe("muting a thread", () => {
     const named = await post(`<@${owner.id}> your item is first`, peer.token, root.id);
     const muted = await mute(root.id, true);
     expect(muted.body.state.lastReadSeq).toBeLessThan(named.seq);
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
   });
 
   it("stays unfollowed when the account that muted it replies, caught up to its reply", async () => {
@@ -168,7 +168,7 @@ describe("muting a thread", () => {
     await post(`<@${owner.id}> can you sign off?`, peer.token, root.id);
     expect(await activity("unread")).toEqual([`<@${owner.id}> can you sign off?`]);
     expect(await activity("threads")).toEqual([]);
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
     expect(server.store.threads.unreadCount(owner.id)).toBe(0);
   });
 

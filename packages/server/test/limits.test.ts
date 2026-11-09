@@ -286,7 +286,7 @@ describe("posting and upload limits", () => {
     await start({ post: { burst: 1, perMinute: 1 } });
     const noisy = await register("noisy");
     const quiet = await register("quiet");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
 
     const first = await call(`/api/channels/${channelId}/messages`, {
       token: noisy,
@@ -317,7 +317,7 @@ describe("posting and upload limits", () => {
   it("lets a built-in spend the post budget, without charging invalid usage", async () => {
     await start({ post: { burst: 1, perMinute: 1 } });
     const token = await register("speaker");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
 
     expect(
       (await call(`/api/channels/${channelId}/commands`, { token, body: { text: "/me" } })).status,
@@ -341,7 +341,7 @@ describe("posting and upload limits", () => {
     await start({ post: { burst: 1, perMinute: 1 } });
     const noisy = await register("noisy");
     const quiet = await register("quiet");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const sendAt = Date.now() + 60_000;
 
     expect(
@@ -371,7 +371,7 @@ describe("posting and upload limits", () => {
   it("charges a scheduled message once, when it is queued, not on a retry or at delivery", async () => {
     await start({ post: { burst: 1, perMinute: 1 } });
     const token = await register("planner");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const request = { text: "queued once", sendAt: Date.now() + 60_000, nonce: "schedule-once" };
 
     const accepted = await call<{ scheduled: { id: string } }>(
@@ -414,7 +414,7 @@ describe("posting and upload limits", () => {
     await start({ post: { burst: 3, perMinute: 1 } });
     const noisy = await register("noisy");
     const quiet = await register("quiet");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
 
     let refused = 0;
     for (let i = 0; i < 6; i++) {
@@ -438,7 +438,7 @@ describe("posting and upload limits", () => {
   it("leaves reading alone when writing has been cut off", async () => {
     await start({ post: { burst: 1, perMinute: 1 } });
     const token = await register("reader");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
 
     await call(`/api/channels/${channelId}/messages`, { token, body: { text: "one" } });
     expect(
@@ -483,7 +483,7 @@ describe("turning limits off", () => {
   it("rations nothing when the host has said not to", async () => {
     await start(false);
     const token = await register("unlimited");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     for (let i = 0; i < 80; i++) {
       const res = await call(`/api/channels/${channelId}/messages`, {
         token,
@@ -518,7 +518,7 @@ describe("typing notices", () => {
   it("drops the excess quietly rather than closing the socket", async () => {
     await start({ ephemeral: { burst: 2, perMinute: 1 } });
     const token = await register("typist");
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
 
     const ws = new WebSocket(`ws://127.0.0.1:${server!.port}/ws`);
     const seen: ServerToClient[] = [];
@@ -619,7 +619,7 @@ class HeldApp {
 
 describe("incoming webhooks", () => {
   async function webhooks(owner: string, count: number) {
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const { data: created } = await call<{ app: { id: string } }>("/api/apps", {
       token: owner,
       body: { name: "Alerts" },
@@ -697,7 +697,7 @@ describe("calls out to apps", () => {
 
   /** An app with a slash command and buttons, all pointing at `app`. */
   async function installed(owner: string) {
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const { data: created } = await call<{ app: { id: string } }>("/api/apps", {
       token: owner,
       body: { name: "Deployer" },

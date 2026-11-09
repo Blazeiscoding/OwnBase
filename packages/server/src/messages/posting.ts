@@ -130,7 +130,7 @@ export function createPosting({
   /** Where the poster may write: the conversation, or why not. */
   const writableChannel = (poster: Poster, channelId: ID): Channel => {
     const userId = userIdOf(poster);
-    const channel = store.getChannel(channelId);
+    const channel = store.channels.get(channelId);
     if (!channel) throw new HttpError(404, "channel_not_found");
     if (poster.kind === "person" && !store.canAccess(channel.id, userId))
       throw new HttpError(404, "channel_not_found");
@@ -139,7 +139,7 @@ export function createPosting({
     // An app's bot posts where it was added. A public channel it was never
     // added to takes Slack's chat:write.public through the Web API; a webhook
     // or an answer to someone there is posting where it was asked to.
-    if (poster.kind !== "person" && !store.isMember(channel.id, userId)) {
+    if (poster.kind !== "person" && !store.channels.isMember(channel.id, userId)) {
       if (channel.type !== "public") throw new HttpError(403, "not_in_channel");
       if (poster.kind === "bot" && !poster.app.scopes?.includes("chat:write.public"))
         throw new ScopeNeeded("not_in_channel", "chat:write.public");
@@ -230,8 +230,8 @@ export function createPosting({
             : target.threadRootId !== null && !target.broadcast))
       )
         throw new HttpError(400, "bad_reply_target");
-      if (channel.type === "public" && !store.isMember(channel.id, userId)) {
-        store.addMember(channel.id, userId);
+      if (channel.type === "public" && !store.channels.isMember(channel.id, userId)) {
+        store.channels.addMember(channel.id, userId);
         record({ type: "member.joined", channelId: channel.id, userId });
       }
       // A file a scheduled message is waiting to send is already promised.

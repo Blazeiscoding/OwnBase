@@ -176,7 +176,7 @@ describe("managing a public room", () => {
     expect(
       (await request(`/api/channels/${roomId}`, manager.token, "PATCH", { topic: "Back" })).status,
     ).toBe(403);
-    expect(server.store.getChannel(roomId)!.managerIds ?? []).not.toContain(manager.id);
+    expect(server.store.channels.get(roomId)!.managerIds ?? []).not.toContain(manager.id);
   });
 
   it("makes only active members managers, never the owner, an admin or someone outside", async () => {

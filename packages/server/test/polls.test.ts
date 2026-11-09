@@ -127,7 +127,7 @@ beforeEach(async () => {
   await start();
   owner = await register("owner");
   peer = await register("peer");
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -400,7 +400,7 @@ describe("who can see and vote", () => {
 
   it("refuses votes once its conversation is archived", async () => {
     const made = await poll("Lunch?", ["Pizza", "Tacos"]);
-    server!.store.updateChannel(channelId, { archived: true });
+    server!.store.channels.update(channelId, { archived: true });
     const late = await vote(made.id, [0]);
     expect(late.status).toBe(400);
     expect(late.body.error).toBe("channel_archived");

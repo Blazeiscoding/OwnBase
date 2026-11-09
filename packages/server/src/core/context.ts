@@ -1,6 +1,6 @@
-import type { DatabaseSync } from "node:sqlite";
-import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
 import type { ID, User } from "@ownbase/protocol";
+import type { FastifyBaseLogger, FastifyInstance, FastifyRequest } from "fastify";
+import type { DatabaseSync } from "node:sqlite";
 import type { Gateway } from "../gateway.js";
 import { HttpError } from "../httpError.js";
 import type { Limits, RateLimiter } from "../limits.js";
@@ -59,7 +59,7 @@ export function rationWith(limiter: RateLimiter | null) {
 
 /** The conversation, if the caller may read it; 404s otherwise, so its existence stays hidden. */
 export function requireChannelAccess(store: Store, channelId: ID, user: User) {
-  const channel = store.getChannel(channelId);
+  const channel = store.channels.get(channelId);
   if (!channel || !store.canAccess(channelId, user.id)) {
     throw new HttpError(404, "channel_not_found");
   }
@@ -74,3 +74,7 @@ export function requireVisibleMessage(store: Store, messageId: ID, user: User) {
   }
   return message;
 }
+
+/** Guests read and take part in public channels; private rooms and DMs are closed to them. */
+export const guestRestricted = () =>
+  new HttpError(403, "guest_restricted", "Guests can only be in public channels.");

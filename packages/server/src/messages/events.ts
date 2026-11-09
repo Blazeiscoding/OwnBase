@@ -35,7 +35,7 @@ export const messageDurable = {
       // A reply that notified the author of what it answers counts for them.
       const pinged = message.replyTo?.ping ? message.replyTo.userId : null;
       store.outbox.mentions(
-        pinged && !named.includes(pinged) && store.isMember(message.channelId, pinged)
+        pinged && !named.includes(pinged) && store.channels.isMember(message.channelId, pinged)
           ? [...named, pinged]
           : named,
       );

@@ -84,7 +84,7 @@ async function start() {
         })
       ).data,
     );
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 }
 
 afterEach(async () => {
@@ -120,7 +120,7 @@ describe("socket callbacks that fail (F03)", () => {
     const [person, watcher] = people as [Person, Person];
     const observer = await connect(watcher.token);
     const read = vi
-      .spyOn(server.store, "listChannelsVisibleTo")
+      .spyOn(server.store.channels, "visibleTo")
       .mockImplementationOnce(failing("disk"));
 
     const device = open(person.token);
@@ -207,7 +207,7 @@ describe("socket callbacks that fail (F03)", () => {
     device.ws.send(JSON.stringify({ type: "huddle.join", channelId: general, requestId: "j1" }));
     await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([person.user.id]);
 
-    vi.spyOn(server.store, "getChannel").mockImplementation(failing("disk"));
+    vi.spyOn(server.store.channels, "get").mockImplementation(failing("disk"));
     device.ws.close();
     await expect.poll(() => server.gateway.isOnline(person.user.id)).toBe(false);
     await expect.poll(() => server.gateway.huddleParticipants(general)).toEqual([]);

@@ -62,7 +62,7 @@ describe("self-hosted product", () => {
   it("streams uploads and downloads and removes partial oversized files", async () => {
     const base = await start(2 * 1024 * 1024);
     const owner = (await register(base, "owner")).data;
-    const channel = server!.store.getChannelByName("general")!;
+    const channel = server!.store.channels.byName("general")!;
     const body = new Uint8Array(1024 * 1024).fill(42);
     const form = new FormData();
     form.append("file", new Blob([body]), "payload.bin");
@@ -109,8 +109,8 @@ describe("self-hosted product", () => {
     // Slack answers a failed method with 200 and ok:false; see slackError.
     expect(result.status).toBe(200);
     expect((result.data as { error?: string }).error).toBe("not_in_channel");
-    expect(server!.store.isMember(channel.id, created.app.botUserId)).toBe(false);
-    server!.store.addMember(channel.id, created.app.botUserId);
+    expect(server!.store.channels.isMember(channel.id, created.app.botUserId)).toBe(false);
+    server!.store.channels.addMember(channel.id, created.app.botUserId);
     expect(
       (
         await request(base, "/api/chat.postMessage", created.token, "POST", {
@@ -248,7 +248,7 @@ describe("self-hosted product", () => {
       displayName: "Owner",
       password: "password123",
     });
-    const channel = server!.store.getChannelByName("general")!;
+    const channel = server!.store.channels.byName("general")!;
     const posted = await request(
       base,
       `/api/channels/${channel.id}/messages`,
@@ -448,7 +448,7 @@ describe("self-hosted product", () => {
     const invite = (await request(base, "/api/invites", owner.data.token, "POST", { maxUses: 5 }))
       .data.invite.code;
     const leaver = await register(base, "leaver", invite);
-    const channel = server!.store.getChannelByName("general")!;
+    const channel = server!.store.channels.byName("general")!;
 
     // Queued through the store so it is already due; the API rightly refuses a
     // time in the past, and what is under test is what the sender picks up.

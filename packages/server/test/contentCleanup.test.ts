@@ -58,7 +58,7 @@ beforeEach(async () => {
   });
   token = registered.body.token;
   owner = registered.body.user.id;
-  channel = server.store.getChannelByName("general")!.id;
+  channel = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -249,7 +249,7 @@ describe("complete message content cleanup (N06/N07)", () => {
         salt: "unused",
         role: "owner",
       });
-      const room = store.createChannel({
+      const room = store.channels.create({
         type: "public",
         name: "meetings",
         creatorId: user.id,

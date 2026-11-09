@@ -62,7 +62,7 @@ beforeEach(async () => {
       password: "password123",
     })
   ).body.token;
-  channel = server.store.getChannelByName("general")!.id;
+  channel = server.store.channels.byName("general")!.id;
   app = (await api("POST", "/api/apps", { name: "Meeting App" })).body;
   expect(
     (

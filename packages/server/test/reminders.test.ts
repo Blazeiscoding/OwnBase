@@ -107,7 +107,7 @@ beforeEach(async () => {
     password: "password123",
   });
   peer = { token: second.body.token, id: second.body.user.id };
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {

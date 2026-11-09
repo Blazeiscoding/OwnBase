@@ -105,25 +105,25 @@ function seed() {
   );
   const ana = people[0]!;
   const ben = people[1]!;
-  const general = store.createChannel({
+  const general = store.channels.create({
     type: "public",
     name: "general",
     creatorId: ana.id,
     memberIds: [ana.id],
   });
-  const small = store.createChannel({
+  const small = store.channels.create({
     type: "public",
     name: "small",
     creatorId: ana.id,
     memberIds: [ana.id],
   });
-  const team = store.createChannel({
+  const team = store.channels.create({
     type: "private",
     name: "team",
     creatorId: ana.id,
     memberIds: [ana.id, ben.id],
   });
-  const hidden = store.createChannel({
+  const hidden = store.channels.create({
     type: "private",
     name: "hidden",
     creatorId: ben.id,
@@ -271,7 +271,7 @@ function seedMatrix() {
     store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" }),
   );
   const room = (type: "public" | "private" | "dm", name: string, members: string[]) =>
-    store.createChannel({ type, name, creatorId: members[0]!, memberIds: members }).id;
+    store.channels.create({ type, name, creatorId: members[0]!, memberIds: members }).id;
   const where = {
     general: room("public", "general", [ana!.id, ben!.id, cai!.id]),
     lobby: room("public", "lobby", [cai!.id]),

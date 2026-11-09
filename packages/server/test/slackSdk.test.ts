@@ -72,8 +72,8 @@ beforeAll(async () => {
     { name: "SDK Bot" },
   );
   bot = { appId: made.app.id, botUserId: made.botUser.id, token: made.token };
-  channelId = server.store.getChannelByName("general")!.id;
-  server.store.addMember(channelId, bot.botUserId);
+  channelId = server.store.channels.byName("general")!.id;
+  server.store.channels.addMember(channelId, bot.botUserId);
   // No retries: a failure should be reported here, not retried into a timeout.
   client = new WebClient(bot.token, {
     slackApiUrl: `${base}/api/`,

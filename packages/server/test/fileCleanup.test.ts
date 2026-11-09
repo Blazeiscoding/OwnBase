@@ -65,7 +65,7 @@ beforeEach(async () => {
       password: "password123",
     })
   ).body.token;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 afterEach(async () => {
   vi.restoreAllMocks();

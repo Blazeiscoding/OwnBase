@@ -53,7 +53,7 @@ async function posted(text: string) {
     body: JSON.stringify({ handle: "author", displayName: "Author", password: "password123" }),
   });
   const { token, user } = (await response.json()) as { token: string; user: { id: string } };
-  const general = server!.store.getChannelByName("general")!.id;
+  const general = server!.store.channels.byName("general")!.id;
   const { body } = await call(token, `/api/channels/${general}/messages`, "POST", { text });
   author = user.id;
   return { token, id: body.message.id as string };

@@ -1,14 +1,10 @@
 import {
   ACCESS_POLICIES,
-  canRemoveChannelMember,
-  canSetChannelManager,
-  channelPermissions,
   DEFAULT_PORT,
   endpoints,
   isAdministrator,
   planMembers,
   PROTOCOL_VERSION,
-  SIDEBAR_SECTIONS_MAX,
   workspaceNameSchema,
   type AccessPolicy,
   type App,
@@ -45,11 +41,13 @@ import {
   type AnswerContext,
 } from "./blockKit.js";
 import { CapabilityMap } from "./capabilities.js";
+import { registerChannels } from "./channels/feature.js";
 import { BUILTIN_COMMANDS } from "./commands.js";
 import { ConfigError, parsePort } from "./config.js";
 import { BackgroundWork } from "./core/background.js";
 import { createCommits } from "./core/commit.js";
 import {
+  guestRestricted,
   rationWith,
   requireChannelAccess as requireChannelAccessIn,
   requireVisibleMessage as requireVisibleMessageIn,
@@ -133,10 +131,6 @@ const MAX_GUEST_SESSIONS = 200;
 
 const isAccessPolicy = (value: unknown): value is AccessPolicy =>
   ACCESS_POLICIES.includes(value as AccessPolicy);
-
-/** Guests read and take part in public channels; private rooms and DMs are closed to them. */
-const guestRestricted = () =>
-  new HttpError(403, "guest_restricted", "Guests can only be in public channels.");
 
 export interface ServerOptions {
   /** Directory holding workspace.db and uploads. Use ":memory:" for tests. */
@@ -947,15 +941,8 @@ async function startWorkspaceServer(
     return reply.header("content-length", String(current.bytes.length)).send(current.bytes);
   });
 
-  /** Puts someone new in every open public channel, as a new channel takes in everyone. */
-  const joinPublicChannels = (userId: ID, emit: typeof recordEvent) => {
-    for (const channel of store.listChannelsVisibleTo(userId)) {
-      if (channel.type !== "public" || channel.archived) continue;
-      if (store.addMember(channel.id, userId)) {
-        emit({ type: "member.joined", channelId: channel.id, userId });
-      }
-    }
-  };
+  const channels = registerChannels(ctx);
+  const { joinPublicChannels } = channels;
 
   route(endpoints.register, async ({ req, body }) => {
     ration("authByAddress", callerAddress(req));
@@ -1012,7 +999,7 @@ async function startWorkspaceServer(
         // Single use: the workspace now has an owner and cannot be claimed again.
         store.setMeta("claim_code", "");
         // Bootstrap the workspace with #general.
-        const general = store.createChannel({
+        const general = store.channels.create({
           type: "public",
           name: "general",
           description: "This channel is for workspace-wide communication.",
@@ -1503,211 +1490,6 @@ async function startWorkspaceServer(
     return { blocked: store.blockedIds(me.id) };
   });
 
-  route(endpoints.listChannels, async ({ user: me }) => {
-    // How many active people each channel holds, for the channel browser.
-    return {
-      channels: store.listChannelsVisibleTo(me.id),
-      memberCounts: store.roomMemberCounts(me.id),
-    };
-  });
-
-  route(endpoints.createChannel, async ({ reply, user: me, body }) => {
-    return mutate((emit) => {
-      if (body.type === "public" || body.type === "private") {
-        if (store.getChannelByName(body.name)) throw new HttpError(409, "name_taken");
-        // A public channel takes in everyone here, as Discord's do, so it
-        // shows up for them at once; each can leave it. A private one only
-        // the people it was made for.
-        const memberIds = [
-          ...new Set([
-            me.id,
-            ...(body.type === "private" ? (body.memberIds ?? []) : store.listPeopleIds()),
-          ]),
-        ];
-        if (body.type === "private") {
-          for (const id of memberIds) {
-            const member = store.getUser(id);
-            if (!member) throw new HttpError(400, "unknown_user", id);
-            if (member.role === "guest") throw guestRestricted();
-          }
-        }
-        const channel = store.createChannel({
-          type: body.type,
-          name: body.name,
-          topic: body.topic,
-          description: body.description,
-          creatorId: me.id,
-          memberIds,
-        });
-        emit({ type: "channel.created", channel });
-        // Named channels carry no memberIds, so announce the founding members
-        // explicitly or clients won't know they belong to it.
-        for (const userId of memberIds) {
-          emit({ type: "member.joined", channelId: channel.id, userId });
-        }
-        return { channel };
-      }
-
-      // dm / group_dm — idempotent on the member set.
-      const memberIds = [...new Set([me.id, ...body.memberIds])].sort();
-      for (const id of memberIds) {
-        const member = store.getUser(id);
-        if (!member) throw new HttpError(400, "unknown_user", id);
-        if (member.role === "guest") throw guestRestricted();
-      }
-      const dmKey = memberIds.join(":");
-      const existing = store.findDmByKey(dmKey);
-      if (existing) {
-        if ([...(existing.memberIds ?? [])].sort().join(":") === dmKey) {
-          reply.status(200);
-          return { channel: existing };
-        }
-        // Legacy groups may still have the original key after someone left.
-        // Never restore that person's access to the group's intervening history.
-        store.retireDmKey(existing.id);
-      }
-
-      const channel = store.createChannel({
-        type: memberIds.length === 2 ? "dm" : "group_dm",
-        creatorId: me.id,
-        memberIds,
-        dmKey,
-      });
-      emit({ type: "channel.created", channel });
-      return { channel };
-    });
-  });
-
-  route(endpoints.updateChannel, async ({ user: me, body, params }) => {
-    const existing = requireChannelAccess(params.id, me);
-    if (existing.type === "dm" || existing.type === "group_dm") {
-      throw new HttpError(400, "cannot_edit_dm");
-    }
-    if (!channelPermissions(me, existing, store.isMember(existing.id, me.id)).manage) {
-      throw new HttpError(403, "channel_management_required");
-    }
-    if (body.name && body.name !== existing.name && store.getChannelByName(body.name)) {
-      throw new HttpError(409, "name_taken");
-    }
-    return mutate((emit) => {
-      const channel = store.updateChannel(existing.id, body);
-      emit({ type: "channel.updated", channel });
-      return { channel };
-    });
-  });
-
-  route(endpoints.joinChannel, async ({ user: me, params }) => {
-    const channel = store.getChannel(params.id);
-    if (!channel || channel.type !== "public") throw new HttpError(404, "channel_not_found");
-    if (channel.archived) throw new HttpError(400, "channel_archived");
-    mutate((emit) => {
-      if (store.addMember(channel.id, me.id)) {
-        emit({ type: "member.joined", channelId: channel.id, userId: me.id });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.leaveChannel, async ({ user: me, params }) => {
-    const channel = requireChannelAccess(params.id, me);
-    if (channel.type === "dm") throw new HttpError(400, "cannot_leave_dm");
-    mutate((emit) => {
-      if (store.removeMember(channel.id, me.id)) {
-        emit({ type: "member.left", channelId: channel.id, userId: me.id });
-        if (channel.type === "group_dm")
-          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! });
-        if (channel.managerIds?.includes(me.id))
-          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.inviteMember, async ({ user: me, params, body }) => {
-    const channel = requireChannelAccess(params.id, me);
-    const invited = store.getUser(body.userId);
-    if (!invited) throw new HttpError(400, "unknown_user");
-    if (channel.type === "dm" || channel.type === "group_dm") {
-      throw new HttpError(400, "cannot_invite_to_dm");
-    }
-    if (invited.role === "guest" && channel.type !== "public") throw guestRestricted();
-    if (!channelPermissions(me, channel, store.isMember(channel.id, me.id)).invite) {
-      throw new HttpError(403, "channel_invite_forbidden");
-    }
-    mutate((emit) => {
-      if (store.inviteMember(channel.id, invited.id)) {
-        emit({ type: "member.joined", channelId: channel.id, userId: invited.id });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.removeChannelMember, async ({ user: me, params }) => {
-    const channel = requireChannelAccess(params.id, me);
-    const target = store.getUser(params.userId);
-    if (
-      !canRemoveChannelMember(me, target ?? undefined, channel, store.isMember(channel.id, me.id))
-    ) {
-      throw new HttpError(403, "channel_removal_forbidden");
-    }
-    mutate((emit) => {
-      if (store.removeMember(channel.id, params.userId)) {
-        store.addChannelRemoval(params.userId, channel, me.id);
-        if (channel.managerIds?.includes(params.userId))
-          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! });
-        emit({ type: "member.left", channelId: channel.id, userId: params.userId });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.setChannelManager, async ({ user: me, body, params }) => {
-    const channel = requireChannelAccess(params.id, me);
-    const target = store.getUser(params.userId);
-    const { manager } = body;
-    if (
-      !canSetChannelManager(
-        me,
-        target ?? undefined,
-        channel,
-        store.isMember(channel.id, me.id),
-        manager,
-      )
-    ) {
-      throw new HttpError(403, "channel_manager_assignment_forbidden");
-    }
-    if (!store.isMember(channel.id, params.userId))
-      throw new HttpError(409, "channel_membership_required");
-    return mutate((emit) => {
-      const changed = store.setChannelManager(channel.id, params.userId, manager);
-      const updated = store.getChannel(channel.id)!;
-      if (changed) emit({ type: "channel.updated", channel: updated });
-      return { channel: updated };
-    });
-  });
-
-  route(endpoints.channelMembers, async ({ user: me, params }) => {
-    requireChannelAccess(params.id, me);
-    return { memberIds: store.memberIds(params.id) };
-  });
-
-  route(endpoints.markRead, async ({ user: me, body, params }) => {
-    requireChannelAccess(params.id, me);
-    const { seq } = body;
-    if (!store.isMember(params.id, me.id)) throw new HttpError(404, "channel_not_found");
-    const { seq: acknowledged } = store.markRead(params.id, me.id, seq);
-    return { ok: true, seq: acknowledged };
-  });
-
-  route(endpoints.markUnread, async ({ user: me, body, params }) => {
-    requireChannelAccess(params.id, me);
-    const { seq } = body;
-    if (!store.isMember(params.id, me.id)) throw new HttpError(404, "channel_not_found");
-    const seqNow = store.markUnread(params.id, me.id, seq);
-    if (seqNow === null) throw new HttpError(400, "invalid_unread_target");
-    return { ok: true, seq: seqNow };
-  });
-
   // ---------- messages ----------
 
   const threads = registerThreads(ctx);
@@ -2129,7 +1911,7 @@ async function startWorkspaceServer(
         details: { appId: owner.id, name: owner.name, channelId: channel.id },
       });
       // The bot must be in the channel to post to it.
-      if (store.addMember(channel.id, owner.botUserId)) {
+      if (store.channels.addMember(channel.id, owner.botUserId)) {
         emit({ type: "member.joined", channelId: channel.id, userId: owner.botUserId });
       }
       return created;
@@ -2288,7 +2070,7 @@ async function startWorkspaceServer(
     // Slack accepts an id or a #name; so do we.
     const named = typeof body.channel === "string" ? body.channel : "";
     const channel = named
-      ? (store.getChannel(named) ?? store.getChannelByName(named.replace(/^#/, "")))
+      ? (store.channels.get(named) ?? store.channels.byName(named.replace(/^#/, "")))
       : null;
 
     let threadRootId: ID | null = null;
@@ -2374,7 +2156,7 @@ async function startWorkspaceServer(
     const bot = store.getUser(target.botUserId);
     if (!bot || bot.deactivated) return false;
     if (!store.appForBotUser(target.botUserId)) return false;
-    const channel = store.getChannel(target.channelId);
+    const channel = store.channels.get(target.channelId);
     if (!channel || channel.archived) return false;
     if (!store.canAccess(channel.id, bot.id)) return false;
     const invoker = store.getUser(target.invokerId);
@@ -2591,7 +2373,7 @@ async function startWorkspaceServer(
     try {
       // The bot has to be in the channel to answer in it.
       mutate((emit) => {
-        if (store.addMember(channel.id, found.app.botUserId)) {
+        if (store.channels.addMember(channel.id, found.app.botUserId)) {
           emit({ type: "member.joined", channelId: channel.id, userId: found.app.botUserId });
         }
       });
@@ -2837,7 +2619,7 @@ async function startWorkspaceServer(
   route(endpoints.listReports, async () => {
     const reports: ReportedMessage[] = [];
     for (const open of store.openReports()) {
-      const channel = store.getChannel(open.channelId);
+      const channel = store.channels.get(open.channelId);
       if (!channel) continue;
       reports.push({ ...open, message: store.messages.get(open.messageId), channel });
     }
@@ -3261,7 +3043,7 @@ async function startWorkspaceServer(
         return !!person && !person.deactivated;
       },
       conversationType: (id) => {
-        const channel = store.getChannel(id);
+        const channel = store.channels.get(id);
         return channel && !channel.archived && store.canAccess(id, me.id) ? channel.type : null;
       },
     };
@@ -3632,63 +3414,6 @@ async function startWorkspaceServer(
 
   const saved = registerSaved(ctx);
 
-  route(endpoints.setChannelPrefs, async ({ user: me, body, params }) => {
-    const channel = requireChannelAccess(params.id, me);
-    if (!store.isMember(params.id, me.id)) throw new HttpError(400, "not_a_member");
-    // A channel is left rather than closed; only a direct conversation hides.
-    if (typeof body.hiddenSeq === "number" && channel.type !== "dm" && channel.type !== "group_dm")
-      throw new HttpError(400, "not_direct", "Only a direct conversation can be closed.");
-    if (body.sectionId && !store.ownsSidebarSection(me.id, body.sectionId))
-      throw new HttpError(404, "section_not_found", "That section is not in your sidebar.");
-    const prefs = store.setChannelPrefs(params.id, me.id, body);
-    if (!prefs) throw new HttpError(404, "channel_not_found");
-    return { prefs };
-  });
-
-  route(endpoints.setNotifyDefault, async ({ user: me, body }) => {
-    const { level } = body;
-    store.setNotifyDefault(me.id, level);
-    return { level };
-  });
-
-  route(endpoints.unreadSummary, async ({ user: me }) => {
-    return store.unreadSummary(me.id);
-  });
-
-  // ---------- sidebar sections (E8) ----------
-
-  route(endpoints.createSidebarSection, async ({ user: me, body }) => {
-    const { name } = body;
-    if (store.sidebarSections(me.id).length >= SIDEBAR_SECTIONS_MAX)
-      throw new HttpError(
-        409,
-        "too_many_sections",
-        `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections.`,
-      );
-    const section = store.createSidebarSection(me.id, name);
-    return { section, sections: store.sidebarSections(me.id) };
-  });
-
-  route(endpoints.renameSidebarSection, async ({ user: me, body, params }) => {
-    const { name } = body;
-    if (!store.renameSidebarSection(me.id, params.id, name))
-      throw new HttpError(404, "section_not_found");
-    return { sections: store.sidebarSections(me.id) };
-  });
-
-  route(endpoints.deleteSidebarSection, async ({ user: me, params }) => {
-    const freed = store.transaction(() => store.deleteSidebarSection(me.id, params.id));
-    if (!freed) throw new HttpError(404, "section_not_found");
-    return { sections: store.sidebarSections(me.id) };
-  });
-
-  route(endpoints.orderSidebarSections, async ({ user: me, body }) => {
-    const { ids } = body;
-    const ordered = store.transaction(() => store.orderSidebarSections(me.id, ids));
-    if (!ordered) throw new HttpError(409, "sections_changed", "Your sections changed. Try again.");
-    return { sections: store.sidebarSections(me.id) };
-  });
-
   // ---------- invites & search ----------
 
   route(endpoints.createInvite, async ({ user: me, body }) => {
@@ -3750,12 +3475,6 @@ async function startWorkspaceServer(
 
   registerSearch(ctx);
 
-  route(endpoints.readChannelRemovals, async ({ user: me, body }) => {
-    const { ids } = body;
-    const read = store.readChannelRemovals(me.id, ids);
-    return { ids: read };
-  });
-
   const reminders = registerReminders(ctx);
 
   gateway.useSnapshot((user) => ({
@@ -3763,14 +3482,8 @@ async function startWorkspaceServer(
     ...polls.snapshot(user),
     ...saved.snapshot(user),
     ...threads.snapshot(user),
+    ...channels.snapshot(user),
     users: store.listUsers(),
-    channels: store.listChannelsVisibleTo(user.id),
-    memberships: store.memberships(user.id),
-    channelLastSeq: store.channelLastSeqMap(user.id),
-    mentionCounts: store.unreadMentionCounts(user.id),
-    channelRemovals: store.channelRemovals(user.id),
-    sidebarSections: store.sidebarSections(user.id),
-    notifyDefault: store.notifyDefault(user.id),
     accessPolicy: accessPolicy(),
     iconVersion: icon?.version ?? null,
     linkPreviews: linkPreviewsOn(),

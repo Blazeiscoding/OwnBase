@@ -60,7 +60,7 @@ describe("atomic registration", () => {
     });
     expect((await register("owner")).status).toBe(500);
     expect(server.store.userCount()).toBe(0);
-    expect(server.store.getChannelByName("general")).toBeNull();
+    expect(server.store.channels.byName("general")).toBeNull();
     expect(server.store.getMeta("claim_code")).toBe(claim);
     expect(server.store.currentSeq()).toBe(0);
     expect(publish).not.toHaveBeenCalled();
@@ -108,7 +108,7 @@ describe("atomic channel and account changes", () => {
         })
       ).status,
     ).toBe(400);
-    expect(server.store.getChannelByName("private-room")).toBeNull();
+    expect(server.store.channels.byName("private-room")).toBeNull();
     expect((await request("/api/channels", { type: "private", name: "private-room" })).status).toBe(
       201,
     );
@@ -124,7 +124,7 @@ describe("atomic channel and account changes", () => {
       expect(
         (await request("/api/channels", { type: "private", name: "private-room" })).status,
       ).toBe(500);
-      expect(server.store.getChannelByName("private-room")).toBeNull();
+      expect(server.store.channels.byName("private-room")).toBeNull();
       expect(server.store.currentSeq()).toBe(seq);
       expect(publish).not.toHaveBeenCalled();
       failure.mockRestore();
@@ -136,12 +136,12 @@ describe("atomic channel and account changes", () => {
 
   it("keeps old channel metadata when its event cannot be written", async () => {
     await owner();
-    const channel = server.store.getChannelByName("general")!;
+    const channel = server.store.channels.byName("general")!;
     failEvent();
     expect(
       (await request(`/api/channels/${channel.id}`, { topic: "uncommitted" }, "PATCH")).status,
     ).toBe(500);
-    expect(server.store.getChannel(channel.id)!.topic).toBe(channel.topic);
+    expect(server.store.channels.get(channel.id)!.topic).toBe(channel.topic);
   });
 
   it("does not grant private access or announce an invitation that rolled back", async () => {
@@ -154,7 +154,7 @@ describe("atomic channel and account changes", () => {
     expect(
       (await request(`/api/channels/${channel.id}/invite-member`, { userId: guest.id })).status,
     ).toBe(500);
-    expect(server.store.isMember(channel.id, guest.id)).toBe(false);
+    expect(server.store.channels.isMember(channel.id, guest.id)).toBe(false);
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -165,7 +165,7 @@ describe("atomic channel and account changes", () => {
     const notify = vi.spyOn(server.gateway, "updateChannelAccess");
     failEvent();
     expect((await request(`/api/channels/${channel.id}/leave`)).status).toBe(500);
-    expect(server.store.isMember(channel.id, me.id)).toBe(true);
+    expect(server.store.channels.isMember(channel.id, me.id)).toBe(true);
     expect(notify).not.toHaveBeenCalled();
   });
 
@@ -201,7 +201,7 @@ describe("atomic messages and integrations", () => {
     "rolls back %s when its event fails",
     async (action) => {
       await owner();
-      const channelId = server.store.getChannelByName("general")!.id;
+      const channelId = server.store.channels.byName("general")!.id;
       const message = (await request(`/api/channels/${channelId}/messages`, { text: "original" }))
         .body.message;
       if (action === "remove reaction")
@@ -246,17 +246,17 @@ describe("atomic messages and integrations", () => {
   it("rolls back a webhook and bot membership together", async () => {
     await owner();
     const app = (await request("/api/apps", { name: "Test App" })).body.app;
-    const channelId = server.store.getChannelByName("general")!.id;
+    const channelId = server.store.channels.byName("general")!.id;
     failEvent();
     expect((await request(`/api/apps/${app.id}/webhooks`, { channelId })).status).toBe(500);
     expect(server.store.listWebhooks(app.id)).toHaveLength(0);
-    expect(server.store.isMember(channelId, app.botUserId)).toBe(false);
+    expect(server.store.channels.isMember(channelId, app.botUserId)).toBe(false);
   });
 
   it("restores all app resources if deletion fails after removing them", async () => {
     await owner();
     const app = (await request("/api/apps", { name: "Test App" })).body.app;
-    const channelId = server.store.getChannelByName("general")!.id;
+    const channelId = server.store.channels.byName("general")!.id;
     const hook = (await request(`/api/apps/${app.id}/webhooks`, { channelId })).body.webhook;
     const remove = server.store.deleteApp.bind(server.store);
     vi.spyOn(server.store, "deleteApp").mockImplementationOnce((id) => {

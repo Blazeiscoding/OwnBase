@@ -85,7 +85,7 @@ describe("one workspace folder, one server", () => {
       body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
     });
     const { token } = (await register.json()) as { token: string };
-    const channelId = first.store.getChannelByName("general")!.id;
+    const channelId = first.store.channels.byName("general")!.id;
     const upload = async () => {
       const form = new FormData();
       form.append("file", new Blob([new Uint8Array(4)]), "four.bin");

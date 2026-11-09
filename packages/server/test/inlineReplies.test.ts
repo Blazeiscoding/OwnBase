@@ -89,7 +89,7 @@ beforeEach(async () => {
   base = `http://127.0.0.1:${server.port}`;
   owner = await register("owner");
   peer = await register("peer");
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -130,7 +130,7 @@ describe("inline replies", () => {
     const frames = await connect(owner.token);
 
     await post(peer.token, { text: "I do", replyToId: original.id });
-    expect(server.store.unreadMentionCounts(owner.id)).toEqual({ [channelId]: 1 });
+    expect(server.store.channels.unreadMentionCounts(owner.id)).toEqual({ [channelId]: 1 });
     // The author's connected devices hear their new count at once.
     await expect
       .poll(() =>
@@ -149,7 +149,7 @@ describe("inline replies", () => {
       replyPing: false,
     });
     expect(quiet.replyTo.ping).toBe(false);
-    expect(server.store.unreadMentionCounts(owner.id)).toEqual({ [channelId]: 1 });
+    expect(server.store.channels.unreadMentionCounts(owner.id)).toEqual({ [channelId]: 1 });
 
     // Answering yourself notifies nobody.
     const own = await post(owner.token, { text: "Never mind", replyToId: original.id });
@@ -169,7 +169,7 @@ describe("inline replies", () => {
         )
       ).status,
     ).toBe(200);
-    expect(server.store.unreadMentionCounts(owner.id)).toEqual({ [channelId]: 1 });
+    expect(server.store.channels.unreadMentionCounts(owner.id)).toEqual({ [channelId]: 1 });
   });
 
   it("answer only something in their own conversation", async () => {
@@ -225,7 +225,7 @@ describe("inline replies", () => {
       deleted: true,
       ping: false,
     });
-    expect(server.store.unreadMentionCounts(owner.id)).toEqual({});
+    expect(server.store.channels.unreadMentionCounts(owner.id)).toEqual({});
 
     // Removed altogether, there is nothing to point at: it goes as a message.
     const plain = await post(peer.token, {

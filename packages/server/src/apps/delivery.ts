@@ -38,13 +38,13 @@ export function enqueueAppDeliveries(
   // What an app must be allowed to read to be sent this (E18c).
   const needed = eventScope(
     type,
-    channelId === null ? null : (store.getChannel(channelId)?.type ?? null),
+    channelId === null ? null : (store.channels.get(channelId)?.type ?? null),
   );
   const inChannel = new Map<ID, boolean>();
   const botInChannel = (botUserId: ID, channel: ID): boolean => {
     let member = inChannel.get(botUserId);
     if (member === undefined)
-      inChannel.set(botUserId, (member = store.isMember(channel, botUserId)));
+      inChannel.set(botUserId, (member = store.channels.isMember(channel, botUserId)));
     return member;
   };
   let body: string | null = null;

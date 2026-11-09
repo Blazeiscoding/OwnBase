@@ -30,7 +30,7 @@ async function start() {
     }),
   });
   token = ((await res.json()) as { token: string }).token;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 }
 
 async function request(path: string, body?: unknown, method = "POST") {

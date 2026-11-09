@@ -60,7 +60,7 @@ async function register() {
 
 /** A message with a file, and where the file's bytes are kept. */
 async function attachedMessage() {
-  const channelId = server!.store.getChannelByName("general")!.id;
+  const channelId = server!.store.channels.byName("general")!.id;
   const form = new FormData();
   form.append("file", new Blob(["kept until the copy is done"]), "notes.txt");
   const uploaded = await fetch(`${base}/api/channels/${channelId}/files`, {

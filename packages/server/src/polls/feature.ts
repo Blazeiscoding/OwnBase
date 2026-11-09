@@ -10,7 +10,7 @@ export function registerPolls(ctx: ServerContext) {
     const msg = requireVisibleMessage(store, params.id, me);
     const rules = store.polls.rules(msg.id);
     if (!rules) throw new HttpError(404, "poll_not_found", "That message is not a poll.");
-    if (store.getChannel(msg.channelId)?.archived) throw new HttpError(400, "channel_archived");
+    if (store.channels.get(msg.channelId)?.archived) throw new HttpError(400, "channel_archived");
     if (rules.closedAt !== null)
       throw new HttpError(409, "poll_closed", "This poll is closed, so its votes are final.");
     const { choices } = body;

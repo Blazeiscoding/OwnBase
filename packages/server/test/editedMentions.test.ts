@@ -94,7 +94,7 @@ beforeEach(async () => {
   author = await register("author");
   reader = await register("reader");
   other = await register("other");
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -121,8 +121,12 @@ describe("live mention counts after edits", () => {
 
     expect(firstReader.counts()).toEqual([{}]);
     expect(secondReader.counts()).toEqual([{ [channelId]: 1 }]);
-    expect(firstReader.counts().at(-1)).toEqual(server.store.unreadMentionCounts(reader.user.id));
-    expect(secondReader.counts().at(-1)).toEqual(server.store.unreadMentionCounts(other.user.id));
+    expect(firstReader.counts().at(-1)).toEqual(
+      server.store.channels.unreadMentionCounts(reader.user.id),
+    );
+    expect(secondReader.counts().at(-1)).toEqual(
+      server.store.channels.unreadMentionCounts(other.user.id),
+    );
     expect(await mentions(reader)).toEqual([]);
     expect((await mentions(other)).map((m) => m.id)).toEqual([message.id]);
   });
@@ -161,7 +165,7 @@ describe("live mention counts after edits", () => {
     expect((await edit(message, `<@${reader.user.id}>`)).status).toBe(500);
     await readerSocket.settle();
     expect(server.store.messages.get(message.id)?.text).toBe("original");
-    expect(server.store.unreadMentionCounts(reader.user.id)).toEqual({});
+    expect(server.store.channels.unreadMentionCounts(reader.user.id)).toEqual({});
     expect(readerSocket.counts()).toEqual([]);
     expect(readerSocket.frames.some((f) => f.type === "event")).toBe(false);
 

@@ -104,7 +104,7 @@ beforeEach(async () => {
   await start();
   owner = await register("owner");
   peer = await register("peer");
-  general = server!.store.getChannelByName("general")!.id;
+  general = server!.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -225,7 +225,7 @@ describe("who sees which files", () => {
     await share(secret, [["closed.txt", "text/plain"]]);
     expect(await names({}, guest.token)).toEqual(["open.txt"]);
     // Even put in a private conversation, a guest reads only public ones, as for downloads.
-    expect(server!.store.addMember(secret, guest.user.id)).toBe(true);
+    expect(server!.store.channels.addMember(secret, guest.user.id)).toBe(true);
     expect(await names({}, guest.token)).toEqual(["open.txt"]);
   });
 });
@@ -276,7 +276,7 @@ describe("narrowing the list", () => {
   });
 
   it("by who shared, by conversation, and together", async () => {
-    const design = server!.store.getChannelByName("design")!.id;
+    const design = server!.store.channels.byName("design")!.id;
     expect(await names({ userId: peer.id })).toEqual([
       "README.md",
       "deck.pptx",

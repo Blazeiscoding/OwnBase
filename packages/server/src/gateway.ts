@@ -676,9 +676,9 @@ export class Gateway implements OutboxSink {
   updateChannelAccess(channelId: ID, userId: ID): void {
     const told = this.contained("channel access", () => {
       const membership =
-        this.store.memberships(userId).find((m) => m.channelId === channelId) ?? null;
+        this.store.channels.memberships(userId).find((m) => m.channelId === channelId) ?? null;
       const channel = this.store.canAccess(channelId, userId)
-        ? this.store.getChannel(channelId)
+        ? this.store.channels.get(channelId)
         : null;
       if (!channel) this.leaveHuddle(channelId, userId, "lost access");
       this.tellPerson(userId, { type: "channel.access", channelId, channel, membership });
@@ -708,9 +708,9 @@ export class Gateway implements OutboxSink {
    * Joining a huddle already going rings nobody, and a channel never rings.
    */
   private startRing(channelId: ID, callerId: ID): void {
-    const channel = this.store.getChannel(channelId);
+    const channel = this.store.channels.get(channelId);
     if (!channel || (channel.type !== "dm" && channel.type !== "group_dm")) return;
-    const rang = this.store.memberIds(channelId).filter((id) => {
+    const rang = this.store.channels.memberIds(channelId).filter((id) => {
       if (id === callerId) return false;
       const user = this.store.getUser(id);
       return !!user && !user.isBot && !user.deactivated;
@@ -850,12 +850,12 @@ export class Gateway implements OutboxSink {
    */
   private channelAudience(channelId: ID, audiences?: Audiences): Set<ID> | null {
     if (audiences?.has(channelId)) return audiences.get(channelId)!;
-    const ch = this.store.getChannel(channelId);
+    const ch = this.store.channels.get(channelId);
     const audience = !ch
       ? new Set<ID>()
       : ch.type === "public"
         ? null
-        : new Set(this.store.memberIds(channelId));
+        : new Set(this.store.channels.memberIds(channelId));
     audiences?.set(channelId, audience);
     return audience;
   }

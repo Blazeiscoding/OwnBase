@@ -165,11 +165,11 @@ describe("a store write", () => {
 
     expect(() =>
       store.transaction(() => {
-        store.setNotifyDefault(me, "all");
+        store.channels.setNotifyDefault(me, "all");
         throw new Error("undone");
       }),
     ).toThrow("undone");
-    store.setNotifyDefault(me, "nothing");
+    store.channels.setNotifyDefault(me, "nothing");
 
     const told = () =>
       frames.flatMap((f) =>

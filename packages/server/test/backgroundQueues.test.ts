@@ -28,7 +28,7 @@ async function start(options: Partial<Parameters<typeof createWorkspaceServer>[0
       body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
     })
   ).json()) as { token: string; user: { id: string } };
-  const channelId = server.store.getChannelByName("general")!.id;
+  const channelId = server.store.channels.byName("general")!.id;
   // Each due a moment before the last one scheduled, so they are taken in
   // the order scheduled, rather than by ids made in the same millisecond.
   let order = 0;
@@ -117,13 +117,13 @@ describe("background queues (REV-01)", () => {
 
   it("sends the rest of a batch when recording one message's hold fails", async () => {
     const { server, schedule } = await start();
-    const archived = server.store.createChannel({
+    const archived = server.store.channels.create({
       type: "public",
       name: "old",
       creatorId: server.store.getUserAuthByHandle("owner")!.id,
       memberIds: [server.store.getUserAuthByHandle("owner")!.id],
     });
-    server.store.updateChannel(archived.id, { archived: true });
+    server.store.channels.update(archived.id, { archived: true });
     const held = server.store.scheduled.schedule({
       channelId: archived.id,
       userId: server.store.getUserAuthByHandle("owner")!.id,

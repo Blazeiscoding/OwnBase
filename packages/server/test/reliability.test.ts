@@ -54,7 +54,7 @@ beforeEach(async () => {
   });
   token = registration.body.token;
   userId = registration.body.user.id;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 afterEach(async () => {
   vi.restoreAllMocks();

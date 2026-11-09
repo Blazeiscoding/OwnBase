@@ -179,7 +179,7 @@ describe("removing someone from a room", () => {
     );
     expect(server.gateway.huddleParticipants(roomId)).toEqual([ben.id]);
     expect((await history(roomId, ben)).status).toBe(200);
-    expect(server.store.isMember(roomId, ben.id)).toBe(false);
+    expect(server.store.channels.isMember(roomId, ben.id)).toBe(false);
   });
 });
 
@@ -218,7 +218,7 @@ describe("public rooms take in everyone", () => {
     const roomId = room.data.channel.id as string;
 
     await anaSocket.heard(joined(roomId, ana.id));
-    const members = server.store.memberIds(roomId);
+    const members = server.store.channels.memberIds(roomId);
     expect([...members].sort()).toEqual([owner.id, ana.id, ben.id, visitor.id].sort());
     for (const outsider of [gone.id, cleo.id, app.data.botUser.id as string])
       expect(members).not.toContain(outsider);
@@ -232,17 +232,17 @@ describe("public rooms take in everyone", () => {
     const old = await make("public", "old");
     await request(`/api/channels/${old}`, owner.token, "PATCH", { archived: true });
     const leads = await make("private", "leads");
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
 
     const dana = await register("dana");
     server.setAccessPolicy("guest_allowed");
     const visitor = await guestJoin("Visitor");
 
     for (const person of [dana, visitor]) {
-      expect(server.store.isMember(general, person.id)).toBe(true);
-      expect(server.store.isMember(lobby, person.id)).toBe(true);
-      expect(server.store.isMember(old, person.id)).toBe(false);
-      expect(server.store.isMember(leads, person.id)).toBe(false);
+      expect(server.store.channels.isMember(general, person.id)).toBe(true);
+      expect(server.store.channels.isMember(lobby, person.id)).toBe(true);
+      expect(server.store.channels.isMember(old, person.id)).toBe(false);
+      expect(server.store.channels.isMember(leads, person.id)).toBe(false);
     }
   });
 });

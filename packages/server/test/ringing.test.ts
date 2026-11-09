@@ -136,7 +136,7 @@ describe("a direct message's huddle", () => {
     const alice = await register("alice");
     const bob = await register("bob");
     const channelId = await dm(alice, bob);
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const caller = await connect(alice.token);
     const callee = await connect(bob.token);
 

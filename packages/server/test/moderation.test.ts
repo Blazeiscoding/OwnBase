@@ -33,7 +33,7 @@ beforeEach(async () => {
   owner = await register("owner");
   maya = await register("maya");
   sam = await register("sam");
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {

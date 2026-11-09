@@ -43,7 +43,7 @@ async function signIn() {
   });
   token = registered.body.token;
   userId = registered.body.user.id;
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
 }
 
 async function post(text: string, extra: Record<string, unknown> = {}) {

@@ -180,8 +180,8 @@ beforeAll(async () => {
   });
   bobToken = b.data.token;
   bob = b.data.user;
-  channelId = server.store.getChannelByName("general")!.id;
-  server.store.addMember(channelId, bob.id);
+  channelId = server.store.channels.byName("general")!.id;
+  server.store.channels.addMember(channelId, bob.id);
 });
 
 afterAll(async () => {
@@ -574,7 +574,7 @@ describe("outgoing event subscriptions", () => {
     await new Promise((r) => setTimeout(r, 150));
     expect(stub.received.filter((r) => r.url === "/echo")).toHaveLength(0);
 
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     stub.received.length = 0;
     await api(`/api/channels/${channelId}/messages`, {
       token: aliceToken,
@@ -630,7 +630,7 @@ describe("outgoing event subscriptions", () => {
       body: { url: stub.url("/reactions"), eventTypes: ["reaction.added"] },
     });
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
 
     stub.received.length = 0;
     const posted = await api<{ message: { id: string } }>(`/api/channels/${channelId}/messages`, {
@@ -665,7 +665,7 @@ describe("outgoing event subscriptions", () => {
       body: { url: stub.url("/gone") },
     });
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
 
     await api(`/api/apps/${created.id}`, { token: aliceToken, method: "DELETE" });
     stub.received.length = 0;
@@ -734,7 +734,7 @@ describe("durable event delivery", () => {
       { token: aliceToken, body: { url: stub.url(path), eventTypes: ["message.created"] } },
     );
     expect(sub.status).toBe(201);
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     return { ...created, subscriptionId: sub.data.subscription.id };
   }
 
@@ -930,7 +930,7 @@ describe("durable event delivery", () => {
     // so no attempt is still in flight when membership ends.
     await eventually(() => queued(bot.subscriptionId).some((r) => r.attempts > 0));
 
-    server.store.removeMember(channelId, bot.botUser.id);
+    server.store.channels.removeMember(channelId, bot.botUser.id);
     // Emptied when membership ends rather than paused, so being added back
     // cannot replay what was said while the bot was out.
     expect(queued(bot.subscriptionId)).toHaveLength(0);
@@ -939,7 +939,7 @@ describe("durable event delivery", () => {
     // could be a replay.
     stub.received.length = 0;
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, bot.botUser.id);
+    server.store.channels.addMember(channelId, bot.botUser.id);
     await server.flushEventDeliveries();
     expect(bodiesAt("/evicted")).toHaveLength(0);
     await api(`/api/apps/${bot.id}`, { token: aliceToken, method: "DELETE" });
@@ -974,7 +974,7 @@ describe("durable event delivery", () => {
         },
       );
       expect(sub.status).toBe(201);
-      server.store.addMember(channelId, created.botUser.id);
+      server.store.channels.addMember(channelId, created.botUser.id);
       failOnly(path);
       return { ...created, subscriptionId: sub.data.subscription.id };
     }
@@ -1091,8 +1091,8 @@ describe("durable event delivery", () => {
         url: stub.url("/restart"),
         eventTypes: ["message.created"],
       });
-      const room = current.store.getChannelByName("general")!.id;
-      current.store.addMember(room, made.botUser.id);
+      const room = current.store.channels.byName("general")!.id;
+      current.store.channels.addMember(room, made.botUser.id);
 
       failOnly("/restart", 500);
       stub.received.length = 0;
@@ -1318,7 +1318,7 @@ describe("interactive buttons", () => {
       token: aliceToken,
       body: { url: stub.url("/interactions") },
     });
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     const posted = await api<{ ts: string }>("/api/chat.postMessage", {
       token: created.token,
       body: {
@@ -1369,7 +1369,7 @@ describe("interactive buttons", () => {
     const { messageId, responseUrl } = await buttonMessage("Mention Update Bot");
     const reader = connectWs(bobToken);
     await reader.next((frame) => frame.type === "ready");
-    const baseline = server.store.unreadMentionCounts(bob.id)[channelId] ?? 0;
+    const baseline = server.store.channels.unreadMentionCounts(bob.id)[channelId] ?? 0;
     reader.received.length = 0;
     try {
       const replace = (text: string) =>
@@ -1423,7 +1423,7 @@ describe("interactive buttons", () => {
       token: aliceToken,
       body: { type: "private", name: "war-room" },
     });
-    server.store.addMember(madeChannel.channel.id, created.botUser.id);
+    server.store.channels.addMember(madeChannel.channel.id, created.botUser.id);
 
     const posted = await api<{ ts: string }>("/api/chat.postMessage", {
       token: created.token,
@@ -1662,7 +1662,7 @@ describe("revoking an app while it is being used", () => {
     expect((await late(got.url!, "while inside")).status).toBe(200);
     await eventually(() => said("while inside", room));
 
-    server.store.removeMember(room, created.botUser.id);
+    server.store.channels.removeMember(room, created.botUser.id);
     const after = await late(got.url!, "after eviction");
     expect(after.status).toBe(404);
     expect(after.body.error).toBe("expired_url");
@@ -2409,7 +2409,7 @@ describe("modals", () => {
         },
       });
       personToken = made.data.token;
-      server.store.addMember(channelId, made.data.user.id);
+      server.store.channels.addMember(channelId, made.data.user.id);
     });
 
     type ViewAnswer = {
@@ -2716,7 +2716,7 @@ describe("replacing an app's credentials", () => {
 
   it("gives a working bot token and stops the old one at once", async () => {
     const created = await newApp("Rotating Bot");
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     expect((await postAs(created.token, "before")).data.ok).toBe(true);
 
     const replaced = await api<{ token: string }>(`/api/apps/${created.id}/token`, {
@@ -2790,7 +2790,7 @@ describe("replacing an app's credentials", () => {
       },
     );
     expect(sub.status).toBe(201);
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
 
     const db = (
       server.store as unknown as {
@@ -2883,7 +2883,7 @@ describe("replacing an app's credentials", () => {
       expect(refused.status, path).toBe(403);
     }
     // And a refusal replaced nothing.
-    server.store.addMember(channelId, created.botUser.id);
+    server.store.channels.addMember(channelId, created.botUser.id);
     expect((await postAs(created.token, "still mine")).data.ok).toBe(true);
   });
 
@@ -2980,7 +2980,7 @@ describe("scopes on bot tokens (E18c)", () => {
       needed: "chat:write.public",
     });
     expect(outside.scopes).toBe("chat:write");
-    server.store.addMember(channelId, inside.botUser.id);
+    server.store.channels.addMember(channelId, inside.botUser.id);
     expect(
       (await slack("chat.postMessage", inside.token, { channel: channelId, text: "now a member" }))
         .data.ok,
@@ -3006,7 +3006,7 @@ describe("scopes on bot tokens (E18c)", () => {
       body: { url: stub.url("/scoped") },
     });
     stub.handler = () => ({ body: "" });
-    server.store.addMember(channelId, made.botUser.id);
+    server.store.channels.addMember(channelId, made.botUser.id);
     stub.received.length = 0;
     const scoped = () =>
       stub.received

@@ -1376,6 +1376,27 @@
         "Editing or deleting re-quotes and redacts the event log's copies through the store core."
       ],
       "concepts": ["messages", "queries"]
+    },
+    {
+      "path": "packages/server/src/channels/feature.ts",
+      "plain": "Lets people make, join, leave and manage channels and DMs, set how each one notifies them, and organise their sidebar.",
+      "summary": "Channel, membership, read place, prefs, notify default, unread summary, sidebar section and removal-note routes, and the conversations part of the startup snapshot.",
+      "details": [
+        "Who may invite, remove or make managers follows protocol's channelPermissions; guests stay in public channels.",
+        "joinPublicChannels puts a new account in every open public channel, as a new public channel takes in everyone.",
+        "The snapshot slice holds the visible conversations, memberships, last seqs, mention counts, removal notes, sidebar sections and the notify default."
+      ],
+      "concepts": ["channels", "membership", "feature module"]
+    },
+    {
+      "path": "packages/server/src/channels/store.ts",
+      "plain": "Saves conversations, who is in them and how far each person has read.",
+      "summary": "ChannelStore: channels and DMs, membership, prefs, read cursors, sidebar sections, removal notes and unread mention counts.",
+      "details": [
+        "Reading a channel reads the replies it showed too, unless the thread was marked unread since (UNREAD in core/sqlRules.ts).",
+        "Mention counts are read from message_mentions, so a badge costs what the account's mentions cost."
+      ],
+      "concepts": ["channels", "queries"]
     }
   ],
   "flows": [

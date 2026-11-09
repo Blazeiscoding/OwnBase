@@ -82,7 +82,7 @@ beforeEach(async () => {
   const created = (await first.json()) as any;
   owner = { token: created.token, id: created.user.id };
   peer = await register("peer");
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -436,7 +436,7 @@ describe("thread following", () => {
       ),
     ).toBe(false);
     tellPerson.mockRestore();
-    const membership = server.store
+    const membership = server.store.channels
       .memberships(owner.id)
       .find((item) => item.channelId === channelId);
     expect(membership?.lastReadSeq).toBe(first.seq);
@@ -605,7 +605,7 @@ describe("thread following", () => {
 
     // Only the named account is told, and the plain message did not count.
     await expect.poll(() => mentionFrames(socket.frames).at(-1)?.[channelId]).toBe(2);
-    expect(server.store.unreadMentionCounts(peer.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(peer.id)[channelId] ?? 0).toBe(0);
 
     await request(`/api/channels/${channelId}/read`, { seq: second.seq });
     await expect.poll(() => mentionFrames(socket.frames).at(-1)?.[channelId] ?? 0).toBe(0);
@@ -622,7 +622,7 @@ describe("thread following", () => {
       "POST",
       peer.token,
     );
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
 
     const dm = (
       await request("/api/channels", { type: "dm", memberIds: [owner.id] }, "POST", peer.token)
@@ -634,7 +634,7 @@ describe("thread following", () => {
       peer.token,
     );
     // In a direct message there is no room to address, so it is just words.
-    expect(server.store.unreadMentionCounts(owner.id)[dm.id] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[dm.id] ?? 0).toBe(0);
   });
 
   it("drops a mention from the count when the message is deleted", async () => {
@@ -646,10 +646,10 @@ describe("thread following", () => {
         peer.token,
       )
     ).body.message;
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
 
     await request(`/api/messages/${mention.id}`, undefined, "DELETE", peer.token);
-    expect(server.store.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);
   });
 
   it("carries mention counts through the handshake snapshot", async () => {
@@ -721,7 +721,7 @@ describe("reading a thread", () => {
 
   it("reads only the thread, leaving an unseen channel mention unread", async () => {
     const { root, mention, reply } = await rootMentionReply();
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(2);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(2);
 
     const read = await request(`/api/messages/${root.id}/thread/read`, { seq: reply.seq });
     expect(read.status).toBe(200);
@@ -780,12 +780,12 @@ describe("reading a thread", () => {
     const later = await post("Later in the channel", peer.token);
     await request(`/api/channels/${channelId}/read`, { seq: later.seq });
     // The channel never showed the reply, so reading it read the mention above only.
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
     expect(await unreadActivity()).toEqual([reply.id]);
     expect([mention.seq, reply.seq].every((seq) => seq < later.seq)).toBe(true);
 
     await request(`/api/messages/${root.id}/thread/read`, { seq: reply.seq });
-    expect(server.store.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);
     expect(await unreadActivity()).toEqual([]);
   });
 });
@@ -822,7 +822,7 @@ describe("one read rule for a channel and its threads", () => {
     await readChannel(later.seq);
 
     expect(await unread()).toEqual([`over to you <@${owner.id}>`]);
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
     expect(await followed()).toEqual([{ root: "Owner's question", unread: 1 }]);
     expect(server.store.threads.unreadCount(owner.id)).toBe(1);
   });
@@ -855,13 +855,13 @@ describe("one read rule for a channel and its threads", () => {
     await post("chatter", peer.token, root.id);
     await post(`a question for <@${owner.id}>`, peer.token, root.id);
     expect(await unread()).toEqual([`a question for <@${owner.id}>`]);
-    expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId]).toBe(1);
 
     // Opening the thread reads both.
     const last = server.store.threads.follow(owner.id, root.id)!;
     await request(`/api/messages/${root.id}/thread/read`, { seq: 1e9 });
     expect(await unread()).toEqual([]);
-    expect(server.store.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);
     expect(last.following).toBe(false);
   });
 
@@ -889,10 +889,10 @@ describe("one read rule for a channel and its threads", () => {
     );
     expect(off.body.state).toMatchObject({ following: false });
     // What came before joining stays read,
-    expect(server.store.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
     // and unfollowing is not reading: a later mention still waits.
     await post("<!here> after", peer.token, root.id);
-    expect(server.store.unreadMentionCounts(newcomer.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(newcomer.id)[channelId]).toBe(1);
     expect(await unread(newcomer.token)).toEqual(["<!here> after"]);
   });
 
@@ -902,11 +902,11 @@ describe("one read rule for a channel and its threads", () => {
     const newcomer = await register("newcomer");
     // Registration joins #general; reading the channel reads what it shows.
     await readChannel(server.store.currentSeq(), newcomer.token);
-    expect(server.store.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
     expect(await unread(newcomer.token)).toEqual([]);
 
     await post("<!here> new news", peer.token, root.id);
-    expect(server.store.unreadMentionCounts(newcomer.id)[channelId]).toBe(1);
+    expect(server.store.channels.unreadMentionCounts(newcomer.id)[channelId]).toBe(1);
     expect(await unread(newcomer.token)).toEqual(["<!here> new news"]);
   });
 
@@ -916,7 +916,7 @@ describe("one read rule for a channel and its threads", () => {
     // Registration joins #general, and nothing there is unread for them yet.
     const newcomer = await register("newcomer");
     expect(await unread(newcomer.token)).toEqual([]);
-    expect(server.store.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
+    expect(server.store.channels.unreadMentionCounts(newcomer.id)[channelId] ?? 0).toBe(0);
     const snapshot = (await connect(newcomer.token)).frames.find((f) => f.type === "ready") as any;
     const general = snapshot.memberships.find((m: any) => m.channelId === channelId);
     expect(general.lastReadSeq).toBeGreaterThanOrEqual(server.store.currentSeq() - 1);

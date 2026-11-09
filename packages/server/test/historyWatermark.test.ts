@@ -37,7 +37,7 @@ beforeEach(async () => {
       password: "password123",
     })
   ).token;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -57,7 +57,7 @@ describe("channel history snapshot sequence", () => {
       const third = (
         await request(`/api/channels/${channelId}/messages`, "POST", { text: "After" })
       ).message;
-      const readThrough = server.store.lastMessageSeq(channelId);
+      const readThrough = server.store.channels.lastMessageSeq(channelId);
       await request(`/api/messages/${second.id}`, "PATCH", {
         text: "Edited",
         expectedText: "Original",

@@ -126,7 +126,7 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
   const heldBecause = (item: ScheduledMessage, code: ErrorCode | null): string | null => {
     switch (code) {
       case "channel_not_found":
-        return store.getChannel(item.channelId)
+        return store.channels.get(item.channelId)
           ? "You are no longer a member of that channel."
           : "That channel no longer exists.";
       case "channel_archived":

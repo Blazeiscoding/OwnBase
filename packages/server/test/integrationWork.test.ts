@@ -32,7 +32,7 @@ beforeEach(async () => {
   }).then((r) => r.json() as Promise<{ token: string; user: { id: string } }>);
   token = owner.token;
   ownerId = owner.user.id;
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -48,7 +48,7 @@ function app(
 ) {
   const store = server.store;
   const bot = store.createBotUser(`bot-${name}`, name, "", "");
-  if (inChannel) store.addMember(general, bot.id);
+  if (inChannel) store.channels.addMember(general, bot.id);
   const created = store.createApp({
     name,
     botUserId: bot.id,
@@ -83,7 +83,7 @@ describe("queueing one event for many subscriptions (F11)", () => {
       const busy = app("busy", true, count);
       const outside = app("outside", false, 1);
       const filtered = app("filtered", true, 1, ["reaction.added"]);
-      const membership = vi.spyOn(server.store, "isMember");
+      const membership = vi.spyOn(server.store.channels, "isMember");
       const meta = vi.spyOn(server.store, "getMeta");
       const queued = vi.spyOn(server.store, "enqueueEventDelivery");
 

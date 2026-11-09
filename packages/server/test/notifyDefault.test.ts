@@ -102,7 +102,7 @@ beforeEach(async () => {
   await start();
   owner = await register("owner");
   peer = await register("peer");
-  general = server!.store.getChannelByName("general")!.id;
+  general = server!.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {
@@ -190,7 +190,7 @@ describe("what waits, for a device showing another workspace", () => {
     expect((await summary()).unread).toBe(false);
     await prefs(general, { muted: false });
     expect((await summary()).unread).toBe(true);
-    const seq = server!.store.channelLastSeqMap(owner.id)[general]!;
+    const seq = server!.store.channels.lastSeqMap(owner.id)[general]!;
     await request(`/api/channels/${general}/read`, { seq });
     expect((await summary()).unread).toBe(false);
   });

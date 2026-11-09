@@ -89,7 +89,7 @@ async function populate() {
   const admin = await join("admin");
   const member = await join("member");
   await api(`/api/admin/users/${admin.user.id}`, owner.token, "PATCH", { role: "admin" });
-  const general = server!.store.getChannelByName("general")!.id;
+  const general = server!.store.channels.byName("general")!.id;
   const form = new FormData();
   form.append("file", new Blob(["in the copy"]), "notes.txt");
   const uploaded = await fetch(`${base}/api/channels/${general}/files`, {
@@ -184,7 +184,7 @@ describe("a copy for the owner", () => {
       password: "password123",
     });
     expect(login.status).toBe(200);
-    const general = server!.store.getChannelByName("general")!.id;
+    const general = server!.store.channels.byName("general")!.id;
     const messages = (await api(`/api/channels/${general}/messages`, login.body.token)).body;
     expect(messages.messages.map((m: { text: string }) => m.text)).toContain("with a file");
   });
@@ -321,7 +321,7 @@ describe("a copy for the owner", () => {
     const { owner } = await populate();
     await api("/api/admin/copy", owner.token, "POST");
     await started;
-    const general = server!.store.getChannelByName("general")!.id;
+    const general = server!.store.channels.byName("general")!.id;
     const message = (
       await api(`/api/channels/${general}/messages`, owner.token)
     ).body.messages.find((m: { files: unknown[] }) => m.files.length > 0);

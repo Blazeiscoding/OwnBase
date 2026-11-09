@@ -25,7 +25,7 @@ beforeEach(async () => {
     body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
   });
   token = ((await res.json()) as { token: string }).token;
-  channelId = server.store.getChannelByName("general")!.id;
+  channelId = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {

@@ -45,7 +45,7 @@ async function signIn() {
   });
   const body = (await res.json()) as any;
   token = body.token;
-  channelId = server!.store.getChannelByName("general")!.id;
+  channelId = server!.store.channels.byName("general")!.id;
 }
 
 /** Uploads `bytes` of filler and reports what the server made of it. */

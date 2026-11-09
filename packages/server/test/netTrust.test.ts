@@ -226,7 +226,7 @@ describe("the url handed to an app", () => {
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
       body: JSON.stringify({ command: "/where", url: `http://127.0.0.1:${stubPort}/cmd` }),
     });
-    const channelId = server.store.getChannelByName("general")!.id;
+    const channelId = server.store.channels.byName("general")!.id;
     // Raw http rather than fetch: `Host` is a forbidden header there and is
     // dropped silently, which would make the forged-Host case prove nothing.
     const { request } = await import("node:http");

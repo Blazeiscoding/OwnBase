@@ -90,7 +90,7 @@ beforeEach(async () => {
   owner = await register("owner");
   peer = await register("peer");
   outsider = await register("outsider");
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {

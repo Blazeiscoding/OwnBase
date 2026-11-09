@@ -54,7 +54,7 @@ beforeEach(async () => {
     });
     const owner = (await response.json()) as { user: { id: string } };
     fileId = server.store.files.create({
-      channelId: server.store.getChannelByName("general")!.id,
+      channelId: server.store.channels.byName("general")!.id,
       userId: owner.user.id,
       name: "kept.txt",
       mime: "text/plain",

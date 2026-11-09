@@ -2206,7 +2206,7 @@ describe("restoring a backup in the desktop app", () => {
     const older = join(elsewhere, "older");
     await backupWorkspace({ dataDir, out: older });
     const again = await serve();
-    const general = again.store.getChannelByName("general")!.id;
+    const general = again.store.channels.byName("general")!.id;
     const posted = await fetch(`http://127.0.0.1:${again.port}/api/channels/${general}/messages`, {
       method: "POST",
       headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
@@ -3001,7 +3001,7 @@ describe("protecting recovery copies", () => {
       });
       const owner = (await response.json()) as { user: { id: string } };
       fileId = server.store.files.create({
-        channelId: server.store.getChannelByName("general")!.id,
+        channelId: server.store.channels.byName("general")!.id,
         userId: owner.user.id,
         name: "saved.txt",
         mime: "text/plain",

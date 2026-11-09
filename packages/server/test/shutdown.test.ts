@@ -177,7 +177,7 @@ describe("stopping while a request is still being worked on", () => {
       url: app.url("/command"),
     });
     expect(registered.status).toBe(201);
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const failures = watchForClosedDatabase(server!);
 
     void call(base, `/api/channels/${channelId}/commands`, token, { text: "/slow" }).catch(
@@ -221,8 +221,8 @@ describe("an event delivery cut short by shutdown", () => {
       eventTypes: ["message.created"],
     });
     expect(subscribed.status).toBe(201);
-    const channelId = server!.store.getChannelByName("general")!.id;
-    server!.store.addMember(channelId, made.botUser.id);
+    const channelId = server!.store.channels.byName("general")!.id;
+    server!.store.channels.addMember(channelId, made.botUser.id);
 
     await call(base, `/api/channels/${channelId}/messages`, token, { text: "on its way" });
     await app.arrived;

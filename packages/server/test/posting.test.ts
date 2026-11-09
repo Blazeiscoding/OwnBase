@@ -91,7 +91,7 @@ async function start(rateLimits?: Parameters<typeof createWorkspaceServer>[0]["r
       body: { handle: "owner", displayName: "Owner", password: "password123" },
     })
   ).data.token;
-  const channelId = server.store.getChannelByName("general")!.id;
+  const channelId = server.store.channels.byName("general")!.id;
   const made = await call<{ app: { id: string }; botUser: { id: string }; token: string }>(
     "/api/apps",
     { token: owner, body: { name: "Deployer" } },
@@ -267,14 +267,14 @@ describe("an incoming webhook", () => {
         body: { channelId: room },
       })
     ).data.url;
-    server!.store.removeMember(room, botUserId);
+    server!.store.channels.removeMember(room, botUserId);
     expect(await call(roomHook, { body: { text: "hello" } })).toEqual({
       status: 403,
       data: { ok: false, error: "not_in_channel" },
     });
 
-    server!.store.addMember(room, botUserId);
-    server!.store.updateChannel(room, { archived: true });
+    server!.store.channels.addMember(room, botUserId);
+    server!.store.channels.update(room, { archived: true });
     expect(await call(roomHook, { body: { text: "hello" } })).toEqual({
       status: 404,
       data: { ok: false, error: "channel_not_found" },

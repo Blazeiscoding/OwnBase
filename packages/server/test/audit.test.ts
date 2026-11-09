@@ -146,7 +146,7 @@ describe("the administrative record", () => {
     const newToken = (await call(`/api/apps/${appId}/token`, owner.token, "POST")).data.token;
     const newSecret = (await call(`/api/apps/${appId}/signing-secret`, owner.token, "POST")).data
       .signingSecret;
-    const channelId = server!.store.getChannelByName("general")!.id;
+    const channelId = server!.store.channels.byName("general")!.id;
     const hook = await call<{ webhook: { id: string }; url: string }>(
       `/api/apps/${appId}/webhooks`,
       owner.token,

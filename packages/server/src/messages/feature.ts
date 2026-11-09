@@ -266,7 +266,7 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
     });
     return {
       messages,
-      readThroughSeq: store.lastMessageSeq(params.id),
+      readThroughSeq: store.channels.lastMessageSeq(params.id),
       seq: store.currentSeq(),
     };
   });

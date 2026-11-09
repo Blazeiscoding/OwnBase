@@ -89,7 +89,7 @@ beforeEach(async () => {
         })
       ).data,
     );
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterEach(async () => {

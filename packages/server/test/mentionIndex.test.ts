@@ -76,7 +76,7 @@ beforeEach(() => {
     ["C2", ["U1", "U2"]],
     ["D1", ["U1", "U2"]],
   ] as const) {
-    for (const user of users) store.addMember(channel, user);
+    for (const user of users) store.channels.addMember(channel, user);
   }
 });
 
@@ -135,7 +135,11 @@ describe("mentions read from who each message names", () => {
         store.messages.delete(doomed.id);
         done.deleted++;
       } else if (action < 9) {
-        store.markRead(pickOne(["C1", "C2", "D1"]), pickOne(["U1", "U2"]), random(seq + 1));
+        store.channels.markRead(
+          pickOne(["C1", "C2", "D1"]),
+          pickOne(["U1", "U2"]),
+          random(seq + 1),
+        );
         done.read++;
       } else {
         const root = pickOne(live);
@@ -152,9 +156,10 @@ describe("mentions read from who each message names", () => {
         }
       }
       for (const user of ["U1", "U2", "U3"]) {
-        expect(store.unreadMentionCounts(user), `counts for ${user} at step ${step}`).toEqual(
-          countsFromText(db, user),
-        );
+        expect(
+          store.channels.unreadMentionCounts(user),
+          `counts for ${user} at step ${step}`,
+        ).toEqual(countsFromText(db, user));
       }
       // Nothing is left over for a message deleted or purged.
       expect(leftovers(), `leftover mentions at step ${step}`).toEqual({ n: 0 });
@@ -270,8 +275,8 @@ describe("upgrading to the mentions index", () => {
         "M10:U2",
       ]);
       const upgraded = new Store(db);
-      expect(upgraded.unreadMentionCounts("U1")).toEqual(countsFromText(db, "U1"));
-      expect(upgraded.unreadMentionCounts("U1")).toEqual({ C1: 6 });
+      expect(upgraded.channels.unreadMentionCounts("U1")).toEqual(countsFromText(db, "U1"));
+      expect(upgraded.channels.unreadMentionCounts("U1")).toEqual({ C1: 6 });
     } finally {
       db.close();
     }

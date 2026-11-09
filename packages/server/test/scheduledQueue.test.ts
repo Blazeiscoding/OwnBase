@@ -55,7 +55,7 @@ async function register(handle: string) {
   return { token: body.token, id: body.user.id };
 }
 
-const general = () => server!.store.getChannelByName("general")!.id;
+const general = () => server!.store.channels.byName("general")!.id;
 const schedule = (token: string, text: string, channelId = general()) =>
   request(`/api/channels/${channelId}/scheduled`, token, {
     text,
@@ -173,12 +173,12 @@ describe("a held scheduled message", () => {
     });
     const channelId = body.channel.id as string;
     await schedule(member.token, "for the leads", channelId);
-    server!.store.removeMember(channelId, member.id);
+    server!.store.channels.removeMember(channelId, member.id);
     allDue();
     server!.flushScheduled();
     expect(server!.store.scheduled.list(member.id)[0]!.status).toBe("held");
 
-    server!.store.addMember(channelId, member.id);
+    server!.store.channels.addMember(channelId, member.id);
     server!.flushScheduled();
     expect(server!.store.scheduled.list(member.id)).toEqual([]);
     expect(server!.store.messages.list({ channelId, limit: 10 }).map((m) => m.text)).toEqual([

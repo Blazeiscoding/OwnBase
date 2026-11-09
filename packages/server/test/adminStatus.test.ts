@@ -82,7 +82,7 @@ async function connect(token: string) {
 describe("the workspace's operational status", () => {
   it("tells the owner the queues, sizes and connections, and nothing anyone wrote", async () => {
     const owner = await register("owner");
-    const general = server!.store.getChannelByName("general")!.id;
+    const general = server!.store.channels.byName("general")!.id;
     const secret = "the launch moves to Thursday";
     await call(owner, `/api/channels/${general}/messages`, "POST", { text: secret });
     await call(owner, `/api/channels/${general}/scheduled`, "POST", {
