@@ -1,4 +1,11 @@
-import { endpoints, isAdministrator, type ID, type ServerInfo, type User } from "@ownbase/protocol";
+import {
+  endpoints,
+  isAdministrator,
+  PROTOCOL_VERSION,
+  type ID,
+  type ServerInfo,
+  type User,
+} from "@ownbase/protocol";
 import { hashPassword, hashToken, newSessionToken, verifyPassword } from "../auth.js";
 import { type Channels } from "../channels/feature.js";
 import { type ServerContext } from "../core/context.js";
@@ -12,6 +19,7 @@ import {
   normalRecoveryCode,
   otpauthUri,
 } from "../twoStep.js";
+import { SERVER_BUILD, SERVER_VERSION } from "../version.js";
 
 /** How long the second step of signing in waits for its code (E11). */
 const TWO_STEP_CHALLENGE_MS = 5 * 60_000;
@@ -31,7 +39,10 @@ export const inviteFingerprint = (code: string) => hashToken(code).slice(0, 12);
 /** Accounts: joining, signing in and out, two-step sign-in, passwords, sessions, guests and invites. */
 export function registerAccounts(
   ctx: ServerContext,
-  { joinPublicChannels }: { joinPublicChannels: Channels["joinPublicChannels"] },
+  {
+    joinPublicChannels,
+    iconVersion,
+  }: { joinPublicChannels: Channels["joinPublicChannels"]; iconVersion: () => string | null },
 ) {
   const {
     opts,
@@ -139,7 +150,7 @@ export function registerAccounts(
 
       if (isFirstUser) {
         // Single use: the workspace now has an owner and cannot be claimed again.
-        store.setMeta("claim_code", "");
+        settings.set("claimCode", null);
         // Bootstrap the workspace with #general.
         const general = store.channels.create({
           type: "public",
@@ -611,6 +622,26 @@ export function registerAccounts(
       authJobs--;
     }
   };
+
+  route(endpoints.serverInfo, async ({ req }) => {
+    const userCount = store.people.count();
+    const signIn = signInInfo();
+    return {
+      app: "ownbase",
+      protocolVersion: PROTOCOL_VERSION,
+      serverVersion: SERVER_VERSION,
+      ...(SERVER_BUILD ? { build: SERVER_BUILD } : {}),
+      workspaceName: settings.get("workspaceName"),
+      userCount,
+      requiresInvite: userCount > 0 && settings.get("accessPolicy") === "invite_only",
+      accessPolicy: settings.get("accessPolicy"),
+      requiresClaim: userCount === 0 && !!settings.get("claimCode") && !network.isLocalRequest(req),
+      workspaceCopies: opts.dataDir !== ":memory:",
+      ...(network.publicUrl() ? { publicUrl: network.publicUrl() } : {}),
+      iconVersion: iconVersion(),
+      ...(signIn ? { signIn } : {}),
+    };
+  });
 
   return { hashing, signInInfo, singleSignOnRequired, ssoRequired, authSucceeded, confirmPassword };
 }
