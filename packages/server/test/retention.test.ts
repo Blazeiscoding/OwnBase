@@ -327,19 +327,19 @@ describe("a retention window", () => {
     const secret = "an-old-secret-still-queued-for-an-app";
     const message = await post(secret);
     const store = server!.store;
-    const app = store.createApp({
+    const app = store.apps.create({
       name: "Waiting App",
       botUserId: userId,
       createdBy: userId,
       signingSecret: "test-signing-secret-not-a-credential",
     });
-    const subscription = store.createSubscription({
+    const subscription = store.apps.createSubscription({
       appId: app.id,
       url: "https://example.invalid/events",
       eventTypes: [],
     });
     // Due in an hour, so the delivery timer leaves it where it is.
-    store.enqueueEventDelivery(
+    store.deliveries.enqueue(
       subscription.id,
       channelId,
       1,

@@ -26,7 +26,7 @@ describe("an app made before scopes (E18c)", () => {
       salt: "unused",
       role: "owner",
     });
-    const bot = store.createBotUser("deploy-bot", "Deploy Bot", "unused", "unused");
+    const bot = store.apps.createBotUser("deploy-bot", "Deploy Bot", "unused", "unused");
     old
       .prepare(
         "INSERT INTO apps (id, name, bot_user_id, created_by, created_at, signing_secret) VALUES (?, ?, ?, ?, ?, ?)",
@@ -38,7 +38,7 @@ describe("an app made before scopes (E18c)", () => {
     try {
       // The scopes there were at v51. One added later is not given to old
       // apps: that is what asking for it is for.
-      expect(new Store(upgraded).getApp("A_OLD")!.scopes).toEqual([
+      expect(new Store(upgraded).apps.get("A_OLD")!.scopes).toEqual([
         "chat:write",
         "chat:write.public",
         "channels:history",

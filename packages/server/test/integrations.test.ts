@@ -482,7 +482,7 @@ describe("outgoing event subscriptions", () => {
       });
       expect(result.status).toBe(403);
       expect(result.data.error).toBe("admin_only");
-      expect(server.store.listSubscriptions(created.id)).toEqual([]);
+      expect(server.store.apps.listSubscriptions(created.id)).toEqual([]);
     } finally {
       server.store.people.update(bob.id, { role: "member" });
     }
@@ -491,7 +491,7 @@ describe("outgoing event subscriptions", () => {
   it("does not create a subscription for an app deleted during verification", async () => {
     const created = await newApp("Deleted Subscription App");
     stub.handler = (req) => {
-      if (req.url === "/deleted-subscription") server.store.deleteApp(created.id);
+      if (req.url === "/deleted-subscription") server.store.apps.delete(created.id);
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -505,7 +505,7 @@ describe("outgoing event subscriptions", () => {
     });
     expect(result.status).toBe(404);
     expect(result.data.error).toBe("not_found");
-    expect(server.store.listSubscriptions(created.id)).toEqual([]);
+    expect(server.store.apps.listSubscriptions(created.id)).toEqual([]);
   });
 
   it("refuses a subscription to an event no app is sent, before calling its address", async () => {
@@ -526,7 +526,7 @@ describe("outgoing event subscriptions", () => {
     expect(result.status).toBe(400);
     expect(result.data.error).toBe("invalid_request");
     expect(called).toBe(false);
-    expect(server.store.listSubscriptions(created.id)).toEqual([]);
+    expect(server.store.apps.listSubscriptions(created.id)).toEqual([]);
   });
 
   it("requires the url_verification handshake before subscribing", async () => {
@@ -899,11 +899,11 @@ describe("durable event delivery", () => {
     server.store.transaction(() => {
       for (let i = 0; i < cap; i++) {
         expect(
-          server.store.enqueueEventDelivery(bot.subscriptionId, channelId, 900_000 + i, "{}"),
+          server.store.deliveries.enqueue(bot.subscriptionId, channelId, 900_000 + i, "{}"),
         ).toBe(true);
       }
     });
-    expect(server.store.enqueueEventDelivery(bot.subscriptionId, channelId, 999_999, "{}")).toBe(
+    expect(server.store.deliveries.enqueue(bot.subscriptionId, channelId, 999_999, "{}")).toBe(
       false,
     );
     expect(queued(bot.subscriptionId)).toHaveLength(cap);
@@ -1167,7 +1167,7 @@ describe("interactive buttons", () => {
       });
       expect(result.status).toBe(403);
       expect(result.data.error).toBe("admin_only");
-      expect(server.store.getApp(created.id)?.interactivityUrl).toBe(previousUrl);
+      expect(server.store.apps.get(created.id)?.interactivityUrl).toBe(previousUrl);
     } finally {
       server.store.people.update(bob.id, { role: "member" });
     }
@@ -1176,7 +1176,7 @@ describe("interactive buttons", () => {
   it("does not save an interactivity URL for an app deleted during verification", async () => {
     const created = await newApp("Deleted Interactivity App");
     stub.handler = (req) => {
-      if (req.url === "/deleted-interactivity") server.store.deleteApp(created.id);
+      if (req.url === "/deleted-interactivity") server.store.apps.delete(created.id);
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -1191,7 +1191,7 @@ describe("interactive buttons", () => {
     });
     expect(result.status).toBe(404);
     expect(result.data.error).toBe("not_found");
-    expect(server.store.getApp(created.id)).toBeNull();
+    expect(server.store.apps.get(created.id)).toBeNull();
   });
 
   it("carries a Block Kit actions block through to a pressable button", async () => {
@@ -1587,7 +1587,7 @@ describe("revoking an app while it is being used", () => {
     // on its way back at the moment the app stops existing.
     stub.handler = (req) => {
       if (req.url === "/doomed") {
-        server.store.transaction(() => server.store.deleteApp(created.id));
+        server.store.transaction(() => server.store.apps.delete(created.id));
         return { body: JSON.stringify({ response_type: "in_channel", text: "from a ghost" }) };
       }
       return { body: "" };
@@ -1679,7 +1679,7 @@ describe("revoking an app while it is being used", () => {
     await run("departed");
     expect(got.url).toBeDefined();
 
-    server.store.transaction(() => server.store.deleteApp(created.id));
+    server.store.transaction(() => server.store.apps.delete(created.id));
     const after = await late(got.url!, "once the app had gone");
     expect(after.status).toBe(404);
     expect(after.body.error).toBe("expired_url");
