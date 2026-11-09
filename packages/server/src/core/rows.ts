@@ -6,19 +6,43 @@ import type { SQLInputValue, SQLOutputValue, StatementSync } from "node:sqlite";
  * checks each named column once, so a query whose columns drift from what
  * its reader expects fails at that read instead of passing a wrong value on.
  */
-export type Column = "text" | "text?" | "number" | "number?" | "bytes" | "bytes?";
+export type Column =
+  "text" | "text?" | "number" | "number?" | "bytes" | "bytes?" | Words<string, boolean>;
 
-type ValueOf<C extends Column> = C extends "text"
-  ? string
-  : C extends "text?"
-    ? string | null
-    : C extends "number"
-      ? number
-      : C extends "number?"
-        ? number | null
-        : C extends "bytes"
-          ? Uint8Array
-          : Uint8Array | null;
+/** A text column that holds one of a fixed set of words; see `oneOf`. */
+export interface Words<V extends string, Nullable extends boolean = false> {
+  readonly words: Readonly<Record<V, true>>;
+  readonly nullable: Nullable;
+}
+
+/**
+ * A column holding one of these words, given as an object keyed by every
+ * word, so `satisfies Record<Union, true>` makes the list match its type
+ * exactly: a word left out or added fails to compile.
+ */
+export function oneOf<V extends string>(words: Readonly<Record<V, true>>): Words<V> {
+  return { words, nullable: false };
+}
+
+/** `oneOf`, or NULL. */
+export function oneOfOrNull<V extends string>(words: Readonly<Record<V, true>>): Words<V, true> {
+  return { words, nullable: true };
+}
+
+type ValueOf<C extends Column> =
+  C extends Words<infer V, infer Nullable>
+    ? V | (Nullable extends true ? null : never)
+    : C extends "text"
+      ? string
+      : C extends "text?"
+        ? string | null
+        : C extends "number"
+          ? number
+          : C extends "number?"
+            ? number | null
+            : C extends "bytes"
+              ? Uint8Array
+              : Uint8Array | null;
 
 export type Columns = Readonly<Record<string, Column>>;
 
@@ -37,6 +61,10 @@ export interface Shape<S extends Columns> {
 }
 
 function fits(value: SQLOutputValue | undefined, column: Column): boolean {
+  if (typeof column === "object")
+    return value === null
+      ? column.nullable
+      : typeof value === "string" && Object.hasOwn(column.words, value);
   if (value === null) return column.endsWith("?");
   switch (column) {
     case "text":
@@ -59,7 +87,7 @@ export function shape<S extends Columns>(columns: S): Shape<S> {
       const value = raw[name];
       if (!fits(value, column))
         throw new Error(
-          `Column ${name} read ${value === undefined ? "nothing" : typeof value}, expected ${column}`,
+          `Column ${name} read ${value === undefined ? "nothing" : typeof value === "string" ? JSON.stringify(value) : typeof value}, expected ${typeof column === "object" ? Object.keys(column.words).join("|") : column}`,
         );
       row[name] = value!;
     }
