@@ -38,17 +38,17 @@ interface Client {
   idle?: boolean;
 }
 
-/**
- * How long a place in a huddle waits for its device to come back after that
- * device's connection drops, before it is given up and the others are told.
- * A blip, or the server restarting its socket, then costs the call nothing.
- */
 /** The startup snapshot without what the gateway itself knows: the features' slices. */
 export type FeatureSnapshot = Omit<
   ReadySnapshot,
   "type" | "seq" | "replayFrom" | "self" | "presence" | "huddles" | "huddleRings" | "serverTime"
 >;
 
+/**
+ * How long a place in a huddle waits for its device to come back after that
+ * device's connection drops, before it is given up and the others are told.
+ * A blip, or the server restarting its socket, then costs the call nothing.
+ */
 export const HUDDLE_GRACE_MS = 30_000;
 
 /**
