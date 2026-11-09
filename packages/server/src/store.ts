@@ -2,9 +2,6 @@ import type {
   App,
   AppEventType,
   AppScope,
-  AuditAction,
-  AuditEntry,
-  AuditTargetType,
   EventEnvelope,
   EventSubscription,
   ID,
@@ -18,6 +15,8 @@ import type {
 import { APP_SCOPES } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { AccountStore } from "./accounts/store.js";
+import { AuditLog } from "./admin/auditLog.js";
+import { ReportStore } from "./admin/reportStore.js";
 import { ChannelStore } from "./channels/store.js";
 import { Settings } from "./core/settings.js";
 import { Outbox } from "./events/outbox.js";
@@ -104,6 +103,8 @@ export class Store {
   readonly saved: SavedStore;
   readonly polls: PollStore;
   readonly reminders: ReminderStore;
+  readonly audit: AuditLog;
+  readonly reports: ReportStore;
 
   constructor(readonly db: DatabaseSync) {
     this.settings = new Settings(this);
@@ -119,6 +120,8 @@ export class Store {
     this.saved = new SavedStore(db, this);
     this.polls = new PollStore(db, this);
     this.reminders = new ReminderStore(db, this);
+    this.audit = new AuditLog(db);
+    this.reports = new ReportStore(db, this);
   }
 
   /** Only synchronous database work belongs here; publish events after this returns. */
@@ -888,68 +891,6 @@ export class Store {
       .prepare("UPDATE event_subscriptions SET dropped_count = 0 WHERE id = ?")
       .run(subscriptionId);
     return { retried, waiting };
-  }
-
-  // ---------- audit log ----------
-
-  /** Call inside the transaction that makes the change, so neither exists without the other. */
-  recordAudit(
-    entry: {
-      actorId: ID | null;
-      action: AuditAction;
-      targetType: AuditTargetType;
-      targetId: string | null;
-      details?: AuditEntry["details"];
-    },
-    now = Date.now(),
-  ): void {
-    this.db
-      .prepare(
-        "INSERT INTO audit_log (id, at, actor_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      )
-      .run(
-        ulid(now),
-        now,
-        entry.actorId,
-        entry.action,
-        entry.targetType,
-        entry.targetId,
-        JSON.stringify(entry.details ?? {}),
-      );
-  }
-
-  /**
-   * Newest first. `before` is the id of the last entry already seen.
-   *
-   * Ordered by insertion rather than by id: ids made in the same millisecond
-   * are not ordered among themselves, and two changes a moment apart must not
-   * be listed the wrong way round.
-   */
-  listAudit(opts: { before?: ID; limit: number }): AuditEntry[] {
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM audit_log
-         ${opts.before ? "WHERE rowid < (SELECT rowid FROM audit_log WHERE id = ?)" : ""}
-         ORDER BY rowid DESC LIMIT ?`,
-      )
-      .all(...(opts.before ? [opts.before] : []), opts.limit) as {
-      id: string;
-      at: number;
-      actor_id: string | null;
-      action: AuditAction;
-      target_type: AuditTargetType;
-      target_id: string | null;
-      details: string;
-    }[];
-    return rows.map((r) => ({
-      id: r.id,
-      at: r.at,
-      actorId: r.actor_id,
-      action: r.action,
-      targetType: r.target_type,
-      targetId: r.target_id,
-      details: JSON.parse(r.details) as AuditEntry["details"],
-    }));
   }
 
   // ---------- event log ----------

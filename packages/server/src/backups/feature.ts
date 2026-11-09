@@ -111,7 +111,7 @@ export function registerBackups(
         "copy_downloading",
         "The copy is being downloaded. Make a new one once that has finished.",
       );
-    store.recordAudit({
+    store.audit.record({
       actorId: me.id,
       action: "workspace.copy_made",
       targetType: "workspace",
@@ -161,7 +161,7 @@ export function registerBackups(
     }
     const zip = copies?.open(params.id);
     if (!zip) throw new HttpError(404, "no_copy", "That copy is gone. Make a new one.");
-    store.recordAudit({
+    store.audit.record({
       actorId: ownerId,
       action: "workspace.copy_downloaded",
       targetType: "workspace",

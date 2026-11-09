@@ -343,8 +343,8 @@ describe("link previews", () => {
     const back = await post(peer.token, general, "https://news.example/launch again");
     await previewsOf(general, back.id, ["https://news.example/launch"]);
     expect(
-      server.store
-        .listAudit({ limit: 10 })
+      server.store.audit
+        .list({ limit: 10 })
         .filter((e) => e.action === "workspace.link_previews_changed")
         .map((e) => e.details),
     ).toEqual([

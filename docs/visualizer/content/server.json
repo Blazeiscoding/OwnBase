@@ -365,14 +365,41 @@
     {
       "path": "packages/server/src/admin/feature.ts",
       "plain": "The routes the owner and admins use to run the workspace, and the ones that say whether it is up.",
-      "summary": "registerAdmin: health, the icon, workspace status (OPS-10), the audit log, people's roles and resets, reports, ownership, workspace settings and extension settings panels.",
+      "summary": "registerAdmin: health, the icon, workspace status (OPS-10), ownership, workspace settings and extension settings panels; it hands the people routes to admin/members.ts.",
       "details": [
         "Health and the icon are open to anyone; the icon is rationed by publicByAddress and cached under ?v= for a year.",
-        "Workspace status reports counts and sizes only: database and log, attachments and their removal queue, free disk, app deliveries, the scheduled queue, retention, backups, sockets, event-loop delay over the last full minute, failing background queues and each extension's status line.",
+        "Workspace status reports counts and sizes only: database and log, attachments and their removal queue, free disk, app deliveries, the scheduled queue, retention, backups, sockets, event-loop delay over the last full minute, failing background queues and each extension's status line."
+      ],
+      "concepts": ["feature module", "administration"]
+    },
+    {
+      "path": "packages/server/src/admin/members.ts",
+      "plain": "The routes an admin uses to look after people: the audit log, everyone's role and account, password and two-step resets, and reported messages.",
+      "summary": "registerMemberAdmin: listAudit, listAllUsers, updateUserAdmin, resetPassword, resetTwoStep, listReports and resolveReport, called once from registerAdmin.",
+      "details": [
+        "mayChange is the one rule for whose account an admin may change (not their own, never the owner's, another admin's only as the owner), shared by role changes and by deactivating a reported author.",
         "Password and two-step resets share resettable's rules; a password reset is checked again after hashing, which yields.",
         "Resolving a report removes the message inside the same mutate and, for deactivate, ends the author's sessions and sockets."
       ],
       "concepts": ["feature module", "administration"]
+    },
+    {
+      "path": "packages/server/src/admin/auditLog.ts",
+      "plain": "Keeps the record of who changed what in the workspace, and reads it back for admins.",
+      "summary": "AuditLog (store.audit): record, called by every feature inside the transaction that makes the change, and list, newest first by insertion order.",
+      "details": [
+        "Every feature that changes something an admin answers for writes here (accounts, admin, workspace, backups, apps, recover), so it hangs off the store rather than an admin-only object."
+      ],
+      "concepts": ["administration", "queries"]
+    },
+    {
+      "path": "packages/server/src/admin/reportStore.ts",
+      "plain": "Keeps reported messages: members file them, admins settle them.",
+      "summary": "ReportStore (store.reports): file (false for a second open report by the same person), openCount, open (grouped by message with its conversation and author, read through the message row) and resolve.",
+      "details": [
+        "Filing or resolving tells admins the new open count through the outbox's reports event."
+      ],
+      "concepts": ["administration", "queries"]
     },
     {
       "path": "packages/server/src/admin/workspace.ts",
@@ -666,7 +693,7 @@
         "Profiles (E9): a user row gives timeZone, away and avatarVersion only when set, so older comparisons of users still hold. updateUser sets the first two; isAway, avatar and setAvatar keep the rest, setAvatar with null deleting the bytes.",
         "A message row's call_kind becomes Message.call, and createMessage keeps one (E10).",
         "Two-step sign-in (E11): twoStep reads an account's key, last step and recovery codes left; twoStepUserIds lists who has it. enableTwoStep, disableTwoStep (which says whether it was on) and replaceRecoveryCodes are called inside a transaction; useTwoStepStep keeps the step a code was accepted for, and useRecoveryCode spends a code once.",
-        "Blocks and reports (E12): blockedIds, setBlocked, reportMessage (false for a second open report by the same person), openReportCount (messages waiting), openReports (grouped by message with its conversation and author, read through the message row) and resolveReports. NOT_BLOCKED leaves a blocked author out of unreadMentionCounts and activityMessages; listFriends leaves out a request from someone blocked."
+        "Blocks and reports (E12): blockedIds and setBlocked; reports are kept by admin/reportStore.ts. NOT_BLOCKED leaves a blocked author out of unreadMentionCounts and activityMessages; listFriends leaves out a request from someone blocked."
       ],
       "concepts": ["SQLite data layer", "N06", "N07", "adaptive search", "batch hydration"]
     },
@@ -1445,8 +1472,8 @@
     },
     {
       "path": "packages/server/src/people/store.ts",
-      "plain": "Saves accounts as others see them, their pictures, friendships, blocks and reports.",
-      "summary": "PeopleStore: users rows mapped once (toUser), profiles, avatars, statuses, friends, blocks and message reports.",
+      "plain": "Saves accounts as others see them, their pictures, friendships and blocks.",
+      "summary": "PeopleStore: users rows mapped once (toUser), profiles, avatars, statuses, friends and blocks.",
       "details": [
         "toUser is the one mapping from a users row to the protocol's User, shared with sessions in the store core.",
         "mayInvite is the rule for who may invite, also read by invites."

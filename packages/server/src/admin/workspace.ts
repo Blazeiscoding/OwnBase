@@ -120,7 +120,7 @@ export function createWorkspace(ctx: ServerContext) {
     if (name === previous) return name;
     store.transaction(() => {
       settings.set("workspaceName", name);
-      store.recordAudit({
+      store.audit.record({
         actorId: by,
         action: "workspace.renamed",
         targetType: "workspace",
@@ -142,7 +142,7 @@ export function createWorkspace(ctx: ServerContext) {
     const previous = accessPolicy();
     const ended = writeAccessPolicy(policy, () => {
       if (policy === previous) return;
-      store.recordAudit({
+      store.audit.record({
         actorId: by,
         action: "workspace.access_policy_changed",
         targetType: "workspace",
@@ -166,7 +166,7 @@ export function createWorkspace(ctx: ServerContext) {
     if ((icon?.version ?? null) === (next?.version ?? null)) return;
     store.transaction(() => {
       settings.set("icon", next);
-      store.recordAudit({
+      store.audit.record({
         actorId: by,
         action: "workspace.icon_changed",
         targetType: "workspace",
@@ -186,7 +186,7 @@ export function createWorkspace(ctx: ServerContext) {
     if (enabled === settings.get("linkPreviews")) return;
     store.transaction(() => {
       settings.set("linkPreviews", enabled);
-      store.recordAudit({
+      store.audit.record({
         actorId: by,
         action: "workspace.link_previews_changed",
         targetType: "workspace",
@@ -216,9 +216,7 @@ export function createWorkspace(ctx: ServerContext) {
     linkPreviews: settings.get("linkPreviews"),
     workspaceName: settings.get("workspaceName"),
     workspaceId: settings.get("workspaceId"),
-    ...(isAdministrator(user.role)
-      ? { openReports: store.people.openReportCount(), ...notices() }
-      : {}),
+    ...(isAdministrator(user.role) ? { openReports: store.reports.openCount(), ...notices() } : {}),
   });
 
   return {

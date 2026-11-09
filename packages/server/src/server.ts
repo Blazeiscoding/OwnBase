@@ -817,7 +817,7 @@ async function startWorkspaceServer(
 
       const token = secretToken("xoxb-");
       store.addAppToken(created.id, hashToken(token));
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.created",
         targetType: "app",
@@ -856,7 +856,7 @@ async function startWorkspaceServer(
       const added = (after.scopes ?? []).filter((scope) => !before.includes(scope));
       const removed = before.filter((scope) => !(after.scopes ?? []).includes(scope));
       if (added.length > 0 || removed.length > 0) {
-        store.recordAudit({
+        store.audit.record({
           actorId: me.id,
           action: "app.scopes_changed",
           targetType: "app",
@@ -874,7 +874,7 @@ async function startWorkspaceServer(
     const token = secretToken("xoxb-");
     store.transaction(() => {
       store.replaceAppTokens(target.id, hashToken(token));
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.token_replaced",
         targetType: "app",
@@ -892,7 +892,7 @@ async function startWorkspaceServer(
     const signingSecret = secretToken();
     store.transaction(() => {
       store.setAppSigningSecret(target.id, signingSecret);
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.signing_secret_replaced",
         targetType: "app",
@@ -909,7 +909,7 @@ async function startWorkspaceServer(
     if (!target) throw new HttpError(404, "not_found");
     store.transaction(() => {
       store.deleteApp(target.id);
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.deleted",
         targetType: "app",
@@ -932,7 +932,7 @@ async function startWorkspaceServer(
         channelId: channel.id,
         tokenHash: hashToken(token),
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "webhook.created",
         targetType: "webhook",
@@ -953,7 +953,7 @@ async function startWorkspaceServer(
     const webhook = store.transaction(() => {
       const replaced = store.replaceWebhookToken(params.id, hashToken(token));
       if (replaced) {
-        store.recordAudit({
+        store.audit.record({
           actorId: me.id,
           action: "webhook.url_replaced",
           targetType: "webhook",
@@ -979,7 +979,7 @@ async function startWorkspaceServer(
     const deleted = store.transaction(() => {
       const webhook = store.getWebhook(params.id);
       if (!webhook || !store.deleteWebhook(webhook.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "webhook.deleted",
         targetType: "webhook",
@@ -1314,7 +1314,7 @@ async function startWorkspaceServer(
         description: body.description ?? "",
         usageHint: body.usageHint ?? "",
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "command.created",
         targetType: "command",
@@ -1335,7 +1335,7 @@ async function startWorkspaceServer(
     const deleted = store.transaction(() => {
       const command = store.getSlashCommand(params.id);
       if (!command || !store.deleteSlashCommand(command.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "command.deleted",
         targetType: "command",
@@ -1959,7 +1959,7 @@ async function startWorkspaceServer(
         const current = store.getApp(owner.id);
         if (!current) throw new HttpError(404, "not_found");
         store.setInteractivityUrl(current.id, url);
-        store.recordAudit({
+        store.audit.record({
           actorId: me.id,
           action: "app.interactivity_url_changed",
           targetType: "app",
@@ -2086,7 +2086,7 @@ async function startWorkspaceServer(
         url: body.url,
         eventTypes: body.eventTypes ?? [],
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "subscription.created",
         targetType: "subscription",
@@ -2102,7 +2102,7 @@ async function startWorkspaceServer(
     const deleted = store.transaction(() => {
       const subscription = store.getSubscription(params.id);
       if (!subscription || !store.deleteSubscription(subscription.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "subscription.deleted",
         targetType: "subscription",
@@ -2124,7 +2124,7 @@ async function startWorkspaceServer(
     if (!subscription) throw new HttpError(404, "not_found");
     const { retried, waiting } = store.transaction(() => {
       const result = store.retryFailedEventDeliveries(subscription.id);
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "subscription.retried",
         targetType: "subscription",
