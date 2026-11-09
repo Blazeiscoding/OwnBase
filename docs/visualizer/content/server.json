@@ -150,7 +150,7 @@
       "concepts": ["two-step sign-in", "TOTP", "RFC 6238", "recovery codes", "E11"]
     },
     {
-      "path": "packages/server/src/backup.ts",
+      "path": "packages/server/src/backups/backup.ts",
       "plain": "Makes a complete backup of the workspace and its files, checks it, and puts a backup back in place when the host restores one.",
       "summary": "Captures, verifies, inventories and restores portable workspace backups.",
       "details": [
@@ -163,7 +163,7 @@
       "concepts": ["backup", "checksum", "WAL snapshot", "path lock"]
     },
     {
-      "path": "packages/server/src/backupSchedule.ts",
+      "path": "packages/server/src/backups/backupSchedule.ts",
       "plain": "Lets the server back itself up on a timer into dated folders, keeping the newest few, so a host does not have to remember to.",
       "summary": "Schedules verified backups, prunes old ones and reports how they are going.",
       "details": [
@@ -175,7 +175,7 @@
       "concepts": ["scheduled backup", "retention of copies", "child process", "P3"]
     },
     {
-      "path": "packages/server/src/offsite.ts",
+      "path": "packages/server/src/backups/offsite.ts",
       "plain": "Sends each scheduled backup, as one zip, to a bucket somewhere else such as Cloudflare R2, so losing the server's disk does not lose the backups too.",
       "summary": "Uploads verified backups to an S3-compatible bucket and keeps the newest few there.",
       "details": [
@@ -185,6 +185,17 @@
         "BackupSchedule calls it after a local backup is verified. A failed send leaves the backup standing, counts in the status as offsite failures, and only the send is retried within the hour. The keys come from the environment only."
       ],
       "concepts": ["offsite backup", "S3 SigV4", "multipart upload", "Cloudflare R2"]
+    },
+    {
+      "path": "packages/server/src/backups/feature.ts",
+      "plain": "Takes backups on a timer and makes the copy of the workspace the owner downloads.",
+      "summary": "registerBackups: scheduled backups (P3), the owner's workspace copy and its one-use download tickets (P4), and the backup summary in workspace status.",
+      "details": [
+        "scheduledBackupsOf refuses, before the database opens, schedules that cannot work: in memory, a non-positive interval, keeping none, or a backup folder inside the workspace or around it. An isolated copy takes none.",
+        "Making a copy is refused with 507 when the disk would have less than 64 MB left after it.",
+        "Both take an ordinary backup with attachment removals held, and stop before the drain so held removals run once the backup has ended."
+      ],
+      "concepts": ["feature module", "backup"]
     },
     {
       "path": "packages/server/src/blockKit.ts",
@@ -327,7 +338,7 @@
       "concepts": ["attachment metadata", "layout stability"]
     },
     {
-      "path": "packages/server/src/workspaceCopy.ts",
+      "path": "packages/server/src/backups/workspaceCopy.ts",
       "plain": "Makes a fresh copy of the workspace for its owner to download, and unpacks a downloaded copy so it can be restored.",
       "summary": "Owns the owner's downloadable copy and the zip form of a backup.",
       "details": [
@@ -339,7 +350,7 @@
       "concepts": ["data portability", "download ticket", "backup", "P4"]
     },
     {
-      "path": "packages/server/src/workspaceIcon.ts",
+      "path": "packages/server/src/admin/workspaceIcon.ts",
       "plain": "Checks a workspace's icon before it is kept: only a small PNG, JPEG or WebP picture, judged by what the file really is rather than by what it says it is.",
       "summary": "Validates, versions and stores the workspace icon without decoding it (UX-60).",
       "details": [
@@ -352,7 +363,30 @@
       "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
     },
     {
-      "path": "packages/server/src/zip.ts",
+      "path": "packages/server/src/admin/feature.ts",
+      "plain": "The routes the owner and admins use to run the workspace, and the ones that say whether it is up.",
+      "summary": "registerAdmin: health, the icon, workspace status (OPS-10), the audit log, people's roles and resets, reports, ownership, workspace settings and extension settings panels.",
+      "details": [
+        "Health and the icon are open to anyone; the icon is rationed by publicByAddress and cached under ?v= for a year.",
+        "Workspace status reports counts and sizes only: database and log, attachments and their removal queue, free disk, app deliveries, the scheduled queue, retention, backups, sockets, event-loop delay over the last full minute, failing background queues and each extension's status line.",
+        "Password and two-step resets share resettable's rules; a password reset is checked again after hashing, which yields.",
+        "Resolving a report removes the message inside the same mutate and, for deactivate, ends the author's sessions and sockets."
+      ],
+      "concepts": ["feature module", "administration"]
+    },
+    {
+      "path": "packages/server/src/admin/workspace.ts",
+      "plain": "The workspace itself: its name, who may join, its icon and link previews, changed the same way by the host and by its owner and admins.",
+      "summary": "createWorkspace: start-up settings for an unowned workspace, rename, changeAccessPolicy, changeIcon, setLinkPreviews, change listeners and the workspace part of the startup snapshot.",
+      "details": [
+        "Before anyone owns the workspace, the start options decide its name and who may join; once it has an owner a start never puts back an older choice. It also makes the claim code while nobody owns it.",
+        "Each change writes its settings through the registry with its audit record in one transaction, tells everyone signed in, and tells onChange listeners, one of which re-announces the workspace on the network after a rename or a new icon.",
+        "Turning guests off ends every guest session and closes their sockets."
+      ],
+      "concepts": ["feature module", "settings registry", "startup snapshot"]
+    },
+    {
+      "path": "packages/server/src/backups/zip.ts",
       "plain": "Packs a workspace copy into one zip file, and unpacks one, without any outside library.",
       "summary": "Writes stored ZIP/ZIP64 archives with exact lengths and reads stored or deflated entries back.",
       "details": [
@@ -459,7 +493,7 @@
       "concepts": ["link previews", "SSRF guard", "HTML metadata"]
     },
     {
-      "path": "packages/server/src/ownership.ts",
+      "path": "packages/server/src/core/ownership.ts",
       "plain": "Makes sure only one server at a time can open and change a workspace folder.",
       "summary": "Ensures one process owns a writable workspace folder at a time.",
       "details": [
@@ -552,8 +586,8 @@
         "GET /api/channels/:id/messages/:messageId gives one message to anyone who can read its conversation, guests included, for the card under a link to it. A message deleted, or under another conversation's id, is a 404, as is one in a conversation the reader cannot see.",
         "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped.",
         "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error.",
-        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through renameWorkspace and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
-        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon, which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
+        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through admin/workspace.ts's rename and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
+        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon (admin/workspace.ts), which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
         "A send can carry forwardFrom (E1). The sender must be able to read that message now: a missing, deleted or unreadable one answers 404 message_not_found. A forward with no words or files of its own passes on its original instead, and when the sender cannot read that original or it is gone the send answers 409 forward_unavailable. The forwarded id is part of the send's nonce identity.",
         "Link previews (E2): after a send or an edit commits, queuePreviews puts the message in a queue of at most 200 worked by two fetches at a time, unless the workspace is an isolated copy or previews are off (meta link_previews). findPreviews fetches the links it has no row for, through a cache of 25 addresses for half an hour shared by concurrent sends, then in one change adds what it found and emits message.updated with previewsOnly, unless the message was edited or deleted meanwhile. Shutdown aborts fetches under way.",
         "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests.",
@@ -1686,14 +1720,14 @@
         {
           "title": "Copy the database at one moment",
           "description": "The server copies its database as it stands, including the most recent saves, and lists the uploaded files the backup needs. If a file is deleted while the backup runs, the backup fails. To be sure a backup is complete, take it while the server is stopped.",
-          "files": ["packages/server/src/backup.ts"],
+          "files": ["packages/server/src/backups/backup.ts"],
           "detail": "VACUUM INTO reads committed SQLite/WAL state; snapshot file inventory identifies required blobs. Missing concurrent-deleted blobs fail capture, so stopped-server capture is the way to guarantee completeness."
         },
         {
           "title": "Or let the server back itself up",
           "description": "A host can ask the server to take a backup on a timer into a folder of dated copies, keeping the newest few. Each is the same checked backup. While one copies files, the server holds off removing deleted ones, so the copy is complete without stopping anything, and the copying happens in a separate process so chat does not wait.",
           "files": [
-            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/backups/backupSchedule.ts",
             "packages/server/src/server.ts",
             "packages/server/src/main.ts"
           ],
@@ -1703,8 +1737,8 @@
           "title": "And send each one somewhere else",
           "description": "A host can also have every scheduled backup sent as one zip to a storage bucket elsewhere, such as Cloudflare R2, keeping the newest few there. If the server's disk is lost, the backups are not. A send that fails is tried again within the hour without taking a new backup.",
           "files": [
-            "packages/server/src/offsite.ts",
-            "packages/server/src/backupSchedule.ts",
+            "packages/server/src/backups/offsite.ts",
+            "packages/server/src/backups/backupSchedule.ts",
             "packages/server/src/main.ts",
             "ee/cloud/src/controlPlane.ts"
           ],
@@ -1714,8 +1748,8 @@
           "title": "Or download a copy as the owner",
           "description": "The owner can ask for a copy from Workspace settings without reaching the server. It is a fresh backup, checked like any other, sent as one zip file through a link that works once. The same zip restores the workspace here or on the owner's own server.",
           "files": [
-            "packages/server/src/workspaceCopy.ts",
-            "packages/server/src/zip.ts",
+            "packages/server/src/backups/workspaceCopy.ts",
+            "packages/server/src/backups/zip.ts",
             "packages/server/src/server.ts",
             "packages/ui/src/components/WorkspaceSettings.tsx"
           ],
@@ -1724,14 +1758,14 @@
         {
           "title": "Check the backup before keeping it",
           "description": "The copied database and files must match their recorded sizes and fingerprints, the expected layout and counts, and the database's own health check. Every file reference must be valid, with nothing listed twice and nothing pointing outside the backup. Only then does the server move the finished backup to its final place.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/db.ts"],
+          "files": ["packages/server/src/backups/backup.ts", "packages/server/src/db.ts"],
           "detail": "Staged database and files must match checksums/sizes, schema/counts, integrity and references, with no manifest duplicates or path escape. Only then is the complete capture renamed to its destination."
         },
         {
           "title": "See what a restored copy would do",
           "description": "Without changing anything, the host can list which outside apps a restored copy would contact, which scheduled messages are waiting, which app calls never went out and which sign-ins still work. A separate isolated mode runs the copy without calling apps or sending scheduled messages, so it can be looked at safely.",
           "files": [
-            "packages/server/src/backup.ts",
+            "packages/server/src/backups/backup.ts",
             "packages/server/src/main.ts",
             "packages/server/src/server.ts"
           ],
@@ -1740,20 +1774,23 @@
         {
           "title": "Prepare the restore beside the original",
           "description": "Restore refuses to start if a server is using the workspace. It copies the checked backup next to the workspace folder and checks the copy again. The old workspace moves to a set-aside folder so it can still be recovered.",
-          "files": ["packages/server/src/backup.ts", "packages/server/src/ownership.ts"],
+          "files": [
+            "packages/server/src/backups/backup.ts",
+            "packages/server/src/core/ownership.ts"
+          ],
           "detail": "Restore refuses an already held workspace, copies the verified backup beside the target and verifies staged bytes. The old workspace is moved to a superseded folder for recovery."
         },
         {
           "title": "No other server can slip in while folders swap",
           "description": "Restore has to let go of the workspace folder for a moment to rename it, because Windows will not rename a folder with a file open inside it. It keeps a second claim beside the folder the whole time, so a server started in that moment is refused and makes no workspace of its own there. If the swap fails, the original goes back where it was.",
-          "files": ["packages/server/src/backup.ts"],
+          "files": ["packages/server/src/backups/backup.ts"],
           "detail": "Restore holds a sibling path lock from before staging until publication or rollback is complete, and releases the in-folder hold only for the renames. holdWorkspace takes the path lock before mkdir, so a concurrent start gets WorkspaceInUseError and the target stays absent until the staged copy is renamed in."
         },
         {
           "title": "Start the restored workspace as usual",
           "description": "The next server to start takes sole hold of the restored workspace and upgrades its database if needed, keeping a copy from before the upgrade. The host applies settings that belong to the computer separately, such as the public address, how long history is kept and call connection settings.",
           "files": [
-            "packages/server/src/ownership.ts",
+            "packages/server/src/core/ownership.ts",
             "packages/server/src/db.ts",
             "packages/server/src/config.ts",
             "packages/server/src/server.ts"

@@ -573,7 +573,7 @@
       "mechanism": "Move version/build constants to a light server module and export a dedicated backup entry; worker imports it directly and returns only result/error metadata.",
       "files": [
         "apps/desktop/src/main/backupWorker.ts",
-        "packages/server/src/backup.ts",
+        "packages/server/src/backups/backup.ts",
         "packages/server/src/version.ts",
         "packages/server/package.json",
         "apps/desktop/test/backupWorker.test.ts"
@@ -1543,8 +1543,8 @@
       "after": "A server or a second restore that asks for the folder during a restore is refused, also when the folder is not there yet. If the swap fails, the original goes back where it was. The extra claim leaves nothing beside the folder once it is let go.",
       "mechanism": "Hold a path lock beside the target through staging, both renames and rollback; every folder hold asks for it before making or locking the folder; its file is removed on release by a holder certain of the file's identity.",
       "files": [
-        "packages/server/src/backup.ts",
-        "packages/server/src/ownership.ts",
+        "packages/server/src/backups/backup.ts",
+        "packages/server/src/core/ownership.ts",
         "packages/server/test/restoreSwap.test.ts",
         "packages/server/test/ownership.test.ts"
       ],

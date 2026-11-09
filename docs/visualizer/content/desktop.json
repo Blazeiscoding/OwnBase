@@ -1275,7 +1275,7 @@
           "files": [
             "apps/desktop/src/main/backupWorker.ts",
             "apps/desktop/src/main/hosting.ts",
-            "packages/server/src/backup.ts",
+            "packages/server/src/backups/backup.ts",
             "apps/desktop/src/main/trayBackups.ts"
           ],
           "detail": "A worker performs heavy SQLite jobs; the controller validates results and persists schedules/failures. Shutdown serializes with accepted operations and closes owned resources; its wait behind a held backup is bounded by the cleanup deadline (Q13), and so is Stop hosting's."

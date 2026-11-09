@@ -16,8 +16,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { fileURLToPath } from "node:url";
 import type { WorkspaceCopy } from "@ownbase/protocol";
-import { backupWorkspace, restoreWorkspace, verifyBackup } from "../src/backup.js";
-import { WorkspaceCopies, withBackupFolder } from "../src/workspaceCopy.js";
+import { backupWorkspace, restoreWorkspace, verifyBackup } from "../src/backups/backup.js";
+import { WorkspaceCopies, withBackupFolder } from "../src/backups/workspaceCopy.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
 
 /** Free space the server is told it has, or null for the disk's own answer. */
