@@ -1,17 +1,19 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  OUTBOX_TOMBSTONES_KEPT,
-  OUTBOX_TOMBSTONES_MAX,
   WorkspaceClient,
   applyOutboxChanges,
-  emptyOutbox,
-  mergeOutbox,
-  outboxRevision,
   readStoredOutbox,
   unwrapStoredOutbox,
   type StoredOutbox,
-  type StoredOutboxEntry,
 } from "../src/index.js";
+import {
+  OUTBOX_TOMBSTONES_KEPT,
+  OUTBOX_TOMBSTONES_MAX,
+  emptyOutbox,
+  mergeOutbox,
+  outboxRevision,
+  type StoredOutboxEntry,
+} from "../src/outbox.js";
 import { SEND_RETRY_WINDOW_MS } from "@ownbase/protocol";
 
 /**

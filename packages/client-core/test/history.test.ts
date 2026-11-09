@@ -113,7 +113,7 @@ describe("timeline snapshot reconciliation", () => {
         expect(client.state.timelines[channelId]?.hasMoreNewer).toBe(true);
       }
       const incoming = vi.fn();
-      client.onIncomingMessage = incoming;
+      client.on("message", incoming);
       let captured: Promise<unknown>;
       let release: () => void;
       let loading: Promise<unknown>;

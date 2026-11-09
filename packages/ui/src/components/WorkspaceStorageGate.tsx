@@ -9,7 +9,7 @@ import {
   checkWorkspaceAddress,
   trustWorkspaceAddress,
   type WorkspaceAddressAccess,
-} from "../lib/workspaceAddressTrust.js";
+} from "@ownbase/client-core";
 import { Dialog } from "./Dialog.js";
 import { buttonClass } from "./Button.js";
 

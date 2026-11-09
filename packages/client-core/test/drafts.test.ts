@@ -3,10 +3,9 @@ import {
   WorkspaceClient,
   applyDraftChanges,
   isDraftChanges,
-  mergeDrafts,
-  readStoredDrafts,
   unwrapStoredDrafts,
 } from "../src/index.js";
+import { mergeDrafts, readStoredDrafts } from "../src/drafts.js";
 
 /**
  * Drafts every window on one account writes. Each writes only the drafts it

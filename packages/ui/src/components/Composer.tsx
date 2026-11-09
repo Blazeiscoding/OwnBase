@@ -30,13 +30,12 @@ import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { appCommand, runAppCommand, withAppCommands } from "../lib/appCommands.js";
 import { useOptionalToast } from "./Toast.js";
-import { whenKeptLocally } from "../lib/localWork.js";
 import {
   readWorkspaceStorage,
   workspaceStorageKey,
   writeWorkspaceStorage,
   type WorkspaceStorageKey,
-} from "../lib/workspaceStorage.js";
+} from "@ownbase/client-core";
 import {
   FormattingToolbar,
   formatList,
@@ -515,7 +514,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     setAttachmentNote(null);
     // The words stay here, and in the saved draft, until the device keeps the
     // send itself: until then a closed window would lose them (GL-02).
-    const kept = queued && trimmed ? whenKeptLocally(client, queued) : null;
+    const kept = queued && trimmed ? client.kept.whenKept(queued) : null;
     if (!kept) return clearSent(draftKey);
     const sending = { draftKey, nonce: queued! };
     setSaving(sending);
@@ -576,7 +575,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
       for (const file of attached) {
         let id = scheduleUploads.current.get(file);
         if (!id) {
-          const { file: uploaded } = await client.api.uploadFile(channelId, file, file.name, {
+          const { file: uploaded } = await client.uploadFile(channelId, file, file.name, {
             signal: controller.signal,
           });
           if (!current()) return;
@@ -650,7 +649,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
     storageKey: WorkspaceStorageKey,
     context: object,
   ) {
-    const { scheduled } = await client.api.scheduleMessage(channelId, body);
+    const { scheduled } = await client.scheduleMessage(channelId, body);
     if (scheduleContext.current !== context) return;
     // If clearing recovery fails, leave the same request available for retry.
     await writeWorkspaceStorage(platform, storageKey, null);

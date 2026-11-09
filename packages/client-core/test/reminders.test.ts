@@ -96,8 +96,8 @@ describe("reminders", () => {
   it("says once, on each device, that a reminder came due, with its message", async () => {
     const due: [Reminder, Message][] = [];
     const elsewhere: Reminder[] = [];
-    client.onReminderDue = (reminder, message) => due.push([reminder, message]);
-    other.onReminderDue = (reminder) => elsewhere.push(reminder);
+    client.on("reminderDue", (reminder, message) => due.push([reminder, message]));
+    other.on("reminderDue", (reminder) => elsewhere.push(reminder));
     const message = await say("Call the venue");
 
     await client.setReminder(message.id, Date.now() + 300);

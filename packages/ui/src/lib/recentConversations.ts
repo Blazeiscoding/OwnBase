@@ -5,7 +5,7 @@ import {
   readWorkspaceStorage,
   updateWorkspaceStorage,
   workspaceStorageKey,
-} from "./workspaceStorage.js";
+} from "@ownbase/client-core";
 
 /** How many conversations Ctrl+K remembers having been open. */
 export const RECENT_LIMIT = 12;

@@ -445,8 +445,8 @@ function CopySection() {
     let stop = false;
     void (async () => {
       try {
-        if (!(await client.api.serverInfo()).workspaceCopies) return;
-        const { copy } = await client.api.workspaceCopy();
+        if (!(await client.serverInfo()).workspaceCopies) return;
+        const { copy } = await client.admin.workspaceCopy();
         if (stop) return;
         setSupported(true);
         setCopy(copy);
@@ -463,7 +463,7 @@ function CopySection() {
   useEffect(() => {
     if (!making) return;
     const timer = setInterval(() => {
-      client.api.workspaceCopy().then(
+      client.admin.workspaceCopy().then(
         ({ copy }) => {
           if (alive.current) setCopy(copy);
         },
@@ -480,7 +480,7 @@ function CopySection() {
     setError(null);
     setStarted(false);
     try {
-      const { copy } = await client.api.makeWorkspaceCopy();
+      const { copy } = await client.admin.makeWorkspaceCopy();
       if (alive.current) setCopy(copy);
     } catch (err) {
       if (!alive.current) return;
@@ -500,7 +500,7 @@ function CopySection() {
     setBusy(true);
     setError(null);
     try {
-      const url = await client.api.workspaceCopyUrl(ready.id);
+      const url = await client.admin.workspaceCopyUrl(ready.id);
       if (!platform.downloadFile) throw new Error("This app cannot save downloads.");
       await platform.downloadFile(url);
       if (alive.current) setStarted(true);

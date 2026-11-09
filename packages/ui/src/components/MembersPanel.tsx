@@ -36,7 +36,7 @@ export function MembersPanel(props: {
     }
     let active = true;
     setFailed(false);
-    client.api
+    client
       .channelMembers(props.channelId)
       .then((r) => active && setLoaded(r.memberIds))
       .catch(() => active && setFailed(true));

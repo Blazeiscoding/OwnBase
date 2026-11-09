@@ -395,7 +395,7 @@
       "files": [
         "packages/client-core/src/workspace.ts",
         "packages/client-core/test/historyCancel.test.ts",
-        "packages/ui/src/lib/coalescedLoader.ts",
+        "packages/client-core/src/coalescedLoader.ts",
         "packages/ui/src/components/ActivityPanel.tsx"
       ],
       "evidence": [],
@@ -1589,7 +1589,7 @@
       "after": "Exactly one first address is trusted on its own. The other window is told which address that was, and has to wait for the person's approval before it opens any saved work.",
       "mechanism": "Register the first trusted address with the storage owner's conditional initialize and decide admission from the record it returns, instead of a read followed by a separate write.",
       "files": [
-        "packages/ui/src/lib/workspaceAddressTrust.ts",
+        "packages/client-core/src/addressTrust.ts",
         "packages/ui/test/workspaceAddressTrust.test.ts"
       ],
       "evidence": [

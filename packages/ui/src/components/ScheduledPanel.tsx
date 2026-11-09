@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { MESSAGE_TEXT_MAX, type ID, type ScheduledMessage } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
@@ -9,6 +9,7 @@ import { Icon } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { PanelLink } from "./MessageListPanel.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
+import { useOpenList } from "../lib/pagedList.js";
 import { readScheduledEditDraft as draftText, scheduledEditDraftKey } from "../lib/drafts.js";
 
 /** Messages queued to go out later, with the option to call them back. */
@@ -25,9 +26,10 @@ export function ScheduledPanel(props: {
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  const scheduledChanges = useWorkspace((s) => s.scheduledChanges);
-  const [items, setItems] = useState<ScheduledMessage[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [list, { items, loading, failed }] = useOpenList(
+    () => client.lists.scheduled(),
+    "scheduled",
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<ID | null>(null);
   const [confirmation, setConfirmation] = useState<{ id: ID; kind: "cancel" | "send" } | null>(
@@ -45,31 +47,29 @@ export function ScheduledPanel(props: {
   useEffect(() => {
     if (!edited.current && savedEdit !== undefined) setEditText(savedEdit);
   }, [savedEdit]);
-  const request = useRef<AbortController | null>(null);
   const alive = useRef(true);
   const mutating = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+    };
+  }, []);
+  // A read that starts again hides what the last change said went wrong.
+  useEffect(() => {
+    if (loading) setError(null);
+  }, [loading]);
 
   async function saveText() {
     if (!editing || !editKey || mutating.current) return;
     mutating.current = true;
-    request.current?.abort();
-    setLoading(false);
     setBusy(editing.id);
     setEditError(null);
     let failed = false;
     try {
-      const result = await client.api.editScheduledMessage(editing.id, {
-        text: editText,
-        expectedText: editing.text,
-      });
+      await list.edit(editing.id, { text: editText, expectedText: editing.text });
       if (draftText(client.state.drafts[editKey]) === editText) client.setDraft(editKey, "");
-      if (alive.current) {
-        setItems(
-          (previous) =>
-            previous?.map((item) => (item.id === editing.id ? result.scheduled : item)) ?? null,
-        );
-        setEditing(null);
-      }
+      if (alive.current) setEditing(null);
     } catch (err) {
       failed = true;
       if (alive.current)
@@ -83,42 +83,8 @@ export function ScheduledPanel(props: {
       if (alive.current) setBusy(null);
     }
     // What the queue holds now: the current text to compare, or the message gone.
-    if (failed && alive.current) void load();
+    if (failed && alive.current) void list.reload();
   }
-
-  const load = useCallback(async () => {
-    if (mutating.current) return;
-    request.current?.abort();
-    const controller = new AbortController();
-    request.current = controller;
-    setLoading(true);
-    setError(null);
-    try {
-      const result = await client.api.listScheduled(controller.signal);
-      if (!controller.signal.aborted && alive.current) setItems(result.scheduled);
-    } catch {
-      if (!controller.signal.aborted && alive.current)
-        setError("Could not refresh scheduled messages. The list below may be out of date.");
-    } finally {
-      if (request.current === controller && alive.current) setLoading(false);
-    }
-  }, [client]);
-
-  useEffect(() => {
-    alive.current = true;
-    void load();
-    return () => {
-      alive.current = false;
-      request.current?.abort();
-    };
-  }, [load]);
-
-  const heard = useRef(scheduledChanges);
-  useEffect(() => {
-    if (heard.current === scheduledChanges) return;
-    heard.current = scheduledChanges;
-    void load();
-  }, [load, scheduledChanges]);
 
   function startEditing(s: ScheduledMessage) {
     setEditing(s);
@@ -142,25 +108,11 @@ export function ScheduledPanel(props: {
   async function change(id: ID, sendAt?: number) {
     if (mutating.current) return;
     mutating.current = true;
-    request.current?.abort();
-    setLoading(false);
     setBusy(id);
     setError(null);
     try {
-      if (sendAt === undefined) {
-        await client.api.cancelScheduled(id);
-        if (alive.current)
-          setItems((previous) => previous?.filter((item) => item.id !== id) ?? null);
-      } else {
-        const result = await client.api.rescheduleMessage(id, sendAt);
-        if (alive.current)
-          setItems(
-            (previous) =>
-              previous
-                ?.map((item) => (item.id === id ? result.scheduled : item))
-                .sort((a, b) => a.sendAt - b.sendAt) ?? null,
-          );
-      }
+      if (sendAt === undefined) await list.cancel(id);
+      else await list.reschedule(id, sendAt);
       if (alive.current) {
         setConfirmation(null);
         setChanging(null);
@@ -202,9 +154,14 @@ export function ScheduledPanel(props: {
           loading={loading && items === null}
           placeholder
           loadingLabel="Loading scheduled messages…"
-          error={error}
+          error={
+            error ??
+            (failed
+              ? "Could not refresh scheduled messages. The list below may be out of date."
+              : null)
+          }
           retryLabel="Refresh"
-          onRetry={() => void load()}
+          onRetry={() => void list.reload()}
           empty={
             items?.length === 0 ? (
               <>

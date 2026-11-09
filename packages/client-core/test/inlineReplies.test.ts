@@ -9,9 +9,9 @@ import {
   WorkspaceClient,
   quoteOf,
   readStoredOutbox,
-  storedPending,
   type WorkspaceState,
 } from "../src/index.js";
+import { storedPending } from "../src/outbox.js";
 import { quoteChanges, requote } from "../src/replies.js";
 import { timelineMessages } from "../src/messageCache.js";
 

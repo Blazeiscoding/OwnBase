@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { ID, Message } from "@ownbase/protocol";
-import { timelineMessages } from "@ownbase/client-core";
+import type { PagedList, PagedListState } from "@ownbase/client-core";
 import { failureText } from "../lib/failure.js";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle, formatFull } from "../lib/format.js";
@@ -12,7 +12,7 @@ import { LoadMore } from "./LoadMore.js";
 import { useOptionalToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
-import { usePagedList } from "../lib/pagedList.js";
+import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { When } from "./When.js";
 
@@ -23,17 +23,9 @@ interface Props {
   emptyIcon?: IconName;
   /** One thing to do about an empty list, such as clearing its filter. */
   emptyAction?: { label: string; run: () => void };
-  load: (
-    cursor: string | undefined,
-    signal: AbortSignal,
-  ) => Promise<{ messages: Message[]; nextCursor?: string | null }>;
-  /** A different list whenever this changes, such as another channel's pins: read from the top. */
-  listKey: string;
-  /**
-   * Reads the list again, in place, whenever this changes: what is listed may
-   * have changed somewhere this panel cannot see for itself (UX-08).
-   */
-  refreshKey?: string | number;
+  /** One of `client.lists`, open while shown; another list starts at its top. */
+  list: PagedList<Message>;
+  state: PagedListState<Message>;
   /** A control for the header, left of Close — a filter, usually. */
   headerExtra?: ReactNode;
   /** Extra detail beside a row's channel, such as an unread count. */
@@ -61,40 +53,13 @@ export function MessageListPanel(props: Props) {
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  const changedContent = useWorkspace((s) => s.changedContent);
   const scroller = useRef<HTMLDivElement>(null);
-  const paged = usePagedList<Message>(
-    (cursor, signal) =>
-      props.load(cursor, signal).then((page) => ({
-        items: page.messages,
-        nextCursor: page.nextCursor ?? null,
-      })),
-    props.listKey,
-  );
-  const { list, items: messages } = paged;
+  const { list, state: paged } = props;
+  const messages = paged.items;
 
   useEffect(() => {
-    // Another list starts at its top.
     if (scroller.current) scroller.current.scrollTop = 0;
-  }, [props.listKey]);
-
-  // Told that the list may have changed: read it again in place. A new list is
-  // read from the top already, so its own change of signs is not news.
-  const heard = useRef({ list: props.listKey, refresh: props.refreshKey });
-  useEffect(() => {
-    const before = heard.current;
-    heard.current = { list: props.listKey, refresh: props.refreshKey };
-    if (before.list === props.listKey && before.refresh !== props.refreshKey) list.refresh();
-  }, [list, props.listKey, props.refreshKey]);
-
-  // A message shown here was edited, deleted or unpinned, or its conversation
-  // lost history: this copy of it is out of date.
-  const heardChanges = useRef(changedContent);
-  useEffect(() => {
-    const before = heardChanges.current;
-    heardChanges.current = changedContent;
-    if (messages?.some((m) => changedContent[m.channelId] !== before[m.channelId])) list.refresh();
-  }, [list, changedContent, messages]);
+  }, [list]);
 
   const { panel, heading } = usePanelFocus({ takeFocus: true });
   const shown = (messages ?? []).filter((m) => channels[m.channelId] && (props.keep?.(m) ?? true));
@@ -295,24 +260,14 @@ export function PinsPanel(props: {
       });
     });
   }
-  // Re-fetch whenever the set of pinned messages in view changes.
-  const pinSignature = useWorkspace((s) =>
-    timelineMessages(s, props.channelId)
-      .filter((m) => m.pinned)
-      .map((m) => m.id)
-      .join(","),
-  );
-  // A pinned message older than the history loaded here is not in that list,
-  // so its deletion, its edit or its unpinning by someone else would go unseen (Q08).
-  const changed = useWorkspace((s) => s.changedContent[props.channelId] ?? 0);
+  const [list, state] = useOpenList(() => client.lists.pins(props.channelId), props.channelId);
   return (
     <MessageListPanel
       title="Pinned"
       emptyIcon="pin"
       emptyHint="Nothing pinned here yet. Pin a message to keep it handy for everyone in the channel."
-      load={(cursor, signal) => client.api.listPins(props.channelId, signal, cursor)}
-      listKey={props.channelId}
-      refreshKey={`${pinSignature}:${changed}`}
+      list={list}
+      state={state}
       keep={(m) => !unpinned.has(m.id)}
       remove={
         guest
@@ -335,7 +290,7 @@ export function SavedPanel(props: {
   const client = useClient();
   const toast = useOptionalToast();
   const saved = useWorkspace((s) => s.saved);
-  const savedSignature = useWorkspace((s) => Object.keys(s.saved).sort().join(","));
+  const [list, state] = useOpenList(() => client.lists.saved(), "saved");
 
   /**
    * Optimistic, like the message's own bookmark: the row goes at once and
@@ -377,9 +332,8 @@ export function SavedPanel(props: {
           in a message&rsquo;s actions and it shows up here.
         </>
       }
-      load={(cursor, signal) => client.api.listSaved(cursor, signal)}
-      listKey="saved"
-      refreshKey={savedSignature}
+      list={list}
+      state={state}
       keep={(m) => !!saved[m.id]}
       remove={{
         label: "Remove from Saved",
@@ -403,19 +357,12 @@ export function ThreadsPanel(props: {
 }) {
   const client = useClient();
   const [unreadOnly, setUnreadOnly] = useState(false);
-  const [unread, setUnread] = useState<Record<ID, number>>({});
-  const [latest, setLatest] = useState<Record<ID, Message | null>>({});
   const users = useWorkspace((s) => s.users);
   const channels = useWorkspace((s) => s.channels);
   const selfId = useWorkspace((s) => s.self?.id);
-  // Following, unfollowing, reading and a new reply all change what belongs in
-  // this list, or where, or what it says about a thread.
-  const followSignature = useWorkspace((s) =>
-    Object.values(s.threadFollows)
-      .filter((f) => f.following)
-      .map((f) => `${f.rootId}:${f.lastReadSeq}:${f.lastSeq}`)
-      .sort()
-      .join(","),
+  const [list, state] = useOpenList(
+    () => client.lists.followedThreads(unreadOnly),
+    `threads:${unreadOnly}`,
   );
   return (
     <MessageListPanel
@@ -442,33 +389,20 @@ export function ThreadsPanel(props: {
           Unread only
         </button>
       }
-      load={async (cursor, signal) => {
-        const result = await client.api.listFollowedThreads({ cursor, unreadOnly }, signal);
-        if (!signal.aborted) {
-          setUnread((known) => ({
-            ...known,
-            ...Object.fromEntries(result.threads.map((t) => [t.root.id, t.unreadCount])),
-          }));
-          setLatest((known) => ({
-            ...known,
-            ...Object.fromEntries(result.threads.map((t) => [t.root.id, t.latestReply ?? null])),
-          }));
-        }
-        return { messages: result.threads.map((t) => t.root), nextCursor: result.nextCursor };
-      }}
-      listKey={`threads:${unreadOnly}`}
-      refreshKey={followSignature}
-      itemBadge={(m) =>
-        unread[m.id] ? (
+      list={list}
+      state={state}
+      itemBadge={(m) => {
+        const unread = list.detail(m.id)?.unreadCount;
+        return unread ? (
           <span className="rounded-full bg-copper px-2 font-semibold text-ground">
-            {unread[m.id]} new {unread[m.id] === 1 ? "reply" : "replies"}
+            {unread} new {unread === 1 ? "reply" : "replies"}
           </span>
-        ) : null
-      }
+        ) : null;
+      }}
       // As the conversation says it under the thread's first message.
       // Where the thread has got to: its newest reply, who wrote it and when.
       itemFooter={(m) => {
-        const reply = latest[m.id];
+        const reply = list.detail(m.id)?.latestReply;
         if (!reply) return null;
         return (
           <div className="ml-[38px] mt-2 flex gap-2 border-l-2 border-edge pl-2.5 text-[13px]">

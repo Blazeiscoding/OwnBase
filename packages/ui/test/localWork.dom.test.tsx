@@ -5,8 +5,8 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { Composer } from "../src/components/Composer.js";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";
 import { webPlatform, type Platform } from "../src/platform.js";
-import { readWorkspaceStorage, workspaceStorageKey } from "../src/lib/workspaceStorage.js";
-import { trustWorkspaceAddress } from "../src/lib/workspaceAddressTrust.js";
+import { readWorkspaceStorage, workspaceStorageKey } from "@ownbase/client-core";
+import { trustWorkspaceAddress } from "@ownbase/client-core";
 import { sharedDevice } from "./sharedDevice.js";
 
 /**

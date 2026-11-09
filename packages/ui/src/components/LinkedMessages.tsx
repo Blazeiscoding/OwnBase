@@ -159,7 +159,7 @@ function askFor(
   if (!known) answers.set(client, (known = new Map()));
   const held = known.get(messageId);
   if (held && held.changed === changed) return held.answer;
-  const answer: Promise<Message | null> = client.api.getMessage(channelId, messageId).then(
+  const answer: Promise<Message | null> = client.getMessage(channelId, messageId).then(
     ({ message }) => (message.channelId === channelId ? message : null),
     (error: unknown) => {
       if (error instanceof ApiError && error.status === 404) return null;

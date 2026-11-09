@@ -102,7 +102,7 @@ import { PartnerTime } from "../components/PartnerTime.js";
 import { draftPlace, type DraftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
-import { signOutOnPurpose, signedOutHow, type SignedOutHow } from "../lib/signOut.js";
+import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
 import { railTarget } from "../lib/workspaceRail.js";
 
 const ActivityPanel = lazy(() =>
@@ -1033,7 +1033,7 @@ function WorkspaceInner({
       : true;
     if (!ok) return;
     try {
-      await signOutOnPurpose(clientFromCtx, () => clientFromCtx.api.logout());
+      await clientFromCtx.signOut();
     } catch {
       toast?.({
         message: "You are still signed in. Check your connection and try again.",
@@ -1438,11 +1438,11 @@ function WorkspaceInner({
       show: (messages) => catchUpRules.current.show(messages),
     });
     catchUp.current = summary;
-    clientFromCtx.onMessageDeleted = (id) => summary.drop(id);
+    const stop = clientFromCtx.on("messageDeleted", (id) => summary.drop(id));
     return () => {
       summary.dispose();
       catchUp.current = null;
-      clientFromCtx.onMessageDeleted = null;
+      stop();
     };
   }, [clientFromCtx]);
 
@@ -1505,7 +1505,7 @@ function WorkspaceInner({
         });
       },
     };
-    clientFromCtx.onIncomingMessage = (msg, { live }) => {
+    return clientFromCtx.on("message", (msg, { live }) => {
       const state = clientFromCtx.state;
       // Read to a screen reader what reaches the conversation on screen, but
       // not what a reconnect catches up on: that is history, not news.
@@ -1524,15 +1524,12 @@ function WorkspaceInner({
       if (!decideNotification(state, msg, { live }).notify) return;
       if (live) tell(msg);
       else catchUp.current?.hold(msg);
-    };
-    return () => {
-      clientFromCtx.onIncomingMessage = null;
-    };
+    });
   }, [clientFromCtx, activeChannelId, openThreadId, hear, openMessage, platform]);
 
   // A reminder come due says so wherever the person is looking: they asked.
   useEffect(() => {
-    clientFromCtx.onReminderDue = (reminder, message) => {
+    return clientFromCtx.on("reminderDue", (reminder, message) => {
       const state = clientFromCtx.state;
       if (!decideReminderNotification(state).notify) return;
       const { title, body } = reminderContent(preview.current, {
@@ -1543,10 +1540,7 @@ function WorkspaceInner({
       platform.notify(title, body, () => openMessage(message.channelId, message.id), {
         tag: `${accountTag.current} reminder ${reminder.id}`,
       });
-    };
-    return () => {
-      clientFromCtx.onReminderDue = null;
-    };
+    });
   }, [clientFromCtx, openMessage, platform]);
 
   const connectionLabel =

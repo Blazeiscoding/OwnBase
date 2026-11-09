@@ -7,10 +7,10 @@ import {
   HuddleSession,
   screenEncodingFor,
   STALL_MS,
-  testMicrophone,
   viewHeight,
   withStereoScreenSound,
 } from "../src/huddle.js";
+import { testMicrophone } from "../src/devices.js";
 
 /**
  * Just enough WebRTC to exercise the session's own logic. The parts that

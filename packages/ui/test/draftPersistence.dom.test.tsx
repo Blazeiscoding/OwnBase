@@ -1,12 +1,7 @@
 import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import {
-  ApiError,
-  OUTBOX_LIMIT,
-  WorkspaceClient,
-  outboxRevision,
-  readStoredOutbox,
-} from "@ownbase/client-core";
+import { ApiError, OUTBOX_LIMIT, WorkspaceClient, readStoredOutbox } from "@ownbase/client-core";
+import { outboxRevision } from "@ownbase/client-core/outbox";
 import { SEND_RETRY_WINDOW_MS, type Channel, type Message, type User } from "@ownbase/protocol";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DraftPersistence } from "../src/components/DraftPersistence.js";

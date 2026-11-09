@@ -3,7 +3,6 @@ import type { SessionInfo, StorageUsage } from "@ownbase/protocol";
 import { ApiError, snoozedUntil } from "@ownbase/client-core";
 import { formatBytes, formatFull, formatWhen } from "../lib/format.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
-import { signOutOnPurpose } from "../lib/signOut.js";
 import { accountError, deviceLabel } from "../lib/account.js";
 import { useComposerPreferences } from "../lib/composerPreferences.js";
 import {
@@ -136,7 +135,7 @@ export function AccountDialog({
     const version = ++loadVersion.current;
     setLoading(true);
     try {
-      const result = await client.api.listSessions();
+      const result = await client.account.sessions();
       if (alive.current && version === loadVersion.current) {
         setSessions(result.sessions);
         setLoaded(true);
@@ -177,7 +176,7 @@ export function AccountDialog({
     }
     setBusy(true);
     try {
-      await client.api.changePassword(currentPassword, newPassword);
+      await client.account.changePassword(currentPassword, newPassword);
       if (!alive.current) return;
       setCurrentPassword("");
       setNewPassword("");
@@ -201,12 +200,13 @@ export function AccountDialog({
     setNotice(null);
     try {
       if (confirmation.kind === "signout") {
-        await signOutOnPurpose(client, () => client.api.logout());
+        await client.signOut();
         onSignedOut();
         return;
       }
-      if (confirmation.kind === "device") await client.api.revokeSession(confirmation.session.id);
-      else await client.api.revokeOtherSessions();
+      if (confirmation.kind === "device")
+        await client.account.signOutDevice(confirmation.session.id);
+      else await client.account.signOutOtherDevices();
       if (!alive.current) return;
       setNotice(
         confirmation.kind === "device"
@@ -934,18 +934,13 @@ function WorkspaceStorage() {
     const controller = new AbortController();
     setLoading(true);
     setError(null);
-    void client.api
+    void client.account
       .storageUsage(controller.signal)
       .then((value) => {
         if (!controller.signal.aborted) setUsage(value);
       })
-      .catch((err) => {
-        if (!controller.signal.aborted)
-          setError(
-            err instanceof ApiError && err.status === 404
-              ? "This server is too old to show storage use."
-              : "Could not load storage use. Try again.",
-          );
+      .catch(() => {
+        if (!controller.signal.aborted) setError("Could not load storage use. Try again.");
       })
       .finally(() => {
         if (!controller.signal.aborted) setLoading(false);

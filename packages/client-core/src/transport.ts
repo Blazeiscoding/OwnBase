@@ -29,7 +29,7 @@ function retryAfter(header: string | null): number | undefined {
 }
 
 /** A refusal as the server words it, `{ error, message }`, from any answer that is not a success. */
-export function apiError(status: number, text: string, retryAfterHeader: string | null): ApiError {
+function apiError(status: number, text: string, retryAfterHeader: string | null): ApiError {
   let code: ErrorCode = "http_error";
   let message: string | undefined;
   try {
@@ -59,18 +59,18 @@ type BodyPart<E> = E extends { body: infer B }
   : { body?: undefined };
 
 /** What a call names: its path's parameters, its query and its body, as the endpoint declares. */
-export type CallInput<E extends EndpointSpec> = ([keyof ParamsIn<E>] extends [never]
+type CallInput<E extends EndpointSpec> = ([keyof ParamsIn<E>] extends [never]
   ? { params?: undefined }
   : { params: ParamsIn<E> }) &
   (E extends { query: unknown } ? { query?: QueryIn<E> } : { query?: undefined }) &
   BodyPart<E>;
 
-export interface CallOptions {
+interface CallOptions {
   signal?: AbortSignal;
 }
 
 /** The arguments of a call: the input may be left out when nothing in it is required. */
-export type CallArgs<E extends EndpointSpec> =
+type CallArgs<E extends EndpointSpec> =
   Record<string, never> extends CallInput<E>
     ? [input?: CallInput<E>, opts?: CallOptions]
     : [input: CallInput<E>, opts?: CallOptions];

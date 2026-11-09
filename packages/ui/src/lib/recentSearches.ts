@@ -8,7 +8,7 @@ import {
   workspaceStorageKey,
   writeWorkspaceStorage,
   type WorkspaceStorageKey,
-} from "./workspaceStorage.js";
+} from "@ownbase/client-core";
 
 export interface RecentSearch {
   query: string;

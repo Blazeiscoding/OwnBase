@@ -1,9 +1,4 @@
-import type {
-  DraftChanges,
-  OutboxChanges,
-  RecordChanges,
-  StoredOutbox,
-} from "@ownbase/client-core";
+import type { DeviceStorage, StoredOutbox } from "@ownbase/client-core";
 import type { AccessPolicy } from "@ownbase/protocol";
 import type {
   AutoBackup,
@@ -91,60 +86,7 @@ export interface Platform {
     phase: "capture" | "persist",
     prepare: () => void | Promise<void>,
   ) => () => void;
-  storage: {
-    /** Strict reads must reject unreadable data instead of treating it as absent. */
-    get: <T>(key: string, options?: { strict?: boolean }) => Promise<T | null>;
-    set: (key: string, value: unknown) => Promise<void>;
-    /**
-     * Stores `value` under `key` only if nothing is stored there, in one step
-     * no other window's write can come between, and gives back what is stored
-     * now: `value`, or what another window stored first (F01, GL-01). Without
-     * it, initializing is a read and a separate write.
-     */
-    initialize?: (key: string, value: unknown) => Promise<unknown>;
-    /**
-     * Merges one window's outbox changes into what is stored under `key`, in
-     * one step no other window's write can come between, and gives back the
-     * outbox now stored. `enveloped` says the value is kept as
-     * `{ version: 1, value }`. Merges asked for one after another are made,
-     * and answered, in that order. Without it, a window merges within its own
-     * queue only; see `mergeWorkspaceOutbox`.
-     */
-    mergeOutbox?: (
-      key: string,
-      changes: OutboxChanges,
-      enveloped: boolean,
-    ) => Promise<StoredOutbox>;
-    /**
-     * Calls back with what is stored under an outbox key each time another
-     * window changes it. Returns unsubscribe.
-     */
-    watchOutbox?: (key: string, cb: (stored: unknown) => void) => () => void;
-    /** As `mergeOutbox`, for the drafts under `key`: each changed draft alone. */
-    mergeDrafts?: (
-      key: string,
-      changes: DraftChanges,
-      enveloped: boolean,
-    ) => Promise<Record<string, string>>;
-    /** As `watchOutbox`, for a drafts key. */
-    watchDrafts?: (key: string, cb: (stored: unknown) => void) => () => void;
-    /**
-     * Sets the named values of the record under `key`, each alone, in one
-     * step no other window's write can come between, and gives back the
-     * record now stored; null removes a name (F02). Without it, a window
-     * writes its whole record and can erase another window's change.
-     */
-    mergeRecord?: (key: string, changes: RecordChanges) => Promise<Record<string, string>>;
-    /** As `watchOutbox`, for a record key. */
-    watchRecord?: (key: string, cb: (stored: unknown) => void) => () => void;
-    /**
-     * Adds `address` to the trusted addresses under `key` (`addTrustedAddress`)
-     * in one step no other window's write can come between, and gives back
-     * the addresses now stored: null when what is stored is not such a list,
-     * which is left as it is. Without it, approving an address is a read and
-     * a separate write, and two windows approving at once can lose one.
-     */
-    trustAddress?: (key: string, address: string) => Promise<string[] | null>;
+  storage: DeviceStorage & {
     /**
      * Makes one change to the saved sign-ins under `key` (`changeSavedServers`)
      * in one step no other tab's write can come between, and gives back the

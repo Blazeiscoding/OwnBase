@@ -5,7 +5,7 @@ import {
   readWorkspaceStorage,
   workspaceStorageKey,
   writeWorkspaceStorage,
-} from "./workspaceStorage.js";
+} from "@ownbase/client-core";
 
 /** Channel ids never contain anything else. */
 const TOKEN = /^[A-Za-z0-9_-]{1,64}$/;

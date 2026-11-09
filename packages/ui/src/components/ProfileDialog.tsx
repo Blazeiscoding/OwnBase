@@ -353,28 +353,27 @@ export function ProfileForm() {
       : clearAfter === "kept"
         ? (self?.statusExpiresAt ?? null)
         : statusEnd(clearAfter);
-    try {
-      await client.api.updateMe({
-        displayName: displayName.trim() || self?.handle || "",
-        statusEmoji: statusEmoji.trim(),
-        statusText: statusText.trim(),
-        statusExpiresAt,
-      });
-      // Saved again, it keeps this end rather than starting the time over.
-      setClearAfter(statusExpiresAt ? "kept" : "never");
-      toast?.({ message: "Profile saved.", kind: "success" });
-    } catch (err) {
+    const failure = await client.updateProfile({
+      displayName: displayName.trim() || self?.handle || "",
+      statusEmoji: statusEmoji.trim(),
+      statusText: statusText.trim(),
+      statusExpiresAt,
+    });
+    setBusy(false);
+    if (failure) {
       // What was typed stays in the form, so saving again is one press.
       setError(
-        err instanceof ApiError && err.code === "invalid_request"
+        failure.code === "invalid_request"
           ? "Your profile was not saved. A display name can be up to 80 characters and a status up to 120."
-          : err instanceof ApiError && err.code === "unauthorized"
+          : failure.code === "unauthorized"
             ? "You were signed out. Sign in again to change your profile."
             : "Your profile was not saved. Check your connection and try again.",
       );
-    } finally {
-      setBusy(false);
+      return;
     }
+    // Saved again, it keeps this end rather than starting the time over.
+    setClearAfter(statusExpiresAt ? "kept" : "never");
+    toast?.({ message: "Profile saved.", kind: "success" });
   }
 
   const dirty =

@@ -4,7 +4,8 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createWorkspaceServer, type WorkspaceServer } from "@ownbase/server";
-import { Api, ApiError, type LoginResult } from "../src/index.js";
+import { Api, ApiError } from "../src/index.js";
+import { type LoginResult } from "../src/api.js";
 
 /**
  * Two-step sign-in on the client (E11): signing in says it can answer a

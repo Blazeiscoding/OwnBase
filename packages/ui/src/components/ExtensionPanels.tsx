@@ -21,7 +21,7 @@ export function useExtensionPanels(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
     let stop = false;
-    client.api.extensionSettings().then(
+    client.admin.extensionSettings().then(
       (result) => {
         if (!stop) setPanels(result.panels);
       },
@@ -86,7 +86,7 @@ function ExtensionPanelForm({ panel, onSaved }: { panel: SettingsPanel; onSaved:
         .map((f) => [f.key, values[f.key]!]),
     );
     try {
-      await client.api.saveExtensionSettings(panel.save, sent);
+      await client.admin.saveExtensionSettings(panel.save, sent);
       if (!alive.current) return;
       saved();
       onSaved();

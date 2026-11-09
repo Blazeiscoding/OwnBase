@@ -94,20 +94,30 @@ export async function runAppCommand(
         if (!args)
           return { ok: false, said: "Say what you're doing after /status, or /status clear." };
         if (args.toLowerCase() === "clear") {
-          await client.api.updateMe({ statusEmoji: "", statusText: "", statusExpiresAt: null });
+          const error = await client.updateProfile({
+            statusEmoji: "",
+            statusText: "",
+            statusExpiresAt: null,
+          });
+          if (error) return { ok: false, said: `/status did not go through. ${offline}` };
           return { ok: true, said: "Your status was cleared." };
         }
         const first = firstGrapheme(args);
         const emoji = /\p{Extended_Pictographic}/u.test(first) ? first : "";
         const words = (emoji ? args.slice(first.length) : args).trim();
         if (words.length > 120) return { ok: false, said: "A status can be up to 120 characters." };
-        await client.api.updateMe({ statusEmoji: emoji, statusText: words, statusExpiresAt: null });
+        const error = await client.updateProfile({
+          statusEmoji: emoji,
+          statusText: words,
+          statusExpiresAt: null,
+        });
+        if (error) return { ok: false, said: `/status did not go through. ${offline}` };
         return { ok: true, said: `Your status is now ${`${emoji} ${words}`.trim()}.` };
       }
       case "topic": {
         if (!args) return { ok: false, said: "Write the new topic after /topic." };
         if (args.length > 250) return { ok: false, said: "A topic can be up to 250 characters." };
-        await client.api.updateChannel(channelId, { topic: args });
+        await client.updateChannel(channelId, { topic: args });
         return { ok: true, said: `Topic of ${where} set.` };
       }
       case "invite": {
@@ -119,7 +129,7 @@ export async function runAppCommand(
         for (const id of ids) {
           const person = state.users[id]?.displayName ?? "someone";
           try {
-            await client.api.inviteMember(channelId, id);
+            await client.addToChannel(channelId, id);
             added.push(person);
           } catch {
             missed.push(person);
@@ -133,7 +143,7 @@ export async function runAppCommand(
         return { ok: true, said: `Added ${added.join(", ")} to ${where}.` };
       }
       case "leave": {
-        await client.api.leaveChannel(channelId);
+        await client.leaveChannel(channelId);
         return { ok: true, said: `You left ${where}.` };
       }
       case "mute":

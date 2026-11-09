@@ -6,7 +6,7 @@ import {
   readWorkspaceStorage,
   workspaceStorageKey,
   writeWorkspaceStorage,
-} from "../lib/workspaceStorage.js";
+} from "@ownbase/client-core";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";

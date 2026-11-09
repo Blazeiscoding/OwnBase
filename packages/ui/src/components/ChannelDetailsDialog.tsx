@@ -109,7 +109,7 @@ export function ChannelDetailsDialog(props: {
   useEffect(() => {
     let active = true;
     setMembersLoading(true);
-    void client.api
+    void client
       .channelMembers(props.channelId)
       .then((r) => {
         if (active) {
@@ -155,7 +155,7 @@ export function ChannelDetailsDialog(props: {
     }
     setBusy(true);
     try {
-      await client.api.updateChannel(props.channelId, { name: name.trim(), topic, description });
+      await client.updateChannel(props.channelId, { name: name.trim(), topic, description });
       setAboutNote("saved");
     } catch (err) {
       // A name in use belongs to the name; anything else to the whole form.
@@ -173,7 +173,7 @@ export function ChannelDetailsDialog(props: {
     setBusy(true);
     setError(null);
     try {
-      await client.api.inviteMember(props.channelId, userId);
+      await client.addToChannel(props.channelId, userId);
       setMemberIds((prev) => [...new Set([...prev, userId])]);
       return true;
     } catch (err) {
@@ -190,7 +190,7 @@ export function ChannelDetailsDialog(props: {
     setBusy(true);
     setError(null);
     try {
-      await client.api.updateChannel(props.channelId, { archived });
+      await client.updateChannel(props.channelId, { archived });
       setConfirmArchive(false);
     } catch (err) {
       setError(
@@ -209,7 +209,7 @@ export function ChannelDetailsDialog(props: {
     setBusy(true);
     setError(null);
     try {
-      await client.api.removeChannelMember(props.channelId, userId);
+      await client.removeFromChannel(props.channelId, userId);
       setMemberIds((ids) => ids.filter((id) => id !== userId));
       setRemovingId(null);
     } catch (err) {
@@ -224,7 +224,7 @@ export function ChannelDetailsDialog(props: {
     setBusy(true);
     setError(null);
     try {
-      await client.api.setChannelManager(props.channelId, userId, manager);
+      await client.setChannelManager(props.channelId, userId, manager);
       setManagerChange(null);
     } catch (err) {
       setError(channelError(err, "Could not change channel manager."));
@@ -238,7 +238,7 @@ export function ChannelDetailsDialog(props: {
     setBusy(true);
     setError(null);
     try {
-      await client.api.leaveChannel(props.channelId);
+      await client.leaveChannel(props.channelId);
       props.onLeft();
     } catch (err) {
       setError(

@@ -11,7 +11,7 @@ import { Mrkdwn } from "../src/components/Mrkdwn.js";
 import { ShareableServerProvider } from "../src/components/ShareableServer.js";
 import { webPlatform, type HostingStatus, type Platform } from "../src/platform.js";
 import { hostingStub } from "./hostingStub.js";
-import { workspaceAddressTrustKey } from "../src/lib/workspaceAddressTrust.js";
+import { workspaceAddressTrustKey } from "@ownbase/client-core/addressTrust";
 import { accessibilityProblems } from "./accessibility.js";
 import { copyBySelection, withoutClipboardApi } from "./clipboard.js";
 

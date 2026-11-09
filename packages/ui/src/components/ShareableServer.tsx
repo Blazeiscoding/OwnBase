@@ -12,7 +12,7 @@ import type { Platform } from "../platform.js";
 import { isLoopbackUrl, shareableServer, type ShareableServer } from "../lib/deeplink.js";
 import { normalizeServerUrlSafe } from "../lib/deeplinkHelpers.js";
 import { useHostingStatus } from "../lib/hosting.js";
-import { trustedWorkspaceAddresses } from "../lib/workspaceAddressTrust.js";
+import { trustedWorkspaceAddresses } from "@ownbase/client-core";
 
 const ShareableServerContext = createContext<ShareableServer | null>(null);
 const WorkspaceAddressesContext = createContext<ReadonlySet<string> | null>(null);
@@ -43,7 +43,7 @@ export function ShareableServerProvider(props: { platform: Platform; children: R
     let applied = 0;
     const refresh = () => {
       const request = ++revision;
-      void client.api
+      void client
         .serverInfo()
         .then((info) => {
           // A later successful read wins. If that later read fails, an older

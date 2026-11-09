@@ -3,7 +3,7 @@ import {
   checkWorkspaceAddress,
   trustWorkspaceAddress,
   workspaceAddressTrustKey,
-} from "../src/lib/workspaceAddressTrust.js";
+} from "@ownbase/client-core/addressTrust";
 import type { Platform } from "../src/platform.js";
 
 /**

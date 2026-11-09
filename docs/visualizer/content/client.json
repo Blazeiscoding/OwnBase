@@ -302,6 +302,54 @@
       "concepts": ["polls", "optimistic state", "anonymity"]
     },
     {
+      "path": "packages/client-core/src/account.ts",
+      "plain": "The signed-in person's own settings: their devices, password, two-step sign-in and linked ways of signing in.",
+      "summary": "AccountActions (client.account): the account's sessions, password, two-step sign-in, linked sign-ins and storage use.",
+      "details": [
+        "Thin calls to the REST API for screens nothing else in the store depends on; each rejects as the server does.",
+        "linkedSignIns reads the server's sign-in methods and whether each is linked; linkSignInUrl checks the server's path before building the address a browser opens (P9)."
+      ],
+      "concepts": ["one door", "U6"]
+    },
+    {
+      "path": "packages/client-core/src/admin.ts",
+      "plain": "Looking after the workspace: its people, reports, invites, history of changes, health and downloadable copy.",
+      "summary": "AdminActions (client.admin): people, reports, invites, audit, status, call log, workspace copies and extension settings.",
+      "details": [
+        "changePerson and transferOwnership show the accounts the server returns at once, through the client, rather than when the socket's copy arrives; the screen no longer writes the store.",
+        "Everything else is a thin call for administrators' screens; invites are the one list anyone may read, their own."
+      ],
+      "concepts": ["one door", "U6"]
+    },
+    {
+      "path": "packages/client-core/src/apps.ts",
+      "plain": "The workspace's apps and what each is given: tokens, webhooks, commands and event subscriptions.",
+      "summary": "AppActions (client.apps): thin calls for Apps and integrations.",
+      "details": ["Nothing here is kept in the store, so each answers as the server does."],
+      "concepts": ["one door", "U6"]
+    },
+    {
+      "path": "packages/client-core/src/events.ts",
+      "plain": "Lets any part of the app hear when a message arrives, is deleted, or a reminder comes due.",
+      "summary": "ClientEmitter behind client.on(event, listener): any number of listeners each.",
+      "details": [
+        "message, messageDeleted and reminderDue each take many listeners, added and removed on their own, so a second screen no longer replaces the first one's.",
+        "A listener that throws (Android's Chrome throws from new Notification) is logged and neither stops the event being applied nor keeps it from the others."
+      ],
+      "concepts": ["listeners", "U6"]
+    },
+    {
+      "path": "packages/client-core/src/lists.ts",
+      "plain": "The lists beside the conversations, such as Saved, Pinned, Files and Activity, which load themselves and stay up to date.",
+      "summary": "Lists (client.lists): saved, pins, followed threads, shared files, Activity and the scheduled queue as self-refreshing resources.",
+      "details": [
+        "Each list is a PagedList whose watch listens to the store for what makes it out of date: saved ids, pinned messages loaded and changedContent for pins, follows for threads, changedContent for any listed conversation, and for Activity mention counts, arrivals and removed history.",
+        "ScheduledList reads the queue again on scheduledChanges; a cancel, reschedule or edit made here takes the place of any read in flight and patches the list from the server's answer.",
+        "followedThreads keeps each thread's unread count and newest reply beside its row; pinSummary gives a channel header its count and newest pin."
+      ],
+      "concepts": ["resources", "in-place refresh", "UX-08", "U6"]
+    },
+    {
       "path": "packages/ui/src/index.ts",
       "plain": "The front door of the screens, which the web version and the desktop app both use to start the same app.",
       "summary": "Exports the reusable React application and shell contracts.",
@@ -489,12 +537,13 @@
       ]
     },
     {
-      "path": "packages/ui/src/lib/workspaceStorage.ts",
+      "path": "packages/client-core/src/deviceStorage.ts",
       "plain": "Labels data saved on this device with its workspace and account, and carries over data saved under older labels.",
-      "summary": "Scopes local work to authenticated workspace/account identity and migrates old address keys.",
+      "summary": "DeviceStorage, the storage adapter apps give client-core, and the keys and merges that scope local work to a workspace and account.",
       "details": [
         "workspaceStorageKey creates an encoded local:v1 key from the ready snapshot's workspace ID, user ID, data kind and optional conversation suffix. Older address-and-account keys are retained as migration candidates.",
         "Strict reads validate version envelopes. Only addresses explicitly linked on this device may supply legacy work, preventing an arbitrary server claiming public IDs from automatically reading another address's old drafts.",
+        "DeviceStorage is the shape of the app's storage (the UI's Platform storage satisfies it): get and set, and the optional one-step initialize, mergeOutbox, mergeDrafts, mergeRecord and trustAddress. Each helper takes a StorageHost, anything with such a storage, and queues per host.",
         "Per-platform key queues serialize operations within a window; platform atomic merge hooks provide the stronger boundary across windows. Outbox and draft initialization merges preserve concurrent work instead of overwriting a whole map.",
         "At-once draft merges allow pagehide and normal desktop capture to ask for final work immediately. Watch helpers unwrap records into client data, while unreadable saved values reject rather than being treated as first-use absence."
       ],
@@ -507,7 +556,7 @@
       ]
     },
     {
-      "path": "packages/ui/src/lib/workspaceAddressTrust.ts",
+      "path": "packages/client-core/src/addressTrust.ts",
       "plain": "Keeps the list of addresses allowed to reach one account's saved drafts and unsent messages on this device.",
       "summary": "Records the addresses allowed to share one account's stable local workspace data.",
       "details": [
@@ -518,14 +567,25 @@
       "concepts": ["address trust", "identity boundary", "strict validation", "Q02"]
     },
     {
-      "path": "packages/ui/src/lib/localWork.ts",
-      "plain": "Tells the message box when the words of a message waiting to send are safely saved on the device.",
-      "summary": "Tells the composer when a queued message's words have durable local ownership.",
+      "path": "packages/client-core/src/localWork.ts",
+      "plain": "Saves your drafts and messages waiting to send on the device, shares them with the account's other windows, and tells the message box once a message's words are safe.",
+      "summary": "LocalWork keeps the outbox and drafts on the device behind DeviceStorage; LocalLedger tells sends when their words are kept.",
       "details": [
-        "A WeakMap ledger tracks persistence owners and waiters by client and nonce. DraftPersistence acknowledges stored or unsaved outcomes when the outbox, recovery record or delivered message supplies evidence.",
-        "whenKeptLocally waits up to five seconds only when a keeper exists; removing the last keeper settles remaining waits as unsaved. This prevents a UI promise from waiting forever after its persistence component disappears."
+        "LocalWork follows the client's signed-in workspace and account and opens one scope per pair, with stable drafts, draft-times, outbox and unstored-sends keys. A new identity closes the old scope, which flushes to its own keys, never the new ones.",
+        "Restores strictly, then subscribes to client changes and other-window storage changes. Tracks only this window's draft changes against confirmed base values and only its queued sends, refusals and removals with revisions; shared merges preserve unrelated work and consume tombstones rather than resurrecting removed sends.",
+        "Outbox persistence precedes clearing corresponding durable drafts. If a send was typed and sent before a saved draft existed, the unstored-sends record preserves its words while outbox writes fail; a restart brings them back once, as a send or as a draft.",
+        "flush writes at once for a hidden or closing page. prepareClose (N03's desktop persist phase) needs restoration to have succeeded, flushes, follows every owned write, and rejects while anything differs from confirmed storage, so a later no-op write cannot acknowledge lost text.",
+        "Keeps a draft-times record beside the drafts (E5) for the Drafts list's order; a read or write of it that fails is let go without the warning.",
+        "Its status (failed save or load, and a draft both windows changed) is read by DraftPersistence, which words it. retry flushes memory once restored, and reads again only before that.",
+        "LocalLedger (client.kept) counts keepers and waiters by nonce. whenKept waits up to five seconds only when a keeper exists; removing the last keeper settles remaining waits as unsaved, so the composer never waits on a saver that is gone."
       ],
-      "concepts": ["durability acknowledgement", "request nonce", "owned waiters"]
+      "concepts": [
+        "durability acknowledgement",
+        "cross-window merge",
+        "close persistence",
+        "storage adapter",
+        "U6"
+      ]
     },
     {
       "path": "packages/ui/src/lib/notificationPreview.ts",
@@ -936,7 +996,7 @@
       "concepts": ["notification coalescing", "replay", "late eligibility check"]
     },
     {
-      "path": "packages/ui/src/lib/coalescedLoader.ts",
+      "path": "packages/client-core/src/coalescedLoader.ts",
       "plain": "Groups a burst of change signals into one refresh, so busy lists do not reload over and over.",
       "summary": "Bounds refresh work for lists receiving many invalidation signals.",
       "details": [
@@ -968,15 +1028,26 @@
       "concepts": ["integration templates", "UX-63"]
     },
     {
-      "path": "packages/ui/src/lib/pagedList.ts",
+      "path": "packages/client-core/src/pagedList.ts",
       "plain": "Reads a long list a page at a time as you scroll, and reads it again quietly when something in it changes, so side panels stay up to date without a Refresh button.",
       "summary": "Keeps a page-at-a-time list current: more on demand, in-place refresh from the top (UX-08).",
       "details": [
         "PagedList keeps every page read so far. loadMore reads the next cursor; a refresh reads again from the first page until it covers as many rows as were shown, at most PAGED_REFRESH_PAGES pages, and swaps the result in at once so nothing blanks or jumps.",
-        "Refreshes go through a CoalescedLoader, so one read from the top runs at a time and a burst of signals is one read; reading more gives way to it. usePagedList starts a different list from nothing whenever its key changes.",
-        "start({ keep: true }), or usePagedList's keep option, leaves the rows shown in place until the different list's first page replaces them, and reads only that one page, so search does not flash empty between questions (UX-51)."
+        "Refreshes go through a CoalescedLoader, so one read from the top runs at a time and a burst of signals is one read; reading more gives way to it.",
+        "open starts it and the watch it was made with, which listens for the events that make it out of date and calls refresh; the function it returns stops both. subscribe hears each state.",
+        "start({ keep: true }) leaves the rows shown in place until the different list's first page replaces them, and reads only that one page, so search does not flash empty between questions (UX-51)."
       ],
       "concepts": ["infinite scroll", "in-place refresh", "request coalescing", "UX-08"]
+    },
+    {
+      "path": "packages/ui/src/lib/pagedList.ts",
+      "plain": "Connects the client's self-updating lists to the panels that show them.",
+      "summary": "useOpenList opens one of client.lists while a component shows it; usePagedList runs a PagedList the component reads itself.",
+      "details": [
+        "useOpenList makes the list for a key, hears its state through useSyncExternalStore and keeps it open while mounted; another key is another list, read from the top.",
+        "usePagedList is for search, whose list no event keeps current: it starts the list again for each key, keeping the last answer on show when asked."
+      ],
+      "concepts": ["external store", "U6"]
     },
     {
       "path": "packages/ui/src/lib/searchFilters.ts",
@@ -1419,25 +1490,13 @@
     },
     {
       "path": "packages/ui/src/components/DraftPersistence.tsx",
-      "plain": "Saves your drafts and messages waiting to send on the device, and brings them back when you return.",
-      "summary": "Bridges in-memory unsent work to acknowledged account-scoped storage.",
+      "plain": "Saves your drafts and messages waiting to send on the device while the app is open, and says so when it cannot.",
+      "summary": "Runs client-core's LocalWork for the window and shows its failures.",
       "details": [
-        "Creates stable drafts, outbox and unstored-sends keys from authenticated workspace/account identity. Restores records strictly, then subscribes to client changes and other-window storage changes.",
-        "Tracks only this window's draft changes against confirmed base values and only its queued sends/refusals/removals with revisions. Shared merges preserve unrelated work and consume tombstones rather than resurrecting removed sends.",
-        "Outbox persistence precedes clearing corresponding durable drafts. If a send was typed and sent before a saved draft existed, a separate unstored-sends recovery record can preserve its words when the outbox write fails.",
-        "Recovery restores a nonce's words as a send or a draft according to durable ownership; missing File bytes still remain visibly unavailable. Failed reads and writes show Retry, and an ordinary retry flushes current memory instead of rereading stale disk over newer intent.",
-        "For N03's native persist phase, restoration must succeed, current changes are flushed, and all owned writes including recovery follow-up work settle. Confirmed remaining differences and a retained failure prevent a later no-op write from falsely acknowledging lost text.",
-        "Pagehide/hidden/unmount ask for immediate flush, while normal desktop close can await acknowledgement. A browser crash relies on the storage journal when available; this file cannot promise that every refused or abruptly interrupted write reached disk.",
-        "Keeps a draft-times record beside the drafts (E5): read on restore and handed to hydrateDrafts, and written after each drafts write of this window's own with the times of the drafts it wrote, pruned to the drafts stored. Only the Drafts list's order rides on it, so a read or write that fails is let go without the warning."
+        "Starts LocalWork for the client with the platform's storage, flushes it on pagehide and when the page is hidden, and hands it to the desktop app's persist phase of closing.",
+        "Shows Retry for a failed save or load, and a dismissable note when a draft changed in two windows and both versions were kept."
       ],
-      "concepts": [
-        "durable outbox",
-        "draft merge",
-        "recovery record",
-        "write acknowledgement",
-        "normal close",
-        "N03"
-      ]
+      "concepts": ["close persistence", "U6"]
     },
     {
       "path": "packages/ui/src/components/WorkspaceStorageGate.tsx",
@@ -3029,7 +3088,7 @@
           "description": "The message joins the messages waiting to send, saved on the device, and only then does the app clear the saved draft. The app counts the message as safe once it is saved on the device or delivered. If saving fails, the app keeps what it needs to try again or to give your words back.",
           "files": [
             "packages/ui/src/components/DraftPersistence.tsx",
-            "packages/ui/src/lib/localWork.ts",
+            "packages/client-core/src/localWork.ts",
             "packages/client-core/src/outbox.ts"
           ],
           "detail": "DraftPersistence merges the outbox before clearing the corresponding saved draft. localWork settles the nonce after storage or delivery evidence; failures retain retry/recovery state."
@@ -3078,7 +3137,7 @@
           "description": "The app restores saved work only after the server confirms which workspace and account this is, and the address is approved. It then reads the saved work for exactly that workspace and account. If the saved work cannot be read, the app offers to try again rather than starting empty.",
           "files": [
             "packages/ui/src/components/WorkspaceStorageGate.tsx",
-            "packages/ui/src/lib/workspaceStorage.ts",
+            "packages/client-core/src/deviceStorage.ts",
             "packages/ui/src/components/DraftPersistence.tsx"
           ],
           "detail": "The ready snapshot identifies workspace/account, WorkspaceStorageGate admits the address, and workspaceStorage reads the correct versioned keys. Unreadable storage offers retry instead of an empty alternate store."
@@ -3149,7 +3208,7 @@
           "title": "Three ways windows used to clash",
           "description": "Three problems of this kind were repaired. Two windows opening a workspace at a new address at the same moment can no longer both trust it. A late reply can no longer undo a newer choice about notification previews. A window left open can no longer bring back a saved sign-in another window removed, or erase one it added.",
           "files": [
-            "packages/ui/src/lib/workspaceAddressTrust.ts",
+            "packages/client-core/src/addressTrust.ts",
             "packages/ui/src/lib/notificationPreview.ts",
             "packages/ui/src/App.tsx"
           ],
@@ -3294,7 +3353,7 @@
           "description": "Before opening drafts and other work saved on the device, the app checks that this exact address is approved for this workspace and account. A different address for the same workspace needs your approval. Two windows registering a first address at the same moment are settled in one step, so only one is trusted without asking.",
           "files": [
             "packages/ui/src/components/WorkspaceStorageGate.tsx",
-            "packages/ui/src/lib/workspaceAddressTrust.ts"
+            "packages/client-core/src/addressTrust.ts"
           ],
           "detail": "WorkspaceStorageGate checks the exact connected address for the authenticated workspace/account before mounting local-work consumers. Later aliases require approval; simultaneous first registration is settled atomically (Q02)."
         },

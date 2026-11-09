@@ -8,7 +8,9 @@
     "./outbox": "./src/outbox.ts",
     "./drafts": "./src/drafts.ts",
     "./records": "./src/records.ts",
-    "./trustedAddresses": "./src/trustedAddresses.ts"
+    "./trustedAddresses": "./src/trustedAddresses.ts",
+    "./deviceStorage": "./src/deviceStorage.ts",
+    "./addressTrust": "./src/addressTrust.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

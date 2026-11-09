@@ -71,7 +71,7 @@ export function outboxRevision(previous = 0, now = Date.now()): number {
   return Math.max(previous + 1, now * 1000);
 }
 
-export function isStoredPending(entry: unknown): entry is StoredPending {
+function isStoredPending(entry: unknown): entry is StoredPending {
   const e = entry as Record<string, unknown> | null;
   return (
     !!e &&

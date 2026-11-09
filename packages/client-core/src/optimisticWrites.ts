@@ -3,7 +3,7 @@ import { ApiError } from "./api.js";
 import { unhandled } from "./messageCache.js";
 
 /** What one optimistic write is about. Writes with the same key go one at a time. */
-export type WriteKey =
+type WriteKey =
   | { kind: "pin"; messageId: ID }
   | { kind: "save"; messageId: ID }
   | { kind: "poll"; messageId: ID }
@@ -46,7 +46,7 @@ function keyOf(key: WriteKey): string {
 }
 
 /** Whether a write is out or waiting, and what of it the server refused, when that is kept. */
-export interface WriteStatus<P> {
+interface WriteStatus<P> {
   saving: boolean;
   failed: P | null;
   /** What is shown is put back after a refusal, over whatever answer was shown before. */

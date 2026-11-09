@@ -42,7 +42,7 @@ export function MemberStack(props: { channelId: ID; pressed: boolean; onToggle: 
   useEffect(() => {
     if (known || !online) return;
     let active = true;
-    client.api.channelMembers(props.channelId).then(
+    client.channelMembers(props.channelId).then(
       (r) => {
         remembered(client).set(key, r.memberIds);
         if (active) setAnswer({ key, ids: r.memberIds });
@@ -209,9 +209,8 @@ export function PinnedBar(props: { channelId: ID; open: boolean; onToggle: () =>
   useEffect(() => {
     if (!online) return;
     const controller = new AbortController();
-    client.api.listPins(props.channelId, controller.signal, undefined, 1).then(
-      (r) => {
-        const pins = { total: r.total, newest: r.messages[0] };
+    client.lists.pinSummary(props.channelId, controller.signal).then(
+      (pins) => {
         remembered(client).set(key, pins);
         if (!controller.signal.aborted) setAnswer({ key, pins });
       },

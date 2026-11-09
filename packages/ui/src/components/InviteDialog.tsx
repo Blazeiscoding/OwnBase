@@ -99,7 +99,7 @@ export function InviteDialog(props: {
   const loadInvites = useCallback(async () => {
     const request = ++listRequest.current;
     try {
-      const result = await client.api.listInvites();
+      const result = await client.admin.invites();
       if (request === listRequest.current) setInvites(result.invites);
     } catch {
       // The list is a convenience beside creating one; failing to load it
@@ -123,7 +123,7 @@ export function InviteDialog(props: {
     setBusy(true);
     setError(null);
     try {
-      const { invite } = await client.api.createInvite({
+      const { invite } = await client.admin.createInvite({
         ...(expiresInHours !== null ? { expiresInHours } : {}),
         ...(uses !== null ? { maxUses: uses } : {}),
       });
@@ -166,7 +166,7 @@ export function InviteDialog(props: {
     if (!go) return;
     setError(null);
     try {
-      await client.api.revokeInvite(code);
+      await client.admin.revokeInvite(code);
       if (code === invite?.code) setInvite(null);
       void loadInvites();
     } catch {

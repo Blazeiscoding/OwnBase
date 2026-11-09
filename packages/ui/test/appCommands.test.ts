@@ -49,7 +49,11 @@ describe("the commands the app runs", () => {
 
   it("set and clear a status, its emoji apart from its words", async () => {
     const client = workspace();
-    const updateMe = vi.spyOn(client.api, "updateMe").mockResolvedValue({} as never);
+    const updateMe = vi
+      .spyOn(client.api, "updateMe")
+      .mockImplementation(
+        async (body) => ({ user: { ...person("U_SAM", "Sam"), ...body } }) as never,
+      );
     expect(await runAppCommand("status", "🌴 On holiday", { client, channelId: "C1" })).toEqual({
       ok: true,
       said: "Your status is now 🌴 On holiday.",

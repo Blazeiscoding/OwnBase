@@ -55,7 +55,7 @@ export function TwoStepSettings() {
 
   const load = useCallback(async () => {
     try {
-      const result = await client.api.twoStep();
+      const result = await client.account.twoStep();
       if (!alive.current) return;
       setStatus(result);
       setLoadError(false);
@@ -93,15 +93,15 @@ export function TwoStepSettings() {
     setError(null);
     try {
       if (stage.purpose === "setup") {
-        const { secret, uri } = await client.api.startTwoStep(password);
+        const { secret, uri } = await client.account.startTwoStep(password);
         if (alive.current) go({ step: "scan", secret, uri });
       } else if (stage.purpose === "codes") {
-        const { recoveryCodes } = await client.api.newRecoveryCodes(password);
+        const { recoveryCodes } = await client.account.newRecoveryCodes(password);
         if (!alive.current) return;
         go({ step: "codes", codes: recoveryCodes });
         setStatus({ enabled: true, recoveryCodesLeft: recoveryCodes.length });
       } else {
-        await client.api.disableTwoStep(password);
+        await client.account.disableTwoStep(password);
         if (!alive.current) return;
         go({ step: "idle" });
         setStatus({ enabled: false, recoveryCodesLeft: 0 });
@@ -128,7 +128,7 @@ export function TwoStepSettings() {
     setBusy(true);
     setError(null);
     try {
-      const { recoveryCodes } = await client.api.enableTwoStep(code.trim());
+      const { recoveryCodes } = await client.account.enableTwoStep(code.trim());
       if (!alive.current) return;
       go({ step: "codes", codes: recoveryCodes });
       setStatus({ enabled: true, recoveryCodesLeft: recoveryCodes.length });

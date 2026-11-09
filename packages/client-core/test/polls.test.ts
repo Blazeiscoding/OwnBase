@@ -9,10 +9,10 @@ import {
   WorkspaceClient,
   readStoredOutbox,
   shownPoll,
-  storedPending,
   ApiError,
   type WorkspaceState,
 } from "../src/index.js";
+import { storedPending } from "../src/outbox.js";
 import { timelineMessages } from "../src/messageCache.js";
 
 /**

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { CoalescedLoader } from "../src/lib/coalescedLoader.js";
+import { CoalescedLoader } from "../src/coalescedLoader.js";
 
 /** One load at a time, one more waiting at most, and a burst of reasons is one load (REV-05). */
 function harness(delayMs = 250) {

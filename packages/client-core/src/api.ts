@@ -25,14 +25,11 @@ import { ApiError, Transport } from "./transport.js";
 export { ApiError };
 export type { AppDetail, CommandHint, LoginResult, SignedIn } from "@ownbase/protocol";
 
-/** How long a message send waits for the workspace's answer. */
-export const SEND_TIMEOUT_MS = endpoints.sendMessage.timeoutMs;
-
 /**
  * A path the server gave for one of its own routes. Anything else is refused
  * before this client sends it a session.
  */
-export function serverPath(path: string): string {
+function serverPath(path: string): string {
   if (!/^\/api\/[A-Za-z0-9/_-]*$/.test(path)) throw new ApiError(502, "invalid_response");
   return path;
 }

@@ -2,7 +2,7 @@ import type { ID } from "@ownbase/protocol";
 import type { Api } from "./api.js";
 
 /** The message a file is attached to, and its conversation. */
-export interface FileOwner {
+interface FileOwner {
   channelId: ID;
   messageId: ID;
   /** Root of the whole thread retention removes; absent for a top-level message. */

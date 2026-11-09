@@ -320,7 +320,7 @@ const MessageRow = memo(function MessageRow({
     setDeleting(true);
     setDeleteError(false);
     try {
-      await client.api.deleteMessage(message.id);
+      await client.deleteMessage(message.id);
       // The row, and the menu button focus went back to, go once the
       // deletion comes back from the server; focus moves on then.
       const gone = row.current;
@@ -1045,7 +1045,7 @@ function MessageActions({ message }: { message: Message }) {
     setError(null);
     setPending(actionId);
     try {
-      const res = await client.api.runMessageAction(message.id, actionId);
+      const res = await client.runMessageAction(message.id, actionId);
       if (!res.ok) setError("That did not go through. Try again.");
     } catch {
       setError("That did not go through. Try again.");

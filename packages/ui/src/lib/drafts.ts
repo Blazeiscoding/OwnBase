@@ -117,12 +117,3 @@ export function listDrafts(
   // Stable, so drafts with no time keep the order they were stored in.
   return entries.sort((a, b) => (b.at ?? 0) - (a.at ?? 0));
 }
-
-/** Stored draft times, keeping only what reads as a time. */
-export function readDraftTimes(value: unknown): Record<string, number> {
-  const times: Record<string, number> = {};
-  if (!value || typeof value !== "object" || Array.isArray(value)) return times;
-  for (const [key, at] of Object.entries(value))
-    if (typeof at === "number" && Number.isFinite(at)) times[key] = at;
-  return times;
-}

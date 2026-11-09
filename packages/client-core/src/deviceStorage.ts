@@ -1,16 +1,71 @@
+import { checkWorkspaceAddress } from "./addressTrust.js";
 import {
   applyDraftChanges,
-  applyOutboxChanges,
   readStoredDrafts,
-  readStoredOutbox,
   unwrapStoredDrafts,
-  unwrapStoredOutbox,
   type DraftChanges,
+} from "./drafts.js";
+import {
+  applyOutboxChanges,
+  readStoredOutbox,
+  unwrapStoredOutbox,
   type OutboxChanges,
   type StoredOutbox,
-} from "@ownbase/client-core";
-import type { Platform } from "../platform.js";
-import { checkWorkspaceAddress } from "./workspaceAddressTrust.js";
+} from "./outbox.js";
+import type { RecordChanges } from "./records.js";
+
+/**
+ * Where this device keeps what it keeps: the app's storage adapter. Web keeps
+ * it in IndexedDB, the desktop app in its own files. The optional steps are
+ * made in one step no other window's write can come between; where one is
+ * missing, the same change is a read and a separate write.
+ */
+export interface DeviceStorage {
+  /** Strict reads must reject unreadable data instead of treating it as absent. */
+  get: <T>(key: string, options?: { strict?: boolean }) => Promise<T | null>;
+  set: (key: string, value: unknown) => Promise<void>;
+  /**
+   * Stores `value` under `key` only if nothing is stored there, and gives back
+   * what is stored now: `value`, or what another window stored first (F01,
+   * GL-01).
+   */
+  initialize?: (key: string, value: unknown) => Promise<unknown>;
+  /**
+   * Merges one window's outbox changes into what is stored under `key` and
+   * gives back the outbox now stored. `enveloped` says the value is kept as
+   * `{ version: 1, value }`. Merges asked for one after another are made, and
+   * answered, in that order. Without it, a window merges within its own queue
+   * only; see `mergeWorkspaceOutbox`.
+   */
+  mergeOutbox?: (key: string, changes: OutboxChanges, enveloped: boolean) => Promise<StoredOutbox>;
+  /** Calls back with what is stored under an outbox key each time another window changes it. */
+  watchOutbox?: (key: string, cb: (stored: unknown) => void) => () => void;
+  /** As `mergeOutbox`, for the drafts under `key`: each changed draft alone. */
+  mergeDrafts?: (
+    key: string,
+    changes: DraftChanges,
+    enveloped: boolean,
+  ) => Promise<Record<string, string>>;
+  watchDrafts?: (key: string, cb: (stored: unknown) => void) => () => void;
+  /**
+   * Sets the named values of the record under `key`, each alone, and gives
+   * back the record now stored; null removes a name (F02). Without it, a
+   * window writes its whole record and can erase another window's change.
+   */
+  mergeRecord?: (key: string, changes: RecordChanges) => Promise<Record<string, string>>;
+  watchRecord?: (key: string, cb: (stored: unknown) => void) => () => void;
+  /**
+   * Adds `address` to the trusted addresses under `key` (`addTrustedAddress`)
+   * and gives back the addresses now stored: null when what is stored is not
+   * such a list, which is left as it is.
+   */
+  trustAddress?: (key: string, address: string) => Promise<string[] | null>;
+}
+
+/** Whatever holds the device's storage, such as the app's platform. Writes queue per holder. */
+export interface StorageHost {
+  storage: DeviceStorage;
+}
 
 export interface WorkspaceStorageKey {
   key: string;
@@ -44,9 +99,13 @@ export function workspaceStorageKey(
   };
 }
 
-const queues = new WeakMap<Platform, Map<string, Promise<void>>>();
+const queues = new WeakMap<StorageHost, Map<string, Promise<void>>>();
 
-function serialized<T>(platform: Platform, key: string, operation: () => Promise<T>): Promise<T> {
+function serialized<T>(
+  platform: StorageHost,
+  key: string,
+  operation: () => Promise<T>,
+): Promise<T> {
   const queue = queues.get(platform) ?? new Map<string, Promise<void>>();
   queues.set(platform, queue);
   const previous = queue.get(key);
@@ -94,7 +153,7 @@ function unwrap<T>(stored: unknown): T | null {
  * IDs, in the order to try them. Only addresses this device has linked to the
  * workspace, so a server that copies a workspace's ID cannot read its work.
  */
-async function legacyKeysOf(platform: Platform, key: WorkspaceStorageKey): Promise<string[]> {
+async function legacyKeysOf(platform: StorageHost, key: WorkspaceStorageKey): Promise<string[]> {
   if (!key.legacyKey) return [];
   const legacyKeys = [key.legacyKey];
   if (key.legacyScope) {
@@ -124,7 +183,7 @@ async function legacyKeysOf(platform: Platform, key: WorkspaceStorageKey): Promi
  * a window that read nothing a moment ago cannot replace what another window
  * has stored since. Elsewhere, a read and a write in this window's turn.
  */
-async function initialize(platform: Platform, key: string, value: unknown): Promise<unknown> {
+async function initialize(platform: StorageHost, key: string, value: unknown): Promise<unknown> {
   if (platform.storage.initialize) return platform.storage.initialize(key, value);
   const stored = await platform.storage.get<unknown>(key, { strict: true });
   if (stored !== null) return stored;
@@ -133,7 +192,7 @@ async function initialize(platform: Platform, key: string, value: unknown): Prom
 }
 
 export function readWorkspaceStorage<T>(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
 ): Promise<T | null> {
   return serialized(platform, key.key, async () => {
@@ -166,7 +225,7 @@ export function readWorkspaceStorage<T>(
 }
 
 export function writeWorkspaceStorage(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   value: unknown,
 ): Promise<void> {
@@ -182,7 +241,7 @@ export function writeWorkspaceStorage(
  * value that cannot be read is replaced rather than blocking every later save.
  */
 export function updateWorkspaceStorage(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   update: (current: unknown) => unknown,
 ): Promise<void> {
@@ -205,7 +264,7 @@ export function updateWorkspaceStorage(
  * across every window; otherwise they are one step within this window.
  */
 async function mergeOutboxNow(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   changes: OutboxChanges,
 ): Promise<StoredOutbox> {
@@ -232,7 +291,7 @@ async function mergeOutboxNow(
  * after `readWorkspaceOutbox`.
  */
 export function mergeWorkspaceOutbox(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   changes: OutboxChanges,
 ): Promise<StoredOutbox> {
@@ -250,7 +309,7 @@ export function mergeWorkspaceOutbox(
  * leaving it where it is.
  */
 export function readWorkspaceOutbox(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
 ): Promise<StoredOutbox> {
   return serialized(platform, key.key, async () => {
@@ -289,7 +348,7 @@ export function readWorkspaceOutbox(
  * time another window changes it. Does nothing where the platform cannot tell.
  */
 export function watchWorkspaceOutbox(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   cb: (outbox: StoredOutbox | null) => void,
 ): () => void {
@@ -300,7 +359,7 @@ export function watchWorkspaceOutbox(
 
 /** As `mergeOutboxNow`, for drafts. */
 async function mergeDraftsNow(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   changes: DraftChanges,
 ): Promise<Record<string, string>> {
@@ -327,7 +386,7 @@ async function mergeDraftsNow(
  * written, when there are none. Call only after `readWorkspaceDrafts`.
  */
 export function mergeWorkspaceDrafts(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   changes: () => DraftChanges,
 ): Promise<{ changes: DraftChanges; drafts: Record<string, string> } | null> {
@@ -347,7 +406,7 @@ export function mergeWorkspaceDrafts(
  * stored. Elsewhere they take their turn like any other.
  */
 export function mergeWorkspaceDraftsAtOnce(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   changes: DraftChanges,
 ): Promise<Record<string, string>> {
@@ -363,7 +422,7 @@ export function mergeWorkspaceDraftsAtOnce(
  * drafts, leaving it where it is.
  */
 export function readWorkspaceDrafts(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
 ): Promise<Record<string, string>> {
   return serialized(platform, key.key, async () => {
@@ -394,7 +453,7 @@ export function readWorkspaceDrafts(
 
 /** As `watchWorkspaceOutbox`, for drafts. */
 export function watchWorkspaceDrafts(
-  platform: Platform,
+  platform: StorageHost,
   key: WorkspaceStorageKey,
   cb: (drafts: Record<string, string> | null) => void,
 ): () => void {

@@ -5,6 +5,7 @@ import type { Channel, Message, User } from "@ownbase/protocol";
 import { App } from "../src/App.js";
 import type { SavedServer } from "../src/platform.js";
 import { FOCUSED_VIEW_KEY, writeFocusedView } from "../src/lib/focusedView.js";
+import { emit } from "./clientEvents.js";
 
 const rocket: SavedServer = {
   url: "http://127.0.0.1:9",
@@ -99,11 +100,9 @@ async function lookingAtGeneral(previews: Record<string, string> | null = null) 
     }),
   );
   await waitFor(() => expect(screen.getByRole("textbox", { name: /general/ })).toBeVisible());
-  const arrive = (message: Message) =>
-    act(() => client.onIncomingMessage?.(message, { live: true }));
+  const arrive = (message: Message) => act(() => emit(client, "message", message, { live: true }));
   /** As a reconnect replays what was missed. */
-  const replay = (message: Message) =>
-    act(() => client.onIncomingMessage?.(message, { live: false }));
+  const replay = (message: Message) => act(() => emit(client, "message", message, { live: false }));
   return { arrive, replay, notify, client };
 }
 
@@ -262,7 +261,7 @@ describe("notifying about a message in the conversation on screen", () => {
       const { notify, client } = await caughtUp(3);
       // Read on another device up to the first; the second deleted since.
       act(() => client.store.setState({ repliesRead: { [general.id]: missed(0).seq } }));
-      act(() => client.onMessageDeleted?.("M_MISSED_1"));
+      act(() => emit(client, "messageDeleted", "M_MISSED_1"));
       settle();
       expect(notify).toHaveBeenCalledTimes(1);
       expect(notify.mock.calls[0]!.slice(0, 2)).toEqual([

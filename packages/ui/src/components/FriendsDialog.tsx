@@ -19,14 +19,9 @@ export function FriendActions({ userId }: { userId: ID }) {
   async function update(action: "request" | "accept" | "remove") {
     setBusy(true);
     setError("");
-    try {
-      const result = await client.api.updateFriend(userId, action);
-      client.store.setState({ friends: result.friends });
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not update this friendship. Try again.");
-    } finally {
-      setBusy(false);
-    }
+    const failure = await client.setFriendship(userId, action);
+    if (failure) setError(failure.message || "Could not update this friendship. Try again.");
+    setBusy(false);
   }
   return (
     <div>
