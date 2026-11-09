@@ -3,8 +3,6 @@ import {
   DEFAULT_PORT,
   endpoints,
   isAdministrator,
-  planMembers,
-  PROTOCOL_VERSION,
   workspaceNameSchema,
   type AccessPolicy,
   type App,
@@ -85,9 +83,10 @@ import { createRouter } from "./route.js";
 import { registerSaved } from "./saved/feature.js";
 import { registerScheduled, SCHEDULED_LIMITS } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
+import { registerExtensions } from "./sso/feature.js";
 import { Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
-import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
+import { SERVER_VERSION } from "./version.js";
 import { WorkspaceCopies } from "./workspaceCopy.js";
 import { checkIcon, ICON_META_KEYS, storedIconRows, type WorkspaceIcon } from "./workspaceIcon.js";
 
@@ -849,26 +848,9 @@ async function startWorkspaceServer(
     return { status: "ok", instanceId };
   });
 
-  const accounts = registerAccounts(ctx, { joinPublicChannels });
-
-  route(endpoints.serverInfo, async ({ req }) => {
-    const userCount = store.people.count();
-    const signIn = accounts.signInInfo();
-    return {
-      app: "ownbase",
-      protocolVersion: PROTOCOL_VERSION,
-      serverVersion: SERVER_VERSION,
-      ...(SERVER_BUILD ? { build: SERVER_BUILD } : {}),
-      workspaceName: workspaceName(),
-      userCount,
-      requiresInvite: userCount > 0 && inviteOnly(),
-      accessPolicy: accessPolicy(),
-      requiresClaim: userCount === 0 && !!claimCode() && !isLocalRequest(req),
-      workspaceCopies: opts.dataDir !== ":memory:",
-      ...(network.publicUrl() ? { publicUrl: network.publicUrl() } : {}),
-      iconVersion: icon?.version ?? null,
-      ...(signIn ? { signIn } : {}),
-    };
+  const accounts = registerAccounts(ctx, {
+    joinPublicChannels,
+    iconVersion: () => icon?.version ?? null,
   });
 
   route(endpoints.workspaceIcon, async ({ req, reply, query }) => {
@@ -2818,62 +2800,7 @@ async function startWorkspaceServer(
 
   // ---------- extensions (P6) ----------
 
-  /** A member made by an extension, such as single sign-on's first sign-in (P9). */
-  const createMember = async (input: { handle: string; displayName: string }) => {
-    // Nobody knows it: the account signs in the extension's way.
-    const credentials = await hashPassword(secretToken());
-    return mutate((emit) => {
-      if (store.people.count() === 0)
-        throw new HttpError(409, "workspace_unclaimed", "The workspace has no owner yet.");
-      if (store.people.authByHandle(input.handle)) throw new HttpError(409, "handle_taken");
-      const user = store.people.create({
-        handle: input.handle,
-        displayName: input.displayName,
-        passwordHash: credentials.hash,
-        salt: credentials.salt,
-        role: "member",
-      });
-      emit({ type: "user.joined", user });
-      joinPublicChannels(user.id, emit);
-      return user;
-    });
-  };
-
-  for (const extension of extensions) {
-    const prefix = `extension:${extension.name}:`;
-    await extension.register?.({
-      route,
-      memberCount: () => planMembers(store.people.list()),
-      log: app.log.child({ extension: extension.name }),
-      storage: {
-        get: (key) => store.getMeta(prefix + key),
-        set: (key, value) => store.setMeta(prefix + key, value),
-        delete: (key) => store.deleteMeta(prefix + key),
-        list: (start) =>
-          store
-            .listMeta(prefix + start)
-            .map(({ key, value }) => ({ key: key.slice(prefix.length), value })),
-      },
-      users: {
-        get: (id) => store.people.get(id),
-        byHandle: (handle) => {
-          const auth = store.people.authByHandle(handle.toLowerCase());
-          if (!auth) return null;
-          const { passwordHash: _p, salt: _s, ...user } = auth;
-          return user;
-        },
-        create: createMember,
-      },
-      startSession: (userId, req) => {
-        const user = store.people.get(userId);
-        if (!user || user.deactivated) throw new HttpError(401, "invalid_credentials");
-        const { token, tokenHash } = newSessionToken();
-        store.accounts.createSession(tokenHash, user.id, deviceName(req));
-        return { token, user };
-      },
-      publicUrl: () => network.publicUrl(),
-    });
-  }
+  await registerExtensions(ctx, { joinPublicChannels });
 
   route(endpoints.extensionSettings, async ({ reply }) => {
     reply.header("cache-control", "no-store");
