@@ -8,6 +8,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { registerAccounts } from "./accounts/feature.js";
+import { registerApps } from "./apps/feature.js";
 import { registerAdmin } from "./admin/feature.js";
 import {
   checkWorkspaceOptions,
@@ -15,11 +16,9 @@ import {
   isAccessPolicy,
   type WorkspaceChange,
 } from "./admin/workspace.js";
-import { checkIcon, type WorkspaceIcon } from "./admin/workspaceIcon.js";
-import { registerApps } from "./apps/feature.js";
+import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
 import type { BackupManifest } from "./backups/backup.js";
 import { type BackupScheduleStatus, type ScheduledBackups } from "./backups/backupSchedule.js";
-import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
 import { registerChannels } from "./channels/feature.js";
 import { parsePort } from "./config.js";
 import { BackgroundWork } from "./core/background.js";
@@ -28,7 +27,6 @@ import { rationWith, type ServerContext } from "./core/context.js";
 import { createHttp } from "./core/http.js";
 import { Lifecycle } from "./core/lifecycle.js";
 import { Network } from "./core/network.js";
-import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { openDb } from "./db.js";
 import type { ServerExtension } from "./extensions.js";
 import { maxFileSizeOf, registerFiles } from "./files/feature.js";
@@ -38,6 +36,7 @@ import { DEFAULT_LIMITS, RateLimiter, type Limits } from "./limits.js";
 import { type FetchedPreview } from "./linkPreview.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
 import { registerMessages, type RetentionStatus } from "./messages/feature.js";
+import { holdWorkspace, type WorkspaceHold } from "./core/ownership.js";
 import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./relay.js";
@@ -50,6 +49,7 @@ import { registerExtensions } from "./sso/feature.js";
 import { Store } from "./store.js";
 import { registerThreads } from "./threads/feature.js";
 import { SERVER_VERSION } from "./version.js";
+import { checkIcon, type WorkspaceIcon } from "./admin/workspaceIcon.js";
 
 export { GUEST_SESSION_TTL_MS } from "./accounts/feature.js";
 export type { RetentionStatus } from "./messages/feature.js";
