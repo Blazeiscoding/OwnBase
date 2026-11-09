@@ -8,7 +8,6 @@ import {
   isAdministrator,
   planMembers,
   PROTOCOL_VERSION,
-  SEND_RETRY_WINDOW_MS,
   SIDEBAR_SECTIONS_MAX,
   workspaceNameSchema,
   type AccessPolicy,
@@ -74,9 +73,10 @@ import {
   RateLimiter,
   type Limits,
 } from "./limits.js";
-import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
+import { type FetchedPreview } from "./linkPreview.js";
 import { advertise, type MdnsHandle } from "./mdns.js";
-import { createPosting, requireMessageText, slackRefusal } from "./messages/posting.js";
+import { registerMessages, type RetentionStatus } from "./messages/feature.js";
+import { requireMessageText, slackRefusal } from "./messages/posting.js";
 import { OutboundError, postToUrl } from "./outbound.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
 import { registerPolls } from "./polls/feature.js";
@@ -99,6 +99,7 @@ import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
 import { WorkspaceCopies } from "./workspaceCopy.js";
 import { checkIcon, ICON_META_KEYS, storedIconRows, type WorkspaceIcon } from "./workspaceIcon.js";
 
+export type { RetentionStatus } from "./messages/feature.js";
 export { SERVER_VERSION };
 
 /** How long the second step of signing in waits for its code (E11). */
@@ -107,12 +108,6 @@ const TWO_STEP_CHALLENGE_MS = 5 * 60_000;
 const TWO_STEP_TRIES = 5;
 /** How long a key being set up waits for its first code (E11). */
 const TWO_STEP_SETUP_MS = 10 * 60_000;
-
-/**
- * How long a removed message's send key is kept after it was posted: an app's
- * whole retry window, and a week more for a clock that disagrees with this one.
- */
-const PURGED_SEND_KEYS_MS = SEND_RETRY_WINDOW_MS + 7 * 24 * 3600_000;
 
 /** Delays after failures; the eighth failed attempt becomes terminal. */
 const EVENT_DELIVERY_RETRY_MS = [
@@ -130,14 +125,6 @@ const EVENT_DELIVERY_CONCURRENCY = 10;
 /** App events one round of delivery starts before it waits to be asked again. */
 const EVENT_DELIVERY_ROUND = 50;
 const EVENT_DELIVERY_RETENTION_MS = 7 * 24 * 3600_000;
-
-/**
- * One hourly retention round runs passes of at most a few thousand messages
- * each, yielding between them, until nothing is left or it has spent this
- * long; a larger backlog is finished on later rounds.
- */
-const RETENTION_PASSES = 200;
-const RETENTION_SWEEP_MS = 30_000;
 
 /** A guest's session lasts a day from joining, however much it is used. */
 export const GUEST_SESSION_TTL_MS = 24 * 3600_000;
@@ -444,15 +431,6 @@ export interface WorkspaceChange {
   by: ID | null;
 }
 
-export interface RetentionStatus {
-  /** When a sweep last finished without an error; null before the first. */
-  lastSuccessAt: number | null;
-  /** Why the last sweep failed, or null when it did not. */
-  lastError: string | null;
-  /** Sweeps that have failed in a row. */
-  failures: number;
-}
-
 export async function createWorkspaceServer(opts: ServerOptions): Promise<WorkspaceServer> {
   // Whatever stops the start after the workspace is taken gives it back, so a
   // failed start, such as a port in use, does not keep it from the next one.
@@ -726,108 +704,21 @@ async function startWorkspaceServer(
   const requireVisibleMessage = (messageId: ID, user: User) =>
     requireVisibleMessageIn(store, messageId, user);
 
-  const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
-    const updated = mutate((emit) => {
-      if (clearActions) store.clearMessageActions(existing.id);
-      const message = store.editMessage(existing.id, text);
-      emit({ type: "message.updated", message });
-      return message;
-    });
-    // New links in the new words get theirs; the edit already dropped the old ones'.
-    queuePreviews(updated);
-    return updated;
-  };
+  const files = registerFiles(ctx);
+  const { flushFileDeletions, expireAbandonedUploads, storage } = files;
 
-  // ---------- link previews (E2) ----------
-
-  /** Fetches at once, and the most messages waiting for theirs; past it a message goes without. */
-  const PREVIEW_WORKERS = 2;
-  const PREVIEW_QUEUE = 200;
-  /**
-   * A link posted again soon after is not fetched again. Pictures are held
-   * here too, so this stays small: 25 links, each for half an hour.
-   */
-  const PREVIEW_CACHE = 25;
-  const PREVIEW_CACHE_MS = 30 * 60_000;
-  const previewQueue: ID[] = [];
-  const previewQueued = new Set<ID>();
-  let previewsRunning = 0;
-  const previewCache = new Map<string, { at: number; found: Promise<FetchedPreview | null> }>();
-  const fetchPreview =
-    opts.fetchLinkPreview ??
-    ((url: string, signal: AbortSignal) => fetchLinkPreview(url, { signal }));
-
-  const cachedPreview = (url: string): Promise<FetchedPreview | null> => {
-    const now = Date.now();
-    const held = previewCache.get(url);
-    if (held && now - held.at < PREVIEW_CACHE_MS) return held.found;
-    const found = fetchPreview(url, lifecycle.signal).catch(() => null);
-    previewCache.delete(url);
-    previewCache.set(url, { at: now, found });
-    while (previewCache.size > PREVIEW_CACHE)
-      previewCache.delete(previewCache.keys().next().value!);
-    return found;
-  };
-
-  /**
-   * Looks for previews of a message's links after it is committed, a sent or
-   * an edited one. Nothing is fetched while the workspace is an isolated copy,
-   * which calls nothing outside, or with previews turned off.
-   */
-  const queuePreviews = (message: Message): void => {
-    if (lifecycle.closing || opts.isolated || !linkPreviewsOn()) return;
-    if (previewLinks(message.text).length === 0 || previewQueued.has(message.id)) return;
-    if (previewQueue.length >= PREVIEW_QUEUE) return;
-    previewQueued.add(message.id);
-    previewQueue.push(message.id);
-    pumpPreviews();
-  };
-
-  const pumpPreviews = (): void => {
-    while (!lifecycle.closing && previewsRunning < PREVIEW_WORKERS && previewQueue.length > 0) {
-      const id = previewQueue.shift()!;
-      previewQueued.delete(id);
-      previewsRunning++;
-      void findPreviews(id)
-        .catch((err) => app.log.warn({ err, messageId: id }, "could not add link previews"))
-        .finally(() => {
-          previewsRunning--;
-          pumpPreviews();
-        });
-    }
-  };
-
-  /**
-   * Fetches what a message's links lack, then adds it in one change told to
-   * its readers as a `message.updated` with `previewsOnly`. A message edited
-   * or deleted while its links were fetched gets nothing from this round: its
-   * edit queued another for its new words.
-   */
-  const findPreviews = async (messageId: ID): Promise<void> => {
-    const message = store.getMessage(messageId);
-    if (!message) return;
-    const known = new Set(store.previewRows(messageId).map((row) => row.url));
-    const found: { position: number; preview: FetchedPreview }[] = [];
-    for (const [position, url] of previewLinks(message.text).entries()) {
-      if (known.has(url)) continue;
-      const preview = await cachedPreview(url);
-      if (preview) found.push({ position, preview: { ...preview, url } });
-    }
-    if (found.length === 0 || lifecycle.closing) return;
-    mutate((emit) => {
-      const now = store.getMessage(messageId);
-      if (!now || now.text !== message.text || !linkPreviewsOn()) return;
-      let added = false;
-      for (const { position, preview } of found)
-        added = store.addPreview(messageId, position, preview) || added;
-      if (added)
-        emit({
-          type: "message.updated",
-          message: store.getMessage(messageId)!,
-          previewsOnly: true,
-        });
-    });
-  };
+  const messages = registerMessages(ctx, { files });
+  const polls = registerPolls(ctx);
+  const {
+    posting,
+    updateMessage,
+    queuePreviews,
+    removeMessage,
+    removeMessageWithin,
+    applyRetention,
+    sweepRetention,
+    retention,
+  } = messages;
 
   /**
    * Every request to an app goes through here, so an isolated copy has one
@@ -978,121 +869,7 @@ async function startWorkspaceServer(
     return eventDeliveryFlush;
   };
 
-  const posting = createPosting({ store, mutate, ration, queuePreviews, scheduledLimits });
-
   const huddles = registerHuddles(ctx, { posting });
-
-  const files = registerFiles(ctx);
-  const { flushFileDeletions, expireAbandonedUploads, storage } = files;
-
-  const retentionMs = (opts.retentionDays ?? 0) * 24 * 3600_000;
-  /** Set once the server is listening; null when scheduled backups are off. */
-  let backups: BackupSchedule | null = null;
-  /** The owner's downloadable copy; null for a workspace kept in memory. */
-  let copies: WorkspaceCopies | null = null;
-
-  /**
-   * Discards conversation older than the configured retention window.
-   *
-   * Each pass logs one `history.removed` per conversation it touched, naming
-   * the threads that went, rather than a deletion per message: a month of
-   * those would put thousands of events into the very log this is meant to
-   * keep small. Like any event, it reaches only those who can read the
-   * conversation, and a client that was away hears it when it catches up.
-   */
-  const applyRetention = (): number => {
-    if (!retentionMs) return 0;
-    const { messages, fileIds } = mutate((emit) => {
-      const purged = store.purgeMessagesBefore(Date.now() - retentionMs);
-      const byChannel = new Map<ID, ID[]>();
-      for (const root of purged.roots) {
-        const ids = byChannel.get(root.channelId) ?? [];
-        ids.push(root.id);
-        byChannel.set(root.channelId, ids);
-      }
-      for (const [channelId, rootIds] of byChannel)
-        emit({ type: "history.removed", channelId, rootIds });
-      return purged;
-    });
-    if (messages === 0) return 0;
-    app.log.info(
-      { messages, files: fileIds.length, retentionDays: opts.retentionDays },
-      "discarded conversation past the retention window",
-    );
-    if (fileIds.length > 0) void flushFileDeletions();
-    return messages;
-  };
-
-  /**
-   * What the last retention sweep came to. A sweep that throws is caught, so
-   * it cannot take the server down from a timer, and is tried again on the
-   * next round; until one succeeds, this is how its failure stays visible.
-   */
-  const retention: RetentionStatus = { lastSuccessAt: null, lastError: null, failures: 0 };
-
-  /**
-   * Runs retention passes until one finds nothing left or the round's budget
-   * is spent, giving the event loop back between passes so posts and reads
-   * are served while a large backlog drains. Each pass is its own transaction:
-   * stopping between two of them leaves nothing half removed.
-   */
-  const sweepRetention = async (): Promise<number> => {
-    if (!retentionMs) return 0;
-    const started = Date.now();
-    let removed = 0;
-    try {
-      for (let pass = 0; pass < RETENTION_PASSES && !lifecycle.closing; pass++) {
-        const went = applyRetention();
-        removed += went;
-        if (went === 0 || Date.now() - started > RETENTION_SWEEP_MS) break;
-        await new Promise<void>((resolve) => setImmediate(resolve));
-      }
-      retention.lastSuccessAt = Date.now();
-      retention.lastError = null;
-      retention.failures = 0;
-    } catch (err) {
-      retention.failures++;
-      retention.lastError = err instanceof Error ? err.message : String(err);
-      app.log.error(
-        { err, failures: retention.failures, retentionDays: opts.retentionDays },
-        "retention sweep failed; it will be tried again",
-      );
-    }
-    return removed;
-  };
-
-  /**
-   * Deletes a message, and when it started a thread, every reply in it.
-   *
-   * A reply has nothing to hang from once its thread's first message is gone:
-   * the thread cannot be opened, and keeping the replies stored where nobody can
-   * reach them served no one. So they go the same way, in the same transaction —
-   * words blanked, attachments released, and the copies in the event log
-   * redacted — and each is announced, replies before the message they answered,
-   * so an open thread empties before it closes.
-   */
-  /** Deletes a message, its thread's replies with it, and their files, within `mutate`. */
-  const removeMessageWithin = (existing: Message, emit: typeof recordEvent): void => {
-    const replies = existing.threadRootId === null ? store.threads.replyIds(existing.id) : [];
-    const doomed = [
-      ...replies.map((id) => ({ id, threadRootId: existing.id as ID | null })),
-      { id: existing.id, threadRootId: existing.threadRootId },
-    ];
-    for (const message of doomed) {
-      const fileIds = store.files.idsForMessage(message.id);
-      store.files.delete(fileIds);
-      store.files.queueDeletions(fileIds);
-      store.deleteMessage(message.id);
-      emit({
-        type: "message.deleted",
-        channelId: existing.channelId,
-        messageId: message.id,
-        threadRootId: message.threadRootId,
-      });
-    }
-  };
-  const removeMessage = (existing: Message) =>
-    mutate((emit) => removeMessageWithin(existing, emit));
 
   // ---------- unauthenticated ----------
 
@@ -1935,119 +1712,6 @@ async function startWorkspaceServer(
 
   const threads = registerThreads(ctx);
 
-  route(endpoints.listMessages, async ({ user: me, query: q, params }) => {
-    requireChannelAccess(params.id, me);
-    const messages = store.listMessages({
-      channelId: params.id,
-      before: q.before,
-      limit: q.limit,
-      threadRootId: q.threadRootId,
-    });
-    return {
-      messages,
-      readThroughSeq: store.lastMessageSeq(params.id),
-      seq: store.currentSeq(),
-    };
-  });
-
-  route(endpoints.listMessagesAround, async ({ user: me, query, params }) => {
-    requireChannelAccess(params.id, me);
-    const { limit } = query;
-    const target = store.getMessage(params.messageId);
-    if (!target || target.channelId !== params.id) throw new HttpError(404, "message_not_found");
-    const rootId = target.threadRootId ?? target.id;
-    if (target.threadRootId && !store.getMessage(rootId))
-      throw new HttpError(404, "thread_not_found");
-    return {
-      ...store.listMessagesAround(params.id, rootId, limit),
-      threadRootId: target.threadRootId,
-      seq: store.currentSeq(),
-    };
-  });
-
-  route(endpoints.listMessagesSince, async ({ user: me, query, params }) => {
-    requireChannelAccess(params.id, me);
-    const { limit } = query;
-    const seq = Number(params.seq);
-    if (!/^\d{1,15}$/.test(params.seq) || !Number.isSafeInteger(seq))
-      throw new HttpError(400, "invalid_seq");
-    const target = store.firstMessageAfterSeq(params.id, seq, me.id);
-    if (!target) throw new HttpError(404, "message_not_found");
-    return {
-      ...store.listMessagesAround(params.id, target, limit),
-      targetId: target,
-      seq: store.currentSeq(),
-    };
-  });
-
-  route(endpoints.getMessage, async ({ user: me, params }) => {
-    requireChannelAccess(params.id, me);
-    const message = store.getMessage(params.messageId);
-    if (!message || message.channelId !== params.id) throw new HttpError(404, "message_not_found");
-    return { message };
-  });
-
-  route(endpoints.listMessagesAfter, async ({ user: me, query, params }) => {
-    requireChannelAccess(params.id, me);
-    const { limit } = query;
-    return {
-      messages: store.listMessagesAfter(params.id, params.messageId, limit),
-      seq: store.currentSeq(),
-    };
-  });
-
-  route(endpoints.sendMessage, async ({ user: me, body, params }) => {
-    const message = posting.post({
-      poster: { kind: "person", userId: me.id },
-      channelId: params.id,
-      text: body.text,
-      threadRootId: body.threadRootId ?? null,
-      nonce: body.nonce ?? null,
-      fileIds: body.fileIds ?? [],
-      broadcast: body.alsoSendToChannel ?? false,
-      replyToId: body.replyToId ?? null,
-      // Discord notifies the author unless the reply says not to.
-      replyPing: body.replyPing ?? true,
-      forwardFromId: body.forwardFrom ?? null,
-      poll: body.poll ?? null,
-    });
-    return { message };
-  });
-
-  route(endpoints.editMessage, async ({ user: me, body, params }) => {
-    const existing = requireVisibleMessage(params.id, me);
-    if (existing.userId !== me.id) throw new HttpError(403, "not_your_message");
-    // People voted on the question as it was.
-    if (existing.poll)
-      throw new HttpError(409, "poll_not_editable", "A poll's question cannot be changed.");
-    // It says what happened to a call, not what its caller wrote.
-    if (existing.call)
-      throw new HttpError(409, "call_not_editable", "A note about a call cannot be changed.");
-    // Words already the new ones are a retry whose answer was lost, not a conflict.
-    if (
-      body.expectedText !== undefined &&
-      existing.text !== body.expectedText &&
-      existing.text !== body.text
-    ) {
-      throw new HttpError(
-        409,
-        "message_changed",
-        "This message has changed. Choose which version to keep before saving.",
-      );
-    }
-    return { message: updateMessage(existing, body.text) };
-  });
-
-  route(endpoints.deleteMessage, async ({ user: me, params }) => {
-    const existing = requireVisibleMessage(params.id, me);
-    const isPrivileged = isAdministrator(me.role);
-    if (existing.userId !== me.id && !isPrivileged) throw new HttpError(403, "not_your_message");
-
-    removeMessage(existing);
-    await flushFileDeletions();
-    return { ok: true };
-  });
-
   route(endpoints.reportMessage, async ({ user: me, body, params }) => {
     const message = requireVisibleMessage(params.id, me);
     if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
@@ -2057,75 +1721,9 @@ async function startWorkspaceServer(
 
   // ---------- link previews ----------
 
-  route(endpoints.previewImage, async ({ reply, user: me, params }) => {
-    const owner = store.previewOwner(params.id);
-    if (!owner || !store.canAccess(owner.channelId, me.id))
-      throw new HttpError(404, "preview_not_found");
-    const image = store.previewImage(params.id);
-    if (!image) throw new HttpError(404, "preview_not_found");
-    return reply
-      .header("content-type", image.type)
-      .header("cache-control", "private, no-store")
-      .header("x-content-type-options", "nosniff")
-      .header("content-security-policy", "default-src 'none'; sandbox")
-      .send(Buffer.from(image.bytes));
-  });
-
-  route(endpoints.removeLinkPreview, async ({ user: me, params }) => {
-    const owner = store.previewOwner(params.id);
-    if (!owner || !store.canAccess(owner.channelId, me.id))
-      throw new HttpError(404, "preview_not_found");
-    if (owner.authorId !== me.id) throw new HttpError(403, "not_your_message");
-    mutate((emit) => {
-      store.removePreview(params.id);
-      emit({
-        type: "message.updated",
-        message: store.getMessage(owner.messageId)!,
-        previewsOnly: true,
-      });
-    });
-    return { ok: true };
-  });
-
   // ---------- files ----------
 
   // ---------- reactions ----------
-
-  route(endpoints.addReaction, async ({ user: me, params }) => {
-    const msg = requireVisibleMessage(params.id, me);
-    const emoji = decodeURIComponent(params.emoji).slice(0, 64);
-    mutate((emit) => {
-      if (store.addReaction(msg.id, me.id, emoji)) {
-        emit({
-          type: "reaction.added",
-          channelId: msg.channelId,
-          messageId: msg.id,
-          emoji,
-          userId: me.id,
-        });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.removeReaction, async ({ user: me, params }) => {
-    const msg = requireVisibleMessage(params.id, me);
-    const emoji = decodeURIComponent(params.emoji).slice(0, 64);
-    mutate((emit) => {
-      if (store.removeReaction(msg.id, me.id, emoji)) {
-        emit({
-          type: "reaction.removed",
-          channelId: msg.channelId,
-          messageId: msg.id,
-          emoji,
-          userId: me.id,
-        });
-      }
-    });
-    return { ok: true };
-  });
-
-  const polls = registerPolls(ctx);
 
   // ---------- apps, webhooks and the Slack-compatible API ----------
 
@@ -2208,7 +1806,7 @@ async function startWorkspaceServer(
       deliveries: counts.deliveries,
       scheduled: counts.scheduled,
       retention: {
-        enabled: retentionMs > 0,
+        enabled: messages.retentionOn,
         lastSuccessAt: retention.lastSuccessAt,
         failures: retention.failures,
       },
@@ -2695,7 +2293,7 @@ async function startWorkspaceServer(
 
     let threadRootId: ID | null = null;
     if (channel && typeof body.thread_ts === "string" && body.thread_ts) {
-      const root = store.getMessage(body.thread_ts);
+      const root = store.messages.get(body.thread_ts);
       // An unknown thread parent is not worth failing the whole send over.
       if (root && root.channelId === channel.id && !root.threadRootId) threadRootId = root.id;
     }
@@ -2849,7 +2447,7 @@ async function startWorkspaceServer(
       originMessageId &&
       (payload.replace_original === true || payload.delete_original === true)
     ) {
-      const existing = store.getMessage(originMessageId);
+      const existing = store.messages.get(originMessageId);
       // Replacement/deletion is a no-op when the origin disappeared or
       // changed while the app answered. Never reinterpret it as a new post.
       if (
@@ -3241,7 +2839,7 @@ async function startWorkspaceServer(
     for (const open of store.openReports()) {
       const channel = store.getChannel(open.channelId);
       if (!channel) continue;
-      reports.push({ ...open, message: store.getMessage(open.messageId), channel });
+      reports.push({ ...open, message: store.messages.get(open.messageId), channel });
     }
     return { reports };
   });
@@ -3259,7 +2857,7 @@ async function startWorkspaceServer(
       }
     }
     mutate((emit, afterCommit) => {
-      const message = store.getMessage(open.messageId);
+      const message = store.messages.get(open.messageId);
       if (action !== "dismiss" && message) removeMessageWithin(message, emit);
       if (action === "deactivate" && author && !author.deactivated) {
         const updated = store.updateUser(author.id, { deactivated: true });
@@ -3864,7 +3462,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.runMessageAction, async ({ req, user: me, body, params }) => {
-    const message = store.getMessage(params.id);
+    const message = store.messages.get(params.id);
     if (!message) throw new HttpError(404, "message_not_found");
     const channel = requireChannelAccess(message.channelId, me);
     if (channel.archived) throw new HttpError(400, "channel_archived");
@@ -4089,10 +3687,6 @@ async function startWorkspaceServer(
     const ordered = store.transaction(() => store.orderSidebarSections(me.id, ids));
     if (!ordered) throw new HttpError(409, "sections_changed", "Your sections changed. Try again.");
     return { sections: store.sidebarSections(me.id) };
-  });
-
-  route(endpoints.latestDirectMessages, async ({ user: me }) => {
-    return { messages: store.latestDirectMessages(me.id) };
   });
 
   // ---------- invites & search ----------
@@ -4409,6 +4003,10 @@ async function startWorkspaceServer(
     5_000,
   );
 
+  /** Set once the server is listening; null when scheduled backups are off. */
+  let backups: BackupSchedule | null = null;
+  /** The owner's downloadable copy; null for a workspace kept in memory. */
+  let copies: WorkspaceCopies | null = null;
   const takeBackup =
     opts.takeBackup ?? ((out: string) => backupWorkspace({ dataDir: opts.dataDir, out }));
   backups = scheduled
@@ -4442,9 +4040,7 @@ async function startWorkspaceServer(
     background.maintain("events", () => store.pruneEvents());
     scheduledMessages.hourly();
     background.maintain("sessions", () => store.pruneSessions());
-    background.maintain("removed messages' send keys", () =>
-      store.pruneMessageRequestsPurged(Date.now() - PURGED_SEND_KEYS_MS),
-    );
+    messages.hourly();
     background.maintain("event deliveries", () =>
       store.pruneEventDeliveries(Date.now() - EVENT_DELIVERY_RETENTION_MS),
     );

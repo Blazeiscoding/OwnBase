@@ -65,7 +65,7 @@ export class SearchStore {
            JOIN channels c ON c.id = mm.channel_id JOIN messages m ON m.id = mm.message_id
            WHERE ${conditions.join(" AND ")} GROUP BY m.id ORDER BY m.id DESC LIMIT ?`;
     const rows = this.db.prepare(query).all(...params, opts.limit) as unknown as MessageRow[];
-    return this.store.hydrateMessages(rows);
+    return this.store.messages.hydrate(rows);
   }
 
   /**
@@ -140,7 +140,7 @@ export class SearchStore {
         )
         .all(...all.flatMap(([, ...values]) => values), count) as unknown as MessageRow[];
     };
-    if (query.terms.length === 0) return this.store.hydrateMessages(page([], limit));
+    if (query.terms.length === 0) return this.store.messages.hydrate(page([], limit));
 
     // Quote every term so user input can never break FTS5 syntax. The last
     // one matches as the start of a word, so a search run as it is typed
@@ -201,7 +201,7 @@ export class SearchStore {
     // for "the" in 200,000 messages. So the newest messages are walked first,
     // checked against only their own matches, and the older ones are read
     // from the matches only if the newest hold less than a page.
-    if (!many) return this.store.hydrateMessages(page([fromMatches], limit));
+    if (!many) return this.store.messages.hydrate(page([fromMatches], limit));
     const window = this.db
       .prepare(
         `SELECT MIN(id) AS edge, MIN(position) AS low, COUNT(*) AS n FROM (
@@ -233,9 +233,9 @@ export class SearchStore {
       limit,
     );
     if (newest.length === limit || window.n < SearchStore.SEARCH_WINDOW) {
-      return this.store.hydrateMessages(newest);
+      return this.store.messages.hydrate(newest);
     }
     const older = page([matching, ["m.id < ?", window.edge]], limit - newest.length);
-    return this.store.hydrateMessages([...newest, ...older]);
+    return this.store.messages.hydrate([...newest, ...older]);
   }
 }

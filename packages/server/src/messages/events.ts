@@ -10,7 +10,7 @@ export const messageDurable = {
     channel: (event) => event.message.channelId,
     effects(event, seq, store) {
       const message = event.message;
-      store.stampMessageSeq(
+      store.messages.stampSeq(
         message.id,
         message.channelId,
         seq,
@@ -21,13 +21,17 @@ export const messageDurable = {
         // Every way a reply can be written arrives here, so following belongs
         // here too rather than in each of the routes that can create one.
         store.threads.autoFollow(message.threadRootId, message.userId, seq);
-        const root = store.getMessage(message.threadRootId);
+        const root = store.messages.get(message.threadRootId);
         store.threads.tellFollowers(message.threadRootId, [
           message.userId,
           ...(root ? [root.userId] : []),
         ]);
       }
-      const named = store.mentionedMemberIds(message.channelId, message.text, message.userId);
+      const named = store.messages.mentionedMemberIds(
+        message.channelId,
+        message.text,
+        message.userId,
+      );
       // A reply that notified the author of what it answers counts for them.
       const pinged = message.replyTo?.ping ? message.replyTo.userId : null;
       store.outbox.mentions(

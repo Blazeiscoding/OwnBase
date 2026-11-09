@@ -115,7 +115,7 @@ describe("mentions read from who each message names", () => {
         const roots = live.filter((m) => m.channel === channel);
         const threadRootId = roots.length && random(3) === 0 ? pickOne(roots).id : null;
         const author = pickOne(channel === "C1" ? ["U1", "U2", "U3"] : ["U1", "U2"]);
-        const message = store.createMessage({
+        const message = store.messages.create({
           channelId: channel,
           userId: author,
           text: pickOne(texts),
@@ -123,16 +123,16 @@ describe("mentions read from who each message names", () => {
           nonce: null,
           broadcast: random(4) === 0,
         });
-        store.stampMessageSeq(message.id, channel, ++seq);
+        store.messages.stampSeq(message.id, channel, ++seq);
         db.prepare("UPDATE messages SET created_at = ? WHERE id = ?").run(clock++, message.id);
         if (!threadRootId) live.push({ id: message.id, channel });
         done.sent++;
       } else if (action < 7) {
-        store.editMessage(pickOne(live).id, pickOne(texts));
+        store.messages.edit(pickOne(live).id, pickOne(texts));
         done.edited++;
       } else if (action < 8) {
         const doomed = live.splice(random(live.length), 1)[0]!;
-        store.deleteMessage(doomed.id);
+        store.messages.delete(doomed.id);
         done.deleted++;
       } else if (action < 9) {
         store.markRead(pickOne(["C1", "C2", "D1"]), pickOne(["U1", "U2"]), random(seq + 1));
@@ -145,7 +145,7 @@ describe("mentions read from who each message names", () => {
       if (step % 25 === 24) {
         // Retention takes the oldest away; their mentions go with them.
         const before = clock - 150;
-        done.purged += store.purgeMessagesBefore(before).messages;
+        done.purged += store.messages.purgeBefore(before).messages;
         for (let i = live.length - 1; i >= 0; i--) {
           if (!db.prepare("SELECT 1 FROM messages WHERE id = ?").get(live[i]!.id))
             live.splice(i, 1);
@@ -172,7 +172,7 @@ describe("mentions read from who each message names", () => {
   it("pages the Activity mentions list by its cursor, each message once", () => {
     const ids: string[] = [];
     for (let i = 0; i < 7; i++) {
-      const message = store.createMessage({
+      const message = store.messages.create({
         channelId: "C1",
         userId: "U2",
         // Named directly and as the whole room: still one entry.
@@ -180,7 +180,7 @@ describe("mentions read from who each message names", () => {
         threadRootId: null,
         nonce: null,
       });
-      store.stampMessageSeq(message.id, "C1", i + 1);
+      store.messages.stampSeq(message.id, "C1", i + 1);
       ids.push(message.id);
     }
     const first = store.search.activity("U1", { mode: "mentions", limit: 4 }).map((m) => m.id);

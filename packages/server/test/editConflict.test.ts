@@ -90,7 +90,7 @@ describe("editing a message that may have changed", () => {
     });
     expect(stale.status).toBe(409);
     expect(stale.body.error).toBe("message_changed");
-    expect(server!.store.getMessage(id)!.text).toBe("Ship it on Thursday");
+    expect(server!.store.messages.get(id)!.text).toBe("Ship it on Thursday");
     expect(updates(id)).toBe(1);
 
     // Having seen the newer words, the author can still choose theirs.
@@ -99,7 +99,7 @@ describe("editing a message that may have changed", () => {
       expectedText: "Ship it on Thursday",
     });
     expect(chosen.status).toBe(200);
-    expect(server!.store.getMessage(id)!.text).toBe("Ship it on Friday (mine)");
+    expect(server!.store.messages.get(id)!.text).toBe("Ship it on Friday (mine)");
   });
 
   it("accepts a retry whose first try was saved, though the words it expected are gone", async () => {
@@ -109,7 +109,7 @@ describe("editing a message that may have changed", () => {
     // The answer to the first try was lost, so the client sends it again.
     const retry = await call(token, `/api/messages/${id}`, "PATCH", body);
     expect(retry.status).toBe(200);
-    expect(server!.store.getMessage(id)!.text).toBe("Ship it on Monday");
+    expect(server!.store.messages.get(id)!.text).toBe("Ship it on Monday");
   });
 
   it("still replaces whatever is there for a client that does not say what it expects", async () => {
@@ -117,6 +117,6 @@ describe("editing a message that may have changed", () => {
     await call(token, `/api/messages/${id}`, "PATCH", { text: "Ship it on Thursday" });
     const blind = await call(token, `/api/messages/${id}`, "PATCH", { text: "Ship it on Monday" });
     expect(blind.status).toBe(200);
-    expect(server!.store.getMessage(id)!.text).toBe("Ship it on Monday");
+    expect(server!.store.messages.get(id)!.text).toBe("Ship it on Monday");
   });
 });

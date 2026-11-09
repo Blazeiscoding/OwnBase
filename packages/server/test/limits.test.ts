@@ -302,7 +302,7 @@ describe("posting and upload limits", () => {
       expect(blocked.data.error).toBe("too_many_requests");
       expect(Number(blocked.retryAfter)).toBeGreaterThan(0);
     }
-    expect(server!.store.listMessages({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
+    expect(server!.store.messages.list({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
       "one normal message",
     ]);
 
@@ -311,7 +311,7 @@ describe("posting and upload limits", () => {
       body: { text: "/shrug unaffected" },
     });
     expect(other.status).toBe(200);
-    expect(server!.store.listMessages({ channelId, limit: 10 })).toHaveLength(2);
+    expect(server!.store.messages.list({ channelId, limit: 10 })).toHaveLength(2);
   });
 
   it("lets a built-in spend the post budget, without charging invalid usage", async () => {
@@ -334,7 +334,7 @@ describe("posting and upload limits", () => {
         })
       ).status,
     ).toBe(429);
-    expect(server!.store.listMessages({ channelId, limit: 10 })).toHaveLength(1);
+    expect(server!.store.messages.list({ channelId, limit: 10 })).toHaveLength(1);
   });
 
   it("refuses to schedule a message once the post budget is spent", async () => {
@@ -405,7 +405,7 @@ describe("posting and upload limits", () => {
     ).toBe(200);
     server!.flushScheduled();
     expect(server!.store.scheduled.get(id)?.status).toBe("sent");
-    expect(server!.store.listMessages({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
+    expect(server!.store.messages.list({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
       "queued once",
     ]);
   });
@@ -663,8 +663,8 @@ describe("incoming webhooks", () => {
         .status,
     ).toBe(201);
     expect(
-      server!.store
-        .listMessages({ channelId, limit: 10 })
+      server!.store.messages
+        .list({ channelId, limit: 10 })
         .map((m) => m.text)
         .sort(),
     ).toEqual(["from the other webhook", "me", "one", "two"]);
@@ -739,8 +739,8 @@ describe("calls out to apps", () => {
         ],
       }),
     });
-    const withButton = server!.store
-      .listMessages({ channelId, limit: 10 })
+    const withButton = server!.store.messages
+      .list({ channelId, limit: 10 })
       .find((m) => m.actions.length > 0)!;
     const command = (token: string) =>
       call<{ ok?: boolean; error?: string; message?: string }>(

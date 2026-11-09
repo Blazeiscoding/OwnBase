@@ -140,7 +140,7 @@ describe("live mention counts after edits", () => {
     expect(secondReader.counts()).toEqual([{ [channelId]: 1 }]);
     expect(authorSocket.counts()).toEqual([]);
 
-    const current = server.store.getMessage(message.id)!;
+    const current = server.store.messages.get(message.id)!;
     expect((await edit(current, "no longer mentioned")).status).toBe(200);
     await firstReader.settle();
     await secondReader.settle();
@@ -160,7 +160,7 @@ describe("live mention counts after edits", () => {
     });
     expect((await edit(message, `<@${reader.user.id}>`)).status).toBe(500);
     await readerSocket.settle();
-    expect(server.store.getMessage(message.id)?.text).toBe("original");
+    expect(server.store.messages.get(message.id)?.text).toBe("original");
     expect(server.store.unreadMentionCounts(reader.user.id)).toEqual({});
     expect(readerSocket.counts()).toEqual([]);
     expect(readerSocket.frames.some((f) => f.type === "event")).toBe(false);
@@ -171,7 +171,7 @@ describe("live mention counts after edits", () => {
     expect((await edit(message, `<@${reader.user.id}> stale edit`)).status).toBe(409);
     await readerSocket.settle();
     expect(readerSocket.counts()).toEqual([]);
-    expect(server.store.getMessage(message.id)?.text).toBe("new version");
+    expect(server.store.messages.get(message.id)?.text).toBe("new version");
   });
 
   it("does not refresh a removed private-channel reader or an unrelated member", async () => {

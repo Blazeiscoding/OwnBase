@@ -67,7 +67,7 @@ const allDue = () => {
   for (const item of server!.store.scheduled.due(Date.now() + 7_200_000, 100_000))
     server!.store.scheduled.reschedule(item.id, Date.now() - 1000);
 };
-const sent = () => server!.store.listMessages({ channelId: general(), limit: 500 }).length;
+const sent = () => server!.store.messages.list({ channelId: general(), limit: 500 }).length;
 
 describe("admission to the scheduled queue", () => {
   it("refuses one account's next message past its limit, and takes one again after a cancel", async () => {
@@ -181,7 +181,7 @@ describe("a held scheduled message", () => {
     server!.store.addMember(channelId, member.id);
     server!.flushScheduled();
     expect(server!.store.scheduled.list(member.id)).toEqual([]);
-    expect(server!.store.listMessages({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
+    expect(server!.store.messages.list({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
       "for the leads",
     ]);
   });

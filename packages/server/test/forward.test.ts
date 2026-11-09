@@ -277,7 +277,7 @@ describe("forwarding a message", () => {
     const old = await post(peer.token, general, { text: "Old news" });
     await new Promise((done) => setTimeout(done, 5));
     const purged = await post(owner.token, general, { text: "", forwardFrom: old.id });
-    server.store.transaction(() => server.store.purgeMessagesBefore(old.createdAt + 1));
+    server.store.transaction(() => server.store.messages.purgeBefore(old.createdAt + 1));
     expect(await send(outsider.token, general, { text: "", forwardFrom: purged.id })).toEqual(
       unavailable,
     );
@@ -287,7 +287,7 @@ describe("forwarding a message", () => {
     const original = await post(peer.token, general, { text: "Old news" });
     await new Promise((done) => setTimeout(done, 5));
     const forward = await post(owner.token, general, { text: "", forwardFrom: original.id });
-    server.store.transaction(() => server.store.purgeMessagesBefore(original.createdAt + 1));
+    server.store.transaction(() => server.store.messages.purgeBefore(original.createdAt + 1));
     expect((await read(owner.token, general, forward.id)).forwardedFrom).toMatchObject({
       id: original.id,
       deleted: true,

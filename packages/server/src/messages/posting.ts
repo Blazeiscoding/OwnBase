@@ -149,7 +149,7 @@ export function createPosting({
 
   const requireThreadRoot = (channel: Channel, threadRootId: ID | null): void => {
     if (!threadRootId) return;
-    const root = store.getMessage(threadRootId);
+    const root = store.messages.get(threadRootId);
     if (!root || root.channelId !== channel.id || root.threadRootId)
       throw new HttpError(400, "bad_thread_root");
   };
@@ -192,9 +192,9 @@ export function createPosting({
         ]),
       );
       if (input.nonce !== null) {
-        const previous = store.messageRequest(userId, input.nonce);
+        const previous = store.messages.request(userId, input.nonce);
         if (previous) {
-          const existing = store.getMessage(previous.messageId);
+          const existing = store.messages.get(previous.messageId);
           if (!existing) throw new HttpError(409, "message_deleted");
           if (
             (previous.requestHash !== null && previous.requestHash !== requestHash) ||
@@ -206,7 +206,7 @@ export function createPosting({
           return existing;
         }
         // Posted once, then removed with the workspace's older history.
-        if (store.messageRequestPurged(userId, input.nonce))
+        if (store.messages.requestPurged(userId, input.nonce))
           throw new HttpError(
             409,
             "message_deleted",
@@ -221,7 +221,7 @@ export function createPosting({
       // the channel shows; in a thread, its first message or another reply.
       // Deleted since it was chosen, it still goes and says so; removed with
       // older history, it goes as an ordinary message.
-      const target = input.replyToId ? store.replyTarget(input.replyToId) : null;
+      const target = input.replyToId ? store.messages.replyTarget(input.replyToId) : null;
       if (
         target &&
         (target.channelId !== channel.id ||
@@ -247,7 +247,7 @@ export function createPosting({
       let forwardedFromId: ID | null = null;
       if (input.forwardFromId) {
         const readable = (id: ID) => {
-          const found = store.forwardSource(id);
+          const found = store.messages.forwardSource(id);
           return found && !found.deleted && store.canAccess(found.channelId, userId) ? found : null;
         };
         const picked = readable(input.forwardFromId);
@@ -269,7 +269,7 @@ export function createPosting({
           );
         forwardedFromId = source.id;
       }
-      const created = store.createMessage({
+      const created = store.messages.create({
         channelId: input.channelId,
         userId,
         text: input.text,
@@ -293,9 +293,9 @@ export function createPosting({
         )
       )
         throw new HttpError(400, "invalid_attachments");
-      const hydrated = store.getMessage(created.id)!;
+      const hydrated = store.messages.get(created.id)!;
       if (input.nonce !== null)
-        store.recordMessageRequest(userId, input.nonce, created.id, requestHash);
+        store.messages.recordRequest(userId, input.nonce, created.id, requestHash);
       if (input.scheduledId) store.scheduled.markSent(input.scheduledId, created.id);
       record({ type: "message.created", message: hydrated });
       return hydrated;

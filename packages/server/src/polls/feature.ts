@@ -22,7 +22,7 @@ export function registerPolls(ctx: ServerContext) {
     let message = msg;
     mutate((emit) => {
       if (!store.polls.setChoices(msg.id, me.id, chosen)) return;
-      message = store.getMessage(msg.id)!;
+      message = store.messages.get(msg.id)!;
       emit({ type: "message.updated", message, pollOnly: true });
     });
     return { message, choices: store.polls.choices(msg.id, me.id) };
@@ -36,7 +36,7 @@ export function registerPolls(ctx: ServerContext) {
     let message = msg;
     mutate((emit) => {
       if (!store.polls.close(msg.id)) return;
-      message = store.getMessage(msg.id)!;
+      message = store.messages.get(msg.id)!;
       emit({ type: "message.updated", message, pollOnly: true });
     });
     return { message };

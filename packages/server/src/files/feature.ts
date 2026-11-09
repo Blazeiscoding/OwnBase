@@ -366,3 +366,5 @@ export function registerFiles(ctx: ServerContext) {
     },
   };
 }
+
+export type Files = ReturnType<typeof registerFiles>;

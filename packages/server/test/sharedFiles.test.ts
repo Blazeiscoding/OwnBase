@@ -181,7 +181,7 @@ describe("the file list", () => {
     expect(await names()).toEqual(["kept.txt"]);
     // A message marked deleted is left out even while its file rows remain.
     const marked = await share(general, [["marked.txt", "text/plain"]]);
-    server!.store.deleteMessage(marked.id);
+    server!.store.messages.delete(marked.id);
     expect(await names()).toEqual(["kept.txt"]);
   });
 });

@@ -222,7 +222,7 @@ describe("a reminder", () => {
     const message = await post("Gone soon");
     await remind(message.id, Date.now() + 60_000);
     // The row alone, without the deletion's events, which drop it.
-    server!.store.deleteMessage(message.id);
+    server!.store.messages.delete(message.id);
     expect(await listed()).toEqual([]);
     expect(ready(await connect(owner.token)).reminders).toEqual([]);
   });

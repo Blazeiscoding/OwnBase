@@ -80,7 +80,7 @@ describe("committed file cleanup", () => {
       throw new Error("event write failed");
     });
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(500);
-    expect(server.store.getMessage(item.message.id)!.files[0]!.id).toBe(item.fileId);
+    expect(server.store.messages.get(item.message.id)!.files[0]!.id).toBe(item.fileId);
     expect(readFileSync(item.path, "utf8")).toBe("original attachment");
     expect(server.store.files.pendingDeletions()).toEqual([]);
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(200);
@@ -94,7 +94,7 @@ describe("committed file cleanup", () => {
     rmSync(item.path);
     mkdirSync(item.path);
     expect((await request(`/api/messages/${item.message.id}`, "DELETE")).status).toBe(200);
-    expect(server.store.getMessage(item.message.id)).toBeNull();
+    expect(server.store.messages.get(item.message.id)).toBeNull();
     expect(server.store.files.pendingDeletions()).toEqual([item.fileId]);
     await server.stop();
     await start();

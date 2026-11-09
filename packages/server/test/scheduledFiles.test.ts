@@ -91,7 +91,7 @@ describe("a file waiting in a scheduled message", () => {
 
     const delivered = deliverNow(queued.body.scheduled.id);
     expect(delivered.status).toBe("sent");
-    const message = server!.store.getMessage(delivered.messageId!)!;
+    const message = server!.store.messages.get(delivered.messageId!)!;
     expect(message.files.map((f) => f.id)).toEqual([file]);
   });
 
@@ -157,9 +157,9 @@ describe("a scheduled reply also sent to the channel", () => {
     );
 
     const delivered = deliverNow(queued.body.scheduled.id);
-    const message = server!.store.getMessage(delivered.messageId!)!;
+    const message = server!.store.messages.get(delivered.messageId!)!;
     expect(message).toMatchObject({ threadRootId: root.id, broadcast: true });
-    const timeline = server!.store.listMessages({ channelId, limit: 50 });
+    const timeline = server!.store.messages.list({ channelId, limit: 50 });
     expect(timeline.map((m) => m.text)).toContain("For everyone");
   });
 
@@ -170,7 +170,7 @@ describe("a scheduled reply also sent to the channel", () => {
     expect(quiet.body.scheduled.broadcast).toBe(false);
     expect(loose.body.scheduled.broadcast).toBe(false);
     deliverNow(quiet.body.scheduled.id);
-    const timeline = server!.store.listMessages({ channelId, limit: 50 });
+    const timeline = server!.store.messages.list({ channelId, limit: 50 });
     expect(timeline.map((m) => m.text)).not.toContain("Just the thread");
   });
 

@@ -59,7 +59,7 @@ export class SavedStore {
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
-      messages: this.store.hydrateMessages(page),
+      messages: this.store.messages.hydrate(page),
       nextCursor: rows.length > limit && last ? `${last.pinned_at}:${last.id}` : null,
       total,
     };
@@ -129,7 +129,7 @@ export class SavedStore {
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
-      messages: this.store.hydrateMessages(page),
+      messages: this.store.messages.hydrate(page),
       nextCursor: rows.length > limit && last ? `${last.saved_at}:${last.id}` : null,
     };
   }

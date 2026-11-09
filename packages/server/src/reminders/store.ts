@@ -126,7 +126,7 @@ export class ReminderStore {
       remind_at: number;
       due_at: number | null;
     })[];
-    const messages = this.store.hydrateMessages(rows);
+    const messages = this.store.messages.hydrate(rows);
     return rows.map((row, index) => ({
       reminder: {
         id: row.reminder_id,
@@ -171,7 +171,7 @@ export class ReminderStore {
     // Coming due carries the message, for the notification.
     if (reminder)
       this.store.outbox.person(userId, () => {
-        const message = this.store.getMessage(messageId);
+        const message = this.store.messages.get(messageId);
         return message ? { type: "reminder", reminder, message } : null;
       });
     return reminder;

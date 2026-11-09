@@ -461,8 +461,8 @@ describe("self-hosted product", () => {
       sendAt: Date.now() - 1000,
     });
     const ghosted = () =>
-      server!.store
-        .listMessages({ channelId: channel.id, limit: 50 })
+      server!.store.messages
+        .list({ channelId: channel.id, limit: 50 })
         .some((m) => m.text === "posted by a ghost");
 
     await request(base, `/api/admin/users/${leaver.data.user.id}`, owner.data.token, "PATCH", {

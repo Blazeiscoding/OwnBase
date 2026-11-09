@@ -26,7 +26,7 @@ export class ThreadStore {
         after: opts.around,
         limit: opts.limit - 1 - olderLimit,
       });
-      const target = this.store.getMessage(opts.around);
+      const target = this.store.messages.get(opts.around);
       return {
         messages: [
           ...older.messages,
@@ -56,7 +56,7 @@ export class ThreadStore {
         )
         .get(channelId, rootId, id) !== undefined;
     return {
-      messages: this.store.hydrateMessages(rows),
+      messages: this.store.messages.hydrate(rows),
       hasMoreOlder: exists("<", first),
       hasMoreNewer: exists(">", last),
     };
@@ -399,7 +399,7 @@ export class ThreadStore {
         limit + 1,
       ) as unknown as (MessageRow & { last_seq: number; unread_count: number })[];
     const page = rows.slice(0, limit);
-    const roots = this.store.hydrateMessages(page);
+    const roots = this.store.messages.hydrate(page);
     const last = page.at(-1);
     // Each thread's newest reply, for the list to show where it has got to;
     // not one deleted, nor one by someone this account blocked.
@@ -413,7 +413,7 @@ export class ThreadStore {
       (newest.all(row.id, userId) as unknown as MessageRow[]).slice(0, 1),
     );
     const replies = new Map(
-      this.store.hydrateMessages(replyRows).map((reply) => [reply.threadRootId, reply]),
+      this.store.messages.hydrate(replyRows).map((reply) => [reply.threadRootId, reply]),
     );
     return {
       threads: roots.map((root, index) => ({

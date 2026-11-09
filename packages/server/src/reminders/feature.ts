@@ -38,7 +38,7 @@ export function registerReminders(ctx: ServerContext) {
       background.maintain("reminders", () => {
         const now = Date.now();
         for (const due of store.reminders.due(now, limits.batch)) {
-          const message = store.getMessage(due.messageId);
+          const message = store.messages.get(due.messageId);
           const user = store.getUser(due.userId);
           if (
             !message ||

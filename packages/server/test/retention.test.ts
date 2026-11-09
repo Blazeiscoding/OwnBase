@@ -104,7 +104,7 @@ describe("what deleting a message actually reaches", () => {
 
     expect((await api(`/api/messages/${message.id}`, "DELETE")).status).toBe(200);
     // The channel no longer shows it, which was never the hard part.
-    expect(server!.store.getMessage(message.id)).toBeNull();
+    expect(server!.store.messages.get(message.id)).toBeNull();
     // The log is where the copy lived on disk, readable by anyone who can read
     // the file, for as long as the log is kept.
     expect(loggedPayloads()).not.toContain(secret);
@@ -168,7 +168,7 @@ describe("what deleting a message actually reaches", () => {
     expect((await api(`/api/threads/followed`, "GET")).body.threads).toEqual([]);
 
     // Not hidden: gone, the way a deleted message is.
-    expect(server!.store.getMessage(reply.body.message.id)).toBeNull();
+    expect(server!.store.messages.get(reply.body.message.id)).toBeNull();
     const log = loggedPayloads();
     expect(log).not.toContain("somebody else's answer");
     expect(log).not.toContain("reply-attachment.txt");
@@ -219,9 +219,9 @@ describe("what deleting a message actually reaches", () => {
     ).body.message;
 
     await api(`/api/messages/${drop.id}`, "DELETE");
-    expect(server!.store.getMessage(root.id)).not.toBeNull();
-    expect(server!.store.getMessage(keep.id)?.text).toBe("keep");
-    expect(server!.store.getMessage(drop.id)).toBeNull();
+    expect(server!.store.messages.get(root.id)).not.toBeNull();
+    expect(server!.store.messages.get(keep.id)?.text).toBe("keep");
+    expect(server!.store.messages.get(drop.id)).toBeNull();
   });
 
   it("takes the pins and saves that pointed at it", async () => {
@@ -244,7 +244,7 @@ describe("a retention window", () => {
     backdate(400);
 
     expect(server!.applyRetention()).toBe(0);
-    expect(server!.store.getMessage(message.id)).not.toBeNull();
+    expect(server!.store.messages.get(message.id)).not.toBeNull();
   });
 
   it("refuses a window that is not a number of days", async () => {
@@ -267,8 +267,8 @@ describe("a retention window", () => {
     const recent = await post("said this morning");
 
     expect(server!.applyRetention()).toBe(1);
-    expect(server!.store.getMessage(old.id)).toBeNull();
-    expect(server!.store.getMessage(recent.id)).not.toBeNull();
+    expect(server!.store.messages.get(old.id)).toBeNull();
+    expect(server!.store.messages.get(recent.id)).not.toBeNull();
   });
 
   it("leaves nothing of what it discards, in the log or on disk", async () => {
@@ -303,7 +303,7 @@ describe("a retention window", () => {
     // A reply hanging under nothing reads as a broken database rather than as
     // a window doing its job, so the root waits for the conversation to end.
     expect(server!.applyRetention()).toBe(0);
-    expect(server!.store.getMessage(root.id)).not.toBeNull();
+    expect(server!.store.messages.get(root.id)).not.toBeNull();
   });
 
   it("takes a thread's replies with its root once the whole thing is past it", async () => {
@@ -317,8 +317,8 @@ describe("a retention window", () => {
     backdate(60);
 
     expect(server!.applyRetention()).toBe(2);
-    expect(server!.store.getMessage(root.id)).toBeNull();
-    expect(server!.store.getMessage(reply.body.message.id)).toBeNull();
+    expect(server!.store.messages.get(root.id)).toBeNull();
+    expect(server!.store.messages.get(reply.body.message.id)).toBeNull();
   });
 
   it("takes the words out of app events still waiting to be delivered", async () => {
@@ -456,12 +456,12 @@ describe("a retention window over a large backlog", () => {
 
     // Five messages per pass: each thread is five, so one thread per pass.
     const pass = () =>
-      server!.store.transaction(() => server!.store.purgeMessagesBefore(2, { messages: 5 }));
+      server!.store.transaction(() => server!.store.messages.purgeBefore(2, { messages: 5 }));
     expect(pass().messages).toBe(5);
     expect(countMessages()).toBe(10);
     // A thread bigger than the budget is still taken whole rather than never.
     expect(
-      server!.store.transaction(() => server!.store.purgeMessagesBefore(2, { messages: 1 }))
+      server!.store.transaction(() => server!.store.messages.purgeBefore(2, { messages: 1 }))
         .messages,
     ).toBe(5);
     expect(countMessages()).toBe(5);
@@ -477,8 +477,8 @@ describe("a retention window over a large backlog", () => {
     await signIn();
     seedOldThread("0000000002A", 2);
     const store = server!.store;
-    const purge = store.purgeMessagesBefore;
-    store.purgeMessagesBefore = () => {
+    const purge = store.messages.purgeBefore;
+    store.messages.purgeBefore = () => {
       throw new Error("disk I/O error");
     };
     try {
@@ -492,7 +492,7 @@ describe("a retention window over a large backlog", () => {
       // The failed pass rolled back whole; nothing is half removed.
       expect(countMessages()).toBe(3);
     } finally {
-      store.purgeMessagesBefore = purge;
+      store.messages.purgeBefore = purge;
     }
 
     expect(await server!.sweepRetention()).toBe(3);

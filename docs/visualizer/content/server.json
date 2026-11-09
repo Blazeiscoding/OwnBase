@@ -1354,6 +1354,28 @@
         "A deletion that fails waits longer each time (DELETION_RETRY_MS); an id the server never gives is set aside for good."
       ],
       "concepts": ["attachments", "queries"]
+    },
+    {
+      "path": "packages/server/src/messages/feature.ts",
+      "plain": "Lets people read, send, edit, delete and react to messages, adds link previews, and discards old history when retention is on.",
+      "summary": "Message routes and reactions, the link preview queue, the posting rules' setup, message removal and the retention sweep.",
+      "details": [
+        "Every post goes through posting.ts; updateMessage and removeMessage are what apps and moderation use to change a message.",
+        "Link previews are fetched after commit by two workers with a small cache; never in an isolated copy or with previews turned off.",
+        "Retention removes whole threads past the window a pass at a time, each pass its own transaction, and logs one history.removed per conversation.",
+        "Removed messages' send keys are pruned hourly once no app could retry them."
+      ],
+      "concepts": ["messages", "link previews", "retention", "feature module"]
+    },
+    {
+      "path": "packages/server/src/messages/store.ts",
+      "plain": "Saves messages, their previews and reactions, and reads them back with everything they show.",
+      "summary": "MessageStore: creating, editing, deleting and listing messages, send keys, link previews, reactions, retention purges and hydration.",
+      "details": [
+        "hydrate turns rows into whole messages in a few queries per page: files, reactions, previews, polls, replies and forwards.",
+        "Editing or deleting re-quotes and redacts the event log's copies through the store core."
+      ],
+      "concepts": ["messages", "queries"]
     }
   ],
   "flows": [

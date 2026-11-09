@@ -269,7 +269,7 @@ describe("inline replies", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     const reply = await post(peer.token, { text: "Still here", replyToId: original.id });
 
-    server.store.transaction(() => server.store.purgeMessagesBefore(original.createdAt + 1));
+    server.store.transaction(() => server.store.messages.purgeBefore(original.createdAt + 1));
     const history = await request(`/api/channels/${channelId}/messages`, undefined, "GET");
     const ids = history.body.messages.map((m: { id: string }) => m.id);
     expect(ids).toContain(reply.id);

@@ -352,7 +352,7 @@ describe("settling a report", () => {
         ),
       )
       .toBe(true);
-    expect(server.store.getMessage(message.id)).toBeNull();
+    expect(server.store.messages.get(message.id)).toBeNull();
     expect(await queue()).toEqual([]);
     expect(server.store.listAudit({ limit: 1 })[0]!.details).toEqual({
       resolution: "remove",
@@ -365,7 +365,7 @@ describe("settling a report", () => {
     await report(sam, message.id);
     const theirs = await connect(maya.token);
     expect((await resolve(message.id, "deactivate")).status).toBe(200);
-    expect(server.store.getMessage(message.id)).toBeNull();
+    expect(server.store.messages.get(message.id)).toBeNull();
     expect(server.store.getUser(maya.user.id)!.deactivated).toBe(true);
     expect((await call("/api/me", maya.token, undefined, "GET")).status).toBe(401);
     await expect.poll(() => theirs.closed()).toBe(true);
@@ -391,6 +391,6 @@ describe("settling a report", () => {
     expect((await resolve(byAdmin.id, "dismiss", sam)).data.error).toBe("admin_only");
     // Refused, it changed nothing.
     expect(await queue()).toHaveLength(2);
-    expect(server.store.getMessage(byOwner.id)).not.toBeNull();
+    expect(server.store.messages.get(byOwner.id)).not.toBeNull();
   });
 });

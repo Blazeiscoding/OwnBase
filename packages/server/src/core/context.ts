@@ -68,7 +68,7 @@ export function requireChannelAccess(store: Store, channelId: ID, user: User) {
 
 /** A message the caller may read, or a 404 that does not say whether it exists. */
 export function requireVisibleMessage(store: Store, messageId: ID, user: User) {
-  const message = store.getMessage(messageId);
+  const message = store.messages.get(messageId);
   if (!message || !store.canAccess(message.channelId, user.id)) {
     throw new HttpError(404, "message_not_found");
   }

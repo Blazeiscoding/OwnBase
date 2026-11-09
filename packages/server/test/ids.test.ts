@@ -62,7 +62,7 @@ describe("messages made faster than the clock ticks", () => {
 
     // Straight into the store: hundreds within each millisecond.
     const made = Array.from({ length: 2_000 }, (_, n) =>
-      server!.store.createMessage({
+      server!.store.messages.create({
         channelId: general,
         userId: user.id,
         text: `message ${n}`,

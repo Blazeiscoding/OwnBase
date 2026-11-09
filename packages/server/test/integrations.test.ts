@@ -271,7 +271,7 @@ describe("slash commands", () => {
       body: { text: "/shrug well then" },
     });
     expect(res.status).toBe(200);
-    const messages = server.store.listMessages({ channelId, limit: 1 });
+    const messages = server.store.messages.list({ channelId, limit: 1 });
     // Stored pre-escaped for the renderer; the UI test pins how it displays.
     // Stored escaped for the renderer; the ui package pins how that displays.
     expect(messages[0]!.text).toBe(`well then ${escapeMrkdwn("¯\\_(ツ)_/¯")}`);
@@ -336,7 +336,7 @@ describe("slash commands", () => {
 
     // Private means private: it is not in the channel, and Bob never saw it.
     expect(
-      server.store.listMessages({ channelId, limit: 5 }).some((m) => m.text.includes("deploying")),
+      server.store.messages.list({ channelId, limit: 5 }).some((m) => m.text.includes("deploying")),
     ).toBe(false);
     expect(
       b.received.some((m) => m.type === "ephemeral" && m.event.type === "ephemeral.message"),
@@ -354,7 +354,7 @@ describe("slash commands", () => {
       token: aliceToken,
       body: { text: "/deploy prod" },
     });
-    const latest = server.store.listMessages({ channelId, limit: 1 })[0]!;
+    const latest = server.store.messages.list({ channelId, limit: 1 })[0]!;
     expect(latest.text).toBe("build 412 is green");
     expect(server.store.getUser(latest.userId)!.isBot).toBe(true);
   });
@@ -380,7 +380,7 @@ describe("slash commands", () => {
 
     expect((await post("done, took 61s")).status).toBe(200);
     await eventually(
-      () => server.store.listMessages({ channelId, limit: 1 })[0]!.text === "done, took 61s",
+      () => server.store.messages.list({ channelId, limit: 1 })[0]!.text === "done, took 61s",
     );
 
     // Slack allows five; the sixth is gone.
@@ -1360,7 +1360,7 @@ describe("interactive buttons", () => {
       body: JSON.stringify({ replace_original: true, text: "Shipped 413." }),
     });
     expect(res.status).toBe(200);
-    const updated = server.store.getMessage(messageId)!;
+    const updated = server.store.messages.get(messageId)!;
     expect(updated.text).toBe("Shipped 413.");
     expect(updated.actions).toEqual([]);
   });
@@ -1393,8 +1393,8 @@ describe("interactive buttons", () => {
           frame.event.type === "mentions" &&
           (frame.event.counts[channelId] ?? 0) === baseline,
       );
-      expect(server.store.getMessage(messageId)?.text).toBe("Review no longer needed");
-      expect(server.store.getMessage(messageId)?.actions).toEqual([]);
+      expect(server.store.messages.get(messageId)?.text).toBe("Review no longer needed");
+      expect(server.store.messages.get(messageId)?.actions).toEqual([]);
     } finally {
       reader.ws.terminate();
     }
@@ -1408,7 +1408,7 @@ describe("interactive buttons", () => {
       body: JSON.stringify({ delete_original: true }),
     });
     expect(res.status).toBe(200);
-    expect(server.store.getMessage(messageId)).toBeNull();
+    expect(server.store.messages.get(messageId)).toBeNull();
   });
 
   it("refuses a button on a message the presser cannot see", async () => {
@@ -1546,7 +1546,7 @@ describe("revoking an app while it is being used", () => {
   }
 
   function said(text: string, room = channelId) {
-    return server.store.listMessages({ channelId: room, limit: 50 }).some((m) => m.text === text);
+    return server.store.messages.list({ channelId: room, limit: 50 }).some((m) => m.text === text);
   }
 
   /** Captures what the command handed the app, then answers with nothing. */

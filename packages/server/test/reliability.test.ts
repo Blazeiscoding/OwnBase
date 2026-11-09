@@ -78,7 +78,7 @@ describe("message integrity", () => {
 
   it("rolls back the message and event together if sequence stamping fails", async () => {
     const seq = server.store.currentSeq();
-    vi.spyOn(server.store, "stampMessageSeq").mockImplementationOnce(() => {
+    vi.spyOn(server.store.messages, "stampSeq").mockImplementationOnce(() => {
       throw new Error("simulated write failure");
     });
     expect(
@@ -90,7 +90,7 @@ describe("message integrity", () => {
       ).status,
     ).toBe(500);
     expect(server.store.currentSeq()).toBe(seq);
-    expect(server.store.listMessages({ channelId, limit: 50 })).toHaveLength(0);
+    expect(server.store.messages.list({ channelId, limit: 50 })).toHaveLength(0);
     expect(
       (
         await request(`/api/channels/${channelId}/messages`, {
@@ -106,7 +106,7 @@ describe("message integrity", () => {
       (await request(`/api/channels/${channelId}/messages`, { text: "", fileIds: ["missing"] }))
         .status,
     ).toBe(400);
-    expect(server.store.listMessages({ channelId, limit: 50 })).toHaveLength(0);
+    expect(server.store.messages.list({ channelId, limit: 50 })).toHaveLength(0);
   });
 
   it.each(["-1", "0", "1.5", "Infinity", "201"])(
@@ -255,7 +255,7 @@ describe("scheduled delivery", () => {
   const makeDue = (id: string) => server.store.scheduled.reschedule(id, Date.now() - 1000);
   const listed = async () =>
     (await request("/api/scheduled", undefined, "GET")).body.scheduled as any[];
-  const posted = () => server.store.listMessages({ channelId, limit: 50 });
+  const posted = () => server.store.messages.list({ channelId, limit: 50 });
   /** Brings a held row's next attempt forward, as waiting out its pause would. */
   const retryHeldNow = (id: string) =>
     (
@@ -326,7 +326,7 @@ describe("scheduled delivery", () => {
     const queued = await queue({ text: "All or nothing" });
     const id = queued.body.scheduled.id as string;
     makeDue(id);
-    const failing = vi.spyOn(server.store, "stampMessageSeq").mockImplementation(() => {
+    const failing = vi.spyOn(server.store.messages, "stampSeq").mockImplementation(() => {
       throw new Error("simulated write failure");
     });
 
@@ -366,7 +366,7 @@ describe("editing a scheduled message's text", () => {
     request(`/api/channels/${channelId}/scheduled`, { text, sendAt });
   const edit = (id: string, text: string, expectedText: string, auth = token) =>
     request(`/api/scheduled/${id}/text`, { text, expectedText }, "PATCH", auth);
-  const posted = () => server.store.listMessages({ channelId, limit: 50 });
+  const posted = () => server.store.messages.list({ channelId, limit: 50 });
 
   it("changes only the text, and only if nobody changed it first", async () => {
     const queued = (await queue("Draft one")).body.scheduled;

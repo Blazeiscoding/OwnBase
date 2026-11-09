@@ -207,7 +207,7 @@ describe("atomic messages and integrations", () => {
       if (action === "remove reaction")
         await request(`/api/messages/${message.id}/reactions/yes`, undefined, "PUT");
       if (action === "unpin") await request(`/api/messages/${message.id}/pin`, undefined, "PUT");
-      const before = server.store.getMessage(message.id);
+      const before = server.store.messages.get(message.id);
       const seq = server.store.currentSeq();
       const publish = vi.spyOn(server.gateway, "publish");
       failEvent();
@@ -223,7 +223,7 @@ describe("atomic messages and integrations", () => {
       expect(
         (await request(path, action === "edit" ? { text: "changed" } : undefined, method)).status,
       ).toBe(500);
-      expect(server.store.getMessage(message.id)).toEqual(before);
+      expect(server.store.messages.get(message.id)).toEqual(before);
       expect(server.store.currentSeq()).toBe(seq);
       expect(publish).not.toHaveBeenCalled();
     },

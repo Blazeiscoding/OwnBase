@@ -12,11 +12,11 @@ export function registerThreads(ctx: ServerContext) {
 
   route(endpoints.threadHistory, async ({ user: me, query, params }) => {
     requireChannelAccess(store, params.id, me);
-    const root = store.getMessage(params.rootId);
+    const root = store.messages.get(params.rootId);
     if (!root || root.channelId !== params.id || root.threadRootId)
       throw new HttpError(404, "thread_not_found");
     if (query.around) {
-      const target = store.getMessage(query.around);
+      const target = store.messages.get(query.around);
       if (!target || target.channelId !== root.channelId || target.threadRootId !== root.id)
         throw new HttpError(404, "message_not_found");
     }

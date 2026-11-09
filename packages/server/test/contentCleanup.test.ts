@@ -145,7 +145,7 @@ describe("complete message content cleanup (N06/N07)", () => {
         actions: [],
       });
       expect(replayed.find((m) => m.id === live.id)?.actions).toEqual(actions);
-      expect(server.store.getMessage(live.id)?.actions).toEqual(actions);
+      expect(server.store.messages.get(live.id)?.actions).toEqual(actions);
       expect(
         (await api("GET", `/api/channels/${channel}/messages`)).body.messages.map(
           (m: Message) => m.id,
@@ -155,7 +155,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   );
 
   it("strips superseded buttons while preserving the current message's actions", async () => {
-    const message = server.store.createMessage({
+    const message = server.store.messages.create({
       channelId: channel,
       userId: owner,
       text: "Earlier agenda",
@@ -165,7 +165,7 @@ describe("complete message content cleanup (N06/N07)", () => {
     });
     const before = server.store.appendEvent({ type: "message.created", message }, channel).seq - 1;
     server.store.transaction(() => {
-      const edited = server.store.editMessage(message.id, "Updated agenda");
+      const edited = server.store.messages.edit(message.id, "Updated agenda");
       server.store.appendEvent({ type: "message.updated", message: edited }, channel);
     });
     const versions = (await replay(before)).filter((m) => m.id === message.id);
@@ -203,7 +203,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       fileIds: [],
       messageId: expect.any(String),
     });
-    expect(server.store.getMessage(completed.messageId!)?.files.map((f) => f.id)).toEqual([
+    expect(server.store.messages.get(completed.messageId!)?.files.map((f) => f.id)).toEqual([
       file.id,
     ]);
     const retried = await api("POST", path, body);
@@ -232,7 +232,7 @@ describe("complete message content cleanup (N06/N07)", () => {
     });
     expect((await api("GET", "/api/scheduled")).body.scheduled).toEqual([]);
     expect((await api("POST", path, body)).status).toBe(200);
-    expect(server.store.listMessages({ channelId: channel, limit: 10 })).toEqual([]);
+    expect(server.store.messages.list({ channelId: channel, limit: 10 })).toEqual([]);
   });
 
   it("upgrades old content copies without changing live buttons or outstanding work", () => {
@@ -344,7 +344,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       expect(db.prepare("SELECT actions FROM messages WHERE id = ?").get(deleted.id)).toEqual({
         actions: "[]",
       });
-      expect(upgraded.getMessage(live.id)?.actions).toEqual(actions);
+      expect(upgraded.messages.get(live.id)?.actions).toEqual(actions);
       const events = upgraded.eventsSince(0, user.id)!;
       const versions = events.flatMap(({ event }) =>
         event.type === "message.created" || event.type === "message.updated" ? [event.message] : [],
