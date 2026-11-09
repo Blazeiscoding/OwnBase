@@ -7,7 +7,7 @@ import type { Limits, RateLimiter } from "../limits.js";
 import type { Route } from "../route.js";
 import type { ServerOptions } from "../server.js";
 import type { Store } from "../store.js";
-import { type WorkspaceIcon, checkIcon } from "../workspaceIcon.js";
+import { type WorkspaceIcon, checkIcon } from "../admin/workspaceIcon.js";
 import type { BackgroundWork } from "./background.js";
 import type { Mutate, RecordEvent } from "./commit.js";
 import type { Lifecycle } from "./lifecycle.js";

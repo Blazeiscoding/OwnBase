@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { hashToken, newSessionToken } from "../auth.js";
-import type { BackupManifest } from "../backup.js";
+import type { BackupManifest } from "../backups/backup.js";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import { bearerToken } from "../core/network.js";
 import { HttpError } from "../httpError.js";

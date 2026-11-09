@@ -12,8 +12,8 @@ import {
   readZipEntries,
   zipArchive,
   type ZipSource,
-} from "../src/zip.js";
-import { unzipBackup } from "../src/workspaceCopy.js";
+} from "../src/backups/zip.js";
+import { unzipBackup } from "../src/backups/workspaceCopy.js";
 
 let root: string;
 
