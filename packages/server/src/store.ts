@@ -8,7 +8,6 @@ import type {
   EventEnvelope,
   EventSubscription,
   ID,
-  MessageAction,
   ReplyReference,
   SlashCommand,
   User,
@@ -42,40 +41,6 @@ function parseJsonArray(text: string | undefined): unknown[] {
   try {
     const value: unknown = JSON.parse(text ?? "[]");
     return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
-  }
-}
-
-export interface MessageRow {
-  id: string;
-  channel_id: string;
-  user_id: string;
-  text: string;
-  thread_root_id: string | null;
-  broadcast: number;
-  nonce: string | null;
-  seq: number;
-  created_at: number;
-  edited_at: number | null;
-  deleted_at: number | null;
-  actions: string;
-  reply_to_id: string | null;
-  reply_ping: number;
-  forwarded_from_id: string | null;
-  /** A note the server left about a call (E10); absent from rows read without it. */
-  call_kind?: string | null;
-}
-
-/**
- * Buttons come back out of one JSON column. A row written by a future version,
- * or corrupted somehow, costs its buttons rather than the whole message.
- */
-export function parseActions(raw: string | null): MessageAction[] {
-  if (!raw || raw === "[]") return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as MessageAction[]) : [];
   } catch {
     return [];
   }

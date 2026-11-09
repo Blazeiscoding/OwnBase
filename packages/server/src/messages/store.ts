@@ -11,10 +11,84 @@ import type {
 } from "@ownbase/protocol";
 import { broadcastsIn, isRoom, replyExcerpt, userMentionsIn } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
+import { shape, type RowOf } from "../core/rows.js";
 import { IN_CHANNEL_TIMELINE } from "../core/sqlRules.js";
+import { fileMetaRow, toFileMeta } from "../files/store.js";
 import { orderedUlid, ulid } from "../ids.js";
 import { previewLinks, type FetchedPreview } from "../linkPreview.js";
-import { parseActions, type MessageRow, type Store } from "../store.js";
+import type { Store } from "../store.js";
+
+/** A `messages` row, as `SELECT *` (or `m.*`) reads it. */
+export const messageRow = shape({
+  id: "text",
+  channel_id: "text",
+  user_id: "text",
+  text: "text",
+  thread_root_id: "text?",
+  broadcast: "number",
+  nonce: "text?",
+  seq: "number",
+  created_at: "number",
+  edited_at: "number?",
+  deleted_at: "number?",
+  actions: "text",
+  reply_to_id: "text?",
+  reply_ping: "number",
+  forwarded_from_id: "text?",
+  /** A note the server left about a call (E10). */
+  call_kind: "text?",
+});
+export type MessageRow = RowOf<typeof messageRow.columns>;
+
+const idRow = messageRow.pick("id");
+const authorRow = messageRow.pick("user_id");
+const sendKeyRow = shape({ messageId: "text", requestHash: "text?" });
+const forwardSourceRow = messageRow
+  .pick("id", "channel_id", "deleted_at", "forwarded_from_id", "text")
+  .with({ file_count: "number" });
+const quotedRow = messageRow
+  .pick("id", "user_id", "text", "deleted_at")
+  .with({ file_count: "number" });
+const originalRow = messageRow
+  .pick("id", "channel_id", "user_id", "text", "created_at", "deleted_at")
+  .with({ channel_type: "text" });
+const attachedFileRow = fileMetaRow.with({ message_id: "text" });
+const reactionRow = shape({ message_id: "text", emoji: "text", user_id: "text" });
+
+/** A `link_previews` row; `has_image` stands for the picture when only whether there is one is read. */
+const previewRow = shape({
+  id: "text",
+  message_id: "text",
+  url: "text",
+  title: "text",
+  description: "text",
+  site_name: "text",
+  image: "bytes?",
+  image_type: "text?",
+  image_width: "number?",
+  image_height: "number?",
+  removed: "number",
+});
+const shownPreviewRow = previewRow
+  .pick("id", "message_id", "url", "title", "description", "site_name")
+  .with({ image_width: "number?", image_height: "number?", has_image: "number" });
+const previewOwnerRow = shape({ message_id: "text", channel_id: "text", user_id: "text" });
+// Read only where `image IS NOT NULL`, and written with its type.
+const previewImageRow = shape({ image: "bytes", image_type: "text" });
+
+/**
+ * Buttons come back out of one JSON column. A row written by a future version,
+ * or corrupted somehow, costs its buttons rather than the whole message.
+ */
+function parseActions(raw: string): MessageAction[] {
+  if (raw === "[]") return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as MessageAction[]) : [];
+  } catch {
+    return [];
+  }
+}
 
 /** Messages: writing, editing and removing them, their link previews and reactions, and reading them back whole. */
 export class MessageStore {
@@ -25,11 +99,13 @@ export class MessageStore {
 
   request(userId: ID, nonce: string): { messageId: ID; requestHash: string | null } | null {
     return (
-      (this.db
-        .prepare(
+      sendKeyRow.get(
+        this.db.prepare(
           "SELECT message_id AS messageId, request_hash AS requestHash FROM message_requests WHERE user_id = ? AND nonce = ?",
-        )
-        .get(userId, nonce) as { messageId: ID; requestHash: string | null } | undefined) ?? null
+        ),
+        userId,
+        nonce,
+      ) ?? null
     );
   }
 
@@ -112,17 +188,14 @@ export class MessageStore {
   forwardSource(
     id: ID,
   ): { id: ID; channelId: ID; deleted: boolean; forwardedFromId: ID | null; bare: boolean } | null {
-    const row = this.db
-      .prepare(
+    const row = forwardSourceRow.get(
+      this.db.prepare(
         `SELECT m.id, m.channel_id, m.deleted_at, m.forwarded_from_id, m.text,
            (SELECT COUNT(*) FROM files f WHERE f.message_id = m.id) AS file_count
          FROM messages m WHERE m.id = ?`,
-      )
-      .get(id) as
-      | (Pick<MessageRow, "id" | "channel_id" | "deleted_at" | "forwarded_from_id" | "text"> & {
-          file_count: number;
-        })
-      | undefined;
+      ),
+      id,
+    );
     return row
       ? {
           id: row.id,
@@ -142,12 +215,14 @@ export class MessageStore {
   replyTarget(
     id: ID,
   ): { channelId: ID; threadRootId: ID | null; broadcast: boolean; deleted: boolean } | null {
-    const row = this.db
-      .prepare(
-        "SELECT channel_id, thread_root_id, broadcast, deleted_at FROM messages WHERE id = ?",
-      )
-      .get(id) as
-      Pick<MessageRow, "channel_id" | "thread_root_id" | "broadcast" | "deleted_at"> | undefined;
+    const row = messageRow
+      .pick("channel_id", "thread_root_id", "broadcast", "deleted_at")
+      .get(
+        this.db.prepare(
+          "SELECT channel_id, thread_root_id, broadcast, deleted_at FROM messages WHERE id = ?",
+        ),
+        id,
+      );
     return row
       ? {
           channelId: row.channel_id,
@@ -160,20 +235,22 @@ export class MessageStore {
 
   /** Whom a sent reply notified: the author of what it answers, if it chose to. */
   private replyPinged(messageId: ID): ID | null {
-    const row = this.db
-      .prepare(
+    const row = authorRow.get(
+      this.db.prepare(
         `SELECT q.user_id FROM messages m JOIN messages q ON q.id = m.reply_to_id
          WHERE m.id = ? AND m.reply_ping = 1`,
-      )
-      .get(messageId) as { user_id: string } | undefined;
+      ),
+      messageId,
+    );
     return row?.user_id ?? null;
   }
 
   /** Who a reply to this message would notify: its author, while it is there. */
   private pingable(messageId: ID): ID | null {
-    const row = this.db
-      .prepare("SELECT user_id FROM messages WHERE id = ? AND deleted_at IS NULL")
-      .get(messageId) as { user_id: string } | undefined;
+    const row = authorRow.get(
+      this.db.prepare("SELECT user_id FROM messages WHERE id = ? AND deleted_at IS NULL"),
+      messageId,
+    );
     return row?.user_id ?? null;
   }
 
@@ -224,21 +301,29 @@ export class MessageStore {
   }
 
   get(id: ID): Message | null {
-    const r = this.db
-      .prepare("SELECT * FROM messages WHERE id = ? AND deleted_at IS NULL")
-      .get(id) as MessageRow | undefined;
+    const r = messageRow.get(
+      this.db.prepare("SELECT * FROM messages WHERE id = ? AND deleted_at IS NULL"),
+      id,
+    );
     if (!r) return null;
     return this.hydrate([r])[0]!;
   }
 
   /** Mention counts follow both the people the old words named and those the new ones do. */
   edit(id: ID, text: string): Message {
-    const before = this.db
-      .prepare("SELECT channel_id, user_id, text FROM messages WHERE id = ?")
-      .get(id) as { channel_id: string; user_id: string; text: string } | undefined;
-    const row = this.db
-      .prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ? RETURNING channel_id")
-      .get(text, Date.now(), id) as { channel_id: string } | undefined;
+    const before = messageRow
+      .pick("channel_id", "user_id", "text")
+      .get(this.db.prepare("SELECT channel_id, user_id, text FROM messages WHERE id = ?"), id);
+    const row = messageRow
+      .pick("channel_id")
+      .get(
+        this.db.prepare(
+          "UPDATE messages SET text = ?, edited_at = ? WHERE id = ? RETURNING channel_id",
+        ),
+        text,
+        Date.now(),
+        id,
+      );
     if (row) this.indexMentions(id, row.channel_id, text);
     if (before)
       this.store.outbox.mentions([
@@ -278,11 +363,15 @@ export class MessageStore {
 
   /** The links a message has previews for or had one removed, with which. */
   previewRows(messageId: ID): { url: string; removed: boolean }[] {
-    return (
-      this.db
-        .prepare("SELECT url, removed FROM link_previews WHERE message_id = ? ORDER BY position")
-        .all(messageId) as { url: string; removed: number }[]
-    ).map((r) => ({ url: r.url, removed: r.removed === 1 }));
+    return previewRow
+      .pick("url", "removed")
+      .all(
+        this.db.prepare(
+          "SELECT url, removed FROM link_previews WHERE message_id = ? ORDER BY position",
+        ),
+        messageId,
+      )
+      .map((r) => ({ url: r.url, removed: r.removed === 1 }));
   }
 
   /**
@@ -335,13 +424,14 @@ export class MessageStore {
 
   /** Where one preview is and who wrote its message, or null if it is not there. */
   previewOwner(id: ID): { messageId: ID; channelId: ID; authorId: ID } | null {
-    const row = this.db
-      .prepare(
+    const row = previewOwnerRow.get(
+      this.db.prepare(
         `SELECT p.message_id, m.channel_id, m.user_id FROM link_previews p
          JOIN messages m ON m.id = p.message_id
          WHERE p.id = ? AND p.removed = 0 AND m.deleted_at IS NULL`,
-      )
-      .get(id) as { message_id: string; channel_id: string; user_id: string } | undefined;
+      ),
+      id,
+    );
     return row
       ? { messageId: row.message_id, channelId: row.channel_id, authorId: row.user_id }
       : null;
@@ -363,11 +453,12 @@ export class MessageStore {
 
   /** A preview's picture, for a reader the caller has let see its message. */
   previewImage(id: ID): { bytes: Uint8Array; type: string } | null {
-    const row = this.db
-      .prepare(
+    const row = previewImageRow.get(
+      this.db.prepare(
         "SELECT image, image_type FROM link_previews WHERE id = ? AND removed = 0 AND image IS NOT NULL",
-      )
-      .get(id) as { image: Uint8Array; image_type: string } | undefined;
+      ),
+      id,
+    );
     return row ? { bytes: row.image, type: row.image_type } : null;
   }
 
@@ -401,8 +492,8 @@ export class MessageStore {
   ): { messages: number; fileIds: ID[]; roots: { id: ID; channelId: ID }[] } {
     const rootLimit = limits.roots ?? 2000;
     const messageBudget = limits.messages ?? 5000;
-    const candidates = this.db
-      .prepare(
+    const candidates = shape({ id: "text", channelId: "text", replies: "number" }).all(
+      this.db.prepare(
         `SELECT m.id, m.channel_id AS channelId,
            (SELECT COUNT(*) FROM messages r WHERE r.thread_root_id = m.id) AS replies
          FROM messages m
@@ -411,8 +502,11 @@ export class MessageStore {
              SELECT 1 FROM messages r WHERE r.thread_root_id = m.id AND r.created_at >= ?
            )
          ORDER BY m.id LIMIT ?`,
-      )
-      .all(before, before, rootLimit) as { id: string; channelId: string; replies: number }[];
+      ),
+      before,
+      before,
+      rootLimit,
+    );
     if (candidates.length === 0) return { messages: 0, fileIds: [], roots: [] };
 
     const roots: ID[] = [];
@@ -437,39 +531,37 @@ export class MessageStore {
       );
       const doomed = "(SELECT id FROM temp.purge_messages)";
 
-      const fileIds = (
-        this.db.prepare(`SELECT id FROM files WHERE message_id IN ${doomed}`).all() as {
-          id: string;
-        }[]
-      ).map((r) => r.id);
+      const fileIds = idRow
+        .all(this.db.prepare(`SELECT id FROM files WHERE message_id IN ${doomed}`))
+        .map((r) => r.id);
       // The log's copies, read before the rows go; redacted once they have.
-      const logged = this.db
-        .prepare(
+      const logged = shape({ seq: "number", payload: "text" }).all(
+        this.db.prepare(
           `SELECT seq, payload FROM events
            WHERE message_id IN ${doomed} AND type IN ('message.created', 'message.updated')`,
-        )
-        .all() as { seq: number; payload: string }[];
-      const queued = this.db
-        .prepare(`SELECT id, body FROM event_deliveries WHERE message_id IN ${doomed}`)
-        .all() as { id: string; body: string }[];
+        ),
+      );
+      const queued = shape({ id: "text", body: "text" }).all(
+        this.db.prepare(`SELECT id, body FROM event_deliveries WHERE message_id IN ${doomed}`),
+      );
       // Later replies quoting what goes stay, and say it is gone.
-      const quoted = (
-        this.db
-          .prepare(
+      const quoted = idRow
+        .all(
+          this.db.prepare(
             `SELECT DISTINCT reply_to_id AS id FROM messages
              WHERE reply_to_id IN ${doomed} AND id NOT IN ${doomed}`,
-          )
-          .all() as { id: string }[]
-      ).map((r) => r.id);
+          ),
+        )
+        .map((r) => r.id);
       // So do later forwards of it.
-      const forwarded = (
-        this.db
-          .prepare(
+      const forwarded = idRow
+        .all(
+          this.db.prepare(
             `SELECT DISTINCT forwarded_from_id AS id FROM messages
              WHERE forwarded_from_id IN ${doomed} AND id NOT IN ${doomed}`,
-          )
-          .all() as { id: string }[]
-      ).map((r) => r.id);
+          ),
+        )
+        .map((r) => r.id);
 
       // A send's key outlives its message, so an app still holding the send
       // is refused rather than posting it again. Who, which key and when only.
@@ -514,32 +606,29 @@ export class MessageStore {
 
   /** Newest-first page of top-level channel messages (or thread replies). */
   list(opts: { channelId: ID; before?: ID; limit: number; threadRootId?: ID }): Message[] {
-    let rows: MessageRow[];
-    if (opts.threadRootId) {
-      rows = this.db
-        .prepare(
-          `SELECT * FROM messages
-           WHERE channel_id = ? AND thread_root_id = ? AND deleted_at IS NULL ${opts.before ? "AND id < ?" : ""}
-           ORDER BY id DESC LIMIT ?`,
+    const before = opts.before ? [opts.before] : [];
+    const rows = opts.threadRootId
+      ? messageRow.all(
+          this.db.prepare(
+            `SELECT * FROM messages
+             WHERE channel_id = ? AND thread_root_id = ? AND deleted_at IS NULL ${opts.before ? "AND id < ?" : ""}
+             ORDER BY id DESC LIMIT ?`,
+          ),
+          opts.channelId,
+          opts.threadRootId,
+          ...before,
+          opts.limit,
         )
-        .all(
-          ...([opts.channelId, opts.threadRootId, opts.before, opts.limit].filter(
-            (x) => x !== undefined,
-          ) as (string | number)[]),
-        ) as unknown as MessageRow[];
-    } else {
-      rows = this.db
-        .prepare(
-          `SELECT * FROM messages
-           WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL ${opts.before ? "AND id < ?" : ""}
-           ORDER BY id DESC LIMIT ?`,
-        )
-        .all(
-          ...([opts.channelId, opts.before, opts.limit].filter((x) => x !== undefined) as (
-            string | number
-          )[]),
-        ) as unknown as MessageRow[];
-    }
+      : messageRow.all(
+          this.db.prepare(
+            `SELECT * FROM messages
+             WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL ${opts.before ? "AND id < ?" : ""}
+             ORDER BY id DESC LIMIT ?`,
+          ),
+          opts.channelId,
+          ...before,
+          opts.limit,
+        );
     return this.hydrate(rows);
   }
 
@@ -550,8 +639,8 @@ export class MessageStore {
    * through the channel index, newest first, so it costs one step each.
    */
   latestDirect(userId: ID): Message[] {
-    const rows = this.db
-      .prepare(
+    const rows = messageRow.all(
+      this.db.prepare(
         `SELECT m.* FROM channel_members cm
          JOIN channels c ON c.id = cm.channel_id
          JOIN messages m ON m.id = (
@@ -563,8 +652,9 @@ export class MessageStore {
            ORDER BY n.id DESC LIMIT 1)
          WHERE cm.user_id = ? AND c.type IN ('dm', 'group_dm') AND c.archived = 0
          ORDER BY m.id DESC LIMIT 500`,
-      )
-      .all(userId) as unknown as MessageRow[];
+      ),
+      userId,
+    );
     return this.hydrate(rows);
   }
 
@@ -581,26 +671,34 @@ export class MessageStore {
     const half = Math.max(1, Math.floor(limit / 2));
 
     // Ask for one extra on each side purely to detect whether more exist.
-    const olderRows = this.db
-      .prepare(
+    const olderRows = messageRow.all(
+      this.db.prepare(
         `SELECT * FROM messages
          WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND id < ?
          ORDER BY id DESC LIMIT ?`,
-      )
-      .all(channelId, messageId, half + 1) as unknown as MessageRow[];
-    const newerRows = this.db
-      .prepare(
+      ),
+      channelId,
+      messageId,
+      half + 1,
+    );
+    const newerRows = messageRow.all(
+      this.db.prepare(
         `SELECT * FROM messages
          WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND id > ?
          ORDER BY id ASC LIMIT ?`,
-      )
-      .all(channelId, messageId, half + 1) as unknown as MessageRow[];
-    const targetRow = this.db
-      .prepare(
+      ),
+      channelId,
+      messageId,
+      half + 1,
+    );
+    const targetRow = messageRow.get(
+      this.db.prepare(
         `SELECT * FROM messages
          WHERE id = ? AND channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL`,
-      )
-      .get(messageId, channelId) as MessageRow | undefined;
+      ),
+      messageId,
+      channelId,
+    );
 
     const hasMoreOlder = olderRows.length > half;
     const hasMoreNewer = newerRows.length > half;
@@ -618,26 +716,32 @@ export class MessageStore {
    * them. Null when nobody else has said anything there since.
    */
   firstAfterSeq(channelId: ID, seq: number, readerId: ID): ID | null {
-    const row = this.db
-      .prepare(
+    const row = idRow.get(
+      this.db.prepare(
         `SELECT id FROM messages
          WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND seq > ?
            AND user_id != ?
          ORDER BY id ASC LIMIT 1`,
-      )
-      .get(channelId, seq, readerId) as { id: string } | undefined;
+      ),
+      channelId,
+      seq,
+      readerId,
+    );
     return row?.id ?? null;
   }
 
   /** Page forward from a message, for scrolling back down toward the tail. */
   after(channelId: ID, afterId: ID, limit: number): Message[] {
-    const rows = this.db
-      .prepare(
+    const rows = messageRow.all(
+      this.db.prepare(
         `SELECT * FROM messages
          WHERE channel_id = ? AND ${IN_CHANNEL_TIMELINE} AND deleted_at IS NULL AND id > ?
          ORDER BY id ASC LIMIT ?`,
-      )
-      .all(channelId, afterId, limit) as unknown as MessageRow[];
+      ),
+      channelId,
+      afterId,
+      limit,
+    );
     // Callers expect newest-first.
     return this.hydrate(rows.reverse());
   }
@@ -647,11 +751,12 @@ export class MessageStore {
     const ids = rows.map((r) => r.id);
     const ph = ids.map(() => "?").join(",");
 
-    const reactionRows = this.db
-      .prepare(
+    const reactionRows = reactionRow.all(
+      this.db.prepare(
         `SELECT message_id, emoji, user_id FROM reactions WHERE message_id IN (${ph}) ORDER BY created_at`,
-      )
-      .all(...ids) as { message_id: string; emoji: string; user_id: string }[];
+      ),
+      ...ids,
+    );
     const reactionsByMsg = new Map<string, ReactionGroup[]>();
     for (const rr of reactionRows) {
       let groups = reactionsByMsg.get(rr.message_id);
@@ -661,31 +766,33 @@ export class MessageStore {
       g.userIds.push(rr.user_id);
     }
 
-    const replyRows = this.db
-      .prepare(
+    const replyRows = shape({ thread_root_id: "text", c: "number" }).all(
+      this.db.prepare(
         `SELECT thread_root_id, COUNT(*) c FROM messages
          WHERE thread_root_id IN (${ph}) AND deleted_at IS NULL GROUP BY thread_root_id`,
-      )
-      .all(...ids) as { thread_root_id: string; c: number }[];
+      ),
+      ...ids,
+    );
     const replyCounts = new Map(replyRows.map((r) => [r.thread_root_id, r.c]));
 
-    const pinRows = this.db
-      .prepare(`SELECT message_id FROM pins WHERE message_id IN (${ph})`)
-      .all(...ids) as { message_id: string }[];
+    const pinRows = reactionRow
+      .pick("message_id")
+      .all(this.db.prepare(`SELECT message_id FROM pins WHERE message_id IN (${ph})`), ...ids);
     const pinned = new Set(pinRows.map((r) => r.message_id));
 
-    const fileRows = this.db
-      .prepare(
+    const fileRows = attachedFileRow.all(
+      this.db.prepare(
         `SELECT id, message_id, name, mime, size, width, height FROM files
          WHERE message_id IN (${ph}) ORDER BY created_at`,
-      )
-      .all(...ids) as unknown as (FileMeta & { message_id: string })[];
+      ),
+      ...ids,
+    );
     const filesByMsg = new Map<string, FileMeta[]>();
     for (const f of fileRows) {
-      const { message_id, ...meta } = f;
-      const list = filesByMsg.get(message_id);
+      const meta = toFileMeta(f);
+      const list = filesByMsg.get(f.message_id);
       if (list) list.push(meta);
-      else filesByMsg.set(message_id, [meta]);
+      else filesByMsg.set(f.message_id, [meta]);
     }
 
     // What each reply answers, read as it is now: edited, deleted or gone.
@@ -693,21 +800,16 @@ export class MessageStore {
     const quotes = new Map(
       quotedIds.length === 0
         ? []
-        : (
-            this.db
-              .prepare(
+        : quotedRow
+            .all(
+              this.db.prepare(
                 `SELECT q.id, q.user_id, q.text, q.deleted_at,
                    (SELECT COUNT(*) FROM files f WHERE f.message_id = q.id) AS file_count
                  FROM messages q WHERE q.id IN (${quotedIds.map(() => "?").join(",")})`,
-              )
-              .all(...quotedIds) as {
-              id: string;
-              user_id: string;
-              text: string;
-              deleted_at: number | null;
-              file_count: number;
-            }[]
-          ).map((q) => [q.id, q]),
+              ),
+              ...quotedIds,
+            )
+            .map((q) => [q.id, q]),
     );
     // Only a reply carries one, so every other message reads as it always has.
     const replyTo = (r: MessageRow): { replyTo?: ReplyReference } => {
@@ -738,33 +840,32 @@ export class MessageStore {
     const originals = new Map(
       forwardedIds.length === 0
         ? []
-        : (
-            this.db
-              .prepare(
+        : originalRow
+            .all(
+              this.db.prepare(
                 `SELECT m.id, m.channel_id, m.user_id, m.text, m.created_at, m.deleted_at,
                    c.type AS channel_type
                  FROM messages m JOIN channels c ON c.id = m.channel_id
                  WHERE m.id IN (${forwardedIds.map(() => "?").join(",")})`,
-              )
-              .all(...forwardedIds) as (Pick<
-              MessageRow,
-              "id" | "channel_id" | "user_id" | "text" | "created_at" | "deleted_at"
-            > & { channel_type: string })[]
-          ).map((o) => [o.id, o]),
+              ),
+              ...forwardedIds,
+            )
+            .map((o) => [o.id, o]),
     );
     const originalFiles = new Map<string, FileMeta[]>();
     if (originals.size > 0) {
       const ids = [...originals.keys()];
-      for (const f of this.db
-        .prepare(
+      for (const f of attachedFileRow.all(
+        this.db.prepare(
           `SELECT id, message_id, name, mime, size, width, height FROM files
            WHERE message_id IN (${ids.map(() => "?").join(",")}) ORDER BY created_at`,
-        )
-        .all(...ids) as unknown as (FileMeta & { message_id: string })[]) {
-        const { message_id, ...meta } = f;
-        const list = originalFiles.get(message_id);
+        ),
+        ...ids,
+      )) {
+        const meta = toFileMeta(f);
+        const list = originalFiles.get(f.message_id);
         if (list) list.push(meta);
-        else originalFiles.set(message_id, [meta]);
+        else originalFiles.set(f.message_id, [meta]);
       }
     }
     const forwardedFrom = (r: MessageRow): { forwardedFrom?: ForwardReference } => {
@@ -809,25 +910,16 @@ export class MessageStore {
     const previews = new Map<string, LinkPreview[]>();
     const live = rows.filter((r) => r.deleted_at === null).map((r) => r.id);
     if (live.length > 0) {
-      for (const p of this.db
-        .prepare(
+      for (const p of shownPreviewRow.all(
+        this.db.prepare(
           `SELECT id, message_id, url, title, description, site_name, image_width, image_height,
              image IS NOT NULL AS has_image
            FROM link_previews
            WHERE removed = 0 AND message_id IN (${live.map(() => "?").join(",")})
            ORDER BY message_id, position`,
-        )
-        .all(...live) as {
-        id: string;
-        message_id: string;
-        url: string;
-        title: string;
-        description: string;
-        site_name: string;
-        image_width: number | null;
-        image_height: number | null;
-        has_image: number;
-      }[]) {
+        ),
+        ...live,
+      )) {
         const preview: LinkPreview = {
           id: p.id,
           url: p.url,
