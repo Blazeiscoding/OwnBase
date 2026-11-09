@@ -345,7 +345,7 @@ describe("thread following", () => {
       (await request("/api/messages/" + deleted.id, undefined, "DELETE", peer.token)).status,
     ).toBe(200);
     const nonMessageSeq = server.store.currentSeq();
-    const sendToUser = vi.spyOn(server.gateway, "sendToUser");
+    const tellPerson = vi.spyOn(server.gateway, "tellPerson");
 
     for (const seq of [otherReply.seq, deleted.seq, nonMessageSeq]) {
       expect((await request("/api/messages/" + root.id + "/thread/unread", { seq })).status).toBe(
@@ -353,11 +353,11 @@ describe("thread following", () => {
       );
     }
     expect(
-      sendToUser.mock.calls.some(
+      tellPerson.mock.calls.some(
         ([userId, event]) => userId === owner.id && event.type === "thread.follow",
       ),
     ).toBe(false);
-    sendToUser.mockRestore();
+    tellPerson.mockRestore();
     const state = server.store.threadFollow(owner.id, root.id);
     expect(state?.lastReadSeq).toBe(first.seq);
     expect(state?.following).toBe(true);
@@ -425,17 +425,17 @@ describe("thread following", () => {
     ).body.message;
     const deleted = await post("Deleted channel target", owner.token);
     expect((await request("/api/messages/" + deleted.id, undefined, "DELETE")).status).toBe(200);
-    const sendToUser = vi.spyOn(server.gateway, "sendToUser");
+    const tellPerson = vi.spyOn(server.gateway, "tellPerson");
 
     for (const seq of [otherMessage.seq, deleted.seq, nonMessageSeq]) {
       expect((await request("/api/channels/" + channelId + "/unread", { seq })).status).toBe(400);
     }
     expect(
-      sendToUser.mock.calls.some(
+      tellPerson.mock.calls.some(
         ([userId, event]) => userId === owner.id && event.type === "channel.unread",
       ),
     ).toBe(false);
-    sendToUser.mockRestore();
+    tellPerson.mockRestore();
     const membership = server.store
       .memberships(owner.id)
       .find((item) => item.channelId === channelId);

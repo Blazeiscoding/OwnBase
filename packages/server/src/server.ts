@@ -93,8 +93,6 @@ import {
   type App,
   type AppScope,
   appScopesBody,
-  eventScope,
-  isAppEventType,
   isAdministrator,
   type ScheduledMessage,
   type ServerInfo,
@@ -156,7 +154,10 @@ import {
 } from "./netTrust.js";
 import { SECURITY_HEADERS } from "./securityHeaders.js";
 import { isMissingAsset, webCacheControl } from "./webClient.js";
-import { eventActorId, signatureHeaders, toSlackEvent } from "./integrations.js";
+import { signatureHeaders } from "./integrations.js";
+import { enqueueAppDeliveries } from "./apps/delivery.js";
+import { eventChannel, writeEffects } from "./events/registry.js";
+import type { Audiences } from "./events/outbox.js";
 import { BUILTIN_COMMANDS } from "./commands.js";
 import { HttpError } from "./httpError.js";
 import { createPosting, requireMessageText, slackRefusal } from "./messages/posting.js";
@@ -860,91 +861,21 @@ async function startWorkspaceServer(
     },
   );
 
-  const recordEvent = (event: WorkspaceEvent, channelId: ID | null): EventEnvelope => {
-    const envelope = store.appendEvent(event, channelId);
-    if (event.type === "message.created") {
-      store.stampMessageSeq(
-        event.message.id,
-        event.message.channelId,
-        envelope.seq,
-        !event.message.threadRootId || event.message.broadcast === true,
-      );
-      event.message.seq = envelope.seq;
-      // Every way a reply can be written arrives here, so following belongs
-      // here too rather than in each of the routes that can create one.
-      if (event.message.threadRootId) {
-        store.autoFollowThread(event.message.threadRootId, event.message.userId, envelope.seq);
-      }
-    }
-    enqueueSubscriberDeliveries(envelope, channelId);
-    return envelope;
-  };
-  /**
-   * A reply follows its thread for its author and the root's author. Their
-   * other devices only learn that from the handshake unless we say so, so tell
-   * them here — after the commit that created the follow row.
-   */
-  const publishThreadFollows = (envelope: EventEnvelope): void => {
-    const event = envelope.event;
-    if (event.type !== "message.created" || !event.message.threadRootId) return;
-    const root = store.getMessage(event.message.threadRootId);
-    // Everyone following it needs the new watermark, not just the two accounts
-    // this reply may have signed up.
-    const recipients = new Set([
-      ...store.threadFollowers(event.message.threadRootId),
-      event.message.userId,
-      ...(root ? [root.userId] : []),
-    ]);
-    for (const userId of recipients) {
-      // Someone offline reads it from the handshake when they connect.
-      if (!gateway.isOnline(userId)) continue;
-      const state = store.threadFollow(userId, event.message.threadRootId);
-      if (state) gateway.sendToUser(userId, { type: "thread.follow", state });
-    }
-  };
-  /**
-   * Recomputes and sends unread mention counts. Only the people whose counts
-   * can have changed are told, so an ordinary message costs nothing, and only
-   * those connected now are counted (REV-06): anyone else gets their counts
-   * from the handshake when they connect, which reads the committed rows.
-   */
-  const pushMentionCounts = (userIds: Iterable<ID>): void => {
-    for (const userId of new Set(userIds)) {
-      if (!gateway.isOnline(userId)) continue;
-      gateway.sendToUser(userId, { type: "mentions", counts: store.unreadMentionCounts(userId) });
-    }
-  };
+  store.outbox.connect(gateway, (err, what) =>
+    app.log.error({ err, what }, "could not tell someone of a committed change"),
+  );
 
-  /**
-   * Whose counts a message arriving or leaving changes: whoever it names.
-   * Deletion is read from the event's own copy, since the row is already gone.
-   */
-  const mentionRecipients = (
-    envelope: EventEnvelope,
-    channelsRead: Set<ID>,
-    audiences: Map<ID, Set<ID> | null>,
-  ): ID[] => {
-    const event = envelope.event;
-    if (event.type === "message.created") {
-      const { channelId, text, userId, replyTo } = event.message;
-      const named = store.mentionedMemberIds(channelId, text, userId);
-      // A reply that notified the author of what it answers counts for them.
-      const pinged = replyTo?.ping ? replyTo.userId : null;
-      return pinged && !named.includes(pinged) && store.isMember(channelId, pinged)
-        ? [...named, pinged]
-        : named;
-    }
-    if (event.type === "message.deleted" && event.channelId) {
-      // Offline members are skipped anyway; with nobody connected, skip the read
-      // too, and read a channel's members once however many of its messages went.
-      if (gateway.socketCount() === 0 || channelsRead.has(event.channelId)) return [];
-      channelsRead.add(event.channelId);
-      // A private channel's audience is its members, already read to send
-      // the deletions themselves (F10).
-      const audience = audiences.get(event.channelId);
-      return audience ? [...audience] : store.memberIds(event.channelId);
-    }
-    return [];
+  /** Appends an event to the log, with what it writes besides, inside the caller's transaction. */
+  const recordEvent = (event: WorkspaceEvent): EventEnvelope => {
+    const envelope = store.appendEvent(event, eventChannel(event));
+    writeEffects(event, envelope.seq, store);
+    enqueueAppDeliveries(store, envelope, (subscriptionId) =>
+      app.log.warn(
+        { subscriptionId, eventSeq: envelope.seq },
+        "event subscription backlog full, event dropped",
+      ),
+    );
+    return envelope;
   };
 
   /**
@@ -994,20 +925,15 @@ async function startWorkspaceServer(
   /**
    * Hands committed events to everyone allowed to see them (REV-10). The
    * change has happened, so nothing here may turn its answer into a failure
-   * or stop the events after it: every durable frame goes out first, then the
-   * follow states and mention counts that can be recomputed, each failing
-   * alone. A frame that cannot be fanned out closes every socket, so each
-   * client reconnects from the last event it has and replays the rest, rather
-   * than taking the next event as its checkpoint and never asking for it.
+   * or stop the events after it. A frame that cannot be fanned out closes
+   * every socket, so each client reconnects from the last event it has and
+   * replays the rest, rather than taking the next event as its checkpoint and
+   * never asking for it.
    */
-  const publishCommitted = (
-    events: readonly { envelope: EventEnvelope; channelId: ID | null }[],
-  ): void => {
-    // Each channel's audience is read once for the whole change (F10).
-    const audiences = new Map<ID, Set<ID> | null>();
-    for (const { envelope, channelId } of events) {
+  const publishCommitted = (events: readonly EventEnvelope[], audiences: Audiences): void => {
+    for (const envelope of events) {
       try {
-        gateway.publish(envelope, channelId, audiences);
+        gateway.publish(envelope, audiences);
       } catch (err) {
         app.log.error(
           { err, seq: envelope.seq },
@@ -1017,135 +943,47 @@ async function startWorkspaceServer(
       }
     }
     if (events.length > 0) inBackground("event deliveries", flushEventDeliveries);
-    // One recount per person per committed change, however many of its
-    // events touched their counts: deleting a thread is one change (REV-06).
-    const recount = new Set<ID>();
-    const channelsRead = new Set<ID>();
-    for (const { envelope } of events) {
-      afterCommitted("send thread follow states", () => publishThreadFollows(envelope));
-      afterCommitted("find whose mention counts changed", () => {
-        for (const userId of mentionRecipients(envelope, channelsRead, audiences))
-          recount.add(userId);
-      });
-    }
-    if (recount.size > 0) afterCommitted("send mention counts", () => pushMentionCounts(recount));
-    for (const { envelope } of events) {
-      const event = envelope.event;
-      if (event.type !== "message.deleted") continue;
-      afterCommitted("drop a deleted message's reminders", () => {
-        for (const userId of store.dropMessageReminders(event.messageId))
-          gateway.sendToUser(userId, { type: "reminder.removed", messageId: event.messageId });
-      });
-    }
   };
-  /** Commit synchronous state and its event log before exposing any side effects. */
+  /**
+   * Commits synchronous state and its event log before exposing any side
+   * effects. What the writes tell people goes out around the change's events:
+   * notices ahead of them, then the events, then the rest, each channel's
+   * audience read once for all of it (F10).
+   */
   const mutate = <T>(
     work: (record: typeof recordEvent, afterCommit: (effect: () => void) => void) => T,
   ): T => {
-    const events: { envelope: EventEnvelope; channelId: ID | null }[] = [];
+    const events: EventEnvelope[] = [];
     const effects: (() => void)[] = [];
-    const result = store.transaction(() =>
-      work(
-        (event, channelId) => {
-          const envelope = recordEvent(event, channelId);
-          events.push({ envelope, channelId });
-          return envelope;
-        },
-        (effect) => effects.push(effect),
-      ),
-    );
-    // Access revocation must happen before fanout, but only after a successful commit.
-    // Fanout reads access from the committed rows, so a failed effect leaks nothing.
-    for (const effect of effects) afterCommitted("apply a committed change", effect);
-    publishCommitted(events);
-    return result;
+    const audiences: Audiences = new Map();
+    return store.outbox.hold(() => {
+      const result = store.transaction(() =>
+        work(
+          (event) => {
+            const envelope = recordEvent(event);
+            events.push(envelope);
+            return envelope;
+          },
+          (effect) => effects.push(effect),
+        ),
+      );
+      store.outbox.flushAhead();
+      for (const effect of effects) afterCommitted("apply a committed change", effect);
+      publishCommitted(events, audiences);
+      return result;
+    }, audiences);
   };
 
-  /** Edits from people and apps refresh both removed and newly added mentions after commit. */
   const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
-    const updated = mutate((emit, afterCommit) => {
-      const recipients = new Set([
-        ...store.mentionedMemberIds(existing.channelId, existing.text, existing.userId),
-        ...store.mentionedMemberIds(existing.channelId, text, existing.userId),
-      ]);
+    const updated = mutate((emit) => {
       if (clearActions) store.clearMessageActions(existing.id);
       const message = store.editMessage(existing.id, text);
-      emit({ type: "message.updated", message }, message.channelId);
-      afterCommit(() => pushMentionCounts(recipients));
+      emit({ type: "message.updated", message });
       return message;
     });
     // New links in the new words get theirs; the edit already dropped the old ones'.
     queuePreviews(updated);
     return updated;
-  };
-
-  /**
-   * Adds every eligible subscriber beside the event, inside its transaction.
-   * What does not depend on the subscription is worked out once per event,
-   * however many subscriptions one bot has (F11): whether each bot is in the
-   * channel, the workspace's id and the callback body every one of them gets.
-   */
-  const enqueueSubscriberDeliveries = (envelope: EventEnvelope, channelId: ID | null): void => {
-    const type = envelope.event.type;
-    if (!isAppEventType(type)) return;
-    const subs = store.listAllSubscriptions();
-    if (subs.length === 0) return;
-    const payload = toSlackEvent(envelope.event);
-    if (!payload) return;
-    const actor = eventActorId(envelope.event);
-    // What an app must be allowed to read to be sent this (E18c).
-    const needed = eventScope(
-      type,
-      channelId === null ? null : (store.getChannel(channelId)?.type ?? null),
-    );
-    const inChannel = new Map<ID, boolean>();
-    const botInChannel = (botUserId: ID, channel: ID): boolean => {
-      let member = inChannel.get(botUserId);
-      if (member === undefined)
-        inChannel.set(botUserId, (member = store.isMember(channel, botUserId)));
-      return member;
-    };
-    let body: string | null = null;
-    const callback = (): string =>
-      (body ??= JSON.stringify({
-        type: "event_callback",
-        event_id: `Ev${envelope.seq}`,
-        event_time: Math.floor(Date.now() / 1000),
-        team_id: store.workspaceId(),
-        event: payload,
-        // Our own event beside Slack's shape, so a native app need not
-        // reverse-engineer the mapping.
-        ownbase: { type, seq: envelope.seq },
-      }));
-
-    for (const { subscription, app: owner } of subs) {
-      if (subscription.eventTypes.length > 0 && !subscription.eventTypes.includes(type)) {
-        continue;
-      }
-      // Never hand an app back its own bot's actions — that is how a bot that
-      // replies to messages ends up replying to itself forever.
-      if (actor !== null && actor === owner.botUserId) continue;
-      // Nor what its scopes do not let it read, whatever it subscribed to.
-      if (needed && !owner.scopes?.includes(needed)) continue;
-      // An app sees a channel only once its bot has been added to it, so
-      // subscribing does not quietly expose every private conversation.
-      if (channelId !== null && !botInChannel(owner.botUserId, channelId)) continue;
-
-      const queued = store.enqueueEventDelivery(
-        subscription.id,
-        channelId,
-        envelope.seq,
-        callback(),
-        Date.now(),
-        Store.eventMessageId(envelope.event),
-      );
-      if (!queued) {
-        app.log.warn(
-          { subscriptionId: subscription.id, eventSeq: envelope.seq },
-          "event subscription backlog full, event dropped",
-        );
-      }
-    }
   };
 
   /**
@@ -1240,10 +1078,11 @@ async function startWorkspaceServer(
       for (const { position, preview } of found)
         added = store.addPreview(messageId, position, preview) || added;
       if (added)
-        emit(
-          { type: "message.updated", message: store.getMessage(messageId)!, previewsOnly: true },
-          now.channelId,
-        );
+        emit({
+          type: "message.updated",
+          message: store.getMessage(messageId)!,
+          previewsOnly: true,
+        });
     });
   };
 
@@ -1540,13 +1379,10 @@ async function startWorkspaceServer(
    * those would put thousands of events into the very log this is meant to
    * keep small. Like any event, it reaches only those who can read the
    * conversation, and a client that was away hears it when it catches up.
-   * Whoever is connected and belongs to one of those conversations is sent
-   * their mention counts afresh, since a removed mention no longer counts.
    */
   const applyRetention = (): number => {
     if (!retentionMs) return 0;
-    const events: { envelope: EventEnvelope; channelId: ID }[] = [];
-    const { messages, fileIds } = store.transaction(() => {
+    const { messages, fileIds } = mutate((emit) => {
       const purged = store.purgeMessagesBefore(Date.now() - retentionMs);
       const byChannel = new Map<ID, ID[]>();
       for (const root of purged.roots) {
@@ -1554,24 +1390,11 @@ async function startWorkspaceServer(
         ids.push(root.id);
         byChannel.set(root.channelId, ids);
       }
-      for (const [channelId, rootIds] of byChannel) {
-        events.push({
-          envelope: recordEvent({ type: "history.removed", channelId, rootIds }, channelId),
-          channelId,
-        });
-      }
+      for (const [channelId, rootIds] of byChannel)
+        emit({ type: "history.removed", channelId, rootIds });
       return purged;
     });
     if (messages === 0) return 0;
-    publishCommitted(events);
-    afterCommitted("send mention counts", () => {
-      const online = new Set(gateway.onlineUserIds());
-      pushMentionCounts(
-        events.flatMap(({ channelId }) =>
-          store.memberIds(channelId).filter((id) => online.has(id)),
-        ),
-      );
-    });
     app.log.info(
       { messages, files: fileIds.length, retentionDays: opts.retentionDays },
       "discarded conversation past the retention window",
@@ -1640,15 +1463,12 @@ async function startWorkspaceServer(
       store.deleteFiles(fileIds);
       store.queueFileDeletions(fileIds);
       store.deleteMessage(message.id);
-      emit(
-        {
-          type: "message.deleted",
-          channelId: existing.channelId,
-          messageId: message.id,
-          threadRootId: message.threadRootId,
-        },
-        existing.channelId,
-      );
+      emit({
+        type: "message.deleted",
+        channelId: existing.channelId,
+        messageId: message.id,
+        threadRootId: message.threadRootId,
+      });
     }
   };
   const removeMessage = (existing: Message) =>
@@ -1892,7 +1712,7 @@ async function startWorkspaceServer(
     for (const channel of store.listChannelsVisibleTo(userId)) {
       if (channel.type !== "public" || channel.archived) continue;
       if (store.addMember(channel.id, userId)) {
-        emit({ type: "member.joined", channelId: channel.id, userId }, channel.id);
+        emit({ type: "member.joined", channelId: channel.id, userId });
       }
     }
   };
@@ -1959,9 +1779,9 @@ async function startWorkspaceServer(
           creatorId: user.id,
           memberIds: [user.id],
         });
-        emit({ type: "channel.created", channel: general }, general.id);
+        emit({ type: "channel.created", channel: general });
       } else {
-        emit({ type: "user.joined", user }, null);
+        emit({ type: "user.joined", user });
         joinPublicChannels(user.id, emit);
       }
 
@@ -1996,7 +1816,7 @@ async function startWorkspaceServer(
         salt: "",
         role: "guest",
       });
-      emit({ type: "user.joined", user }, null);
+      emit({ type: "user.joined", user });
       joinPublicChannels(user.id, emit);
       const { token, tokenHash } = newSessionToken();
       store.createSession(tokenHash, user.id, deviceName(req), GUEST_SESSION_TTL_MS);
@@ -2029,7 +1849,7 @@ async function startWorkspaceServer(
       const revoked = store.revokeSessions(me.id);
       const { token, tokenHash } = newSessionToken();
       store.createSession(tokenHash, me.id, deviceName(req));
-      emit({ type: "user.updated", user }, null);
+      emit({ type: "user.updated", user });
       return { token, user, revoked };
     });
     for (const tokenHash of revoked) gateway.disconnectSession(tokenHash);
@@ -2358,7 +2178,7 @@ async function startWorkspaceServer(
           ? { statusExpiresAt: null }
           : {}),
       });
-      emit({ type: "user.updated", user }, null);
+      emit({ type: "user.updated", user });
       return { user };
     });
     if (statusChanged) armStatusExpiry();
@@ -2391,7 +2211,7 @@ async function startWorkspaceServer(
   route(endpoints.removeAvatar, async ({ user: me }) => {
     return mutate((emit) => {
       const user = store.setAvatar(me.id, null);
-      emit({ type: "user.updated", user }, null);
+      emit({ type: "user.updated", user });
       return { user };
     });
   });
@@ -2402,10 +2222,6 @@ async function startWorkspaceServer(
 
   // ---------- channels ----------
 
-  const publishFriends = (a: ID, b: ID) => {
-    for (const id of [a, b])
-      gateway.sendToUser(id, { type: "friends", friends: store.listFriends(id) });
-  };
   route(endpoints.friends, async ({ user }) => ({ friends: store.listFriends(user.id) }));
   route(endpoints.requestFriend, async ({ user: me, params }) => {
     const other = store.getUser(params.id);
@@ -2413,17 +2229,14 @@ async function startWorkspaceServer(
       throw new HttpError(400, "invalid_friend");
     if (other.role === "guest") throw guestRestricted();
     store.requestFriend(me.id, other.id);
-    publishFriends(me.id, other.id);
     return { friends: store.listFriends(me.id) };
   });
   route(endpoints.acceptFriend, async ({ user: me, params }) => {
     if (!store.acceptFriend(me.id, params.id)) throw new HttpError(404, "request_not_found");
-    publishFriends(me.id, params.id);
     return { friends: store.listFriends(me.id) };
   });
   route(endpoints.removeFriend, async ({ user: me, params }) => {
     store.removeFriend(me.id, params.id);
-    publishFriends(me.id, params.id);
     return { friends: store.listFriends(me.id) };
   });
 
@@ -2438,26 +2251,15 @@ async function startWorkspaceServer(
         "Apps cannot be blocked. Ask an admin about one.",
       );
     const befriended = store.listFriends(me.id).some((friend) => friend.userId === other.id);
-    const added = store.transaction(() => {
-      if (!store.setBlocked(me.id, other.id, true)) return false;
-      if (befriended) store.removeFriend(me.id, other.id);
-      return true;
+    store.transaction(() => {
+      if (store.setBlocked(me.id, other.id, true) && befriended)
+        store.removeFriend(me.id, other.id);
     });
-    if (added) {
-      gateway.sendToUser(me.id, { type: "blocks", blocked: store.blockedIds(me.id) });
-      if (befriended) publishFriends(me.id, other.id);
-      pushMentionCounts([me.id]);
-    }
     return { blocked: store.blockedIds(me.id) };
   });
 
   route(endpoints.unblockUser, async ({ user: me, params }) => {
-    if (store.setBlocked(me.id, params.id, false)) {
-      gateway.sendToUser(me.id, { type: "blocks", blocked: store.blockedIds(me.id) });
-      // A request they sent meanwhile shows now.
-      gateway.sendToUser(me.id, { type: "friends", friends: store.listFriends(me.id) });
-      pushMentionCounts([me.id]);
-    }
+    store.setBlocked(me.id, params.id, false);
     return { blocked: store.blockedIds(me.id) };
   });
 
@@ -2497,11 +2299,11 @@ async function startWorkspaceServer(
           creatorId: me.id,
           memberIds,
         });
-        emit({ type: "channel.created", channel }, channel.id);
+        emit({ type: "channel.created", channel });
         // Named channels carry no memberIds, so announce the founding members
         // explicitly or clients won't know they belong to it.
         for (const userId of memberIds) {
-          emit({ type: "member.joined", channelId: channel.id, userId }, channel.id);
+          emit({ type: "member.joined", channelId: channel.id, userId });
         }
         return { channel };
       }
@@ -2531,7 +2333,7 @@ async function startWorkspaceServer(
         memberIds,
         dmKey,
       });
-      emit({ type: "channel.created", channel }, channel.id);
+      emit({ type: "channel.created", channel });
       return { channel };
     });
   });
@@ -2549,7 +2351,7 @@ async function startWorkspaceServer(
     }
     return mutate((emit) => {
       const channel = store.updateChannel(existing.id, body);
-      emit({ type: "channel.updated", channel }, channel.id);
+      emit({ type: "channel.updated", channel });
       return { channel };
     });
   });
@@ -2560,7 +2362,7 @@ async function startWorkspaceServer(
     if (channel.archived) throw new HttpError(400, "channel_archived");
     mutate((emit) => {
       if (store.addMember(channel.id, me.id)) {
-        emit({ type: "member.joined", channelId: channel.id, userId: me.id }, channel.id);
+        emit({ type: "member.joined", channelId: channel.id, userId: me.id });
       }
     });
     return { ok: true };
@@ -2569,14 +2371,13 @@ async function startWorkspaceServer(
   route(endpoints.leaveChannel, async ({ user: me, params }) => {
     const channel = requireChannelAccess(params.id, me);
     if (channel.type === "dm") throw new HttpError(400, "cannot_leave_dm");
-    mutate((emit, afterCommit) => {
+    mutate((emit) => {
       if (store.removeMember(channel.id, me.id)) {
-        afterCommit(() => gateway.updateChannelAccess(channel.id, me.id));
-        emit({ type: "member.left", channelId: channel.id, userId: me.id }, channel.id);
+        emit({ type: "member.left", channelId: channel.id, userId: me.id });
         if (channel.type === "group_dm")
-          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! }, channel.id);
+          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! });
         if (channel.managerIds?.includes(me.id))
-          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! }, channel.id);
+          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! });
       }
     });
     return { ok: true };
@@ -2593,10 +2394,9 @@ async function startWorkspaceServer(
     if (!channelPermissions(me, channel, store.isMember(channel.id, me.id)).invite) {
       throw new HttpError(403, "channel_invite_forbidden");
     }
-    mutate((emit, afterCommit) => {
-      if (store.addMember(channel.id, invited.id)) {
-        afterCommit(() => gateway.updateChannelAccess(channel.id, invited.id));
-        emit({ type: "member.joined", channelId: channel.id, userId: invited.id }, channel.id);
+    mutate((emit) => {
+      if (store.inviteMember(channel.id, invited.id)) {
+        emit({ type: "member.joined", channelId: channel.id, userId: invited.id });
       }
     });
     return { ok: true };
@@ -2610,18 +2410,12 @@ async function startWorkspaceServer(
     ) {
       throw new HttpError(403, "channel_removal_forbidden");
     }
-    mutate((emit, afterCommit) => {
+    mutate((emit) => {
       if (store.removeMember(channel.id, params.userId)) {
-        afterCommit(() => gateway.updateChannelAccess(channel.id, params.userId));
-        // They hear who removed them, in Activity, wherever they are.
-        const removal = store.addChannelRemoval(params.userId, channel, me.id);
-        if (removal)
-          afterCommit(() =>
-            gateway.sendToUser(params.userId, { type: "channel.removal", removal }),
-          );
+        store.addChannelRemoval(params.userId, channel, me.id);
         if (channel.managerIds?.includes(params.userId))
-          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! }, channel.id);
-        emit({ type: "member.left", channelId: channel.id, userId: params.userId }, channel.id);
+          emit({ type: "channel.updated", channel: store.getChannel(channel.id)! });
+        emit({ type: "member.left", channelId: channel.id, userId: params.userId });
       }
     });
     return { ok: true };
@@ -2647,7 +2441,7 @@ async function startWorkspaceServer(
     return mutate((emit) => {
       const changed = store.setChannelManager(channel.id, params.userId, manager);
       const updated = store.getChannel(channel.id)!;
-      if (changed) emit({ type: "channel.updated", channel: updated }, channel.id);
+      if (changed) emit({ type: "channel.updated", channel: updated });
       return { channel: updated };
     });
   });
@@ -2661,18 +2455,7 @@ async function startWorkspaceServer(
     requireChannelAccess(params.id, me);
     const { seq } = body;
     if (!store.isMember(params.id, me.id)) throw new HttpError(404, "channel_not_found");
-    const { seq: acknowledged, threads } = store.markRead(params.id, me.id, seq);
-    gateway.sendToUser(me.id, {
-      type: "channel.read",
-      channelId: params.id,
-      seq: acknowledged,
-    });
-    // Replies also sent to the channel were read there, and so in their threads.
-    for (const rootId of threads) {
-      const state = store.threadFollow(me.id, rootId);
-      if (state) gateway.sendToUser(me.id, { type: "thread.follow", state });
-    }
-    pushMentionCounts([me.id]);
+    const { seq: acknowledged } = store.markRead(params.id, me.id, seq);
     return { ok: true, seq: acknowledged };
   });
 
@@ -2682,8 +2465,6 @@ async function startWorkspaceServer(
     if (!store.isMember(params.id, me.id)) throw new HttpError(404, "channel_not_found");
     const seqNow = store.markUnread(params.id, me.id, seq);
     if (seqNow === null) throw new HttpError(400, "invalid_unread_target");
-    gateway.sendToUser(me.id, { type: "channel.unread", channelId: params.id, seq: seqNow });
-    pushMentionCounts([me.id]);
     return { ok: true, seq: seqNow };
   });
 
@@ -2825,22 +2606,13 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  /** Tells the owner and admins how many reported messages wait now (E12). */
-  const publishOpenReports = (): void => {
-    const open = store.openReportCount();
-    for (const user of store.listUsers())
-      if (isAdministrator(user.role) && !user.deactivated)
-        gateway.sendToUser(user.id, { type: "reports", open });
-  };
-
   route(endpoints.reportMessage, async ({ user: me, body, params }) => {
     const message = store.getMessage(params.id);
     if (!message || !store.canAccess(message.channelId, me.id)) {
       throw new HttpError(404, "message_not_found");
     }
     if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
-    if (store.reportMessage(message.id, me.id, body.reason, body.note?.trim() ?? ""))
-      publishOpenReports();
+    store.reportMessage(message.id, me.id, body.reason, body.note?.trim() ?? "");
     return { ok: true };
   });
 
@@ -2867,14 +2639,11 @@ async function startWorkspaceServer(
     if (owner.authorId !== me.id) throw new HttpError(403, "not_your_message");
     mutate((emit) => {
       store.removePreview(params.id);
-      emit(
-        {
-          type: "message.updated",
-          message: store.getMessage(owner.messageId)!,
-          previewsOnly: true,
-        },
-        owner.channelId,
-      );
+      emit({
+        type: "message.updated",
+        message: store.getMessage(owner.messageId)!,
+        previewsOnly: true,
+      });
     });
     return { ok: true };
   });
@@ -3075,16 +2844,13 @@ async function startWorkspaceServer(
     const emoji = decodeURIComponent(params.emoji).slice(0, 64);
     mutate((emit) => {
       if (store.addReaction(msg.id, me.id, emoji)) {
-        emit(
-          {
-            type: "reaction.added",
-            channelId: msg.channelId,
-            messageId: msg.id,
-            emoji,
-            userId: me.id,
-          },
-          msg.channelId,
-        );
+        emit({
+          type: "reaction.added",
+          channelId: msg.channelId,
+          messageId: msg.id,
+          emoji,
+          userId: me.id,
+        });
       }
     });
     return { ok: true };
@@ -3098,16 +2864,13 @@ async function startWorkspaceServer(
     const emoji = decodeURIComponent(params.emoji).slice(0, 64);
     mutate((emit) => {
       if (store.removeReaction(msg.id, me.id, emoji)) {
-        emit(
-          {
-            type: "reaction.removed",
-            channelId: msg.channelId,
-            messageId: msg.id,
-            emoji,
-            userId: me.id,
-          },
-          msg.channelId,
-        );
+        emit({
+          type: "reaction.removed",
+          channelId: msg.channelId,
+          messageId: msg.id,
+          emoji,
+          userId: me.id,
+        });
       }
     });
     return { ok: true };
@@ -3131,15 +2894,10 @@ async function startWorkspaceServer(
     if (!rules.multiple && chosen.length > 1)
       throw new HttpError(400, "bad_choice", "This poll takes one choice.");
     let message = msg;
-    mutate((emit, afterCommit) => {
+    mutate((emit) => {
       if (!store.setPollChoices(msg.id, me.id, chosen)) return;
       message = store.getMessage(msg.id)!;
-      // Ahead of the new count, so a device of theirs never counts its own vote twice.
-      const mine = store.pollChoices(msg.id, me.id);
-      afterCommit(() =>
-        gateway.sendToUser(me.id, { type: "poll.choices", messageId: msg.id, choices: mine }),
-      );
-      emit({ type: "message.updated", message, pollOnly: true }, msg.channelId);
+      emit({ type: "message.updated", message, pollOnly: true });
     });
     return { message, choices: store.pollChoices(msg.id, me.id) };
   });
@@ -3155,7 +2913,7 @@ async function startWorkspaceServer(
     mutate((emit) => {
       if (!store.closePoll(msg.id)) return;
       message = store.getMessage(msg.id)!;
-      emit({ type: "message.updated", message, pollOnly: true }, msg.channelId);
+      emit({ type: "message.updated", message, pollOnly: true });
     });
     return { message };
   });
@@ -3453,7 +3211,7 @@ async function startWorkspaceServer(
         targetId: created.id,
         details: { name: created.name, scopes: (created.scopes ?? []).join(", ") },
       });
-      emit({ type: "user.joined", user: bot }, null);
+      emit({ type: "user.joined", user: bot });
 
       // The bot token is shown once and only stored hashed; the signing secret
       // stays readable to admins because verification needs the key itself.
@@ -3570,7 +3328,7 @@ async function startWorkspaceServer(
       });
       // The bot must be in the channel to post to it.
       if (store.addMember(channel.id, owner.botUserId)) {
-        emit({ type: "member.joined", channelId: channel.id, userId: owner.botUserId }, channel.id);
+        emit({ type: "member.joined", channelId: channel.id, userId: owner.botUserId });
       }
       return created;
     });
@@ -3853,7 +3611,7 @@ async function startWorkspaceServer(
 
   /** A private note back to the person who ran the command. */
   const sayEphemeral = (channelId: ID, toUserId: ID, fromUserId: ID, text: string): void => {
-    gateway.sendToUser(toUserId, {
+    gateway.tellPerson(toUserId, {
       type: "ephemeral.message",
       channelId,
       id: ulid(),
@@ -4050,10 +3808,7 @@ async function startWorkspaceServer(
       // The bot has to be in the channel to answer in it.
       mutate((emit) => {
         if (store.addMember(channel.id, found.app.botUserId)) {
-          emit(
-            { type: "member.joined", channelId: channel.id, userId: found.app.botUserId },
-            channel.id,
-          );
+          emit({ type: "member.joined", channelId: channel.id, userId: found.app.botUserId });
         }
       });
 
@@ -4221,7 +3976,7 @@ async function startWorkspaceServer(
       }
       // Everyone sees the change, so a deactivated person drops out of the member
       // lists and the composer's autocomplete without a reload.
-      emit({ type: "user.updated", user: updated }, null);
+      emit({ type: "user.updated", user: updated });
       return { user: updated };
     });
   });
@@ -4330,7 +4085,7 @@ async function startWorkspaceServer(
         });
         store.deleteSessionsFor(author.id);
         afterCommit(() => gateway.disconnectUser(author.id));
-        emit({ type: "user.updated", user: updated }, null);
+        emit({ type: "user.updated", user: updated });
       }
       const reports = store.resolveReports(open.messageId, me.id, action);
       store.recordAudit({
@@ -4342,7 +4097,6 @@ async function startWorkspaceServer(
       });
     });
     await flushFileDeletions();
-    publishOpenReports();
     return { ok: true };
   });
 
@@ -4362,8 +4116,8 @@ async function startWorkspaceServer(
         targetId: target.id,
         details: { previousOwner: me.id },
       });
-      emit({ type: "user.updated", user: newOwner }, null);
-      emit({ type: "user.updated", user: formerOwner }, null);
+      emit({ type: "user.updated", user: newOwner });
+      emit({ type: "user.updated", user: formerOwner });
       return { owner: newOwner, previousOwner: formerOwner };
     });
   });
@@ -4393,7 +4147,7 @@ async function startWorkspaceServer(
           details: { from: !enabled, to: enabled },
         });
       });
-      gateway.broadcastEphemeral({ type: "workspace.linkPreviews", enabled }, null);
+      gateway.tellEveryone({ type: "workspace.linkPreviews", enabled });
     }
     return { enabled: linkPreviewsOn() };
   });
@@ -4411,7 +4165,7 @@ async function startWorkspaceServer(
     const picture = checkedPicture(req, body, "profile picture");
     return mutate((emit) => {
       const user = store.setAvatar(me.id, picture);
-      emit({ type: "user.updated", user }, null);
+      emit({ type: "user.updated", user });
       return { user };
     });
   });
@@ -4484,16 +4238,15 @@ async function startWorkspaceServer(
 
   /**
    * Tells the person's devices what they have open now: the whole stack, with
-   * the form to show on top, or which forms closed when none is left. A client
-   * from before stacks shows the top one, which is the one it can submit.
+   * the form to show on top, or which forms closed when none is left.
    */
   const showStack = (userId: ID, closed: ID[] = []): void => {
     const ids = stackOf(userId);
     if (ids.length > 0) {
       const stack = ids.map((id) => openViews.get(id)!.view);
-      gateway.sendToUser(userId, { type: "view.open", view: stack.at(-1)!, stack });
+      gateway.tellPerson(userId, { type: "view.open", view: stack.at(-1)!, stack });
     } else if (closed.length > 0) {
-      gateway.sendToUser(userId, { type: "view.close", viewIds: closed });
+      gateway.tellPerson(userId, { type: "view.close", viewIds: closed });
     }
   };
 
@@ -5091,9 +4844,6 @@ async function startWorkspaceServer(
 
   // ---------- scheduled messages ----------
 
-  /** Tells the author's devices their queue changed, so a list open there reads it again. */
-  const scheduledChanged = (userId: ID) => gateway.sendToUser(userId, { type: "scheduled" });
-
   route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
     const result = posting.schedule({
       userId: me.id,
@@ -5107,7 +4857,6 @@ async function startWorkspaceServer(
       nonce: body.nonce ?? null,
     });
     if (result.replayed) reply.status(200);
-    else scheduledChanged(me.id);
     return { scheduled: result.scheduled };
   });
 
@@ -5120,7 +4869,6 @@ async function startWorkspaceServer(
     // Only the author may cancel, and a missing one is simply gone.
     if (!scheduled || scheduled.userId !== me.id) throw new HttpError(404, "not_found");
     store.deleteScheduled(scheduled.id);
-    scheduledChanged(me.id);
     return { ok: true };
   });
 
@@ -5131,7 +4879,6 @@ async function startWorkspaceServer(
     }
     requireChannelAccess(scheduled.channelId, me);
     store.rescheduleMessage(scheduled.id, body.sendAt);
-    scheduledChanged(me.id);
     return { scheduled: store.getScheduled(scheduled.id)! };
   });
 
@@ -5151,7 +4898,6 @@ async function startWorkspaceServer(
         "This scheduled message has changed. Refresh before editing again.",
       );
     }
-    scheduledChanged(me.id);
     return { scheduled: store.getScheduled(scheduled.id)! };
   });
 
@@ -5170,10 +4916,12 @@ async function startWorkspaceServer(
     const message = requireVisibleMessage(params.id, me);
     mutate((emit) => {
       if (store.addPin(message.channelId, message.id, me.id)) {
-        emit(
-          { type: "pin.added", channelId: message.channelId, messageId: message.id, userId: me.id },
-          message.channelId,
-        );
+        emit({
+          type: "pin.added",
+          channelId: message.channelId,
+          messageId: message.id,
+          userId: me.id,
+        });
       }
     });
     return { ok: true };
@@ -5183,10 +4931,7 @@ async function startWorkspaceServer(
     const message = requireVisibleMessage(params.id, me);
     mutate((emit) => {
       if (store.removePin(message.id)) {
-        emit(
-          { type: "pin.removed", channelId: message.channelId, messageId: message.id },
-          message.channelId,
-        );
+        emit({ type: "pin.removed", channelId: message.channelId, messageId: message.id });
       }
     });
     return { ok: true };
@@ -5199,16 +4944,12 @@ async function startWorkspaceServer(
 
   route(endpoints.saveMessage, async ({ user: me, params }) => {
     const message = requireVisibleMessage(params.id, me);
-    if (store.addSaved(me.id, message.id)) {
-      gateway.sendToUser(me.id, { type: "saved", messageId: message.id, saved: true });
-    }
+    store.addSaved(me.id, message.id);
     return { ok: true };
   });
 
   route(endpoints.unsaveMessage, async ({ user: me, params }) => {
-    if (store.removeSaved(me.id, params.id)) {
-      gateway.sendToUser(me.id, { type: "saved", messageId: params.id, saved: false });
-    }
+    store.removeSaved(me.id, params.id);
     return { ok: true };
   });
 
@@ -5222,15 +4963,12 @@ async function startWorkspaceServer(
       throw new HttpError(404, "section_not_found", "That section is not in your sidebar.");
     const prefs = store.setChannelPrefs(params.id, me.id, body);
     if (!prefs) throw new HttpError(404, "channel_not_found");
-    // Preferences are personal: only this user's own devices need to know.
-    gateway.sendToUser(me.id, { type: "prefs", channelId: params.id, prefs });
     return { prefs };
   });
 
   route(endpoints.setNotifyDefault, async ({ user: me, body }) => {
     const { level } = body;
     store.setNotifyDefault(me.id, level);
-    gateway.sendToUser(me.id, { type: "notify.default", level });
     return { level };
   });
 
@@ -5239,13 +4977,6 @@ async function startWorkspaceServer(
   });
 
   // ---------- sidebar sections (E8) ----------
-
-  /** Tells the account's devices its sections as they now are, and answers with them. */
-  const sectionsChanged = (userId: ID) => {
-    const sections = store.sidebarSections(userId);
-    gateway.sendToUser(userId, { type: "sidebar.sections", sections });
-    return sections;
-  };
 
   route(endpoints.createSidebarSection, async ({ user: me, body }) => {
     const { name } = body;
@@ -5256,31 +4987,27 @@ async function startWorkspaceServer(
         `A sidebar keeps at most ${SIDEBAR_SECTIONS_MAX} sections.`,
       );
     const section = store.createSidebarSection(me.id, name);
-    return { section, sections: sectionsChanged(me.id) };
+    return { section, sections: store.sidebarSections(me.id) };
   });
 
   route(endpoints.renameSidebarSection, async ({ user: me, body, params }) => {
     const { name } = body;
     if (!store.renameSidebarSection(me.id, params.id, name))
       throw new HttpError(404, "section_not_found");
-    return { sections: sectionsChanged(me.id) };
+    return { sections: store.sidebarSections(me.id) };
   });
 
   route(endpoints.deleteSidebarSection, async ({ user: me, params }) => {
     const freed = store.transaction(() => store.deleteSidebarSection(me.id, params.id));
     if (!freed) throw new HttpError(404, "section_not_found");
-    for (const channelId of freed) {
-      const prefs = store.getChannelPrefs(channelId, me.id);
-      if (prefs) gateway.sendToUser(me.id, { type: "prefs", channelId, prefs });
-    }
-    return { sections: sectionsChanged(me.id) };
+    return { sections: store.sidebarSections(me.id) };
   });
 
   route(endpoints.orderSidebarSections, async ({ user: me, body }) => {
     const { ids } = body;
     const ordered = store.transaction(() => store.orderSidebarSections(me.id, ids));
     if (!ordered) throw new HttpError(409, "sections_changed", "Your sections changed. Try again.");
-    return { sections: sectionsChanged(me.id) };
+    return { sections: store.sidebarSections(me.id) };
   });
 
   route(endpoints.setThreadFollow, async ({ user: me, body, params }) => {
@@ -5288,7 +5015,6 @@ async function startWorkspaceServer(
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
     const state = store.setThreadFollow(me.id, message.id, body.following);
     if (!state) throw new HttpError(404, "message_not_found");
-    gateway.sendToUser(me.id, { type: "thread.follow", state });
     return { state };
   });
 
@@ -5297,8 +5023,6 @@ async function startWorkspaceServer(
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
     const state = store.setThreadMute(me.id, message.id, body.muted);
     if (!state) throw new HttpError(404, "message_not_found");
-    // Personal, as following is: only this account's own devices hear of it.
-    gateway.sendToUser(me.id, { type: "thread.follow", state });
     return { state };
   });
 
@@ -5319,7 +5043,6 @@ async function startWorkspaceServer(
       );
     }
     const reminder = store.setReminder(me.id, message.id, at);
-    gateway.sendToUser(me.id, { type: "reminder", reminder });
     armReminders();
     reply.status(existing ? 200 : 201);
     return { reminder };
@@ -5328,7 +5051,6 @@ async function startWorkspaceServer(
   route(endpoints.cancelReminder, async ({ user: me, params }) => {
     // Done or cancelled, whatever has become of the message since.
     if (!store.deleteReminder(me.id, params.id)) throw new HttpError(404, "not_found");
-    gateway.sendToUser(me.id, { type: "reminder.removed", messageId: params.id });
     armReminders();
     return { ok: true };
   });
@@ -5342,9 +5064,6 @@ async function startWorkspaceServer(
     if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
     const state = store.markThreadRead(me.id, message.id, body.seq);
     if (!state) throw new HttpError(404, "message_not_found");
-    gateway.sendToUser(me.id, { type: "thread.follow", state });
-    // Reading a thread can read a mention in its replies.
-    pushMentionCounts([me.id]);
     return { state };
   });
 
@@ -5357,9 +5076,6 @@ async function startWorkspaceServer(
       if (!store.threadFollow(me.id, message.id)) throw new HttpError(404, "message_not_found");
       throw new HttpError(400, "invalid_unread_target");
     }
-    gateway.sendToUser(me.id, { type: "thread.follow", state });
-    // A mention in what is unread again counts again.
-    pushMentionCounts([me.id]);
     return { state };
   });
 
@@ -5443,7 +5159,6 @@ async function startWorkspaceServer(
   route(endpoints.readChannelRemovals, async ({ user: me, body }) => {
     const { ids } = body;
     const read = store.readChannelRemovals(me.id, ids);
-    if (read.length > 0) gateway.sendToUser(me.id, { type: "channel.removals.read", ids: read });
     return { ids: read };
   });
 
@@ -5488,7 +5203,7 @@ async function startWorkspaceServer(
         salt: credentials.salt,
         role: "member",
       });
-      emit({ type: "user.joined", user }, null);
+      emit({ type: "user.joined", user });
       joinPublicChannels(user.id, emit);
       return user;
     });
@@ -5614,7 +5329,7 @@ async function startWorkspaceServer(
         details: { from: previous, to: name },
       });
     });
-    gateway.broadcastEphemeral({ type: "workspace.renamed", workspaceName: name }, null);
+    gateway.tellEveryone({ type: "workspace.renamed", workspaceName: name });
     announce();
     workspaceChanged({ workspaceName: name, by });
     return name;
@@ -5639,7 +5354,7 @@ async function startWorkspaceServer(
     });
     for (const tokenHash of ended) gateway.disconnectSession(tokenHash);
     if (policy === previous) return;
-    gateway.broadcastEphemeral({ type: "workspace.accessPolicy", accessPolicy: policy }, null);
+    gateway.tellEveryone({ type: "workspace.accessPolicy", accessPolicy: policy });
     workspaceChanged({ accessPolicy: policy, by });
   };
 
@@ -5667,7 +5382,7 @@ async function startWorkspaceServer(
     });
     icon = next;
     const iconVersion = next?.version ?? null;
-    gateway.broadcastEphemeral({ type: "workspace.icon", iconVersion }, null);
+    gateway.tellEveryone({ type: "workspace.icon", iconVersion });
     announce();
     workspaceChanged({ iconVersion, by });
   };
@@ -5731,15 +5446,8 @@ async function startWorkspaceServer(
 
   /** Posts one due scheduled message, or records why it waits or failed. */
   const sendScheduled = (item: ScheduledMessage, retryAt: number): void => {
-    // A row held again for the same reason looks no different to its author.
-    const hold = (reason: string) => {
-      store.holdScheduled(item.id, reason, retryAt);
-      if (item.status !== "held" || item.failureReason !== reason) scheduledChanged(item.userId);
-    };
-    const fail = (reason: string) => {
-      store.failScheduled(item.id, reason);
-      scheduledChanged(item.userId);
-    };
+    const hold = (reason: string) => store.holdScheduled(item.id, reason, retryAt);
+    const fail = (reason: string) => store.failScheduled(item.id, reason);
     try {
       posting.post({
         poster: { kind: "person", userId: item.userId },
@@ -5751,7 +5459,6 @@ async function startWorkspaceServer(
         fileIds: item.fileIds,
         scheduledId: item.id,
       });
-      scheduledChanged(item.userId);
     } catch (err) {
       const code = err instanceof HttpError ? err.code : null;
       const held = heldBecause(item, code);
@@ -5870,7 +5577,7 @@ async function startWorkspaceServer(
               statusEmoji: "",
               statusExpiresAt: null,
             });
-            emit({ type: "user.updated", user }, null);
+            emit({ type: "user.updated", user });
           }
         });
     });
@@ -5914,11 +5621,9 @@ async function startWorkspaceServer(
           !store.canAccess(message.channelId, due.userId)
         ) {
           store.deleteReminder(due.userId, due.messageId);
-          gateway.sendToUser(due.userId, { type: "reminder.removed", messageId: due.messageId });
           continue;
         }
-        const reminder = store.markReminderDue(due.userId, due.messageId, now);
-        if (reminder) gateway.sendToUser(due.userId, { type: "reminder", reminder, message });
+        store.markReminderDue(due.userId, due.messageId, now);
       }
     });
     armReminders();

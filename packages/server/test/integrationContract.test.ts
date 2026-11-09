@@ -13,7 +13,8 @@ import {
   type WorkspaceEvent,
 } from "@ownbase/protocol";
 import { INPUT_ELEMENTS } from "../src/blockKit.js";
-import { signatureHeaders, toSlackEvent } from "../src/integrations.js";
+import { signatureHeaders } from "../src/integrations.js";
+import { toSlackEvent } from "../src/apps/delivery.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
