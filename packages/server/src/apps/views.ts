@@ -179,7 +179,6 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
       if (typeof triggerId === "string") triggers.delete(triggerId);
       return { error: "expired_trigger_id" };
     }
-    // The trigger belongs to whoever it was issued for, and to that app alone.
     if (trigger.appId !== owner.id) return { error: "trigger_not_yours" };
     triggers.delete(triggerId as string);
     if (!calls.capabilityHolds({ ...trigger, invokerId: trigger.userId })) {
@@ -279,7 +278,6 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
 
   route(endpoints.submitView, async ({ user: me, body, params }) => {
     const open = openViews.get(params.id);
-    // A view belongs to the one person it was opened for.
     if (!open || open.userId !== me.id || open.expiresAt < Date.now()) {
       // A request from another account must not consume the owner's view.
       if (!open || open.expiresAt < Date.now()) openViews.delete(params.id);
