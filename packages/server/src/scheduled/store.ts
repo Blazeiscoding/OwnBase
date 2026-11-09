@@ -4,6 +4,8 @@ import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
 import type { Store } from "../store.js";
 
+const queueCountsRow = shape({ queued: "number", held: "number", failed: "number" });
+
 /** A `scheduled_messages` row. */
 const scheduledRow = shape({
   id: "text",
@@ -315,13 +317,13 @@ export class ScheduledStore {
 
   /** The queue by state, for admin status: counts only (OPS-10). */
   counts(): { queued: number; held: number; failed: number } {
-    return this.db
-      .prepare(
+    return queueCountsRow.get(
+      this.db.prepare(
         `SELECT COUNT(*) FILTER (WHERE status = 'queued') AS queued,
                 COUNT(*) FILTER (WHERE status = 'held') AS held,
                 COUNT(*) FILTER (WHERE status = 'failed') AS failed
          FROM scheduled_messages`,
-      )
-      .get() as { queued: number; held: number; failed: number };
+      ),
+    )!;
   }
 }
