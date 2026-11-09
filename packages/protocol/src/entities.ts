@@ -238,8 +238,8 @@ export interface Message {
   /**
    * What the server found at the first few web addresses in its words, in the
    * order they appear (E2). Added a moment after the message is sent, by a
-   * `message.updated` that says `previewsOnly`. Empty while none has been
-   * found.
+   * `message.updated` that says `previewsOnly`. Absent from servers before
+   * link previews, and empty while none has been found.
    */
   previews?: LinkPreview[];
   /**
@@ -394,6 +394,7 @@ export interface Invite {
   expiresAt: number | null;
   maxUses: number | null;
   uses: number;
+  /** Absent from servers before schema v23. */
   revokedAt?: number | null;
   status?: InviteStatus;
 }
@@ -500,7 +501,8 @@ export interface WorkspaceStatus {
   /**
    * Stored attachments, against the configured limit (null: none), and the
    * removal of deleted ones (REV-02): due or soon, failed and waiting to be
-   * tried again, and set aside because they can never succeed.
+   * tried again, and set aside because they can never succeed. Absent from
+   * servers that predate it.
    */
   attachments: {
     bytes: number;
@@ -527,7 +529,7 @@ export interface WorkspaceStatus {
   /**
    * Backups the server takes on a timer: off, or how often, how many it
    * keeps, when the last one finished, failures since, and when the next is
-   * due.
+   * due. Absent from servers that predate them.
    */
   backups?:
     | { enabled: false }
@@ -554,7 +556,7 @@ export interface WorkspaceStatus {
   eventLoopDelayMs: { p50: number; p99: number; max: number } | null;
   /**
    * Background queues failing now: since when and how many times in a row.
-   * Empty when all are running.
+   * Empty when all are running; absent from servers that predate it.
    */
   backgroundFailures?: { queue: string; since: number; failures: number }[];
   /**
@@ -790,7 +792,7 @@ export interface FollowedThread {
   unreadCount: number;
   /**
    * The thread's newest reply, for the list to show where it has got to; null
-   * with none.
+   * with none. Absent from servers before it was sent.
    */
   latestReply?: Message | null;
 }

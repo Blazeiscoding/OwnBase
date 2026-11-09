@@ -300,7 +300,7 @@ export type ServerToClient =
       message: string;
       /**
        * The protocol this server speaks, with protocol_mismatch, so the client
-       * can say which side to update.
+       * can say which side to update. A version-1 server left it out.
        */
       protocolVersion?: number;
     }
