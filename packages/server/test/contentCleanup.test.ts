@@ -242,13 +242,12 @@ describe("complete message content cleanup (N06/N07)", () => {
     try {
       db = openDbAtVersion(path, 36);
       const store = new Store(db);
-      const user = store.people.create({
-        handle: "owner",
-        displayName: "Owner",
-        passwordHash: "unused",
-        salt: "unused",
-        role: "owner",
-      });
+      // A v36 users row lacks columns today's people store reads back.
+      const user = { id: ulid() };
+      db.prepare(
+        `INSERT INTO users (id, handle, display_name, password_hash, salt, role, created_at)
+         VALUES (?, 'owner', 'Owner', 'unused', 'unused', 'owner', ?)`,
+      ).run(user.id, Date.now());
       const room = store.channels.create({
         type: "public",
         name: "meetings",
