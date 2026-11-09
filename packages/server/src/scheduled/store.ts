@@ -105,7 +105,8 @@ export class ScheduledStore {
   private fromRow(r: RowOf<typeof scheduledRow.columns>): ScheduledMessage {
     let fileIds: ID[] = [];
     try {
-      fileIds = JSON.parse(r.file_ids) as ID[];
+      const parsed: unknown = JSON.parse(r.file_ids);
+      if (Array.isArray(parsed)) fileIds = parsed.map(String);
     } catch {
       /* a corrupt row should not sink the whole list */
     }
