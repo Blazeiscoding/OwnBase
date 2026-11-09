@@ -12,6 +12,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * A plan's member notice (P5): past the members the plan includes, the owner
@@ -120,12 +121,14 @@ function workspace(
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

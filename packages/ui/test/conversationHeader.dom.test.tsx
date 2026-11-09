@@ -7,6 +7,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * The conversation's header (UX-23): its name, a search field, who is in it,
@@ -112,12 +113,14 @@ async function workspace(
   const { container } = render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

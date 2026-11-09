@@ -6,6 +6,7 @@ import { ClientContext, PlatformContext } from "../src/context.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * On a phone the sidebar is behind the menu button, so the button says when
@@ -77,12 +78,14 @@ function workspace() {
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

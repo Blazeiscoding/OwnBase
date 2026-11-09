@@ -256,7 +256,7 @@ describe("channel details", () => {
 });
 
 describe("notification settings", () => {
-  it("says when a choice was not saved, shows what the workspace has, and tries again", async () => {
+  it("says when a level was not saved, shows what the workspace has, and tries again", async () => {
     const { client, dialog, user } = details();
     const save = vi
       .spyOn(client.api, "setChannelPrefs")
@@ -265,17 +265,48 @@ describe("notification settings", () => {
         prefs: { ...DEFAULT_CHANNEL_PREFS, notifyChosen: true, ...body },
       }));
     await user.click(dialog.getByRole("tab", { name: "Notifications" }));
-    const mute = dialog.getByRole("checkbox", { name: /Mute this channel/ });
-    await user.click(mute);
+    const nothing = dialog.getByRole("radio", { name: /Nothing/ });
+    await user.click(nothing);
 
     const alert = await dialog.findByRole("alert");
     expect(alert).toHaveTextContent(/not saved/);
-    expect(mute).not.toBeChecked();
+    expect(nothing).not.toBeChecked();
 
     await user.click(within(alert).getByRole("button", { name: "Try again" }));
-    expect(save).toHaveBeenLastCalledWith("C_DESIGN", { muted: true });
+    expect(save).toHaveBeenLastCalledWith("C_DESIGN", {
+      notifyLevel: "nothing",
+      notifyChosen: true,
+    });
     await vi.waitFor(() => expect(dialog.queryByRole("alert")).toBeNull());
-    expect(mute).toBeChecked();
+    expect(nothing).toBeChecked();
+  });
+
+  // It said nothing before: the box went back unticked, and the reason was lost.
+  it("says why muting failed, in the workspace's words, with a way to try again", async () => {
+    const { client, dialog, user } = details();
+    const save = vi
+      .spyOn(client.api, "setChannelPrefs")
+      .mockRejectedValueOnce(
+        new ApiError(403, "not_a_member", "You cannot change this channel now"),
+      )
+      .mockImplementation(async (_id, body) => ({
+        prefs: { ...DEFAULT_CHANNEL_PREFS, ...body },
+      }));
+    await user.click(dialog.getByRole("tab", { name: "Notifications" }));
+    const mute = dialog.getByRole("checkbox", { name: /Mute this channel/ });
+    await user.click(mute);
+
+    const notice = await screen.findByText(
+      "Could not mute that channel. You cannot change this channel now.",
+    );
+    expect(mute).not.toBeChecked();
+    await user.click(
+      within(notice.closest("[data-toast]") ?? document.body).getByRole("button", {
+        name: "Try again",
+      }),
+    );
+    expect(save).toHaveBeenLastCalledWith("C_DESIGN", { muted: true });
+    await vi.waitFor(() => expect(mute).toBeChecked());
   });
 
   it("does not speak for a star that was not saved, which says so where it was chosen", async () => {

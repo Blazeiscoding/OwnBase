@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Api, WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Invite, ServerInfo, User } from "@ownbase/protocol";
@@ -13,6 +13,8 @@ import { writeRoute } from "../src/lib/route.js";
 import type { HostingStatus, Platform } from "../src/platform.js";
 import { hostingStub } from "./hostingStub.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { navigationOf } from "../src/lib/navigation.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * Founding a workspace ends with inviting people (UX-42): the first account
@@ -167,26 +169,24 @@ function ownersWorkspace() {
   vi.spyOn(client, "loadCommands").mockResolvedValue();
   vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
   const create = vi.spyOn(client.api, "createInvite").mockResolvedValue({ invite: madeInvite });
-  const screenOf = (props: {
-    welcome?: boolean;
-    inviteAsk?: number;
-    hostingEntry?: HostingEntry;
-  }) => (
+  const screenOf = (props: { welcome?: boolean; hostingEntry?: HostingEntry }) => (
     <ConfirmProvider>
       <PlatformContext.Provider value={webPlatform}>
         <ClientContext.Provider value={client}>
-          <WorkspaceScreen
-            client={client}
-            platform={webPlatform}
-            {...props}
-            onLeaveWorkspace={() => {}}
-            onSignedOut={() => {}}
-          />
+          <AppNotices>
+            <WorkspaceScreen
+              client={client}
+              platform={webPlatform}
+              {...props}
+              onLeaveWorkspace={() => {}}
+              onSignedOut={() => {}}
+            />
+          </AppNotices>
         </ClientContext.Provider>
       </PlatformContext.Provider>
     </ConfirmProvider>
   );
-  return { create, screenOf };
+  return { client, create, screenOf };
 }
 
 describe("the workspace a founder opens", () => {
@@ -206,14 +206,15 @@ describe("the workspace a founder opens", () => {
 });
 
 describe("Invite people, asked for by Manage hosting", () => {
-  it("opens each time it is asked for, and not for an ask made before the workspace opened", async () => {
-    const { screenOf } = ownersWorkspace();
-    // Asked for once already, by Manage hosting over another session.
-    const { rerender } = render(screenOf({ inviteAsk: 1 }));
+  it("opens each time it is asked for", async () => {
+    const { client, screenOf } = ownersWorkspace();
+    const ask = () =>
+      act(() => navigationOf(client)?.navigate({ to: "dialog", dialog: { kind: "invite" } }));
+    render(screenOf({}));
     await screen.findByRole("textbox", { name: /Message/ });
     expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull();
 
-    rerender(screenOf({ inviteAsk: 2 }));
+    ask();
     const invite = await screen.findByRole("dialog", { name: "Invite people" });
     expect(
       await within(invite).findByText("http://192.168.1.20:8543/#/join/WELC0ME1"),
@@ -221,7 +222,7 @@ describe("Invite people, asked for by Manage hosting", () => {
     await userEvent.setup().keyboard("{Escape}");
     await waitFor(() => expect(screen.queryByRole("dialog", { name: "Invite people" })).toBeNull());
 
-    rerender(screenOf({ inviteAsk: 3 }));
+    ask();
     expect(await screen.findByRole("dialog", { name: "Invite people" })).toBeVisible();
   });
 });

@@ -12,6 +12,8 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { renderPart } from "./workspaceParts.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * Discord's two buttons at the end of a channel's row: invite, and the
@@ -72,30 +74,14 @@ function sidebar(self: User) {
   });
   const onInvite = vi.fn();
   const onChannelDetails = vi.fn();
-  render(
-    <ToastProvider>
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId={general.id}
-          onSelect={vi.fn()}
-          onBrowseChannels={vi.fn()}
-          onNewChannel={vi.fn()}
-          onNewDm={vi.fn()}
-          onFriends={vi.fn()}
-          onSearch={vi.fn()}
-          onSaved={vi.fn()}
-          onActivity={vi.fn()}
-          onThreads={vi.fn()}
-          onEditProfile={vi.fn()}
-          onInvite={onInvite}
-          onChannelDetails={onChannelDetails}
-          onSwitchWorkspace={vi.fn()}
-          onAccountSettings={vi.fn()}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>
-    </ToastProvider>,
-  );
+  const { navigation } = renderPart(client, <Sidebar />, { channelId: general.id });
+  // Where each button went, as the screen would open it.
+  navigation.store.subscribe((s, was) => {
+    if (s.dialog === was.dialog) return;
+    if (s.dialog.kind === "invite") onInvite();
+    if (s.dialog.kind === "channel-details")
+      onChannelDetails(...(s.dialog.tab ? [s.channelId, s.dialog.tab] : [s.channelId]));
+  });
   /** The buttons in the row of the channel or conversation named. */
   const row = (name: RegExp) =>
     within(screen.getByRole("button", { name }).closest("li")!)
@@ -298,12 +284,14 @@ describe("the gear on a channel's row", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <WorkspaceScreen
-            client={client}
-            platform={platform}
-            onLeaveWorkspace={() => {}}
-            onSignedOut={() => {}}
-          />
+          <AppNotices>
+            <WorkspaceScreen
+              client={client}
+              platform={platform}
+              onLeaveWorkspace={() => {}}
+              onSignedOut={() => {}}
+            />
+          </AppNotices>
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

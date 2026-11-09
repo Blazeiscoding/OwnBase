@@ -11,6 +11,7 @@ import { PartnerTime } from "../src/components/PartnerTime.js";
 import { AccountMenu } from "../src/components/Sidebar.js";
 import { MembersPanel } from "../src/components/MembersPanel.js";
 import { useIdleReport } from "../src/lib/idle.js";
+import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 vi.mock("../src/lib/iconImage.js", async (original) => ({
@@ -187,16 +188,7 @@ describe("a direct message's header", () => {
 });
 
 describe("away by hand", () => {
-  const menu = (client: WorkspaceClient) =>
-    shown(
-      client,
-      <AccountMenu
-        guest={false}
-        snoozed={false}
-        onEditProfile={vi.fn()}
-        onAccountSettings={vi.fn()}
-      />,
-    );
+  const menu = (client: WorkspaceClient) => renderPart(client, <AccountMenu />);
 
   it("is set from the account menu, and set back from it", async () => {
     const { client, user } = workspace();

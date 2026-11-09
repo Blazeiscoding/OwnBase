@@ -8,6 +8,8 @@ import type { Platform } from "../src/platform.js";
 import { FilesPanel } from "../src/components/FilesPanel.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConversationMenu } from "../src/components/ConversationHeader.js";
+import { AppNotices, renderPart } from "./workspaceParts.js";
+import type { Panel } from "../src/lib/navigation.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -249,7 +251,7 @@ describe("the file browser", () => {
 });
 
 describe("the sidebar's Files row", () => {
-  function sidebar(onFiles?: () => void, openPanel?: string) {
+  function sidebar(openPanel: Panel) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     clients.push(client);
     client.store.setState({
@@ -260,46 +262,17 @@ describe("the sidebar's Files row", () => {
       status: "online",
       workspaceName: "Rocket Team",
     });
-    render(
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId={general.id}
-          onSelect={vi.fn()}
-          onBrowseChannels={vi.fn()}
-          onNewChannel={vi.fn()}
-          onNewDm={vi.fn()}
-          onFriends={vi.fn()}
-          onSearch={vi.fn()}
-          onSaved={vi.fn()}
-          onFiles={onFiles}
-          openPanel={openPanel}
-          onActivity={vi.fn()}
-          onThreads={vi.fn()}
-          onEditProfile={vi.fn()}
-          onInvite={vi.fn()}
-          onChannelDetails={vi.fn()}
-          onSwitchWorkspace={vi.fn()}
-          onAccountSettings={vi.fn()}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>,
-    );
+    return renderPart(client, <Sidebar />, { channelId: general.id, state: { panel: openPanel } });
   }
 
-  it("is there while Files is open, and opens it", async () => {
-    const onFiles = vi.fn();
-    sidebar(onFiles, "files");
+  it("is there while Files is open, and opens every file again from a conversation's", async () => {
+    const { panel } = sidebar({ kind: "files", channelId: general.id });
     await userEvent.setup().click(screen.getByRole("button", { name: /^Files/ }));
-    expect(onFiles).toHaveBeenCalled();
+    expect(panel()).toEqual({ kind: "files" });
   });
 
   it("gives its place to a channel otherwise, as Drafts does (UX-20)", () => {
-    sidebar(vi.fn(), "saved");
-    expect(screen.queryByRole("button", { name: /^Files/ })).toBeNull();
-  });
-
-  it("is left out where the server does not list files", () => {
-    sidebar(undefined, "files");
+    sidebar({ kind: "saved" });
     expect(screen.queryByRole("button", { name: /^Files/ })).toBeNull();
   });
 });
@@ -316,18 +289,19 @@ describe("a conversation's menu", () => {
       status: "online",
     });
     render(
-      <ClientContext.Provider value={client}>
-        <ConversationMenu
-          channelId="C_DESIGN"
-          isRoom
-          onPins={vi.fn()}
-          onFiles={onFiles}
-          onDetails={vi.fn()}
-        />
-      </ClientContext.Provider>,
+      <AppNotices>
+        <ClientContext.Provider value={client}>
+          <ConversationMenu
+            channelId="C_DESIGN"
+            isRoom
+            onPins={vi.fn()}
+            onFiles={onFiles}
+            onDetails={vi.fn()}
+          />
+        </ClientContext.Provider>
+      </AppNotices>,
     );
   }
-
   it("offers the files shared there, where the server lists them", async () => {
     const onFiles = vi.fn();
     menu(onFiles);

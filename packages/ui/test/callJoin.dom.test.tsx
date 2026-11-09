@@ -11,6 +11,7 @@ import { useCallPreferences } from "../src/lib/callPreferences.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { noiseFilter } from "../src/lib/noiseFilter.js";
+import { AppNotices } from "./workspaceParts.js";
 
 const owner: User = {
   id: "U_OWNER",
@@ -118,12 +119,14 @@ describe("preference-aware huddle admission (N04)", () => {
     vi.spyOn(client, "loadCommands").mockResolvedValue();
     render(
       wrap(
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />,
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>,
       ),
     );
     await userEvent.setup().click(await huddleStep());
@@ -189,12 +192,14 @@ describe("preference-aware huddle admission (N04)", () => {
     vi.spyOn(client, "loadCommands").mockResolvedValue();
     render(
       wrap(
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />,
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>,
       ),
     );
     const user = userEvent.setup();
@@ -219,23 +224,27 @@ describe("preference-aware huddle admission (N04)", () => {
     }
     const mounted = render(
       wrap(
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />,
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>,
       ),
     );
     await userEvent.setup().click(await huddleStep());
     mounted.rerender(
       wrap(
-        <WorkspaceScreen
-          client={replacement.client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />,
+        <AppNotices>
+          <WorkspaceScreen
+            client={replacement.client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>,
       ),
     );
     await act(async () => saved.resolve({ joinMuted: true }));

@@ -7,6 +7,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import type { OtherWorkspace } from "../src/components/Sidebar.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * In the desktop app Ctrl/Cmd+1–9 open the workspace at that place on the
@@ -81,15 +82,17 @@ function workspace(kind: Platform["kind"]) {
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-          otherWorkspaces={others}
-          railPlace={1}
-          onOpenWorkspace={(url) => opened.push(url)}
-        />
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+            otherWorkspaces={others}
+            railPlace={1}
+            onOpenWorkspace={(url) => opened.push(url)}
+          />
+        </AppNotices>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { Sidebar, type HostingEntry, type OtherWorkspace } from "../src/components/Sidebar.js";
 import { statusUntil } from "../src/lib/status.js";
+import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const sam: User = {
@@ -42,41 +43,20 @@ function sidebar(options: {
     workspaceName: "Rocket Team",
   });
   const calls: string[] = [];
-  const call = (name: string) => () => calls.push(name);
-  render(
-    <ClientContext.Provider value={client}>
-      <Sidebar
-        activeChannelId={null}
-        onSelect={vi.fn()}
-        onBrowseChannels={vi.fn()}
-        onNewChannel={vi.fn()}
-        onNewDm={vi.fn()}
-        onFriends={vi.fn()}
-        onSearch={vi.fn()}
-        onSaved={vi.fn()}
-        onScheduled={vi.fn()}
-        onActivity={vi.fn()}
-        onThreads={vi.fn()}
-        onEditProfile={vi.fn()}
-        onInvite={call("invite")}
-        onSwitchWorkspace={call("switch")}
-        otherWorkspaces={options.others}
-        railPlace={options.railPlace}
-        onOpenWorkspace={(url) => calls.push(`open ${url}`)}
-        onAccountSettings={call("account")}
-        onSignOut={call("sign out")}
-        {...(options.admin
-          ? {
-              onManagePeople: call("people"),
-              onManageApps: call("apps"),
-              onWorkspaceSettings: call("workspace"),
-            }
-          : {})}
-        connectionLabel={null}
-        hostingEntry={options.hostingEntry}
-      />
-    </ClientContext.Provider>,
-  );
+  const parts = renderPart(client, <Sidebar />, {
+    shell: {
+      otherWorkspaces: options.others ?? [],
+      railPlace: Math.min(options.railPlace ?? 0, options.others?.length ?? 0),
+      onOpenWorkspace: (url) => calls.push(`open ${url}`),
+      onLeaveWorkspace: () => calls.push("switch"),
+      onSignedOut: () => calls.push("signed out"),
+      hostingEntry: options.hostingEntry,
+    },
+  });
+  // Where each press went: the dialog it opened.
+  parts.navigation.store.subscribe((s, was) => {
+    if (s.dialog !== was.dialog && s.dialog.kind !== "none") calls.push(s.dialog.kind);
+  });
   return { calls, client, user: userEvent.setup() };
 }
 
@@ -184,17 +164,24 @@ describe("the account menu", () => {
       "Profile and status",
       "Account settings",
       "Scheduled messages",
+      "Keyboard shortcutsCtrl/",
+      "Diagnostics",
       // Where people look for it, not only at the foot of Settings > Security.
       "Sign out",
     ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
   });
 
-  it("signs out from the menu, which leaves the asking to the workspace screen", async () => {
-    const { calls, user } = sidebar({ admin: false });
+  it("signs out from the menu, after asking", async () => {
+    const { calls, client, user } = sidebar({ admin: false });
+    const signOut = vi.spyOn(client, "signOut").mockResolvedValue();
     await accountMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "Sign out" }));
-    expect(calls).toEqual(["sign out"]);
+    const ask = await screen.findByRole("dialog", { name: "Sign out of this workspace?" });
+    expect(signOut).not.toHaveBeenCalled();
+    await user.click(within(ask).getByRole("button", { name: "Sign out" }));
+    await waitFor(() => expect(calls).toEqual(["signed out"]));
+    expect(signOut).toHaveBeenCalledOnce();
   });
 
   it("sets a common status for as long as it usually lasts in two clicks, and clears it the same way", async () => {
@@ -252,34 +239,15 @@ describe("the account menu", () => {
     });
   });
 
-  it("offers the shortcut sheet, diagnostics and scheduled messages when the screen can open them", async () => {
+  it("offers the shortcut sheet, diagnostics and scheduled messages, and opens each", async () => {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     client.store.setState({ self: sam, users: { U_SAM: sam }, status: "online" });
+    const { navigation } = renderPart(client, <Sidebar />);
     const opened: string[] = [];
-    render(
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId={null}
-          onSelect={vi.fn()}
-          onBrowseChannels={vi.fn()}
-          onNewChannel={vi.fn()}
-          onNewDm={vi.fn()}
-          onFriends={vi.fn()}
-          onSearch={vi.fn()}
-          onSaved={vi.fn()}
-          onScheduled={() => opened.push("scheduled")}
-          onActivity={vi.fn()}
-          onThreads={vi.fn()}
-          onEditProfile={vi.fn()}
-          onInvite={vi.fn()}
-          onSwitchWorkspace={vi.fn()}
-          onAccountSettings={vi.fn()}
-          onShortcuts={() => opened.push("shortcuts")}
-          onDiagnostics={() => opened.push("diagnostics")}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>,
-    );
+    navigation.store.subscribe((s, was) => {
+      if (s.dialog.kind !== was.dialog.kind) opened.push(s.dialog.kind);
+      if (s.panel.kind !== was.panel.kind) opened.push(s.panel.kind);
+    });
     const user = userEvent.setup();
     const { items } = await accountMenu(user);
     expect(items).toEqual([
@@ -294,6 +262,7 @@ describe("the account menu", () => {
       // The keys that open the sheet too, drawn after its name and said apart from it.
       "Keyboard shortcutsCtrl/",
       "Diagnostics",
+      "Sign out",
     ]);
     expect(screen.getByRole("menuitem", { name: "Keyboard shortcuts" })).toHaveAttribute(
       "aria-keyshortcuts",
@@ -304,7 +273,11 @@ describe("the account menu", () => {
     await user.click(screen.getByRole("menuitem", { name: "Keyboard shortcuts" }));
     await accountMenu(user);
     await user.click(screen.getByRole("menuitem", { name: "Diagnostics" }));
-    expect(opened).toEqual(["scheduled", "shortcuts", "diagnostics"]);
+    expect(opened.filter((kind) => kind !== "none")).toEqual([
+      "scheduled",
+      "shortcuts",
+      "diagnostics",
+    ]);
   });
 });
 
@@ -427,27 +400,7 @@ describe("the workspace switcher", () => {
       channels: { C_A: room("C_A", "alpha"), C_B: room("C_B", "beta") },
       memberships: { C_A: 0, C_B: 0 },
     });
-    render(
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId="C_A"
-          onSelect={vi.fn()}
-          onBrowseChannels={vi.fn()}
-          onNewChannel={vi.fn()}
-          onNewDm={vi.fn()}
-          onFriends={vi.fn()}
-          onSearch={vi.fn()}
-          onSaved={vi.fn()}
-          onActivity={vi.fn()}
-          onThreads={vi.fn()}
-          onEditProfile={vi.fn()}
-          onInvite={vi.fn()}
-          onSwitchWorkspace={vi.fn()}
-          onAccountSettings={vi.fn()}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>,
-    );
+    renderPart(client, <Sidebar />, { channelId: "C_A" });
     const nav = screen.getByRole("navigation");
     const channels = within(nav).getByRole("button", { name: "Channels" });
     expect(channels).toHaveAttribute("aria-expanded", "true");

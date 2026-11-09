@@ -19,6 +19,7 @@ import { useOnScreenKeyboard } from "../src/lib/onScreenKeyboard.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * On a phone (UX-70, UX-71): a bar along the bottom with Home, DMs, Activity
@@ -98,12 +99,14 @@ function workspace(options: { phone?: boolean; self?: User; kind?: Platform["kin
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

@@ -5,6 +5,7 @@ import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { ChannelDetailsDialog } from "../src/components/ChannelDetailsDialog.js";
+import { AppNotices } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 const sam: User = {
@@ -62,13 +63,15 @@ function membersDialog() {
   async function renderMembers() {
     render(
       <ClientContext.Provider value={client}>
-        <ChannelDetailsDialog
-          channelId={channel.id}
-          onClose={() => {}}
-          onLeft={() => {}}
-          onOpenProfile={() => {}}
-          onChangeParticipants={() => {}}
-        />
+        <AppNotices>
+          <ChannelDetailsDialog
+            channelId={channel.id}
+            onClose={() => {}}
+            onLeft={() => {}}
+            onOpenProfile={() => {}}
+            onChangeParticipants={() => {}}
+          />
+        </AppNotices>
       </ClientContext.Provider>,
     );
     const dialog = screen.getByRole("dialog", { name: "#general" });
@@ -169,13 +172,15 @@ describe("channel details tabs", () => {
     const user = userEvent.setup();
     render(
       <ClientContext.Provider value={client}>
-        <ChannelDetailsDialog
-          channelId={channel.id}
-          onClose={() => {}}
-          onLeft={() => {}}
-          onOpenProfile={() => {}}
-          onChangeParticipants={() => {}}
-        />
+        <AppNotices>
+          <ChannelDetailsDialog
+            channelId={channel.id}
+            onClose={() => {}}
+            onLeft={() => {}}
+            onOpenProfile={() => {}}
+            onChangeParticipants={() => {}}
+          />
+        </AppNotices>
       </ClientContext.Provider>,
     );
     const dialog = screen.getByRole("dialog", { name: "#general" });

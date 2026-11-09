@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { GETTING_STARTED_COPY_KEY } from "../src/components/GettingStarted.js";
-import { COLLAPSED_SECTIONS_KEY } from "../src/components/Sidebar.js";
+import { COLLAPSED_SECTIONS_KEY } from "../src/lib/sidebarLayout.js";
 import { FIRST_PAINT_KEY } from "../src/lib/appearance.js";
 import { CHANGE_KEY, JOURNAL_PREFIX, LEGACY_PREFIX, OWNER_KEY } from "../src/lib/deviceStore.js";
 
