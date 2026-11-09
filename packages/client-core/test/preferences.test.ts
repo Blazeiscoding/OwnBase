@@ -61,7 +61,7 @@ function holdNextPrefsRequest() {
 const shown = () => client.state.prefs[channelId];
 const stored = (): ChannelPrefs | null => {
   const userId = client.state.self!.id;
-  return server.store.getChannelPrefs(channelId, userId);
+  return server.store.channels.prefs(channelId, userId);
 };
 
 describe("a notification choice for a channel", () => {

@@ -11,7 +11,7 @@ import {
   readStoredIcon,
   storedIconRows,
   type WorkspaceIcon,
-} from "../workspaceIcon.js";
+} from "../admin/workspaceIcon.js";
 
 /** The rows of the database's `meta` table, which hold every workspace setting. */
 export interface MetaRows {

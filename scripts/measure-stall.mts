@@ -100,7 +100,7 @@ try {
 
   // Five channels, a tenth of messages replies, half older than the window.
   const store = server.store;
-  const channels = [store.getChannelByName("general")!.id];
+  const channels = [store.channels.byName("general")!.id];
   for (const name of ["design", "engineering", "support", "random"]) {
     const { channel } = await succeeded<{ channel: { id: string } }>(
       fetch(`${base()}/api/channels`, {
@@ -124,7 +124,7 @@ try {
         const channelId = channels[i % channels.length]!;
         const here = roots.get(channelId)!;
         const reply = i % 10 === 9 && here.length > 0;
-        const message = store.createMessage({
+        const message = store.messages.create({
           channelId,
           userId: owner.user.id,
           text: sentence(i),
@@ -133,7 +133,7 @@ try {
         });
         // Posting stamps each message with its place in the event log, and a
         // reply moves its channel's newest seq only when shown there.
-        store.stampMessageSeq(message.id, channelId, 1_000_000 + i, !reply);
+        store.messages.stampSeq(message.id, channelId, 1_000_000 + i, !reply);
         if (!reply) {
           here.push(message.id);
           if (here.length > 50) here.shift();
@@ -225,11 +225,11 @@ try {
       body: JSON.stringify({ type: "public", name: "closed" }),
     }),
   );
-  store.updateChannel(closed.id, { archived: true });
+  store.channels.update(closed.id, { archived: true });
   store.transaction(() => {
     for (let i = 0; i < queued; i++) {
       const later = realNow() + 3_600_000;
-      store.scheduleMessage({
+      store.scheduled.schedule({
         channelId: channels[i % channels.length]!,
         userId: owner.user.id,
         text: `scheduled ${i}`,
@@ -237,7 +237,7 @@ try {
         fileIds: [],
         sendAt: realNow() - 1000,
       });
-      const held = store.scheduleMessage({
+      const held = store.scheduled.schedule({
         channelId: closed.id,
         userId: owner.user.id,
         text: `held ${i}`,
@@ -245,12 +245,12 @@ try {
         fileIds: [],
         sendAt: realNow() - 1000,
       });
-      store.holdScheduled(held.id, "That channel is archived.", later);
+      store.scheduled.hold(held.id, "That channel is archived.", later);
     }
   });
   await measure(`Sending ${queued.toLocaleString()} due scheduled messages`, async () => {
     server!.flushScheduled();
-    while (store.dueScheduled(realNow(), 1).length > 0)
+    while (store.scheduled.due(realNow(), 1).length > 0)
       await new Promise((resolve) => setTimeout(resolve, 1));
   });
   await measure(`A tick with ${queued.toLocaleString()} held and waiting`, () =>
@@ -259,7 +259,7 @@ try {
   db.prepare("UPDATE scheduled_messages SET next_attempt_at = 0 WHERE status = 'held'").run();
   await measure(`Checking ${queued.toLocaleString()} held again after their pause`, async () => {
     server!.flushScheduled();
-    while (store.dueScheduled(realNow(), 1).length > 0)
+    while (store.scheduled.due(realNow(), 1).length > 0)
       await new Promise((resolve) => setTimeout(resolve, 1));
   });
   await measure("Backing up while running", () =>

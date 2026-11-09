@@ -311,4 +311,16 @@ export class ScheduledStore {
     if (row) this.tell(row.user_id);
     return !!row;
   }
+
+  /** The queue by state, for admin status: counts only (OPS-10). */
+  counts(): { queued: number; held: number; failed: number } {
+    return this.db
+      .prepare(
+        `SELECT COUNT(*) FILTER (WHERE status = 'queued') AS queued,
+                COUNT(*) FILTER (WHERE status = 'held') AS held,
+                COUNT(*) FILTER (WHERE status = 'failed') AS failed
+         FROM scheduled_messages`,
+      )
+      .get() as { queued: number; held: number; failed: number };
+  }
 }
