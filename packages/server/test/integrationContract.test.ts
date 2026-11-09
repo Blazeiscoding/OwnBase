@@ -12,8 +12,8 @@ import {
   type EndpointSpec,
   type WorkspaceEvent,
 } from "@ownbase/protocol";
-import { INPUT_ELEMENTS } from "../src/blockKit.js";
-import { signatureHeaders } from "../src/integrations.js";
+import { INPUT_ELEMENTS } from "../src/apps/blockKit.js";
+import { signatureHeaders } from "../src/apps/signing.js";
 import { toSlackEvent } from "../src/apps/delivery.js";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 

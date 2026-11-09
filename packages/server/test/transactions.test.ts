@@ -233,12 +233,12 @@ describe("atomic messages and integrations", () => {
     await owner();
     const count = server.store.people.list().length;
     const seq = server.store.currentSeq();
-    vi.spyOn(server.store, "addAppToken").mockImplementationOnce(() => {
+    vi.spyOn(server.store.apps, "addToken").mockImplementationOnce(() => {
       throw new Error("token write failed");
     });
     expect((await request("/api/apps", { name: "Test App" })).status).toBe(500);
     expect(server.store.people.list()).toHaveLength(count);
-    expect(server.store.listApps()).toHaveLength(0);
+    expect(server.store.apps.list()).toHaveLength(0);
     expect(server.store.currentSeq()).toBe(seq);
     expect((await request("/api/apps", { name: "Test App" })).status).toBe(201);
   });
@@ -249,7 +249,7 @@ describe("atomic messages and integrations", () => {
     const channelId = server.store.channels.byName("general")!.id;
     failEvent();
     expect((await request(`/api/apps/${app.id}/webhooks`, { channelId })).status).toBe(500);
-    expect(server.store.listWebhooks(app.id)).toHaveLength(0);
+    expect(server.store.apps.listWebhooks(app.id)).toHaveLength(0);
     expect(server.store.channels.isMember(channelId, app.botUserId)).toBe(false);
   });
 
@@ -258,13 +258,13 @@ describe("atomic messages and integrations", () => {
     const app = (await request("/api/apps", { name: "Test App" })).body.app;
     const channelId = server.store.channels.byName("general")!.id;
     const hook = (await request(`/api/apps/${app.id}/webhooks`, { channelId })).body.webhook;
-    const remove = server.store.deleteApp.bind(server.store);
-    vi.spyOn(server.store, "deleteApp").mockImplementationOnce((id) => {
+    const remove = server.store.apps.delete.bind(server.store);
+    vi.spyOn(server.store.apps, "delete").mockImplementationOnce((id) => {
       remove(id);
       throw new Error("final write failed");
     });
     expect((await request(`/api/apps/${app.id}`, undefined, "DELETE")).status).toBe(500);
-    expect(server.store.getApp(app.id)).toEqual(app);
-    expect(server.store.listWebhooks(app.id)).toEqual([hook]);
+    expect(server.store.apps.get(app.id)).toEqual(app);
+    expect(server.store.apps.listWebhooks(app.id)).toEqual([hook]);
   });
 });

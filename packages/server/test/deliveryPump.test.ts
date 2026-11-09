@@ -74,21 +74,24 @@ afterEach(async () => {
 /** An app subscribed at `/<name>` on the test endpoint. */
 function subscribe(name: string): string {
   const store = server!.store;
-  const bot = store.createBotUser(`bot-${name}`, name, "", "");
-  const app = store.createApp({
+  const bot = store.apps.createBotUser(`bot-${name}`, name, "", "");
+  const app = store.apps.create({
     name,
     botUserId: bot.id,
     createdBy: ownerId,
     signingSecret: "test-signing-secret-not-a-credential",
   });
-  return store.createSubscription({ appId: app.id, url: `${endpointUrl}/${name}`, eventTypes: [] })
-    .id;
+  return store.apps.createSubscription({
+    appId: app.id,
+    url: `${endpointUrl}/${name}`,
+    eventTypes: [],
+  }).id;
 }
 
 let seq = 0;
 function queue(subscriptionId: string, event = ++seq): number {
   expect(
-    server!.store.enqueueEventDelivery(subscriptionId, null, event, JSON.stringify({ event }), 0),
+    server!.store.deliveries.enqueue(subscriptionId, null, event, JSON.stringify({ event }), 0),
   ).toBe(true);
   return event;
 }
@@ -177,10 +180,10 @@ describe("app events with an endpoint slow to answer (REV-15)", () => {
     // Had the stop waited for the slow answer, the call would have run out its
     // four seconds and spent an attempt; a clock read here failed a busy machine.
     server = await start({ isolated: true });
-    const due = server.store.dueEventDeliveries();
+    const due = server.store.deliveries.due();
     expect(due.map((d) => [d.eventSeq, d.attempts])).toEqual([[first, 0]]);
-    server.store.completeEventDelivery(due[0]!.id, slow);
-    expect(server.store.dueEventDeliveries().map((d) => [d.eventSeq, d.attempts])).toEqual([
+    server.store.deliveries.complete(due[0]!.id, slow);
+    expect(server.store.deliveries.due().map((d) => [d.eventSeq, d.attempts])).toEqual([
       [second, 0],
     ]);
   });

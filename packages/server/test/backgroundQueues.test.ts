@@ -86,7 +86,7 @@ describe("background queues (REV-01)", () => {
   it("keeps serving when an event delivery read fails on its timer", async () => {
     vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
     const { server, status, healthy } = await start();
-    vi.spyOn(server.store, "dueEventDeliveries").mockImplementation(failing("disk read"));
+    vi.spyOn(server.store.deliveries, "due").mockImplementation(failing("disk read"));
 
     vi.advanceTimersByTime(5_000);
     await expect
@@ -158,7 +158,7 @@ describe("background queues (REV-01)", () => {
         "-e",
         `import { createWorkspaceServer } from ${JSON.stringify(serverModule)};
          const server = await createWorkspaceServer({ dataDir: ":memory:", host: "127.0.0.1", port: 0, mdns: false });
-         server.store.dueEventDeliveries = () => { throw new Error("disk read"); };
+         server.store.deliveries.due = () => { throw new Error("disk read"); };
          // Two ticks of the five-second delivery timer.
          await new Promise((resolve) => setTimeout(resolve, 11_000));
          const health = await fetch("http://127.0.0.1:" + server.port + "/api/health");
