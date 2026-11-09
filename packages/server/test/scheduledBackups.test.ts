@@ -237,12 +237,12 @@ describe("scheduled backups", () => {
     expect((await api(`/api/messages/${item.messageId}`, "DELETE")).status).toBe(200);
     await server!.flushFileDeletions();
     expect(existsSync(item.path)).toBe(true);
-    expect(server!.store.pendingFileDeletions()).toHaveLength(1);
+    expect(server!.store.files.pendingDeletions()).toHaveLength(1);
     held.open();
     await running;
     await vi.waitFor(() => {
       expect(existsSync(item.path)).toBe(false);
-      expect(server!.store.pendingFileDeletions()).toEqual([]);
+      expect(server!.store.files.pendingDeletions()).toEqual([]);
     });
   });
 

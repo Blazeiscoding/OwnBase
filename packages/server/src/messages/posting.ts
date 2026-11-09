@@ -235,7 +235,7 @@ export function createPosting({
         record({ type: "member.joined", channelId: channel.id, userId });
       }
       // A file a scheduled message is waiting to send is already promised.
-      if (store.filesHeldBySchedule(input.fileIds, input.scheduledId ?? null))
+      if (store.files.heldBySchedule(input.fileIds, input.scheduledId ?? null))
         throw new HttpError(
           409,
           "attachments_scheduled",
@@ -284,7 +284,7 @@ export function createPosting({
       });
       if (input.poll) store.polls.create(created.id, input.poll);
       if (
-        !store.attachFiles(
+        !store.files.attach(
           input.fileIds,
           created.id,
           input.channelId,
@@ -342,11 +342,11 @@ export function createPosting({
       requireThreadRoot(channel, input.threadRootId);
       if (
         new Set(input.fileIds).size !== input.fileIds.length ||
-        !store.unattachedFiles(input.fileIds, channel.id, input.userId)
+        !store.files.unattached(input.fileIds, channel.id, input.userId)
       ) {
         throw new HttpError(400, "invalid_attachments");
       }
-      if (store.filesHeldBySchedule(input.fileIds)) {
+      if (store.files.heldBySchedule(input.fileIds)) {
         throw new HttpError(
           409,
           "attachments_scheduled",

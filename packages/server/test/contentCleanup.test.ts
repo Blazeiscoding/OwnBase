@@ -175,7 +175,7 @@ describe("complete message content cleanup (N06/N07)", () => {
   });
 
   it("keeps completion identity without retaining sent text or files across edit/delete/retention", async () => {
-    const file = server.store.createFile({
+    const file = server.store.files.create({
       channelId: channel,
       userId: owner,
       name: "agenda.txt",

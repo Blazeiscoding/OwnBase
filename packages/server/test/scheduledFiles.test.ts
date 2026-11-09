@@ -139,7 +139,7 @@ describe("a file waiting in a scheduled message", () => {
   it("is not swept away as an abandoned upload", async () => {
     const file = await upload();
     await schedule({ text: "Later", fileIds: [file] });
-    expect(server!.store.abandonedFileIds(Date.now() + 1000)).not.toContain(file);
+    expect(server!.store.files.abandonedIds(Date.now() + 1000)).not.toContain(file);
   });
 });
 

@@ -264,7 +264,7 @@ describe("abandoned uploads", () => {
 
     expect(blobsOnDisk()).toHaveLength(0);
     expect((await usage()).usedBytes).toBe(0);
-    expect(server!.store.getFile(id)).toBeNull();
+    expect(server!.store.files.get(id)).toBeNull();
   });
 
   it("leaves an upload that was actually sent alone", async () => {

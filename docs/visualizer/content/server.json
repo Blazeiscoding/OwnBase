@@ -1333,6 +1333,27 @@
         "A ring nobody answered posts 'Missed huddle' as the caller, through the posting rules, so someone who can no longer post there leaves none."
       ],
       "concepts": ["huddles", "WebRTC", "feature module"]
+    },
+    {
+      "path": "packages/server/src/files/feature.ts",
+      "plain": "Lets people upload and download attachments, and removes the files nobody needs any more.",
+      "summary": "Upload, download, download-ticket, shared-files and storage routes, the blob removal queue and its timers.",
+      "details": [
+        "Uploads stream to disk under the storage budget; a picture's size is read from its header.",
+        "Downloads are checked again when a one-minute, single-use ticket is redeemed.",
+        "Blob removals go a page at a time and wait while a backup copies attachments (holdingRemovals); orphaned blobs are queued at startup and abandoned uploads are freed hourly."
+      ],
+      "concepts": ["attachments", "storage budget", "feature module"]
+    },
+    {
+      "path": "packages/server/src/files/store.ts",
+      "plain": "Saves attachments' details, download tickets and the list of files waiting to be removed.",
+      "summary": "FileStore: files rows, shared files, download tickets and the file deletion queue with its retry ladder.",
+      "details": [
+        "A file waiting for a scheduled message is never counted as abandoned.",
+        "A deletion that fails waits longer each time (DELETION_RETRY_MS); an id the server never gives is set aside for good."
+      ],
+      "concepts": ["attachments", "queries"]
     }
   ],
   "flows": [

@@ -53,7 +53,7 @@ beforeEach(async () => {
       body: JSON.stringify({ handle: "owner", displayName: "Owner", password: "password123" }),
     });
     const owner = (await response.json()) as { user: { id: string } };
-    fileId = server.store.createFile({
+    fileId = server.store.files.create({
       channelId: server.store.getChannelByName("general")!.id,
       userId: owner.user.id,
       name: "kept.txt",
