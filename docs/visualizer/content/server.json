@@ -1213,6 +1213,30 @@
       "summary": "poll.choices, heard only by the account's own devices.",
       "details": ["Spread into the event registry beside every other feature's events."],
       "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/saved/feature.ts",
+      "plain": "Lets people pin messages for a whole channel, and save messages for themselves.",
+      "summary": "Pin, unpin, list pins, save, unsave and list saved routes, and the saved ids part of the startup snapshot.",
+      "details": [
+        "Pinning needs the message to be readable; listing a channel's pins needs the channel to be.",
+        "Saved messages are an account's own: saving tells only its devices."
+      ],
+      "concepts": ["pins", "saved messages", "feature module"]
+    },
+    {
+      "path": "packages/server/src/saved/store.ts",
+      "plain": "Saves pins and saved messages, and pages through them.",
+      "summary": "SavedStore: the pins and saved_messages tables' queries.",
+      "details": ["Lists page by cursor and leave out what the reader can no longer see."],
+      "concepts": ["pins", "saved messages", "queries"]
+    },
+    {
+      "path": "packages/server/src/saved/events.ts",
+      "plain": "Says who hears about pins and saved messages.",
+      "summary": "pin.added and pin.removed, heard by the channel's readers and sent to apps; saved, heard by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
     }
   ],
   "flows": [

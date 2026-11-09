@@ -1,7 +1,7 @@
 import type { DurableRegistry, EphemeralRegistry } from "../events/registry.js";
 
 /**
- * The events of messages, reactions, pins and threads. `ts` in a Slack shape
+ * The events of messages, reactions and threads. `ts` in a Slack shape
  * is our message id: Slack treats it as opaque, and ours sorts the same way
  * theirs does.
  */
@@ -116,33 +116,9 @@ export const messageDurable = {
       }),
     },
   },
-  "pin.added": {
-    channel: (event) => event.channelId,
-    app: {
-      actor: (event) => event.userId,
-      slack: (event) => ({
-        type: "pin_added",
-        user: event.userId,
-        channel_id: event.channelId,
-        item: { type: "message", channel: event.channelId, ts: event.messageId },
-      }),
-    },
-  },
-  "pin.removed": {
-    channel: (event) => event.channelId,
-    app: {
-      actor: () => null,
-      slack: (event) => ({
-        type: "pin_removed",
-        channel_id: event.channelId,
-        item: { type: "message", channel: event.channelId, ts: event.messageId },
-      }),
-    },
-  },
 } satisfies Partial<DurableRegistry>;
 
 export const messageEphemeral = {
-  saved: "person",
   "thread.follow": "person",
   mentions: "person",
   scheduled: "person",

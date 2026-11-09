@@ -91,6 +91,7 @@ import { createRelaySource, serverRelaySchema, withRelay, type ServerRelay } fro
 import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
 import { iceServersSchema } from "./rtc.js";
+import { registerSaved } from "./saved/feature.js";
 import { StorageBudget } from "./storageBudget.js";
 import { Store } from "./store.js";
 import {
@@ -4455,48 +4456,7 @@ async function startWorkspaceServer(
     return { scheduled: store.getScheduled(scheduled.id)! };
   });
 
-  // ---------- pins & saved items ----------
-
-  route(endpoints.pinMessage, async ({ user: me, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    mutate((emit) => {
-      if (store.addPin(message.channelId, message.id, me.id)) {
-        emit({
-          type: "pin.added",
-          channelId: message.channelId,
-          messageId: message.id,
-          userId: me.id,
-        });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.unpinMessage, async ({ user: me, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    mutate((emit) => {
-      if (store.removePin(message.id)) {
-        emit({ type: "pin.removed", channelId: message.channelId, messageId: message.id });
-      }
-    });
-    return { ok: true };
-  });
-
-  route(endpoints.listPins, async ({ user: me, query, params }) => {
-    requireChannelAccess(params.id, me);
-    return store.listPins(params.id, query.limit, query.cursor);
-  });
-
-  route(endpoints.saveMessage, async ({ user: me, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    store.addSaved(me.id, message.id);
-    return { ok: true };
-  });
-
-  route(endpoints.unsaveMessage, async ({ user: me, params }) => {
-    store.removeSaved(me.id, params.id);
-    return { ok: true };
-  });
+  const saved = registerSaved(ctx);
 
   route(endpoints.setChannelPrefs, async ({ user: me, body, params }) => {
     const channel = requireChannelAccess(params.id, me);
@@ -4599,10 +4559,6 @@ async function startWorkspaceServer(
     return { messages: store.latestDirectMessages(me.id) };
   });
 
-  route(endpoints.listSaved, async ({ user: me, query }) => {
-    return store.listSaved(me.id, query.limit, query.cursor);
-  });
-
   // ---------- invites & search ----------
 
   route(endpoints.createInvite, async ({ user: me, body }) => {
@@ -4703,11 +4659,11 @@ async function startWorkspaceServer(
   gateway.useSnapshot((user) => ({
     ...reminders.snapshot(user),
     ...polls.snapshot(user),
+    ...saved.snapshot(user),
     users: store.listUsers(),
     channels: store.listChannelsVisibleTo(user.id),
     memberships: store.memberships(user.id),
     channelLastSeq: store.channelLastSeqMap(user.id),
-    savedMessageIds: store.savedMessageIds(user.id),
     threadFollows: store.threadFollows(user.id),
     mentionCounts: store.unreadMentionCounts(user.id),
     channelRemovals: store.channelRemovals(user.id),
