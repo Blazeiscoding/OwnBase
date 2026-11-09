@@ -1322,6 +1322,17 @@
         "Activity reads mentions from message_mentions by the same rule as the badges (core/sqlRules.ts)."
       ],
       "concepts": ["search", "FTS", "queries"]
+    },
+    {
+      "path": "packages/server/src/huddles/feature.ts",
+      "plain": "Gives calls the servers they connect through, keeps the call log, and leaves a note when a call is missed.",
+      "summary": "Huddles' HTTP side: ICE/TURN configuration, the call log and the missed-call note; joining and ringing travel over the socket.",
+      "details": [
+        "rtcConfig gives the host's STUN/TURN servers plus a relay password for this member, never the relay's API token or shared secret.",
+        "The host can replace the ICE servers or the relay while running; a refused relay leaves the old one.",
+        "A ring nobody answered posts 'Missed huddle' as the caller, through the posting rules, so someone who can no longer post there leaves none."
+      ],
+      "concepts": ["huddles", "WebRTC", "feature module"]
     }
   ],
   "flows": [

@@ -66,6 +66,7 @@ import { openDb, SCHEMA_VERSION } from "./db.js";
 import type { ServerExtension } from "./extensions.js";
 import { Gateway } from "./gateway.js";
 import { HttpError } from "./httpError.js";
+import { registerHuddles } from "./huddles/feature.js";
 import { secretToken, ulid } from "./ids.js";
 import { imageSize } from "./imageSize.js";
 import { signatureHeaders } from "./integrations.js";
@@ -82,10 +83,9 @@ import { createPosting, requireMessageText, slackRefusal } from "./messages/post
 import { OutboundError, postToUrl } from "./outbound.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
 import { registerPolls } from "./polls/feature.js";
-import { createRelaySource, serverRelaySchema, withRelay, type ServerRelay } from "./relay.js";
+import { serverRelaySchema, type ServerRelay } from "./relay.js";
 import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
-import { iceServersSchema } from "./rtc.js";
 import { registerSaved } from "./saved/feature.js";
 import { registerScheduled, SCHEDULED_LIMITS } from "./scheduled/feature.js";
 import { registerSearch } from "./search/feature.js";
@@ -104,9 +104,6 @@ import { WorkspaceCopies } from "./workspaceCopy.js";
 import { checkIcon, ICON_META_KEYS, storedIconRows, type WorkspaceIcon } from "./workspaceIcon.js";
 
 export { SERVER_VERSION };
-
-/** What a missed call's note says, to older clients, search and notifications too (E10). */
-const MISSED_CALL_TEXT = "Missed huddle";
 
 /** How long the second step of signing in waits for its code (E11). */
 const TWO_STEP_CHALLENGE_MS = 5 * 60_000;
@@ -504,14 +501,8 @@ async function startWorkspaceServer(
   if (opts.accessPolicy !== undefined && !isAccessPolicy(opts.accessPolicy))
     throw new TypeError(`accessPolicy must be one of ${ACCESS_POLICIES}`);
   const network = new Network(opts);
-  let iceServers = opts.iceServers ?? [];
-  const relaySource = (relay: ServerRelay | null) =>
-    createRelaySource(relay === null ? null : serverRelaySchema.parse(relay), {
-      // The reason only: the request carried the API token.
-      onError: (error) =>
-        app.log.warn({ reason: error.message }, "the call relay gave no password"),
-    });
-  let relay = relaySource(opts.relay ?? null);
+  // Before the database opens, so a refused relay leaves nothing open in the folder.
+  if (opts.relay) serverRelaySchema.parse(opts.relay);
   const scheduled = opts.isolated ? undefined : opts.scheduledBackups;
   if (scheduled) {
     if (opts.dataDir === ":memory:")
@@ -690,7 +681,7 @@ async function startWorkspaceServer(
       huddleGraceMs: opts.huddleGraceMs,
       huddleRingMs: opts.huddleRingMs,
       // Rung only once the server is up, by which time the note can be posted.
-      missedCall: (channelId, callerId) => postMissedCall(channelId, callerId),
+      missedCall: (channelId, callerId) => huddles.postMissedCall(channelId, callerId),
     },
   );
 
@@ -994,26 +985,7 @@ async function startWorkspaceServer(
 
   const posting = createPosting({ store, mutate, ration, queuePreviews, scheduledLimits });
 
-  /**
-   * The note a ring nobody answered leaves in its direct message, as from the
-   * person who rang (E10). One who can no longer post there, deactivated or
-   * gone from it, leaves none: posting refuses it as it would them.
-   */
-  const postMissedCall = (channelId: ID, callerId: ID): void => {
-    try {
-      posting.post({
-        poster: { kind: "person", userId: callerId },
-        channelId,
-        text: MISSED_CALL_TEXT,
-        threadRootId: null,
-        nonce: null,
-        fileIds: [],
-        call: { kind: "missed" },
-      });
-    } catch (err) {
-      if (!(err instanceof HttpError)) throw err;
-    }
-  };
+  const huddles = registerHuddles(ctx, { posting });
 
   // Uploads live beside the database so one folder is the whole workspace.
   const filesDir = opts.dataDir === ":memory:" ? null : join(opts.dataDir, "files");
@@ -1236,11 +1208,6 @@ async function startWorkspaceServer(
     db.prepare("SELECT 1").get();
     reply.header("Cache-Control", "no-store");
     return { status: "ok", instanceId };
-  });
-
-  route(endpoints.rtcConfig, async ({ reply, user }) => {
-    reply.header("Cache-Control", "no-store");
-    return { iceServers: withRelay(iceServers, await relay.servers(user.id)) };
   });
 
   // Bound simultaneous password derivations; each scrypt job uses substantial
@@ -2678,11 +2645,6 @@ async function startWorkspaceServer(
         `attachment; filename="workspace-${day}.zip"; filename*=UTF-8''${encodeURIComponent(name)}`,
       )
       .send(zip.stream);
-  });
-
-  route(endpoints.callLog, async ({ reply, user: me }) => {
-    reply.header("Cache-Control", "no-store");
-    return { entries: gateway.calls.entries((channelId) => store.canAccess(channelId, me.id)) };
   });
 
   /** A handle for the app's bot user that cannot collide with a person's. */
@@ -4881,14 +4843,9 @@ async function startWorkspaceServer(
     flushEventDeliveries,
     setPublicUrl: (url) => network.setPublicUrl(url),
     setTrustLoopbackProxy: (enabled) => network.setTrustLoopbackProxy(enabled),
-    setIceServers: (servers) => {
-      iceServers = iceServersSchema.parse(servers);
-    },
-    setRelay: (next) => {
-      // Parsed before anything changes, so a refused relay leaves the old one.
-      relay = relaySource(next);
-    },
-    relayError: () => relay.error(),
+    setIceServers: (servers) => huddles.setIceServers(servers),
+    setRelay: (next) => huddles.setRelay(next),
+    relayError: () => huddles.relayError(),
     inviteOnly,
     setInviteOnly: (value) => {
       if (typeof value !== "boolean") throw new TypeError("inviteOnly must be a boolean");
