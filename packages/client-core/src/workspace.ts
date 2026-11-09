@@ -1651,8 +1651,8 @@ export class WorkspaceClient {
       return { ok: false, message: "This form is no longer available." };
     const result = await this.api.submitView(modal.id, values);
     // The server names what closed: none when the app changed the form or
-    // stacked another on it. Only ever closing keeps a late answer from
-    // reopening one.
+    // stacked another on it. One from before stacks names nothing, and the
+    // form closes. Only ever closing keeps a late answer from reopening one.
     if (result.ok) this.forgetModals(result.closedViewIds ?? [modal.id]);
     return result;
   }
