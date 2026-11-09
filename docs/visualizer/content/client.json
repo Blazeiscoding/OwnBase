@@ -391,7 +391,7 @@
         "The Session union distinguishes loading, failed restore, joining and a connected workspace. Startup strictly parses saved credentials; a corrupt or unavailable store offers retry instead of turning saved sign-ins into an empty list.",
         "Opening a workspace destroys the previous WorkspaceClient, creates a fresh one, connects it, and records the last-use ordering. Deep links can target an already open workspace or carry a pending message target through sign-in.",
         "Appearance, error boundaries, confirmations and toast providers wrap the app. JoinScreen and the desktop-only HostDialog load on demand rather than adding to every returning user's initial download.",
-        "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through inviteAsk, a number that changes with each ask, so a new session does not take an old ask for a new one. The line's onManage can name the internet tab, which HostDialog opens on (initialSection); the welcome step's Share on the internet asks for it.",
+        "Invite people in Manage hosting closes it and asks the workspace on screen to open its invite dialog through that workspace's navigation (navigationOf). The line's onManage can name the internet tab, which HostDialog opens on (initialSection); the welcome step's Share on the internet asks for it.",
         "Navigation and save versions fence several stale completions inside this window. Since Q05 every change to the saved sign-ins is one read-change-write turn against the stored list, queued in this window and held under a Web Lock across tabs where the browser has one. A sign-in this window held that is no longer stored is not written back. Each change is data (SignInChange: use, forget or signOut), and where the platform has changeSignIns, as the web one does, the store makes it in one step. That is what keeps tabs from losing each other's changes over plain http, where browsers give no Web Lock.",
         "Sign-ins this device could not save (the key-store bar, with Retry saving) show across the top of the window outside a workspace; in one they take their turn in its banner place (UX-25). App also works out this computer's hosting line (hosting, starting, stopping or what is wrong, with Manage) and hands it to the workspace's sidebar, in place of the bar that ran along the bottom of the window.",
         "It tells the workspace screen when this computer hosts the workspace on screen (hostedHere), so Workspace settings can say Manage hosting shows the same rule for who may join. The workspace on screen counts as the hosted one at any address this computer serves it on: localhost, an address on the network as On your network offers it, or the one it is open to all on. There the hosting line reads Hosting here, which fits beside Manage, and Manage hosting offers Invite people.",
@@ -433,28 +433,12 @@
     {
       "path": "packages/ui/src/screens/WorkspaceScreen.tsx",
       "plain": "The main workspace screen, which puts the sidebar, the conversation, side panels, dialogs and calls together.",
-      "summary": "Assembles conversation navigation, panels, dialogs, calls and notifications.",
+      "summary": "Lays out the sidebar, the conversation, the call, banners, panels and dialogs from the navigation store.",
       "details": [
-        "Provides the active client and gates account-local consumers through WorkspaceStorageGate. The central conversation combines Sidebar, MessageTimeline, Composer and an optional thread, members or utility panel.",
-        "Only one side panel is selected at a time. Persistent places such as channels, threads, saved panels and account sections map to route/history state; transient forms and pickers stay component state.",
-        "The screen tracks what is truly visible and focused when deciding notifications and read acknowledgement. Missed messages are grouped through CatchUpSummary, and live messages can be announced politely to a screen reader.",
-        "Admin dialogs, search, scheduling, profile forms, the keyboard shortcuts list and the call use lazy imports with recoverable wrappers. The Ctrl+K palette and search are lazy too, but fetched as the screen opens and then drawn directly, so words typed straight after Ctrl+K or the header's search never meet a loading state (search lost them until X2). The thread panel is drawn the same way. Getting started is in the main bundle, since a lazy chunk always arrives after the sidebar it sits in (X1). These wrappers choose the lazy or the direct form once per opening, because swapping when the download lands would start the view over. Responsive layout uses a navigation drawer and panel isolation on smaller screens.",
-        "N04 routes the Getting started huddle action through the same preference-aware join path as the header, with a stillWanted guard for changed or unmounted navigation. The Q report separately identifies remaining search, Pins and Profile lifetime issues.",
-        "The conversation's header (UX-23) has the name and topic, which open the details, then a search field that opens search on this conversation (a magnifier alone on a phone), then three controls: the members' faces with a count, Huddle, and a ⋯ menu with Pinned messages, Notification settings (for a member) and the details. A slim line under it says how many messages are pinned. Ctrl+F and Jump to search the whole workspace.",
-        "Under the header and the pinned line is one banner place (UX-25), showing one banner at a time, the most pressing: a conversation or message that could not be opened (with Dismiss), then a banner handed in from outside, such as sign-ins this device could not save, then the ask to turn on notifications, then Opening message…, which waits while the ask is on show. Connection state stays in the sidebar, under the workspace's name, and so does this computer's hosting.",
-        "On the web client it adds PhoneNavigation, the phone's bottom bar with Home, DMs, Activity and You, the swipe from the left edge that opens the drawer, and the keyboard handling (UX-70, UX-71). The bar's DMs opens a dms side panel, DirectMessagesPanel, which loads on first use like the others and has an address.",
-        "Workspace settings (UX-60) opens from the workspace menu and the Ctrl+K palette for the owner and admins, has the address /d/workspace, loads on first use with People and Apps, and closes for anyone else once the account is known.",
-        "In the desktop app hostingEntry, from App, puts this computer's hosting in the workspace menu and the Ctrl+K palette for everyone, before the other workspaces: Host a workspace while nothing is hosted, Manage hosting once something is, and in the palette Share on the internet as well, which opens Manage hosting on that tab. Before, it was reached only from the hosting line under the workspace's name, which is there only while hosting, or from the join screen.",
-        "While the phone drawer is open, or a side panel covers the conversation below 1024 px, what main holds goes inert: out of the Tab order and the screen reader's reading. The main element itself stays outside that inert box, so the page always keeps one main landmark (axe's landmark-one-main reported none while main itself was inert).",
-        "Runs useRememberWorkspaceIcon, so the saved workspaces show this one's icon while its server is off (UX-60).",
-        "The phone drawer's button carries a small Badge: a red count of mentions elsewhere, capped at 99+, or a quiet dot for unread conversations, said in words as the button's description.",
-        "A reminder come due raises a notification wherever the person is looking, worded by reminderContent under this device's preview choice, unless Do Not Disturb is on; it opens the message (E4).",
-        "A huddle shows as the call or the chat (useHuddleView). The call takes the conversation's column: from 1280 px wide the chat sits beside it in a column of its own, which the call's Chat button hides for the session; narrower, or hidden, the call covers the chat, which stays mounted and inert. The timeline, the huddle bar, the jump bar and the composer are one column whatever the view, so the timeline keeps its place. Opening another conversation while the call covers the chat shows that conversation.",
-        "The Drafts panel (E5) is a side panel of its own, from the sidebar, the palette and its route. openDraft opens a draft where it was written: the conversation, the thread, the message with its editor (requestEdit, then a jump), or Scheduled with that edit open.",
-        "Files (E7) opens FilesPanel, a lazy chunk, from the palette, the address and a conversation's menu, which starts it in that conversation, where the server lists shared files; Show in conversation goes through jumpToMessage, so a reply opens its thread.",
-        "useIdleReport says when this window goes idle (E9), and a direct message's header ends with PartnerTime.",
-        "IncomingCall (E10) loads only while a ring rings this account, and opens the conversation through openChannel when answered; its notification follows this device's preview choice and account tag.",
-        "Reported messages is an admins' dialog with its own address, like People; a one-to-one DM with someone blocked gets BlockedComposer in place of the composer, and leaves the navigation toggle's unread (E12)."
+        "Provides the client, the workspace shell (platform, other workspaces, hosting, ways out) and the navigation store for the life of the screen; the store follows the address and Back and Forward itself.",
+        "Picks where to be when nothing says (the last conversation, or #general) and moves away from a conversation this account lost, naming it and pointing to Drafts.",
+        "Measures what covers the conversation (a side panel on a narrow window, the call) into the store, which decides with one rule what is in view and what is being read; notifications start from lib/notifications.ts with that rule.",
+        "Getting started is in the main bundle, since a lazy chunk always arrives after the sidebar it sits in (X1). The Ctrl+K palette, search and the thread panel are fetched as the screen opens (workspaceViews.tsx)."
       ],
       "concepts": [
         "screen orchestration",
@@ -470,6 +454,85 @@
         "UX-70",
         "UX-60"
       ]
+    },
+    {
+      "path": "packages/ui/src/lib/navigation.ts",
+      "plain": "Where the workspace screen is: the conversation, the panel beside it, the dialog over it and the phone's drawer, and the history behind them.",
+      "summary": "The Navigation store, navigate(intent), and the one rule for what is on screen.",
+      "details": [
+        "Every move goes through navigate(intent): a conversation, a message (a jump that loads its history), a thread, a panel, a dialog, the drawer, a draft. A newer move cancels a slower jump still loading.",
+        "After each change it writes the address and the history entry itself: a new place is a step, a dialog or the drawer opened over the same place is a step that closing goes Back through, and a place the screen moved to on its own rewrites the entry. Back and Forward set the state from the entry they land on.",
+        "inView and reading say what of the conversation and thread is on screen and being read; onScreen judges a message with them for notifications. App reaches the open workspace's store with navigationOf(client), as Manage hosting does to open Invite people."
+      ],
+      "concepts": ["navigation", "history"]
+    },
+    {
+      "path": "packages/ui/src/screens/workspaceViews.tsx",
+      "plain": "Every side panel and dialog of the workspace screen, each with how it is drawn and who may open it.",
+      "summary": "The PANELS and DIALOGS registries, SidePanel and OpenDialog.",
+      "details": [
+        "Adding a panel or dialog is its entry here (and its kind in navigation.ts). An entry says what it needs (an open conversation), whether this account may open it (allowed), and draws it in its loading frame.",
+        "A dialog this account may not open is never drawn, and one an address names closes once the account is known; one taken away while open, by another admin, says why it closed.",
+        "The Ctrl+K palette, search and the thread panel load as the workspace opens and are then drawn directly, so what is typed straight after Ctrl+K never meets a loading state."
+      ],
+      "concepts": ["navigation", "dialogs"]
+    },
+    {
+      "path": "packages/ui/src/lib/actions.ts",
+      "plain": "Every workspace-wide action and global key, each declared once, which the menus, Ctrl+K, the phone's account sheet, the keyboard and the shortcut list are made from.",
+      "summary": "ACTIONS with available() and run(), the menu and palette lists, KEY_BINDINGS and useGlobalKeys.",
+      "details": [
+        "An action has an id, a label, an icon, Ctrl+K's other words, available(ctx) (from client-core's selectors) and run(ctx). WORKSPACE_MENU, ACCOUNT_MENU and PALETTE list ids in their order; menuItems and paletteCommands keep those this account may use.",
+        "KEY_BINDINGS are the global keys in the shortcut list's order; useGlobalKeys runs the first that matches a key the page may act on (lib/keys.ts), and a binding tied to an action shows its key on that action's menu item and Ctrl+K row.",
+        "Alt+Up/Down walk the sidebar's order from lib/sidebarLayout.ts, not its DOM."
+      ],
+      "concepts": ["keyboard", "menus"]
+    },
+    {
+      "path": "packages/ui/src/lib/messageActions.ts",
+      "plain": "Every action on a message, declared once, for its toolbar, its More menu, the touch sheet, its keys and the shortcut list.",
+      "summary": "MESSAGE_ACTIONS, the toolbar's ids, moreItems, touchItems, keyAction and messageKeys.",
+      "details": [
+        "Each action reads one MessageActionContext the row builds (what it may do, and what each does). The toolbar, More and the touch sheet each list ids in their order; the touch sheet names no keys, having none."
+      ],
+      "concepts": ["messages", "keyboard"]
+    },
+    {
+      "path": "packages/ui/src/lib/notifications.ts",
+      "plain": "Desktop notifications for messages and reminders, and the summary after a reconnect.",
+      "summary": "startNotifications subscribes to the client's message, messageDeleted and reminderDue events.",
+      "details": [
+        "A message on screen here (Navigation.onScreen) or in another focused window of this account is not news. The rest is judged by client-core's decideNotification; live ones notify at once, caught-up ones are held by CatchUpSummary and told once.",
+        "It also reads what reaches the conversation on screen to a screen reader, and a click on a notification opens its message through the same jump links use."
+      ],
+      "concepts": ["notifications"]
+    },
+    {
+      "path": "packages/ui/src/lib/sidebarLayout.ts",
+      "plain": "The sidebar's conversations in the groups and order it draws them, and which sections are folded.",
+      "summary": "sidebarGroups, sidebarRows, neighbourConversation and the collapsed-sections store.",
+      "details": [
+        "Starred, then this account's sections, then channels by name and direct messages by latest message; blocked and closed direct messages leave. A folded section still shows the open conversation and what waits."
+      ],
+      "concepts": ["sidebar", "keyboard"]
+    },
+    {
+      "path": "packages/ui/src/lib/keys.ts",
+      "plain": "The shared rules for keys and focus: whether a key is the page's to act on, window key listeners, and focus after a render.",
+      "summary": "pageKey, useWindowKeys and useFocusAfterRender.",
+      "details": [
+        "pageKey turns down a key already used, one an input method is assembling a word with, and one under an open dialog, which owns its keys."
+      ],
+      "concepts": ["keyboard", "focus"]
+    },
+    {
+      "path": "packages/ui/src/lib/workspaceShell.ts",
+      "plain": "What the app around a workspace gives it: the platform, the other saved workspaces, this computer's hosting and the ways out.",
+      "summary": "WorkspaceShell and its context.",
+      "details": [
+        "Read by the sidebar, the actions and the dialogs instead of being passed down as props."
+      ],
+      "concepts": ["navigation"]
     },
     {
       "path": "packages/ui/src/theme.css",
@@ -1550,6 +1613,7 @@
       "plain": "Shows one message with its author, time, text, files and reactions, plus the actions you are allowed to take.",
       "summary": "Renders one message and its authorized actions with narrow replica subscriptions.",
       "details": [
+        "Its toolbar, More menu, touch sheet and keys come from one list of message actions (lib/messageActions.ts), read through one context the row builds.",
         "The memoized row renders author, timestamps, mrkdwn, files, reactions, thread affordances and app buttons. useMessageReferences tracks only referenced users/channels, and self identity/role controls relevant actions.",
         "Reaction, pin and saved toggles report refused optimistic changes through a toast with a repeatable intent. Delete uses an explicit confirmation; mark unread delegates channel or thread cursor behavior to the client.",
         "Copying text/link waits for clipboard outcome. App link buttons navigate normally while interactive buttons call the app through the server and wait for its result; permissions remain enforced by the server.",
@@ -1908,7 +1972,7 @@
       "summary": "Combines workspace switching, conversation navigation, unread context and account actions.",
       "details": [
         "A compact workspace rail and workspace menu expose remembered workspaces without presenting saved tokens to the visible navigation.",
-        "Channel and DM rows show unread/muted/activity state and choose destinations supplied by the workspace screen. Admin actions appear only where the current account can use them.",
+        "Channel and DM rows show unread/muted/activity state and open places through the navigation store. Its menus are made from the action registry (lib/actions.ts), so an action shows only where this account may use it; it takes one prop, the owner's Getting started.",
         "Snooze controls compute actual resume times and use the client's latest-choice behavior. Menu grouping saves vertical space so short windows retain room for conversations.",
         "A guest's sidebar leaves out Friends, Scheduled, New channel and direct messages, says Guest under the name, and offers Create an account in place of invites and account settings. Once the guest has posted, KeepAccountOffer sits above the account panel (UX-44).",
         "A channel's row ends with Discord's two buttons while it is pointed at or holds the keyboard: invite and settings. On a touchscreen, which cannot point, the open conversation's row shows them all the time; with a pointer it does not, so its name is not cut short. Invite on a public channel opens the workspace's invite, since everyone in the workspace is in every public channel, and only for someone who may invite; on a private one it is Add people, which opens the channel's Members tab, for someone channelPermissions lets invite. The gear opens the channel's details, opening the channel first if it is not the one on screen. The buttons sit beside the row's button, not in it, and on a touchscreen show on the open channel only.",
@@ -2555,6 +2619,7 @@
       "plain": "A searchable list of keyboard shortcuts that follows your Enter to send setting.",
       "summary": "Lists and filters keyboard shortcuts using the current composing preference.",
       "details": [
+        "Getting around, Huddles and the message keys come from the key and message-action registries (KEY_BINDINGS, messageKeys), so the list names what the keys do; the writing keys are the composer's, listed here.",
         "Writing-key descriptions change with Enter-to-send so the help reflects active behavior.",
         "A query matches words across keys and explanations, exposing navigation, message, formatting and call shortcuts without requiring the reader to memorize them.",
         "Each key is drawn with the shared Kbd keycap."
@@ -2913,15 +2978,6 @@
         "While files upload it offers Cancel, which discards the send."
       ],
       "concepts": ["outbox", "offline"]
-    },
-    {
-      "path": "packages/ui/src/lib/conversationKeys.ts",
-      "plain": "Finds the conversation above or below the open one in the sidebar, for Alt+Up and Alt+Down.",
-      "summary": "neighbourConversation walks the sidebar's rows as drawn.",
-      "details": [
-        "Reads the rows' data-conversation in DOM order, so starred, sections, folded categories and direct messages are walked as the person sees them. With unreadOnly it stops only at rows marked data-unread (Alt+Shift)."
-      ],
-      "concepts": ["keyboard", "sidebar"]
     },
     {
       "path": "packages/ui/src/lib/dismissGuard.ts",
