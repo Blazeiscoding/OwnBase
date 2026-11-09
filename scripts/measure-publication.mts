@@ -195,16 +195,16 @@ async function appPosting(subscriptions: number) {
       creatorId: owner!.id,
       memberIds: [owner!.id],
     });
-    const bot = server.store.createBotUser("bot-measured", "measured", "", "");
+    const bot = server.store.apps.createBotUser("bot-measured", "measured", "", "");
     server.store.addMember(general.id, bot.id);
-    const app = server.store.createApp({
+    const app = server.store.apps.create({
       name: "measured",
       botUserId: bot.id,
       createdBy: owner!.id,
       signingSecret: "measurement-signing-secret-not-a-credential",
     });
     for (let i = 0; i < subscriptions; i++)
-      server.store.createSubscription({
+      server.store.apps.createSubscription({
         appId: app.id,
         url: `https://example.invalid/${i}`,
         eventTypes: [],
