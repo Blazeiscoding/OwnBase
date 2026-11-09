@@ -3,13 +3,7 @@ import { flagOrEnv, flagsHelp, parseArgsOptions } from "./flags.js";
 import { networkInterfaces } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import {
-  ACCESS_POLICIES,
-  DEFAULT_PORT,
-  type AccessPolicy,
-  type MemberNotice,
-} from "@ownbase/protocol";
+import { ACCESS_POLICIES, type AccessPolicy, type MemberNotice } from "@ownbase/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "../server.js";
 import {
   backupWorkspace,

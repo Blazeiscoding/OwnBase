@@ -44,19 +44,8 @@ export function registerAccounts(
     iconVersion,
   }: { joinPublicChannels: Channels["joinPublicChannels"]; iconVersion: () => string | null },
 ) {
-  const {
-    opts,
-    app,
-    store,
-    settings,
-    gateway,
-    route,
-    requireUser,
-    ration,
-    mutate,
-    network,
-    limiter,
-  } = ctx;
+  const { opts, store, settings, gateway, route, requireUser, ration, mutate, network, limiter } =
+    ctx;
   const extensions = opts.extensions ?? [];
 
   /**
