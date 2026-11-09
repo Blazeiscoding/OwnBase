@@ -242,7 +242,8 @@ describe("complete message content cleanup (N06/N07)", () => {
     try {
       db = openDbAtVersion(path, 36);
       const store = new Store(db);
-      // A v36 users row lacks columns today's people store reads back.
+      // A v36 account has none of the profile columns added since, so it is
+      // written as v36 wrote it rather than through today's store.
       const user = { id: ulid() };
       db.prepare(
         `INSERT INTO users (id, handle, display_name, password_hash, salt, role, created_at)
