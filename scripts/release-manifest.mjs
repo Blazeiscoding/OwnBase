@@ -34,7 +34,6 @@ export const PUBLISHED = {
   desktop: { kind: "Windows installer", file: /Setup[^/]*\.exe$/ },
   mac: { kind: "Mac disk image", file: /^OwnBase-[^/]+-universal\.dmg$/ },
 };
-/** Hex SHA-256 of a file. */
 export function sha256(path) {
   return createHash("sha256").update(readFileSync(path)).digest("hex");
 }
