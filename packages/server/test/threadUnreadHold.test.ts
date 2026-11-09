@@ -72,7 +72,7 @@ async function surfaces(replyId: string) {
     mentions: server.store.unreadMentionCounts(reader.id)[general] ?? 0,
     inActivity: activity.body.messages.some((m: { id: string }) => m.id === replyId),
     followedUnread: followed.body.threads.length,
-    badge: server.store.unreadThreadCount(reader.id),
+    badge: server.store.threads.unreadCount(reader.id),
   };
 }
 const unread = { mentions: 1, inActivity: true, followedUnread: 1, badge: 1 };
@@ -125,7 +125,7 @@ describe("a thread marked unread at a reply already read in the channel", () => 
     const later = await post("something new in the channel");
     await readChannel(later.seq);
     expect(await surfaces(reply.id)).toEqual(read);
-    expect(server.store.threadFollow(reader.id, root.id)?.unreadHold).toBeUndefined();
+    expect(server.store.threads.follow(reader.id, root.id)?.unreadHold).toBeUndefined();
   });
 
   it("leaves a quiet reply read only through its thread", async () => {

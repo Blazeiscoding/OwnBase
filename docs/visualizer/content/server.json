@@ -1265,6 +1265,43 @@
       "summary": "scheduled, heard by the author's own devices.",
       "details": ["Spread into the event registry beside every other feature's events."],
       "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/threads/feature.ts",
+      "plain": "Shows a thread's replies, and lets people follow, mute and mark threads read or unread.",
+      "summary": "Thread history, follow, mute, read, unread and followed-threads routes, and the thread follows part of the startup snapshot.",
+      "details": [
+        "Only a thread's root can be followed, muted or read; a root the caller cannot read is a 404.",
+        "Replying follows a thread automatically, in the message.created event's effects, so every way a reply is written does it."
+      ],
+      "concepts": ["threads", "feature module"]
+    },
+    {
+      "path": "packages/server/src/threads/store.ts",
+      "plain": "Saves who follows each thread and how far they have read it.",
+      "summary": "ThreadStore: thread history, thread_follows rows, followers, unread counts and the Threads list.",
+      "details": [
+        "A follow's revision orders its changes, so a device applies only the newest.",
+        "A reply seen in the channel counts as read in its thread too, unless the thread was marked unread since (READ_IN_CHANNEL)."
+      ],
+      "concepts": ["threads", "queries"]
+    },
+    {
+      "path": "packages/server/src/threads/events.ts",
+      "plain": "Says who hears about a person following or reading a thread.",
+      "summary": "thread.follow, heard by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/core/sqlRules.ts",
+      "plain": "The few database rules several features share, like what counts as unread or as a mention.",
+      "summary": "SQL fragments for unread, read-in-channel, mentions, blocked authors, guests and the channel timeline.",
+      "details": [
+        "One definition each, so a badge count can never disagree with the list it opens.",
+        "The client's isMessageRead is the same rule as UNREAD."
+      ],
+      "concepts": ["unread", "mentions", "shared rules"]
     }
   ],
   "flows": [

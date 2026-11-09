@@ -93,6 +93,7 @@ import { registerSaved } from "./saved/feature.js";
 import { registerScheduled, SCHEDULED_LIMITS } from "./scheduled/feature.js";
 import { StorageBudget } from "./storageBudget.js";
 import { Store } from "./store.js";
+import { registerThreads } from "./threads/feature.js";
 import {
   checkCode,
   newRecoveryCodes,
@@ -1210,7 +1211,7 @@ async function startWorkspaceServer(
    */
   /** Deletes a message, its thread's replies with it, and their files, within `mutate`. */
   const removeMessageWithin = (existing: Message, emit: typeof recordEvent): void => {
-    const replies = existing.threadRootId === null ? store.threadReplyIds(existing.id) : [];
+    const replies = existing.threadRootId === null ? store.threads.replyIds(existing.id) : [];
     const doomed = [
       ...replies.map((id) => ({ id, threadRootId: existing.id as ID | null })),
       { id: existing.id, threadRootId: existing.threadRootId },
@@ -2075,22 +2076,7 @@ async function startWorkspaceServer(
 
   // ---------- messages ----------
 
-  route(endpoints.threadHistory, async ({ user: me, query, params }) => {
-    requireChannelAccess(params.id, me);
-    const root = store.getMessage(params.rootId);
-    if (!root || root.channelId !== params.id || root.threadRootId)
-      throw new HttpError(404, "thread_not_found");
-    if (query.around) {
-      const target = store.getMessage(query.around);
-      if (!target || target.channelId !== root.channelId || target.threadRootId !== root.id)
-        throw new HttpError(404, "message_not_found");
-    }
-    return {
-      root,
-      ...store.threadHistory(root.channelId, root.id, query),
-      seq: store.currentSeq(),
-    };
-  });
+  const threads = registerThreads(ctx);
 
   route(endpoints.listMessages, async ({ user: me, query: q, params }) => {
     requireChannelAccess(params.id, me);
@@ -4437,46 +4423,6 @@ async function startWorkspaceServer(
     return { sections: store.sidebarSections(me.id) };
   });
 
-  route(endpoints.setThreadFollow, async ({ user: me, body, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const state = store.setThreadFollow(me.id, message.id, body.following);
-    if (!state) throw new HttpError(404, "message_not_found");
-    return { state };
-  });
-
-  route(endpoints.setThreadMute, async ({ user: me, body, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const state = store.setThreadMute(me.id, message.id, body.muted);
-    if (!state) throw new HttpError(404, "message_not_found");
-    return { state };
-  });
-
-  route(endpoints.markThreadRead, async ({ user: me, body, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const state = store.markThreadRead(me.id, message.id, body.seq);
-    if (!state) throw new HttpError(404, "message_not_found");
-    return { state };
-  });
-
-  route(endpoints.markThreadUnread, async ({ user: me, body, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    if (message.threadRootId) throw new HttpError(400, "not_a_thread_root");
-    const { seq } = body;
-    const state = store.markThreadUnread(me.id, message.id, seq);
-    if (!state) {
-      if (!store.threadFollow(me.id, message.id)) throw new HttpError(404, "message_not_found");
-      throw new HttpError(400, "invalid_unread_target");
-    }
-    return { state };
-  });
-
-  route(endpoints.listFollowedThreads, async ({ user: me, query }) => {
-    return store.followedThreads(me.id, query.limit, query.cursor, query.unreadOnly === "true");
-  });
-
   route(endpoints.latestDirectMessages, async ({ user: me }) => {
     return { messages: store.latestDirectMessages(me.id) };
   });
@@ -4582,11 +4528,11 @@ async function startWorkspaceServer(
     ...reminders.snapshot(user),
     ...polls.snapshot(user),
     ...saved.snapshot(user),
+    ...threads.snapshot(user),
     users: store.listUsers(),
     channels: store.listChannelsVisibleTo(user.id),
     memberships: store.memberships(user.id),
     channelLastSeq: store.channelLastSeqMap(user.id),
-    threadFollows: store.threadFollows(user.id),
     mentionCounts: store.unreadMentionCounts(user.id),
     channelRemovals: store.channelRemovals(user.id),
     sidebarSections: store.sidebarSections(user.id),

@@ -358,7 +358,7 @@ describe("thread following", () => {
       ),
     ).toBe(false);
     tellPerson.mockRestore();
-    const state = server.store.threadFollow(owner.id, root.id);
+    const state = server.store.threads.follow(owner.id, root.id);
     expect(state?.lastReadSeq).toBe(first.seq);
     expect(state?.following).toBe(true);
   });
@@ -824,7 +824,7 @@ describe("one read rule for a channel and its threads", () => {
     expect(await unread()).toEqual([`over to you <@${owner.id}>`]);
     expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
     expect(await followed()).toEqual([{ root: "Owner's question", unread: 1 }]);
-    expect(server.store.unreadThreadCount(owner.id)).toBe(1);
+    expect(server.store.threads.unreadCount(owner.id)).toBe(1);
   });
 
   it("reads a reply also sent to the channel there, and in its thread as far as nothing comes first", async () => {
@@ -846,7 +846,7 @@ describe("one read rule for a channel and its threads", () => {
     // The one shown in the channel is read; the one before it is not.
     expect(await unread()).toEqual(["only here"]);
     expect(await followed()).toEqual([{ root: "Release notes", unread: 1 }]);
-    expect(server.store.threadFollow(owner.id, root.id)!.lastReadSeq).toBe(first.seq);
+    expect(server.store.threads.follow(owner.id, root.id)!.lastReadSeq).toBe(first.seq);
   });
 
   it("lists replies in Activity only from threads followed, and any that name you", async () => {
@@ -858,7 +858,7 @@ describe("one read rule for a channel and its threads", () => {
     expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
 
     // Opening the thread reads both.
-    const last = server.store.threadFollow(owner.id, root.id)!;
+    const last = server.store.threads.follow(owner.id, root.id)!;
     await request(`/api/messages/${root.id}/thread/read`, { seq: 1e9 });
     expect(await unread()).toEqual([]);
     expect(server.store.unreadMentionCounts(owner.id)[channelId] ?? 0).toBe(0);

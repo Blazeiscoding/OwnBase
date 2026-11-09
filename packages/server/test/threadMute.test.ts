@@ -105,7 +105,7 @@ describe("muting a thread", () => {
     const root = await post("Where should the offsite be?", peer.token);
     await post("Somewhere warm", owner.token, root.id);
     await post("Lisbon", peer.token, root.id);
-    const before = server.store.threadFollow(owner.id, root.id)!;
+    const before = server.store.threads.follow(owner.id, root.id)!;
     expect(before.following).toBe(true);
     const ownerSocket = await connect(owner.token);
     const peerSocket = await connect(peer.token);
@@ -116,7 +116,7 @@ describe("muting a thread", () => {
     // Muting is not reading: the reply waiting stays unread.
     expect(muted.body.state.lastReadSeq).toBe(before.lastReadSeq);
     expect(await followed()).toEqual([]);
-    expect(server.store.unreadThreadCount(owner.id)).toBe(0);
+    expect(server.store.threads.unreadCount(owner.id)).toBe(0);
 
     await expect
       .poll(() => followFrames(ownerSocket.frames).at(-1))
@@ -138,7 +138,7 @@ describe("muting a thread", () => {
     await mute(root.id, true);
 
     const mine = await post("One thing from me", owner.token, root.id);
-    expect(server.store.threadFollow(owner.id, root.id)).toMatchObject({
+    expect(server.store.threads.follow(owner.id, root.id)).toMatchObject({
       following: false,
       muted: true,
       lastReadSeq: mine.seq,
@@ -151,7 +151,7 @@ describe("muting a thread", () => {
     await mute(root.id, true);
 
     await post("Replying anyway", peer.token, root.id);
-    expect(server.store.threadFollow(owner.id, root.id)).toMatchObject({
+    expect(server.store.threads.follow(owner.id, root.id)).toMatchObject({
       following: false,
       muted: true,
     });
@@ -169,7 +169,7 @@ describe("muting a thread", () => {
     expect(await activity("unread")).toEqual([`<@${owner.id}> can you sign off?`]);
     expect(await activity("threads")).toEqual([]);
     expect(server.store.unreadMentionCounts(owner.id)[channelId]).toBe(1);
-    expect(server.store.unreadThreadCount(owner.id)).toBe(0);
+    expect(server.store.threads.unreadCount(owner.id)).toBe(0);
   });
 
   it("ends when the thread is followed, and lifting it leaves the thread unfollowed", async () => {
@@ -187,7 +187,7 @@ describe("muting a thread", () => {
     expect(following.body.state).not.toHaveProperty("muted");
     // Followed again, a reply from someone else counts.
     await post("Revised", peer.token, root.id);
-    expect(server.store.unreadThreadCount(owner.id)).toBe(1);
+    expect(server.store.threads.unreadCount(owner.id)).toBe(1);
   });
 
   it("ends when the thread is marked unread", async () => {
@@ -237,6 +237,6 @@ describe("muting a thread", () => {
       await request(`/api/channels/${secret.id}/messages`, { text: "Private", nonce: "p" })
     ).body.message;
     expect((await mute(hidden.id, true, peer.token)).status).toBe(404);
-    expect(server.store.threadFollow(peer.id, hidden.id)?.muted).toBeUndefined();
+    expect(server.store.threads.follow(peer.id, hidden.id)?.muted).toBeUndefined();
   });
 });

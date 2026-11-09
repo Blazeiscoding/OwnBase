@@ -5,6 +5,7 @@ import { join } from "node:path";
 import type { DatabaseSync } from "node:sqlite";
 import { openDb, openDbAtVersion } from "../src/db.js";
 import { Store } from "../src/store.js";
+import { MENTIONS_ME, UNREAD } from "../src/core/sqlRules.js";
 
 /**
  * Unread mention counts and the Activity mentions list are read from
@@ -14,7 +15,6 @@ import { Store } from "../src/store.js";
  * `<!here>`, `<!channel>` or `<!everyone>`, which counts in a channel but not
  * in a DM.
  */
-const statics = Store as unknown as { UNREAD: string; MENTIONS_ME: string };
 
 /** The count straight from the text, as it was computed before v31. */
 function countsFromText(db: DatabaseSync, userId: string): Record<string, number> {
@@ -23,8 +23,8 @@ function countsFromText(db: DatabaseSync, userId: string): Record<string, number
       `SELECT m.channel_id, COUNT(*) AS n FROM messages m
        JOIN channels c ON c.id = m.channel_id
        JOIN channel_members cm ON cm.channel_id = c.id AND cm.user_id = ?
-       WHERE m.user_id != ? AND m.deleted_at IS NULL AND ${statics.MENTIONS_ME}
-       AND ${statics.UNREAD}
+       WHERE m.user_id != ? AND m.deleted_at IS NULL AND ${MENTIONS_ME}
+       AND ${UNREAD}
        AND (m.thread_root_id IS NULL OR EXISTS (
          SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL))
        GROUP BY m.channel_id`,
@@ -40,7 +40,7 @@ function mentionsFromText(db: DatabaseSync, userId: string): string[] {
       .prepare(
         `SELECT m.id FROM messages m JOIN channels c ON c.id = m.channel_id
          JOIN channel_members cm ON cm.channel_id = c.id
-         WHERE cm.user_id = ? AND m.user_id != ? AND m.deleted_at IS NULL AND ${statics.MENTIONS_ME}
+         WHERE cm.user_id = ? AND m.user_id != ? AND m.deleted_at IS NULL AND ${MENTIONS_ME}
          AND (m.thread_root_id IS NULL OR EXISTS (
            SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL))
          ORDER BY m.id DESC`,
@@ -139,7 +139,7 @@ describe("mentions read from who each message names", () => {
         done.read++;
       } else {
         const root = pickOne(live);
-        store.markThreadRead("U1", root.id, random(seq + 1));
+        store.threads.markRead("U1", root.id, random(seq + 1));
         done.threadRead++;
       }
       if (step % 25 === 24) {

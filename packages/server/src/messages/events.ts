@@ -20,9 +20,9 @@ export const messageDurable = {
       if (message.threadRootId) {
         // Every way a reply can be written arrives here, so following belongs
         // here too rather than in each of the routes that can create one.
-        store.autoFollowThread(message.threadRootId, message.userId, seq);
+        store.threads.autoFollow(message.threadRootId, message.userId, seq);
         const root = store.getMessage(message.threadRootId);
-        store.tellThreadFollowers(message.threadRootId, [
+        store.threads.tellFollowers(message.threadRootId, [
           message.userId,
           ...(root ? [root.userId] : []),
         ]);
@@ -119,6 +119,5 @@ export const messageDurable = {
 } satisfies Partial<DurableRegistry>;
 
 export const messageEphemeral = {
-  "thread.follow": "person",
   mentions: "person",
 } as const satisfies Partial<EphemeralRegistry>;

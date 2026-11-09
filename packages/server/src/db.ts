@@ -469,7 +469,7 @@ const MIGRATIONS: string[] = [
   // per member, and a message naming the whole room recounts every member: at
   // 200,000 messages and 50 members an `<!here>` held the server for 3.7 s
   // (scripts/measure-unread-counts.mts). user_id '!' is the whole room. The
-  // rows are the same rule as Store.MENTIONS_ME: a message names X when its
+  // rows are the same rule as MENTIONS_ME: a message names X when its
   // text holds `<@X>`, which the walk below finds at every `<@` in turn.
   `
   CREATE TABLE message_mentions (

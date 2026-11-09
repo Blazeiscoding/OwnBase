@@ -65,12 +65,15 @@ describe("upgrading to replies read through their threads", () => {
       ]);
       // The thread without a cursor of its own is read where the channel was.
       expect(store.memberships("U1")[0]).toMatchObject({ lastReadSeq: 50, repliesReadSeq: 50 });
-      expect(store.threadFollow("U1", "M10")).toMatchObject({ following: false, lastReadSeq: 50 });
+      expect(store.threads.follow("U1", "M10")).toMatchObject({
+        following: false,
+        lastReadSeq: 50,
+      });
       // The followed thread's cursor is raised to the channel's, so Threads
       // now agrees with what Activity already said.
-      expect(store.threadFollow("U1", "M42")).toMatchObject({ following: true, lastReadSeq: 50 });
-      expect(store.unreadThreadCount("U1")).toBe(0);
-      expect(store.followedThreads("U1").threads).toMatchObject([{ unreadCount: 0 }]);
+      expect(store.threads.follow("U1", "M42")).toMatchObject({ following: true, lastReadSeq: 50 });
+      expect(store.threads.unreadCount("U1")).toBe(0);
+      expect(store.threads.followed("U1").threads).toMatchObject([{ unreadCount: 0 }]);
     } finally {
       db.close();
     }
