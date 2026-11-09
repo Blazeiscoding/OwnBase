@@ -26,6 +26,94 @@
       "concepts": ["posting rules", "rate limits", "Slack compatibility", "error mapping"]
     },
     {
+      "path": "packages/server/src/events/registry.ts",
+      "plain": "The one list of everything the server tells apps and devices, saying for each who hears it.",
+      "summary": "DURABLE_EVENTS and EPHEMERAL_AUDIENCE: every event type's audience, effects and app delivery, put together from each feature's declarations (untangle U3).",
+      "details": [
+        "A durable event's spec says the conversation it happened in (whose readers hear it, live and on replay, or null for everyone), what else it writes in the transaction that records it once it has its seq (effects), and, for the types protocol's APP_EVENTS lists, how an app is sent it: its actor, never fed back to that actor's own bot, and its Slack Events API shape.",
+        "An ephemeral event's audience is person (every device of one account), channel (whoever can read one conversation), everyone, admins or device (the one socket it answers). EventTo<A> is the events whose audience is A, so the gateway's tellPerson, tellChannel, tellEveryone, tellAdmins and tellDevice only take what the registry lets each send.",
+        "Each feature declares its own events beside its routes (messages, channels, people, admin, huddles, apps); the mapped types fail to compile while any event type is undeclared or an app event lacks its delivery.",
+        "eventChannel, writeEffects and appDelivery are what the gateway, recordEvent and app delivery read instead of deciding per call site."
+      ],
+      "concepts": ["event registry", "audience", "untangle"]
+    },
+    {
+      "path": "packages/server/src/events/outbox.ts",
+      "plain": "Holds what a change has to tell people's own devices until the change is saved, then sends it.",
+      "summary": "Outbox: the store's writes queue personal notices here; they are dropped on rollback and sent once the change commits (untangle U3).",
+      "details": [
+        "A write calls person(), admins(), access(), mentions() or mentionsIn() as it changes the rows. Store.transaction begins, commits and rolls back the outbox with the database, so a rolled-back change tells nobody.",
+        "A notice given as a function is read when it is sent, so it says how things ended however many writes touched them, and only for someone connected (REV-06); a key sends it once per change. Mention counts are recounted once per person per change, last.",
+        "mutate holds the outbox around a change: notices marked ahead (channel access, a removal note, an anonymous poll's own choices) go before the change's durable events, the rest after them, with each private conversation's audience read once for both (F10).",
+        "The gateway is its sink; each notice fails alone and is logged, since the change it follows has happened."
+      ],
+      "concepts": ["transactional publication", "personal sync", "REV-06", "F10"]
+    },
+    {
+      "path": "packages/server/src/messages/events.ts",
+      "plain": "Says who hears about messages, reactions, pins, threads, reminders and saved items, and how apps are told.",
+      "summary": "messageDurable and messageEphemeral: message, reaction, pin and history events, with their Slack shapes, and the personal notices of threads, mentions, reminders, polls, saved and scheduled messages.",
+      "details": [
+        "message.created's effects stamp the message's seq, follow the thread for the replier and the root's author, tell every follower its new watermark, and recount the mentions of whoever the words name or the reply pings.",
+        "message.deleted drops the message's reminders and recounts its conversation's mentions; history.removed recounts too.",
+        "A message.updated that only changes previews or a poll maps to no Slack event (E2, E6)."
+      ],
+      "concepts": ["event registry", "Slack compatibility", "threads"]
+    },
+    {
+      "path": "packages/server/src/channels/events.ts",
+      "plain": "Says who hears about channels and who is in them, and how apps are told.",
+      "summary": "channelDurable and channelEphemeral: channel and membership events with their Slack shapes, read cursors, access, removal notes, preferences, sidebar sections and typing.",
+      "details": [
+        "Channel events go to whoever can read the conversation, read after the change commits, so someone just removed from a private one no longer hears it: their channel.access notice clears it instead."
+      ],
+      "concepts": ["event registry", "membership"]
+    },
+    {
+      "path": "packages/server/src/people/events.ts",
+      "plain": "Says who hears about accounts, presence, friends and blocks.",
+      "summary": "peopleDurable and peopleEphemeral: user.joined and user.updated with Slack's team_join and user_change, presence to everyone, friends and blocks to the account itself.",
+      "details": [
+        "Blocks are private to the blocker's devices: whoever is blocked is told nothing."
+      ],
+      "concepts": ["event registry"]
+    },
+    {
+      "path": "packages/server/src/admin/events.ts",
+      "plain": "Says who hears about workspace settings and open reports.",
+      "summary": "adminEphemeral: workspace name, join policy, icon and link previews to everyone signed in; the open report count to the owner and admins.",
+      "details": [
+        "The workspace's settings go to everyone because the Join screen tells anyone who asks."
+      ],
+      "concepts": ["event registry"]
+    },
+    {
+      "path": "packages/server/src/huddles/events.ts",
+      "plain": "Says who hears about huddles: the conversation, one device, or the people a call rings.",
+      "summary": "huddleEphemeral: participants to the conversation, a join's answer, a move and relayed signals to one socket, rings to each person involved.",
+      "details": ["Huddles live in the gateway alone, so these are never logged or replayed."],
+      "concepts": ["event registry", "huddle"]
+    },
+    {
+      "path": "packages/server/src/apps/events.ts",
+      "plain": "Says that a command's private reply and an app's forms reach one person only.",
+      "summary": "appsEphemeral: ephemeral.message, view.open and view.close, each to one account's devices.",
+      "details": [
+        "These are not tied to a stored write: a private reply and an open form live only as long as the person's devices have them."
+      ],
+      "concepts": ["event registry", "apps"]
+    },
+    {
+      "path": "packages/server/src/apps/delivery.ts",
+      "plain": "Queues each event for the apps subscribed to it that may read it.",
+      "summary": "enqueueAppDeliveries(store, envelope, dropped) and toSlackEvent, reading the event registry.",
+      "details": [
+        "Inside the transaction that records the event: only types protocol lists for apps, never to the bot that caused it, only with the scope eventScope names for the conversation's kind, and only from a conversation the bot is in.",
+        "What does not depend on the subscription (the bot's membership, the workspace id, the callback body) is worked out once per event (F11). A full backlog drops the event and logs it."
+      ],
+      "concepts": ["event delivery", "scopes", "bot loop prevention"]
+    },
+    {
       "path": "packages/server/src/httpError.ts",
       "plain": "How the server turns a request down: a status and one of the listed reasons, sent back as the error.",
       "summary": "HttpError(statusCode, code: ErrorCode, message?, retryAfter?), shared by the server's routes and ee's single sign-on.",
@@ -193,7 +281,8 @@
       "details": [
         "An initial hello checks protocol version, token, account state and forced password change before the socket joins fan-out. The ready snapshot is read completely first.",
         "A reconnect receives authorized missed events when its cursor remains replayable; otherwise the sync contract replaces history. syncVersion 1 ends with a synced marker so clients know catch-up finished.",
-        "Public channel events can reach all signed-in readers; private and DM events require current membership. Session authorization is rechecked after admission, including heartbeat and delivery paths.",
+        "Who hears each event is the event registry's: publish reads a durable event's conversation from it, and tellPerson, tellChannel, tellEveryone, tellAdmins and tellDevice take only the events whose audience they are. Public channel events reach all signed-in readers; private and DM events current members. Session authorization is rechecked after admission, including heartbeat and delivery paths.",
+        "It is the outbox's sink: anyoneOnline, isOnline, tellPerson, tellAdmins and updateChannelAccess.",
         "byUser groups a person's sockets for targeted updates. Presence lists only online accounts, avoiding a second full offline-account listing at every handshake.",
         "Huddles and typing are ephemeral. Signaling relays only between authorized participants in the same huddle; the server carries signaling, not media.",
         "A place in a huddle (a Seat) belongs to the socket that joined. When that socket closes, holdSeat keeps the place for HUDDLE_GRACE_MS (30 s, huddleGraceMs in ServerOptions) without telling the room, even if the person has other devices online; a join from them within it takes the place back quietly, logged as having come back. A join from another of their devices moves the place there and sends the old socket huddle.moved; a leave or signal from a socket that does not hold the place is ignored or dropped, and signals for a place waiting on its device are dropped. Leave, lost access, sign-out and deactivation (revoke) release the place at once.",
@@ -287,17 +376,14 @@
     },
     {
       "path": "packages/server/src/integrations.ts",
-      "plain": "Signs what the server sends to outside apps and rewrites workspace events in the form Slack apps expect.",
-      "summary": "Signs outbound callbacks and adapts durable native events to Slack's event shape.",
+      "plain": "Signs what the server sends to outside apps, the way Slack signs its own.",
+      "summary": "signatureHeaders: HMAC-SHA256 over v0:timestamp:body, with OwnBase and Slack header names.",
       "details": [
-        "HMAC-SHA256 signs v0:timestamp:body and emits both OwnBase and Slack header names, allowing existing receiver verification libraries to work.",
-        "Message, reaction, pin, membership, channel and user events map to supported Slack Events API payloads; unsupported native events return null.",
-        "eventActorId identifies the account behind applicable events so the dispatcher can avoid feeding a bot its own actions and creating reply loops.",
+        "Both header names are sent so existing receiver verification libraries work unchanged.",
         "Receiver code still needs to enforce timestamp freshness and deduplication; signing alone does not eliminate replay or repeated delivery.",
-        "A message.updated with previewsOnly maps to nothing (E2): a preview found or removed changes nothing an app was told, so it gets no message_changed.",
-        "So does a message.updated with pollOnly (E6): a vote or a poll closing is not something an app was told about."
+        "How each event is shaped for apps is declared with the event, in the event registry (untangle U3)."
       ],
-      "concepts": ["HMAC", "event adapter", "bot loop prevention"]
+      "concepts": ["HMAC"]
     },
     {
       "path": "packages/server/src/limits.ts",
@@ -500,16 +586,13 @@
       ]
     },
     {
-      "path": "packages/server/src/socketSchema.ts",
-      "plain": "Checks every live message the app sends, such as typing or huddle signals, before the server acts on it.",
-      "summary": "Checks socket payloads at the server boundary before Gateway trusts them.",
+      "path": "packages/protocol/src/socket.ts",
+      "plain": "The one description of every live message the app sends, such as typing or huddle signals, which the server checks before acting on it.",
+      "summary": "clientMessage: the zod schema of what a client sends over the socket; ClientToServer is derived from it (untangle U3).",
       "details": [
-        "A discriminated union admits hello, ping, typing, huddle join/leave and signaling with bounded IDs, tokens and cursors.",
-        "Offer/answer SDP, ICE candidates and media state have explicit size and numeric constraints, keeping untrusted JSON within supported shapes. Media state takes an optional screenSound flag and an optional view (how tall the camera and the share are drawn, whole numbers from 0 to 4320), which older clients leave out.",
-        "Protocol TypeScript types alone cannot validate a remote caller; this Zod schema provides runtime enforcement without importing browser DOM types.",
-        "Validates huddle.report: counts, states and enums only, so a report cannot carry an address or arbitrary text.",
-        "Validates idle: whether the device has gone idle, a boolean (E9).",
-        "Validates huddle.decline: the conversation whose ring to say no to (E10)."
+        "A discriminated union admits hello, ping, typing, huddle join, leave, signal, report and decline, and idle, with ids bounded by idSchema, the same 64-character limit REST uses.",
+        "huddleSignal and callReport come from huddle.ts, whose types are derived from them too: SDP, ICE candidates, media state and call reports have explicit size and numeric limits, and a report carries counts, states and enums only, never an address or free text.",
+        "The gateway parses every frame with it and closes the socket on anything else."
       ],
       "concepts": ["runtime validation", "WebSocket", "bounded payload"]
     },
@@ -604,6 +687,16 @@
       "concepts": ["shared types", "desktop bridge", "error codes"]
     },
     {
+      "path": "packages/protocol/src/appEvents.ts",
+      "plain": "The one list of events an outside app can subscribe to, and what it must be allowed to read for each.",
+      "summary": "APP_EVENTS: each app event type with the scope it needs per kind of conversation; APP_EVENT_TYPES, appEventType, isAppEventType, eventScope and eventScopes read it (untangle U3).",
+      "details": [
+        "The server's delivery, the subscription request schema (a subscription naming any other type is refused) and the Apps dialog's picker and missing-scope warning all read this list; the server's event registry must give each type a Slack shape and an actor.",
+        "Message events need the history scope of their conversation's kind; reactions, pins and users their own read scopes; channel and membership events channels:read or groups:read. A workspace-wide event reads as public."
+      ],
+      "concepts": ["event registry", "scopes", "Slack compatibility"]
+    },
+    {
       "path": "packages/protocol/src/entities.ts",
       "plain": "The shared rules for what a person, channel, message, file and every other workspace record looks like.",
       "summary": "Defines the shared vocabulary of workspace records and feature metadata.",
@@ -614,7 +707,7 @@
         "Optional capability/metadata fields allow older servers and clients to interoperate without assuming support.",
         "The shared 30-day send retry window aligns client automatic retries with server retention of minimal send keys after content is removed.",
         "Role includes guest, and ServerInfo.accessPolicy says who may join; an older server omits it, which clients read as accounts only.",
-        "APP_SCOPES (Slack's names), DEFAULT_APP_SCOPES (posting only), APP_EVENT_TYPES and eventScope/eventScopes (E18c): which scope lets an app be sent each event from each kind of conversation, shared by the server's delivery filter and the Apps dialog. App.scopes is absent from servers before then.",
+        "APP_SCOPES (Slack's names) and DEFAULT_APP_SCOPES (posting only) (E18c); which events an app can be sent, and with which scope, is appEvents.ts.",
         "ChannelPrefs.starred is one account's star on a conversation (UX-20). Servers before schema 40 leave it out, which reads as unstarred.",
         "AuditAction includes workspace.renamed and workspace.access_policy_changed, with the target type workspace, recorded with the old and new value.",
         "ServerInfo.iconVersion gives the icon's version, or null, before sign-in; it is absent from older servers. The audit action workspace.icon_changed records a set or a removal (UX-60).",
@@ -710,7 +803,7 @@
       "plain": "The shared rules for the messages that set up a huddle, including which side starts the call so both do not at once.",
       "summary": "Describes peer-call signaling and deterministic offer ownership.",
       "details": [
-        "Offer, answer, ICE and explicit camera/screen/muted/screenSound messages are plain serializable objects usable by both server and browser.",
+        "Offer, answer, ICE and explicit camera/screen/muted/screenSound messages are plain serializable objects usable by both server and browser. They are zod schemas (huddleSignal, callReport) with the types derived from them, so the socket schema and the types cannot differ.",
         "screenSound is said, true or false, only by a client with a fourth slot for a share's sound, and tells the other side it may send there. A client from before that slot never says it, and is sent nothing on it, since it would take any fourth track for the person's microphone.",
         "view, in a media signal, says how tall its sender draws the camera and the share of the one it goes to, rounded to a few heights, and 0 for not drawn (E13b); that side then sends no bigger, or nothing. A server from before it strips the field, and the call is sized by its size alone.",
         "Explicit media flags distinguish an active camera from a silent negotiated slot; a receiver track's muted flag alone is not evidence that frames exist.",
@@ -983,7 +1076,7 @@
           "title": "Say hello before getting updates",
           "description": "The app opens a live connection and says which version it speaks and the last update it saw. The server checks the sign-in is still valid and whether the account must change its password first. Only then does it load the whole workspace for this person and start sending live updates.",
           "files": [
-            "packages/server/src/socketSchema.ts",
+            "packages/protocol/src/socket.ts",
             "packages/server/src/gateway.ts",
             "packages/protocol/src/events.ts"
           ],
