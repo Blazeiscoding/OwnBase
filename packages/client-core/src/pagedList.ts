@@ -17,7 +17,6 @@ export interface PagedListState<T> {
   loadingMore: boolean;
   /** The last read from the top failed. Whatever was shown stays. */
   failed: boolean;
-  /** The last read of more failed. */
   moreFailed: boolean;
 }
 

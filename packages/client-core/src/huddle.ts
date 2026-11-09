@@ -34,17 +34,13 @@ export interface HuddlePeer {
   userId: ID;
   /** Their microphone. Always attach it, even when there is no video. */
   audioStream: MediaStream | null;
-  /** Their camera, or null while it is off. */
   cameraStream: MediaStream | null;
-  /** What they are sharing, or null while they are not. */
   screenStream: MediaStream | null;
-  /** The sound of what they are sharing, or null while their share has none. */
   screenSoundStream?: MediaStream | null;
   /** True once the connection is carrying media. */
   connected: boolean;
   /** Their microphone is off, as they reported it. */
   micMuted: boolean;
-  /** They are talking right now. */
   speaking: boolean;
   /**
    * Why the connection has not come up, once it has taken long enough to
@@ -329,7 +325,6 @@ export interface HuddleState {
   localCameraStream: MediaStream | null;
   /** Your own share, so you can see what everyone else is seeing. */
   localScreenStream: MediaStream | null;
-  /** You are talking right now. */
   speaking: boolean;
   /**
    * Your microphone stopped, unplugged or its permission taken back, and no
@@ -451,7 +446,6 @@ export class HuddleSession {
     this.note(`Call settings: ${describeServers(rtcConfig)}.`);
   }
 
-  /** Adds a line to the call log. */
   note(text: string, peerId?: ID): void {
     this.log.push({ at: Date.now(), ...(peerId ? { peerId } : {}), text });
     if (this.log.length > CALL_LOG_LIMIT) this.log.splice(0, this.log.length - CALL_LOG_LIMIT);
@@ -1364,7 +1358,6 @@ export class HuddleSession {
     }
   }
 
-  /** Turns the camera on or off. */
   async toggleCamera(): Promise<void> {
     if (this.destroyed || this.acquiringCamera) return;
     if (this.cameraTrack) {

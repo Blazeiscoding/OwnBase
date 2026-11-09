@@ -130,7 +130,6 @@ export class Transport {
     return (await res.json()) as AnswerOf<E>;
   }
 
-  /** Reads the bytes of a file or picture. */
   async bytes<E extends Endpoint>(endpoint: E, ...[input, opts]: CallArgs<E>): Promise<Blob> {
     const res = await fetch(this.url(endpoint, input), {
       headers: this.headers(),

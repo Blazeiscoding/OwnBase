@@ -191,7 +191,6 @@ function commandFailure(err: unknown): string {
   return text.charAt(0).toUpperCase() + text.slice(1) + (/[.!?]$/.test(text) ? "" : ".");
 }
 
-/** Turns a send failure into something the author can act on. */
 function sendFailureReason(error: unknown): string {
   // Status 0: an upload that never had an answer (no connection, timed out).
   // The workspace was reached, so waiting to be back online would wait forever.
@@ -422,7 +421,7 @@ export interface WorkspaceState extends MessageCache {
   reminders: Record<ID, Reminder>;
   /**
    * Notes that someone removed this account from channels, by id, for
-   * Activity until read. Empty from a server that keeps none.
+   * Activity until read.
    */
   channelRemovals: Record<ID, ChannelRemoval>;
   /**
@@ -525,7 +524,6 @@ export interface WorkspaceState extends MessageCache {
   modalsBelow: ModalView[];
   /** Commands that can be typed here; loaded once after connecting. */
   commands: CommandHint[];
-  /** The huddle this client is in, if any. */
   huddle: HuddleState | null;
   /**
    * Why the last huddle ended without this person leaving it, such as joining
@@ -1039,7 +1037,6 @@ export class WorkspaceClient {
     this.resumeHuddle(snap);
   }
 
-  /** Stops every history transfer in flight; nothing will use their answers. */
   private abortHistoryLoads(): void {
     for (const hold of this.timelineHolds.values()) hold.controller.abort();
     for (const load of this.threadLoads.values()) load.controller.abort();
@@ -1261,7 +1258,6 @@ export class WorkspaceClient {
       case "message.deleted": {
         changed(event.channelId);
         this.events.emit("messageDeleted", event.messageId);
-        // Its poll went with it.
         if (s.pollChoices[event.messageId]) {
           const { [event.messageId]: _gone, ...pollChoices } = s.pollChoices;
           patch.pollChoices = pollChoices;
@@ -1634,7 +1630,6 @@ export class WorkspaceClient {
     void this.api.closeView(viewId).catch(() => {});
   }
 
-  /** Closes every form open, the whole stack at once. */
   dismissAllModals(): void {
     const { modal, modalsBelow } = this.state;
     const root = modalsBelow[0] ?? modal;
@@ -1656,8 +1651,8 @@ export class WorkspaceClient {
       return { ok: false, message: "This form is no longer available." };
     const result = await this.api.submitView(modal.id, values);
     // The server names what closed: none when the app changed the form or
-    // stacked another on it. One from before stacks names nothing, and the
-    // form closes. Only ever closing keeps a late answer from reopening one.
+    // stacked another on it. Only ever closing keeps a late answer from
+    // reopening one.
     if (result.ok) this.forgetModals(result.closedViewIds ?? [modal.id]);
     return result;
   }
@@ -2288,7 +2283,6 @@ export class WorkspaceClient {
     return true;
   }
 
-  /** True when this account already has `OUTBOX_LIMIT` messages waiting to send. */
   outboxFull(): boolean {
     const self = this.state.self?.id;
     return this.state.pending.filter((p) => p.userId === self).length >= OUTBOX_LIMIT;
@@ -2353,8 +2347,7 @@ export class WorkspaceClient {
 
   /**
    * Holds a send the workspace turned away for coming too fast until it said
-   * to try again. Pressing Retry on each of many was the only way before, and
-   * a full outbox stopped the composer meanwhile.
+   * to try again.
    */
   private waitOutRateLimit(nonce: string, waitMs = RATE_LIMIT_WAIT_MS): void {
     if (this.stopped) return;
@@ -2883,7 +2876,6 @@ export class WorkspaceClient {
       lastReadSeq: seq,
       lastSeq: Math.max(before?.lastSeq ?? 0, seq),
       revision: (before?.revision ?? 0) + 1,
-      // Reading a muted thread leaves it muted.
       ...(before?.muted ? { muted: true as const } : {}),
     };
     void this.writes.write(
@@ -2895,7 +2887,6 @@ export class WorkspaceClient {
     );
   }
 
-  /** The root message of a thread, while it is held. */
   private threadRoot(rootId: ID): Message | undefined {
     return threadRootMessage(this.state, rootId) ?? undefined;
   }
@@ -3739,7 +3730,6 @@ export class WorkspaceClient {
     return this.changeSelf(() => this.api.setAvatar(image));
   }
 
-  /** Removes this account's picture (E9). */
   removeAvatar(): Promise<ApiError | null> {
     return this.changeSelf(() => this.api.removeAvatar());
   }
@@ -3754,7 +3744,7 @@ export class WorkspaceClient {
   }
 
   /**
-   * What this device tells a server that keeps profiles once it is in (E9):
+   * What this device tells the server once it is in (E9):
    * that it is idle, if it is, and its time zone, for an account with none.
    */
   private afterReady(snap: ReadySnapshot): void {
@@ -3805,7 +3795,6 @@ export class WorkspaceClient {
     }
   }
 
-  /** Whether this session ended because someone here signed it out. */
   get signedOutOnPurpose(): boolean {
     return this.signingOut;
   }
@@ -3882,7 +3871,6 @@ export class WorkspaceClient {
     return this.api.listReminders(signal);
   }
 
-  /** The newest message in each direct conversation this account is in. */
   latestDirectMessages(signal?: AbortSignal) {
     return this.api.latestDirectMessages(signal);
   }
@@ -3975,7 +3963,6 @@ function withSaved(saved: Record<ID, true>, messageId: ID, on: boolean): Record<
   return next;
 }
 
-/** A copy of `values` without the given keys. */
 function omitKeys<T extends object>(values: T, keys: string[]): Partial<T> {
   const out: Partial<T> = { ...values };
   for (const key of keys) delete out[key as keyof T];

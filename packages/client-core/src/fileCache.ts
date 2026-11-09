@@ -10,6 +10,12 @@ interface FileOwner {
 }
 
 /**
+ * The cache's key for a link preview's picture (E2), which it holds and lets
+ * go with its message as it does a file.
+ */
+export const previewImageKey = (previewId: ID): string => `preview:${previewId}`;
+
+/**
  * Uploads are auth-gated, so an `<img src>` can't fetch them directly.
  * This fetches once with the session token and hands back a blob: URL,
  * deduping concurrent requests for the same file. At most four transfers run
@@ -20,12 +26,6 @@ interface FileOwner {
  * when the message is deleted or its conversation becomes unreadable, even
  * after the history that listed it has been let go.
  */
-/**
- * The cache's key for a link preview's picture (E2), which it holds and lets
- * go with its message as it does a file.
- */
-export const previewImageKey = (previewId: ID): string => `preview:${previewId}`;
-
 export class FileCache {
   private owners = new Map<ID, FileOwner | null>();
   private listeners = new Set<(fileId: ID) => void>();
