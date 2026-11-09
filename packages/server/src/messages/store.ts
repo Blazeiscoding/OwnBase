@@ -503,7 +503,7 @@ export class MessageStore {
       // The rows are gone; the log, and any app event still waiting to leave,
       // still hold what they said.
       this.store.redactEventRows(logged);
-      this.store.redactQueuedDeliveries(queued);
+      this.store.deliveries.redact(queued);
       this.store.requoteEvents(quoted, null);
       this.store.reforwardEvents(forwarded, null);
       return { messages, fileIds, roots: removed };

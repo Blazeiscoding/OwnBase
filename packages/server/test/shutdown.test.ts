@@ -233,7 +233,7 @@ describe("an event delivery cut short by shutdown", () => {
     // Nothing about the endpoint was learned: it neither answered nor refused.
     // Charging it an attempt would push the event hours down the retry ladder
     // for something this server did.
-    const due = server!.store.dueEventDeliveries(Date.now());
+    const due = server!.store.deliveries.due(Date.now());
     expect(due).toHaveLength(1);
     expect(due[0]!.attempts).toBe(0);
   });

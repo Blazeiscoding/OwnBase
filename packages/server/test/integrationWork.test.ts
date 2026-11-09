@@ -47,9 +47,9 @@ function app(
   eventTypes: AppEventType[] = [],
 ) {
   const store = server.store;
-  const bot = store.createBotUser(`bot-${name}`, name, "", "");
+  const bot = store.apps.createBotUser(`bot-${name}`, name, "", "");
   if (inChannel) store.channels.addMember(general, bot.id);
-  const created = store.createApp({
+  const created = store.apps.create({
     name,
     botUserId: bot.id,
     createdBy: ownerId,
@@ -58,7 +58,7 @@ function app(
   const ids: string[] = [];
   for (let i = 0; i < subscriptions; i++)
     ids.push(
-      store.createSubscription({
+      store.apps.createSubscription({
         appId: created.id,
         url: `https://example.invalid/${name}/${i}`,
         eventTypes,
@@ -85,7 +85,7 @@ describe("queueing one event for many subscriptions (F11)", () => {
       const filtered = app("filtered", true, 1, ["reaction.added"]);
       const membership = vi.spyOn(server.store.channels, "isMember");
       const meta = vi.spyOn(server.store, "getMeta");
-      const queued = vi.spyOn(server.store, "enqueueEventDelivery");
+      const queued = vi.spyOn(server.store.deliveries, "enqueue");
 
       await post("Hello, apps.");
 

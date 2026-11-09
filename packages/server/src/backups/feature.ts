@@ -4,7 +4,7 @@ import { statfsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { hashToken, newSessionToken } from "../auth.js";
-import { CapabilityMap } from "../capabilities.js";
+import { CapabilityMap } from "../core/capabilities.js";
 import { ConfigError } from "../config.js";
 import type { ServerContext } from "../core/context.js";
 import { bearerToken } from "../core/network.js";

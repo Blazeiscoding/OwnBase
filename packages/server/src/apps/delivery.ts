@@ -28,7 +28,7 @@ export function enqueueAppDeliveries(
   const event = envelope.event;
   const type = event.type;
   if (!isAppEventType(type)) return;
-  const subs = store.listAllSubscriptions();
+  const subs = store.apps.allSubscriptions();
   if (subs.length === 0) return;
   const delivery = appDelivery(event)!;
   const payload = delivery.slack(event);
@@ -71,7 +71,7 @@ export function enqueueAppDeliveries(
     // subscribing does not quietly expose every private conversation.
     if (channelId !== null && !botInChannel(app.botUserId, channelId)) continue;
 
-    const queued = store.enqueueEventDelivery(
+    const queued = store.deliveries.enqueue(
       subscription.id,
       channelId,
       envelope.seq,

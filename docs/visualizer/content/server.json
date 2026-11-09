@@ -114,6 +114,92 @@
       "concepts": ["event delivery", "scopes", "bot loop prevention"]
     },
     {
+      "path": "packages/server/src/apps/feature.ts",
+      "plain": "Puts the parts of apps together: setting them up, what they call, the commands, buttons and forms that call them, and the events they are sent.",
+      "summary": "registerApps(ctx, { accounts, messages, files }) registers every app route and returns the event pump's flush, deliverSoon, start and hourly steps.",
+      "details": [
+        "createWorkspaceServer calls it once; the parts share one AppCalls (calls.ts) and the views' trigger maker."
+      ],
+      "concepts": ["apps", "feature module"]
+    },
+    {
+      "path": "packages/server/src/apps/calls.ts",
+      "plain": "Every call the server makes to an app goes through here: signed, limited, and refused in an isolated copy.",
+      "summary": "createAppCalls: admit (calls in flight per account and app), post and postForm (signed, cut short on shutdown), verifyCallbackUrl, capabilityHolds, whyFailed, sayEphemeral.",
+      "details": [
+        "capabilityHolds checks again, when a reply or form is spent, that the app, its bot, the channel and the person are all still allowed, so waiting out a revocation does not get around it.",
+        "verifyCallbackUrl is Slack's url_verification handshake: an endpoint that cannot echo the challenge has not agreed to receive anything."
+      ],
+      "concepts": ["apps", "outbound calls", "capability lifetime"]
+    },
+    {
+      "path": "packages/server/src/apps/manage.ts",
+      "plain": "What an administrator does to apps: making them, their scopes, tokens and secrets, webhooks, the button URL and event subscriptions.",
+      "summary": "registerAppManagement: createApp, listApps, setAppScopes, replaceAppToken, replaceSigningSecret, deleteApp, the webhook routes, setInteractivityUrl and the subscription routes, each audited.",
+      "details": [
+        "The bot token is shown once and stored hashed; the signing secret stays readable to administrators because verification needs it.",
+        "The audit log keeps only the host of a URL an administrator gave (hostOf), since webhook and callback URLs often carry a secret."
+      ],
+      "concepts": ["apps", "audit log"]
+    },
+    {
+      "path": "packages/server/src/apps/slackApi.ts",
+      "plain": "The Slack-shaped calls an app makes: posting through a webhook, auth.test and chat.postMessage.",
+      "summary": "registerSlackApi, slackError (HTTP 200 with ok:false, as Slack answers) and structured (JSON fields sent form-encoded).",
+      "details": [
+        "Slack's SDK reads only a 200 or 429 body, so refusals keep status 200 with Slack's error name."
+      ],
+      "concepts": ["Slack compatibility", "apps"]
+    },
+    {
+      "path": "packages/server/src/apps/views.ts",
+      "plain": "The forms apps open in front of people: opening, stacking, updating, closing and submitting them.",
+      "summary": "registerViews: trigger_ids, each person's stack of open views (at most three), views.open, views.push, views.update, closeView and submitView; returns newTrigger.",
+      "details": [
+        "A trigger_id lives three minutes and decides who sees the form; an open view half an hour, renewed with the rest of its stack while the app changes it.",
+        "One submission of a view may be with the app at a time; a second meanwhile gets 409 view_submitting."
+      ],
+      "concepts": ["modal parsing", "capability lifetime", "apps"]
+    },
+    {
+      "path": "packages/server/src/apps/replies.ts",
+      "plain": "What an app answers with, at once or later through a reply address, and the buttons people press on its messages.",
+      "summary": "registerAppReplies: response URLs (half an hour, five uses), deliverReply, commandResponse and runMessageAction.",
+      "details": [
+        "in_channel posts as the bot; anything else is a private note to the person.",
+        "replace_original and delete_original apply only while the pressed message is still the version pressed."
+      ],
+      "concepts": ["apps", "capability lifetime"]
+    },
+    {
+      "path": "packages/server/src/apps/deliveries.ts",
+      "plain": "Sends events to the apps that subscribed to them, retrying a failing endpoint on a ladder and giving up after eight tries.",
+      "summary": "createEventDeliveries: a pump of at most ten deliveries at once and one per subscription, a five-second timer, and the hourly prune of given-up rows after a week.",
+      "details": [
+        "A delivery cut short by the server stopping stays due and spends none of the endpoint's attempts.",
+        "An endpoint that spends its whole ladder takes the rest of its queue with it, kept for an administrator to retry."
+      ],
+      "concepts": ["event delivery", "retry ladder"]
+    },
+    {
+      "path": "packages/server/src/apps/store.ts",
+      "plain": "Saves apps, their bot accounts, tokens, webhooks, commands and event subscriptions.",
+      "summary": "AppStore (store.apps): apps, app tokens, webhooks, slash commands and event subscriptions, each table's row read in one place.",
+      "details": [
+        "Subscriptions are listed with their delivery counts (waiting, failed, dropped) for the administrator."
+      ],
+      "concepts": ["apps", "feature store"]
+    },
+    {
+      "path": "packages/server/src/apps/deliveryStore.ts",
+      "plain": "Keeps the queue of events waiting to go to apps, and the ones given up on.",
+      "summary": "DeliveryStore (store.deliveries): enqueue, due, complete, fail, abandonBacklog, retryFailed, prune, and the redaction of a deleted message's queued copies.",
+      "details": [
+        "At most MAX_PENDING (500) waiting and MAX_FAILED (1,000) given-up events per endpoint; past that an event is counted as dropped."
+      ],
+      "concepts": ["event delivery", "bounded queue"]
+    },
+    {
       "path": "packages/server/src/httpError.ts",
       "plain": "How the server turns a request down: a status and one of the listed reasons, sent back as the error.",
       "summary": "HttpError(statusCode, code: ErrorCode, message?, retryAfter?), shared by the server's routes and ee's single sign-on.",
@@ -198,7 +284,7 @@
       "concepts": ["feature module", "backup"]
     },
     {
-      "path": "packages/server/src/blockKit.ts",
+      "path": "packages/server/src/apps/blockKit.ts",
       "plain": "Turns the text, buttons and forms that Slack-style apps send into what OwnBase can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into OwnBase's text, buttons and modal fields.",
       "details": [
@@ -212,7 +298,7 @@
       "concepts": ["Slack compatibility", "bounded payload", "modal parsing"]
     },
     {
-      "path": "packages/server/src/capabilities.ts",
+      "path": "packages/server/src/core/capabilities.ts",
       "plain": "Briefly remembers which open forms and replies an app is still allowed to use, and forgets them when the server restarts.",
       "summary": "Keeps short-lived app permissions in a bounded in-memory map.",
       "details": [
@@ -224,14 +310,15 @@
       "concepts": ["bounded memory", "capability lifetime", "expiration"]
     },
     {
-      "path": "packages/server/src/commands.ts",
-      "plain": "Gives every workspace the built-in /shrug and /me commands, even before any app is added.",
-      "summary": "Provides built-in /shrug and /me commands before any integration is installed.",
+      "path": "packages/server/src/apps/commands.ts",
+      "plain": "Slash commands: the built-in ones every workspace has, the ones apps add, and running either.",
+      "summary": "BUILTIN_COMMANDS, and registerCommands: createCommand, deleteCommand, listCommands and runCommand.",
       "details": [
         "A map holds description, usage hint and a function that returns the message text or null for invalid arguments.",
         "/shrug escapes its backslash and underscores through the shared formatter so the visible arms survive mrkdwn parsing; /me wraps supplied text in italics.",
         "Built-in names are reserved during app command registration, preventing an app from unexpectedly taking over these commands.",
-        "A built-in may say inApp: a command the app runs itself, which the server only lists and reserves, answering a client that sends it anyway with that sentence. /poll is one (E6)."
+        "A built-in may say inApp: a command the app runs itself, which the server only lists and reserves, answering a client that sends it anyway with that sentence. /poll is one (E6).",
+        "An app's command gets the command as a signed form with a response_url and a trigger_id; a failure is said privately to the person who ran it and returned as command_failed."
       ],
       "concepts": ["slash commands", "mrkdwn"]
     },
@@ -436,7 +523,7 @@
       "concepts": ["package boundary", "embedded server"]
     },
     {
-      "path": "packages/server/src/integrations.ts",
+      "path": "packages/server/src/apps/signing.ts",
       "plain": "Signs what the server sends to outside apps, the way Slack signs its own.",
       "summary": "signatureHeaders: HMAC-SHA256 over v0:timestamp:body, with OwnBase and Slack header names.",
       "details": [
@@ -1616,7 +1703,7 @@
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/gateway.ts",
-            "packages/server/src/integrations.ts"
+            "packages/server/src/apps/signing.ts"
           ],
           "detail": "Gateway fans out only committed events under current visibility. Targeted follow/mention updates are coalesced, while app deliveries run through the bounded retry pump."
         }
@@ -1632,8 +1719,8 @@
           "title": "Show only buttons OwnBase supports",
           "description": "Apps lay out their messages the way Slack apps do. The server keeps only text, buttons that open a web link and buttons that tell the app they were pressed, all within size limits. The message a button sits on decides which app and conversation the press belongs to.",
           "files": [
-            "packages/server/src/blockKit.ts",
-            "packages/server/src/server.ts",
+            "packages/server/src/apps/blockKit.ts",
+            "packages/server/src/apps/replies.ts",
             "packages/protocol/src/entities.ts"
           ],
           "detail": "Block Kit text/actions become bounded native text and HTTP(S) link or callback buttons. The pressed message determines the owning bot and conversation."
@@ -1642,10 +1729,11 @@
           "title": "Give the app short-lived permission",
           "description": "When someone presses a button, the server tells the app and hands it two short-lived permissions, one to open a form and a reply address to update the message. These expire, and only so many can exist at once. Every call to an app is signed, has a time limit and cannot reach private computers on the host's network.",
           "files": [
-            "packages/server/src/capabilities.ts",
+            "packages/server/src/core/capabilities.ts",
             "packages/server/src/limits.ts",
-            "packages/server/src/integrations.ts",
-            "packages/server/src/outbound.ts"
+            "packages/server/src/apps/signing.ts",
+            "packages/server/src/outbound.ts",
+            "packages/server/src/apps/calls.ts"
           ],
           "detail": "The callback receives an app-bound trigger and a response URL. Capability maps cap memory and expire permissions; outbound calls are signed, deadline-bounded and private-host-checked."
         },
@@ -1653,8 +1741,8 @@
           "title": "Open the form for the right person",
           "description": "The app uses its permission once to open a form. The server first checks that the app, its bot, the person and the channel are all still allowed. It then sends the form, with only the kinds of fields OwnBase supports, to that person alone.",
           "files": [
-            "packages/server/src/server.ts",
-            "packages/server/src/blockKit.ts",
+            "packages/server/src/apps/views.ts",
+            "packages/server/src/apps/blockKit.ts",
             "packages/protocol/src/events.ts"
           ],
           "detail": "views.open and views.push consume one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event, carrying the person's whole stack, for the owner alone. views.update needs no trigger and changes a view still open."
@@ -1662,20 +1750,20 @@
         {
           "title": "Refuse a second submission at the same time",
           "description": "When the person submits, the server checks the form is theirs, required answers are filled in and each answer is one the field offered: an option it listed, someone with an account, a conversation the person can open, a real date. Only one submission of a form can be on its way to the app at a time, and a second one meanwhile is refused. Once the first finishes, the person can correct their answers or try again.",
-          "files": ["packages/server/src/server.ts", "packages/protocol/src/rest.ts"],
+          "files": ["packages/server/src/apps/views.ts", "packages/protocol/src/rest.ts"],
           "detail": "The server verifies form ownership, then readAnswer checks each value against its field and shapes it as Slack's state.values. One modal ID may have one callback in flight; overlap receives 409 view_submitting, and finally releases exclusion for correction or deliberate retry."
         },
         {
           "title": "Ignore late changes to an old message",
           "description": "The app may later ask to replace or delete the message whose button was pressed. The server does this only if the message still looks as it did when pressed, and ignores the request if it was changed or deleted since. Each successful update through the same reply address becomes the version the next one must match.",
-          "files": ["packages/server/src/server.ts", "packages/server/src/store.ts"],
+          "files": ["packages/server/src/apps/replies.ts", "packages/server/src/store.ts"],
           "detail": "Before replace/delete, current text/edit/actions must match the pressed revision. A disappeared or changed origin is ignored; successful updates through the same response URL advance its own expected revision."
         },
         {
           "title": "Know what a retry can still repeat",
           "description": "The server stops overlapping submissions and checks again that permission was not withdrawn. Still, an app may act on a submission and then lose the connection before answering. If the person tries again, the app should spot the repeat by the form's ID.",
           "files": [
-            "packages/server/src/server.ts",
+            "packages/server/src/apps/views.ts",
             "packages/server/test/integrationLifetime.test.ts"
           ],
           "detail": "The server prevents overlap and rechecks revocation, but an endpoint may perform its business effect before a transport failure. An app should deduplicate a retried view_submission by view ID."
