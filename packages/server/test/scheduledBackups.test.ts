@@ -4,13 +4,13 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync 
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { verifyBackup, type BackupManifest } from "../src/backup.js";
+import { verifyBackup, type BackupManifest } from "../src/backups/backup.js";
 import {
   backupFolderName,
   backupFolderTime,
   backupInChildProcess,
   listScheduledBackups,
-} from "../src/backupSchedule.js";
+} from "../src/backups/backupSchedule.js";
 import { createWorkspaceServer, type ServerOptions, type WorkspaceServer } from "../src/server.js";
 
 let server: WorkspaceServer | undefined;

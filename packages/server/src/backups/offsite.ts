@@ -1,7 +1,7 @@
 import { createHash, createHmac } from "node:crypto";
 import type { Readable } from "node:stream";
 import { backupFolderTime } from "./backupSchedule.js";
-import { ConfigError } from "./config.js";
+import { ConfigError } from "../config.js";
 import { backupZipEntries } from "./workspaceCopy.js";
 import { zipArchive } from "./zip.js";
 

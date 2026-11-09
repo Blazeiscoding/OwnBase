@@ -5,7 +5,7 @@ import {
   type ErrorCode,
   type WorkspaceIconType,
 } from "@ownbase/protocol";
-import { imageSize, imageTypeOf } from "./imageSize.js";
+import { imageSize, imageTypeOf } from "../imageSize.js";
 
 /**
  * The workspace's icon: a small picture its owner and admins choose, shown to

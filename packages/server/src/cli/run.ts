@@ -11,10 +11,15 @@ import {
   type MemberNotice,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, SERVER_VERSION } from "../server.js";
-import { backupWorkspace, inventoryBackup, restoreWorkspace, verifyBackup } from "../backup.js";
-import { backupInChildProcess, type ScheduledBackups } from "../backupSchedule.js";
-import { OffsiteBackups, parseOffsiteUrl } from "../offsite.js";
-import { withBackupFolder } from "../workspaceCopy.js";
+import {
+  backupWorkspace,
+  inventoryBackup,
+  restoreWorkspace,
+  verifyBackup,
+} from "../backups/backup.js";
+import { backupInChildProcess, type ScheduledBackups } from "../backups/backupSchedule.js";
+import { OffsiteBackups, parseOffsiteUrl } from "../backups/offsite.js";
+import { withBackupFolder } from "../backups/workspaceCopy.js";
 import type { CommandLineExtension, ServerExtension } from "../extensions.js";
 import { listAccounts, recoverAccount } from "../recover.js";
 import { relayFromEnvironment, type IceServer, type ServerRelay } from "../relay.js";
