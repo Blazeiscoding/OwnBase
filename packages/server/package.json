@@ -8,7 +8,8 @@
     "./backup": "./src/backup.ts",
     "./extensions": "./src/extensions.ts",
     "./httpError": "./src/httpError.ts",
-    "./main": "./src/main.ts",
+    "./cli": "./src/cli/run.ts",
+    "./cliFlags": "./src/cli/flags.ts",
     "./ownership": "./src/ownership.ts",
     "./workspaceIcon": "./src/workspaceIcon.ts"
   },

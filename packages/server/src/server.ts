@@ -1,123 +1,50 @@
-import { dirname, join, resolve } from "node:path";
-import { createHash, randomUUID } from "node:crypto";
-import { tmpdir } from "node:os";
-import { createWriteStream, existsSync, mkdirSync, statfsSync, statSync } from "node:fs";
-import { monitorEventLoopDelay } from "node:perf_hooks";
-import { open, stat, unlink } from "node:fs/promises";
-import { Transform } from "node:stream";
-import { pipeline } from "node:stream/promises";
-import Fastify, { type FastifyReply, type FastifyRequest } from "fastify";
-import cors from "@fastify/cors";
-import fastifyStatic from "@fastify/static";
-import multipart from "@fastify/multipart";
-import { ZodError } from "zod";
 import {
-  DEFAULT_WORKSPACE_NAME,
-  endpoints,
-  PROTOCOL_VERSION,
-  channelPermissions,
+  ACCESS_POLICIES,
   canRemoveChannelMember,
   canSetChannelManager,
-  channelManagerBody,
-  createChannelBody,
-  channelPrefsBody,
-  notifyDefaultBody,
-  type UnreadSummary,
-  savedMessagesQuery,
-  pinnedMessagesQuery,
-  followedThreadsQuery,
-  threadFollowBody,
-  threadMuteBody,
-  threadReadBody,
-  reminderBody,
-  pollVotesBody,
-  sharedFilesQuery,
-  sidebarSectionBody,
-  sidebarSectionOrderBody,
-  SIDEBAR_SECTIONS_MAX,
-  adminUserBody,
-  createAppBody,
-  createCommandBody,
-  createSubscriptionBody,
-  interactivityBody,
-  messageActionBody,
-  viewSubmitBody,
-  createWebhookBody,
-  runCommandBody,
-  auditQuery,
-  createInviteBody,
-  scheduleMessageBody,
-  rescheduleBody,
-  editScheduledBody,
-  changePasswordBody,
-  editMessageBody,
-  loginBody,
-  twoStepCodeBody,
-  twoStepPasswordBody,
-  twoStepSignInBody,
-  reportMessageBody,
-  resolveReportBody,
-  type ReportedMessage,
-  guestAccountBody,
-  guestJoinBody,
-  accessPolicyBody,
-  linkPreviewsBody,
-  workspaceNameBody,
-  workspaceNameSchema,
-  ACCESS_POLICIES,
-  type AccessPolicy,
-  type CallNotice,
-  markReadBody,
-  markUnreadBody,
-  messageHistoryQuery,
-  threadHistoryQuery,
-  registerBody,
-  parseSearchQuery,
-  isTimeZone,
+  channelPermissions,
+  DEFAULT_PORT,
+  endpoints,
   hasSearchCriteria,
-  searchQuery,
-  activityQuery,
-  readRemovalsBody,
-  sendMessageBody,
-  SEND_RETRY_WINDOW_MS,
-  updateChannelBody,
-  updateMeBody,
-  type ErrorCode,
-  type EventEnvelope,
-  type ID,
-  type MemberNotice,
+  isAdministrator,
+  isTimeZone,
+  parseSearchQuery,
   planMembers,
-  type MessageAction,
-  type Message,
-  type ModalView,
+  PROTOCOL_VERSION,
+  SEND_RETRY_WINDOW_MS,
+  SIDEBAR_SECTIONS_MAX,
+  workspaceNameSchema,
+  type AccessPolicy,
   type App,
   type AppScope,
-  appScopesBody,
-  isAdministrator,
+  type ErrorCode,
+  type ID,
+  type MemberNotice,
+  type Message,
+  type ModalView,
+  type ReportedMessage,
   type ScheduledMessage,
   type ServerInfo,
   type User,
-  type WorkspaceEvent,
   type WorkspaceStatus,
-  type CallLogEntry,
 } from "@ownbase/protocol";
-import { openDb, SCHEMA_VERSION } from "./db.js";
+import type { FastifyRequest } from "fastify";
+import { createHash, randomUUID } from "node:crypto";
+import { createWriteStream, mkdirSync, statfsSync, statSync } from "node:fs";
+import { open, stat, unlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { dirname, join, resolve } from "node:path";
+import { monitorEventLoopDelay } from "node:perf_hooks";
+import { Transform } from "node:stream";
+import { pipeline } from "node:stream/promises";
+import { hashPassword, hashToken, newSessionToken, verifyPassword } from "./auth.js";
+import type { BackupManifest } from "./backup.js";
 import { backupWorkspace, separateDirectories } from "./backup.js";
 import {
   BackupSchedule,
   type BackupScheduleStatus,
   type ScheduledBackups,
 } from "./backupSchedule.js";
-import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
-import { WorkspaceCopies, type CopyState } from "./workspaceCopy.js";
-import type { ServerExtension } from "./extensions.js";
-import type { BackupManifest } from "./backup.js";
-import { Store } from "./store.js";
-import { StorageBudget } from "./storageBudget.js";
-import { Gateway } from "./gateway.js";
-import { hashPassword, hashToken, newSessionToken, verifyPassword } from "./auth.js";
-import { advertise, type MdnsHandle } from "./mdns.js";
-import { imageSize } from "./imageSize.js";
 import {
   blocksToActions,
   parseView,
@@ -125,18 +52,27 @@ import {
   readAnswer,
   type AnswerContext,
 } from "./blockKit.js";
-import { OutboundError, postToUrl } from "./outbound.js";
-import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
-import { ConfigError, parsePort, parsePublicUrl } from "./config.js";
-import { createRelaySource, serverRelaySchema, withRelay, type ServerRelay } from "./relay.js";
-import { iceServersSchema } from "./rtc.js";
+import { CapabilityMap } from "./capabilities.js";
+import { BUILTIN_COMMANDS } from "./commands.js";
+import { ConfigError, parsePort } from "./config.js";
+import { BackgroundWork } from "./core/background.js";
+import { createCommits } from "./core/commit.js";
 import {
-  checkCode,
-  newRecoveryCodes,
-  newTwoStepSecret,
-  normalRecoveryCode,
-  otpauthUri,
-} from "./twoStep.js";
+  rationWith,
+  requireChannelAccess as requireChannelAccessIn,
+  requireVisibleMessage as requireVisibleMessageIn,
+  type ServerContext,
+} from "./core/context.js";
+import { createHttp } from "./core/http.js";
+import { Lifecycle } from "./core/lifecycle.js";
+import { bearerToken, Network } from "./core/network.js";
+import { openDb, SCHEMA_VERSION } from "./db.js";
+import type { ServerExtension } from "./extensions.js";
+import { Gateway } from "./gateway.js";
+import { HttpError } from "./httpError.js";
+import { secretToken, ulid } from "./ids.js";
+import { imageSize } from "./imageSize.js";
+import { signatureHeaders } from "./integrations.js";
 import {
   APP_CALLS_IN_FLIGHT,
   CAPABILITIES_ALIVE,
@@ -144,33 +80,27 @@ import {
   RateLimiter,
   type Limits,
 } from "./limits.js";
-import { CapabilityMap } from "./capabilities.js";
-import { LOGGER_OPTIONS } from "./redact.js";
-import {
-  firstHeaderValue,
-  isLoopbackOrigin,
-  originFromConnection,
-  resolveClientAddress,
-} from "./netTrust.js";
-import { SECURITY_HEADERS } from "./securityHeaders.js";
-import { isMissingAsset, webCacheControl } from "./webClient.js";
-import { signatureHeaders } from "./integrations.js";
-import { enqueueAppDeliveries } from "./apps/delivery.js";
-import { eventChannel, writeEffects } from "./events/registry.js";
-import type { Audiences } from "./events/outbox.js";
-import { BUILTIN_COMMANDS } from "./commands.js";
-import { HttpError } from "./httpError.js";
+import { fetchLinkPreview, previewLinks, type FetchedPreview } from "./linkPreview.js";
+import { advertise, type MdnsHandle } from "./mdns.js";
 import { createPosting, requireMessageText, slackRefusal } from "./messages/posting.js";
+import { OutboundError, postToUrl } from "./outbound.js";
+import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
+import { createRelaySource, serverRelaySchema, withRelay, type ServerRelay } from "./relay.js";
+import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
-import { secretToken, ulid } from "./ids.js";
-import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
+import { iceServersSchema } from "./rtc.js";
+import { StorageBudget } from "./storageBudget.js";
+import { Store } from "./store.js";
 import {
-  checkIcon,
-  ICON_META_KEYS,
-  readStoredIcon,
-  storedIconRows,
-  type WorkspaceIcon,
-} from "./workspaceIcon.js";
+  checkCode,
+  newRecoveryCodes,
+  newTwoStepSecret,
+  normalRecoveryCode,
+  otpauthUri,
+} from "./twoStep.js";
+import { SERVER_BUILD, SERVER_VERSION } from "./version.js";
+import { WorkspaceCopies } from "./workspaceCopy.js";
+import { checkIcon, ICON_META_KEYS, storedIconRows, type WorkspaceIcon } from "./workspaceIcon.js";
 
 export { SERVER_VERSION };
 
@@ -191,17 +121,6 @@ export const SCHEDULED_LIMITS = {
   perWorkspace: 10_000,
   batch: 10,
   heldRetryMs: 60_000,
-};
-
-/**
- * Bounds on reminders (E4): how many an account may keep, how far ahead one
- * may be set, and how many come due in one pass of the timer before it lets
- * the loop go and takes the rest on its next turn.
- */
-export const REMINDER_LIMITS = {
-  perAccount: 200,
-  maxAheadMs: 5 * 366 * 24 * 60 * 60_000,
-  batch: 100,
 };
 
 /** Delivered queue rows are kept this long as proof of completion. */
@@ -499,6 +418,8 @@ export interface WorkspaceServer {
    * their sockets included, and everyone signed in is told.
    */
   setAccessPolicy: (policy: AccessPolicy) => void;
+  /** The workspace's id: made once, kept through renames, moves and restores. */
+  workspaceId: () => ID;
   /** The workspace's name now. */
   workspaceName: () => string;
   /**
@@ -603,8 +524,7 @@ async function startWorkspaceServer(
   // Before the database opens, so a refused start leaves nothing open in the folder.
   if (opts.accessPolicy !== undefined && !isAccessPolicy(opts.accessPolicy))
     throw new TypeError(`accessPolicy must be one of ${ACCESS_POLICIES}`);
-  let publicUrl =
-    opts.publicUrl === undefined ? undefined : parsePublicUrl(opts.publicUrl, "publicUrl");
+  const network = new Network(opts);
   let iceServers = opts.iceServers ?? [];
   const relaySource = (relay: ServerRelay | null) =>
     createRelaySource(relay === null ? null : serverRelaySchema.parse(relay), {
@@ -641,47 +561,42 @@ async function startWorkspaceServer(
     onUpgradeBackupPruneFailure: (file, error) => unprunedCopies.push({ file, error }),
   });
   const store = new Store(db);
+  const { settings } = store;
 
   // Before anyone owns the workspace, nobody in it could change its name or
   // who may join, so what it is started with decides both. Once it has an
   // owner they are its own, changed by its owner and admins, and a start
   // never puts back an older choice over theirs.
   const unowned = store.userCount() === 0;
-  if (opts.workspaceName && (unowned || !store.getMeta("workspace_name")))
-    store.setMeta("workspace_name", opts.workspaceName);
-  if (!store.getMeta("workspace_name")) store.setMeta("workspace_name", DEFAULT_WORKSPACE_NAME);
-  store.workspaceId();
+  if (opts.workspaceName && (unowned || settings.stored("workspaceName") === null))
+    settings.set("workspaceName", opts.workspaceName);
+  if (settings.stored("workspaceName") === null)
+    settings.set("workspaceName", settings.get("workspaceName"));
+  settings.get("workspaceId");
   // Before guest access, invite_only alone said who could join: on, invited
   // accounts; off, any account. A workspace keeps that until someone chooses.
-  if (!isAccessPolicy(store.getMeta("access_policy")))
-    store.setMeta(
-      "access_policy",
-      store.getMeta("invite_only") === "1" ? "invite_only" : "account_required",
+  if (settings.stored("accessPolicy") === null)
+    settings.set(
+      "accessPolicy",
+      settings.get("inviteOnlyBefore") ? "invite_only" : "account_required",
     );
-  const accessPolicy = (): AccessPolicy => {
-    const policy = store.getMeta("access_policy");
-    return isAccessPolicy(policy) ? policy : "invite_only";
-  };
-  const workspaceName = () => store.getMeta("workspace_name")!;
-  /** Whether new messages get link previews (E2): on unless an owner or admin turned them off. */
-  const linkPreviewsOn = () => store.getMeta("link_previews") !== "off";
+  const accessPolicy = (): AccessPolicy => settings.get("accessPolicy");
+  const workspaceName = () => settings.get("workspaceName");
+  const linkPreviewsOn = () => settings.get("linkPreviews");
   const inviteOnly = () => accessPolicy() === "invite_only";
   /**
    * The workspace's icon, held here once read, since everyone who opens the
-   * workspace or finds it to join asks for it. Rows that do not make a whole
-   * icon are read as none.
+   * workspace or finds it to join asks for it.
    */
-  let icon: WorkspaceIcon | null = readStoredIcon((key) => store.getMeta(key));
+  let icon: WorkspaceIcon | null = settings.get("icon");
   /**
-   * Keeps the policy and the older invite_only flag in step, in one write with
-   * whatever `record` adds, and ends every guest session when guests are no
-   * longer allowed. Returns the ended sessions, whose sockets are the caller's
-   * to close.
+   * Writes who may join, in one write with whatever `record` adds, and ends
+   * every guest session when guests are no longer allowed. Returns the ended
+   * sessions, whose sockets are the caller's to close.
    */
   const writeAccessPolicy = (policy: AccessPolicy, record?: () => void): string[] =>
     store.transaction(() => {
-      store.setMeta("access_policy", policy);
-      store.setMeta("invite_only", policy === "invite_only" ? "1" : "0");
+      settings.set("accessPolicy", policy);
       record?.();
       return policy === "guest_allowed" ? [] : store.revokeGuestSessions();
     });
@@ -702,49 +617,27 @@ async function startWorkspaceServer(
    * is the one in force.
    */
   if (store.userCount() === 0) {
-    if (opts.claimCode) store.setMeta("claim_code", opts.claimCode);
-    else if (!store.getMeta("claim_code")) store.setMeta("claim_code", secretToken());
+    if (opts.claimCode) settings.set("claimCode", opts.claimCode);
+    else if (!settings.get("claimCode")) settings.set("claimCode", secretToken());
   }
-  const claimCode = () => store.getMeta("claim_code") || null;
-  /** Whatever the client called itself. Shown back to its owner, never trusted. */
-  const deviceName = (req: FastifyRequest) => String(req.headers["user-agent"] ?? "").slice(0, 200);
-  /**
-   * Whether this request came from the machine running the server.
-   *
-   * Behind a reverse proxy every request arrives from loopback, which would
-   * hand the local bypass to the whole internet. So a request that shows any
-   * sign of having been forwarded is never local, and neither is any request to
-   * a server configured with a public URL.
-   *
-   * Arriving from loopback is not on its own proof that the person running this
-   * machine meant it. A web page they merely visited can have their browser
-   * post to localhost, and that request arrives from loopback like any other —
-   * which, while a workspace still has no owner, would let that page claim it
-   * without the claim code. A command line request carries no `Origin`; a
-   * browser always sends one on a write, and a page served from anywhere else
-   * names that somewhere else. So an `Origin` is required to be this same
-   * server, if it is there at all.
-   */
-  const isLocalRequest = (req: FastifyRequest) => {
-    if (publicUrl) return false;
-    if (
-      [
-        "forwarded",
-        "x-forwarded-for",
-        "x-forwarded-host",
-        "x-forwarded-proto",
-        "x-real-ip",
-        "cf-connecting-ip",
-      ].some((name) => req.headers[name] !== undefined)
-    )
-      return false;
-    const origin = req.headers.origin;
-    if (typeof origin === "string" && origin && !isLoopbackOrigin(origin, req.socket.localPort)) {
-      return false;
-    }
-    const ip = (req.ip || "").replace(/^::ffff:/, "");
-    return ip === "127.0.0.1" || ip === "::1";
-  };
+  const claimCode = () => settings.get("claimCode");
+  const deviceName = (req: FastifyRequest) => network.deviceName(req);
+  const isLocalRequest = (req: FastifyRequest) => network.isLocalRequest(req);
+  const callerAddress = (req: FastifyRequest) => network.callerAddress(req);
+  const requestOrigin = (req: FastifyRequest) => network.requestOrigin(req);
+
+  const maxFileSize = opts.maxFileSize ?? 100 * 1024 * 1024;
+  const { app, runningHandlers } = await createHttp({
+    logger: opts.logger,
+    maxFileSize,
+    webDistPath: opts.webDistPath,
+  });
+  if (upgradeBackup) {
+    app.log.info({ file: upgradeBackup }, "backed up the workspace before upgrading it");
+  }
+  for (const { file, error } of unprunedCopies) {
+    app.log.warn({ file, err: error }, "could not remove an older pre-upgrade copy");
+  }
 
   /**
    * Rationing. The cap on concurrent password hashing keeps one burst from
@@ -755,17 +648,8 @@ async function startWorkspaceServer(
     opts.rateLimits === false
       ? null
       : new RateLimiter({ ...DEFAULT_LIMITS, ...(opts.rateLimits ?? {}) });
+  const ration = rationWith(limiter);
   const scheduledLimits = { ...SCHEDULED_LIMITS, ...opts.scheduledLimits };
-  const reminderLimits = { ...REMINDER_LIMITS, ...opts.reminderLimits };
-  let trustLoopbackProxy = opts.trustedClientProxy === "loopback";
-
-  /** The address a request came from, as the limiter keys on it. */
-  const callerAddress = (req: FastifyRequest): string =>
-    resolveClientAddress(
-      req.socket.remoteAddress,
-      req.headers,
-      trustLoopbackProxy ? "loopback" : undefined,
-    );
 
   /**
    * Clears what a handle has spent on authentication. Called when a password
@@ -775,19 +659,6 @@ async function startWorkspaceServer(
    */
   const authSucceeded = (handle: string): void => {
     limiter?.forget("authByHandle", handle.toLowerCase());
-  };
-
-  const ration = (name: keyof Limits, key: string): void => {
-    if (!limiter) return;
-    const { ok, retryAfterMs } = limiter.take(name, key);
-    if (ok) return;
-    const seconds = Math.max(1, Math.ceil(retryAfterMs / 1000));
-    throw new HttpError(
-      429,
-      "too_many_requests",
-      "That is more than this workspace allows for now. Try again shortly.",
-      seconds,
-    );
   };
 
   /** Calls to apps in flight, keyed `account:<id>` and `app:<id>`. */
@@ -837,6 +708,7 @@ async function startWorkspaceServer(
       accessPolicy,
       iconVersion: () => icon?.version ?? null,
       linkPreviews: linkPreviewsOn,
+      workspaceId: () => settings.get("workspaceId"),
       memberNotice: () => opts.memberNotice ?? null,
       notices: () =>
         extensions.flatMap((extension) => {
@@ -845,12 +717,7 @@ async function startWorkspaceServer(
         }),
     },
     limiter,
-    (req) =>
-      resolveClientAddress(
-        req.socket.remoteAddress,
-        req.headers,
-        trustLoopbackProxy ? "loopback" : undefined,
-      ),
+    (req) => network.callerAddress(req),
     (err, where) =>
       app.log.error({ err, where }, "socket work failed; its socket closes to reconnect"),
     {
@@ -865,114 +732,47 @@ async function startWorkspaceServer(
     app.log.error({ err, what }, "could not tell someone of a committed change"),
   );
 
-  /** Appends an event to the log, with what it writes besides, inside the caller's transaction. */
-  const recordEvent = (event: WorkspaceEvent): EventEnvelope => {
-    const envelope = store.appendEvent(event, eventChannel(event));
-    writeEffects(event, envelope.seq, store);
-    enqueueAppDeliveries(store, envelope, (subscriptionId) =>
-      app.log.warn(
-        { subscriptionId, eventSeq: envelope.seq },
-        "event subscription backlog full, event dropped",
-      ),
-    );
-    return envelope;
-  };
+  const background = new BackgroundWork(app.log);
+  const inBackground = (queue: string, work: () => unknown) => background.run(queue, work);
+  const { recordEvent, mutate, onPublished } = createCommits({
+    store,
+    gateway,
+    log: app.log,
+    background,
+  });
+  onPublished(() => inBackground("event deliveries", flushEventDeliveries));
+  const lifecycle = new Lifecycle();
 
-  /**
-   * Queues failing in the background now, by name: since when and how many
-   * times in a row (REV-01). Cleared when the queue next succeeds. Times and
-   * counts only, so admin status can show it without any error text.
-   */
-  const backgroundFailures = new Map<string, { since: number; failures: number }>();
-  /** Runs already being watched: callers share one in-flight flush, which fails once. */
-  const watchedRuns = new WeakSet<Promise<unknown>>();
-  /**
-   * Runs queue work from a timer, an immediate or startup, where a throw or a
-   * rejection would end the process (REV-01). The failure is logged and
-   * counted, and the queue tries again on its next round; the durable rows
-   * it was working on stay as they were. Callers that must learn of a
-   * failure, such as tests and operators, call the queue's own function.
-   */
-  const inBackground = (queue: string, work: () => unknown): void => {
-    const failed = (err: unknown) => {
-      const failing = backgroundFailures.get(queue);
-      backgroundFailures.set(queue, {
-        since: failing?.since ?? Date.now(),
-        failures: (failing?.failures ?? 0) + 1,
-      });
-      app.log.error({ err, queue }, "background work failed; it will be tried again");
-    };
-    const succeeded = () => backgroundFailures.delete(queue);
-    try {
-      const result = work();
-      if (!(result instanceof Promise)) succeeded();
-      else if (!watchedRuns.has(result)) {
-        watchedRuns.add(result);
-        result.then(succeeded, failed);
-      }
-    } catch (err) {
-      failed(err);
-    }
+  const { route, signedIn: requireUser } = createRouter({
+    app,
+    log: app.log,
+    sessionUser: (tokenHash) => store.getSessionUser(tokenHash),
+    mustChangePassword: (userId) => store.mustChangePassword(userId),
+    appForToken: (tokenHash) => store.appForToken(tokenHash),
+  });
+
+  const ctx: ServerContext = {
+    opts,
+    app,
+    log: app.log,
+    db,
+    store,
+    settings,
+    gateway,
+    route,
+    requireUser,
+    ration,
+    limiter,
+    recordEvent,
+    mutate,
+    background,
+    network,
+    lifecycle,
   };
-  /** Runs work that follows a commit, so its failure is logged instead of undoing the answer. */
-  const afterCommitted = (what: string, work: () => void): void => {
-    try {
-      work();
-    } catch (err) {
-      app.log.error({ err }, `could not ${what} after a commit`);
-    }
-  };
-  /**
-   * Hands committed events to everyone allowed to see them (REV-10). The
-   * change has happened, so nothing here may turn its answer into a failure
-   * or stop the events after it. A frame that cannot be fanned out closes
-   * every socket, so each client reconnects from the last event it has and
-   * replays the rest, rather than taking the next event as its checkpoint and
-   * never asking for it.
-   */
-  const publishCommitted = (events: readonly EventEnvelope[], audiences: Audiences): void => {
-    for (const envelope of events) {
-      try {
-        gateway.publish(envelope, audiences);
-      } catch (err) {
-        app.log.error(
-          { err, seq: envelope.seq },
-          "could not send a committed event; clients replay it",
-        );
-        gateway.resynchronize();
-      }
-    }
-    if (events.length > 0) inBackground("event deliveries", flushEventDeliveries);
-  };
-  /**
-   * Commits synchronous state and its event log before exposing any side
-   * effects. What the writes tell people goes out around the change's events:
-   * notices ahead of them, then the events, then the rest, each channel's
-   * audience read once for all of it (F10).
-   */
-  const mutate = <T>(
-    work: (record: typeof recordEvent, afterCommit: (effect: () => void) => void) => T,
-  ): T => {
-    const events: EventEnvelope[] = [];
-    const effects: (() => void)[] = [];
-    const audiences: Audiences = new Map();
-    return store.outbox.hold(() => {
-      const result = store.transaction(() =>
-        work(
-          (event) => {
-            const envelope = recordEvent(event);
-            events.push(envelope);
-            return envelope;
-          },
-          (effect) => effects.push(effect),
-        ),
-      );
-      store.outbox.flushAhead();
-      for (const effect of effects) afterCommitted("apply a committed change", effect);
-      publishCommitted(events, audiences);
-      return result;
-    }, audiences);
-  };
+  const requireChannelAccess = (channelId: ID, user: User) =>
+    requireChannelAccessIn(store, channelId, user);
+  const requireVisibleMessage = (messageId: ID, user: User) =>
+    requireVisibleMessageIn(store, messageId, user);
 
   const updateMessage = (existing: Message, text: string, clearActions = false): Message => {
     const updated = mutate((emit) => {
@@ -985,15 +785,6 @@ async function startWorkspaceServer(
     queuePreviews(updated);
     return updated;
   };
-
-  /**
-   * Shutdown, as the parts of the server that outlive a single call see it.
-   * `closing` stops loops from starting another round; the signal ends outbound
-   * calls already under way, so an app slow to answer cannot hold the process
-   * open for its whole timeout.
-   */
-  let closing = false;
-  const shutdown = new AbortController();
 
   // ---------- link previews (E2) ----------
 
@@ -1018,7 +809,7 @@ async function startWorkspaceServer(
     const now = Date.now();
     const held = previewCache.get(url);
     if (held && now - held.at < PREVIEW_CACHE_MS) return held.found;
-    const found = fetchPreview(url, shutdown.signal).catch(() => null);
+    const found = fetchPreview(url, lifecycle.signal).catch(() => null);
     previewCache.delete(url);
     previewCache.set(url, { at: now, found });
     while (previewCache.size > PREVIEW_CACHE)
@@ -1032,7 +823,7 @@ async function startWorkspaceServer(
    * which calls nothing outside, or with previews turned off.
    */
   const queuePreviews = (message: Message): void => {
-    if (closing || opts.isolated || !linkPreviewsOn()) return;
+    if (lifecycle.closing || opts.isolated || !linkPreviewsOn()) return;
     if (previewLinks(message.text).length === 0 || previewQueued.has(message.id)) return;
     if (previewQueue.length >= PREVIEW_QUEUE) return;
     previewQueued.add(message.id);
@@ -1041,7 +832,7 @@ async function startWorkspaceServer(
   };
 
   const pumpPreviews = (): void => {
-    while (!closing && previewsRunning < PREVIEW_WORKERS && previewQueue.length > 0) {
+    while (!lifecycle.closing && previewsRunning < PREVIEW_WORKERS && previewQueue.length > 0) {
       const id = previewQueue.shift()!;
       previewQueued.delete(id);
       previewsRunning++;
@@ -1070,7 +861,7 @@ async function startWorkspaceServer(
       const preview = await cachedPreview(url);
       if (preview) found.push({ position, preview: { ...preview, url } });
     }
-    if (found.length === 0 || closing) return;
+    if (found.length === 0 || lifecycle.closing) return;
     mutate((emit) => {
       const now = store.getMessage(messageId);
       if (!now || now.text !== message.text || !linkPreviewsOn()) return;
@@ -1114,7 +905,7 @@ async function startWorkspaceServer(
           : {};
       const res = await postToApp(delivery.url, delivery.body, "application/json", {
         allowPrivate: opts.allowPrivateHooks,
-        signal: shutdown.signal,
+        signal: lifecycle.signal,
         headers: {
           ...signatureHeaders(delivery.signingSecret, delivery.body),
           ...retryHeaders,
@@ -1195,7 +986,7 @@ async function startWorkspaceServer(
         wake();
       };
       try {
-        while (!closing && failures.length === 0) {
+        while (!lifecycle.closing && failures.length === 0) {
           if (freshRound) {
             freshRound = false;
             remaining = EVENT_DELIVERY_ROUND;
@@ -1261,7 +1052,6 @@ async function startWorkspaceServer(
   // Uploads live beside the database so one folder is the whole workspace.
   const filesDir = opts.dataDir === ":memory:" ? null : join(opts.dataDir, "files");
   if (filesDir) mkdirSync(filesDir, { recursive: true });
-  const maxFileSize = opts.maxFileSize ?? 100 * 1024 * 1024;
   const blobPath = (fileId: string) => join(filesDir!, fileId);
   const storage = new StorageBudget(filesDir, opts.maxStorageBytes || null);
   const abandonedUploadTtlMs = opts.abandonedUploadTtlMs ?? 24 * 3600_000;
@@ -1322,7 +1112,7 @@ async function startWorkspaceServer(
       })
       .finally(() => {
         fileCleanup = null;
-        if (more && !closing && !fileCleanupNext) {
+        if (more && !lifecycle.closing && !fileCleanupNext) {
           fileCleanupNext = setImmediate(() => {
             fileCleanupNext = null;
             inBackground("attachment cleanup", () => flushFileDeletions(Math.max(now, Date.now())));
@@ -1421,7 +1211,7 @@ async function startWorkspaceServer(
     const started = Date.now();
     let removed = 0;
     try {
-      for (let pass = 0; pass < RETENTION_PASSES && !closing; pass++) {
+      for (let pass = 0; pass < RETENTION_PASSES && !lifecycle.closing; pass++) {
         const went = applyRetention();
         removed += went;
         if (went === 0 || Date.now() - started > RETENTION_SWEEP_MS) break;
@@ -1473,158 +1263,6 @@ async function startWorkspaceServer(
   };
   const removeMessage = (existing: Message) =>
     mutate((emit) => removeMessageWithin(existing, emit));
-
-  const app = Fastify({
-    // Redacting where the log is configured rather than at each call site: the
-    // leak is Fastify's own request logging, which no route goes through.
-    logger: opts.logger
-      ? { ...LOGGER_OPTIONS, ...(typeof opts.logger === "object" ? opts.logger : {}) }
-      : false,
-    forceCloseConnections: true,
-  });
-
-  /**
-   * Every route handler still running. Closing the listener destroys the
-   * connections but not the handlers behind them: a slash command waiting on
-   * its app wakes up afterwards and goes on to read and write the database. So
-   * shutdown waits for these to finish before closing it.
-   *
-   * Registered before any route, since it only applies to routes added after.
-   */
-  if (upgradeBackup) {
-    app.log.info({ file: upgradeBackup }, "backed up the workspace before upgrading it");
-  }
-  for (const { file, error } of unprunedCopies) {
-    app.log.warn({ file, err: error }, "could not remove an older pre-upgrade copy");
-  }
-
-  const runningHandlers = new Set<Promise<void>>();
-  app.addHook("onRoute", (route) => {
-    const handler = route.handler;
-    route.handler = function (req, reply) {
-      const result = handler.call(this, req, reply) as unknown;
-      if (result && typeof (result as PromiseLike<unknown>).then === "function") {
-        const settled = Promise.resolve(result).then(
-          () => {},
-          () => {},
-        );
-        runningHandlers.add(settled);
-        void settled.then(() => runningHandlers.delete(settled));
-      }
-      return result as ReturnType<typeof handler>;
-    };
-  });
-  // The default allow-list is GET/HEAD/POST only, which silently breaks
-  // reactions, edits, deletes, pins and saves in the browser.
-  await app.register(cors, {
-    origin: true,
-    methods: ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE"],
-    // How long to wait after "too much at once", for clients on another origin.
-    exposedHeaders: ["retry-after"],
-  });
-  await app.register(multipart, { limits: { fileSize: maxFileSize, files: 1 } });
-
-  // On every response rather than only on the client's HTML. An API reply is
-  // not a page, but it can be navigated to directly, and a header that is
-  // always there cannot be forgotten on the one route that needed it.
-  app.addHook("onSend", async (_req, reply) => {
-    for (const [name, value] of Object.entries(SECURITY_HEADERS)) {
-      if (!reply.hasHeader(name)) reply.header(name, value);
-    }
-  });
-
-  // Slack-style integrations often post `payload=<json>` as a form rather than
-  // JSON, so accept that shape too. Small enough not to warrant a plugin.
-  app.addContentTypeParser(
-    "application/x-www-form-urlencoded",
-    { parseAs: "string" },
-    (_req, body, done) => {
-      try {
-        done(null, Object.fromEntries(new URLSearchParams(body as string)));
-      } catch (err) {
-        done(err as Error);
-      }
-    },
-  );
-
-  // Serve the browser client (if bundled) so teammates without the app can join.
-  const servesWebClient = !!opts.webDistPath && existsSync(join(opts.webDistPath, "index.html"));
-  if (servesWebClient) {
-    const root = opts.webDistPath!;
-    // The build writes a Brotli and a gzip copy of each text file beside it;
-    // the plugin sends the one the browser accepts, with Vary: Accept-Encoding.
-    await app.register(fastifyStatic, {
-      root,
-      preCompressed: true,
-      setHeaders: (reply, file) => reply.header("cache-control", webCacheControl(root, file)),
-    });
-  }
-  app.setNotFoundHandler((req, reply) => {
-    const url = req.raw.url ?? "";
-    // A Slack Web API method this server does not implement. Slack's answer is
-    // `unknown_method`, which its SDK reports by name; a bare 404 would reach
-    // a bot as a transport failure that says nothing about why.
-    if (/^\/api\/[a-z]+(?:\.[A-Za-z]+)+(?:[?#]|$)/.test(url)) {
-      return reply.status(200).send({ ok: false, error: "unknown_method" });
-    }
-    if (!servesWebClient || url.startsWith("/api/") || url.startsWith("/ws")) {
-      return reply.status(404).send({ error: "not_found" });
-    }
-    if (isMissingAsset(url)) {
-      return reply.status(404).header("cache-control", "no-store").send({ error: "not_found" });
-    }
-    return reply.sendFile("index.html");
-  });
-
-  // ---------- auth plumbing ----------
-
-  const bearerToken = (req: FastifyRequest): string | null => {
-    const h = req.headers.authorization;
-    if (h?.startsWith("Bearer ")) return h.slice(7);
-    return null;
-  };
-
-  /**
-   * How this server is addressed from outside, for the URLs we hand to apps.
-   *
-   * These become a `response_url`, which carries a token and which an app posts
-   * its reply to. Building one from the `Host` header meant whoever sent the
-   * request chose where that reply went: a forged header pointed the app at
-   * somewhere else entirely, and sent the token with it. So the configured
-   * public URL is used when there is one, forwarded headers only when a proxy
-   * has been declared, and otherwise the address the connection actually
-   * arrived on, which no header can change.
-   */
-  const requestOrigin = (req: FastifyRequest): string => {
-    if (publicUrl) return publicUrl;
-    if (opts.trustProxy) {
-      const proto = firstHeaderValue(req.headers["x-forwarded-proto"]) || "http";
-      const host =
-        firstHeaderValue(req.headers["x-forwarded-host"]) || firstHeaderValue(req.headers.host);
-      if (host) return `${proto}://${host}`;
-    }
-    return originFromConnection(req.socket.localAddress, req.socket.localPort);
-  };
-
-  const { route, signedIn: requireUser } = createRouter({
-    app,
-    log: app.log,
-    sessionUser: (req) => {
-      const token = bearerToken(req);
-      return token ? store.getSessionUser(hashToken(token)) : null;
-    },
-    mustChangePassword: (userId) => store.mustChangePassword(userId),
-    botCaller: (req) => slackCaller(req),
-    sayScopes: (reply, caller) => sayScopes(reply, caller),
-  });
-
-  const requireChannelAccess = (channelId: ID, user: User) => {
-    const channel = store.getChannel(channelId);
-    if (!channel || !store.canAccess(channelId, user.id)) {
-      throw new HttpError(404, "channel_not_found");
-    }
-    return channel;
-  };
 
   // ---------- unauthenticated ----------
 
@@ -1681,7 +1319,7 @@ async function startWorkspaceServer(
       accessPolicy: accessPolicy(),
       requiresClaim: userCount === 0 && !!claimCode() && !isLocalRequest(req),
       workspaceCopies: opts.dataDir !== ":memory:",
-      ...(publicUrl ? { publicUrl } : {}),
+      ...(network.publicUrl() ? { publicUrl: network.publicUrl() } : {}),
       iconVersion: icon?.version ?? null,
       ...(signIn ? { signIn } : {}),
     };
@@ -2567,10 +2205,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.editMessage, async ({ user: me, body, params }) => {
-    const existing = store.getMessage(params.id);
-    if (!existing || !store.canAccess(existing.channelId, me.id)) {
-      throw new HttpError(404, "message_not_found");
-    }
+    const existing = requireVisibleMessage(params.id, me);
     if (existing.userId !== me.id) throw new HttpError(403, "not_your_message");
     // People voted on the question as it was.
     if (existing.poll)
@@ -2594,10 +2229,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.deleteMessage, async ({ user: me, params }) => {
-    const existing = store.getMessage(params.id);
-    if (!existing || !store.canAccess(existing.channelId, me.id)) {
-      throw new HttpError(404, "message_not_found");
-    }
+    const existing = requireVisibleMessage(params.id, me);
     const isPrivileged = isAdministrator(me.role);
     if (existing.userId !== me.id && !isPrivileged) throw new HttpError(403, "not_your_message");
 
@@ -2607,10 +2239,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.reportMessage, async ({ user: me, body, params }) => {
-    const message = store.getMessage(params.id);
-    if (!message || !store.canAccess(message.channelId, me.id)) {
-      throw new HttpError(404, "message_not_found");
-    }
+    const message = requireVisibleMessage(params.id, me);
     if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
     store.reportMessage(message.id, me.id, body.reason, body.note?.trim() ?? "");
     return { ok: true };
@@ -2837,10 +2466,7 @@ async function startWorkspaceServer(
   // ---------- reactions ----------
 
   route(endpoints.addReaction, async ({ user: me, params }) => {
-    const msg = store.getMessage(params.id);
-    if (!msg || !store.canAccess(msg.channelId, me.id)) {
-      throw new HttpError(404, "message_not_found");
-    }
+    const msg = requireVisibleMessage(params.id, me);
     const emoji = decodeURIComponent(params.emoji).slice(0, 64);
     mutate((emit) => {
       if (store.addReaction(msg.id, me.id, emoji)) {
@@ -2857,10 +2483,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.removeReaction, async ({ user: me, params }) => {
-    const msg = store.getMessage(params.id);
-    if (!msg || !store.canAccess(msg.channelId, me.id)) {
-      throw new HttpError(404, "message_not_found");
-    }
+    const msg = requireVisibleMessage(params.id, me);
     const emoji = decodeURIComponent(params.emoji).slice(0, 64);
     mutate((emit) => {
       if (store.removeReaction(msg.id, me.id, emoji)) {
@@ -2879,9 +2502,7 @@ async function startWorkspaceServer(
   // ---------- polls (E6) ----------
 
   route(endpoints.votePoll, async ({ user: me, body, params }) => {
-    const msg = store.getMessage(params.id);
-    if (!msg || !store.canAccess(msg.channelId, me.id))
-      throw new HttpError(404, "message_not_found");
+    const msg = requireVisibleMessage(params.id, me);
     const rules = store.pollRules(msg.id);
     if (!rules) throw new HttpError(404, "poll_not_found", "That message is not a poll.");
     if (store.getChannel(msg.channelId)?.archived) throw new HttpError(400, "channel_archived");
@@ -2903,9 +2524,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.closePoll, async ({ user: me, params }) => {
-    const msg = store.getMessage(params.id);
-    if (!msg || !store.canAccess(msg.channelId, me.id))
-      throw new HttpError(404, "message_not_found");
+    const msg = requireVisibleMessage(params.id, me);
     if (!store.pollRules(msg.id))
       throw new HttpError(404, "poll_not_found", "That message is not a poll.");
     if (msg.userId !== me.id) throw new HttpError(403, "not_your_message");
@@ -3006,7 +2625,7 @@ async function startWorkspaceServer(
       backups: backupSummary(),
       connections: { sockets: gateway.socketCount(), people: gateway.onlineUserIds().length },
       eventLoopDelayMs: lastMinuteDelay,
-      backgroundFailures: [...backgroundFailures].map(([queue, failing]) => ({
+      backgroundFailures: background.failures().map(([queue, failing]) => ({
         queue,
         ...failing,
       })),
@@ -3438,14 +3057,6 @@ async function startWorkspaceServer(
    */
   const slackError = (error: string) => ({ ok: false as const, error });
 
-  /**
-   * Which scopes a token holds, sent on every Web API answer as Slack does;
-   * its SDK reads them into `response_metadata.scopes`.
-   */
-  const sayScopes = (reply: FastifyReply, owner: App): void => {
-    reply.header("x-oauth-scopes", (owner.scopes ?? []).join(","));
-  };
-
   /** Slack's refusal for a method this token's scopes do not reach, naming what would. */
   const missingScope = (owner: App, needed: AppScope) => ({
     ok: false as const,
@@ -3453,16 +3064,6 @@ async function startWorkspaceServer(
     needed,
     provided: (owner.scopes ?? []).join(","),
   });
-
-  /**
-   * The app a Web API call is made as. Slack takes the token as a bearer header
-   * or as a `token` field in the body, and code written against it uses both.
-   */
-  const slackCaller = (req: FastifyRequest) => {
-    const body = req.body as { token?: unknown } | undefined;
-    const token = bearerToken(req) ?? (typeof body?.token === "string" ? body.token : null);
-    return token ? store.appForToken(hashToken(token)) : null;
-  };
 
   /**
    * A structured argument. Slack's SDK sends every call form-encoded, with
@@ -3486,7 +3087,7 @@ async function startWorkspaceServer(
       url: `${requestOrigin(req)}/`,
       team: workspaceName(),
       user: bot.handle,
-      team_id: store.workspaceId(),
+      team_id: store.settings.get("workspaceId"),
       user_id: bot.id,
       bot_id: owner.id,
       is_enterprise_install: false,
@@ -3821,7 +3422,7 @@ async function startWorkspaceServer(
       const form = new URLSearchParams({
         command: `/${name}`,
         text: argText,
-        team_id: store.workspaceId(),
+        team_id: store.settings.get("workspaceId"),
         team_domain: workspaceName(),
         channel_id: channel.id,
         channel_name: channel.name,
@@ -3840,7 +3441,7 @@ async function startWorkspaceServer(
       try {
         const res = await postToApp(found.command.url, form, "application/x-www-form-urlencoded", {
           allowPrivate: opts.allowPrivateHooks,
-          signal: shutdown.signal,
+          signal: lifecycle.signal,
           headers: signatureHeaders(store.appSigningSecret(found.app.id) ?? "", form),
         });
         // Why it failed goes in the answer as well as to the channel: a test
@@ -4504,7 +4105,7 @@ async function startWorkspaceServer(
     try {
       const payload = JSON.stringify({
         type: "view_submission",
-        team: { id: store.workspaceId(), domain: workspaceName() },
+        team: { id: store.settings.get("workspaceId"), domain: workspaceName() },
         user: { id: me.id, username: me.handle, name: me.displayName },
         api_app_id: owner.id,
         trigger_id: newTrigger({
@@ -4528,7 +4129,7 @@ async function startWorkspaceServer(
           "application/x-www-form-urlencoded",
           {
             allowPrivate: opts.allowPrivateHooks,
-            signal: shutdown.signal,
+            signal: lifecycle.signal,
             headers: signatureHeaders(store.appSigningSecret(owner.id) ?? "", form),
           },
         );
@@ -4624,7 +4225,7 @@ async function startWorkspaceServer(
     try {
       const res = await postToApp(url, probe, "application/json", {
         allowPrivate: opts.allowPrivateHooks,
-        signal: shutdown.signal,
+        signal: lifecycle.signal,
         headers: signatureHeaders(store.appSigningSecret(appId) ?? "", probe),
       });
       answered = res.body.trim();
@@ -4710,7 +4311,7 @@ async function startWorkspaceServer(
       const payload = JSON.stringify({
         type: "block_actions",
         // Slack sends this as a form field named payload; so do we below.
-        team: { id: store.workspaceId(), domain: workspaceName() },
+        team: { id: store.settings.get("workspaceId"), domain: workspaceName() },
         user: { id: me.id, username: me.handle, name: me.displayName },
         api_app_id: owner.id,
         channel: { id: channel.id, name: channel.name },
@@ -4744,7 +4345,7 @@ async function startWorkspaceServer(
           "application/x-www-form-urlencoded",
           {
             allowPrivate: opts.allowPrivateHooks,
-            signal: shutdown.signal,
+            signal: lifecycle.signal,
             headers: signatureHeaders(store.appSigningSecret(owner.id) ?? "", form),
           },
         );
@@ -4903,15 +4504,6 @@ async function startWorkspaceServer(
 
   // ---------- pins & saved items ----------
 
-  /** Resolves a message the caller is allowed to see, or 404s. */
-  const requireVisibleMessage = (messageId: ID, user: User) => {
-    const message = store.getMessage(messageId);
-    if (!message || !store.canAccess(message.channelId, user.id)) {
-      throw new HttpError(404, "message_not_found");
-    }
-    return message;
-  };
-
   route(endpoints.pinMessage, async ({ user: me, params }) => {
     const message = requireVisibleMessage(params.id, me);
     mutate((emit) => {
@@ -5024,39 +4616,6 @@ async function startWorkspaceServer(
     const state = store.setThreadMute(me.id, message.id, body.muted);
     if (!state) throw new HttpError(404, "message_not_found");
     return { state };
-  });
-
-  route(endpoints.setReminder, async ({ reply, user: me, body, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    const { at } = body;
-    const now = Date.now();
-    if (at <= now) throw new HttpError(400, "reminder_in_past", "Choose a time in the future.");
-    if (at > now + reminderLimits.maxAheadMs) {
-      throw new HttpError(400, "reminder_too_far", "Choose a time within five years.");
-    }
-    const existing = store.getReminder(me.id, message.id);
-    if (!existing && store.countReminders(me.id) >= reminderLimits.perAccount) {
-      throw new HttpError(
-        409,
-        "reminder_limit",
-        `You already have ${reminderLimits.perAccount} reminders. Finish or cancel some before setting more.`,
-      );
-    }
-    const reminder = store.setReminder(me.id, message.id, at);
-    armReminders();
-    reply.status(existing ? 200 : 201);
-    return { reminder };
-  });
-
-  route(endpoints.cancelReminder, async ({ user: me, params }) => {
-    // Done or cancelled, whatever has become of the message since.
-    if (!store.deleteReminder(me.id, params.id)) throw new HttpError(404, "not_found");
-    armReminders();
-    return { ok: true };
-  });
-
-  route(endpoints.listReminders, async ({ user: me }) => {
-    return { reminders: store.listReminders(me.id) };
   });
 
   route(endpoints.markThreadRead, async ({ user: me, body, params }) => {
@@ -5186,6 +4745,8 @@ async function startWorkspaceServer(
     return { messages, nextCursor: matches.length > q.limit ? messages.at(-1)!.id : null };
   });
 
+  const reminders = registerReminders(ctx);
+
   // ---------- extensions (P6) ----------
 
   /** A member made by an extension, such as single sign-on's first sign-in (P9). */
@@ -5241,7 +4802,7 @@ async function startWorkspaceServer(
         store.createSession(tokenHash, user.id, deviceName(req));
         return { token, user };
       },
-      publicUrl: () => publicUrl,
+      publicUrl: () => network.publicUrl(),
     });
   }
 
@@ -5252,7 +4813,7 @@ async function startWorkspaceServer(
 
   // ---------- start ----------
 
-  const port = opts.port ?? 8543;
+  const port = opts.port ?? DEFAULT_PORT;
   const host = opts.host ?? "0.0.0.0";
   gateway.attach(app.server);
   try {
@@ -5281,7 +4842,7 @@ async function startWorkspaceServer(
   }
   /** Replaces the announcement with one made now, under the current name and icon. */
   const announce = () => {
-    if (!announcing || closing) return;
+    if (!announcing || lifecycle.closing) return;
     mdnsHandle?.stop();
     // Losing the announcement is not worth failing what asked for it: the
     // workspace still answers at its address, and the next call tries again.
@@ -5315,7 +4876,7 @@ async function startWorkspaceServer(
     const parsed = workspaceNameSchema.safeParse(value);
     if (!parsed.success)
       throw new TypeError("A workspace name has 1 to 80 characters and no control characters.");
-    if (closing) throw new Error("The workspace is stopping.");
+    if (lifecycle.closing) throw new Error("The workspace is stopping.");
     const name = parsed.data;
     const previous = workspaceName();
     if (name === previous) return name;
@@ -5365,7 +4926,7 @@ async function startWorkspaceServer(
    * size but never holds it. Everyone signed in is told the new version.
    */
   const changeIcon = (next: WorkspaceIcon | null, by: ID | null): void => {
-    if (closing) throw new Error("The workspace is stopping.");
+    if (lifecycle.closing) throw new Error("The workspace is stopping.");
     if ((icon?.version ?? null) === (next?.version ?? null)) return;
     store.transaction(() => {
       if (next) for (const [key, value] of storedIconRows(next)) store.setMeta(key, value);
@@ -5412,7 +4973,7 @@ async function startWorkspaceServer(
     }
     // A full batch may mean more are due. They are taken on a later turn, so
     // the window and every other request get the loop between batches.
-    if (due.length === scheduledLimits.batch && !scheduledDrain && !closing) {
+    if (due.length === scheduledLimits.batch && !scheduledDrain && !lifecycle.closing) {
       scheduledDrain = setImmediate(() => {
         scheduledDrain = null;
         inBackground("scheduled messages", flushScheduled);
@@ -5566,7 +5127,7 @@ async function startWorkspaceServer(
   let statusExpiry: ReturnType<typeof setTimeout> | null = null;
   function clearExpiredStatuses() {
     statusExpiry = null;
-    if (closing) return;
+    if (lifecycle.closing) return;
     maintain("expired statuses", () => {
       const due = store.expiredStatusUserIds(Date.now());
       if (due.length > 0)
@@ -5587,7 +5148,7 @@ async function startWorkspaceServer(
   function armStatusExpiry() {
     if (statusExpiry) clearTimeout(statusExpiry);
     statusExpiry = null;
-    if (closing) return;
+    if (lifecycle.closing) return;
     const next = store.nextStatusExpiry();
     if (next === null) return;
     statusExpiry = setTimeout(
@@ -5599,49 +5160,7 @@ async function startWorkspaceServer(
   // Statuses that ended while the server was stopped clear as it starts.
   armStatusExpiry();
 
-  /**
-   * Reminders (E4) come due on one timer set for the soonest, and on starting,
-   * so one due while the server was stopped comes due then. One whose message
-   * is gone, or whose account can no longer read it or is deactivated, is
-   * dropped rather than delivered. An isolated copy brings none due.
-   */
-  let reminderTimer: ReturnType<typeof setTimeout> | null = null;
-  function bringRemindersDue() {
-    reminderTimer = null;
-    if (closing) return;
-    maintain("reminders", () => {
-      const now = Date.now();
-      for (const due of store.dueReminders(now, reminderLimits.batch)) {
-        const message = store.getMessage(due.messageId);
-        const user = store.getUser(due.userId);
-        if (
-          !message ||
-          !user ||
-          user.deactivated ||
-          !store.canAccess(message.channelId, due.userId)
-        ) {
-          store.deleteReminder(due.userId, due.messageId);
-          continue;
-        }
-        store.markReminderDue(due.userId, due.messageId, now);
-      }
-    });
-    armReminders();
-  }
-  /** Sets the timer for the soonest waiting reminder; one already due runs at once. */
-  function armReminders() {
-    if (reminderTimer) clearTimeout(reminderTimer);
-    reminderTimer = null;
-    if (closing || opts.isolated) return;
-    const next = store.nextReminderAt();
-    if (next === null) return;
-    reminderTimer = setTimeout(
-      bringRemindersDue,
-      Math.min(Math.max(0, next - Date.now()), 2_147_483_647),
-    );
-    reminderTimer.unref();
-  }
-  armReminders();
+  reminders.start();
 
   let stopping: Promise<void> | null = null;
   // The stages of stopping that have finished. A stop that fails part-way
@@ -5674,14 +5193,8 @@ async function startWorkspaceServer(
     backupStatus: () => backups?.status() ?? null,
     runBackup: () => backups?.runNow() ?? Promise.resolve(),
     flushEventDeliveries,
-    setPublicUrl: (url) => {
-      // Checked before anything changes, so a refused address leaves the old one.
-      publicUrl = url === null ? undefined : parsePublicUrl(url, "publicUrl");
-    },
-    setTrustLoopbackProxy: (enabled) => {
-      if (typeof enabled !== "boolean") throw new TypeError("enabled must be a boolean");
-      trustLoopbackProxy = enabled;
-    },
+    setPublicUrl: (url) => network.setPublicUrl(url),
+    setTrustLoopbackProxy: (enabled) => network.setTrustLoopbackProxy(enabled),
     setIceServers: (servers) => {
       iceServers = iceServersSchema.parse(servers);
     },
@@ -5700,6 +5213,7 @@ async function startWorkspaceServer(
       if (!isAccessPolicy(policy)) throw new TypeError(`policy must be one of ${ACCESS_POLICIES}`);
       changeAccessPolicy(policy, null);
     },
+    workspaceId: () => settings.get("workspaceId"),
     workspaceName,
     setWorkspaceName: (value) => {
       renameWorkspace(value, null);
@@ -5724,7 +5238,6 @@ async function startWorkspaceServer(
       if (stopping) return stopping;
       if (!stopped.started) {
         stopped.started = true;
-        closing = true;
         clearInterval(scheduleTimer);
         if (scheduledDrain) clearImmediate(scheduledDrain);
         if (fileCleanupNext) clearImmediate(fileCleanupNext);
@@ -5732,12 +5245,11 @@ async function startWorkspaceServer(
         clearInterval(pruneTimer);
         clearInterval(loopDelayTimer);
         if (statusExpiry) clearTimeout(statusExpiry);
-        if (reminderTimer) clearTimeout(reminderTimer);
         loopDelay.disable();
         mdnsHandle?.stop();
         // Before waiting on anything, so whatever is waiting on an app hears
         // about it now rather than at the end of its timeout.
-        shutdown.abort();
+        lifecycle.close();
       }
       stopping = (async () => {
         if (!stopped.gateway) {

@@ -73,7 +73,7 @@ export const messageDurable = {
   "message.deleted": {
     channel: (event) => event.channelId,
     effects(event, _seq, store) {
-      store.dropMessageReminders(event.messageId);
+      store.reminders.dropForMessage(event.messageId);
       store.outbox.mentionsIn(event.channelId);
     },
     app: {
@@ -145,8 +145,6 @@ export const messageEphemeral = {
   saved: "person",
   "thread.follow": "person",
   mentions: "person",
-  reminder: "person",
-  "reminder.removed": "person",
   "poll.choices": "person",
   scheduled: "person",
 } as const satisfies Partial<EphemeralRegistry>;

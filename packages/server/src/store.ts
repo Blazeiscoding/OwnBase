@@ -1,46 +1,45 @@
-import type { DatabaseSync } from "node:sqlite";
 import type {
   App,
+  AppEventType,
+  AppScope,
+  AuditAction,
+  AuditEntry,
+  AuditTargetType,
   CallNotice,
   Channel,
-  ChannelRemoval,
   ChannelPrefs,
+  ChannelRemoval,
   ChannelType,
+  EventEnvelope,
+  EventSubscription,
+  FileKind,
   FileMeta,
+  FollowedThread,
+  ForwardReference,
   Friendship,
   ID,
   Invite,
   InviteStatus,
-  AuditAction,
-  AuditEntry,
-  AuditTargetType,
+  LinkPreview,
   Message,
   MessageAction,
-  ReactionGroup,
-  ForwardReference,
-  FileKind,
-  LinkPreview,
-  Poll,
-  ReplyReference,
-  SharedFile,
-  SidebarSection,
+  MessageReport,
   NotifyLevel,
   ParsedSearch,
+  Poll,
+  ReactionGroup,
+  ReplyReference,
+  ReportReason,
   Role,
   ScheduledMessage,
   SessionInfo,
-  ThreadFollow,
-  Reminder,
-  ReminderItem,
-  FollowedThread,
-  User,
-  EventSubscription,
+  SharedFile,
+  SidebarSection,
   SlashCommand,
+  ThreadFollow,
+  User,
   Webhook,
   WorkspaceEvent,
-  EventEnvelope,
-  MessageReport,
-  ReportReason,
 } from "@ownbase/protocol";
 import {
   APP_SCOPES,
@@ -52,8 +51,12 @@ import {
   replyExcerpt,
   userMentionsIn,
 } from "@ownbase/protocol";
-import type { AppEventType, AppScope } from "@ownbase/protocol";
-import { ulid, orderedUlid, inviteCode } from "./ids.js";
+import type { DatabaseSync } from "node:sqlite";
+import { Settings } from "./core/settings.js";
+import { Outbox } from "./events/outbox.js";
+import { inviteCode, orderedUlid, ulid } from "./ids.js";
+import { previewLinks, type FetchedPreview } from "./linkPreview.js";
+import { ReminderStore } from "./reminders/store.js";
 
 /** Known scopes only, each once, in one order, so two lists compare as text. */
 function scopeList(scopes: readonly unknown[]): AppScope[] {
@@ -69,8 +72,6 @@ function parseJsonArray(text: string | undefined): unknown[] {
     return [];
   }
 }
-import { previewLinks, type FetchedPreview } from "./linkPreview.js";
-import { Outbox } from "./events/outbox.js";
 
 interface UserRow {
   id: string;
@@ -112,7 +113,7 @@ interface ChannelRow {
  */
 const IN_CHANNEL_TIMELINE = "(thread_root_id IS NULL OR broadcast = 1)";
 
-interface MessageRow {
+export interface MessageRow {
   id: string;
   channel_id: string;
   user_id: string;
@@ -141,16 +142,6 @@ interface ChannelRemovalRow {
   channel_type: "public" | "private";
   removed_by: string;
   created_at: number;
-}
-
-interface ReminderRow {
-  id: string;
-  user_id: string;
-  message_id: string;
-  remind_at: number;
-  due_at: number | null;
-  channel_id: string;
-  thread_root_id: string | null;
 }
 
 /**
@@ -230,8 +221,16 @@ export const SESSION_TTL_MS = 30 * 24 * 3600_000;
 export class Store {
   /** What the writes here have to tell people, sent once they are committed. */
   readonly outbox: Outbox = new Outbox(this);
+  /** The workspace's settings, kept in `meta`; see core/settings.ts. */
+  readonly settings: Settings;
+  // features: fields
+  readonly reminders: ReminderStore;
 
-  constructor(private db: DatabaseSync) {}
+  constructor(readonly db: DatabaseSync) {
+    this.settings = new Settings(this);
+    // features: made
+    this.reminders = new ReminderStore(db, this);
+  }
 
   /** Only synchronous database work belongs here; publish events after this returns. */
   transaction<T>(work: () => T): T {
@@ -473,15 +472,6 @@ export class Store {
     const row = this.db.prepare("SELECT value FROM meta WHERE key = ?").get(key) as
       { value: string } | undefined;
     return row?.value ?? null;
-  }
-
-  /** The workspace's id: made once, kept through renames, moves and restores. */
-  workspaceId(): ID {
-    const id = this.getMeta("workspace_id");
-    if (id) return id;
-    const made = ulid();
-    this.setMeta("workspace_id", made);
-    return made;
   }
 
   setMeta(key: string, value: string): void {
@@ -2222,7 +2212,7 @@ export class Store {
     return this.hydrateMessages(rows.reverse());
   }
 
-  private hydrateMessages(rows: MessageRow[]): Message[] {
+  hydrateMessages(rows: MessageRow[]): Message[] {
     if (rows.length === 0) return [];
     const ids = rows.map((r) => r.id);
     const ph = ids.map(() => "?").join(",");
@@ -3628,165 +3618,6 @@ export class Store {
     for (const id of new Set(ids)) if (remove.get(id, userId)) read.push(id);
     if (read.length > 0) this.outbox.person(userId, { type: "channel.removals.read", ids: read });
     return read;
-  }
-
-  // ---------- reminders ----------
-
-  /**
-   * The reminders' join with their message and its conversation. Reachable
-   * means the message is still there and the account can read its
-   * conversation. A deleted thread's replies are deleted with it.
-   */
-  private static readonly REMINDER_REACHABLE = `m.deleted_at IS NULL
-    AND (c.type = 'public'
-      OR EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = r.user_id))`;
-
-  private static reminderFrom(row: ReminderRow): Reminder {
-    return {
-      id: row.id,
-      messageId: row.message_id,
-      channelId: row.channel_id,
-      threadRootId: row.thread_root_id,
-      remindAt: row.remind_at,
-      dueAt: row.due_at,
-    };
-  }
-
-  /** One account's reminder about one message, reachable or not. */
-  getReminder(userId: ID, messageId: ID): Reminder | null {
-    const row = this.db
-      .prepare(
-        `SELECT r.*, m.channel_id, m.thread_root_id FROM reminders r
-         JOIN messages m ON m.id = r.message_id
-         WHERE r.user_id = ? AND r.message_id = ?`,
-      )
-      .get(userId, messageId) as ReminderRow | undefined;
-    return row ? Store.reminderFrom(row) : null;
-  }
-
-  /** Sets a reminder, or moves the one already there, waiting again. */
-  setReminder(userId: ID, messageId: ID, remindAt: number): Reminder {
-    this.db
-      .prepare(
-        `INSERT INTO reminders (id, user_id, message_id, remind_at, due_at, created_at)
-         VALUES (?, ?, ?, ?, NULL, ?)
-         ON CONFLICT(user_id, message_id) DO UPDATE SET
-           remind_at = excluded.remind_at,
-           due_at = NULL`,
-      )
-      .run(ulid(), userId, messageId, remindAt, Date.now());
-    const reminder = this.getReminder(userId, messageId)!;
-    this.outbox.person(userId, { type: "reminder", reminder });
-    return reminder;
-  }
-
-  /** Done, cancelled, or out of reach. */
-  deleteReminder(userId: ID, messageId: ID): boolean {
-    const res = this.db
-      .prepare("DELETE FROM reminders WHERE user_id = ? AND message_id = ?")
-      .run(userId, messageId);
-    if (res.changes === 0) return false;
-    this.outbox.person(userId, { type: "reminder.removed", messageId });
-    return true;
-  }
-
-  /** Drops every reminder about a message, saying whose they were. */
-  dropMessageReminders(messageId: ID): ID[] {
-    const rows = this.db
-      .prepare("DELETE FROM reminders WHERE message_id = ? RETURNING user_id")
-      .all(messageId) as { user_id: string }[];
-    for (const row of rows)
-      this.outbox.person(row.user_id, { type: "reminder.removed", messageId });
-    return rows.map((row) => row.user_id);
-  }
-
-  countReminders(userId: ID): number {
-    const row = this.db
-      .prepare("SELECT COUNT(*) AS n FROM reminders WHERE user_id = ?")
-      .get(userId) as { n: number };
-    return row.n;
-  }
-
-  /** The reminders an account can still reach, for the handshake snapshot. */
-  reminders(userId: ID): Reminder[] {
-    const rows = this.db
-      .prepare(
-        `SELECT r.*, m.channel_id, m.thread_root_id FROM reminders r
-         JOIN messages m ON m.id = r.message_id
-         JOIN channels c ON c.id = m.channel_id
-         WHERE r.user_id = ? AND ${Store.REMINDER_REACHABLE}`,
-      )
-      .all(userId) as unknown as ReminderRow[];
-    return rows.map(Store.reminderFrom);
-  }
-
-  /**
-   * The Reminders list: those come due, the latest first, then those waiting,
-   * the soonest first, each with its message.
-   */
-  listReminders(userId: ID): ReminderItem[] {
-    const rows = this.db
-      .prepare(
-        `SELECT m.*, r.id AS reminder_id, r.remind_at, r.due_at FROM reminders r
-         JOIN messages m ON m.id = r.message_id
-         JOIN channels c ON c.id = m.channel_id
-         WHERE r.user_id = ? AND ${Store.REMINDER_REACHABLE}
-         ORDER BY r.due_at IS NULL, r.due_at DESC, r.remind_at, r.id`,
-      )
-      .all(userId) as unknown as (MessageRow & {
-      reminder_id: string;
-      remind_at: number;
-      due_at: number | null;
-    })[];
-    const messages = this.hydrateMessages(rows);
-    return rows.map((row, index) => ({
-      reminder: {
-        id: row.reminder_id,
-        messageId: row.id,
-        channelId: row.channel_id,
-        threadRootId: row.thread_root_id,
-        remindAt: row.remind_at,
-        dueAt: row.due_at,
-      },
-      message: messages[index]!,
-    }));
-  }
-
-  /** When the soonest waiting reminder comes due, if any waits. */
-  nextReminderAt(): number | null {
-    const row = this.db
-      .prepare("SELECT MIN(remind_at) AS at FROM reminders WHERE due_at IS NULL")
-      .get() as { at: number | null };
-    return row.at;
-  }
-
-  /** Waiting reminders whose time has come, the earliest first, with whose they are. */
-  dueReminders(now: number, limit: number): (Reminder & { userId: ID })[] {
-    const rows = this.db
-      .prepare(
-        `SELECT r.*, m.channel_id, m.thread_root_id FROM reminders r
-         JOIN messages m ON m.id = r.message_id
-         WHERE r.due_at IS NULL AND r.remind_at <= ?
-         ORDER BY r.remind_at, r.id LIMIT ?`,
-      )
-      .all(now, limit) as unknown as ReminderRow[];
-    return rows.map((row) => ({ ...Store.reminderFrom(row), userId: row.user_id }));
-  }
-
-  markReminderDue(userId: ID, messageId: ID, at: number): Reminder | null {
-    this.db
-      .prepare(
-        "UPDATE reminders SET due_at = ? WHERE user_id = ? AND message_id = ? AND due_at IS NULL",
-      )
-      .run(at, userId, messageId);
-    const reminder = this.getReminder(userId, messageId);
-    // Coming due carries the message, for the notification.
-    if (reminder)
-      this.outbox.person(userId, () => {
-        const message = this.getMessage(messageId);
-        return message ? { type: "reminder", reminder, message } : null;
-      });
-    return reminder;
   }
 
   // ---------- scheduled messages ----------

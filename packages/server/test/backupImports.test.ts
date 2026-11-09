@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, posix, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 /**
@@ -22,7 +22,8 @@ function graph(entry: string): { modules: string[]; packages: string[] } {
       /(?:^|\n)\s*(?:import|export)\s(?![^;]*\btype\s*\{)[^;]*?from\s+"([^"]+)"|import\(\s*"([^"]+)"\s*\)/g,
     )) {
       if (!specifier) continue;
-      if (specifier.startsWith("./")) visit(specifier.slice(2).replace(/\.js$/, ".ts"));
+      if (specifier.startsWith("."))
+        visit(posix.join(posix.dirname(file), specifier).replace(/\.js$/, ".ts"));
       else if (!specifier.startsWith("node:")) packages.add(specifier);
     }
   };

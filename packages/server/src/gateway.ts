@@ -22,6 +22,7 @@ import type { Store } from "./store.js";
 import { eventChannel, type EventTo } from "./events/registry.js";
 import type { Audiences, OutboxSink } from "./events/outbox.js";
 import { hashToken } from "./auth.js";
+import { contain } from "./core/contain.js";
 import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
 import { CallLog } from "./callLog.js";
 import type { RateLimiter } from "./limits.js";
@@ -103,6 +104,7 @@ export class Gateway implements OutboxSink {
       iconVersion: () => string | null;
       /** Whether new messages get link previews now (E2). */
       linkPreviews: () => boolean;
+      workspaceId: () => string;
       /** How many members the plan includes, when the host set it (P5). */
       memberNotice?: () => MemberNotice | null;
       /** What the server's extensions tell the owner and admins now (P6). */
@@ -147,21 +149,7 @@ export class Gateway implements OutboxSink {
    * close; this only keeps the server up.
    */
   private contained(where: string, work: () => void): boolean {
-    try {
-      work();
-      return true;
-    } catch (err) {
-      this.report(err, where);
-      return false;
-    }
-  }
-
-  private report(err: unknown, where: string): void {
-    try {
-      this.reportFailure(err, where);
-    } catch {
-      // Reporting cannot be what ends the process either.
-    }
+    return contain(work, (err) => this.reportFailure(err, where));
   }
 
   /**
@@ -395,7 +383,7 @@ export class Gateway implements OutboxSink {
           huddles: this.huddlesVisibleTo(user.id),
           huddleRings: this.ringsFor(user.id),
           serverTime: Date.now(),
-          reminders: this.store.reminders(user.id),
+          reminders: this.store.reminders.reachable(user.id),
           channelRemovals: this.store.channelRemovals(user.id),
           pollChoices: this.store.anonymousPollChoices(user.id),
           sidebarSections: this.store.sidebarSections(user.id),
@@ -404,7 +392,7 @@ export class Gateway implements OutboxSink {
           iconVersion: this.workspace.iconVersion(),
           linkPreviews: this.workspace.linkPreviews(),
           workspaceName: this.workspace.name(),
-          workspaceId: this.store.workspaceId(),
+          workspaceId: this.workspace.workspaceId(),
           friends: this.store.listFriends(user.id),
           blocked: this.store.blockedIds(user.id),
           ...(isAdministrator(user.role)
@@ -718,7 +706,7 @@ export class Gateway implements OutboxSink {
    * drops whatever they may no longer see (F06). The change itself stands.
    */
   updateChannelAccess(channelId: ID, userId: ID): void {
-    try {
+    const told = this.contained("channel access", () => {
       const membership =
         this.store.memberships(userId).find((m) => m.channelId === channelId) ?? null;
       const channel = this.store.canAccess(channelId, userId)
@@ -726,10 +714,8 @@ export class Gateway implements OutboxSink {
         : null;
       if (!channel) this.leaveHuddle(channelId, userId, "lost access");
       this.tellPerson(userId, { type: "channel.access", channelId, channel, membership });
-    } catch (err) {
-      this.report(err, "channel access");
-      this.resynchronizeUser(userId);
-    }
+    });
+    if (!told) this.resynchronizeUser(userId);
   }
 
   /** Tells the channel who is in its huddle now, and brings its ring up to date (E10). */
@@ -944,12 +930,11 @@ export class Gateway implements OutboxSink {
       const key = `${client.tokenHash}\n${client.userId}`;
       let active = known.get(key);
       if (active === undefined) {
-        try {
-          active = this.store.isSessionActive(client.tokenHash, client.userId);
-        } catch (err) {
-          this.report(err, "session check");
-          active = "unreadable";
-        }
+        let read: boolean | "unreadable" = "unreadable";
+        this.contained("session check", () => {
+          read = this.store.isSessionActive(client.tokenHash, client.userId);
+        });
+        active = read;
         known.set(key, active);
       }
       // A session that cannot be read is not known to be signed in: send it

@@ -267,8 +267,8 @@ describe("a reminder", () => {
         .poll(() => told(frames).at(-1))
         .toEqual({ type: "reminder.removed", messageId: message.id });
     }
-    expect(server!.store.getReminder(owner.id, message.id)).toBeNull();
-    expect(server!.store.getReminder(owner.id, reply.id)).toBeNull();
+    expect(server!.store.reminders.get(owner.id, message.id)).toBeNull();
+    expect(server!.store.reminders.get(owner.id, reply.id)).toBeNull();
     expect(told(mine)).toContainEqual({ type: "reminder.removed", messageId: reply.id });
     expect(await listed(peer.token)).toEqual([]);
   });
@@ -280,7 +280,7 @@ describe("a reminder", () => {
       (await request(`/api/admin/users/${peer.id}`, { deactivated: true }, "PATCH")).status,
     ).toBe(200);
     await expect
-      .poll(() => server!.store.getReminder(peer.id, message.id), { timeout: 5_000 })
+      .poll(() => server!.store.reminders.get(peer.id, message.id), { timeout: 5_000 })
       .toBeNull();
   });
 
@@ -302,7 +302,7 @@ describe("a reminder", () => {
     expect(told(theirs).some((e) => e.type === "reminder" && e.reminder.dueAt !== null)).toBe(
       false,
     );
-    expect(server!.store.getReminder(peer.id, message.id)).toBeNull();
+    expect(server!.store.reminders.get(peer.id, message.id)).toBeNull();
   });
 
   it("refuses a time past or too far off, a message it cannot see, and one too many", async () => {

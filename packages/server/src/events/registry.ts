@@ -6,6 +6,7 @@ import { channelDurable, channelEphemeral } from "../channels/events.js";
 import { huddleEphemeral } from "../huddles/events.js";
 import { messageDurable, messageEphemeral } from "../messages/events.js";
 import { peopleDurable, peopleEphemeral } from "../people/events.js";
+import { reminderEphemeral } from "../reminders/events.js";
 
 /**
  * Every event the server sends, by type: who hears it, and for the durable
@@ -66,6 +67,7 @@ export const EPHEMERAL_AUDIENCE = {
   ...adminEphemeral,
   ...huddleEphemeral,
   ...appsEphemeral,
+  ...reminderEphemeral,
 } as const satisfies EphemeralRegistry;
 
 type Audiences = typeof EPHEMERAL_AUDIENCE;

@@ -401,18 +401,13 @@
     },
     {
       "path": "packages/server/src/main.ts",
-      "plain": "Starts the server on its own and runs the host's backup, restore and account recovery commands.",
-      "summary": "Runs the standalone server and its operator commands.",
+      "plain": "The file that starts the server from the command line.",
+      "summary": "The standalone server's entry: runs the command line with no extensions.",
       "details": [
-        "Parses flags/environment, validates startup values, locates the built web client and chooses LAN or isolated loopback hosting.",
-        "Dispatches backup, verify-backup, restore and local account recovery commands before ordinary server startup.",
-        "Verification prints the consequences of starting a backup: app callbacks, queued messages, accepted sessions and host settings that must be configured again.",
-        "Ordinary startup reports reachable addresses and first-owner claim information, advertises discovery when enabled and handles process shutdown.",
-        "This is an executable entry point; desktop embedding uses the library API instead.",
-        "--name, --invite-only and --access-policy set up a new workspace only. On a workspace that already has an owner the stored name and rule win, and the start prints one line for each flag that disagrees (keptSettingsNotes).",
-        "recover says when it turned two-step sign-in off (E11)."
+        "Calls runServerCli with itself as the script, so a backup child process runs this same file again.",
+        "A build with ee/ starts from ee/src/main.ts instead, which passes its extension to the same function."
       ],
-      "concepts": ["CLI", "self-hosting", "operator workflow"]
+      "concepts": ["CLI", "entry point"]
     },
     {
       "path": "packages/server/src/mdns.ts",
@@ -1047,6 +1042,150 @@
         "currentZoneName gives the name the IANA database has now for the 19 zones Chromium, Electron and Node still give by an old one, such as Asia/Calcutta for Asia/Kolkata (E9)."
       ],
       "concepts": ["search syntax", "time zones", "bounded cache"]
+    },
+    {
+      "path": "packages/server/src/cli/run.ts",
+      "plain": "Starts the server on its own and runs the host's backup, restore and account recovery commands.",
+      "summary": "runServerCli: parses flags, runs operator commands, or starts the standalone server.",
+      "details": [
+        "Takes the build's command-line extensions as an argument, so an extension can never be registered after the command line has read its flags.",
+        "Parses flags/environment through the flag table, validates startup values, locates the built web client and chooses LAN or isolated loopback hosting.",
+        "Dispatches backup, verify-backup, restore and local account recovery commands before ordinary server startup.",
+        "Verification prints the consequences of starting a backup: app callbacks, queued messages, accepted sessions and host settings that must be configured again.",
+        "--name, --invite-only and --access-policy set up a new workspace only; on an owned workspace the start prints one line for each flag that disagrees (keptSettingsNotes)."
+      ],
+      "concepts": ["CLI", "self-hosting", "operator workflow"]
+    },
+    {
+      "path": "packages/server/src/cli/flags.ts",
+      "plain": "The one list of every command-line setting, its environment variable and its help.",
+      "summary": "Declares each CLI flag once: type, default, OWNBASE_ environment fallback, --help lines and whether hosting may pass it.",
+      "details": [
+        "parseArgs options, the options part of --help and the environment fallback are all derived from FLAGS.",
+        "ENV_SETTINGS lists settings given only by the environment; CLOUD_ENV is the subset OwnBase's hosting passes on from its own environment.",
+        "serverArgs builds a workspace server's arguments for ee/cloud, typed so only flags marked cloud can be passed."
+      ],
+      "concepts": ["CLI", "configuration", "single declaration"]
+    },
+    {
+      "path": "packages/server/src/core/context.ts",
+      "plain": "What every part of the server is handed: the database, the live connections, the rules for checking requests.",
+      "summary": "ServerContext, the shared pieces each feature module is built on, and the shared access checks.",
+      "details": [
+        "createWorkspaceServer builds one context and hands it to each feature; handlers are plain functions over it.",
+        "requireChannelAccess and requireVisibleMessage answer 404 for anything the caller may not read, without saying whether it exists.",
+        "rationWith turns the rate limiter into the 429 every feature throws."
+      ],
+      "concepts": ["composition", "feature modules", "access checks"]
+    },
+    {
+      "path": "packages/server/src/core/commit.ts",
+      "plain": "Saves a change and its events together, then tells everyone who should hear about it.",
+      "summary": "recordEvent and mutate: one transaction per change, events published only after commit.",
+      "details": [
+        "recordEvent appends to the event log, writes the event's declared effects and queues app deliveries inside the caller's transaction.",
+        "mutate commits, flushes the outbox's ahead-notices, runs after-commit effects, then publishes; a frame that cannot be sent resynchronizes every socket (REV-10).",
+        "onPublished lets the apps feature start a delivery round after events go out."
+      ],
+      "concepts": ["transactions", "event log", "publish after commit"]
+    },
+    {
+      "path": "packages/server/src/core/background.ts",
+      "plain": "Runs the server's background jobs so one failing never brings the server down.",
+      "summary": "BackgroundWork: contained queue runs, after-commit work and housekeeping, with failures counted for admin status.",
+      "details": [
+        "run() contains throws and rejections from timers and immediates (REV-01), counting failures per queue until it next succeeds.",
+        "afterCommitted logs work that fails after a commit instead of undoing the answer; maintain logs one housekeeping step without skipping the rest."
+      ],
+      "concepts": ["crash containment", "background queues"]
+    },
+    {
+      "path": "packages/server/src/core/contain.ts",
+      "plain": "Catches a crash in one piece of work so the server keeps running.",
+      "summary": "contain(): runs work, hands a throw to a reporter, and reports whether it finished.",
+      "details": [
+        "The one crash-containment wrapper: socket callbacks (gateway), outbox notices, background work and after-commit effects all use it.",
+        "A reporter that throws is swallowed too, so reporting cannot end the process."
+      ],
+      "concepts": ["crash containment"]
+    },
+    {
+      "path": "packages/server/src/core/lifecycle.ts",
+      "plain": "Knows when the server is stopping, and stops every timer and outgoing call when it does.",
+      "summary": "Lifecycle: closing flag, shutdown signal, interval timers, close and drain hooks.",
+      "details": [
+        "Features register intervals and close hooks here; stop() closes them before waiting on anything, then aborts outbound calls.",
+        "Drains (attachment removals, app event deliveries) run after the last request handler finishes and before the database closes."
+      ],
+      "concepts": ["shutdown", "timers"]
+    },
+    {
+      "path": "packages/server/src/core/soonest.ts",
+      "plain": "One alarm clock for many things due at different times.",
+      "summary": "SoonestTimer: a single timeout armed for the soonest due row, re-armed after each round.",
+      "details": [
+        "Used by reminders and status expiry; a time beyond setTimeout's range wakes the timer to wait again.",
+        "Cleared when the server starts stopping; never armed when off, as in an isolated copy."
+      ],
+      "concepts": ["timers", "scheduling"]
+    },
+    {
+      "path": "packages/server/src/core/network.ts",
+      "plain": "Works out where a request came from and the address others use to reach this server.",
+      "summary": "Network: public URL, proxy trust, caller address, local-request check and request origin.",
+      "details": [
+        "isLocalRequest refuses anything forwarded, anything to a server with a public URL, and any browser Origin that is not this server.",
+        "requestOrigin uses the configured public URL, forwarded headers only when a proxy is declared, otherwise the connection's own address.",
+        "setPublicUrl and setTrustLoopbackProxy let a desktop host change these while running."
+      ],
+      "concepts": ["proxy trust", "claim protection"]
+    },
+    {
+      "path": "packages/server/src/core/http.ts",
+      "plain": "Sets up the web server every request goes through, before any route is added.",
+      "summary": "createHttp: Fastify with request tracking, CORS, uploads, security headers, form bodies and the web client.",
+      "details": [
+        "runningHandlers holds every handler still running so shutdown waits for them before closing the database.",
+        "Unknown Slack Web API methods answer unknown_method; the browser client is served with precompressed files and a fallback to index.html."
+      ],
+      "concepts": ["HTTP", "Fastify"]
+    },
+    {
+      "path": "packages/server/src/core/settings.ts",
+      "plain": "The workspace's own settings, like its name and who may join, each written down once.",
+      "summary": "SETTINGS registry and Settings: each workspace setting's meta rows, parsing, fallback and writes in one place.",
+      "details": [
+        "workspaceId, workspaceName, accessPolicy (kept in step with the older invite_only row), linkPreviews, claimCode and the icon's three rows.",
+        "Store.settings is the only reader and writer of these meta rows; extensions get their own prefixed storage from extensionStorage()."
+      ],
+      "concepts": ["workspace settings", "single declaration"]
+    },
+    {
+      "path": "packages/server/src/reminders/feature.ts",
+      "plain": "Lets people set a reminder on a message and tells them when it is due.",
+      "summary": "Reminder routes, the due-reminder timer and the reminders part of the startup snapshot.",
+      "details": [
+        "Set, cancel and list; at most REMINDER_LIMITS.perAccount per account, at most five years ahead.",
+        "One SoonestTimer brings reminders due, dropping those whose message is gone or no longer readable, or whose account is deactivated; never in an isolated copy."
+      ],
+      "concepts": ["reminders", "feature module"]
+    },
+    {
+      "path": "packages/server/src/reminders/store.ts",
+      "plain": "Saves reminders and finds the ones that are due.",
+      "summary": "ReminderStore: the reminders table's queries, its row type mapped once.",
+      "details": [
+        "Reachable reminders are those whose message is still there and whose conversation the account can read.",
+        "Setting, removing and coming due each tell the account's devices through the outbox."
+      ],
+      "concepts": ["reminders", "queries"]
+    },
+    {
+      "path": "packages/server/src/reminders/events.ts",
+      "plain": "Says who hears about a reminder changing.",
+      "summary": "The reminder and reminder.removed events, heard by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
     }
   ],
   "flows": [

@@ -1,5 +1,5 @@
 import { getFromUrl, type OutboundOptions } from "./outbound.js";
-import { imageSize } from "./imageSize.js";
+import { imageSize, imageTypeOf, type ImageType } from "./imageSize.js";
 
 /**
  * Link previews (E2): what a web page a message links to says about itself.
@@ -32,7 +32,7 @@ const TIMEOUT_MS = 5000;
 
 const LIMITS = { title: 200, description: 300, siteName: 80 };
 
-export type PreviewImageType = "image/png" | "image/jpeg" | "image/webp" | "image/gif";
+export type PreviewImageType = ImageType;
 
 export interface FetchedPreview {
   /** The address as the message has it. */
@@ -240,17 +240,6 @@ function decodePage(body: Buffer, contentType: string): string {
   return new TextDecoder("utf-8").decode(body);
 }
 
-/** The type a picture's first bytes say it is, of those a preview keeps, or null. */
-export function previewImageType(bytes: Uint8Array): PreviewImageType | null {
-  const at = (offset: number, ...expected: number[]) =>
-    bytes.length >= offset + expected.length && expected.every((b, i) => bytes[offset + i] === b);
-  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
-  if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
-  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return "image/webp";
-  if (at(0, 0x47, 0x49, 0x46, 0x38)) return "image/gif";
-  return null;
-}
-
 /**
  * Fetches one link's preview, or null when there is nothing to show: the page
  * cannot be reached through the guard, does not answer with HTML, or says
@@ -305,7 +294,7 @@ async function fetchImage(
     return null;
   }
   if (res.status < 200 || res.status > 299) return null;
-  const type = previewImageType(res.body);
+  const type = imageTypeOf(res.body);
   const size = type ? imageSize(res.body) : null;
   if (!type || !size) return null;
   const { width, height } = size;

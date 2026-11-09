@@ -5,7 +5,7 @@ import {
   type ErrorCode,
   type WorkspaceIconType,
 } from "@ownbase/protocol";
-import { imageSize } from "./imageSize.js";
+import { imageSize, imageTypeOf } from "./imageSize.js";
 
 /**
  * The workspace's icon: a small picture its owner and admins choose, shown to
@@ -37,13 +37,8 @@ export const ICON_META_KEYS = {
 
 /** The type a file's first bytes say it is, of the types an icon may be, or null. */
 export function iconTypeOf(bytes: Uint8Array): WorkspaceIconType | null {
-  const at = (offset: number, ...expected: number[]) =>
-    bytes.length >= offset + expected.length && expected.every((b, i) => bytes[offset + i] === b);
-  if (at(0, 0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a)) return "image/png";
-  if (at(0, 0xff, 0xd8, 0xff)) return "image/jpeg";
-  // "RIFF", four bytes of length, "WEBP".
-  if (at(0, 0x52, 0x49, 0x46, 0x46) && at(8, 0x57, 0x45, 0x42, 0x50)) return "image/webp";
-  return null;
+  const type = imageTypeOf(bytes);
+  return type === "image/gif" ? null : type;
 }
 
 /** Names a version for these bytes: the same picture always has the same one. */

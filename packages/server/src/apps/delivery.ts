@@ -53,7 +53,7 @@ export function enqueueAppDeliveries(
       type: "event_callback",
       event_id: `Ev${envelope.seq}`,
       event_time: Math.floor(Date.now() / 1000),
-      team_id: store.workspaceId(),
+      team_id: store.settings.get("workspaceId"),
       event: payload,
       // Our own event beside Slack's shape, so a native app need not
       // reverse-engineer the mapping.

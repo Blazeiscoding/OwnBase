@@ -19,6 +19,8 @@ import {
   type SchemaRef,
   type User,
 } from "@ownbase/protocol";
+import { hashToken } from "./auth.js";
+import { bearerToken } from "./core/network.js";
 import { HttpError, passwordChangeRequired } from "./httpError.js";
 
 declare module "fastify" {
@@ -87,13 +89,11 @@ export type Route = <E extends Endpoint, H extends RouteHandler<E>>(
 export interface RouterOptions {
   app: FastifyInstance;
   log: FastifyBaseLogger;
-  /** The account a request's session token belongs to. */
-  sessionUser(req: FastifyRequest): User | null;
+  /** The account a session token's hash belongs to. */
+  sessionUser(tokenHash: string): User | null;
   mustChangePassword(userId: string): boolean;
-  /** The app a Slack Web API call is made as, by its bot token. */
-  botCaller(req: FastifyRequest): App | null;
-  /** Says which scopes the app's token holds, on every answer to it, as Slack does. */
-  sayScopes(reply: FastifyReply, app: App): void;
+  /** The app a bot token's hash belongs to. */
+  appForToken(tokenHash: string): App | null;
 }
 
 export interface Router {
@@ -112,6 +112,16 @@ function schemaFor(ref: SchemaRef | undefined): ZodType | undefined {
   const found = (requestSchemas as Record<string, unknown>)[ref];
   if (!(found instanceof ZodType)) throw new Error(`${ref} is not a request schema`);
   return found;
+}
+
+/**
+ * The app a Web API call is made as. Slack takes the token as a bearer header
+ * or as a `token` field in the body, and code written against it uses both.
+ */
+function botCaller(req: FastifyRequest, opts: RouterOptions): App | null {
+  const body = req.body as { token?: unknown } | undefined;
+  const token = bearerToken(req) ?? (typeof body?.token === "string" ? body.token : null);
+  return token ? opts.appForToken(hashToken(token)) : null;
 }
 
 /**
@@ -148,7 +158,8 @@ export function createRouter(opts: RouterOptions): Router {
   });
 
   const signIn = (req: FastifyRequest, endpoint: EndpointSpec): User => {
-    const user = opts.sessionUser(req);
+    const token = bearerToken(req);
+    const user = token ? opts.sessionUser(hashToken(token)) : null;
     if (!user) throw new HttpError(401, "unauthorized");
     if (user.role === "guest" && endpoint.access !== "guest") {
       throw new HttpError(
@@ -181,9 +192,10 @@ export function createRouter(opts: RouterOptions): Router {
         let user: User | null | undefined;
         let bot: App | undefined;
         if (endpoint.access === "bot") {
-          const caller = opts.botCaller(req);
+          const caller = botCaller(req, opts);
           if (!caller) return { ok: false, error: "invalid_auth" };
-          opts.sayScopes(reply, caller);
+          // Which scopes the token holds, on every answer to it, as Slack says.
+          reply.header("x-oauth-scopes", (caller.scopes ?? []).join(","));
           bot = caller;
         } else if (endpoint.access !== "public") {
           const ticket = endpoint.ticket

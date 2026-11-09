@@ -15,9 +15,8 @@ export { ConfigError } from "./config.js";
  * A part of the server that lives outside this package, such as the
  * Enterprise features in ee/ (P6). This package never imports one: whoever
  * puts a server together hands its extensions over, in
- * `ServerOptions.extensions` or, for the command line, through
- * `addCommandLineExtension` before main.ts runs, and the server calls them at
- * fixed points. Without any, the server is complete.
+ * `ServerOptions.extensions` or, for the command line, to `runServerCli`,
+ * and the server calls them at fixed points. Without any, the server is complete.
  */
 export interface ServerExtension {
   /** Short, for logs and the workspace status, such as "enterprise". */
@@ -99,16 +98,4 @@ export interface CommandLineExtension {
     values: Record<string, string | boolean | undefined>,
     env: (name: string) => string | undefined,
   ): ServerExtension | Promise<ServerExtension>;
-}
-
-const forCommandLine: CommandLineExtension[] = [];
-
-/** Puts an extension in the command line's server. Called before main.ts is imported. */
-export function addCommandLineExtension(extension: CommandLineExtension): void {
-  forCommandLine.push(extension);
-}
-
-/** The command line's extensions, in the order they were added. */
-export function commandLineExtensions(): readonly CommandLineExtension[] {
-  return forCommandLine;
 }
