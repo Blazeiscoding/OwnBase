@@ -60,7 +60,7 @@ beforeAll(async () => {
   token = (
     await new Api(base).register({ handle: "sam", displayName: "Sam", password: "password123" })
   ).token;
-  general = server.store.getChannelByName("general")!.id;
+  general = server.store.channels.byName("general")!.id;
 });
 
 afterAll(async () => {
@@ -90,7 +90,7 @@ describe("a send that does not go through", () => {
       uploadProgress: null,
     });
     expect(upload).toHaveBeenCalledOnce();
-    expect(server.store.listMessages({ channelId: general, limit: 10 })).toHaveLength(0);
+    expect(server.store.messages.list({ channelId: general, limit: 10 })).toHaveLength(0);
 
     // The file is still there to try again with.
     upload.mockClear();
@@ -101,8 +101,8 @@ describe("a send that does not go through", () => {
 
   it("sends exactly once when retried after what stopped it is cleared", async () => {
     const client = await online();
-    server.store.updateChannel(general, { archived: true });
-    onTestFinished(() => void server.store.updateChannel(general, { archived: false }));
+    server.store.channels.update(general, { archived: true });
+    onTestFinished(() => void server.store.channels.update(general, { archived: false }));
     client.send(general, "Once the room reopens");
 
     const state = await until(client, (s) => !!failed(s), "the refusal");
@@ -110,12 +110,12 @@ describe("a send that does not go through", () => {
     expect(entry.failureReason).toBe("This conversation is archived.");
     expect(entry.text).toBe("Once the room reopens");
 
-    server.store.updateChannel(general, { archived: false });
+    server.store.channels.update(general, { archived: false });
     client.retrySend(entry.nonce);
     await until(client, (s) => s.pending.length === 0, "the retry");
     expect(
-      server.store
-        .listMessages({ channelId: general, limit: 10 })
+      server.store.messages
+        .list({ channelId: general, limit: 10 })
         .filter((m) => m.text === "Once the room reopens"),
     ).toHaveLength(1);
     // A second retry of something already sent does nothing.
@@ -169,8 +169,8 @@ describe("a send that does not go through", () => {
     });
     await until(client, (s) => s.pending.length === 0, "the send going again");
     expect(
-      server.store
-        .listMessages({ channelId: general, limit: 10 })
+      server.store.messages
+        .list({ channelId: general, limit: 10 })
         .filter((m) => m.text === "One of many"),
     ).toHaveLength(1);
   });
@@ -194,7 +194,7 @@ describe("a send that does not go through", () => {
       displayName: "Kit",
       password: "password123",
     });
-    const channel = limited.store.getChannelByName("general")!.id;
+    const channel = limited.store.channels.byName("general")!.id;
     const client = new WorkspaceClient(limitedBase, limitedToken);
     onTestFinished(() => client.destroy());
     client.connect();
@@ -204,8 +204,8 @@ describe("a send that does not go through", () => {
     for (const text of words) client.send(channel, text);
     await until(client, (s) => s.pending.some((p) => p.failed), "the limit");
     await until(client, (s) => s.pending.length === 0, "every send going again", 10_000);
-    const posted = limited.store
-      .listMessages({ channelId: channel, limit: 10 })
+    const posted = limited.store.messages
+      .list({ channelId: channel, limit: 10 })
       .map((m) => m.text)
       .filter((text) => words.includes(text));
     expect(posted.sort()).toEqual([...words].sort());
@@ -244,8 +244,8 @@ describe("a send that does not go through", () => {
     await until(client, (s) => s.status === "reconnecting", "the drop");
     await until(client, (s) => s.pending.length === 0, "the send going again", 10_000);
     expect(
-      server.store
-        .listMessages({ channelId: general, limit: 10 })
+      server.store.messages
+        .list({ channelId: general, limit: 10 })
         .filter((m) => m.text === "Sent from a tunnel"),
     ).toHaveLength(1);
   });
