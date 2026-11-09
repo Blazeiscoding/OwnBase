@@ -1,8 +1,39 @@
-import type { ID, Invite, InviteStatus, Role, SessionInfo, User } from "@ownbase/protocol";
+import type { ID, Invite, InviteStatus, SessionInfo, User } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
+import { countOf, oneOfOrNull, shape, type RowOf } from "../core/rows.js";
 import { inviteCode, ulid } from "../ids.js";
-import { mayInvite, toUser, type UserRow } from "../people/store.js";
+import { mayInvite, ROLES, toUser, userRow } from "../people/store.js";
 import { SESSION_TTL_MS, type Store } from "../store.js";
+
+const twoStepRow = shape({
+  two_step_secret: "text?",
+  two_step_step: "number?",
+  codes_left: "number",
+});
+const idRow = shape({ id: "text" });
+const tokenRow = shape({ token_hash: "text" });
+const sessionRow = shape({
+  id: "text",
+  created_at: "number",
+  last_seen_at: "number",
+  expires_at: "number",
+  user_agent: "text",
+});
+const mustChangeRow = shape({ must_change_password: "number" });
+/** An `invites` row with what its creator may do; see `INVITE_COLUMNS`. */
+const inviteRow = shape({
+  code: "text",
+  created_by: "text",
+  created_at: "number",
+  expires_at: "number?",
+  max_uses: "number?",
+  uses: "number",
+  revoked_at: "number?",
+  creator_deactivated: "number",
+  creator_role: oneOfOrNull(ROLES),
+  creator_is_bot: "number?",
+  creator_can_invite: "number?",
+});
 
 /** Signing in: sessions, passwords, two-step keys and recovery codes, guests, and invites. */
 export class AccountStore {
@@ -17,16 +48,15 @@ export class AccountStore {
    * codes it has left.
    */
   twoStep(userId: ID): { secret: string | null; step: number | null; codesLeft: number } {
-    const row = this.db
-      .prepare(
+    const row = twoStepRow.get(
+      this.db.prepare(
         `SELECT two_step_secret, two_step_step,
            (SELECT COUNT(*) FROM two_step_codes c WHERE c.user_id = u.id AND c.used_at IS NULL)
              AS codes_left
          FROM users u WHERE id = ?`,
-      )
-      .get(userId) as
-      | { two_step_secret: string | null; two_step_step: number | null; codes_left: number }
-      | undefined;
+      ),
+      userId,
+    );
     return {
       secret: row?.two_step_secret ?? null,
       step: row?.two_step_step ?? null,
@@ -36,9 +66,9 @@ export class AccountStore {
 
   /** The accounts with two-step sign-in on, for the admins' list (E11). */
   twoStepUserIds(): Set<ID> {
-    const rows = this.db
-      .prepare("SELECT id FROM users WHERE two_step_secret IS NOT NULL")
-      .all() as { id: string }[];
+    const rows = idRow.all(
+      this.db.prepare("SELECT id FROM users WHERE two_step_secret IS NOT NULL"),
+    );
     return new Set(rows.map((row) => row.id));
   }
 
@@ -111,12 +141,14 @@ export class AccountStore {
    */
   getSessionUser(tokenHash: string, ttlMs = SESSION_TTL_MS): User | null {
     const now = Date.now();
-    const r = this.db
-      .prepare(
+    const r = userRow.get(
+      this.db.prepare(
         `SELECT u.* FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE s.token_hash = ? AND u.deactivated = 0 AND s.expires_at > ?`,
-      )
-      .get(tokenHash, now) as UserRow | undefined;
+      ),
+      tokenHash,
+      now,
+    );
     if (!r) return null;
     if (r.role === "guest")
       this.db
@@ -131,13 +163,13 @@ export class AccountStore {
 
   /** How many guests are signed in now, which bounds how many more are let in. */
   liveGuestSessions(now = Date.now()): number {
-    const r = this.db
-      .prepare(
-        `SELECT COUNT(*) c FROM sessions s JOIN users u ON u.id = s.user_id
+    return countOf(
+      this.db.prepare(
+        `SELECT COUNT(*) AS n FROM sessions s JOIN users u ON u.id = s.user_id
          WHERE u.role = 'guest' AND s.expires_at > ?`,
-      )
-      .get(now) as { c: number };
-    return r.c;
+      ),
+      now,
+    );
   }
 
   /**
@@ -145,24 +177,23 @@ export class AccountStore {
    * guest only while still signed in, since an ended guest never comes back.
    */
   listPeopleIds(now = Date.now()): ID[] {
-    const rows = this.db
-      .prepare(
+    const rows = idRow.all(
+      this.db.prepare(
         `SELECT u.id FROM users u
          WHERE u.deactivated = 0 AND u.is_bot = 0
            AND (u.role != 'guest' OR EXISTS (
              SELECT 1 FROM sessions s WHERE s.user_id = u.id AND s.expires_at > ?))
          ORDER BY u.id`,
-      )
-      .all(now) as { id: ID }[];
+      ),
+      now,
+    );
     return rows.map((r) => r.id);
   }
 
   /** Ends every guest's session, reporting the tokens so their sockets close too. */
   revokeGuestSessions(): string[] {
     const where = "user_id IN (SELECT id FROM users WHERE role = 'guest')";
-    const rows = this.db
-      .prepare(`SELECT token_hash FROM sessions WHERE ${where}`)
-      .all() as unknown as { token_hash: string }[];
+    const rows = tokenRow.all(this.db.prepare(`SELECT token_hash FROM sessions WHERE ${where}`));
     this.db.prepare(`DELETE FROM sessions WHERE ${where}`).run();
     return rows.map((r) => r.token_hash);
   }
@@ -184,18 +215,14 @@ export class AccountStore {
 
   /** One person's signed-in devices, newest first. */
   listSessions(userId: ID): Omit<SessionInfo, "current">[] {
-    const rows = this.db
-      .prepare(
+    const rows = sessionRow.all(
+      this.db.prepare(
         `SELECT id, created_at, last_seen_at, expires_at, user_agent FROM sessions
          WHERE user_id = ? AND expires_at > ? ORDER BY last_seen_at DESC`,
-      )
-      .all(userId, Date.now()) as unknown as {
-      id: string;
-      created_at: number;
-      last_seen_at: number;
-      expires_at: number;
-      user_agent: string;
-    }[];
+      ),
+      userId,
+      Date.now(),
+    );
     return rows.map((r) => ({
       id: r.id,
       createdAt: r.created_at,
@@ -221,18 +248,20 @@ export class AccountStore {
       params.push(opts.exceptTokenHash);
     }
     const clause = where.join(" AND ");
-    const rows = this.db
-      .prepare(`SELECT token_hash FROM sessions WHERE ${clause}`)
-      .all(...params) as unknown as { token_hash: string }[];
+    const rows = tokenRow.all(
+      this.db.prepare(`SELECT token_hash FROM sessions WHERE ${clause}`),
+      ...params,
+    );
     this.db.prepare(`DELETE FROM sessions WHERE ${clause}`).run(...params);
     return rows.map((r) => r.token_hash);
   }
 
   /** The listable id of the session behind a token, so it can mark itself. */
   sessionIdFor(tokenHash: string): ID | null {
-    const r = this.db.prepare("SELECT id FROM sessions WHERE token_hash = ?").get(tokenHash) as
-      { id: string } | undefined;
-    return r?.id ?? null;
+    return (
+      idRow.get(this.db.prepare("SELECT id FROM sessions WHERE token_hash = ?"), tokenHash)?.id ??
+      null
+    );
   }
 
   /** Drops sessions nobody can use any more. */
@@ -262,11 +291,11 @@ export class AccountStore {
    * exactly the case deactivation exists for.
    */
   deleteSessionsFor(userId: ID): number {
-    return this.db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId).changes as number;
+    return Number(this.db.prepare("DELETE FROM sessions WHERE user_id = ?").run(userId).changes);
   }
 
-  /** Replaces someone's password. Their sessions are the caller's to revoke. */
   /**
+   * Replaces someone's password. Their sessions are the caller's to revoke.
    * `mustChange` marks a password someone else chose. Until its owner replaces
    * it, the account can do nothing else, so a temporary password read out over
    * the phone cannot quietly become a permanent one.
@@ -280,9 +309,10 @@ export class AccountStore {
   }
 
   mustChangePassword(userId: ID): boolean {
-    const row = this.db
-      .prepare("SELECT must_change_password FROM users WHERE id = ?")
-      .get(userId) as { must_change_password: number } | undefined;
+    const row = mustChangeRow.get(
+      this.db.prepare("SELECT must_change_password FROM users WHERE id = ?"),
+      userId,
+    );
     return row?.must_change_password === 1;
   }
 
@@ -296,22 +326,7 @@ export class AccountStore {
     return this.getInvite(code)!;
   }
 
-  private toInvite(
-    r: {
-      code: string;
-      created_by: string;
-      created_at: number;
-      expires_at: number | null;
-      max_uses: number | null;
-      uses: number;
-      revoked_at: number | null;
-      creator_deactivated: number | null;
-      creator_role: string | null;
-      creator_is_bot: number | null;
-      creator_can_invite: number | null;
-    },
-    now: number,
-  ): Invite {
+  private toInvite(r: RowOf<typeof inviteRow.columns>, now: number): Invite {
     // Revoked first: it is the one somebody chose, and it stays true whatever
     // else changes. A creator who has been deactivated comes next, and unlike
     // revocation it lifts again if they are reactivated.
@@ -320,7 +335,7 @@ export class AccountStore {
         ? "revoked"
         : r.creator_deactivated !== 0
           ? "creator_deactivated"
-          : !mayInvite(r.creator_role as Role | null, r.creator_is_bot ?? 0, r.creator_can_invite)
+          : !mayInvite(r.creator_role, r.creator_is_bot ?? 0, r.creator_can_invite)
             ? "creator_not_permitted"
             : r.expires_at !== null && now > r.expires_at
               ? "expired"
@@ -345,26 +360,27 @@ export class AccountStore {
     u.role AS creator_role, u.is_bot AS creator_is_bot, u.can_invite AS creator_can_invite`;
 
   getInvite(code: string, now = Date.now()): Invite | null {
-    const r = this.db
-      .prepare(
+    const r = inviteRow.get(
+      this.db.prepare(
         `SELECT ${AccountStore.INVITE_COLUMNS} FROM invites i LEFT JOIN users u ON u.id = i.created_by
          WHERE i.code = ?`,
-      )
-      .get(code) as Parameters<AccountStore["toInvite"]>[0] | undefined;
+      ),
+      code,
+    );
     return r ? this.toInvite(r, now) : null;
   }
 
   /** Newest first. Everyone's when `createdBy` is omitted, which is for administrators. */
   listInvites(opts: { createdBy?: ID; limit?: number } = {}, now = Date.now()): Invite[] {
-    const rows = this.db
-      .prepare(
+    const rows = inviteRow.all(
+      this.db.prepare(
         `SELECT ${AccountStore.INVITE_COLUMNS} FROM invites i LEFT JOIN users u ON u.id = i.created_by
          ${opts.createdBy ? "WHERE i.created_by = ?" : ""}
          ORDER BY i.created_at DESC, i.code DESC LIMIT ?`,
-      )
-      .all(...(opts.createdBy ? [opts.createdBy] : []), opts.limit ?? 200) as Parameters<
-      AccountStore["toInvite"]
-    >[0][];
+      ),
+      ...(opts.createdBy ? [opts.createdBy] : []),
+      opts.limit ?? 200,
+    );
     return rows.map((r) => this.toInvite(r, now));
   }
 

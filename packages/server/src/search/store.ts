@@ -2,7 +2,11 @@ import type { ID, Message, ParsedSearch } from "@ownbase/protocol";
 import { FILE_TYPE_MATCH } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { MENTIONS_ME, NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
-import type { MessageRow, Store } from "../store.js";
+import { countOf, shape } from "../core/rows.js";
+import { messageRow } from "../messages/store.js";
+import type { Store } from "../store.js";
+
+const windowRow = shape({ edge: "text?", low: "number?", n: "number" });
 
 /** Finding messages: search by words and filters, and the Activity list of mentions. */
 export class SearchStore {
@@ -11,11 +15,6 @@ export class SearchStore {
     private readonly store: Store,
   ) {}
 
-  /**
-   * Full-text search restricted to what the user can see, with modifier
-   * filters (from:/in:/has:/before:/after:) applied as plain SQL. Free-text
-   * terms go to FTS5; a query with only modifiers skips FTS entirely.
-   */
   activity(
     userId: ID,
     opts: { mode: "unread" | "mentions" | "threads"; cursor?: ID; limit: number },
@@ -64,8 +63,9 @@ export class SearchStore {
            JOIN channel_members cm ON cm.channel_id = mm.channel_id
            JOIN channels c ON c.id = mm.channel_id JOIN messages m ON m.id = mm.message_id
            WHERE ${conditions.join(" AND ")} GROUP BY m.id ORDER BY m.id DESC LIMIT ?`;
-    const rows = this.db.prepare(query).all(...params, opts.limit) as unknown as MessageRow[];
-    return this.store.messages.hydrate(rows);
+    return this.store.messages.hydrate(
+      messageRow.all(this.db.prepare(query), ...params, opts.limit),
+    );
   }
 
   /**
@@ -79,6 +79,11 @@ export class SearchStore {
   /** How many of the newest messages that walk covers before it gives up. */
   static SEARCH_WINDOW = 20_000;
 
+  /**
+   * Full-text search restricted to what the user can see, with modifier
+   * filters (from:/in:/has:/before:/after:) applied as plain SQL. Free-text
+   * terms go to FTS5; a query with only modifiers skips FTS entirely.
+   */
   search(
     userId: ID,
     query: ParsedSearch,
@@ -130,15 +135,17 @@ export class SearchStore {
 
     const page = (more: Filter[], count: number) => {
       const all = [...filters, ...more];
-      return this.db
-        .prepare(
+      return messageRow.all(
+        this.db.prepare(
           `SELECT m.* FROM messages m
            JOIN channels c ON c.id = m.channel_id
            JOIN users u ON u.id = m.user_id
            WHERE ${all.map(([sql]) => sql).join(" AND ")}
            ORDER BY m.id DESC LIMIT ?`,
-        )
-        .all(...all.flatMap(([, ...values]) => values), count) as unknown as MessageRow[];
+        ),
+        ...all.flatMap(([, ...values]) => values),
+        count,
+      );
     };
     if (query.terms.length === 0) return this.store.messages.hydrate(page([], limit));
 
@@ -171,13 +178,13 @@ export class SearchStore {
       ...namedValues,
     ];
     const many =
-      (
-        this.db
-          .prepare(
-            "SELECT COUNT(*) AS n FROM (SELECT 1 FROM messages_fts WHERE messages_fts MATCH ? LIMIT ?)",
-          )
-          .get(fts, SearchStore.SEARCH_FEW_MATCHES + 1) as { n: number }
-      ).n > SearchStore.SEARCH_FEW_MATCHES;
+      countOf(
+        this.db.prepare(
+          "SELECT COUNT(*) AS n FROM (SELECT 1 FROM messages_fts WHERE messages_fts MATCH ? LIMIT ?)",
+        ),
+        fts,
+        SearchStore.SEARCH_FEW_MATCHES + 1,
+      ) > SearchStore.SEARCH_FEW_MATCHES;
     // The same matches as one list of rows, for a search that starts from
     // them (F13). Asked as "said, or named", SQLite reads the file names once
     // to pick the rows and again to check each one; read once into the list,
@@ -202,19 +209,17 @@ export class SearchStore {
     // checked against only their own matches, and the older ones are read
     // from the matches only if the newest hold less than a page.
     if (!many) return this.store.messages.hydrate(page([fromMatches], limit));
-    const window = this.db
-      .prepare(
+    const window = windowRow.get(
+      this.db.prepare(
         `SELECT MIN(id) AS edge, MIN(position) AS low, COUNT(*) AS n FROM (
            SELECT m.id, m.rowid AS position FROM messages m
            ${scope.length > 0 ? `WHERE ${scope.map(([sql]) => sql).join(" AND ")}` : ""}
            ORDER BY m.id DESC LIMIT ?
          )`,
-      )
-      .get(...scope.flatMap(([, ...values]) => values), SearchStore.SEARCH_WINDOW) as {
-      edge: ID | null;
-      low: number | null;
-      n: number;
-    };
+      ),
+      ...scope.flatMap(([, ...values]) => values),
+      SearchStore.SEARCH_WINDOW,
+    )!;
     if (window.edge === null || window.low === null) return [];
     // Every message from the edge on has a rowid of at least `low`, whatever
     // order rowids were given in, so no match in the window is missed. The

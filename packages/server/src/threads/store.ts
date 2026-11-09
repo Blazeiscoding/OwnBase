@@ -1,7 +1,35 @@
 import type { FollowedThread, ID, Message, ThreadFollow } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { READ_IN_CHANNEL } from "../core/sqlRules.js";
-import type { MessageRow, Store } from "../store.js";
+import { countOf, shape } from "../core/rows.js";
+import { messageRow } from "../messages/store.js";
+import type { Store } from "../store.js";
+
+/** A `thread_follows` row with the channel its root is in. */
+const followRow = shape({
+  root_id: "text",
+  channel_id: "text",
+  following: "number",
+  last_read_seq: "number",
+  revision: "number",
+  unread_hold: "number?",
+  muted: "number",
+});
+/** One account's follow, read by a LEFT JOIN that leaves it all NULL when there is none. */
+const maybeFollowRow = shape({
+  channel_id: "text",
+  following: "number?",
+  last_read_seq: "number?",
+  revision: "number?",
+  unread_hold: "number?",
+  muted: "number?",
+  replies_read_seq: "number?",
+});
+const followedRow = messageRow.with({ last_seq: "number", unread_count: "number" });
+const idRow = messageRow.pick("id");
+const rootRow = messageRow.pick("user_id", "seq");
+const seqRow = messageRow.pick("seq");
+const followerRow = shape({ user_id: "text" });
 
 /** Threads: a root's replies, and who follows each thread, how far they have read and whether it is muted. */
 export class ThreadStore {
@@ -38,13 +66,17 @@ export class ThreadStore {
       };
     }
     const cursor = opts.before ?? opts.after;
-    const rows = this.db
-      .prepare(
+    const rows = messageRow.all(
+      this.db.prepare(
         `SELECT * FROM messages WHERE channel_id = ? AND thread_root_id = ? AND deleted_at IS NULL
        ${cursor ? `AND id ${opts.after ? ">" : "<"} ?` : ""}
        ORDER BY id ${opts.after ? "ASC" : "DESC"} LIMIT ?`,
-      )
-      .all(channelId, rootId, ...(cursor ? [cursor] : []), opts.limit) as unknown as MessageRow[];
+      ),
+      channelId,
+      rootId,
+      ...(cursor ? [cursor] : []),
+      opts.limit,
+    );
     if (!opts.after) rows.reverse();
     const first = rows[0]?.id ?? cursor;
     const last = rows.at(-1)?.id ?? cursor;
@@ -64,13 +96,14 @@ export class ThreadStore {
 
   /** The replies still standing in a thread, oldest first. */
   replyIds(rootId: ID): ID[] {
-    return (
-      this.db
-        .prepare(
+    return idRow
+      .all(
+        this.db.prepare(
           "SELECT id FROM messages WHERE thread_root_id = ? AND deleted_at IS NULL ORDER BY id",
-        )
-        .all(rootId) as { id: string }[]
-    ).map((r) => r.id);
+        ),
+        rootId,
+      )
+      .map((r) => r.id);
   }
 
   /**
@@ -80,26 +113,19 @@ export class ThreadStore {
    * without a cursor of its own thread (see migration v30).
    */
   follow(userId: ID, rootId: ID): ThreadFollow | null {
-    const row = this.db
-      .prepare(
+    const row = maybeFollowRow.get(
+      this.db.prepare(
         `SELECT m.channel_id, f.following, f.last_read_seq, f.revision, f.unread_hold, f.muted,
            cm.replies_read_seq
          FROM messages m
          LEFT JOIN thread_follows f ON f.root_id = m.id AND f.user_id = ?
          LEFT JOIN channel_members cm ON cm.channel_id = m.channel_id AND cm.user_id = ?
          WHERE m.id = ? AND m.deleted_at IS NULL AND m.thread_root_id IS NULL`,
-      )
-      .get(userId, userId, rootId) as
-      | {
-          channel_id: string;
-          following: number | null;
-          last_read_seq: number | null;
-          revision: number | null;
-          unread_hold: number | null;
-          muted: number | null;
-          replies_read_seq: number | null;
-        }
-      | undefined;
+      ),
+      userId,
+      userId,
+      rootId,
+    );
     if (!row) return null;
     return {
       rootId,
@@ -124,13 +150,14 @@ export class ThreadStore {
 
   /** The highest seq in a thread, counting the root itself. */
   private threadLastSeq(rootId: ID): number {
-    const row = this.db
-      .prepare(
+    return seqRow.get(
+      this.db.prepare(
         `SELECT COALESCE(MAX(seq), 0) AS seq FROM messages
          WHERE (id = ? OR thread_root_id = ?) AND deleted_at IS NULL`,
-      )
-      .get(rootId, rootId) as { seq: number };
-    return row.seq;
+      ),
+      rootId,
+      rootId,
+    )!.seq;
   }
 
   setFollow(userId: ID, rootId: ID, following: boolean): ThreadFollow | null {
@@ -278,12 +305,13 @@ export class ThreadStore {
    * keeps it even then, caught up to its own reply.
    */
   autoFollow(rootId: ID, replierId: ID, replySeq: number): void {
-    const root = this.db
-      .prepare(
+    const root = rootRow.get(
+      this.db.prepare(
         `SELECT user_id, seq FROM messages
          WHERE id = ? AND deleted_at IS NULL AND thread_root_id IS NULL`,
-      )
-      .get(rootId) as { user_id: string; seq: number } | undefined;
+      ),
+      rootId,
+    );
     if (!root) return;
 
     this.db
@@ -313,8 +341,8 @@ export class ThreadStore {
   /** Every follow row this account can still reach, for the handshake snapshot. */
   follows(userId: ID): ThreadFollow[] {
     // One query rather than two per row: the handshake runs on every reconnect.
-    const rows = this.db
-      .prepare(
+    const rows = followRow.with({ last_seq: "number" }).all(
+      this.db.prepare(
         `SELECT f.root_id, m.channel_id, f.following, f.last_read_seq, f.revision, f.unread_hold,
            f.muted, MAX(m.seq, COALESCE((
              SELECT MAX(r.seq) FROM messages r
@@ -327,17 +355,10 @@ export class ThreadStore {
            c.type = 'public'
            OR EXISTS (SELECT 1 FROM channel_members cm WHERE cm.channel_id = c.id AND cm.user_id = ?)
          )`,
-      )
-      .all(userId, userId) as {
-      root_id: string;
-      channel_id: string;
-      following: number;
-      last_read_seq: number;
-      revision: number;
-      unread_hold: number | null;
-      muted: number;
-      last_seq: number;
-    }[];
+      ),
+      userId,
+      userId,
+    );
     return rows.map((row) => ({
       rootId: row.root_id,
       channelId: row.channel_id,
@@ -365,8 +386,8 @@ export class ThreadStore {
     if (boundary !== null && !Number.isFinite(boundary)) {
       return { threads: [], nextCursor: null };
     }
-    const rows = this.db
-      .prepare(
+    const rows = followedRow.all(
+      this.db.prepare(
         `SELECT * FROM (
            SELECT m.*,
              MAX(m.seq, COALESCE((
@@ -387,17 +408,16 @@ export class ThreadStore {
          WHERE (? = 0 OR unread_count > 0)
          AND (? IS NULL OR last_seq < ? OR (last_seq = ? AND id < ?))
          ORDER BY last_seq DESC, id DESC LIMIT ?`,
-      )
-      .all(
-        userId,
-        userId,
-        unreadOnly ? 1 : 0,
-        boundary,
-        boundary,
-        boundary,
-        beforeId ?? null,
-        limit + 1,
-      ) as unknown as (MessageRow & { last_seq: number; unread_count: number })[];
+      ),
+      userId,
+      userId,
+      unreadOnly ? 1 : 0,
+      boundary,
+      boundary,
+      boundary,
+      beforeId ?? null,
+      limit + 1,
+    );
     const page = rows.slice(0, limit);
     const roots = this.store.messages.hydrate(page);
     const last = page.at(-1);
@@ -409,9 +429,7 @@ export class ThreadStore {
          AND NOT EXISTS (SELECT 1 FROM user_blocks ub WHERE ub.user_id = ? AND ub.blocked_id = r.user_id)
        ORDER BY r.id DESC LIMIT 1`,
     );
-    const replyRows = page.flatMap((row) =>
-      (newest.all(row.id, userId) as unknown as MessageRow[]).slice(0, 1),
-    );
+    const replyRows = page.flatMap((row) => messageRow.all(newest, row.id, userId).slice(0, 1));
     const replies = new Map(
       this.store.messages.hydrate(replyRows).map((reply) => [reply.threadRootId, reply]),
     );
@@ -428,16 +446,17 @@ export class ThreadStore {
 
   /** Everyone currently following a thread, for fanning an update out to them. */
   followers(rootId: ID): ID[] {
-    const rows = this.db
-      .prepare("SELECT user_id FROM thread_follows WHERE root_id = ? AND following = 1")
-      .all(rootId) as { user_id: string }[];
+    const rows = followerRow.all(
+      this.db.prepare("SELECT user_id FROM thread_follows WHERE root_id = ? AND following = 1"),
+      rootId,
+    );
     return rows.map((row) => row.user_id);
   }
 
   /** How many followed threads have replies this account has not seen. */
   unreadCount(userId: ID): number {
-    const row = this.db
-      .prepare(
+    return countOf(
+      this.db.prepare(
         `SELECT COUNT(*) AS n FROM thread_follows f
          JOIN messages m ON m.id = f.root_id
          JOIN channels c ON c.id = m.channel_id
@@ -449,8 +468,9 @@ export class ThreadStore {
            SELECT 1 FROM messages r WHERE r.thread_root_id = m.id AND r.deleted_at IS NULL
            AND r.seq > f.last_read_seq AND NOT ${READ_IN_CHANNEL}
          )`,
-      )
-      .get(userId, userId) as { n: number };
-    return row.n;
+      ),
+      userId,
+      userId,
+    );
   }
 }

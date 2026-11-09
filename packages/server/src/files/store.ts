@@ -1,8 +1,51 @@
 import type { FileKind, FileMeta, ID, SharedFile } from "@ownbase/protocol";
 import { FILE_KIND_TYPES, FILE_TYPE_MATCH } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
+import { shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
 import type { Store } from "../store.js";
+
+export const fileRow = shape({
+  id: "text",
+  channel_id: "text",
+  user_id: "text",
+  message_id: "text?",
+  name: "text",
+  mime: "text",
+  size: "number",
+  width: "number?",
+  height: "number?",
+  created_at: "number",
+});
+
+/** The columns a file's `FileMeta` is read from. */
+export const fileMetaRow = fileRow.pick("id", "name", "mime", "size", "width", "height");
+
+export function toFileMeta(r: RowOf<typeof fileMetaRow.columns>): FileMeta {
+  return { id: r.id, name: r.name, mime: r.mime, size: r.size, width: r.width, height: r.height };
+}
+
+const sharedFileRow = fileMetaRow.with({
+  message_id: "text",
+  channel_id: "text",
+  thread_root_id: "text?",
+  user_id: "text",
+  created_at: "number",
+});
+const idRow = fileRow.pick("id");
+const fileIdRow = shape({ file_id: "text" });
+const deletionCountsRow = shape({
+  waiting: "number",
+  retrying: "number",
+  rejected: "number",
+  oldest: "number?",
+});
+const ticketRow = shape({
+  file_id: "text",
+  user_id: "text",
+  session_hash: "text",
+  expires_at: "number",
+});
 
 /** Attachments: their rows, their download tickets, and the queue that removes their blobs. */
 export class FileStore {
@@ -49,18 +92,7 @@ export class FileStore {
   }
 
   get(id: ID): (FileMeta & { channelId: ID; userId: ID }) | null {
-    const r = this.db.prepare("SELECT * FROM files WHERE id = ?").get(id) as
-      | {
-          id: string;
-          channel_id: string;
-          user_id: string;
-          name: string;
-          mime: string;
-          size: number;
-          width: number | null;
-          height: number | null;
-        }
-      | undefined;
+    const r = fileRow.get(this.db.prepare("SELECT * FROM files WHERE id = ?"), id);
     if (!r) return null;
     return {
       id: r.id,
@@ -148,8 +180,8 @@ export class FileStore {
     }
     // CROSS JOIN keeps files the outer loop: left to choose, SQLite read every
     // message and sorted them all, where this stops once a page is full.
-    const rows = this.db
-      .prepare(
+    const rows = sharedFileRow.all(
+      this.db.prepare(
         `SELECT f.id, f.name, f.mime, f.size, f.width, f.height, f.message_id,
                 m.channel_id, m.thread_root_id, m.user_id, m.created_at
          FROM files f
@@ -157,32 +189,15 @@ export class FileStore {
          CROSS JOIN channels c ON c.id = m.channel_id
          WHERE f.message_id IS NOT NULL AND m.deleted_at IS NULL AND ${where.join(" AND ")}
          ORDER BY f.message_id DESC, f.id DESC LIMIT ?`,
-      )
-      .all(...params, query.limit + 1) as {
-      id: string;
-      name: string;
-      mime: string;
-      size: number;
-      width: number | null;
-      height: number | null;
-      message_id: string;
-      channel_id: string;
-      thread_root_id: string | null;
-      user_id: string;
-      created_at: number;
-    }[];
+      ),
+      ...params,
+      query.limit + 1,
+    );
     const page = rows.slice(0, query.limit);
     const last = page.at(-1);
     return {
       files: page.map((r) => ({
-        file: {
-          id: r.id,
-          name: r.name,
-          mime: r.mime,
-          size: r.size,
-          width: r.width,
-          height: r.height,
-        },
+        file: toFileMeta(r),
         messageId: r.message_id,
         channelId: r.channel_id,
         threadRootId: r.thread_root_id,
@@ -237,10 +252,9 @@ export class FileStore {
    */
   abandonedIds(olderThan: number): ID[] | null {
     const spokenFor = new Set<ID>();
-    const rows = this.db.prepare("SELECT file_ids FROM scheduled_messages").all() as {
-      file_ids: string;
-    }[];
-    for (const row of rows) {
+    for (const row of shape({ file_ids: "text" }).all(
+      this.db.prepare("SELECT file_ids FROM scheduled_messages"),
+    )) {
       let ids: unknown;
       try {
         ids = JSON.parse(row.file_ids);
@@ -250,13 +264,12 @@ export class FileStore {
       if (!Array.isArray(ids)) return null;
       for (const id of ids) spokenFor.add(String(id));
     }
-    for (const row of this.db.prepare("SELECT file_id FROM scheduled_files").all() as {
-      file_id: string;
-    }[])
+    for (const row of fileIdRow.all(this.db.prepare("SELECT file_id FROM scheduled_files")))
       spokenFor.add(row.file_id);
-    const candidates = this.db
-      .prepare("SELECT id FROM files WHERE message_id IS NULL AND created_at < ?")
-      .all(olderThan) as { id: string }[];
+    const candidates = idRow.all(
+      this.db.prepare("SELECT id FROM files WHERE message_id IS NULL AND created_at < ?"),
+      olderThan,
+    );
     return candidates.map((row) => row.id).filter((id) => !spokenFor.has(id));
   }
 
@@ -295,12 +308,12 @@ export class FileStore {
     tokenHash: string,
     now = Date.now(),
   ): { fileId: ID; userId: ID; sessionHash: string } | null {
-    const row = this.db
-      .prepare(
+    const row = ticketRow.get(
+      this.db.prepare(
         "DELETE FROM download_tokens WHERE token_hash = ? RETURNING file_id, user_id, session_hash, expires_at",
-      )
-      .get(tokenHash) as
-      { file_id: string; user_id: string; session_hash: string; expires_at: number } | undefined;
+      ),
+      tokenHash,
+    );
     if (!row || row.expires_at <= now) return null;
     return { fileId: row.file_id, userId: row.user_id, sessionHash: row.session_hash };
   }
@@ -322,9 +335,10 @@ export class FileStore {
     for (let i = 0; i < blobIds.length; i += 500) {
       const batch = blobIds.slice(i, i + 500);
       const placeholders = batch.map(() => "?").join(",");
-      const rows = this.db
-        .prepare(`SELECT id FROM files WHERE id IN (${placeholders})`)
-        .all(...batch) as { id: string }[];
+      const rows = idRow.all(
+        this.db.prepare(`SELECT id FROM files WHERE id IN (${placeholders})`),
+        ...batch,
+      );
       for (const row of rows) known.add(row.id);
     }
     return blobIds.filter((id) => !known.has(id));
@@ -332,9 +346,7 @@ export class FileStore {
 
   /** File ids belonging to a message — used to delete blobs when the message goes. */
   idsForMessage(messageId: ID): ID[] {
-    const rows = this.db.prepare("SELECT id FROM files WHERE message_id = ?").all(messageId) as {
-      id: string;
-    }[];
+    const rows = idRow.all(this.db.prepare("SELECT id FROM files WHERE message_id = ?"), messageId);
     return rows.map((r) => r.id);
   }
 
@@ -353,11 +365,11 @@ export class FileStore {
 
   /** Every removal still to do, set-aside ones included, oldest first. */
   pendingDeletions(): ID[] {
-    return (
-      this.db
-        .prepare("SELECT file_id FROM pending_file_deletions ORDER BY queued_at, file_id")
-        .all() as unknown as { file_id: string }[]
-    ).map((row) => row.file_id);
+    return fileIdRow
+      .all(
+        this.db.prepare("SELECT file_id FROM pending_file_deletions ORDER BY queued_at, file_id"),
+      )
+      .map((row) => row.file_id);
   }
 
   /**
@@ -366,15 +378,17 @@ export class FileStore {
    * fill every page ahead of a removal that would succeed.
    */
   dueDeletions(now: number, limit: number): ID[] {
-    return (
-      this.db
-        .prepare(
+    return fileIdRow
+      .all(
+        this.db.prepare(
           `SELECT file_id FROM pending_file_deletions
            WHERE rejected = 0 AND next_attempt_at <= ?
            ORDER BY next_attempt_at, file_id LIMIT ?`,
-        )
-        .all(now, limit) as unknown as { file_id: string }[]
-    ).map((row) => row.file_id);
+        ),
+        now,
+        limit,
+      )
+      .map((row) => row.file_id);
   }
 
   completeDeletion(fileId: ID): void {
@@ -386,9 +400,10 @@ export class FileStore {
 
   /** A removal that failed; it is tried again later, and the rest go on. */
   deferDeletion(fileId: ID, now: number): void {
-    const row = this.db
-      .prepare("SELECT attempts FROM pending_file_deletions WHERE file_id = ?")
-      .get(fileId) as { attempts: number } | undefined;
+    const row = shape({ attempts: "number" }).get(
+      this.db.prepare("SELECT attempts FROM pending_file_deletions WHERE file_id = ?"),
+      fileId,
+    );
     if (!row) return;
     const waits = FileStore.DELETION_RETRY_MS;
     const wait = waits[Math.min(row.attempts, waits.length - 1)]!;
@@ -411,15 +426,15 @@ export class FileStore {
     rejected: number;
     oldestQueuedAt: number | null;
   } {
-    const row = this.db
-      .prepare(
+    const row = deletionCountsRow.get(
+      this.db.prepare(
         `SELECT COUNT(*) FILTER (WHERE rejected = 0 AND attempts = 0) AS waiting,
                 COUNT(*) FILTER (WHERE rejected = 0 AND attempts > 0) AS retrying,
                 COUNT(*) FILTER (WHERE rejected = 1) AS rejected,
                 MIN(queued_at) FILTER (WHERE rejected = 0) AS oldest
          FROM pending_file_deletions`,
-      )
-      .get() as { waiting: number; retrying: number; rejected: number; oldest: number | null };
+      ),
+    )!;
     return {
       waiting: row.waiting,
       retrying: row.retrying,

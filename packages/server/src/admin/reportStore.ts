@@ -1,5 +1,6 @@
 import type { ID, MessageReport, ReportReason } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
+import { countOf, oneOf, shape } from "../core/rows.js";
 import { ulid } from "../ids.js";
 import type { Store } from "../store.js";
 
@@ -10,16 +11,21 @@ export interface OpenReport {
   reports: MessageReport[];
 }
 
-type OpenReportRow = {
-  id: string;
-  message_id: string;
-  reporter_id: string;
-  reason: string;
-  note: string;
-  created_at: number;
-  channel_id: string;
-  author_id: string;
-};
+const openReportRow = shape({
+  id: "text",
+  message_id: "text",
+  reporter_id: "text",
+  reason: oneOf({
+    spam: true,
+    harassment: true,
+    inappropriate: true,
+    other: true,
+  } satisfies Record<ReportReason, true>),
+  note: "text",
+  created_at: "number",
+  channel_id: "text",
+  author_id: "text",
+});
 
 /** Reported messages: members file them, admins settle them. */
 export class ReportStore {
@@ -47,13 +53,11 @@ export class ReportStore {
 
   /** How many reported messages wait for an admin. */
   openCount(): number {
-    return (
-      this.db
-        .prepare(
-          "SELECT COUNT(DISTINCT message_id) AS n FROM message_reports WHERE resolved_at IS NULL",
-        )
-        .get() as { n: number }
-    ).n;
+    return countOf(
+      this.db.prepare(
+        "SELECT COUNT(DISTINCT message_id) AS n FROM message_reports WHERE resolved_at IS NULL",
+      ),
+    );
   }
 
   /**
@@ -62,14 +66,14 @@ export class ReportStore {
    * deleted it too) and its open reports in the order they came.
    */
   open(): OpenReport[] {
-    const rows = this.db
-      .prepare(
+    const rows = openReportRow.all(
+      this.db.prepare(
         `SELECT r.id, r.message_id, r.reporter_id, r.reason, r.note, r.created_at,
            m.channel_id, m.user_id AS author_id
          FROM message_reports r JOIN messages m ON m.id = r.message_id
          WHERE r.resolved_at IS NULL ORDER BY r.created_at, r.id`,
-      )
-      .all() as OpenReportRow[];
+      ),
+    );
     const byMessage = new Map<ID, OpenReport>();
     for (const row of rows) {
       const held = byMessage.get(row.message_id) ?? {
@@ -81,7 +85,7 @@ export class ReportStore {
       held.reports.push({
         id: row.id,
         reporterId: row.reporter_id,
-        reason: row.reason as ReportReason,
+        reason: row.reason,
         note: row.note,
         createdAt: row.created_at,
       });
@@ -92,12 +96,14 @@ export class ReportStore {
 
   /** Closes a message's open reports as an admin resolved them; how many there were. */
   resolve(messageId: ID, adminId: ID, resolution: string): number {
-    const resolved = this.db
-      .prepare(
-        `UPDATE message_reports SET resolved_at = ?, resolved_by = ?, resolution = ?
-         WHERE message_id = ? AND resolved_at IS NULL`,
-      )
-      .run(Date.now(), adminId, resolution, messageId).changes as number;
+    const resolved = Number(
+      this.db
+        .prepare(
+          `UPDATE message_reports SET resolved_at = ?, resolved_by = ?, resolution = ?
+           WHERE message_id = ? AND resolved_at IS NULL`,
+        )
+        .run(Date.now(), adminId, resolution, messageId).changes,
+    );
     if (resolved > 0) this.tellOpenCount();
     return resolved;
   }

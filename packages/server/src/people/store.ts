@@ -1,35 +1,59 @@
 import type { Friendship, ID, Role, User } from "@ownbase/protocol";
 import { isAdministrator } from "@ownbase/protocol";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { countOf, oneOf, shape, type RowOf } from "../core/rows.js";
 import { ulid } from "../ids.js";
 import type { Store } from "../store.js";
 
-export interface UserRow {
-  id: string;
-  handle: string;
-  display_name: string;
-  password_hash: string;
-  salt: string;
-  role: string;
-  status_text: string;
-  status_emoji: string;
-  status_expires_at?: number | null;
-  is_bot: number;
-  deactivated: number;
-  dnd_until: number | null;
-  created_at: number;
-  can_invite?: number;
-  time_zone?: string | null;
-  away?: number;
-  avatar_version?: string | null;
-}
+/** The words a `role` column holds. */
+export const ROLES = {
+  owner: true,
+  admin: true,
+  member: true,
+  guest: true,
+} as const satisfies Record<Role, true>;
+
+/** A `users` row, as `SELECT *` (or `u.*`) reads it. */
+export const userRow = shape({
+  id: "text",
+  handle: "text",
+  display_name: "text",
+  password_hash: "text",
+  salt: "text",
+  role: oneOf(ROLES),
+  status_text: "text",
+  status_emoji: "text",
+  status_expires_at: "number?",
+  is_bot: "number",
+  deactivated: "number",
+  dnd_until: "number?",
+  created_at: "number",
+  can_invite: "number",
+  time_zone: "text?",
+  away: "number",
+  avatar_version: "text?",
+});
+export type UserRow = RowOf<typeof userRow.columns>;
+
+const idRow = userRow.pick("id");
+const friendshipRow = shape({
+  user_low: "text",
+  user_high: "text",
+  requested_by: "text",
+  accepted: "number",
+  created_at: "number",
+});
+const blockedRow = shape({ blocked_id: "text" });
+const nextExpiryRow = shape({ next: "number?" });
+const avatarRow = shape({ type: "text", bytes: "bytes", avatar_version: "text?" });
+const lastSeenRow = shape({ user_id: "text", seen: "number" });
 
 export function toUser(r: UserRow): User {
   return {
     id: r.id,
     handle: r.handle,
     displayName: r.display_name,
-    role: r.role as Role,
+    role: r.role,
     statusText: r.status_text,
     statusEmoji: r.status_emoji,
     ...(r.status_expires_at != null ? { statusExpiresAt: r.status_expires_at } : {}),
@@ -37,7 +61,7 @@ export function toUser(r: UserRow): User {
     deactivated: r.deactivated === 1,
     dndUntil: r.dnd_until,
     createdAt: r.created_at,
-    canInvite: mayInvite(r.role as Role, r.is_bot, r.can_invite),
+    canInvite: mayInvite(r.role, r.is_bot, r.can_invite),
     ...(r.time_zone ? { timeZone: r.time_zone } : {}),
     ...(r.away === 1 ? { away: true as const } : {}),
     ...(r.avatar_version ? { avatarVersion: r.avatar_version } : {}),
@@ -65,17 +89,13 @@ export class PeopleStore {
   ) {}
 
   friends(userId: ID): Friendship[] {
-    const rows = this.db
-      .prepare(
+    const rows = friendshipRow.all(
+      this.db.prepare(
         `SELECT * FROM friendships WHERE user_low = ? OR user_high = ? ORDER BY created_at DESC`,
-      )
-      .all(userId, userId) as unknown as {
-      user_low: string;
-      user_high: string;
-      requested_by: string;
-      accepted: number;
-      created_at: number;
-    }[];
+      ),
+      userId,
+      userId,
+    );
     // A request from someone this account blocked waits unseen until they are unblocked (E12).
     const blocked = new Set(this.blockedIds(userId));
     return rows
@@ -119,11 +139,12 @@ export class PeopleStore {
 
   /** The people this account blocked, oldest first. */
   blockedIds(userId: ID): ID[] {
-    const rows = this.db
-      .prepare(
+    const rows = blockedRow.all(
+      this.db.prepare(
         "SELECT blocked_id FROM user_blocks WHERE user_id = ? ORDER BY created_at, blocked_id",
-      )
-      .all(userId) as { blocked_id: string }[];
+      ),
+      userId,
+    );
     return rows.map((row) => row.blocked_id);
   }
 
@@ -162,10 +183,7 @@ export class PeopleStore {
   }
 
   count(): number {
-    const r = this.db.prepare("SELECT COUNT(*) c FROM users WHERE is_bot = 0").get() as {
-      c: number;
-    };
-    return r.c;
+    return countOf(this.db.prepare("SELECT COUNT(*) AS n FROM users WHERE is_bot = 0"));
   }
 
   create(input: {
@@ -187,43 +205,39 @@ export class PeopleStore {
   }
 
   get(id: ID): User | null {
-    const r = this.db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserRow | undefined;
+    const r = userRow.get(this.db.prepare("SELECT * FROM users WHERE id = ?"), id);
     return r ? toUser(r) : null;
   }
 
   authByHandle(handle: string): (User & { passwordHash: string; salt: string }) | null {
-    const r = this.db.prepare("SELECT * FROM users WHERE handle = ?").get(handle) as
-      UserRow | undefined;
+    const r = userRow.get(this.db.prepare("SELECT * FROM users WHERE handle = ?"), handle);
     if (!r) return null;
     return { ...toUser(r), passwordHash: r.password_hash, salt: r.salt };
   }
 
   list(): User[] {
-    const rows = this.db
-      .prepare("SELECT * FROM users ORDER BY handle")
-      .all() as unknown as UserRow[];
-    return rows.map(toUser);
+    return userRow.all(this.db.prepare("SELECT * FROM users ORDER BY handle")).map(toUser);
   }
 
   /** The accounts whose status was to clear itself by `now`. */
   expiredStatusUserIds(now: number): ID[] {
-    return (
-      this.db
-        .prepare(
+    return idRow
+      .all(
+        this.db.prepare(
           "SELECT id FROM users WHERE status_expires_at IS NOT NULL AND status_expires_at <= ?",
-        )
-        .all(now) as { id: string }[]
-    ).map((row) => row.id);
+        ),
+        now,
+      )
+      .map((row) => row.id);
   }
 
   /** When the next status clears itself, or null when none will. */
   nextStatusExpiry(): number | null {
-    const row = this.db
-      .prepare(
+    return nextExpiryRow.get(
+      this.db.prepare(
         "SELECT MIN(status_expires_at) AS next FROM users WHERE status_expires_at IS NOT NULL",
-      )
-      .get() as { next: number | null } | undefined;
-    return row?.next ?? null;
+      ),
+    )!.next;
   }
 
   /** The explicit member grant, independent of permission conferred by an admin role. */
@@ -247,7 +261,7 @@ export class PeopleStore {
     },
   ): User {
     const sets: string[] = [];
-    const params: unknown[] = [];
+    const params: SQLInputValue[] = [];
     if (patch.displayName !== undefined) {
       sets.push("display_name = ?");
       params.push(patch.displayName);
@@ -289,9 +303,7 @@ export class PeopleStore {
       params.push(patch.away ? 1 : 0);
     }
     if (sets.length > 0) {
-      this.db
-        .prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`)
-        .run(...(params as (string | number | null)[]), id);
+      this.db.prepare(`UPDATE users SET ${sets.join(", ")} WHERE id = ?`).run(...params, id);
     }
     // What this account scheduled while deactivated can go at the next flush.
     if (patch.deactivated === false) this.store.scheduled.wakeHeld({ userId: id });
@@ -305,13 +317,13 @@ export class PeopleStore {
 
   /** One account's profile picture, or null for none (E9). */
   avatar(userId: ID): { type: string; bytes: Buffer; version: string } | null {
-    const row = this.db
-      .prepare(
+    const row = avatarRow.get(
+      this.db.prepare(
         `SELECT a.type, a.bytes, u.avatar_version FROM user_avatars a
          JOIN users u ON u.id = a.user_id WHERE a.user_id = ?`,
-      )
-      .get(userId) as
-      { type: string; bytes: Uint8Array; avatar_version: string | null } | undefined;
+      ),
+      userId,
+    );
     if (!row?.avatar_version) return null;
     return { type: row.type, bytes: Buffer.from(row.bytes), version: row.avatar_version };
   }
@@ -334,9 +346,9 @@ export class PeopleStore {
 
   /** When each account was last seen, for the admin list. */
   lastSeenByUser(): Record<ID, number> {
-    const rows = this.db
-      .prepare("SELECT user_id, MAX(last_seen_at) AS seen FROM sessions GROUP BY user_id")
-      .all() as unknown as { user_id: string; seen: number }[];
+    const rows = lastSeenRow.all(
+      this.db.prepare("SELECT user_id, MAX(last_seen_at) AS seen FROM sessions GROUP BY user_id"),
+    );
     return Object.fromEntries(rows.map((r) => [r.user_id, r.seen]));
   }
 
