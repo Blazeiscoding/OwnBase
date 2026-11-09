@@ -33,6 +33,7 @@ import { forgetCachedIcon, useCachedWorkspaceIcons } from "./lib/workspaceIcon.j
 import type { SignedOutFrom, SignedOutHow } from "./lib/signOut.js";
 import { railOrder } from "./lib/workspaceRail.js";
 import { useOtherWorkspacesUnread } from "./lib/otherUnread.js";
+import { navigationOf } from "./lib/navigation.js";
 
 type Session =
   | { view: "loading" }
@@ -105,7 +106,6 @@ export function App({ platform }: { platform: Platform }) {
   const [hostDialogOpen, setHostDialogOpen] = useState(false);
   /** The tab Manage hosting opens on, when something asked for one. */
   const [hostSection, setHostSection] = useState<"internet" | undefined>(undefined);
-  const [inviteAsk, setInviteAsk] = useState(0);
   const hosting = useHostingStatus(platform.hosting);
   const savedIcons = useCachedWorkspaceIcons(
     platform,
@@ -608,7 +608,6 @@ export function App({ platform }: { platform: Platform }) {
                 platform={platform}
                 initialTarget={session.target ?? null}
                 welcome={session.welcome}
-                inviteAsk={inviteAsk}
                 onLeaveWorkspace={() => leaveWorkspace()}
                 onSignedOut={(how) => endSession(session.server, session.client, how)}
                 onAccountCreated={(token, handle) =>
@@ -655,7 +654,11 @@ export function App({ platform }: { platform: Platform }) {
                   onClose={() => setHostDialogOpen(false)}
                   onInvite={() => {
                     setHostDialogOpen(false);
-                    setInviteAsk((n) => n + 1);
+                    if (session.view === "workspace")
+                      navigationOf(session.client)?.navigate({
+                        to: "dialog",
+                        dialog: { kind: "invite" },
+                      });
                   }}
                   onStarted={(status) => {
                     setHostDialogOpen(false);
