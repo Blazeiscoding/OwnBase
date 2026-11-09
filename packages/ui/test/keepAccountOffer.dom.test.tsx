@@ -8,6 +8,7 @@ import { Sidebar } from "../src/components/Sidebar.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 import { held } from "./heldMessages.js";
+import { renderPart } from "./workspaceParts.js";
 import { timelineMessages } from "@ownbase/client-core";
 
 /**
@@ -109,31 +110,13 @@ function sidebar(
     status: "online",
   });
   const onCreateAccount = vi.fn();
-  const noop = () => {};
-  const view = render(
-    <PlatformContext.Provider value={stored.platform}>
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId={general.id}
-          onSelect={noop}
-          onBrowseChannels={noop}
-          onNewChannel={noop}
-          onNewDm={noop}
-          onFriends={noop}
-          onSearch={noop}
-          onSaved={noop}
-          onActivity={noop}
-          onThreads={noop}
-          onInvite={noop}
-          onSwitchWorkspace={noop}
-          onEditProfile={noop}
-          onAccountSettings={noop}
-          onCreateAccount={onCreateAccount}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>
-    </PlatformContext.Provider>,
-  );
+  const view = renderPart(client, <Sidebar />, {
+    channelId: general.id,
+    shell: { platform: stored.platform },
+  });
+  view.navigation.store.subscribe((s) => {
+    if (s.dialog.kind === "guest-account") onCreateAccount();
+  });
   return { ...stored, client, workspaceId, onCreateAccount, view, user: userEvent.setup() };
 }
 

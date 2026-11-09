@@ -6,10 +6,13 @@ import {
   canSetChannelManager,
   type ID,
   DEFAULT_CHANNEL_PREFS,
+  isDirect,
   type NotifyLevel,
 } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { useToast } from "./Toast.js";
+import { setMuted } from "../lib/conversationChoices.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog } from "./Dialog.js";
@@ -684,15 +687,15 @@ export function ChannelDetailsDialog(props: {
 
 function NotificationSettings({ channelId }: { channelId: ID }) {
   const client = useClient();
+  const toast = useToast();
+  const direct = useWorkspace((s) => isDirect(s.channels[channelId]?.type));
   // Select the stored value only — a fallback object built inside the selector
   // would be a new reference every render and spin the store subscription.
   const stored = useWorkspace((s) => s.prefs[channelId]);
   const prefs = stored ?? DEFAULT_CHANNEL_PREFS;
   const write = useWorkspace((s) => s.prefsWrites[channelId]);
-  // A refused star says so where it was chosen; this speaks for these choices only.
-  const failed =
-    write?.failed &&
-    ("notifyLevel" in write.failed || "notifyChosen" in write.failed || "muted" in write.failed);
+  // A refused star or mute says so in a notice; this speaks for the level only.
+  const failed = write?.failed && ("notifyLevel" in write.failed || "notifyChosen" in write.failed);
   // Where the server keeps a default (v53), a conversation not set on its own follows it.
   const notifyDefault = useWorkspace((s) => s.notifyDefault);
   const following = notifyDefault !== null && prefs.notifyChosen === false;
@@ -768,7 +771,14 @@ function NotificationSettings({ channelId }: { channelId: ID }) {
         <input
           type="checkbox"
           checked={prefs.muted}
-          onChange={(e) => client.setChannelPrefs(channelId, { muted: e.target.checked })}
+          onChange={(e) =>
+            setMuted(
+              client,
+              toast,
+              { id: channelId, noun: direct ? "conversation" : "channel" },
+              e.target.checked,
+            )
+          }
           className="mt-0.5 accent-copper"
         />
         <span>

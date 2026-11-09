@@ -5,7 +5,7 @@ import { useClient, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 import { starItem } from "../lib/conversationChoices.js";
 
@@ -143,7 +143,7 @@ export function ConversationMenu(props: {
   onDetails: () => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   // A star is kept with a membership.
   const canStar = useWorkspace((s) => props.channelId in s.memberships);
   const starred = useWorkspace((s) => s.prefs[props.channelId]?.starred === true);

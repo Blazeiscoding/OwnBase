@@ -75,13 +75,6 @@ export function projectMentions(stored: string, names: MentionNames): MentionDoc
   return { stored, shown, segments };
 }
 
-/** The mention the shown position `start..end` falls on, if it is one. */
-export function mentionAt(doc: MentionDocument, start: number, end = start) {
-  return doc.segments.find(
-    (s) => s.mention && start >= s.shownStart && end <= s.shownStart + s.shown.length,
-  );
-}
-
 /**
  * Where a shown position is in the stored text. One inside a mention goes to
  * its start or its end, as `bias` says, so a selection over part of a mention

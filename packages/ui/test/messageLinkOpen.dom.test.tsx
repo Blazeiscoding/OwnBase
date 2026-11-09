@@ -7,6 +7,7 @@ import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
 import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import type { Platform } from "../src/platform.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /** A link to one message, opened as the workspace starts (a browser's address, the desktop app's link). */
 const sam: User = {
@@ -81,13 +82,15 @@ function openAt(
         <ConfirmProvider>
           <ClientContext.Provider value={client}>
             <OpenMessageContext.Provider value={vi.fn()}>
-              <WorkspaceScreen
-                client={client}
-                platform={platform}
-                initialTarget={target}
-                onLeaveWorkspace={() => {}}
-                onSignedOut={() => {}}
-              />
+              <AppNotices>
+                <WorkspaceScreen
+                  client={client}
+                  platform={platform}
+                  initialTarget={target}
+                  onLeaveWorkspace={() => {}}
+                  onSignedOut={() => {}}
+                />
+              </AppNotices>
             </OpenMessageContext.Provider>
           </ClientContext.Provider>
         </ConfirmProvider>

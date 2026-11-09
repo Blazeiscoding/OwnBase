@@ -10,6 +10,7 @@ import { Banner } from "../src/components/Banner.js";
 import type { HostingLine } from "../src/components/Sidebar.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * One place for banners, under the conversation's header (UX-25): one at a
@@ -89,14 +90,16 @@ function workspace(
   render(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={client}>
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-          banner={opts.banner}
-          hosting={opts.hosting}
-        />
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+            banner={opts.banner}
+            hosting={opts.hosting}
+          />
+        </AppNotices>
       </ClientContext.Provider>
     </PlatformContext.Provider>,
   );

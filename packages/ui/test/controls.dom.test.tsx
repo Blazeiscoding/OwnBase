@@ -11,6 +11,7 @@ import { Modal } from "../src/components/Modal.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /** Where call preferences are kept, as in the app. */
@@ -448,30 +449,7 @@ describe("channel rows", () => {
       },
       huddles: { C_GENERAL: ["U_PRIYA"] },
     });
-    render(
-      <PlatformContext.Provider value={platform}>
-        <ClientContext.Provider value={client}>
-          <Sidebar
-            activeChannelId={null}
-            onSelect={vi.fn()}
-            onBrowseChannels={vi.fn()}
-            onNewChannel={vi.fn()}
-            onNewDm={vi.fn()}
-            onFriends={vi.fn()}
-            onSearch={vi.fn()}
-            onSaved={vi.fn()}
-            onScheduled={vi.fn()}
-            onActivity={vi.fn()}
-            onThreads={vi.fn()}
-            onEditProfile={vi.fn()}
-            onInvite={vi.fn()}
-            onSwitchWorkspace={vi.fn()}
-            onAccountSettings={vi.fn()}
-            connectionLabel={null}
-          />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
-    );
+    renderPart(client, <Sidebar />, { shell: { platform } });
     const nav = screen.getByRole("navigation", { name: "Workspace navigation" });
     // jsdom lays nothing out, so it does not put the spaces between flex items
     // that a browser does; the names are matched with and without them.

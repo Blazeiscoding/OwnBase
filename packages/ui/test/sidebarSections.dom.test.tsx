@@ -7,6 +7,7 @@ import { ClientContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -108,31 +109,7 @@ function workspace(
     .mockImplementation(async (ids) =>
       keep(ids.map((id) => client.state.sidebarSections!.find((s) => s.id === id)!)),
     );
-  render(
-    <ToastProvider>
-      <ConfirmProvider>
-        <ClientContext.Provider value={client}>
-          <Sidebar
-            activeChannelId={general.id}
-            onSelect={vi.fn()}
-            onBrowseChannels={vi.fn()}
-            onNewChannel={vi.fn()}
-            onNewDm={vi.fn()}
-            onFriends={vi.fn()}
-            onSearch={vi.fn()}
-            onSaved={vi.fn()}
-            onActivity={vi.fn()}
-            onThreads={vi.fn()}
-            onEditProfile={vi.fn()}
-            onInvite={vi.fn()}
-            onSwitchWorkspace={vi.fn()}
-            onAccountSettings={vi.fn()}
-            connectionLabel={null}
-          />
-        </ClientContext.Provider>
-      </ConfirmProvider>
-    </ToastProvider>,
-  );
+  renderPart(client, <Sidebar />, { channelId: general.id });
   return { client, sent, created, renamed, deleted, ordered, user: userEvent.setup() };
 }
 
@@ -208,6 +185,7 @@ describe("moving a conversation", () => {
     ).toEqual([
       // The row's own buttons first, so the keyboard reaches them here (U6).
       "Invite people",
+      "Channel settings",
       "Unstar channel",
       "Move to Work",
       "Move to Reading",

@@ -14,6 +14,7 @@ import { deactivatedPartner } from "@ownbase/client-core";
 import { ReportsDialog } from "../src/components/ReportsDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 vi.mock("../src/lib/callPreferences.js", async (original) => ({
@@ -257,26 +258,8 @@ describe("the card of someone deactivated while it is open", () => {
 
 describe("a direct message with someone blocked", () => {
   function sidebar(blocked: string[]) {
-    const { shown } = workspace(blocked);
-    shown(
-      <Sidebar
-        activeChannelId="C_GENERAL"
-        onSelect={vi.fn()}
-        onBrowseChannels={vi.fn()}
-        onNewChannel={vi.fn()}
-        onNewDm={vi.fn()}
-        onFriends={vi.fn()}
-        onSearch={vi.fn()}
-        onSaved={vi.fn()}
-        onActivity={vi.fn()}
-        onThreads={vi.fn()}
-        onEditProfile={vi.fn()}
-        onInvite={vi.fn()}
-        onSwitchWorkspace={vi.fn()}
-        onAccountSettings={vi.fn()}
-        connectionLabel={null}
-      />,
-    );
+    const { client } = workspace(blocked);
+    renderPart(client, <Sidebar />, { channelId: "C_GENERAL" });
     return screen.getByRole("navigation");
   }
 
@@ -501,29 +484,12 @@ describe("the admins' reported messages", () => {
 
 describe("the workspace menu", () => {
   function menu(waiting: number | null, onReview?: () => void) {
-    const { shown } = workspace();
-    shown(
-      <Sidebar
-        activeChannelId="C_GENERAL"
-        onSelect={vi.fn()}
-        onBrowseChannels={vi.fn()}
-        onNewChannel={vi.fn()}
-        onNewDm={vi.fn()}
-        onFriends={vi.fn()}
-        onSearch={vi.fn()}
-        onSaved={vi.fn()}
-        onActivity={vi.fn()}
-        onThreads={vi.fn()}
-        onEditProfile={vi.fn()}
-        onInvite={vi.fn()}
-        onSwitchWorkspace={vi.fn()}
-        onAccountSettings={vi.fn()}
-        onManagePeople={vi.fn()}
-        reportsWaiting={waiting}
-        onReviewReports={onReview}
-        connectionLabel={null}
-      />,
-    );
+    const { client } = workspace([], { ...sam, role: "admin" });
+    client.store.setState({ openReports: waiting });
+    const { navigation } = renderPart(client, <Sidebar />, { channelId: "C_GENERAL" });
+    navigation.store.subscribe((s, was) => {
+      if (s.dialog.kind === "reports" && was.dialog.kind !== "reports") onReview?.();
+    });
   }
 
   it("leads admins to reported messages, saying how many wait", async () => {

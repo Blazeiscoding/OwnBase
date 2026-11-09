@@ -16,6 +16,7 @@ import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
 import { held } from "./heldMessages.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /** Drafts (E5): every unsent draft on this device, newest first, opened where it was written. */
 const person = (id: string, displayName: string): User => ({
@@ -303,12 +304,14 @@ describe("opening a draft from the Drafts panel", () => {
     render(
       tree(
         client,
-        <WorkspaceScreen
-          client={client}
-          platform={platform}
-          onLeaveWorkspace={() => {}}
-          onSignedOut={() => {}}
-        />,
+        <AppNotices>
+          <WorkspaceScreen
+            client={client}
+            platform={platform}
+            onLeaveWorkspace={() => {}}
+            onSignedOut={() => {}}
+          />
+        </AppNotices>,
       ),
     );
     return { client, user, jump };

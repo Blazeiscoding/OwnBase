@@ -12,6 +12,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { emit } from "./clientEvents.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /** Reminders (E4): set from a message, listed in Activity, counted and told. */
 const person = (id: string, displayName: string): User => ({
@@ -332,12 +333,14 @@ describe("a reminder come due", () => {
     render(
       <PlatformContext.Provider value={shown}>
         <ClientContext.Provider value={client}>
-          <WorkspaceScreen
-            client={client}
-            platform={shown}
-            onLeaveWorkspace={() => {}}
-            onSignedOut={() => {}}
-          />
+          <AppNotices>
+            <WorkspaceScreen
+              client={client}
+              platform={shown}
+              onLeaveWorkspace={() => {}}
+              onSignedOut={() => {}}
+            />
+          </AppNotices>
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

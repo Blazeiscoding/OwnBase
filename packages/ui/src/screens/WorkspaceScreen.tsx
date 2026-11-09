@@ -1,32 +1,25 @@
 import {
   lazy,
   Suspense,
-  useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
-  type ComponentProps,
   type ReactNode,
 } from "react";
-import { isAdministrator, type ID, type Message } from "@ownbase/protocol";
+import type { ID } from "@ownbase/protocol";
 import { BlockedComposer, DeactivatedComposer } from "../components/Blocking.js";
 import {
   WorkspaceClient,
   blockedPartner,
   deactivatedPartner,
-  decideNotification,
-  decideReminderNotification,
-  isMessageOnScreen,
-  isMessageRead,
   mentionsElsewhere,
-  notificationBody,
   waitsForAttention,
 } from "@ownbase/client-core";
 import { ClientContext, OpenMessageContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import { channelTitle } from "../lib/format.js";
-import { protocolMismatch } from "../lib/connection.js";
 import {
   HostingStatus,
   Sidebar,
@@ -42,22 +35,8 @@ import { GettingStarted } from "../components/GettingStarted.js";
 import { useHuddleView } from "../lib/huddleView.js";
 import { useHuddleEndedNotice } from "../lib/huddleEnded.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
-import { CatchUpSummary, namesList } from "../lib/catchUp.js";
-import {
-  catchUpContent,
-  notificationContent,
-  reminderContent,
-  previewAccount,
-  previewFor,
-  useNotificationPreviews,
-  type NotificationPreview,
-} from "../lib/notificationPreview.js";
-import { onScreenElsewhere, useFocusedView } from "../lib/focusedView.js";
-import type { PaletteCommand } from "../components/QuickSwitcher.js";
-import { QuickSwitcherLoading, type EarlyTyping } from "../components/QuickSwitcherLoading.js";
-import { useAppearance } from "../lib/appearance.js";
-import { shortcutLabel } from "../lib/shortcuts.js";
-import type { AccountSection } from "../components/AccountDialog.js";
+import { previewAccount, previewFor, useNotificationPreviews } from "../lib/notificationPreview.js";
+import { useFocusedView } from "../lib/focusedView.js";
 import { HuddleButton } from "../components/HuddleButton.js";
 import { Banner, BannerAction } from "../components/Banner.js";
 import { MemberNoticeBanner } from "../components/MemberNotice.js";
@@ -69,7 +48,6 @@ import {
   PinnedBar,
 } from "../components/ConversationHeader.js";
 import { ErrorBoundary } from "../components/ErrorBoundary.js";
-import { LazyDialog, LazyPanel } from "../components/LazyView.js";
 import { Icon } from "../components/Icon.js";
 import { Badge } from "../components/Badge.js";
 import { DraftPersistence } from "../components/DraftPersistence.js";
@@ -78,86 +56,48 @@ import { WorkspaceStorageGate } from "../components/WorkspaceStorageGate.js";
 import { ShareableServerProvider } from "../components/ShareableServer.js";
 import { hasOpenModal } from "../components/Modal.js";
 import { loadTooltipBubble } from "../components/Tooltip.js";
-import { isImeKey } from "../lib/textInput.js";
 import { useLastConversation } from "../lib/lastConversation.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
 import { useRememberWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { useMediaQuery } from "../lib/useMediaQuery.js";
-import {
-  ROUTE_VIEWS,
-  currentRoute,
-  writeRoute,
-  type RouteDialog,
-  type RouteView,
-} from "../lib/route.js";
 import { loadEmoji } from "../lib/emoji.js";
 import { useHistoryKeys } from "../lib/historyKeys.js";
-import { requestEdit } from "../lib/editRequest.js";
-import { markEverythingRead, unreadEverywhere, unreadSummary } from "../lib/readAll.js";
-import { neighbourConversation } from "../lib/conversationKeys.js";
-import { useOptionalToast } from "../components/Toast.js";
-import { useOptionalConfirm } from "../components/Confirm.js";
 import { useIdleReport } from "../lib/idle.js";
 import { PartnerTime } from "../components/PartnerTime.js";
-import { draftPlace, type DraftPlace } from "../lib/drafts.js";
+import { draftPlace } from "../lib/drafts.js";
 import { PhoneNavigation } from "../components/PhoneNavigation.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { signedOutHow, type SignedOutHow } from "../lib/signOut.js";
-import { railTarget } from "../lib/workspaceRail.js";
+import {
+  Navigation,
+  NavigationContext,
+  WIDE,
+  inView,
+  reading,
+  registerNavigation,
+  useNavigation,
+  useNavigationState,
+} from "../lib/navigation.js";
+import {
+  WorkspaceShellContext,
+  useWorkspaceShell,
+  type WorkspaceShell,
+} from "../lib/workspaceShell.js";
+import { action, runAction, useActionContext, useGlobalKeys } from "../lib/actions.js";
+import { startNotifications } from "../lib/notifications.js";
+import {
+  OpenDialog,
+  SidePanel,
+  loadQuickSwitcher,
+  loadSearchDialog,
+  loadThreadPanel,
+} from "./workspaceViews.js";
 
-const ActivityPanel = lazy(() =>
-  import("../components/ActivityPanel.js").then((module) => ({ default: module.ActivityPanel })),
-);
-const DirectMessagesPanel = lazy(() =>
-  import("../components/DirectMessagesPanel.js").then((module) => ({
-    default: module.DirectMessagesPanel,
-  })),
-);
-const AppsDialog = lazy(() =>
-  import("../components/AppsDialog.js").then((module) => ({ default: module.AppsDialog })),
-);
-const PeopleDialog = lazy(() =>
-  import("../components/PeopleDialog.js").then((module) => ({ default: module.PeopleDialog })),
-);
-const ReportsDialog = lazy(() =>
-  import("../components/ReportsDialog.js").then((module) => ({ default: module.ReportsDialog })),
-);
-const AccountDialog = lazy(() =>
-  import("../components/AccountDialog.js").then((module) => ({ default: module.AccountDialog })),
-);
-const WorkspaceSettings = lazy(() =>
-  import("../components/WorkspaceSettings.js").then((module) => ({
-    default: module.WorkspaceSettings,
-  })),
-);
-// Opened now and then rather than on every visit, so they load on first use
-// and keep what every visit downloads small.
 // Asked once per device, and only by a browser that has not answered yet.
 const NotificationBanner = lazy(() =>
   import("../components/NotificationBanner.js").then((module) => ({
     default: module.NotificationBanner,
   })),
-);
-const PinsPanel = lazy(() =>
-  import("../components/MessageListPanel.js").then((module) => ({ default: module.PinsPanel })),
-);
-const SavedPanel = lazy(() =>
-  import("../components/MessageListPanel.js").then((module) => ({ default: module.SavedPanel })),
-);
-const ThreadsPanel = lazy(() =>
-  import("../components/MessageListPanel.js").then((module) => ({ default: module.ThreadsPanel })),
-);
-const MembersPanel = lazy(() =>
-  import("../components/MembersPanel.js").then((module) => ({ default: module.MembersPanel })),
-);
-const ScheduledPanel = lazy(() =>
-  import("../components/ScheduledPanel.js").then((module) => ({ default: module.ScheduledPanel })),
-);
-const DraftsPanel = lazy(() =>
-  import("../components/DraftsPanel.js").then((module) => ({ default: module.DraftsPanel })),
-);
-const FilesPanel = lazy(() =>
-  import("../components/FilesPanel.js").then((module) => ({ default: module.FilesPanel })),
 );
 /** Which microphone and camera to use, asked once before a first huddle. */
 const DeviceCheckDialog = lazy(() =>
@@ -177,133 +117,10 @@ const IncomingCall = lazy(() =>
 const ViewModal = lazy(() =>
   import("../components/ViewModal.js").then((module) => ({ default: module.ViewModal })),
 );
-// Forms opened now and then, and the video stage shown only during a call
-// with video, load on first use too.
-const NewChannelDialog = lazy(() =>
-  import("../components/dialogs.js").then((module) => ({ default: module.NewChannelDialog })),
-);
-const BrowseChannelsDialog = lazy(() =>
-  import("../components/dialogs.js").then((module) => ({
-    default: module.BrowseChannelsDialog,
-  })),
-);
-const GuestAccountDialog = lazy(() =>
-  import("../components/dialogs.js").then((module) => ({ default: module.GuestAccountDialog })),
-);
-const NewDmDialog = lazy(() =>
-  import("../components/dialogs.js").then((module) => ({ default: module.NewDmDialog })),
-);
-const InviteDialog = lazy(() =>
-  import("../components/InviteDialog.js").then((module) => ({ default: module.InviteDialog })),
-);
+/** The video stage, shown only during a call with video. */
 const HuddleStage = lazy(() =>
   import("../components/HuddleStage.js").then((module) => ({ default: module.HuddleStage })),
 );
-const FriendsDialog = lazy(() =>
-  import("../components/FriendsDialog.js").then((module) => ({ default: module.FriendsDialog })),
-);
-const ProfileDialog = lazy(() =>
-  import("../components/ProfileDialog.js").then((module) => ({ default: module.ProfileDialog })),
-);
-const ShortcutsDialog = lazy(() =>
-  import("../components/ShortcutsDialog.js").then((module) => ({
-    default: module.ShortcutsDialog,
-  })),
-);
-const DiagnosticsDialog = lazy(() =>
-  import("../components/DiagnosticsDialog.js").then((module) => ({
-    default: module.DiagnosticsDialog,
-  })),
-);
-const ChannelDetailsDialog = lazy(() =>
-  import("../components/ChannelDetailsDialog.js").then((module) => ({
-    default: module.ChannelDetailsDialog,
-  })),
-);
-/**
- * Ctrl+K's palette is out of the first download too, but it is fetched as
- * soon as the workspace opens and drawn directly once here: a switch typed
- * straight after Ctrl+K must not land on a loading state. In the moment before
- * it has arrived, its frame stands in and keeps what is typed, and an Enter.
- */
-let LoadedSwitcher: (typeof import("../components/QuickSwitcher.js"))["QuickSwitcher"] | null =
-  null;
-const loadQuickSwitcher = () =>
-  import("../components/QuickSwitcher.js").then((module) => {
-    LoadedSwitcher = module.QuickSwitcher;
-    return { default: module.QuickSwitcher };
-  });
-const LazySwitcher = lazy(loadQuickSwitcher);
-function SwitcherDialog(props: ComponentProps<typeof LazySwitcher>) {
-  // Chosen once, as for search: a swap would start the palette over.
-  const [Loaded] = useState(() => LoadedSwitcher);
-  const [typing, setTyping] = useState<EarlyTyping>({ query: "", entered: false });
-  return Loaded ? (
-    <Loaded {...props} />
-  ) : (
-    <LazyDialog
-      loading="Loading Jump to"
-      onClose={props.onClose}
-      placeholder={
-        <QuickSwitcherLoading
-          typing={typing}
-          onTyping={setTyping}
-          actions={!!props.commands?.length}
-          onClose={props.onClose}
-        />
-      }
-    >
-      <LazySwitcher {...props} initialQuery={typing.query} openAtOnce={typing.entered} />
-    </LazyDialog>
-  );
-}
-
-/**
- * Search the same way: the header's search is pressed and typed into at once,
- * and words typed while it was still loading were lost.
- */
-let LoadedSearch: (typeof import("../components/SearchDialog.js"))["SearchDialog"] | null = null;
-const loadSearchDialog = () =>
-  import("../components/SearchDialog.js").then((module) => {
-    LoadedSearch = module.SearchDialog;
-    return { default: module.SearchDialog };
-  });
-const LazySearch = lazy(loadSearchDialog);
-function SearchDialog(props: ComponentProps<typeof LazySearch>) {
-  // Chosen once: a swap would start the search over.
-  const [Loaded] = useState(() => LoadedSearch);
-  return Loaded ? (
-    <Loaded {...props} />
-  ) : (
-    <LazyDialog loading="Loading search" onClose={props.onClose}>
-      <LazySearch {...props} />
-    </LazyDialog>
-  );
-}
-
-/**
- * A thread is out of the first download as well. It is fetched as the
- * workspace opens and drawn directly from then on, so opening one does not
- * stop at a loading state; only one opened in that first moment does.
- */
-let LoadedThreadPanel: (typeof import("../components/ThreadPanel.js"))["ThreadPanel"] | null = null;
-const loadThreadPanel = () =>
-  import("../components/ThreadPanel.js").then((module) => {
-    LoadedThreadPanel = module.ThreadPanel;
-    return { default: module.ThreadPanel };
-  });
-const LazyThreadPanel = lazy(loadThreadPanel);
-function ThreadPanel(props: ComponentProps<typeof LazyThreadPanel>) {
-  // Chosen once, as for search: a swap would start the thread over.
-  const [Loaded] = useState(() => LoadedThreadPanel);
-  return Loaded ? (
-    <Loaded {...props} />
-  ) : (
-    <LazyPanel name="Thread" onClose={props.onClose}>
-      <LazyThreadPanel {...props} />
-    </LazyPanel>
-  );
-}
 
 interface Props {
   client: WorkspaceClient;
@@ -312,8 +129,6 @@ interface Props {
   initialTarget?: { channelId: ID; messageId: ID } | null;
   /** This account just founded the workspace: open on inviting people (UX-42). */
   welcome?: boolean;
-  /** Another number each time Invite people is asked for from outside, by Manage hosting. */
-  inviteAsk?: number;
   onLeaveWorkspace: () => void;
   /** "ended": the server ended this sign-in, nobody here chose to. */
   onSignedOut: (how?: SignedOutHow) => void;
@@ -337,300 +152,186 @@ interface Props {
   hostingEntry?: HostingEntry;
 }
 
-type DialogKind =
-  | { kind: "none" }
-  | { kind: "friends" }
-  | { kind: "new-channel" }
-  | { kind: "browse" }
-  | { kind: "new-dm"; initialMemberIds?: ID[] }
-  | { kind: "invite"; welcome?: boolean }
-  | { kind: "switcher" }
-  | { kind: "search"; query?: string; inConversation?: boolean }
-  | { kind: "account"; section?: AccountSection }
-  | { kind: "profile"; userId: ID }
-  | { kind: "channel-details"; tab?: "members" | "notifications" }
-  | { kind: "shortcuts" }
-  | { kind: "diagnostics"; callLog?: boolean }
-  | { kind: "apps" }
-  | { kind: "people" }
-  | { kind: "reports" }
-  | { kind: "workspace" }
-  | { kind: "guest-account" };
-
-/** The opposite of the query in theme.css that turns the sidebar into a drawer. */
-const WIDE = "(min-width: 761px) and (min-height: 481px)";
-
-/** Whether the sidebar is a drawer now, so a history entry's open drawer can open. */
-function drawerLayout(): boolean {
-  return typeof window.matchMedia === "function" && !window.matchMedia(WIDE).matches;
-}
-
-/** The dialog an address names, as the screen holds it. */
-function dialogFromRoute(dialog: RouteDialog | null | undefined): DialogKind {
-  if (!dialog) return { kind: "none" };
-  if (dialog.name === "account")
-    return dialog.section ? { kind: "account", section: dialog.section } : { kind: "account" };
-  if (dialog.name === "details") return { kind: "channel-details" };
-  return { kind: dialog.name };
-}
-
-/** The dialogs only an admin may open, by the names their headings give them. */
-const ADMIN_DIALOGS = {
-  people: "People",
-  reports: "Reported messages",
-  apps: "Apps and integrations",
-  workspace: "Workspace settings",
-} as const;
-
-/** The part of an open dialog the address keeps, if it keeps any. */
-function routeDialogOf(dialog: DialogKind): RouteDialog | null {
-  switch (dialog.kind) {
-    case "account":
-      return dialog.section ? { name: "account", section: dialog.section } : { name: "account" };
-    case "channel-details":
-      return { name: "details" };
-    case "people":
-    case "reports":
-    case "apps":
-    case "workspace":
-    case "invite":
-    case "shortcuts":
-      return { name: dialog.kind };
-    default:
-      return null;
-  }
-}
-
-/** Only one right-hand panel is open at a time. */
-type SidePanel =
-  | { kind: "none" }
-  | { kind: "thread"; rootId: ID; targetId?: ID }
-  | { kind: "pins" }
-  | { kind: "saved" }
-  | { kind: "threads" }
-  /** `edit`: a queued message whose unsaved edit to open, from Drafts. */
-  | { kind: "scheduled"; edit?: ID }
-  | { kind: "drafts" }
-  /** `channelId`: a conversation to show the files of, from its menu. */
-  | { kind: "files"; channelId?: ID }
-  | { kind: "activity" }
-  | { kind: "dms" }
-  | { kind: "members" };
-
-export function WorkspaceScreen({
-  client,
-  platform,
-  initialTarget,
-  welcome,
-  inviteAsk,
-  onLeaveWorkspace,
-  onSignedOut,
-  onAccountCreated,
-  otherWorkspaces,
-  railPlace,
-  onOpenWorkspace,
-  banner,
-  hosting,
-  hostedHere,
-  hostingEntry,
-}: Props) {
+export function WorkspaceScreen({ client, initialTarget, welcome, banner, ...rest }: Props) {
+  const others = rest.otherWorkspaces ?? [];
+  const shell: WorkspaceShell = {
+    platform: rest.platform,
+    otherWorkspaces: others,
+    railPlace: Math.min(rest.railPlace ?? 0, others.length),
+    onOpenWorkspace: rest.onOpenWorkspace,
+    onLeaveWorkspace: rest.onLeaveWorkspace,
+    onSignedOut: rest.onSignedOut,
+    onAccountCreated: rest.onAccountCreated,
+    hosting: rest.hosting,
+    hostedHere: rest.hostedHere,
+    hostingEntry: rest.hostingEntry,
+  };
   return (
     <ClientContext.Provider value={client}>
-      <div className="flex h-full min-h-0 flex-col">
-        {/* Room for the window's own controls, drawn over the window's surface. */}
-        {platform.kind === "desktop" && <TitleBar />}
-        <div className="min-h-0 flex-1">
-          <WorkspaceStorageGate
-            client={client}
-            platform={platform}
-            onLeaveWorkspace={onLeaveWorkspace}
-            onSignedOut={onSignedOut}
-            // Until the workspace opens: a hosted one that will not start must
-            // still offer Manage hosting.
-            banner={banner}
-            footer={
-              hosting && <HostingStatus hosting={hosting} className="mx-auto mt-6 w-72 text-left" />
-            }
-          >
-            <ShareableServerProvider platform={platform}>
-              <WorkspaceInner
-                platform={platform}
-                initialTarget={initialTarget ?? null}
-                welcome={welcome}
-                inviteAsk={inviteAsk}
-                onLeaveWorkspace={onLeaveWorkspace}
-                onSignedOut={onSignedOut}
-                onAccountCreated={onAccountCreated}
-                otherWorkspaces={otherWorkspaces}
-                railPlace={railPlace}
-                onOpenWorkspace={onOpenWorkspace}
-                banner={banner}
-                hosting={hosting}
-                hostedHere={hostedHere}
-                hostingEntry={hostingEntry}
-              />
-            </ShareableServerProvider>
-          </WorkspaceStorageGate>
+      <WorkspaceShellContext.Provider value={shell}>
+        <div className="flex h-full min-h-0 flex-col">
+          {/* Room for the window's own controls, drawn over the window's surface. */}
+          {rest.platform.kind === "desktop" && <TitleBar />}
+          <div className="min-h-0 flex-1">
+            <WorkspaceStorageGate
+              client={client}
+              platform={rest.platform}
+              onLeaveWorkspace={rest.onLeaveWorkspace}
+              onSignedOut={rest.onSignedOut}
+              // Until the workspace opens: a hosted one that will not start must
+              // still offer Manage hosting.
+              banner={banner}
+              footer={
+                rest.hosting && (
+                  <HostingStatus hosting={rest.hosting} className="mx-auto mt-6 w-72 text-left" />
+                )
+              }
+            >
+              <ShareableServerProvider platform={rest.platform}>
+                <WorkspaceNavigation
+                  initialTarget={initialTarget ?? null}
+                  welcome={welcome}
+                  banner={banner}
+                />
+              </ShareableServerProvider>
+            </WorkspaceStorageGate>
+          </div>
         </div>
-      </div>
+      </WorkspaceShellContext.Provider>
     </ClientContext.Provider>
   );
 }
 
-function WorkspaceInner({
-  platform,
-  initialTarget,
-  welcome,
-  inviteAsk,
-  onLeaveWorkspace,
-  onSignedOut,
-  onAccountCreated,
-  otherWorkspaces,
-  railPlace,
-  onOpenWorkspace,
-  banner,
-  hosting,
-  hostedHere,
-  hostingEntry,
-}: {
-  platform: Platform;
+/** Where the workspace screen is, kept for its life and followed by the address. */
+function WorkspaceNavigation(props: {
   initialTarget: { channelId: ID; messageId: ID } | null;
   welcome?: boolean;
-  inviteAsk?: number;
-  onLeaveWorkspace: () => void;
-  /** "ended": the server ended this sign-in, nobody here chose to. */
-  onSignedOut: (how?: SignedOutHow) => void;
-  onAccountCreated?: (token: string, handle: string) => void;
-  otherWorkspaces?: OtherWorkspace[];
-  /** Where this workspace sits among `otherWorkspaces` on the rail; first when absent. */
-  railPlace?: number;
-  onOpenWorkspace?: (url: string) => void;
   banner?: ReactNode;
-  hosting?: HostingLine;
-  hostedHere?: boolean;
-  hostingEntry?: HostingEntry;
 }) {
+  const client = useClient();
+  const { initialTarget } = props;
+  const [{ navigation, fromRoute }] = useState(() =>
+    Navigation.open(client, { target: initialTarget, welcome: props.welcome }),
+  );
+  useEffect(() => registerNavigation(client, navigation), [client, navigation]);
+  useEffect(() => navigation.attach(), [navigation]);
+  // A link to a message, on arrival or later: the screen keeps its key across
+  // deep links, so it goes there without remounting.
+  useEffect(() => {
+    if (initialTarget) navigation.navigate({ to: "message", ...initialTarget });
+  }, [navigation, initialTarget]);
+  const openMessage = useMemo(
+    () => (channelId: ID, messageId: ID) =>
+      navigation.navigate({ to: "message", channelId, messageId }),
+    [navigation],
+  );
+  return (
+    <NavigationContext.Provider value={navigation}>
+      <OpenMessageContext.Provider value={openMessage}>
+        <WorkspaceLayout restore={!initialTarget && !fromRoute} banner={props.banner} />
+      </OpenMessageContext.Provider>
+    </NavigationContext.Provider>
+  );
+}
+
+/**
+ * Picks where to be when nothing says: the conversation this account last
+ * had open here, once it has been read, or #general (or the first channel).
+ * Moves away from a conversation this account cannot see or that has gone,
+ * saying so, and pointing to Drafts for what it was writing there.
+ */
+function useConversationFallback(restore: boolean) {
+  const nav = useNavigation();
+  const client = useClient();
   const status = useWorkspace((s) => s.status);
-  const serverProtocol = useWorkspace((s) => s.serverProtocolVersion);
-  // So the saved workspaces show this one's icon while its server is off.
-  useRememberWorkspaceIcon(platform);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
-  const self = useWorkspace((s) => s.self);
-  const clientFromCtx = useClient();
-  // Every device of an account idle makes it away (E9).
-  useIdleReport(clientFromCtx);
-  const calls = useCallPreferences();
-  const serverUrl = clientFromCtx.baseUrl;
-  // Where the address, or Back and a reload, left this workspace. A link to a
-  // message says where to go instead.
-  const [initialRoute] = useState(() => (initialTarget ? null : currentRoute(serverUrl)));
-  const [activeChannelId, setActiveChannelId] = useState<ID | null>(
-    initialTarget?.channelId ?? initialRoute?.channelId ?? null,
-  );
-  const huddleRoom = useRef(activeChannelId);
-  huddleRoom.current = activeChannelId;
-  const [highlightMessageId, setHighlightMessageId] = useState<ID | null>(
-    initialTarget?.messageId ?? null,
-  );
-  const [panel, setPanel] = useState<SidePanel>(
-    initialRoute?.threadRootId
-      ? { kind: "thread", rootId: initialRoute.threadRootId }
-      : initialRoute?.view
-        ? { kind: initialRoute.view }
-        : { kind: "none" },
-  );
-  const [dialog, setDialog] = useState<DialogKind>(() =>
-    welcome ? { kind: "invite", welcome } : dialogFromRoute(initialRoute?.dialog),
-  );
-  const [sidebarOpen, setSidebarOpen] = useState(
-    () => initialRoute?.drawer === true && drawerLayout(),
-  );
-  const inviteAsked = useRef(inviteAsk);
-  useEffect(() => {
-    if (inviteAsk === inviteAsked.current) return;
-    inviteAsked.current = inviteAsk;
-    setDialog({ kind: "invite" });
-  }, [inviteAsk]);
-  const sidebarOpenRef = useRef(sidebarOpen);
-  sidebarOpenRef.current = sidebarOpen;
+  const selfId = useWorkspace((s) => s.self?.id);
+  const channelId = useNavigationState((s) => s.channelId);
+  const lastConversation = useLastConversation();
+  const restoring = useRef(restore);
   /**
-   * Whether the history entry on screen is a step this screen added to open
-   * the phone drawer. Closing the drawer without going anywhere goes Back
-   * through it, so a phone's Back button closes the drawer, and afterwards
-   * leaves the conversation as it would have before.
+   * What each conversation seen here was called, kept after it goes: the
+   * note on moving away from one this account just lost can then name it.
    */
-  const drawerStep = useRef(false);
-  // Below a laptop's width a side panel covers the conversation, as theme.css
-  // lays it out, so what it covers leaves the Tab order and the screen
-  // reader's reading as the page does behind a dialog. The main landmark
-  // around it stays, so the page still has one.
-  const narrow = useMediaQuery("(max-width: 1023px)");
-  const panelCovers = narrow && panel.kind !== "none";
-  const closeDrawer = useCallback(() => {
-    if (drawerStep.current) {
-      drawerStep.current = false;
-      window.history.back();
-      return;
+  const seenTitles = useRef(new Map<ID, string>());
+  for (const channel of Object.values(channels))
+    seenTitles.current.set(
+      channel.id,
+      channel.type === "public" || channel.type === "private"
+        ? `#${channel.name}`
+        : channelTitle(channel, users, selfId),
+    );
+
+  useEffect(() => {
+    if (channelId && !(status === "online" && !channels[channelId])) return;
+    const list = Object.values(channels).filter((c) => !c.archived);
+    const general = list.find((c) => c.name === "general") ?? list[0];
+    if (!general) return;
+    if (!channelId && restoring.current) {
+      if (lastConversation.remembered === undefined) return;
+      restoring.current = false;
+      const last = lastConversation.remembered && channels[lastConversation.remembered];
+      if (last && !last.archived) return nav.settle(last.id);
     }
-    setSidebarOpen(false);
-  }, []);
-  const [huddleView, setHuddleView] = useHuddleView();
-  const inHuddle = useWorkspace((s) => !!s.huddle);
-  useHuddleEndedNotice();
-  const rungHere = useWorkspace((s) =>
-    Object.values(s.rings).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
-  );
-  // Wide enough for the chat beside the call with room left for a share, as
-  // Discord shows a voice channel's. The choice to hide it lasts the session.
-  const roomForChat = useMediaQuery("(min-width: 1280px)");
-  const [callChat, setCallChat] = useState(true);
-  const callShown = inHuddle && huddleView === "call";
-  const chatBeside = callShown && roomForChat && callChat;
-  /** The call covers the chat, which stays mounted underneath so it keeps its place. */
-  const chatCovered = callShown && !chatBeside;
-  // Another conversation, opened while the call covers the chat, is there to be read.
-  const coveredRef = useRef(chatCovered);
-  coveredRef.current = chatCovered;
-  const lastChannel = useRef(activeChannelId);
+    if (!channelId) return nav.settle(general.id);
+    // One this screen had: the account was removed from it, or it went,
+    // while it was open. Its unsent words stay in Drafts (listDrafts).
+    const lost = seenTitles.current.get(channelId);
+    const unsent = Object.keys(client.state.drafts).some(
+      (key) => draftPlace(key)?.channelId === channelId,
+    );
+    const note = lost
+      ? `You no longer have access to ${lost}.${unsent ? " What you were writing there is in Drafts." : ""}`
+      : "That conversation is not available. Someone may have deleted it, or you may not have access to it.";
+    nav.settle(general.id, { note, drafts: unsent });
+  }, [channels, channelId, status, lastConversation.remembered, nav, client]);
+
+  const { remember } = lastConversation;
+  const rememberRecent = useRecentConversations().remember;
   useEffect(() => {
-    if (lastChannel.current === activeChannelId) return;
-    lastChannel.current = activeChannelId;
-    if (coveredRef.current) setHuddleView("chat");
-  }, [activeChannelId, setHuddleView]);
-  const navigation = useRef(0);
-  const [navigationError, setNavigationError] = useState<string | null>(null);
-  /** The notifications ask is on show, so a hint waits behind it. */
-  const [asking, setAsking] = useState(false);
-  /** A server notice is on show, so the member notice after it waits (P6). */
-  const [noticeShowing, setNoticeShowing] = useState(false);
-  const [navigating, setNavigating] = useState(false);
-  useEffect(
-    () => () => {
-      navigation.current++;
-      clientFromCtx.cancelMessageJump();
-    },
-    [clientFromCtx],
-  );
+    if (channelId && status === "online" && channels[channelId]) {
+      remember(channelId);
+      rememberRecent(channelId);
+    }
+  }, [channelId, channels, status, remember, rememberRecent]);
+
+  // A closed conversation opened again, from Ctrl+K or a link, is back in the
+  // sidebar. Only on arriving: closing the open one leaves it closed.
+  useEffect(() => {
+    if (!channelId) return;
+    const hidden = client.state.prefs[channelId]?.hiddenSeq;
+    if (hidden !== null && hidden !== undefined)
+      client.setChannelPrefs(channelId, { hiddenSeq: null });
+  }, [channelId, client]);
 
   useEffect(() => {
-    if (dialog.kind !== "none") setSidebarOpen(false);
-  }, [dialog.kind]);
+    client.focusConversation(channelId);
+    return () => client.focusConversation(null);
+  }, [client, channelId]);
+}
 
+/**
+ * The phone drawer: focus moves into it and Tab stays inside, and it closes
+ * when the window grows wide enough for the sidebar to sit beside the rest.
+ */
+function useDrawer() {
+  const nav = useNavigation();
+  const open = useNavigationState((s) => s.drawer);
   useEffect(() => {
-    if (!sidebarOpen) return;
-    const nav = document.querySelector<HTMLElement>('[aria-label="Workspace navigation"]');
+    if (!open) return;
+    const sidebar = document.querySelector<HTMLElement>('[aria-label="Workspace navigation"]');
     const previous = document.activeElement as HTMLElement | null;
     // Jump to…, not the first button: the rail's buttons show a tooltip on
     // focus, which would take the Escape meant to close the drawer.
     (
-      nav?.querySelector<HTMLElement>("[data-drawer-focus]") ??
-      nav?.querySelector<HTMLElement>("button")
+      sidebar?.querySelector<HTMLElement>("[data-drawer-focus]") ??
+      sidebar?.querySelector<HTMLElement>("button")
     )?.focus();
     const onTab = (event: KeyboardEvent) => {
       if (event.defaultPrevented || hasOpenModal() || event.key !== "Tab") return;
       const buttons = [
-        ...(nav?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
+        ...(sidebar?.querySelectorAll<HTMLButtonElement>("button:not(:disabled)") ?? []),
       ].filter((button) => button.getClientRects().length > 0);
       const first = buttons[0];
       const last = buttons.at(-1);
@@ -649,246 +350,89 @@ function WorkspaceInner({
       if (previous?.isConnected && !document.activeElement?.closest('[role="dialog"]'))
         previous.focus();
     };
-  }, [sidebarOpen]);
+  }, [open]);
 
   useEffect(() => {
     const wide = window.matchMedia(WIDE);
     const onResize = () => {
-      if (wide.matches && sidebarOpenRef.current) closeDrawer();
+      if (wide.matches && nav.state.drawer) nav.closeDrawer();
     };
     wide.addEventListener("change", onResize);
     return () => wide.removeEventListener("change", onResize);
-  }, [closeDrawer]);
+  }, [nav]);
+}
 
-  // Load the linked message's surrounding history, then navigate to it. This
-  // must set state rather than rely on the useState initialisers above: the
-  // screen keeps its key across deep links, so it re-renders without remounting.
+function WorkspaceLayout(props: { restore: boolean; banner?: ReactNode }) {
+  const client = useClient();
+  const nav = useNavigation();
+  const shell = useWorkspaceShell();
+  const { platform } = shell;
+  const actions = useActionContext();
+  const status = useWorkspace((s) => s.status);
+  // So the saved workspaces show this one's icon while its server is off.
+  useRememberWorkspaceIcon(platform);
+  const channels = useWorkspace((s) => s.channels);
+  const users = useWorkspace((s) => s.users);
+  const self = useWorkspace((s) => s.self);
+  // Every device of an account idle makes it away (E9).
+  useIdleReport(client);
+  const calls = useCallPreferences();
+  const channelId = useNavigationState((s) => s.channelId);
+  const panel = useNavigationState((s) => s.panel);
+  const drawer = useNavigationState((s) => s.drawer);
+  const error = useNavigationState((s) => s.error);
+  const lostDraftsNote = useNavigationState((s) => s.lostDraftsNote);
+  const navigating = useNavigationState((s) => s.navigating);
+  const highlightId = useNavigationState((s) => s.highlightId);
+  const channelRead = useNavigationState((s) => reading(s).channel);
+  const channelInView = useNavigationState((s) => inView(s).channel);
+  const threadInView = useNavigationState((s) => inView(s).thread);
+  const huddleRoom = useRef(channelId);
+  huddleRoom.current = channelId;
+  useConversationFallback(props.restore);
+  useDrawer();
+  useGlobalKeys();
+  useHistoryKeys(platform.kind === "desktop");
+
+  // Below a laptop's width a side panel covers the conversation, as theme.css
+  // lays it out, so what it covers leaves the Tab order and the screen
+  // reader's reading as the page does behind a dialog. The main landmark
+  // around it stays, so the page still has one.
+  const narrow = useMediaQuery("(max-width: 1023px)");
+  const panelCovers = narrow && panel.kind !== "none";
+  const [huddleView, setHuddleView] = useHuddleView();
+  const inHuddle = useWorkspace((s) => !!s.huddle);
+  useHuddleEndedNotice();
+  const rungHere = useWorkspace((s) =>
+    Object.values(s.rings).some((ring) => !!s.self && ring.ringing.includes(s.self.id)),
+  );
+  // Wide enough for the chat beside the call with room left for a share, as
+  // Discord shows a voice channel's. The choice to hide it lasts the session.
+  const roomForChat = useMediaQuery("(min-width: 1280px)");
+  const [callChat, setCallChat] = useState(true);
+  const callShown = inHuddle && huddleView === "call";
+  const chatBeside = callShown && roomForChat && callChat;
+  /** The call covers the chat, which stays mounted underneath so it keeps its place. */
+  const chatCovered = callShown && !chatBeside;
+  useLayoutEffect(() => {
+    nav.setCover({ panel: panelCovers, call: chatCovered });
+  }, [nav, panelCovers, chatCovered]);
+  // Another conversation, opened while the call covers the chat, is there to be read.
+  const lastChannel = useRef(channelId);
   useEffect(() => {
-    if (!initialTarget) return;
-    const { channelId, messageId } = initialTarget;
-    jumpToMessage(channelId, messageId);
-    return () => {
-      navigation.current++;
-    };
-  }, [clientFromCtx, initialTarget]);
+    if (lastChannel.current === channelId) return;
+    lastChannel.current = channelId;
+    if (nav.state.cover.call) setHuddleView("chat");
+  }, [channelId, nav, setHuddleView]);
+  /** The notifications ask is on show, so a hint waits behind it. */
+  const [asking, setAsking] = useState(false);
+  /** A server notice is on show, so the member notice after it waits (P6). */
+  const [noticeShowing, setNoticeShowing] = useState(false);
 
   // The composer's slash-command hints. Re-fetched when an admin adds one.
   useEffect(() => {
-    void clientFromCtx.loadCommands();
-  }, [clientFromCtx]);
-
-  /**
-   * A conversation the app, not the person, moved to. Arriving there replaces
-   * the history entry, so Back does not lead to somewhere unavailable.
-   */
-  const replaceRoute = useRef<ID | null>(null);
-  /**
-   * Bumped when a link or the address itself names where to be. The place may
-   * be the one already on screen, and the address still needs writing back.
-   */
-  const [routeRequest, setRouteRequest] = useState(0);
-
-  // With nothing in the address or history to say where to be, open the
-  // conversation this account last had open here, once it has been read.
-  const lastConversation = useLastConversation();
-  const restoring = useRef(!initialTarget && !initialRoute);
-
-  /**
-   * What each conversation seen here was called, kept after it goes: the
-   * note on moving away from one this account just lost can then name it.
-   */
-  const seenTitles = useRef(new Map<ID, string>());
-  for (const channel of Object.values(channels))
-    seenTitles.current.set(
-      channel.id,
-      channel.type === "public" || channel.type === "private"
-        ? `#${channel.name}`
-        : channelTitle(channel, users, self?.id),
-    );
-  /** The note that also points to Drafts, while it is the one on show. */
-  const [lostDraftsNote, setLostDraftsNote] = useState<string | null>(null);
-
-  // Pick #general (or the first channel) once the snapshot lands, and move
-  // there from a conversation this account cannot see or that has gone.
-  useEffect(() => {
-    if (!activeChannelId || (status === "online" && !channels[activeChannelId])) {
-      const list = Object.values(channels).filter((c) => !c.archived);
-      const general = list.find((c) => c.name === "general") ?? list[0];
-      if (!general) return;
-      if (!activeChannelId && restoring.current) {
-        if (lastConversation.remembered === undefined) return;
-        restoring.current = false;
-        const last = lastConversation.remembered && channels[lastConversation.remembered];
-        if (last && !last.archived) {
-          replaceRoute.current = last.id;
-          setActiveChannelId(last.id);
-          return;
-        }
-      }
-      if (activeChannelId) {
-        // One this screen had: the account was removed from it, or it went,
-        // while it was open. Its unsent words stay in Drafts (listDrafts).
-        const lost = seenTitles.current.get(activeChannelId);
-        const unsent = Object.keys(clientFromCtx.state.drafts).some(
-          (key) => draftPlace(key)?.channelId === activeChannelId,
-        );
-        const note = lost
-          ? `You no longer have access to ${lost}.${unsent ? " What you were writing there is in Drafts." : ""}`
-          : "That conversation is not available. Someone may have deleted it, or you may not have access to it.";
-        setNavigationError(note);
-        setLostDraftsNote(unsent ? note : null);
-        setPanel((p) => (p.kind === "thread" ? { kind: "none" } : p));
-      }
-      replaceRoute.current = general.id;
-      setActiveChannelId(general.id);
-    }
-  }, [channels, activeChannelId, status, lastConversation.remembered]);
-
-  // A closed conversation opened again, from Ctrl+K or a link, is back in the
-  // sidebar. Only on arriving: closing the open one leaves it closed.
-  useEffect(() => {
-    if (!activeChannelId) return;
-    const hidden = clientFromCtx.state.prefs[activeChannelId]?.hiddenSeq;
-    if (hidden !== null && hidden !== undefined)
-      clientFromCtx.setChannelPrefs(activeChannelId, { hiddenSeq: null });
-  }, [activeChannelId, clientFromCtx]);
-
-  const { remember } = lastConversation;
-  const recentConversations = useRecentConversations();
-  const rememberRecent = recentConversations.remember;
-  useEffect(() => {
-    if (activeChannelId && status === "online" && channels[activeChannelId]) {
-      remember(activeChannelId);
-      rememberRecent(activeChannelId);
-    }
-  }, [activeChannelId, channels, status, remember, rememberRecent]);
-
-  // The address follows the conversation and the thread or panel beside it,
-  // so Back, Forward and a reload return to them, and Back closes a panel.
-  const routeThread = panel.kind === "thread" ? panel.rootId : null;
-  const routeView = (ROUTE_VIEWS as readonly string[]).includes(panel.kind)
-    ? (panel.kind as RouteView)
-    : null;
-  // A settings or list dialog is a place too, so Back closes it and a reload
-  // reopens it. Moving between Account settings' sections, or closing a
-  // dialog the account may not open, rewrites the entry instead of adding one.
-  const routeDialog = routeDialogOf(dialog);
-  const routeDialogName = routeDialog?.name ?? null;
-  const routeDialogSection = routeDialog?.section ?? null;
-  const replaceDialogStep = useRef(false);
-  /**
-   * Whether the history entry on screen is a step this screen added to open
-   * the dialog. Closing that dialog goes Back through it, so Back afterwards
-   * does not open again what was just dismissed.
-   */
-  const dialogStep = useRef(false);
-  /** The conversation, thread or panel last written, beneath any dialog. */
-  const lastPlace = useRef<string | null>(null);
-  useEffect(() => {
-    if (!activeChannelId) return;
-    // Going somewhere from the drawer takes the drawer's step's place, so Back
-    // from there returns to where things were before the drawer opened.
-    const leavingDrawer = drawerStep.current && !sidebarOpen;
-    const replace =
-      replaceRoute.current === activeChannelId || replaceDialogStep.current || leavingDrawer;
-    if (replaceRoute.current === activeChannelId) replaceRoute.current = null;
-    replaceDialogStep.current = false;
-    const place = `${activeChannelId}/${routeThread ?? ""}/${routeView ?? ""}`;
-    // Only a dialog or the drawer opening over the same place makes a step
-    // of its own to go Back through.
-    const samePlace = lastPlace.current === place;
-    const openingDialog = routeDialogName !== null && !dialogStep.current && samePlace;
-    const openingDrawer = sidebarOpen && !drawerStep.current && samePlace && !routeDialogName;
-    lastPlace.current = place;
-    const step = writeRoute(
-      serverUrl,
-      {
-        channelId: activeChannelId,
-        threadRootId: routeThread,
-        ...(routeView ? { view: routeView } : {}),
-        ...(routeDialogName
-          ? {
-              dialog: {
-                name: routeDialogName,
-                ...(routeDialogSection ? { section: routeDialogSection } : {}),
-              },
-            }
-          : {}),
-        ...(sidebarOpen ? { drawer: true } : {}),
-      },
-      replace ? "replace" : "auto",
-    );
-    if (!routeDialogName) dialogStep.current = false;
-    else if (step === "push") dialogStep.current = openingDialog;
-    if (!sidebarOpen) drawerStep.current = false;
-    else if (step === "push") drawerStep.current = openingDrawer;
-  }, [
-    serverUrl,
-    activeChannelId,
-    routeThread,
-    routeView,
-    routeDialogName,
-    routeDialogSection,
-    sidebarOpen,
-    routeRequest,
-  ]);
-
-  // People, Apps and Workspace settings are for administrators. An address
-  // can name them all the same, so they close for anyone else once the
-  // account is known.
-  const isAdmin = isAdministrator(self?.role);
-  const wasAdmin = useRef(false);
-  const roleToast = useOptionalToast();
-  useEffect(() => {
-    const admin = ADMIN_DIALOGS[dialog.kind as keyof typeof ADMIN_DIALOGS];
-    if (self && !isAdmin && admin) {
-      replaceDialogStep.current = true;
-      setDialog({ kind: "none" });
-      // Taken away while open, by another admin: say why it closed.
-      if (wasAdmin.current)
-        roleToast?.({
-          message: `You are no longer an admin, so ${admin} closed.`,
-          kind: "info",
-        });
-    }
-    if (self) wasAdmin.current = isAdmin;
-  }, [self, isAdmin, dialog.kind, roleToast]);
-
-  useEffect(() => {
-    const onPopState = () => {
-      const route = currentRoute(serverUrl);
-      if (!route) return;
-      navigation.current++;
-      clientFromCtx.cancelMessageJump();
-      setNavigating(false);
-      setNavigationError(null);
-      setActiveChannelId(route.channelId);
-      setHighlightMessageId(null);
-      const view = route.view;
-      setPanel((p) =>
-        route.threadRootId
-          ? p.kind === "thread" && p.rootId === route.threadRootId
-            ? p
-            : { kind: "thread", rootId: route.threadRootId }
-          : view
-            ? p.kind === view
-              ? p
-              : { kind: view }
-            : p.kind === "none"
-              ? p
-              : { kind: "none" },
-      );
-      dialogStep.current = false;
-      drawerStep.current = false;
-      setDialog(dialogFromRoute(route.dialog));
-      setSidebarOpen(route.drawer === true && drawerLayout());
-      setRouteRequest((n) => n + 1);
-    };
-    window.addEventListener("popstate", onPopState);
-    return () => window.removeEventListener("popstate", onPopState);
-  }, [serverUrl, clientFromCtx]);
-
-  useHistoryKeys(platform.kind === "desktop");
+    void client.loadCommands();
+  }, [client]);
 
   useEffect(() => {
     // Failing here is not final: opening the palette, search, a thread, a hint or an emoji picker fetches it again.
@@ -900,746 +444,108 @@ function WorkspaceInner({
     import("../components/EmojiPicker.js").catch(() => undefined);
   }, []);
 
-  useEffect(() => {
-    clientFromCtx.focusConversation(activeChannelId);
-    return () => clientFromCtx.focusConversation(null);
-  }, [clientFromCtx, activeChannelId]);
-
-  const railRef = useRef({ others: otherWorkspaces ?? [], place: 0, open: onOpenWorkspace });
-  railRef.current = {
-    others: otherWorkspaces ?? [],
-    place: Math.min(railPlace ?? 0, otherWorkspaces?.length ?? 0),
-    open: onOpenWorkspace,
-  };
-
-  // Global shortcuts.
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      // Mute in a huddle, as Slack's Ctrl/Cmd+Shift+Space: from anywhere, a
-      // dialog included, since the call goes on behind it.
-      if (
-        (e.ctrlKey || e.metaKey) &&
-        e.shiftKey &&
-        e.code === "Space" &&
-        !e.defaultPrevented &&
-        clientFromCtx.state.huddle
-      ) {
-        e.preventDefault();
-        clientFromCtx.toggleMic();
-        return;
-      }
-      // A foreground form owns its keys. Shortcuts must not replace a busy
-      // dialog, or let its Escape dismiss a thread behind it as well.
-      if (e.defaultPrevented || hasOpenModal() || isImeKey(e)) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        setDialog((d) => (d.kind === "switcher" ? { kind: "none" } : { kind: "switcher" }));
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "f") {
-        e.preventDefault();
-        // Within the open conversation, as the header's field does; the
-        // dialog widens it to everywhere in one press.
-        setDialog({ kind: "search", inConversation: !!activeChannelRef.current });
-      }
-      // Alt+Up/Down walk the sidebar, and with Shift only what is unread, as in Slack.
-      if (e.altKey && !e.ctrlKey && !e.metaKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
-        const next = neighbourConversation(
-          activeChannelRef.current,
-          e.key === "ArrowUp" ? -1 : 1,
-          e.shiftKey,
-        );
-        if (next) {
-          e.preventDefault();
-          openChannelRef.current(next);
-        }
-      }
-      if (e.key === "Escape" && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey) {
-        e.preventDefault();
-        void markAllReadRef.current();
-        return;
-      }
-      // Ctrl/Cmd+1–9 open the workspace at that place on the rail, as in
-      // Slack's app. A browser keeps those keys for its own tabs.
-      if (
-        platform.kind === "desktop" &&
-        (e.ctrlKey || e.metaKey) &&
-        !e.shiftKey &&
-        !e.altKey &&
-        /^Digit[1-9]$/.test(e.code)
-      ) {
-        const rail = railRef.current;
-        const target = railTarget(rail.others, rail.place, Number(e.code.slice(5)));
-        if (target) {
-          e.preventDefault();
-          if (target !== "here") rail.open?.(target.url);
-        }
-        return;
-      }
-      if ((e.ctrlKey || e.metaKey) && e.key === "/") {
-        e.preventDefault();
-        setDialog((d) => (d.kind === "shortcuts" ? { kind: "none" } : { kind: "shortcuts" }));
-      }
-      // Dialogs close themselves on Escape; this closes the phone drawer, or
-      // with none open, the side panel.
-      if (e.key === "Escape") {
-        if (sidebarOpenRef.current) closeDrawer();
-        else setPanel((p) => (p.kind === "none" ? p : { kind: "none" }));
-      }
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [closeDrawer, clientFromCtx, platform.kind]);
-
-  const activeChannel = activeChannelId ? channels[activeChannelId] : undefined;
+  const activeChannel = channelId ? channels[channelId] : undefined;
   const title = activeChannel ? channelTitle(activeChannel, users, self?.id) : "";
   const isRoom = activeChannel?.type === "public" || activeChannel?.type === "private";
   /** A public channel can be looked into without joining, and then has no settings of one's own. */
-  const isMember = useWorkspace((s) => !!activeChannelId && activeChannelId in s.memberships);
-  const togglePanel = (kind: "pins" | "members") =>
-    setPanel((p) => (p.kind === kind ? { kind: "none" } : { kind }));
-
-  const openChannel = useCallback(
-    (id: ID) => {
-      navigation.current++;
-      clientFromCtx.cancelMessageJump();
-      setNavigating(false);
-      setNavigationError(null);
-      setActiveChannelId(id);
-      setHighlightMessageId(null);
-      setPanel({ kind: "none" });
-      setDialog({ kind: "none" });
-      setSidebarOpen(false);
-    },
-    [clientFromCtx],
-  );
-  const openChannelRef = useRef(openChannel);
-  openChannelRef.current = openChannel;
-  const activeChannelRef = useRef(activeChannelId);
-  activeChannelRef.current = activeChannelId;
-  const toast = useOptionalToast();
-  const confirm = useOptionalConfirm();
-  /** The account menu's Sign out: asks, as Settings > Security does, then ends this device's session. */
-  async function signOut() {
-    const guestNow = clientFromCtx.state.self?.role === "guest";
-    const ok = confirm
-      ? await confirm({
-          title: "Sign out of this workspace?",
-          body: guestNow
-            ? "You joined as a guest, without a password. Signing out ends this visit; coming back takes a new invite link."
-            : "You will need your password to sign in again. Your account's saved drafts stay on this device.",
-          confirmLabel: "Sign out",
-          destructive: guestNow,
-        })
-      : true;
-    if (!ok) return;
-    try {
-      await clientFromCtx.signOut();
-    } catch {
-      toast?.({
-        message: "You are still signed in. Check your connection and try again.",
-        kind: "error",
-      });
-      return;
-    }
-    onSignedOut();
-  }
-  /** Shift+Esc: everything read, after asking when it is more than a couple of places. */
-  const markAllReadRef = useRef(async () => {});
-  markAllReadRef.current = async () => {
-    const { channels: unreadChannels, threads } = unreadEverywhere(clientFromCtx.state);
-    const count = unreadChannels.length + threads.length;
-    if (count === 0) {
-      toast?.({ message: "Nothing unread.", kind: "info" });
-      return;
-    }
-    const summary = unreadSummary(unreadChannels.length, threads.length);
-    if (count > 2 && confirm) {
-      const go = await confirm({
-        title: "Mark everything as read?",
-        body: `This marks ${summary} as read.`,
-        confirmLabel: "Mark as read",
-      });
-      if (!go) return;
-    }
-    markEverythingRead(clientFromCtx);
-    toast?.({ message: `Marked ${summary} as read.`, kind: "success" });
-  };
-  const openThread = useCallback((rootId: ID) => setPanel({ kind: "thread", rootId }), []);
-  const openProfile = useCallback((userId: ID) => setDialog({ kind: "profile", userId }), []);
-  // What a conversation that has only just begun offers to do first.
-  const inviteFromIntro = useCallback(() => setDialog({ kind: "invite" }), []);
-  const detailsFromIntro = useCallback(() => setDialog({ kind: "channel-details" }), []);
-  /**
-   * A channel's details from the gear on its row, as Discord's channel
-   * settings. Another channel is opened first, since the details are the open
-   * channel's; the one already open stays as it is, thread and all.
-   */
-  const detailsFromRow = useCallback(
-    (id: ID, tab?: "members") => {
-      if (id !== activeChannelId) openChannel(id);
-      setSidebarOpen(false);
-      setDialog(tab ? { kind: "channel-details", tab } : { kind: "channel-details" });
-    },
-    [activeChannelId, openChannel],
-  );
-
-  /**
-   * Opens a thread from the Threads list. The row already names its root, so
-   * unlike a jump the thread shows at once. The conversation beside it is
-   * anchored on the root, and a timeline anchored on a message does not read
-   * its own history, so the history around the root is read here; it costs
-   * nothing when the root is already on screen. Should that fail, the anchor
-   * goes and the conversation reads its newest, with its own way to retry.
-   */
-  function openThreadInChannel(channelId: ID, rootId: ID) {
-    const ticket = ++navigation.current;
-    setNavigationError(null);
-    setNavigating(false);
-    setDialog({ kind: "none" });
-    setActiveChannelId(channelId);
-    setHighlightMessageId(rootId);
-    setPanel({ kind: "thread", rootId });
-    clientFromCtx.jumpToMessage(channelId, rootId).catch(() => {
-      if (ticket === navigation.current) setHighlightMessageId(null);
-    });
-  }
-
-  /** Opens a channel scrolled to one message, from search, pins or Saved. */
-  function jumpToMessage(channelId: ID, messageId: ID) {
-    const ticket = ++navigation.current;
-    setDialog({ kind: "none" });
-    setNavigationError(null);
-    setNavigating(true);
-    void clientFromCtx
-      .jumpToMessage(channelId, messageId)
-      .then((rootId) => {
-        if (ticket !== navigation.current || rootId === undefined) return;
-        setActiveChannelId(channelId);
-        setHighlightMessageId(rootId ?? messageId);
-        setPanel(rootId ? { kind: "thread", rootId, targetId: messageId } : { kind: "none" });
-        setRouteRequest((n) => n + 1);
-      })
-      .catch(() => {
-        if (ticket !== navigation.current) return;
-        // A link opened at start anchors the conversation on its message
-        // before the jump, and an anchored timeline never reads its own
-        // history. Without the message it reads its newest instead.
-        setHighlightMessageId((id) => (id === messageId ? null : id));
-        setNavigationError(
-          "Could not open this message. Someone may have deleted it, or you may no longer have access to it. If you are offline, try again once you reconnect.",
-        );
-      })
-      .finally(() => {
-        if (ticket === navigation.current) setNavigating(false);
-      });
-  }
-
-  /** Opens a draft from Drafts where it was being written. */
-  function openDraft(place: DraftPlace) {
-    switch (place.kind) {
-      case "conversation":
-        openChannel(place.channelId);
-        return;
-      case "thread":
-        openThreadInChannel(place.channelId, place.rootId);
-        return;
-      case "edit":
-        // The message's row opens its editor as it appears.
-        requestEdit(place.messageId);
-        jumpToMessage(place.channelId, place.messageId);
-        return;
-      case "scheduled-edit":
-        setPanel({ kind: "scheduled", edit: place.scheduledId });
-        return;
-    }
-  }
-
-  // One function for the life of the screen, so links in every message can
-  // hold it without each message redrawing whenever this screen does.
-  const jumpTo = useRef(jumpToMessage);
-  jumpTo.current = jumpToMessage;
-  const openMessage = useCallback((channelId: ID, messageId: ID) => {
-    jumpTo.current(channelId, messageId);
-  }, []);
-
-  const closeDialog = () => {
-    if (dialogStep.current) {
-      // The entry before this one is the same place without the dialog.
-      dialogStep.current = false;
-      window.history.back();
-      return;
-    }
-    setDialog({ kind: "none" });
-  };
-
-  // The palette's actions: every sidebar destination and the common tasks.
-  const appearance = useAppearance();
-  const prefersDark = useMediaQuery("(prefers-color-scheme: dark)");
-  const showsDark = appearance.theme === "dark" || (appearance.theme === "system" && prefersDark);
-  const isGuest = self?.role === "guest";
-  // Reported messages waiting, for an admin on a server that takes reports (E12).
-  const openReports = useWorkspace((s) => s.openReports);
+  const isMember = useWorkspace((s) => !!channelId && channelId in s.memberships);
   /** Whom this conversation is with, when it is a DM with someone blocked (E12). */
   const blockedHere = useWorkspace((s) =>
-    activeChannelId ? blockedPartner(s.channels[activeChannelId], s.self?.id, s.blocked) : null,
+    channelId ? blockedPartner(s.channels[channelId], s.self?.id, s.blocked) : null,
   );
   /** Whom this conversation is with, when it is a DM with a deactivated account. */
   const deactivatedHere = useWorkspace((s) =>
-    activeChannelId ? deactivatedPartner(s.channels[activeChannelId], s.self?.id, s.users) : null,
+    channelId ? deactivatedPartner(s.channels[channelId], s.self?.id, s.users) : null,
   );
-  const openPanel = (kind: "activity" | "threads" | "saved" | "scheduled" | "drafts" | "files") => {
-    setPanel({ kind });
-    setSidebarOpen(false);
-  };
-  const paletteCommands: PaletteCommand[] =
-    dialog.kind !== "switcher"
-      ? []
-      : [
-          ...(isGuest
-            ? []
-            : [
-                {
-                  id: "new-message",
-                  label: "New message",
-                  icon: "edit" as const,
-                  keywords: "dm direct conversation write",
-                  run: () => setDialog({ kind: "new-dm" }),
-                },
-                {
-                  id: "new-channel",
-                  label: "Create a channel",
-                  icon: "plus" as const,
-                  keywords: "new add room",
-                  run: () => setDialog({ kind: "new-channel" }),
-                },
-              ]),
-          {
-            id: "browse",
-            label: "Browse channels",
-            icon: "compass",
-            keywords: "join find explore",
-            run: () => setDialog({ kind: "browse" }),
-          },
-          {
-            id: "activity",
-            label: "Activity",
-            icon: "activity",
-            keywords: "mentions unread notifications",
-            run: () => openPanel("activity"),
-          },
-          {
-            id: "threads",
-            label: "Threads",
-            icon: "thread",
-            keywords: "replies following",
-            run: () => openPanel("threads"),
-          },
-          {
-            id: "saved",
-            label: "Saved",
-            icon: "bookmark",
-            keywords: "bookmarks later",
-            run: () => openPanel("saved"),
-          },
-          {
-            id: "drafts",
-            label: "Drafts",
-            icon: "edit",
-            keywords: "unsent unsaved writing",
-            run: () => openPanel("drafts"),
-          },
-          {
-            id: "files",
-            label: "Files",
-            icon: "file",
-            keywords: "attachments images documents uploads shared",
-            run: () => openPanel("files"),
-          },
-          ...(isGuest
-            ? []
-            : [
-                {
-                  id: "invite",
-                  label: "Invite people",
-                  icon: "userPlus" as const,
-                  keywords: "link code join add",
-                  run: () => setDialog({ kind: "invite" }),
-                },
-                {
-                  id: "scheduled",
-                  label: "Scheduled messages",
-                  icon: "clock" as const,
-                  keywords: "send later",
-                  run: () => openPanel("scheduled"),
-                },
-              ]),
-          {
-            id: "search",
-            label: "Search messages",
-            icon: "search",
-            keywords: "find",
-            shortcut: shortcutLabel("Mod+F"),
-            run: () => setDialog({ kind: "search" }),
-          },
-          {
-            id: "status",
-            label: "Set a status",
-            icon: "user",
-            keywords: "profile name away busy",
-            run: () => setDialog({ kind: "account", section: "profile" }),
-          },
-          {
-            id: "theme",
-            label: showsDark ? "Switch to the White theme" : "Switch to the Onyx theme",
-            icon: showsDark ? "sun" : "moon",
-            keywords: "theme appearance dark light mode colour color",
-            run: () => void appearance.set({ theme: showsDark ? "light" : "dark" }),
-          },
-          {
-            id: "settings",
-            label: "Account settings",
-            icon: "settings",
-            keywords: "preferences notifications password",
-            run: () => setDialog({ kind: "account" }),
-          },
-          ...(isAdmin
-            ? [
-                {
-                  id: "people",
-                  label: "Manage people",
-                  icon: "members" as const,
-                  keywords: "members admin roles deactivate",
-                  run: () => setDialog({ kind: "people" }),
-                },
-                ...(openReports !== null
-                  ? [
-                      {
-                        id: "reports",
-                        label: "Reported messages",
-                        icon: "flag" as const,
-                        keywords: "reports moderation abuse spam queue",
-                        run: () => setDialog({ kind: "reports" }),
-                      },
-                    ]
-                  : []),
-                {
-                  id: "apps",
-                  label: "Apps and integrations",
-                  icon: "grid" as const,
-                  keywords: "bots webhooks commands",
-                  run: () => setDialog({ kind: "apps" }),
-                },
-                {
-                  id: "workspace-settings",
-                  label: "Workspace settings",
-                  icon: "settings" as const,
-                  keywords: "rename name who can join guests invite only access",
-                  run: () => setDialog({ kind: "workspace" }),
-                },
-              ]
-            : []),
-          ...(isGuest
-            ? [
-                {
-                  id: "create-account",
-                  label: "Create an account",
-                  icon: "user" as const,
-                  keywords: "sign up keep",
-                  run: () => setDialog({ kind: "guest-account" }),
-                },
-              ]
-            : []),
-          // This computer's hosting, in the desktop app: for a member or a guest alike.
-          ...(hostingEntry
-            ? hostingEntry.running
-              ? [
-                  {
-                    id: "hosting",
-                    label: "Manage hosting",
-                    icon: "screen" as const,
-                    keywords: "host server backup port stop computer",
-                    run: () => hostingEntry.open(),
-                  },
-                  {
-                    id: "hosting-internet",
-                    label: "Share on the internet",
-                    icon: "link" as const,
-                    keywords: "host public open to all tunnel cloudflare address online",
-                    run: () => hostingEntry.open("internet"),
-                  },
-                ]
-              : [
-                  {
-                    id: "hosting",
-                    label: "Host a workspace",
-                    icon: "screen" as const,
-                    keywords: "host server start new computer manage hosting",
-                    run: () => hostingEntry.open(),
-                  },
-                ]
-            : []),
-          {
-            id: "shortcuts",
-            label: "Keyboard shortcuts",
-            icon: "keyboard",
-            keywords: "keys help",
-            shortcut: shortcutLabel("Mod+/"),
-            run: () => setDialog({ kind: "shortcuts" }),
-          },
-        ];
 
   const announcer = useMessageAnnouncer();
   const { hear, forget } = announcer;
-  const openThreadId = panel.kind === "thread" ? panel.rootId : null;
-  /**
-   * What covers the conversation now, read when a message arrives. On a phone
-   * the open drawer covers everything, and a side panel covers the timeline;
-   * an expanded huddle video covers the timeline too.
-   */
-  const covered = useRef({ channel: false, thread: false });
-  // Read when a message arrives, like what covers the screen, so a change of
-  // choice applies to the next notification without reinstalling the handler.
+  // Read when a message arrives, so a change of choice applies to the next
+  // notification without starting the notifications again.
   const previews = useNotificationPreviews();
-  const preview = useRef<NotificationPreview>("none");
-  const account = self ? previewAccount(clientFromCtx.baseUrl, self.id) : null;
-  preview.current = previewFor(previews, account);
-  // Each window of this account tags a message's notification the same way,
-  // so the browser shows it once however many windows heard it.
-  const accountTag = useRef(account);
-  accountTag.current = account;
-  covered.current = {
-    channel: panelCovers || chatCovered || (sidebarOpen && drawerLayout()),
-    thread: sidebarOpen && drawerLayout(),
-  };
+  const account = self ? previewAccount(client.baseUrl, self.id) : null;
+  const preview = previewFor(previews, account);
+  const current = useRef({ preview, account });
+  current.current = { preview, account };
   // Other windows of this account, in this browser, stay quiet about what
   // this one shows while it has focus.
   useFocusedView(account, {
-    channelId: activeChannelId,
-    threadRootId: openThreadId,
-    channelVisible: !covered.current.channel,
-    threadVisible: !covered.current.thread,
+    channelId,
+    threadRootId: panel.kind === "thread" ? panel.rootId : null,
+    channelVisible: channelInView,
+    threadVisible: threadInView,
   });
   // What the last conversation received is not news in the next one.
-  useEffect(() => forget(), [activeChannelId, forget]);
-
-  // What a reconnect catches up on is told once, as a summary, rather than one
-  // interruption per missed message (IMP-03). One for the life of the screen,
-  // so what it holds survives changing conversation, and made as the screen
-  // commits, before the handler below, so it is there for the first message
-  // that handler hears. How it judges and shows messages is set with the handler.
-  const catchUpRules = useRef<{
-    stillNews: (msg: Message) => boolean;
-    show: (messages: Message[]) => void;
-  }>({ stillNews: () => false, show: () => {} });
-  const catchUp = useRef<CatchUpSummary | null>(null);
-  useLayoutEffect(() => {
-    const summary = new CatchUpSummary({
-      stillNews: (msg) => catchUpRules.current.stillNews(msg),
-      show: (messages) => catchUpRules.current.show(messages),
-    });
-    catchUp.current = summary;
-    const stop = clientFromCtx.on("messageDeleted", (id) => summary.drop(id));
-    return () => {
-      summary.dispose();
-      catchUp.current = null;
-      stop();
-    };
-  }, [clientFromCtx]);
-
-  // Desktop notifications for incoming messages, gated by channel preferences,
-  // mute and Do Not Disturb (the rules live in client-core so they're testable).
-  // Installed as the screen commits, not after: a message arriving between a
+  useEffect(() => forget(), [channelId, forget]);
+  // Started as the screen commits, not after: a message arriving between a
   // conversation appearing and a passive effect running would otherwise be
-  // judged against the one before, and notify about what is on screen.
-  useLayoutEffect(() => {
-    const onScreen = (msg: Message) =>
-      isMessageOnScreen(msg, {
-        focused: document.hasFocus() && document.visibilityState !== "hidden",
-        channelId: activeChannelId,
-        channelVisible: !covered.current.channel,
-        threadRootId: openThreadId,
-        threadVisible: !covered.current.thread,
-      }) || onScreenElsewhere(msg, accountTag.current);
-    const tell = (msg: Message) => {
-      const state = clientFromCtx.state;
-      // Only as much as this account chose to show on this device.
-      const { title, body } = notificationContent(preview.current, {
-        from: state.users[msg.userId]?.displayName ?? "Someone",
-        channelName: state.channels[msg.channelId]?.name,
-        body: notificationBody(state, msg),
-      });
-      // A click opens the message it names, through the same jump that
-      // search results, pins and links use.
-      platform.notify(title, body, () => openMessage(msg.channelId, msg.id), {
-        tag: `${accountTag.current} ${msg.id}`,
-      });
-    };
-    catchUpRules.current = {
-      // Read elsewhere, muted, left or now in view since: not news any more.
-      stillNews: (msg) => {
-        const state = clientFromCtx.state;
-        return (
-          !onScreen(msg) &&
-          !isMessageRead(msg, state) &&
-          decideNotification(state, msg, { live: false }).notify
-        );
-      },
-      show: (messages) => {
-        const first = messages[0]!;
-        if (messages.length === 1) return tell(first);
-        const state = clientFromCtx.state;
-        const conversations = new Set(messages.map((msg) => msg.channelId));
-        const senders = [
-          ...new Set(messages.map((msg) => state.users[msg.userId]?.displayName ?? "Someone")),
-        ];
-        const { title, body } = catchUpContent(preview.current, {
-          count: messages.length,
-          conversations: conversations.size,
-          channelName: state.channels[first.channelId]?.name,
-          senders: namesList(senders),
-        });
-        // A click opens the earliest, where reading them starts. The tag is
-        // the same in every window that caught up on the same messages.
-        platform.notify(title, body, () => openMessage(first.channelId, first.id), {
-          tag: `${accountTag.current} catch-up ${first.id}`,
-        });
-      },
-    };
-    return clientFromCtx.on("message", (msg, { live }) => {
-      const state = clientFromCtx.state;
-      // Read to a screen reader what reaches the conversation on screen, but
-      // not what a reconnect catches up on: that is history, not news.
-      const inChannel = msg.channelId === activeChannelId && (!msg.threadRootId || msg.broadcast);
-      const inThread = msg.threadRootId !== null && msg.threadRootId === openThreadId;
-      if (live && (inChannel || inThread)) {
-        hear({
-          from: state.users[msg.userId]?.displayName ?? "Someone",
-          text: notificationBody(state, msg),
-          inThread: !inChannel,
-        });
-      }
-      // A message you're already looking at needs no notification. One in a
-      // thread that is not open is not in view just because its channel is.
-      if (onScreen(msg)) return;
-      if (!decideNotification(state, msg, { live }).notify) return;
-      if (live) tell(msg);
-      else catchUp.current?.hold(msg);
-    });
-  }, [clientFromCtx, activeChannelId, openThreadId, hear, openMessage, platform]);
-
-  // A reminder come due says so wherever the person is looking: they asked.
-  useEffect(() => {
-    return clientFromCtx.on("reminderDue", (reminder, message) => {
-      const state = clientFromCtx.state;
-      if (!decideReminderNotification(state).notify) return;
-      const { title, body } = reminderContent(preview.current, {
-        from: state.users[message.userId]?.displayName ?? "Someone",
-        channelName: state.channels[message.channelId]?.name,
-        body: notificationBody(state, message),
-      });
-      platform.notify(title, body, () => openMessage(message.channelId, message.id), {
-        tag: `${accountTag.current} reminder ${reminder.id}`,
-      });
-    });
-  }, [clientFromCtx, openMessage, platform]);
-
-  const connectionLabel =
-    status === "online"
-      ? null
-      : status === "reconnecting" || status === "connecting"
-        ? "reconnecting…"
-        : status === "auth_failed"
-          ? "signed out"
-          : status === "protocol_mismatch"
-            ? protocolMismatch(serverProtocol).short
-            : status === "password_change_required"
-              ? "Choose a new password to carry on"
-              : "offline";
+  // missed.
+  useLayoutEffect(
+    () =>
+      startNotifications({
+        client,
+        navigation: nav,
+        platform,
+        preview: () => current.current.preview,
+        account: () => current.current.account,
+        hear,
+      }),
+    [client, nav, platform, hear],
+  );
 
   useEffect(() => {
     // Signing out is what leads back to the screen that can replace a password:
     // signing in again lands on it, holding the password it needs to replace.
     if (status === "auth_failed" || status === "password_change_required")
-      onSignedOut(signedOutHow(clientFromCtx, status));
-  }, [status, onSignedOut, clientFromCtx]);
+      shell.onSignedOut(signedOutHow(client, status));
+  }, [status, shell, client]);
 
-  const screen = (
-    <div className={`workspace-shell relative flex h-full ${sidebarOpen ? "sidebar-open" : ""}`}>
+  const callLog = () =>
+    nav.navigate({ to: "dialog", dialog: { kind: "diagnostics", callLog: true } });
+  const callSettings = () =>
+    nav.navigate({ to: "dialog", dialog: { kind: "account", section: "calls" } });
+  const details = () => nav.navigate({ to: "dialog", dialog: { kind: "channel-details" } });
+  const invite = action("invite");
+
+  return (
+    <div className={`workspace-shell relative flex h-full ${drawer ? "sidebar-open" : ""}`}>
       <DraftPersistence platform={platform} />
       {/* Outside main, whose content goes inert while the phone drawer is open. */}
       {announcer.region}
-      {sidebarOpen && (
+      {drawer && (
         <button
           className="sidebar-dismiss fixed inset-0 z-30"
           aria-label="Close navigation"
-          onClick={closeDrawer}
+          onClick={() => nav.closeDrawer()}
         />
       )}
       <Sidebar
-        openPanel={panel.kind}
-        onSearch={() => setDialog({ kind: "switcher" })}
-        onSaved={() => {
-          setPanel({ kind: "saved" });
-          setSidebarOpen(false);
-        }}
-        onScheduled={() => {
-          setPanel({ kind: "scheduled" });
-          setSidebarOpen(false);
-        }}
-        onDrafts={() => {
-          setPanel({ kind: "drafts" });
-          setSidebarOpen(false);
-        }}
-        onFiles={() => {
-          setPanel({ kind: "files" });
-          setSidebarOpen(false);
-        }}
-        onFriends={() => setDialog({ kind: "friends" })}
-        onActivity={() => {
-          setPanel({ kind: "activity" });
-          setSidebarOpen(false);
-        }}
-        onThreads={() => {
-          setPanel({ kind: "threads" });
-          setSidebarOpen(false);
-        }}
-        activeChannelId={activeChannelId}
-        onSelect={openChannel}
-        onBrowseChannels={() => setDialog({ kind: "browse" })}
-        onNewChannel={() => setDialog({ kind: "new-channel" })}
-        onNewDm={() => setDialog({ kind: "new-dm" })}
-        onInvite={() => setDialog({ kind: "invite" })}
-        onChannelDetails={detailsFromRow}
-        onSwitchWorkspace={onLeaveWorkspace}
-        otherWorkspaces={otherWorkspaces}
-        railPlace={railPlace}
-        onOpenWorkspace={onOpenWorkspace}
-        onEditProfile={() => setDialog({ kind: "account", section: "profile" })}
-        onAccountSettings={() => setDialog({ kind: "account" })}
-        onCreateAccount={() => setDialog({ kind: "guest-account" })}
-        onShortcuts={() => setDialog({ kind: "shortcuts" })}
-        onSignOut={() => void signOut()}
         gettingStarted={
           self?.role === "owner" && (
             <ErrorBoundary fallback={<span hidden />}>
               <GettingStarted
-                onNewChannel={() => setDialog({ kind: "new-channel" })}
-                onInvite={() => setDialog({ kind: "invite" })}
-                onNotifications={() => setDialog({ kind: "account", section: "notifications" })}
-                onNameWorkspace={() => setDialog({ kind: "workspace" })}
+                onNewChannel={() => runAction(actions, "new-channel")}
+                onInvite={() => runAction(actions, "invite")}
+                onNotifications={() =>
+                  nav.navigate({
+                    to: "dialog",
+                    dialog: { kind: "account", section: "notifications" },
+                  })
+                }
+                onNameWorkspace={() => runAction(actions, "workspace-settings")}
                 activeChannelName={activeChannel && isRoom ? `#${activeChannel.name}` : null}
                 onTryHuddle={() => {
-                  if (!activeChannelId) return;
-                  const ticket = navigation.current;
-                  setSidebarOpen(false);
+                  if (!channelId) return;
+                  const ticket = nav.moves;
+                  if (nav.state.drawer) nav.closeDrawer();
                   calls
                     .joinHuddle(
-                      clientFromCtx,
-                      activeChannelId,
-                      () => ticket === navigation.current && huddleRoom.current === activeChannelId,
+                      client,
+                      channelId,
+                      () => nav.current(ticket) && huddleRoom.current === channelId,
                     )
                     .catch((err: unknown) => {
-                      setNavigationError(
+                      nav.showError(
                         err instanceof Error
                           ? `Could not start a huddle: ${err.message}`
                           : "Could not start a huddle. Check your connection and try again.",
@@ -1650,32 +556,16 @@ function WorkspaceInner({
             </ErrorBoundary>
           )
         }
-        onDiagnostics={() => setDialog({ kind: "diagnostics" })}
-        onManageApps={isAdmin ? () => setDialog({ kind: "apps" }) : undefined}
-        onManagePeople={isAdmin ? () => setDialog({ kind: "people" }) : undefined}
-        // A server that takes reports gives admins a count of those waiting (E12).
-        reportsWaiting={isAdmin ? openReports : null}
-        onReviewReports={
-          isAdmin && openReports !== null ? () => setDialog({ kind: "reports" }) : undefined
-        }
-        onWorkspaceSettings={isAdmin ? () => setDialog({ kind: "workspace" }) : undefined}
-        connectionLabel={connectionLabel}
-        hosting={hosting}
-        hostingEntry={hostingEntry}
       />
 
       <main className="workspace-main flex min-w-0 flex-1 flex-col">
         {/* What the drawer or a side panel covers goes inert, but the landmark
             itself stays, so the page always has its one main. */}
-        <div inert={sidebarOpen || panelCovers} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        <div inert={drawer || panelCovers} className="flex min-h-0 min-w-0 flex-1 flex-col">
           <header className="channel-header titlebar-drag flex h-12 shrink-0 items-center gap-1 pl-2 pr-2 shadow-[0_1px_0_var(--color-edge)]">
-            <NavigationToggle
-              activeChannelId={activeChannelId}
-              open={sidebarOpen}
-              onOpen={() => setSidebarOpen(true)}
-            />
+            <NavigationToggle activeChannelId={channelId} open={drawer} />
             <button
-              onClick={() => activeChannelId && setDialog({ kind: "channel-details" })}
+              onClick={() => channelId && details()}
               className="flex min-w-0 flex-1 items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors hover:bg-ink/[0.04]"
             >
               <h2 className="shrink-0 truncate text-[16px] font-semibold leading-tight">
@@ -1698,42 +588,48 @@ function WorkspaceInner({
               )}
               {activeChannel?.type === "dm" && <PartnerTime channelId={activeChannel.id} />}
             </button>
-            {activeChannelId && (
+            {channelId && (
               <ConversationSearch
                 title={isRoom ? `#${title}` : title}
-                onSearch={() => setDialog({ kind: "search", inConversation: true })}
+                onSearch={() =>
+                  nav.navigate({ to: "dialog", dialog: { kind: "search", inConversation: true } })
+                }
               />
             )}
-            {activeChannelId && (
+            {channelId && (
               <div className="flex shrink-0 items-center gap-1">
                 {activeChannel?.type !== "dm" && (
                   <MemberStack
-                    channelId={activeChannelId}
+                    channelId={channelId}
                     pressed={panel.kind === "members"}
-                    onToggle={() => togglePanel("members")}
+                    onToggle={() => nav.navigate({ to: "toggle-panel", kind: "members" })}
                   />
                 )}
-                {!deactivatedHere && <HuddleButton channelId={activeChannelId} />}
+                {!deactivatedHere && <HuddleButton channelId={channelId} />}
                 <ConversationMenu
-                  channelId={activeChannelId}
+                  channelId={channelId}
                   isRoom={isRoom}
-                  onPins={() => setPanel({ kind: "pins" })}
-                  onFiles={() => setPanel({ kind: "files", channelId: activeChannelId })}
+                  onPins={() => nav.navigate({ to: "panel", panel: { kind: "pins" } })}
+                  onFiles={() => nav.navigate({ to: "panel", panel: { kind: "files", channelId } })}
                   onNotifications={
                     isMember
-                      ? () => setDialog({ kind: "channel-details", tab: "notifications" })
+                      ? () =>
+                          nav.navigate({
+                            to: "dialog",
+                            dialog: { kind: "channel-details", tab: "notifications" },
+                          })
                       : undefined
                   }
-                  onDetails={() => setDialog({ kind: "channel-details" })}
+                  onDetails={details}
                 />
               </div>
             )}
           </header>
-          {activeChannelId && (
+          {channelId && (
             <PinnedBar
-              channelId={activeChannelId}
+              channelId={channelId}
               open={panel.kind === "pins"}
-              onToggle={() => togglePanel("pins")}
+              onToggle={() => nav.navigate({ to: "toggle-panel", kind: "pins" })}
             />
           )}
           {/* One banner at a time, the most pressing (UX-25): a message that could
@@ -1741,29 +637,29 @@ function WorkspaceInner({
               turn on notifications, then a message on its way, then what
               the server's extensions say (P6), then a workspace with more
               members than its plan includes (P5). */}
-          {navigationError ? (
+          {error ? (
             <Banner
               tone="alert"
               actions={
                 <>
-                  {navigationError === lostDraftsNote && (
+                  {error === lostDraftsNote && (
                     <BannerAction
                       onClick={() => {
-                        setNavigationError(null);
-                        setPanel({ kind: "drafts" });
+                        nav.dismissError();
+                        nav.navigate({ to: "panel", panel: { kind: "drafts" } });
                       }}
                     >
                       Show drafts
                     </BannerAction>
                   )}
-                  <BannerAction onClick={() => setNavigationError(null)}>Dismiss</BannerAction>
+                  <BannerAction onClick={() => nav.dismissError()}>Dismiss</BannerAction>
                 </>
               }
             >
-              {navigationError}
+              {error}
             </Banner>
-          ) : banner ? (
-            banner
+          ) : props.banner ? (
+            props.banner
           ) : (
             <>
               {platform.kind !== "desktop" && typeof Notification !== "undefined" && (
@@ -1780,7 +676,7 @@ function WorkspaceInner({
             </>
           )}
 
-          {activeChannelId ? (
+          {channelId ? (
             // The call beside the chat on a wide window, over it otherwise.
             <div className="relative flex min-h-0 flex-1">
               {callShown && (
@@ -1812,8 +708,8 @@ function WorkspaceInner({
                           : undefined
                       }
                       onHide={() => setHuddleView("chat")}
-                      onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
-                      onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
+                      onShowCallLog={callLog}
+                      onOpenSettings={callSettings}
                     />
                   </Suspense>
                 </ErrorBoundary>
@@ -1830,16 +726,16 @@ function WorkspaceInner({
                 <MessageTimeline
                   // A panel beside the conversation leaves it in view, and so read,
                   // as Slack's does; only one covering it stops that.
-                  readActive={
-                    dialog.kind === "none" && !panelCovers && !sidebarOpen && !chatCovered
+                  readActive={channelRead}
+                  channelId={channelId}
+                  highlightMessageId={highlightId}
+                  onOpenThread={(rootId) => nav.navigate({ to: "thread", rootId })}
+                  onChannelClick={(id) => nav.navigate({ to: "conversation", channelId: id })}
+                  onOpenProfile={(userId) =>
+                    nav.navigate({ to: "dialog", dialog: { kind: "profile", userId } })
                   }
-                  channelId={activeChannelId}
-                  highlightMessageId={highlightMessageId}
-                  onOpenThread={openThread}
-                  onChannelClick={openChannel}
-                  onOpenProfile={openProfile}
-                  onInvite={self?.role === "guest" ? undefined : inviteFromIntro}
-                  onDetails={detailsFromIntro}
+                  onInvite={invite.available(actions) ? () => invite.run(actions) : undefined}
+                  onDetails={details}
                 />
                 {calls.checkingDevices && (
                   <Suspense fallback={null}>
@@ -1851,26 +747,23 @@ function WorkspaceInner({
                     <HuddleBar
                       view={huddleView}
                       onViewChange={setHuddleView}
-                      onShowCallLog={() => setDialog({ kind: "diagnostics", callLog: true })}
-                      onOpenSettings={() => setDialog({ kind: "account", section: "calls" })}
+                      onShowCallLog={callLog}
+                      onOpenSettings={callSettings}
                     />
                   </Suspense>
                 )}
                 <div hidden={chatCovered} className="contents">
-                  <JumpToLatestBar
-                    channelId={activeChannelId}
-                    onJump={() => setHighlightMessageId(null)}
-                  />
+                  <JumpToLatestBar channelId={channelId} onJump={() => nav.clearHighlight()} />
                   {blockedHere ? (
                     <BlockedComposer userId={blockedHere} />
                   ) : deactivatedHere ? (
                     <DeactivatedComposer userId={deactivatedHere} />
                   ) : (
                     <Composer
-                      channelId={activeChannelId}
+                      channelId={channelId}
                       placeholder={isRoom ? `Message #${title}` : `Message ${title}`}
                       autoFocus
-                      onLeft={() => setActiveChannelId(null)}
+                      onLeft={() => nav.navigate({ to: "left" })}
                     />
                   )}
                 </div>
@@ -1881,7 +774,7 @@ function WorkspaceInner({
             <EmptyState
               icon="hash"
               className="flex flex-1 flex-col items-center justify-center"
-              action={{ label: "Browse channels", run: () => setDialog({ kind: "browse" }) }}
+              action={{ label: "Browse channels", run: () => runAction(actions, "browse") }}
             >
               Pick a conversation in the sidebar, or find a channel to join.
             </EmptyState>
@@ -1889,227 +782,10 @@ function WorkspaceInner({
         </div>
       </main>
 
-      {panel.kind === "thread" && activeChannelId && (
-        <ThreadPanel
-          readActive={dialog.kind === "none" && !sidebarOpen}
-          channelId={activeChannelId}
-          rootId={panel.rootId}
-          targetId={panel.targetId}
-          onClose={() => setPanel({ kind: "none" })}
-          onChannelClick={openChannel}
-          onOpenProfile={(userId) => setDialog({ kind: "profile", userId })}
-        />
-      )}
-      {panel.kind === "pins" && activeChannelId && (
-        <LazyPanel name="Pinned" onClose={() => setPanel({ kind: "none" })}>
-          <PinsPanel
-            channelId={activeChannelId}
-            onClose={() => setPanel({ kind: "none" })}
-            onJump={jumpToMessage}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "saved" && (
-        <LazyPanel name="Saved" onClose={() => setPanel({ kind: "none" })}>
-          <SavedPanel
-            onClose={() => setPanel({ kind: "none" })}
-            onJump={jumpToMessage}
-            onScheduled={self?.role === "guest" ? undefined : () => setPanel({ kind: "scheduled" })}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "members" && activeChannelId && (
-        <LazyPanel name="Members" onClose={() => setPanel({ kind: "none" })}>
-          <MembersPanel
-            key={activeChannelId}
-            channelId={activeChannelId}
-            onClose={() => setPanel({ kind: "none" })}
-            onOpenProfile={(userId) => setDialog({ kind: "profile", userId })}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "threads" && (
-        <LazyPanel name="Threads" onClose={() => setPanel({ kind: "none" })}>
-          <ThreadsPanel onClose={() => setPanel({ kind: "none" })} onJump={openThreadInChannel} />
-        </LazyPanel>
-      )}
-      {panel.kind === "activity" && (
-        <LazyPanel name="Activity" onClose={() => setPanel({ kind: "none" })}>
-          <ActivityPanel
-            onClose={() => setPanel({ kind: "none" })}
-            onJump={jumpToMessage}
-            onOpenChannel={openChannel}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "scheduled" && (
-        <LazyPanel name="Scheduled messages" onClose={() => setPanel({ kind: "none" })}>
-          <ScheduledPanel
-            onClose={() => setPanel({ kind: "none" })}
-            onJump={openChannel}
-            onSaved={() => setPanel({ kind: "saved" })}
-            initialEdit={panel.edit}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "drafts" && (
-        <LazyPanel name="Drafts" onClose={() => setPanel({ kind: "none" })}>
-          <DraftsPanel
-            onClose={() => setPanel({ kind: "none" })}
-            onOpen={openDraft}
-            onScheduled={self?.role === "guest" ? undefined : () => setPanel({ kind: "scheduled" })}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "files" && (
-        <LazyPanel name="Files" onClose={() => setPanel({ kind: "none" })}>
-          <FilesPanel
-            // Opened again for another conversation, it starts again there.
-            key={panel.channelId ?? ""}
-            channelId={panel.channelId}
-            onClose={() => setPanel({ kind: "none" })}
-            onJump={jumpToMessage}
-          />
-        </LazyPanel>
-      )}
-      {panel.kind === "dms" && (
-        <LazyPanel name="Direct messages" onClose={() => setPanel({ kind: "none" })}>
-          <DirectMessagesPanel
-            activeChannelId={activeChannelId}
-            onClose={() => setPanel({ kind: "none" })}
-            onOpen={openChannel}
-            onNewMessage={() => setDialog({ kind: "new-dm" })}
-            onFriends={() => setDialog({ kind: "friends" })}
-          />
-        </LazyPanel>
-      )}
+      <SidePanel />
       {/* On a phone: the bottom bar, the swipe that opens the drawer, and room for the keyboard. */}
-      {platform.kind === "web" && (
-        <PhoneNavigation
-          activeChannelId={activeChannelId}
-          openPanel={panel.kind}
-          drawerOpen={sidebarOpen}
-          onOpenDrawer={() => setSidebarOpen(true)}
-          onCloseDrawer={closeDrawer}
-          onConversation={() => setPanel({ kind: "none" })}
-          onDirectMessages={() => setPanel({ kind: "dms" })}
-          onActivity={() => setPanel({ kind: "activity" })}
-          account={{
-            onCreateAccount: () => setDialog({ kind: "guest-account" }),
-            onEditProfile: () => setDialog({ kind: "account", section: "profile" }),
-            onAccountSettings: () => setDialog({ kind: "account" }),
-            onScheduled: () => setPanel({ kind: "scheduled" }),
-            onShortcuts: () => setDialog({ kind: "shortcuts" }),
-            onDiagnostics: () => setDialog({ kind: "diagnostics" }),
-            onSignOut: () => void signOut(),
-          }}
-        />
-      )}
-
-      {(dialog.kind === "new-channel" ||
-        dialog.kind === "browse" ||
-        dialog.kind === "new-dm" ||
-        dialog.kind === "invite") && (
-        <LazyDialog
-          loading={
-            dialog.kind === "new-channel"
-              ? "Loading new channel"
-              : dialog.kind === "browse"
-                ? "Loading channels"
-                : dialog.kind === "new-dm"
-                  ? "Loading new message"
-                  : "Loading invite"
-          }
-          onClose={closeDialog}
-        >
-          {dialog.kind === "new-channel" && (
-            <NewChannelDialog onClose={closeDialog} onCreated={(ch) => openChannel(ch.id)} />
-          )}
-          {dialog.kind === "browse" && (
-            <BrowseChannelsDialog onClose={closeDialog} onOpen={openChannel} />
-          )}
-          {dialog.kind === "new-dm" && (
-            <NewDmDialog
-              initialMemberIds={dialog.initialMemberIds}
-              onClose={closeDialog}
-              onOpen={openChannel}
-            />
-          )}
-          {dialog.kind === "invite" && (
-            <InviteDialog
-              welcome={dialog.welcome}
-              onClose={closeDialog}
-              onShareOnline={
-                hosting && hostedHere
-                  ? () => {
-                      closeDialog();
-                      hosting.onManage("internet");
-                    }
-                  : undefined
-              }
-            />
-          )}
-        </LazyDialog>
-      )}
-      {dialog.kind === "guest-account" && onAccountCreated && (
-        <LazyDialog loading="Loading account" onClose={closeDialog}>
-          <GuestAccountDialog onClose={closeDialog} onCreated={onAccountCreated} />
-        </LazyDialog>
-      )}
-      {dialog.kind === "switcher" && (
-        <SwitcherDialog
-          onClose={closeDialog}
-          onOpen={openChannel}
-          recent={recentConversations.recent}
-          commands={paletteCommands}
-          onSearch={(query) => setDialog({ kind: "search", query })}
-        />
-      )}
-      {dialog.kind === "search" && (
-        <SearchDialog
-          channelId={activeChannelId}
-          initialQuery={dialog.query}
-          inConversation={dialog.inConversation}
-          onClose={closeDialog}
-          onJump={jumpToMessage}
-        />
-      )}
-      {dialog.kind === "shortcuts" && (
-        <LazyDialog loading="Loading keyboard shortcuts" onClose={closeDialog}>
-          <ShortcutsDialog onClose={closeDialog} />
-        </LazyDialog>
-      )}
-      {dialog.kind === "diagnostics" && (
-        <LazyDialog loading="Loading diagnostics" onClose={closeDialog}>
-          <DiagnosticsDialog onClose={closeDialog} showCallLog={dialog.callLog} />
-        </LazyDialog>
-      )}
-      {(((dialog.kind === "apps" ||
-        dialog.kind === "people" ||
-        dialog.kind === "reports" ||
-        dialog.kind === "workspace") &&
-        isAdmin) ||
-        dialog.kind === "account") && (
-        <LazyDialog key={dialog.kind} loading="Loading settings" onClose={closeDialog}>
-          {dialog.kind === "apps" && <AppsDialog onClose={closeDialog} />}
-          {dialog.kind === "people" && <PeopleDialog onClose={closeDialog} />}
-          {dialog.kind === "reports" && <ReportsDialog onClose={closeDialog} />}
-          {dialog.kind === "workspace" && (
-            <WorkspaceSettings onClose={closeDialog} hostedHere={hostedHere} />
-          )}
-          {dialog.kind === "account" && (
-            <AccountDialog
-              onClose={closeDialog}
-              onSignedOut={onSignedOut}
-              section={dialog.section}
-              onSectionChange={(section) => {
-                replaceDialogStep.current = true;
-                setDialog({ kind: "account", section });
-              }}
-            />
-          )}
-        </LazyDialog>
-      )}
+      {platform.kind === "web" && <PhoneNavigation />}
+      <OpenDialog />
       {/* Not one of the workspace's own dialogs: an app asked for this one, so
           it shows itself whenever one arrives. */}
       <Suspense fallback={null}>
@@ -2118,51 +794,16 @@ function WorkspaceInner({
       {rungHere && (
         <ErrorBoundary fallback={<span hidden />}>
           <Suspense fallback={null}>
-            <IncomingCall onOpen={openChannel} preview={preview.current} tag={account} />
+            <IncomingCall
+              onOpen={(id) => nav.navigate({ to: "conversation", channelId: id })}
+              preview={preview}
+              tag={account}
+            />
           </Suspense>
         </ErrorBoundary>
       )}
-      {dialog.kind === "friends" && (
-        <LazyDialog loading="Loading friends" onClose={closeDialog}>
-          <FriendsDialog
-            onClose={closeDialog}
-            onOpenProfile={(userId) => setDialog({ kind: "profile", userId })}
-          />
-        </LazyDialog>
-      )}
-      {dialog.kind === "profile" && (
-        <LazyDialog loading="Loading profile" onClose={closeDialog}>
-          <ProfileDialog
-            userId={dialog.userId}
-            onClose={closeDialog}
-            onOpenDm={openChannel}
-            onEditProfile={() => setDialog({ kind: "account", section: "profile" })}
-          />
-        </LazyDialog>
-      )}
-      {dialog.kind === "channel-details" && activeChannelId && (
-        <LazyDialog loading="Loading channel details" onClose={closeDialog}>
-          <ChannelDetailsDialog
-            key={activeChannelId}
-            channelId={activeChannelId}
-            initialTab={dialog.tab}
-            onChangeParticipants={(memberIds) =>
-              setDialog({ kind: "new-dm", initialMemberIds: memberIds })
-            }
-            onClose={closeDialog}
-            onLeft={() => {
-              // Going somewhere else at once, so no step Back to wait for.
-              dialogStep.current = false;
-              setDialog({ kind: "none" });
-              setActiveChannelId(null);
-            }}
-            onOpenProfile={(userId) => setDialog({ kind: "profile", userId })}
-          />
-        </LazyDialog>
-      )}
     </div>
   );
-  return <OpenMessageContext.Provider value={openMessage}>{screen}</OpenMessageContext.Provider>;
 }
 
 /**
@@ -2186,11 +827,8 @@ function TitleBar() {
  * waiting in other conversations, or a dot when only unread messages are.
  * The conversation on screen and muted ones do not count, as on the rail.
  */
-function NavigationToggle(props: {
-  activeChannelId: ID | null;
-  open: boolean;
-  onOpen: () => void;
-}) {
+function NavigationToggle(props: { activeChannelId: ID | null; open: boolean }) {
+  const nav = useNavigation();
   const { activeChannelId } = props;
   const mentions = useWorkspace((s) => mentionsElsewhere(s, activeChannelId));
   const unread = useWorkspace((s) =>
@@ -2204,7 +842,7 @@ function NavigationToggle(props: {
       aria-label="Open navigation"
       aria-describedby={described ? "open-navigation-waiting" : undefined}
       aria-expanded={props.open}
-      onClick={props.onOpen}
+      onClick={() => nav.navigate({ to: "drawer" })}
     >
       <Icon name="menu" />
       <Badge

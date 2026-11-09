@@ -1,4 +1,5 @@
 import {
+  Fragment,
   lazy,
   memo,
   Suspense,
@@ -21,6 +22,8 @@ import { formatReminderTime, reminderPresets } from "../lib/schedule.js";
 import { useMessageReferences } from "../lib/messageReferences.js";
 import { conversationKey, startReply } from "../lib/replyTarget.js";
 import { nearestComposer, refocusComposer, useEditRequest } from "../lib/editRequest.js";
+import { useLongPress } from "../lib/useLongPress.js";
+import { useFocusAfterRender } from "../lib/keys.js";
 import { Avatar } from "./Avatar.js";
 import { MessageAttachments } from "./Attachments.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -28,7 +31,17 @@ import { useShareableServer } from "./ShareableServer.js";
 import { Dialog } from "./Dialog.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Icon } from "./Icon.js";
-import { Menu, type MenuItem } from "./Menu.js";
+import { Menu } from "./Menu.js";
+import {
+  TOOLBAR,
+  actionIcon,
+  actionLabel,
+  keyAction,
+  messageAction,
+  moreItems,
+  touchItems,
+  type MessageActionContext,
+} from "../lib/messageActions.js";
 import { CountBadge, useChanges } from "./Motion.js";
 import { ReplyQuote } from "./ReplyQuote.js";
 import { ForwardCard } from "./ForwardCard.js";
@@ -65,8 +78,6 @@ const ReportMessageDialog = lazy(() =>
 const QUICK_REACTIONS = ["👍", "❤️", "😂"];
 /** The row a long press offers on a phone, where a thumb has room for more. */
 const SHEET_REACTIONS = ["👍", "❤️", "😂", "🎉", "👀", "🙏"];
-/** How long a press lasts before it opens the message's actions. */
-const LONG_PRESS_MS = 450;
 
 interface Props {
   message: Message;
@@ -151,13 +162,24 @@ const MessageRow = memo(function MessageRow({
   /** The reactions it had when drawn; any other one pops in as it comes. */
   const [firstReactions] = useState(() => new Set(message.reactions.map((g) => g.emoji)));
   const row = useRef<HTMLDivElement>(null);
-  const press = useRef<{ timer: number; x: number; y: number } | null>(null);
-  const cancelPress = () => {
-    if (!press.current) return;
-    clearTimeout(press.current.timer);
-    press.current = null;
-  };
-  useEffect(() => cancelPress, []);
+  // Holding a message opens its actions, as phones do everywhere else. A
+  // press on a control or a link stays that control's.
+  const hold = useLongPress(editing ? undefined : () => setTouchMenu(true), {
+    skip: (target) => !!target.closest("button, a, input, textarea, video, audio"),
+  });
+  const focusAfterRender = useFocusAfterRender();
+  /**
+   * The message box to type in once this row has gone after a deletion asked
+   * from it: the row, and the menu button focus went back to, go only when the
+   * deletion comes back from the server.
+   */
+  const afterDeletion = useRef<HTMLTextAreaElement | null | undefined>(undefined);
+  useEffect(
+    () => () => {
+      if (afterDeletion.current !== undefined) refocusComposer(afterDeletion.current);
+    },
+    [],
+  );
   const shareable = useShareableServer();
   const isSaved = useWorkspace((s) => !!s.saved[message.id]);
   const author = users[message.userId];
@@ -230,7 +252,6 @@ const MessageRow = memo(function MessageRow({
   function react(emoji: string) {
     reportRefusal("That reaction did not go through.", () => client.toggleReaction(message, emoji));
   }
-  const saveLabel = isSaved ? "Remove from Saved" : "Save for later";
   function toggleSaved() {
     // Trying again repeats this intent, whatever the state is by then.
     const save = !isSaved;
@@ -239,7 +260,6 @@ const MessageRow = memo(function MessageRow({
       () => client.toggleSaved(message.id, save),
     );
   }
-  const unreadLabel = inThread ? "Mark unread from this reply" : "Mark unread from this message";
   function markUnread() {
     // Inside a thread this is the thread's own unread state, and the root
     // shown at the top of the panel is itself the thread.
@@ -271,30 +291,6 @@ const MessageRow = memo(function MessageRow({
         });
     });
   }
-  const remindItems: MenuItem[] = reminder
-    ? [
-        {
-          id: "remind",
-          label: "Change reminder…",
-          icon: "clock",
-          onSelect: () => setReminding(true),
-        },
-        {
-          id: "remind-done",
-          label: reminder.dueAt === null ? "Cancel reminder" : "Mark reminder done",
-          icon: reminder.dueAt === null ? "close" : "check",
-          onSelect: finishReminder,
-        },
-      ]
-    : [
-        {
-          id: "remind",
-          label: "Remind me about this…",
-          icon: "clock",
-          onSelect: () => setReminding(true),
-        },
-      ];
-  const pinLabel = message.pinned ? "Unpin from channel" : "Pin to channel";
   function togglePin() {
     reportRefusal(
       message.pinned ? "Could not unpin that message." : "Could not pin that message.",
@@ -305,7 +301,10 @@ const MessageRow = memo(function MessageRow({
   function closeEditor() {
     const box = nearestComposer(row.current);
     setEditing(false);
-    requestAnimationFrame(() => refocusComposer(box));
+    focusAfterRender(() => {
+      refocusComposer(box);
+      return null;
+    });
   }
   async function deleteMessage() {
     if (deleting) return;
@@ -321,202 +320,64 @@ const MessageRow = memo(function MessageRow({
     setDeleteError(false);
     try {
       await client.deleteMessage(message.id);
-      // The row, and the menu button focus went back to, go once the
-      // deletion comes back from the server; focus moves on then.
-      const gone = row.current;
-      const started = Date.now();
-      const settle = () => {
-        if (gone?.isConnected && Date.now() - started < 3000) requestAnimationFrame(settle);
-        else refocusComposer(box);
-      };
-      requestAnimationFrame(settle);
+      afterDeletion.current = box;
     } catch {
       setDeleteError(true);
     } finally {
       setDeleting(false);
     }
   }
-  const copyItem: MenuItem = {
-    id: "link",
-    label: "Copy link to message",
-    icon: "link",
+  function copyLink() {
     // The menu has closed by now, so a notice says whether it worked.
-    onSelect: () =>
-      void writeClipboard(link()).then((ok) =>
-        toast(
-          ok
-            ? { message: "Link copied.", kind: "success" }
-            : { message: "Could not copy the link." },
-        ),
+    void writeClipboard(link()).then((ok) =>
+      toast(
+        ok ? { message: "Link copied.", kind: "success" } : { message: "Could not copy the link." },
       ),
-  };
-  // A forward of something hidden here or deleted has nothing to pass on.
+    );
+  }
+  function copyText() {
+    const shown = row.current?.querySelector<HTMLElement>(".message-text");
+    const text = shown?.innerText ?? shown?.textContent ?? "";
+    void writeClipboard(text).then((ok) =>
+      toast(
+        ok ? { message: "Text copied.", kind: "success" } : { message: "Could not copy the text." },
+      ),
+    );
+  }
   const forwarded = forwardSource(message);
-  const forwardItems: MenuItem[] = forwarded
-    ? [
-        {
-          id: "forward",
-          label: "Forward…",
-          icon: "forward",
-          keys: ["F"],
-          onSelect: () => setForwarding(forwarded),
-        },
-      ]
-    : [];
-  const unreadItem: MenuItem = {
-    id: "unread",
-    label: unreadLabel,
-    icon: "markUnread",
-    keys: ["U"],
-    onSelect: markUnread,
+  const actions: MessageActionContext = {
+    message,
+    inThread: !!inThread,
+    mine,
+    editable,
+    canReply,
+    canDelete,
+    canPin: selfRole !== "guest",
+    canForward: !!forwarded,
+    saved: isSaved,
+    threadMuted,
+    reminder,
+    deleting,
+    reply,
+    openThread: () => onOpenThread?.(message.id),
+    pickReaction: () => setPicking(true),
+    copyText,
+    copyLink,
+    forward: () => forwarded && setForwarding(forwarded),
+    toggleSaved,
+    remind: () => setReminding(true),
+    finishReminder,
+    markUnread,
+    toggleThreadMute: () =>
+      reportRefusal(
+        threadMuted ? "Could not unmute that thread." : "Could not mute that thread.",
+        () => client.setThreadMute(message.id, !threadMuted),
+      ),
+    togglePin,
+    edit: () => setEditing(true),
+    report: () => setReporting(true),
+    delete: () => void deleteMessage(),
   };
-  // A thread is muted from its first message in the channel once it has
-  // replies, and unmuted there whatever it has; the thread's own header has both.
-  const muteItems: MenuItem[] =
-    !inThread && (message.replyCount > 0 || threadMuted)
-      ? [
-          {
-            id: "mute",
-            label: threadMuted ? "Unmute thread" : "Mute thread",
-            icon: "bellOff",
-            onSelect: () =>
-              reportRefusal(
-                threadMuted ? "Could not unmute that thread." : "Could not mute that thread.",
-                () => client.setThreadMute(message.id, !threadMuted),
-              ),
-          },
-        ]
-      : [];
-  // Pinning changes the channel for everyone, which a guest may not.
-  const pinItems: MenuItem[] =
-    selfRole === "guest"
-      ? []
-      : [{ id: "pin", label: pinLabel, icon: "pin", keys: ["P"], onSelect: togglePin }];
-  // Someone else's message, to the workspace's admins (E12).
-  const reportItems: MenuItem[] = !mine
-    ? [
-        {
-          id: "report",
-          label: "Report message…",
-          icon: "flag",
-          onSelect: () => setReporting(true),
-        },
-      ]
-    : [];
-  const deleteItems: MenuItem[] = canDelete
-    ? [
-        {
-          id: "delete",
-          label: "Delete message",
-          icon: "trash",
-          destructive: true,
-          section: true,
-          keys: ["Delete"],
-          disabled: deleting,
-          onSelect: () => void deleteMessage(),
-        },
-      ]
-    : [];
-  /** What the message says as shown, names rather than ids. */
-  const copyTextItem: MenuItem = {
-    id: "copy-text",
-    label: "Copy text",
-    onSelect: () => {
-      const shown = row.current?.querySelector<HTMLElement>(".message-text");
-      const text = shown?.innerText ?? shown?.textContent ?? "";
-      void writeClipboard(text).then((ok) =>
-        toast(
-          ok
-            ? { message: "Text copied.", kind: "success" }
-            : { message: "Could not copy the text." },
-        ),
-      );
-    },
-  };
-  /** Everything, named, for a touchscreen, where there is no toolbar. */
-  const touchItems: MenuItem[] = [
-    ...(canReply
-      ? [
-          {
-            id: "answer",
-            label: "Reply",
-            icon: "reply" as const,
-            keys: ["Q"],
-            onSelect: () => reply(),
-          },
-        ]
-      : []),
-    ...(inThread
-      ? []
-      : [
-          {
-            id: "reply",
-            label: "Reply in thread",
-            icon: "thread" as const,
-            keys: ["T"],
-            onSelect: () => onOpenThread?.(message.id),
-          },
-        ]),
-    {
-      id: "react",
-      label: "Add a reaction…",
-      icon: "smile",
-      keys: ["R"],
-      onSelect: () => setPicking(true),
-    },
-    // Holding a message opens this menu rather than selecting its words.
-    ...(message.text ? [{ ...copyTextItem, icon: "fileText" as const }] : []),
-    copyItem,
-    ...forwardItems,
-    { id: "save", label: saveLabel, icon: "bookmark", keys: ["A"], onSelect: toggleSaved },
-    ...remindItems,
-    unreadItem,
-    ...muteItems,
-    ...pinItems,
-    ...(editable
-      ? [
-          {
-            id: "edit",
-            label: "Edit message",
-            icon: "edit" as const,
-            keys: ["E"],
-            onSelect: () => setEditing(true),
-          },
-        ]
-      : []),
-    ...reportItems,
-    ...deleteItems.map((item) => ({ ...item, section: undefined })),
-  ];
-  // A touchscreen has no keys to name.
-  const menuItems: MenuItem[] = touchItems.map(({ keys: _keys, ...item }) => item);
-  /**
-   * One key for each common action while the message itself has focus, as
-   * Slack has them: the list of messages is a Tab stop, and arrows move in it.
-   */
-  const messageKeys: Record<string, (() => void) | undefined> = {
-    e: editable ? () => setEditing(true) : undefined,
-    t: inThread ? undefined : () => onOpenThread?.(message.id),
-    q: canReply ? () => reply() : undefined,
-    r: () => setPicking(true),
-    a: toggleSaved,
-    u: markUnread,
-    p: pinItems.length ? togglePin : undefined,
-    f: forwarded ? () => setForwarding(forwarded) : undefined,
-    delete: canDelete && !deleting ? () => void deleteMessage() : undefined,
-    backspace: canDelete && !deleting ? () => void deleteMessage() : undefined,
-  };
-
-  /** What the toolbar keeps behind its last button: the less frequent half. */
-  const moreItems: MenuItem[] = [
-    copyItem,
-    ...forwardItems,
-    ...remindItems,
-    unreadItem,
-    ...muteItems,
-    ...pinItems,
-    ...reportItems,
-    ...deleteItems,
-  ];
 
   return (
     <div
@@ -528,36 +389,12 @@ const MessageRow = memo(function MessageRow({
       onKeyDown={(event) => {
         if (event.target !== event.currentTarget || event.defaultPrevented || editing) return;
         if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
-        const run = messageKeys[event.key.toLowerCase()];
+        const run = keyAction(event.key, actions);
         if (!run) return;
         event.preventDefault();
-        run();
+        run.run(actions, false);
       }}
-      // Holding a message opens its actions, as phones do everywhere else.
-      // A press on a control or a link stays that control's.
-      onTouchStart={(event) => {
-        cancelPress();
-        if (editing || event.touches.length !== 1 || !matchMedia("(hover: none)").matches) return;
-        if ((event.target as Element).closest("button, a, input, textarea, video, audio")) return;
-        const touch = event.touches[0]!;
-        press.current = {
-          x: touch.clientX,
-          y: touch.clientY,
-          timer: window.setTimeout(() => {
-            press.current = null;
-            navigator.vibrate?.(8);
-            setTouchMenu(true);
-          }, LONG_PRESS_MS),
-        };
-      }}
-      onTouchMove={(event) => {
-        const touch = event.touches[0];
-        if (!press.current || !touch) return;
-        if (Math.hypot(touch.clientX - press.current.x, touch.clientY - press.current.y) > 10)
-          cancelPress();
-      }}
-      onTouchEnd={cancelPress}
-      onTouchCancel={cancelPress}
+      {...hold}
       className={`message-row group relative py-0.5 pl-4 pr-12 transition-colors duration-75 hover:bg-ink/[0.03] ${
         compact ? "" : "mt-4"
       } ${moreOpen ? "bg-ink/[0.03]" : ""} ${
@@ -803,50 +640,29 @@ const MessageRow = memo(function MessageRow({
           {QUICK_REACTIONS.map((e) => (
             <ToolbarButton key={e} label={e} onClick={() => react(e)} />
           ))}
-          <ToolbarButton
-            label={<Icon name="smile" size={18} strokeWidth={2} />}
-            title="Add a reaction"
-            keys="R"
-            onClick={() => setPicking(true)}
-          />
-          <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-edge" />
-          {canReply && (
-            <ToolbarButton
-              label={<Icon name="reply" size={18} strokeWidth={2} />}
-              title="Reply"
-              keys="Q"
-              onClick={(event) => reply(!event.shiftKey)}
-            />
-          )}
-          {!inThread && (
-            <ToolbarButton
-              label={<Icon name="thread" size={18} strokeWidth={2} />}
-              title="Reply in thread"
-              keys="T"
-              onClick={() => onOpenThread?.(message.id)}
-            />
-          )}
-          <ToolbarButton
-            label={<Icon name="bookmark" size={18} strokeWidth={2} />}
-            title={saveLabel}
-            keys="A"
-            active={isSaved}
-            onClick={toggleSaved}
-          />
-          {editable && (
-            <ToolbarButton
-              label={<Icon name="edit" size={18} strokeWidth={2} />}
-              title="Edit message"
-              keys="E"
-              onClick={() => setEditing(true)}
-            />
-          )}
+          {TOOLBAR.map(messageAction)
+            .filter((a) => a.available(actions))
+            .map((a, i) => (
+              <Fragment key={a.id}>
+                <ToolbarButton
+                  label={<Icon name={actionIcon(a, actions)} size={18} strokeWidth={2} />}
+                  title={a.title ?? actionLabel(a, actions)}
+                  keys={a.key}
+                  active={a.id === "save" && isSaved}
+                  onClick={(event) => a.run(actions, event.shiftKey)}
+                />
+                {/* The reactions, then a line, then the rest. */}
+                {i === 0 && (
+                  <span aria-hidden="true" className="mx-0.5 h-4 w-px shrink-0 bg-edge" />
+                )}
+              </Fragment>
+            ))}
           <Menu
             label="More actions"
             triggerLabel="More actions"
             triggerContent={<Icon name="dots" size={18} strokeWidth={2} />}
             tooltip="More actions"
-            items={moreItems}
+            items={moreItems(actions)}
             // Wide enough that "Mark unread from this message" stays on one line.
             width={272}
             onOpenChange={setMoreOpen}
@@ -860,7 +676,7 @@ const MessageRow = memo(function MessageRow({
         <div className="message-more absolute right-1 top-0.5">
           <Menu
             label={`Actions for message from ${author?.displayName ?? "unknown"}`}
-            items={menuItems}
+            items={touchItems(actions)}
             open={touchMenu}
             onOpenChange={setTouchMenu}
             sheet

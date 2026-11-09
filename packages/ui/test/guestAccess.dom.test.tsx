@@ -8,6 +8,7 @@ import { Composer } from "../src/components/Composer.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { JoinScreen } from "../src/screens/JoinScreen.js";
 import type { Platform } from "../src/platform.js";
+import { renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -158,29 +159,9 @@ describe("a guest in the workspace", () => {
 
   const noop = () => {};
   const sidebar = (client: WorkspaceClient, onCreateAccount = vi.fn()) =>
-    render(
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId={general.id}
-          onSelect={noop}
-          onBrowseChannels={noop}
-          onNewChannel={noop}
-          onNewDm={noop}
-          onFriends={noop}
-          onSearch={noop}
-          onSaved={noop}
-          onScheduled={noop}
-          onActivity={noop}
-          onThreads={noop}
-          onInvite={noop}
-          onSwitchWorkspace={noop}
-          onEditProfile={noop}
-          onAccountSettings={noop}
-          onCreateAccount={onCreateAccount}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>,
-    );
+    renderPart(client, <Sidebar />, { channelId: general.id }).navigation.store.subscribe((s) => {
+      if (s.dialog.kind === "guest-account") onCreateAccount();
+    });
 
   it("is offered public channels, and creating an account, rather than what it cannot do", async () => {
     const user = userEvent.setup();

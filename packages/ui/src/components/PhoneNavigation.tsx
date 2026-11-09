@@ -1,5 +1,5 @@
 import { useId, type ReactNode } from "react";
-import { isDirect, isRoom, type ID } from "@ownbase/protocol";
+import { isDirect, isRoom } from "@ownbase/protocol";
 import { isSnoozed, mentionsElsewhere, waitsForAttention } from "@ownbase/client-core";
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { useWorkspace } from "../context.js";
@@ -10,6 +10,7 @@ import { AvatarWithPresence } from "./Avatar.js";
 import { Badge } from "./Badge.js";
 import { Icon, type IconName } from "./Icon.js";
 import { hasOpenModal } from "./Modal.js";
+import { useNavigation, useNavigationState } from "../lib/navigation.js";
 import { AccountMenu } from "./Sidebar.js";
 
 /**
@@ -21,17 +22,6 @@ export const PHONE_QUERY = "(max-width: 760px)";
 /** theme.css's drawer query, where a swipe from the edge opens the sidebar. */
 const DRAWER_QUERY = "(max-width: 760px), (max-height: 480px)";
 
-/** What the account menu does, as the sidebar's own menu is given it. */
-export interface AccountActions {
-  onCreateAccount?: () => void;
-  onEditProfile: () => void;
-  onAccountSettings: () => void;
-  onScheduled?: () => void;
-  onShortcuts?: () => void;
-  onDiagnostics?: () => void;
-  onSignOut?: () => void;
-}
-
 /**
  * What a phone adds to the workspace (UX-70, UX-71): a bar along the bottom
  * with Home, DMs, Activity and You, so the places people look for most are in
@@ -40,28 +30,18 @@ export interface AccountActions {
  * clear of the on-screen keyboard. The web client only: the desktop app's
  * window is never a phone.
  */
-export function PhoneNavigation(props: {
-  activeChannelId: ID | null;
-  /** The side panel open now; Activity's and the DMs' mark their place in the bar. */
-  openPanel: string;
-  drawerOpen: boolean;
-  onOpenDrawer: () => void;
-  onCloseDrawer: () => void;
-  /** Closes whatever covers the conversation, back to it. */
-  onConversation: () => void;
-  onDirectMessages: () => void;
-  onActivity: () => void;
-  account: AccountActions;
-}) {
+export function PhoneNavigation() {
+  const nav = useNavigation();
+  const drawerOpen = useNavigationState((s) => s.drawer);
   useOnScreenKeyboard();
   useEdgeSwipe({
-    open: props.drawerOpen,
+    open: drawerOpen,
     enabled: () =>
       typeof window.matchMedia === "function" &&
       window.matchMedia(DRAWER_QUERY).matches &&
       !hasOpenModal(),
-    onOpen: props.onOpenDrawer,
-    onClose: props.onCloseDrawer,
+    onOpen: () => nav.navigate({ to: "drawer" }),
+    onClose: () => nav.closeDrawer(),
   });
   const phone = useMediaQuery(PHONE_QUERY);
   const drawerLayout = useMediaQuery(DRAWER_QUERY);
@@ -71,12 +51,12 @@ export function PhoneNavigation(props: {
       {/* The sidebar's heading, the workspace's name, is hidden with the
           closed drawer; it stays the page's heading, in its banner, for a
           screen reader. */}
-      {drawerLayout && !props.drawerOpen && workspaceName && (
+      {drawerLayout && !drawerOpen && workspaceName && (
         <header className="sr-only">
           <h1>{workspaceName}</h1>
         </header>
       )}
-      {phone && <BottomBar {...props} />}
+      {phone && <BottomBar />}
     </>
   );
 }
@@ -85,8 +65,11 @@ export function PhoneNavigation(props: {
 const ITEM =
   "group/item flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium leading-4";
 
-function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
-  const { activeChannelId } = props;
+function BottomBar() {
+  const nav = useNavigation();
+  const activeChannelId = useNavigationState((s) => s.channelId);
+  const openPanel = useNavigationState((s) => s.panel.kind);
+  const drawerOpen = useNavigationState((s) => s.drawer);
   const guest = useWorkspace((s) => s.self?.role === "guest");
   const self = useWorkspace((s) => s.self);
   const snoozed = isSnoozed(useWorkspace((s) => s.self?.dndUntil));
@@ -112,14 +95,13 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
   ]
     .filter(Boolean)
     .join(", ");
-  const here =
-    props.openPanel === "activity" ? "activity" : props.openPanel === "dms" ? "dms" : "home";
+  const here = openPanel === "activity" ? "activity" : openPanel === "dms" ? "dms" : "home";
 
   return (
     <nav
       aria-label="Main navigation"
       // Under the open drawer, which covers it, and dims it.
-      inert={props.drawerOpen}
+      inert={drawerOpen}
       className="bottom-bar"
     >
       <ul className="flex h-14 items-stretch gap-1 px-1">
@@ -128,7 +110,7 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
           label="Home"
           current={here === "home"}
           // Back to the conversation; from there, the list of every conversation.
-          onClick={here === "home" ? props.onOpenDrawer : props.onConversation}
+          onClick={() => (here === "home" ? nav.navigate({ to: "drawer" }) : nav.closePanel())}
           dot={unreadRooms}
           waiting={unreadRooms ? "Unread messages in channels" : undefined}
         />
@@ -137,7 +119,7 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
             icon="messages"
             label="DMs"
             current={here === "dms"}
-            onClick={props.onDirectMessages}
+            onClick={() => nav.navigate({ to: "panel", panel: { kind: "dms" } })}
             count={unreadDms}
             waiting={
               unreadDms > 0
@@ -150,7 +132,7 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
           icon="activity"
           label="Activity"
           current={here === "activity"}
-          onClick={props.onActivity}
+          onClick={() => nav.navigate({ to: "panel", panel: { kind: "activity" } })}
           count={mentions + dueReminders + removals}
           dot={mentions + dueReminders + removals === 0 && unreadReplies}
           waiting={
@@ -160,10 +142,6 @@ function BottomBar(props: Parameters<typeof PhoneNavigation>[0]) {
         />
         <li className="flex min-w-0 flex-1">
           <AccountMenu
-            guest={guest}
-            snoozed={snoozed}
-            {...props.account}
-            onScheduled={guest ? undefined : props.account.onScheduled}
             trigger={{
               label: "You",
               className: `${ITEM} text-ink-faint aria-expanded:text-ink`,

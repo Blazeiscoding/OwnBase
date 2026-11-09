@@ -7,6 +7,7 @@ import { ClientContext } from "../src/context.js";
 import { Sidebar } from "../src/components/Sidebar.js";
 import { ConversationMenu } from "../src/components/ConversationHeader.js";
 import { ToastProvider } from "../src/components/Toast.js";
+import { AppNotices, renderPart } from "./workspaceParts.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -95,29 +96,7 @@ function workspace(options: { prefs?: Record<string, ChannelPrefs> } = {}) {
 }
 
 function renderSidebar(client: WorkspaceClient, activeChannelId: string | null = general.id) {
-  render(
-    <ToastProvider>
-      <ClientContext.Provider value={client}>
-        <Sidebar
-          activeChannelId={activeChannelId}
-          onSelect={vi.fn()}
-          onBrowseChannels={vi.fn()}
-          onNewChannel={vi.fn()}
-          onNewDm={vi.fn()}
-          onFriends={vi.fn()}
-          onSearch={vi.fn()}
-          onSaved={vi.fn()}
-          onActivity={vi.fn()}
-          onThreads={vi.fn()}
-          onEditProfile={vi.fn()}
-          onInvite={vi.fn()}
-          onSwitchWorkspace={vi.fn()}
-          onAccountSettings={vi.fn()}
-          connectionLabel={null}
-        />
-      </ClientContext.Provider>
-    </ToastProvider>,
-  );
+  renderPart(client, <Sidebar />, { channelId: activeChannelId });
 }
 
 const nav = () => screen.getByRole("navigation", { name: "Workspace navigation" });
@@ -151,7 +130,13 @@ describe("starring from a row's More menu", () => {
       within(menu)
         .getAllByRole("menuitem")
         .map((item) => item.textContent),
-    ).toEqual(["Invite people", "Star channel", "New section…", "Mute channel"]);
+    ).toEqual([
+      "Invite people",
+      "Channel settings",
+      "Star channel",
+      "New section…",
+      "Mute channel",
+    ]);
     expect(await accessibilityProblems(menu)).toEqual([]);
     await user.click(within(menu).getByRole("menuitem", { name: "Star channel" }));
 
@@ -191,7 +176,7 @@ describe("starring from a row's More menu", () => {
     );
     await user.keyboard("{Enter}");
     expect(screen.getByRole("menuitem", { name: "Invite people" })).toHaveFocus();
-    await user.keyboard("{ArrowDown}");
+    await user.keyboard("{ArrowDown}{ArrowDown}");
     expect(screen.getByRole("menuitem", { name: "Star channel" })).toHaveFocus();
     await user.keyboard("{Enter}");
     expect(section("Starred")).toEqual(["zeta"]);
@@ -237,7 +222,7 @@ describe("starring from a row's More menu", () => {
     );
     await waitFor(() => expect(section("Starred")).toBeNull());
     expect(section("Channels")).toEqual(["design", "general", "zeta"]);
-    const alert = await screen.findByText("Could not star that channel.");
+    const alert = await screen.findByText(/^Could not star that channel./);
     await user.click(
       within(alert.closest("[role=alert], [role=status]") ?? document.body).getByRole("button", {
         name: "Try again",
@@ -348,15 +333,17 @@ describe("Mute in a row's More menu", () => {
 describe("the conversation's ⋯ menu", () => {
   function menu(client: WorkspaceClient, channelId: string, isRoom: boolean) {
     render(
-      <ClientContext.Provider value={client}>
-        <ConversationMenu
-          channelId={channelId}
-          isRoom={isRoom}
-          onPins={vi.fn()}
-          onNotifications={vi.fn()}
-          onDetails={vi.fn()}
-        />
-      </ClientContext.Provider>,
+      <AppNotices>
+        <ClientContext.Provider value={client}>
+          <ConversationMenu
+            channelId={channelId}
+            isRoom={isRoom}
+            onPins={vi.fn()}
+            onNotifications={vi.fn()}
+            onDetails={vi.fn()}
+          />
+        </ClientContext.Provider>
+      </AppNotices>,
     );
   }
   const items = () => screen.getAllByRole("menuitem").map((item) => item.textContent);

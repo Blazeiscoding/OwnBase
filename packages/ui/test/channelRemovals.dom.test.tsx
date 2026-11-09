@@ -11,6 +11,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * Removed from a channel by someone else: a note in Activity's All, among the
@@ -278,12 +279,14 @@ describe("Activity's badge", () => {
         <ToastProvider>
           <ConfirmProvider>
             <ClientContext.Provider value={setup.client}>
-              <WorkspaceScreen
-                client={setup.client}
-                platform={platform}
-                onLeaveWorkspace={() => {}}
-                onSignedOut={() => {}}
-              />
+              <AppNotices>
+                <WorkspaceScreen
+                  client={setup.client}
+                  platform={platform}
+                  onLeaveWorkspace={() => {}}
+                  onSignedOut={() => {}}
+                />
+              </AppNotices>
             </ClientContext.Provider>
           </ConfirmProvider>
         </ToastProvider>

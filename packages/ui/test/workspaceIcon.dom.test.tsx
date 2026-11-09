@@ -29,6 +29,7 @@ import {
 import type { HostedWorkspaces, HostingStatus, Platform } from "../src/platform.js";
 import { hostingStub } from "./hostingStub.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * The workspace's icon (UX-60): one part that shows it or the coloured
@@ -295,12 +296,14 @@ async function workspaceAs(
     <PlatformContext.Provider value={platform}>
       <ClientContext.Provider value={workspace}>
         <ConfirmProvider>
-          <WorkspaceScreen
-            client={workspace}
-            platform={platform}
-            onLeaveWorkspace={() => {}}
-            onSignedOut={() => {}}
-          />
+          <AppNotices>
+            <WorkspaceScreen
+              client={workspace}
+              platform={platform}
+              onLeaveWorkspace={() => {}}
+              onSignedOut={() => {}}
+            />
+          </AppNotices>
         </ConfirmProvider>
       </ClientContext.Provider>
     </PlatformContext.Provider>,

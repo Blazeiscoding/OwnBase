@@ -11,6 +11,7 @@ import { WorkspaceScreen } from "../src/screens/WorkspaceScreen.js";
 import { writeRoute } from "../src/lib/route.js";
 import type { Platform } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { AppNotices } from "./workspaceParts.js";
 
 /**
  * Workspace settings (UX-60): the workspace's name and who may join, for its
@@ -113,12 +114,14 @@ async function workspaceAs(role: User["role"]) {
       <ClientContext.Provider value={workspace}>
         <ToastProvider>
           <ConfirmProvider>
-            <WorkspaceScreen
-              client={workspace}
-              platform={platform}
-              onLeaveWorkspace={() => {}}
-              onSignedOut={() => {}}
-            />
+            <AppNotices>
+              <WorkspaceScreen
+                client={workspace}
+                platform={platform}
+                onLeaveWorkspace={() => {}}
+                onSignedOut={() => {}}
+              />
+            </AppNotices>
           </ConfirmProvider>
         </ToastProvider>
       </ClientContext.Provider>
