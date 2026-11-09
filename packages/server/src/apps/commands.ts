@@ -25,13 +25,11 @@ export interface BuiltinCommand {
   inApp?: string;
 }
 
-/** What it must look like on screen. */
-const SHRUG_ART = "¯\\_(ツ)_/¯";
 /**
  * Stored pre-escaped, so mrkdwn leaves the arms alone. Computed rather than
  * written out: counting backslashes by hand is how this gets broken.
  */
-const SHRUG = escapeMrkdwn(SHRUG_ART);
+const SHRUG = escapeMrkdwn("¯\\_(ツ)_/¯");
 
 export const BUILTIN_COMMANDS = new Map<string, BuiltinCommand>([
   [
@@ -225,28 +223,22 @@ export function registerCommands(
         }),
       }).toString();
 
+      let why: string;
       try {
         const res = await calls.postForm(found.app.id, found.command.url, form);
-        // Why it failed goes in the answer as well as to the channel: a test
-        // from Apps and integrations is drawn over the conversation the note
-        // lands in.
-        if (res.status < 200 || res.status >= 300) {
-          const why = `the app answered ${res.status}`;
-          calls.sayEphemeral(
-            channel.id,
-            me.id,
-            found.app.botUserId,
-            `\`/${name}\` failed: ${why}.`,
-          );
-          return { ok: false, error: "command_failed", message: why };
+        if (res.status >= 200 && res.status < 300) {
+          replies.deliverReply(target, res.body, res.contentType);
+          return { ok: true };
         }
-        replies.deliverReply(target, res.body, res.contentType);
-        return { ok: true };
+        why = `the app answered ${res.status}`;
       } catch (err) {
-        const why = calls.whyFailed(err);
-        calls.sayEphemeral(channel.id, me.id, found.app.botUserId, `\`/${name}\` failed: ${why}.`);
-        return { ok: false, error: "command_failed", message: why };
+        why = calls.whyFailed(err);
       }
+      // Why it failed goes in the answer as well as to the channel: a test
+      // from Apps and integrations is drawn over the conversation the note
+      // lands in.
+      calls.sayEphemeral(channel.id, me.id, found.app.botUserId, `\`/${name}\` failed: ${why}.`);
+      return { ok: false, error: "command_failed", message: why };
     } finally {
       release();
     }

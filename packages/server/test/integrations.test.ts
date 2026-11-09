@@ -272,7 +272,6 @@ describe("slash commands", () => {
     });
     expect(res.status).toBe(200);
     const messages = server.store.messages.list({ channelId, limit: 1 });
-    // Stored pre-escaped for the renderer; the UI test pins how it displays.
     // Stored escaped for the renderer; the ui package pins how that displays.
     expect(messages[0]!.text).toBe(`well then ${escapeMrkdwn("¯\\_(ツ)_/¯")}`);
     expect(messages[0]!.userId).toBe(alice.id);

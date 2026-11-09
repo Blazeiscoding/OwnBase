@@ -1,5 +1,6 @@
 import { endpoints, type ID, type Message } from "@ownbase/protocol";
 import { hashToken } from "../auth.js";
+import { CapabilityMap } from "../core/capabilities.js";
 import { requireChannelAccess, type ServerContext } from "../core/context.js";
 import type { registerFiles } from "../files/feature.js";
 import { HttpError } from "../httpError.js";
@@ -9,7 +10,6 @@ import type { registerMessages } from "../messages/feature.js";
 import { requireMessageText, slackRefusal } from "../messages/posting.js";
 import { blocksToActions, payloadToText } from "./blockKit.js";
 import type { AppCalls } from "./calls.js";
-import { CapabilityMap } from "../core/capabilities.js";
 import type { NewTrigger } from "./views.js";
 
 /**
@@ -38,6 +38,9 @@ export interface ResponseTarget {
 
 export type ReplyTarget = Omit<ResponseTarget, "expiresAt" | "usesLeft">;
 
+const RESPONSE_URL_LIFE = 30 * 60_000;
+const RESPONSE_URL_USES = 5;
+
 /**
  * What an app answers with, now or later through a `response_url`, and the
  * buttons it put on its messages that people press.
@@ -65,7 +68,11 @@ export function registerAppReplies(
   const newResponseUrl = (target: ReplyTarget, origin: string): string => {
     const now = Date.now();
     const token = secretToken();
-    responseTargets.set(token, { ...target, expiresAt: now + 30 * 60_000, usesLeft: 5 }, now);
+    responseTargets.set(
+      token,
+      { ...target, expiresAt: now + RESPONSE_URL_LIFE, usesLeft: RESPONSE_URL_USES },
+      now,
+    );
     return `${origin}/api/commands/response/${token}`;
   };
 
@@ -206,7 +213,6 @@ export function registerAppReplies(
       );
       const payload = JSON.stringify({
         type: "block_actions",
-        // Slack sends this as a form field named payload; so do we below.
         team: { id: settings.get("workspaceId"), domain: settings.get("workspaceName") },
         user: { id: me.id, username: me.handle, name: me.displayName },
         api_app_id: owner.id,
@@ -232,26 +238,22 @@ export function registerAppReplies(
           },
         ],
       });
+      // Slack sends the JSON as a form field named payload.
       const form = new URLSearchParams({ payload }).toString();
 
+      let why: string;
       try {
         const res = await calls.postForm(owner.id, owner.interactivityUrl, form);
-        if (res.status < 200 || res.status >= 300) {
-          calls.sayEphemeral(
-            channel.id,
-            me.id,
-            owner.botUserId,
-            `That button failed: the app answered ${res.status}.`,
-          );
-          return { ok: false, error: "action_failed" };
+        if (res.status >= 200 && res.status < 300) {
+          deliverReply(target, res.body, res.contentType, message.id);
+          return { ok: true };
         }
-        deliverReply(target, res.body, res.contentType, message.id);
-        return { ok: true };
+        why = `the app answered ${res.status}`;
       } catch (err) {
-        const why = calls.whyFailed(err);
-        calls.sayEphemeral(channel.id, me.id, owner.botUserId, `That button failed: ${why}.`);
-        return { ok: false, error: "action_failed" };
+        why = calls.whyFailed(err);
       }
+      calls.sayEphemeral(channel.id, me.id, owner.botUserId, `That button failed: ${why}.`);
+      return { ok: false, error: "action_failed" };
     } finally {
       release();
     }
