@@ -282,7 +282,7 @@ export function createPosting({
         forwardedFromId,
         call: input.call,
       });
-      if (input.poll) store.createPoll(created.id, input.poll);
+      if (input.poll) store.polls.create(created.id, input.poll);
       if (
         !store.attachFiles(
           input.fileIds,

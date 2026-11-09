@@ -145,6 +145,5 @@ export const messageEphemeral = {
   saved: "person",
   "thread.follow": "person",
   mentions: "person",
-  "poll.choices": "person",
   scheduled: "person",
 } as const satisfies Partial<EphemeralRegistry>;

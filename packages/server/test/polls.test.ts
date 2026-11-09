@@ -415,8 +415,8 @@ describe("deleting a poll", () => {
 
     expect((await vote(made.id, [1])).status).toBe(404);
     // Its rows go, not only its message.
-    expect(server!.store.pollRules(made.id)).toBeNull();
-    expect(server!.store.pollChoices(made.id, peer.id)).toEqual([]);
+    expect(server!.store.polls.rules(made.id)).toBeNull();
+    expect(server!.store.polls.choices(made.id, peer.id)).toEqual([]);
     const log = server!.store.eventsSince(0, owner.id)!;
     const copies = log.flatMap((e) =>
       (e.event.type === "message.created" || e.event.type === "message.updated") &&

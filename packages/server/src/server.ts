@@ -25,6 +25,7 @@ import {
   type ReportedMessage,
   type ScheduledMessage,
   type ServerInfo,
+  type ServerNotice,
   type User,
   type WorkspaceStatus,
 } from "@ownbase/protocol";
@@ -85,6 +86,7 @@ import { advertise, type MdnsHandle } from "./mdns.js";
 import { createPosting, requireMessageText, slackRefusal } from "./messages/posting.js";
 import { OutboundError, postToUrl } from "./outbound.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
+import { registerPolls } from "./polls/feature.js";
 import { createRelaySource, serverRelaySchema, withRelay, type ServerRelay } from "./relay.js";
 import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
@@ -703,19 +705,6 @@ async function startWorkspaceServer(
 
   const gateway = new Gateway(
     store,
-    {
-      name: workspaceName,
-      accessPolicy,
-      iconVersion: () => icon?.version ?? null,
-      linkPreviews: linkPreviewsOn,
-      workspaceId: () => settings.get("workspaceId"),
-      memberNotice: () => opts.memberNotice ?? null,
-      notices: () =>
-        extensions.flatMap((extension) => {
-          const notice = extension.notice?.();
-          return notice ? [notice] : [];
-        }),
-    },
     limiter,
     (req) => network.callerAddress(req),
     (err, where) =>
@@ -2499,43 +2488,7 @@ async function startWorkspaceServer(
     return { ok: true };
   });
 
-  // ---------- polls (E6) ----------
-
-  route(endpoints.votePoll, async ({ user: me, body, params }) => {
-    const msg = requireVisibleMessage(params.id, me);
-    const rules = store.pollRules(msg.id);
-    if (!rules) throw new HttpError(404, "poll_not_found", "That message is not a poll.");
-    if (store.getChannel(msg.channelId)?.archived) throw new HttpError(400, "channel_archived");
-    if (rules.closedAt !== null)
-      throw new HttpError(409, "poll_closed", "This poll is closed, so its votes are final.");
-    const { choices } = body;
-    const chosen = [...new Set(choices)];
-    if (chosen.some((c) => c >= rules.options))
-      throw new HttpError(400, "bad_choice", "That choice is not in this poll.");
-    if (!rules.multiple && chosen.length > 1)
-      throw new HttpError(400, "bad_choice", "This poll takes one choice.");
-    let message = msg;
-    mutate((emit) => {
-      if (!store.setPollChoices(msg.id, me.id, chosen)) return;
-      message = store.getMessage(msg.id)!;
-      emit({ type: "message.updated", message, pollOnly: true });
-    });
-    return { message, choices: store.pollChoices(msg.id, me.id) };
-  });
-
-  route(endpoints.closePoll, async ({ user: me, params }) => {
-    const msg = requireVisibleMessage(params.id, me);
-    if (!store.pollRules(msg.id))
-      throw new HttpError(404, "poll_not_found", "That message is not a poll.");
-    if (msg.userId !== me.id) throw new HttpError(403, "not_your_message");
-    let message = msg;
-    mutate((emit) => {
-      if (!store.closePoll(msg.id)) return;
-      message = store.getMessage(msg.id)!;
-      emit({ type: "message.updated", message, pollOnly: true });
-    });
-    return { message };
-  });
+  const polls = registerPolls(ctx);
 
   // ---------- apps, webhooks and the Slack-compatible API ----------
 
@@ -4746,6 +4699,41 @@ async function startWorkspaceServer(
   });
 
   const reminders = registerReminders(ctx);
+
+  gateway.useSnapshot((user) => ({
+    ...reminders.snapshot(user),
+    ...polls.snapshot(user),
+    users: store.listUsers(),
+    channels: store.listChannelsVisibleTo(user.id),
+    memberships: store.memberships(user.id),
+    channelLastSeq: store.channelLastSeqMap(user.id),
+    savedMessageIds: store.savedMessageIds(user.id),
+    threadFollows: store.threadFollows(user.id),
+    mentionCounts: store.unreadMentionCounts(user.id),
+    channelRemovals: store.channelRemovals(user.id),
+    sidebarSections: store.sidebarSections(user.id),
+    notifyDefault: store.notifyDefault(user.id),
+    accessPolicy: accessPolicy(),
+    iconVersion: icon?.version ?? null,
+    linkPreviews: linkPreviewsOn(),
+    workspaceName: workspaceName(),
+    workspaceId: settings.get("workspaceId"),
+    friends: store.listFriends(user.id),
+    blocked: store.blockedIds(user.id),
+    ...(isAdministrator(user.role) ? { openReports: store.openReportCount(), ...notices() } : {}),
+  }));
+  /** The plan's member notice and the extensions' notices for a snapshot, when there are any. */
+  const notices = (): { memberNotice?: MemberNotice; notices?: ServerNotice[] } => {
+    const notice = opts.memberNotice ?? null;
+    const told = extensions.flatMap((extension) => {
+      const said = extension.notice?.();
+      return said ? [said] : [];
+    });
+    return {
+      ...(notice ? { memberNotice: notice } : {}),
+      ...(told.length > 0 ? { notices: told } : {}),
+    };
+  };
 
   // ---------- extensions (P6) ----------
 

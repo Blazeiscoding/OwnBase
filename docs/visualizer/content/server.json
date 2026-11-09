@@ -1186,6 +1186,33 @@
       "summary": "The reminder and reminder.removed events, heard by the account's own devices.",
       "details": ["Spread into the event registry beside every other feature's events."],
       "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/polls/feature.ts",
+      "plain": "Lets people vote in a poll and lets its author close it.",
+      "summary": "Poll vote and close routes, and the anonymous choices part of the startup snapshot.",
+      "details": [
+        "A vote replaces the account's choices; a closed poll, an archived channel or a choice outside the poll is refused.",
+        "Both change the poll's message with a message.updated marked pollOnly, which apps are not told of."
+      ],
+      "concepts": ["polls", "feature module"]
+    },
+    {
+      "path": "packages/server/src/polls/store.ts",
+      "plain": "Saves polls and counts their votes.",
+      "summary": "PollStore: poll rules, choices, closing, and the polls of a page of messages with votes counted.",
+      "details": [
+        "ofMessages counts votes for every poll among the messages being sent, in one query, for message hydration.",
+        "anonymousChoices is the account's own choices in anonymous polls, which nobody else is told."
+      ],
+      "concepts": ["polls", "queries"]
+    },
+    {
+      "path": "packages/server/src/polls/events.ts",
+      "plain": "Says who hears about a person's own poll choices.",
+      "summary": "poll.choices, heard only by the account's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
     }
   ],
   "flows": [

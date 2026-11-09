@@ -6,6 +6,7 @@ import { channelDurable, channelEphemeral } from "../channels/events.js";
 import { huddleEphemeral } from "../huddles/events.js";
 import { messageDurable, messageEphemeral } from "../messages/events.js";
 import { peopleDurable, peopleEphemeral } from "../people/events.js";
+import { pollEphemeral } from "../polls/events.js";
 import { reminderEphemeral } from "../reminders/events.js";
 
 /**
@@ -68,6 +69,7 @@ export const EPHEMERAL_AUDIENCE = {
   ...huddleEphemeral,
   ...appsEphemeral,
   ...reminderEphemeral,
+  ...pollEphemeral,
 } as const satisfies EphemeralRegistry;
 
 type Audiences = typeof EPHEMERAL_AUDIENCE;
