@@ -11,6 +11,7 @@ import {
   type AccessPolicy,
 } from "./entities.js";
 import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
+import { idSchema } from "./socket.js";
 
 export const handleSchema = z
   .string()
@@ -123,7 +124,7 @@ export const channelPrefsBody = z.object({
   /** A server before schema v40 drops this unread; see `ReadySnapshot.stars`. */
   starred: z.boolean().optional(),
   /** The sidebar section to keep it in, or null for none (E8). */
-  sectionId: z.string().min(1).max(64).nullable().optional(),
+  sectionId: idSchema.nullable().optional(),
   /** Closes a direct conversation until something newer than this seq; null shows it (v52). */
   hiddenSeq: z.number().int().min(0).nullable().optional(),
 });
@@ -153,7 +154,7 @@ export const sidebarSectionNameSchema = z
 export const sidebarSectionBody = z.object({ name: sidebarSectionNameSchema });
 /** Every one of the account's sections, in the order to keep them. */
 export const sidebarSectionOrderBody = z.object({
-  ids: z.array(z.string().min(1).max(64)).max(SIDEBAR_SECTIONS_MAX),
+  ids: z.array(idSchema).max(SIDEBAR_SECTIONS_MAX),
 });
 
 export const savedMessagesQuery = z.object({
@@ -178,8 +179,8 @@ export const sharedFilesQuery = z.object({
     .regex(/^[A-Za-z0-9_-]{1,64}:[A-Za-z0-9_-]{1,64}$/)
     .optional(),
   kind: z.enum(FILE_KINDS).optional(),
-  userId: z.string().min(1).max(64).optional(),
-  channelId: z.string().min(1).max(64).optional(),
+  userId: idSchema.optional(),
+  channelId: idSchema.optional(),
   q: z.string().trim().max(200).optional(),
 });
 export const followedThreadsQuery = savedMessagesQuery.extend({
@@ -241,7 +242,7 @@ export const updateChannelBody = z.object({
 
 export const channelManagerBody = z.object({ manager: z.boolean() });
 
-export const inviteMemberBody = z.object({ userId: z.string().min(1).max(64) });
+export const inviteMemberBody = z.object({ userId: idSchema });
 
 /** A picture asked for by its version, which may then be kept for good. */
 export const workspaceIconQuery = z.object({ v: z.string().max(64).optional() });

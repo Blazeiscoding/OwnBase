@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import {
   PROTOCOL_VERSION,
   SOCKET_CLOSE,
+  clientMessage,
   isAdministrator,
   type SocketRefusal,
   type AccessPolicy,
@@ -20,7 +21,6 @@ import {
 import type { Store } from "./store.js";
 import { hashToken } from "./auth.js";
 import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
-import { socketMessage } from "./socketSchema.js";
 import { CallLog } from "./callLog.js";
 import type { RateLimiter } from "./limits.js";
 import { resolveClientAddress } from "./netTrust.js";
@@ -336,7 +336,7 @@ export class Gateway {
       if (this.closing || (client && !this.clients.has(client))) return;
       let msg: ClientToServer;
       try {
-        const parsed = socketMessage.safeParse(JSON.parse(String(data)));
+        const parsed = clientMessage.safeParse(JSON.parse(String(data)));
         if (!parsed.success) {
           ws.close(SOCKET_CLOSE.invalidMessage, "invalid message");
           return;
