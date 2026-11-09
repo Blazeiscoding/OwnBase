@@ -169,15 +169,15 @@ try {
   for (const [text, options] of queries) {
     const parsed = parseSearchQuery(text, { timeZone: "UTC" });
     let cursor: string | undefined;
-    if (options?.cursor) cursor = store.searchMessages(reader, parsed, 21).at(-1)?.id;
+    if (options?.cursor) cursor = store.search.search(reader, parsed, 21).at(-1)?.id;
     const opts = { cursor, channelId: options?.channelId };
-    const found = store.searchMessages(reader, parsed, 21, opts);
+    const found = store.search.search(reader, parsed, 21, opts);
     if (found.some((m) => m.channelId === "CSECRET"))
       throw new Error(`${text} returned a hidden channel's message`);
     const times: number[] = [];
     for (let i = 0; i < 5 + SAMPLES; i++) {
       const t = performance.now();
-      store.searchMessages(reader, parsed, 21, opts);
+      store.search.search(reader, parsed, 21, opts);
       if (i >= 5) times.push(performance.now() - t);
     }
     // What the page held, short enough to compare between revisions.

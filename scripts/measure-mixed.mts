@@ -188,7 +188,7 @@ try {
     people.push({ token, id: user.id });
   }
   const store = server.store;
-  const channels = [store.getChannelByName("general")!.id];
+  const channels = [store.channels.byName("general")!.id];
   for (const name of ["design", "engineering", "support"]) {
     const { channel } = await succeeded<{ channel: { id: string } }>(
       await post("/api/channels", people[0]!.token, { type: "public", name }),
@@ -196,7 +196,7 @@ try {
     channels.push(channel.id);
   }
   for (const channelId of channels)
-    for (const person of people) store.addMember(channelId, person.id);
+    for (const person of people) store.channels.addMember(channelId, person.id);
   const realNow = Date.now.bind(Date);
   /**
    * Writes a message as the server would have when `at` was now: the row,
@@ -206,7 +206,7 @@ try {
   const seedMessage = (at: number, channelId: string, text: string) => {
     Date.now = () => Math.floor(at);
     try {
-      const message = store.createMessage({
+      const message = store.messages.create({
         channelId,
         userId: pick(people).id,
         text,
@@ -214,7 +214,7 @@ try {
         nonce: null,
       });
       const envelope = store.appendEvent({ type: "message.created", message }, channelId);
-      store.stampMessageSeq(message.id, channelId, envelope.seq);
+      store.messages.stampSeq(message.id, channelId, envelope.seq);
       return message;
     } finally {
       Date.now = realNow;
@@ -230,7 +230,7 @@ try {
   }
   // The seeded history is coherent before anything is timed.
   const checkpoint = store.currentSeq();
-  const watermarks = Object.values(store.channelLastSeqMap(people[0]!.id));
+  const watermarks = Object.values(store.channels.lastSeqMap(people[0]!.id));
   if (watermarks.some((seq) => seq > checkpoint))
     throw new Error("fixture check: a channel's watermark runs past the event checkpoint");
   const page = await succeeded<{ messages: { seq?: number; createdAt: number }[] }>(
@@ -264,7 +264,7 @@ try {
         if (i % 10 === 0) {
           Date.now = () => at + i;
           try {
-            const file = store.createFile({
+            const file = store.files.create({
               channelId,
               userId: message.userId,
               name: `old-${i}.txt`,
@@ -274,7 +274,7 @@ try {
               height: null,
             });
             writeFileSync(join(filesDir, file.id), "bytes");
-            if (!store.attachFiles([file.id], message.id, channelId, message.userId))
+            if (!store.files.attach([file.id], message.id, channelId, message.userId))
               throw new Error("fixture: could not attach a seeded file");
             files.push(file.id);
           } finally {
@@ -497,8 +497,10 @@ try {
         await server!.flushFileDeletions();
         measures.maintenance.add(performance.now() - sent);
         load.expiredRemoved = removed;
-        const left = due.messages.filter((id) => store.getMessage(id));
-        const blobs = due.files.filter((id) => existsSync(join(filesDir, id)) || store.getFile(id));
+        const left = due.messages.filter((id) => store.messages.get(id));
+        const blobs = due.files.filter(
+          (id) => existsSync(join(filesDir, id)) || store.files.get(id),
+        );
         if (removed !== due.messages.length || left.length || blobs.length)
           throw new Error(
             `retention removed ${removed} of ${due.messages.length} expired messages; ${left.length} remain, ${blobs.length} files remain`,
