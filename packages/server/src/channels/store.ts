@@ -7,48 +7,75 @@ import type {
   NotifyLevel,
   SidebarSection,
 } from "@ownbase/protocol";
-import type { DatabaseSync } from "node:sqlite";
+import type { DatabaseSync, SQLInputValue } from "node:sqlite";
+import { oneOf, shape, type RowOf } from "../core/rows.js";
 import { GUEST_SQL, IN_CHANNEL_TIMELINE, NAMES_ME, NOT_BLOCKED, UNREAD } from "../core/sqlRules.js";
 import { ulid } from "../ids.js";
 import type { Store } from "../store.js";
 
-interface ChannelRow {
-  id: string;
-  type: string;
-  name: string;
-  topic: string;
-  description: string;
-  creator_id: string;
-  archived: number;
-  dm_key: string | null;
-  last_msg_seq: number;
-  created_at: number;
-}
+const NOTIFY_LEVELS = { all: true, mentions: true, nothing: true } satisfies Record<
+  NotifyLevel,
+  true
+>;
 
-/** A reminder's row beside its message's conversation and thread. */
-interface ChannelRemovalRow {
-  id: string;
-  user_id: string;
-  channel_id: string;
-  channel_name: string;
-  channel_type: "public" | "private";
-  removed_by: string;
-  created_at: number;
-}
+/** A `channels` row. */
+const channelRow = shape({
+  id: "text",
+  type: oneOf({ public: true, private: true, dm: true, group_dm: true } satisfies Record<
+    ChannelType,
+    true
+  >),
+  name: "text",
+  topic: "text",
+  description: "text",
+  creator_id: "text",
+  archived: "number",
+  created_at: "number",
+});
+type ChannelRow = RowOf<typeof channelRow.columns>;
+const channelIdRow = channelRow.pick("id");
+const lastSeqRow = shape({ id: "text", last_msg_seq: "number" });
+
+/** A `channel_removals` row: a note that someone was taken out of a room. */
+const removalRow = shape({
+  id: "text",
+  channel_id: "text",
+  channel_name: "text",
+  channel_type: oneOf({ public: true, private: true } satisfies Record<
+    ChannelRemoval["channelType"],
+    true
+  >),
+  removed_by: "text",
+  created_at: "number",
+});
 
 /** One member's own choices for a conversation, as `channel_members` keeps them. */
-type PrefsRow = {
-  notify_level: string;
-  notify_chosen: number;
-  muted: number;
-  starred: number;
-  section_id: string | null;
-  hidden_seq: number | null;
-};
+const prefsRow = shape({
+  notify_level: oneOf(NOTIFY_LEVELS),
+  notify_chosen: "number",
+  muted: "number",
+  starred: "number",
+  section_id: "text?",
+  hidden_seq: "number?",
+});
+const membershipRow = prefsRow.with({
+  channel_id: "text",
+  last_read_seq: "number",
+  replies_read_seq: "number",
+});
+const memberRow = shape({ channel_id: "text", user_id: "text" });
+const memberIdRow = memberRow.pick("user_id");
+const memberChannelRow = memberRow.pick("channel_id");
+const readSeqRow = shape({ last_read_seq: "number" });
+const perChannelRow = shape({ channel_id: "text", n: "number" });
+const notifyDefaultRow = shape({ notify_default: oneOf(NOTIFY_LEVELS) });
+const sectionRow = shape({ id: "text", name: "text" });
+const idRow = shape({ id: "text" });
+const replyRow = shape({ seq: "number", broadcast: "number" });
 
-function toPrefs(r: PrefsRow): ChannelPrefs {
+function toPrefs(r: RowOf<typeof prefsRow.columns>): ChannelPrefs {
   return {
-    notifyLevel: r.notify_level as NotifyLevel,
+    notifyLevel: r.notify_level,
     notifyChosen: r.notify_chosen === 1,
     muted: r.muted === 1,
     starred: r.starred === 1,
@@ -74,7 +101,7 @@ export class ChannelStore {
   ): Channel {
     const ch: Channel = {
       id: r.id,
-      type: r.type as ChannelType,
+      type: r.type,
       name: r.name,
       topic: r.topic,
       description: r.description,
@@ -87,13 +114,14 @@ export class ChannelStore {
     } else if (people) {
       ch.managerIds = people.managers.get(r.id) ?? [];
     } else {
-      ch.managerIds = (
-        this.db
-          .prepare(
+      ch.managerIds = memberIdRow
+        .all(
+          this.db.prepare(
             "SELECT user_id FROM channel_members WHERE channel_id = ? AND is_manager = 1 ORDER BY user_id",
-          )
-          .all(r.id) as { user_id: ID }[]
-      ).map((m) => m.user_id);
+          ),
+          r.id,
+        )
+        .map((m) => m.user_id);
     }
     return ch;
   }
@@ -131,21 +159,20 @@ export class ChannelStore {
   }
 
   get(id: ID): Channel | null {
-    const r = this.db.prepare("SELECT * FROM channels WHERE id = ?").get(id) as
-      ChannelRow | undefined;
+    const r = channelRow.get(this.db.prepare("SELECT * FROM channels WHERE id = ?"), id);
     return r ? this.toChannel(r) : null;
   }
 
   byName(name: string): Channel | null {
-    const r = this.db
-      .prepare("SELECT * FROM channels WHERE name = ? AND type IN ('public','private')")
-      .get(name) as ChannelRow | undefined;
+    const r = channelRow.get(
+      this.db.prepare("SELECT * FROM channels WHERE name = ? AND type IN ('public','private')"),
+      name,
+    );
     return r ? this.toChannel(r) : null;
   }
 
   findDmByKey(dmKey: string): Channel | null {
-    const r = this.db.prepare("SELECT * FROM channels WHERE dm_key = ?").get(dmKey) as
-      ChannelRow | undefined;
+    const r = channelRow.get(this.db.prepare("SELECT * FROM channels WHERE dm_key = ?"), dmKey);
     return r ? this.toChannel(r) : null;
   }
 
@@ -160,7 +187,7 @@ export class ChannelStore {
     patch: { name?: string; topic?: string; description?: string; archived?: boolean },
   ): Channel {
     const sets: string[] = [];
-    const params: unknown[] = [];
+    const params: SQLInputValue[] = [];
     if (patch.name !== undefined) {
       sets.push("name = ?");
       params.push(patch.name);
@@ -178,9 +205,7 @@ export class ChannelStore {
       params.push(patch.archived ? 1 : 0);
     }
     if (sets.length > 0) {
-      this.db
-        .prepare(`UPDATE channels SET ${sets.join(", ")} WHERE id = ?`)
-        .run(...(params as string[]), id);
+      this.db.prepare(`UPDATE channels SET ${sets.join(", ")} WHERE id = ?`).run(...params, id);
     }
     // Messages waiting for this channel to reopen can go at the next flush.
     if (patch.archived === false) this.store.scheduled.wakeHeld({ channelId: id });
@@ -189,14 +214,16 @@ export class ChannelStore {
 
   /** Public channels + non-public channels the user belongs to; a guest, public only. */
   visibleTo(userId: ID): Channel[] {
-    const rows = this.db
-      .prepare(
+    const rows = channelRow.all(
+      this.db.prepare(
         `SELECT DISTINCT c.* FROM channels c
          LEFT JOIN channel_members m ON m.channel_id = c.id AND m.user_id = ?
          WHERE c.type = 'public' OR (m.user_id IS NOT NULL AND NOT ${GUEST_SQL})
          ORDER BY c.name`,
-      )
-      .all(userId, userId) as unknown as ChannelRow[];
+      ),
+      userId,
+      userId,
+    );
     // Every handshake lists these, so who manages each channel and who is in
     // each conversation are read once for all of them (OPT-13).
     const group = (pairs: { channel_id: ID; user_id: ID }[]) => {
@@ -209,23 +236,24 @@ export class ChannelStore {
       return out;
     };
     const managers = group(
-      this.db
-        .prepare(
+      memberRow.all(
+        this.db.prepare(
           `SELECT channel_id, user_id FROM channel_members WHERE is_manager = 1
            ORDER BY channel_id, user_id`,
-        )
-        .all() as { channel_id: ID; user_id: ID }[],
+        ),
+      ),
     );
     const members = group(
-      this.db
-        .prepare(
+      memberRow.all(
+        this.db.prepare(
           `SELECT m.channel_id, m.user_id FROM channel_members mine
            JOIN channels c ON c.id = mine.channel_id AND c.type IN ('dm', 'group_dm')
            JOIN channel_members m ON m.channel_id = mine.channel_id
            WHERE mine.user_id = ?
            ORDER BY m.channel_id, m.user_id`,
-        )
-        .all(userId) as { channel_id: ID; user_id: ID }[],
+        ),
+        userId,
+      ),
     );
     return rows.map((r) => this.toChannel(r, { managers, members }));
   }
@@ -235,8 +263,8 @@ export class ChannelStore {
    * account can see, for the channel browser to say how big each one is.
    */
   roomMemberCounts(userId: ID): Record<ID, number> {
-    const rows = this.db
-      .prepare(
+    const rows = perChannelRow.all(
+      this.db.prepare(
         `SELECT c.id AS channel_id, COUNT(u.id) AS n FROM channels c
          JOIN channel_members m ON m.channel_id = c.id
          JOIN users u ON u.id = m.user_id AND u.deactivated = 0
@@ -244,16 +272,17 @@ export class ChannelStore {
            SELECT 1 FROM channel_members mine
            WHERE mine.channel_id = c.id AND mine.user_id = ?) AND NOT ${GUEST_SQL})
          GROUP BY c.id`,
-      )
-      .all(userId, userId) as { channel_id: ID; n: number }[];
-    return Object.fromEntries(rows.map((r) => [r.channel_id, Number(r.n)]));
+      ),
+      userId,
+      userId,
+    );
+    return Object.fromEntries(rows.map((r) => [r.channel_id, r.n]));
   }
 
   publicIds(): ID[] {
-    const rows = this.db.prepare("SELECT id FROM channels WHERE type = 'public'").all() as {
-      id: string;
-    }[];
-    return rows.map((r) => r.id);
+    return channelIdRow
+      .all(this.db.prepare("SELECT id FROM channels WHERE type = 'public'"))
+      .map((r) => r.id);
   }
 
   addMember(channelId: ID, userId: ID, notifyLevel: NotifyLevel = "mentions"): boolean {
@@ -311,10 +340,9 @@ export class ChannelStore {
   }
 
   memberIds(channelId: ID): ID[] {
-    const rows = this.db
-      .prepare("SELECT user_id FROM channel_members WHERE channel_id = ?")
-      .all(channelId) as { user_id: string }[];
-    return rows.map((r) => r.user_id);
+    return memberIdRow
+      .all(this.db.prepare("SELECT user_id FROM channel_members WHERE channel_id = ?"), channelId)
+      .map((r) => r.user_id);
   }
 
   memberships(userId: ID): {
@@ -323,17 +351,14 @@ export class ChannelStore {
     repliesReadSeq: number;
     prefs: ChannelPrefs;
   }[] {
-    const rows = this.db
-      .prepare(
+    const rows = membershipRow.all(
+      this.db.prepare(
         `SELECT channel_id, last_read_seq, replies_read_seq, notify_level, notify_chosen, muted,
                 starred, section_id, hidden_seq
          FROM channel_members WHERE user_id = ?`,
-      )
-      .all(userId) as ({
-      channel_id: string;
-      last_read_seq: number;
-      replies_read_seq: number;
-    } & PrefsRow)[];
+      ),
+      userId,
+    );
     return rows.map((r) => ({
       channelId: r.channel_id,
       lastReadSeq: r.last_read_seq,
@@ -343,12 +368,14 @@ export class ChannelStore {
   }
 
   prefs(channelId: ID, userId: ID): ChannelPrefs | null {
-    const r = this.db
-      .prepare(
+    const r = prefsRow.get(
+      this.db.prepare(
         `SELECT notify_level, notify_chosen, muted, starred, section_id, hidden_seq
          FROM channel_members WHERE channel_id = ? AND user_id = ?`,
-      )
-      .get(channelId, userId) as PrefsRow | undefined;
+      ),
+      channelId,
+      userId,
+    );
     return r ? toPrefs(r) : null;
   }
 
@@ -423,9 +450,10 @@ export class ChannelStore {
 
   /** What this account's conversations notify about unless one is set on its own (v53). */
   notifyDefault(userId: ID): NotifyLevel {
-    const row = this.db.prepare("SELECT notify_default FROM users WHERE id = ?").get(userId) as
-      { notify_default: string } | undefined;
-    return (row?.notify_default as NotifyLevel | undefined) ?? "mentions";
+    return (
+      notifyDefaultRow.get(this.db.prepare("SELECT notify_default FROM users WHERE id = ?"), userId)
+        ?.notify_default ?? "mentions"
+    );
   }
 
   setNotifyDefault(userId: ID, level: NotifyLevel): void {
@@ -459,11 +487,12 @@ export class ChannelStore {
 
   /** One account's sidebar sections, in its order. */
   sections(userId: ID): SidebarSection[] {
-    return this.db
-      .prepare(
+    return sectionRow.all(
+      this.db.prepare(
         "SELECT id, name FROM sidebar_sections WHERE user_id = ? ORDER BY position, created_at, id",
-      )
-      .all(userId) as unknown as SidebarSection[];
+      ),
+      userId,
+    );
   }
 
   /** Whether this section is one of this account's own. */
@@ -513,12 +542,14 @@ export class ChannelStore {
       .prepare("DELETE FROM sidebar_sections WHERE id = ? AND user_id = ?")
       .run(sectionId, userId);
     if (gone.changes === 0) return null;
-    const freed = this.db
-      .prepare(
+    const freed = memberChannelRow.all(
+      this.db.prepare(
         `UPDATE channel_members SET section_id = NULL WHERE user_id = ? AND section_id = ?
          RETURNING channel_id`,
-      )
-      .all(userId, sectionId) as { channel_id: string }[];
+      ),
+      userId,
+      sectionId,
+    );
     for (const row of freed) this.tellPrefs(row.channel_id, userId);
     this.tellSections(userId);
     return freed.map((row) => row.channel_id);
@@ -546,23 +577,29 @@ export class ChannelStore {
    */
   markRead(channelId: ID, userId: ID, seq: number): { seq: number; threads: ID[] } {
     return this.store.outbox.hold(() => {
-      const before = this.db
-        .prepare("SELECT last_read_seq FROM channel_members WHERE channel_id = ? AND user_id = ?")
-        .get(channelId, userId) as { last_read_seq: number } | undefined;
-      const row = this.db
-        .prepare(
+      const before = readSeqRow.get(
+        this.db.prepare(
+          "SELECT last_read_seq FROM channel_members WHERE channel_id = ? AND user_id = ?",
+        ),
+        channelId,
+        userId,
+      );
+      const row = readSeqRow.get(
+        this.db.prepare(
           "UPDATE channel_members SET last_read_seq = MAX(last_read_seq, ?) WHERE channel_id = ? AND user_id = ? RETURNING last_read_seq",
-        )
-        .get(Math.min(seq, this.store.currentSeq()), channelId, userId) as
-        { last_read_seq: number } | undefined;
+        ),
+        Math.min(seq, this.store.currentSeq()),
+        channelId,
+        userId,
+      );
       const after = row?.last_read_seq ?? 0;
       this.store.outbox.person(userId, { type: "channel.read", channelId, seq: after });
       this.store.outbox.mentions([userId]);
       if (!before || after <= before.last_read_seq) return { seq: after, threads: [] };
       // Threads with a copy this read passes, and threads marked unread that it
       // reads past where the channel stood: their held copies are read now.
-      const roots = this.db
-        .prepare(
+      const roots = idRow.all(
+        this.db.prepare(
           `SELECT thread_root_id AS id FROM messages
            WHERE channel_id = ? AND broadcast = 1 AND thread_root_id IS NOT NULL
              AND deleted_at IS NULL AND seq > ? AND seq <= ?
@@ -570,8 +607,14 @@ export class ChannelStore {
            SELECT f.root_id FROM thread_follows f JOIN messages root ON root.id = f.root_id
            WHERE f.user_id = ? AND root.channel_id = ?
              AND f.unread_hold IS NOT NULL AND f.unread_hold < ?`,
-        )
-        .all(channelId, before.last_read_seq, after, userId, channelId, after) as { id: string }[];
+        ),
+        channelId,
+        before.last_read_seq,
+        after,
+        userId,
+        channelId,
+        after,
+      );
       const threads = roots.filter(({ id }) => this.readChannelCopies(userId, id, after));
       // Replies also sent to the channel were read there, and so in their threads.
       for (const { id } of threads) this.store.threads.tellFollow(userId, id);
@@ -587,12 +630,14 @@ export class ChannelStore {
     const current = this.store.threads.follow(userId, rootId);
     if (!current || (current.unreadHold !== undefined && channelRead <= current.unreadHold))
       return false;
-    const replies = this.db
-      .prepare(
+    const replies = replyRow.all(
+      this.db.prepare(
         `SELECT seq, broadcast FROM messages
          WHERE thread_root_id = ? AND deleted_at IS NULL AND seq > ? ORDER BY seq`,
-      )
-      .all(rootId, current.lastReadSeq) as { seq: number; broadcast: number }[];
+      ),
+      rootId,
+      current.lastReadSeq,
+    );
     let read = current.lastReadSeq;
     for (const reply of replies) {
       if (reply.broadcast !== 1 || reply.seq > channelRead) break;
@@ -628,12 +673,15 @@ export class ChannelStore {
       )
       .get(channelId, seq);
     if (!target) return null;
-    const row = this.db
-      .prepare(
+    const row = readSeqRow.get(
+      this.db.prepare(
         `UPDATE channel_members SET last_read_seq = ? WHERE channel_id = ? AND user_id = ?
          RETURNING last_read_seq`,
-      )
-      .get(Math.max(0, seq - 1), channelId, userId) as { last_read_seq: number } | undefined;
+      ),
+      Math.max(0, seq - 1),
+      channelId,
+      userId,
+    );
     const now = row?.last_read_seq ?? 0;
     this.store.outbox.person(userId, { type: "channel.unread", channelId, seq: now });
     this.store.outbox.mentions([userId]);
@@ -641,20 +689,24 @@ export class ChannelStore {
   }
 
   lastMessageSeq(channelId: ID): number {
-    const row = this.db.prepare("SELECT last_msg_seq FROM channels WHERE id = ?").get(channelId) as
-      { last_msg_seq: number } | undefined;
-    return row?.last_msg_seq ?? 0;
+    return (
+      lastSeqRow
+        .pick("last_msg_seq")
+        .get(this.db.prepare("SELECT last_msg_seq FROM channels WHERE id = ?"), channelId)
+        ?.last_msg_seq ?? 0
+    );
   }
 
   /** channelId -> last message seq, for every channel the user can see. */
   lastSeqMap(userId: ID): Record<ID, number> {
-    const rows = this.db
-      .prepare(
+    const rows = lastSeqRow.all(
+      this.db.prepare(
         `SELECT DISTINCT c.id, c.last_msg_seq FROM channels c
          LEFT JOIN channel_members m ON m.channel_id = c.id AND m.user_id = ?
          WHERE c.type = 'public' OR m.user_id IS NOT NULL`,
-      )
-      .all(userId) as { id: string; last_msg_seq: number }[];
+      ),
+      userId,
+    );
     const out: Record<string, number> = {};
     for (const r of rows) out[r.id] = r.last_msg_seq;
     return out;
@@ -663,7 +715,7 @@ export class ChannelStore {
   /** How many unread notes of removals the handshake carries, newest first. */
   static readonly REMOVALS_SENT = 100;
 
-  private static fromRemovalRow(row: ChannelRemovalRow): ChannelRemoval {
+  private static fromRemovalRow(row: RowOf<typeof removalRow.columns>): ChannelRemoval {
     return {
       id: row.id,
       channelId: row.channel_id,
@@ -680,21 +732,20 @@ export class ChannelStore {
    */
   addRemoval(userId: ID, channel: Channel, removedBy: ID): ChannelRemoval | null {
     if (channel.type !== "public" && channel.type !== "private") return null;
-    const row = this.db
-      .prepare(
+    const row = removalRow.get(
+      this.db.prepare(
         `INSERT INTO channel_removals
            (id, user_id, channel_id, channel_name, channel_type, removed_by, created_at)
          VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *`,
-      )
-      .get(
-        ulid(),
-        userId,
-        channel.id,
-        channel.name,
-        channel.type,
-        removedBy,
-        Date.now(),
-      ) as unknown as ChannelRemovalRow;
+      ),
+      ulid(),
+      userId,
+      channel.id,
+      channel.name,
+      channel.type,
+      removedBy,
+      Date.now(),
+    )!;
     const removal = ChannelStore.fromRemovalRow(row);
     // They hear who removed them, in Activity, wherever they are.
     this.store.outbox.person(userId, { type: "channel.removal", removal }, { ahead: true });
@@ -703,12 +754,14 @@ export class ChannelStore {
 
   /** One account's unread notes of removals, newest first. */
   removals(userId: ID, limit = ChannelStore.REMOVALS_SENT): ChannelRemoval[] {
-    const rows = this.db
-      .prepare(
+    const rows = removalRow.all(
+      this.db.prepare(
         `SELECT * FROM channel_removals WHERE user_id = ?
          ORDER BY created_at DESC, id DESC LIMIT ?`,
-      )
-      .all(userId, limit) as unknown as ChannelRemovalRow[];
+      ),
+      userId,
+      limit,
+    );
     return rows.map(ChannelStore.fromRemovalRow);
   }
 
@@ -733,8 +786,8 @@ export class ChannelStore {
    * cost, not what its channels' histories do.
    */
   unreadMentionCounts(userId: ID): Record<ID, number> {
-    const rows = this.db
-      .prepare(
+    const rows = perChannelRow.all(
+      this.db.prepare(
         `SELECT m.channel_id, COUNT(DISTINCT m.id) AS n FROM message_mentions mm
          JOIN channel_members cm ON cm.channel_id = mm.channel_id AND cm.user_id = ?
          JOIN channels c ON c.id = mm.channel_id
@@ -746,8 +799,11 @@ export class ChannelStore {
            SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL
          ))
          GROUP BY m.channel_id`,
-      )
-      .all(userId, userId, userId) as { channel_id: string; n: number }[];
+      ),
+      userId,
+      userId,
+      userId,
+    );
     return Object.fromEntries(rows.map((row) => [row.channel_id, row.n]));
   }
 }

@@ -1,6 +1,21 @@
 import type { ID, Poll } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
+import { shape } from "../core/rows.js";
 import type { Store } from "../store.js";
+
+const pollRow = shape({
+  options: "text",
+  multiple: "number",
+  anonymous: "number",
+  closed_at: "number?",
+});
+const messagePollRow = pollRow.with({ message_id: "text" });
+const voteRow = shape({ message_id: "text", user_id: "text", option: "number" });
+
+/** The texts a poll offers, kept as one JSON list. */
+function optionTexts(options: string): string[] {
+  return JSON.parse(options) as string[];
+}
 
 /** Polls (E6): a message's question, its options, and who chose what. */
 export class PollStore {
@@ -14,33 +29,25 @@ export class PollStore {
     const polls = new Map<ID, Poll>();
     if (messageIds.length === 0) return polls;
     const ph = messageIds.map(() => "?").join(",");
-    const rows = this.db
-      .prepare(
+    const rows = messagePollRow.all(
+      this.db.prepare(
         `SELECT message_id, options, multiple, anonymous, closed_at FROM polls
          WHERE message_id IN (${ph})`,
-      )
-      .all(...messageIds) as {
-      message_id: string;
-      options: string;
-      multiple: number;
-      anonymous: number;
-      closed_at: number | null;
-    }[];
+      ),
+      ...messageIds,
+    );
     if (rows.length === 0) return polls;
-    const votes = this.db
-      .prepare(
+    const votes = voteRow.all(
+      this.db.prepare(
         `SELECT message_id, user_id, option FROM poll_votes
          WHERE message_id IN (${rows.map(() => "?").join(",")})
          ORDER BY created_at, rowid`,
-      )
-      .all(...rows.map((r) => r.message_id)) as {
-      message_id: string;
-      user_id: string;
-      option: number;
-    }[];
+      ),
+      ...rows.map((r) => r.message_id),
+    );
     for (const row of rows) {
       const anonymous = row.anonymous === 1;
-      const options = (JSON.parse(row.options) as string[]).map((text) => ({
+      const options = optionTexts(row.options).map((text) => ({
         text,
         votes: 0,
         ...(anonymous ? {} : { voterIds: [] as ID[] }),
@@ -76,14 +83,15 @@ export class PollStore {
   rules(
     messageId: ID,
   ): { options: number; multiple: boolean; anonymous: boolean; closedAt: number | null } | null {
-    const row = this.db
-      .prepare("SELECT options, multiple, anonymous, closed_at FROM polls WHERE message_id = ?")
-      .get(messageId) as
-      | { options: string; multiple: number; anonymous: number; closed_at: number | null }
-      | undefined;
+    const row = pollRow.get(
+      this.db.prepare(
+        "SELECT options, multiple, anonymous, closed_at FROM polls WHERE message_id = ?",
+      ),
+      messageId,
+    );
     if (!row) return null;
     return {
-      options: (JSON.parse(row.options) as string[]).length,
+      options: optionTexts(row.options).length,
       multiple: row.multiple === 1,
       anonymous: row.anonymous === 1,
       closedAt: row.closed_at,
@@ -92,9 +100,13 @@ export class PollStore {
 
   /** One account's choices in a poll, by option place. */
   choices(messageId: ID, userId: ID): number[] {
-    const rows = this.db
-      .prepare("SELECT option FROM poll_votes WHERE message_id = ? AND user_id = ? ORDER BY option")
-      .all(messageId, userId) as { option: number }[];
+    const rows = voteRow.all(
+      this.db.prepare(
+        "SELECT message_id, user_id, option FROM poll_votes WHERE message_id = ? AND user_id = ? ORDER BY option",
+      ),
+      messageId,
+      userId,
+    );
     return rows.map((row) => row.option);
   }
 
@@ -137,9 +149,9 @@ export class PollStore {
    * anonymous says on each option who chose it.
    */
   anonymousChoices(userId: ID): Record<ID, number[]> {
-    const rows = this.db
-      .prepare(
-        `SELECT v.message_id, v.option FROM poll_votes v
+    const rows = voteRow.all(
+      this.db.prepare(
+        `SELECT v.message_id, v.user_id, v.option FROM poll_votes v
          JOIN polls p ON p.message_id = v.message_id
          JOIN messages m ON m.id = v.message_id
          JOIN channels c ON c.id = m.channel_id
@@ -148,8 +160,9 @@ export class PollStore {
              OR EXISTS (SELECT 1 FROM channel_members cm
                         WHERE cm.channel_id = c.id AND cm.user_id = v.user_id))
          ORDER BY v.message_id, v.option`,
-      )
-      .all(userId) as { message_id: string; option: number }[];
+      ),
+      userId,
+    );
     const choices: Record<ID, number[]> = {};
     for (const row of rows) (choices[row.message_id] ??= []).push(row.option);
     return choices;
