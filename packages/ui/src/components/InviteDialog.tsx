@@ -2,6 +2,7 @@ import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "r
 import { ApiError } from "@ownbase/client-core";
 import type { Invite, InviteStatus } from "@ownbase/protocol";
 import { useCopy } from "../lib/useCopy.js";
+import { failureText } from "../lib/failure.js";
 import { browserLink, desktopLink, serverAddress } from "../lib/deeplink.js";
 import {
   DEFAULT_INVITE,
@@ -98,14 +99,10 @@ export function InviteDialog(props: {
 
   const loadInvites = useCallback(async () => {
     const request = ++listRequest.current;
-    try {
-      const result = await client.admin.invites();
-      if (request === listRequest.current) setInvites(result.invites);
-    } catch {
-      // The list is a convenience beside creating one; failing to load it
-      // should not stop anyone inviting a colleague.
-      if (request === listRequest.current) setInvites(null);
-    }
+    const invites = await client.admin.invites();
+    // The list is a convenience beside creating one; failing to load it
+    // should not stop anyone inviting a colleague.
+    if (request === listRequest.current) setInvites(invites instanceof ApiError ? null : invites);
   }, [client]);
 
   useEffect(() => {
@@ -122,23 +119,22 @@ export function InviteDialog(props: {
   async function make(expiresInHours: number | null, uses: number | null) {
     setBusy(true);
     setError(null);
-    try {
-      const { invite } = await client.admin.createInvite({
-        ...(expiresInHours !== null ? { expiresInHours } : {}),
-        ...(uses !== null ? { maxUses: uses } : {}),
-      });
-      setInvite(invite);
-      setChanging(false);
-      void loadInvites();
-    } catch (err) {
+    const invite = await client.admin.createInvite({
+      ...(expiresInHours !== null ? { expiresInHours } : {}),
+      ...(uses !== null ? { maxUses: uses } : {}),
+    });
+    setBusy(false);
+    if (invite instanceof ApiError) {
       setError(
-        err instanceof ApiError && err.code === "invite_permission_required"
+        invite.code === "invite_permission_required"
           ? "An administrator must allow you to create invite codes."
-          : "Could not make an invite link. Check your connection and try again.",
+          : failureText("Could not make an invite link.", invite, "Try again."),
       );
-    } finally {
-      setBusy(false);
+      return;
     }
+    setInvite(invite);
+    setChanging(false);
+    void loadInvites();
   }
 
   // Once the list has answered, or failed to: show a link without being asked.
@@ -165,16 +161,15 @@ export function InviteDialog(props: {
     });
     if (!go) return;
     setError(null);
-    try {
-      await client.admin.revokeInvite(code);
+    const failed = await client.admin.revokeInvite(code);
+    void loadInvites();
+    if (!failed) {
       if (code === invite?.code) setInvite(null);
-      void loadInvites();
-    } catch {
+    } else if (failed.code === "network_error") {
       setError(
         "Could not confirm whether that invite was revoked. Check your connection before trying again.",
       );
-      void loadInvites();
-    }
+    } else setError(failureText("That invite was not revoked.", failed, "Try again."));
   }
 
   return (

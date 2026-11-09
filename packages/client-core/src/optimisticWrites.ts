@@ -98,6 +98,25 @@ export function failureOf(error: unknown): ApiError {
   return new ApiError(0, "network_error", error instanceof Error ? error.message : undefined);
 }
 
+/** What the server answered, or why there was no answer. */
+export async function answerOf<T>(request: () => Promise<T>): Promise<T | ApiError> {
+  try {
+    return await request();
+  } catch (error) {
+    return failureOf(error);
+  }
+}
+
+/** Null once the server has done it; why it did not otherwise. */
+export async function doneOf(request: () => Promise<unknown>): Promise<ApiError | null> {
+  try {
+    await request();
+    return null;
+  } catch (error) {
+    return failureOf(error);
+  }
+}
+
 /** Why a write was not sent: its client had been closed. */
 export const CLOSED = new ApiError(0, "aborted", "The workspace client was closed.");
 

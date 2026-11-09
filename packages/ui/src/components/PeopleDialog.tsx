@@ -8,6 +8,7 @@ import { Swap } from "./Motion.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Avatar } from "./Avatar.js";
 import { accountError } from "../lib/account.js";
+import { failureText } from "../lib/failure.js";
 import { useCopy } from "../lib/useCopy.js";
 import { AuditHistory } from "./AuditHistory.js";
 import { buttonClass } from "./Button.js";
@@ -72,16 +73,15 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const result = await client.admin.people();
-      if (!alive.current) return;
-      setPeople(result.users);
-      setLoadError(false);
-    } catch {
-      if (alive.current) setLoadError(true);
-    } finally {
-      if (alive.current) setLoading(false);
+    const people = await client.admin.people();
+    if (!alive.current) return;
+    setLoading(false);
+    if (people instanceof ApiError) {
+      setLoadError(true);
+      return;
     }
+    setPeople(people);
+    setLoadError(false);
   }, [client]);
   useEffect(() => {
     alive.current = true;
@@ -124,18 +124,10 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     setError(null);
     setNotice(null);
     setBusy(person.id);
-    try {
-      await client.admin.changePerson(person.id, patch);
-      setNotice(changeNotice(person.displayName, patch));
-    } catch (err) {
-      setError(
-        err instanceof ApiError
-          ? errorText(err.code, err.message)
-          : `Could not change ${person.displayName}'s account. Check your connection and try again.`,
-      );
-    } finally {
-      setBusy(null);
-    }
+    const failed = await client.admin.changePerson(person.id, patch);
+    setBusy(null);
+    if (failed) setError(changeError(failed, person.displayName));
+    else setNotice(changeNotice(person.displayName, patch));
   }
 
   async function confirmAction(event: React.FormEvent) {
@@ -153,34 +145,34 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
     setBusy(action.person.id);
     setError(null);
     setNotice(null);
-    try {
-      if (action.kind === "reset") {
-        const result = await client.admin.resetPassword(action.person.id);
-        if (!alive.current) return;
-        setIssued({ person: action.person, password: result.temporaryPassword });
-        setReveal(false);
-      } else if (action.kind === "twoStep") {
-        await client.admin.resetTwoStep(action.person.id);
-        if (!alive.current) return;
-        const { id } = action.person;
-        setPeople((list) => list?.map((p) => (p.id === id ? { ...p, twoStep: false } : p)) ?? list);
-        setNotice(
-          `${action.person.displayName}'s two-step sign-in is off. They can set it up again in Account settings.`,
-        );
-      } else {
-        await client.admin.transferOwnership(action.person.id);
-        if (!alive.current) return;
-        setNotice(
-          `${action.person.displayName} now owns this workspace. You are an administrator.`,
-        );
-      }
-      setAction(null);
-      setConfirmation("");
-    } catch (err) {
-      if (alive.current) setError(accountError(err));
-    } finally {
-      if (alive.current) setBusy(null);
+    const { kind, person } = action;
+    const answer =
+      kind === "reset"
+        ? await client.admin.resetPassword(person.id)
+        : kind === "twoStep"
+          ? await client.admin.resetTwoStep(person.id)
+          : await client.admin.transferOwnership(person.id);
+    if (!alive.current) return;
+    setBusy(null);
+    if (answer instanceof ApiError) {
+      setError(accountError(answer));
+      return;
     }
+    if (kind === "reset") {
+      setIssued({ person, password: answer! });
+      setReveal(false);
+    } else if (kind === "twoStep") {
+      setPeople(
+        (list) => list?.map((p) => (p.id === person.id ? { ...p, twoStep: false } : p)) ?? list,
+      );
+      setNotice(
+        `${person.displayName}'s two-step sign-in is off. They can set it up again in Account settings.`,
+      );
+    } else {
+      setNotice(`${person.displayName} now owns this workspace. You are an administrator.`);
+    }
+    setAction(null);
+    setConfirmation("");
   }
 
   function beginAction(kind: Action, person: Person) {
@@ -587,8 +579,8 @@ function PersonMenu({
  * An ApiError's message falls back to the raw code, so anything unrecognised
  * is only worth showing when the server actually wrote a sentence.
  */
-function errorText(code: string, message?: string): string {
-  switch (code) {
+function changeError(error: ApiError, name: string): string {
+  switch (error.code) {
     case "owner_is_protected":
       return "The owner's account cannot be changed here.";
     case "admins_are_equals":
@@ -606,6 +598,6 @@ function errorText(code: string, message?: string): string {
     case "admin_only":
       return "You do not have permission to do that.";
     default:
-      return message && message !== code ? message : "That change did not go through. Try again.";
+      return failureText(`Could not change ${name}'s account.`, error, "Try again.");
   }
 }

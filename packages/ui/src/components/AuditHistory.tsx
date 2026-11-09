@@ -1,5 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { AuditEntry, ID, User } from "@ownbase/protocol";
+import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { formatDay, formatTime } from "../lib/format.js";
 import { ListStatus } from "./ListStatus.js";
@@ -169,22 +170,21 @@ export function AuditHistory() {
     if (inFlight.current) return;
     inFlight.current = true;
     setBusy(true);
-    try {
-      const page = await client.admin.audit(before);
-      if (!alive.current) return;
-      setEntries((current) => {
-        if (!before || !current) return page.entries;
-        const seen = new Set(current.map((entry) => entry.id));
-        return [...current, ...page.entries.filter((entry) => !seen.has(entry.id))];
-      });
-      setCursor(page.nextCursor);
-      setError(null);
-    } catch {
-      if (alive.current) setError(before ? "page" : "initial");
-    } finally {
-      inFlight.current = false;
-      if (alive.current) setBusy(false);
+    const page = await client.admin.audit(before);
+    inFlight.current = false;
+    if (!alive.current) return;
+    setBusy(false);
+    if (page instanceof ApiError) {
+      setError(before ? "page" : "initial");
+      return;
     }
+    setEntries((current) => {
+      if (!before || !current) return page.entries;
+      const seen = new Set(current.map((entry) => entry.id));
+      return [...current, ...page.entries.filter((entry) => !seen.has(entry.id))];
+    });
+    setCursor(page.nextCursor);
+    setError(null);
   }
 
   if (!open) {

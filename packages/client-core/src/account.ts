@@ -1,5 +1,6 @@
 import type { ID, SignInConnection, SignInMethod } from "@ownbase/protocol";
 import { ApiError, type Api } from "./api.js";
+import { answerOf, doneOf } from "./optimisticWrites.js";
 
 /** Where the server may send a browser to link a way of signing in (P9). */
 const LINK = /^\/api\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9=&_-]*)?$/;
@@ -7,25 +8,26 @@ const LINK = /^\/api\/[A-Za-z0-9/_-]+(\?[A-Za-z0-9=&_-]*)?$/;
 /**
  * The signed-in account's own settings: its devices, password, two-step
  * sign-in, linked ways of signing in, and the storage it uses. Nothing here
- * is kept in the workspace's store, so each answers as the server does.
+ * is kept in the workspace's store, so each answers as the server does: what
+ * it said, or the `ApiError` saying why not.
  */
 export class AccountActions {
   constructor(private readonly api: Api) {}
 
   sessions() {
-    return this.api.listSessions();
+    return answerOf(async () => (await this.api.listSessions()).sessions);
   }
 
   signOutDevice(sessionId: ID) {
-    return this.api.revokeSession(sessionId);
+    return doneOf(() => this.api.revokeSession(sessionId));
   }
 
   signOutOtherDevices() {
-    return this.api.revokeOtherSessions();
+    return doneOf(() => this.api.revokeOtherSessions());
   }
 
   changePassword(currentPassword: string, newPassword: string) {
-    return this.api.changePassword(currentPassword, newPassword);
+    return doneOf(() => this.api.changePassword(currentPassword, newPassword));
   }
 
   /**
@@ -33,16 +35,16 @@ export class AccountActions {
    * one included; the token returned replaces it.
    */
   keepAsAccount(body: { handle: string; password: string }) {
-    return this.api.createAccountFromGuest(body);
+    return answerOf(() => this.api.createAccountFromGuest(body));
   }
 
   storageUsage(signal?: AbortSignal) {
-    return this.api.storageUsage(signal);
+    return answerOf(() => this.api.storageUsage(signal));
   }
 
   /** Whether this account asks for a code at sign-in, and how many recovery codes it has left (E11). */
   twoStep() {
-    return this.api.twoStep();
+    return answerOf(() => this.api.twoStep());
   }
 
   /**
@@ -50,43 +52,48 @@ export class AccountActions {
    * authenticator app scans for it. Nothing changes until `enableTwoStep`.
    */
   startTwoStep(password: string) {
-    return this.api.startTwoStep(password);
+    return answerOf(() => this.api.startTwoStep(password));
   }
 
   /** The recovery codes, shown once. */
   enableTwoStep(code: string) {
-    return this.api.enableTwoStep(code);
+    return answerOf(async () => (await this.api.enableTwoStep(code)).recoveryCodes);
   }
 
   newRecoveryCodes(password: string) {
-    return this.api.newRecoveryCodes(password);
+    return answerOf(async () => (await this.api.newRecoveryCodes(password)).recoveryCodes);
   }
 
   disableTwoStep(password: string) {
-    return this.api.disableTwoStep(password);
+    return doneOf(() => this.api.disableTwoStep(password));
   }
 
   /** The ways of signing in this account can link (P9), and whether each is linked. */
-  async linkedSignIns(): Promise<{
-    methods: SignInMethod[];
-    links: Record<string, SignInConnection>;
-  }> {
-    const info = await this.api.serverInfo();
-    const methods = (info.signIn?.methods ?? []).filter((m) => m.connect);
-    const states = await Promise.all(
-      methods.map(async (m) => [m.id, await this.api.signInConnection(m.connect!)] as const),
-    );
-    return { methods, links: Object.fromEntries(states) };
+  linkedSignIns() {
+    return answerOf(async () => {
+      const info = await this.api.serverInfo();
+      const methods = (info.signIn?.methods ?? []).filter((m) => m.connect);
+      const states = await Promise.all(
+        methods.map(async (m) => [m.id, await this.api.signInConnection(m.connect!)] as const),
+      );
+      return {
+        methods,
+        links: Object.fromEntries(states) as Record<string, SignInConnection>,
+      };
+    });
   }
 
   /** The address that links this account to `method`, to open in a browser. */
-  async linkSignInUrl(method: SignInMethod): Promise<string> {
-    const { url } = await this.api.connectSignIn(method.connect!);
-    if (!LINK.test(url)) throw new ApiError(502, "invalid_response");
-    return `${this.api.baseUrl}${url}`;
+  linkSignInUrl(method: SignInMethod) {
+    return answerOf(async () => {
+      const { url } = await this.api.connectSignIn(method.connect!);
+      if (!LINK.test(url)) throw new ApiError(502, "invalid_response");
+      return `${this.api.baseUrl}${url}`;
+    });
   }
 
+  /** Whether `method` is still linked, as the server now has it. */
   unlinkSignIn(method: SignInMethod) {
-    return this.api.disconnectSignIn(method.connect!);
+    return answerOf(() => this.api.disconnectSignIn(method.connect!));
   }
 }

@@ -54,14 +54,14 @@ export function TwoStepSettings() {
   const owned = !!self && self.role !== "guest";
 
   const load = useCallback(async () => {
-    try {
-      const result = await client.account.twoStep();
-      if (!alive.current) return;
-      setStatus(result);
-      setLoadError(false);
-    } catch {
-      if (alive.current) setLoadError(true);
+    const status = await client.account.twoStep();
+    if (!alive.current) return;
+    if (status instanceof ApiError) {
+      setLoadError(true);
+      return;
     }
+    setStatus(status);
+    setLoadError(false);
   }, [client]);
   useEffect(() => {
     alive.current = true;
@@ -91,29 +91,27 @@ export function TwoStepSettings() {
     }
     setBusy(true);
     setError(null);
-    try {
-      if (stage.purpose === "setup") {
-        const { secret, uri } = await client.account.startTwoStep(password);
-        if (alive.current) go({ step: "scan", secret, uri });
-      } else if (stage.purpose === "codes") {
-        const { recoveryCodes } = await client.account.newRecoveryCodes(password);
-        if (!alive.current) return;
-        go({ step: "codes", codes: recoveryCodes });
-        setStatus({ enabled: true, recoveryCodesLeft: recoveryCodes.length });
-      } else {
-        await client.account.disableTwoStep(password);
-        if (!alive.current) return;
-        go({ step: "idle" });
-        setStatus({ enabled: false, recoveryCodesLeft: 0 });
-        setNotice("Two-step sign-in is off. Your password alone signs you in.");
-      }
-    } catch (err) {
-      if (alive.current) {
-        setError(accountError(err));
-        field.current?.focus();
-      }
-    } finally {
-      if (alive.current) setBusy(false);
+    const { purpose } = stage;
+    const answer =
+      purpose === "setup"
+        ? await client.account.startTwoStep(password)
+        : purpose === "codes"
+          ? await client.account.newRecoveryCodes(password)
+          : await client.account.disableTwoStep(password);
+    if (!alive.current) return;
+    setBusy(false);
+    if (answer instanceof ApiError) {
+      setError(accountError(answer));
+      field.current?.focus();
+    } else if (Array.isArray(answer)) {
+      go({ step: "codes", codes: answer });
+      setStatus({ enabled: true, recoveryCodesLeft: answer.length });
+    } else if (answer) {
+      go({ step: "scan", secret: answer.secret, uri: answer.uri });
+    } else {
+      go({ step: "idle" });
+      setStatus({ enabled: false, recoveryCodesLeft: 0 });
+      setNotice("Two-step sign-in is off. Your password alone signs you in.");
     }
   }
 
@@ -127,22 +125,20 @@ export function TwoStepSettings() {
     }
     setBusy(true);
     setError(null);
-    try {
-      const { recoveryCodes } = await client.account.enableTwoStep(code.trim());
-      if (!alive.current) return;
-      go({ step: "codes", codes: recoveryCodes });
-      setStatus({ enabled: true, recoveryCodesLeft: recoveryCodes.length });
-    } catch (err) {
-      if (!alive.current) return;
-      setError(accountError(err));
-      // A setup that took too long starts again from the password, saying why.
-      if (err instanceof ApiError && err.code === "two_step_setup_expired") {
-        setStage({ step: "password", purpose: "setup" });
-        setCode("");
-      } else field.current?.focus();
-    } finally {
-      if (alive.current) setBusy(false);
+    const codes = await client.account.enableTwoStep(code.trim());
+    if (!alive.current) return;
+    setBusy(false);
+    if (!(codes instanceof ApiError)) {
+      go({ step: "codes", codes });
+      setStatus({ enabled: true, recoveryCodesLeft: codes.length });
+      return;
     }
+    setError(accountError(codes));
+    // A setup that took too long starts again from the password, saying why.
+    if (codes.code === "two_step_setup_expired") {
+      setStage({ step: "password", purpose: "setup" });
+      setCode("");
+    } else field.current?.focus();
   }
 
   if (!owned) return null;

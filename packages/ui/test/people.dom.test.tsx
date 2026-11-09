@@ -233,6 +233,34 @@ describe("people's load, confirmations and refusals", () => {
     expect(client.state.self?.role).toBe("admin");
   });
 
+  it("keeps a reset open, saying why, when the server refuses it", async () => {
+    const { dialog, user } = await people((api) => {
+      vi.spyOn(api, "resetPassword").mockRejectedValue(new ApiError(403, "owner_is_protected"));
+    });
+    const row = dialog.getByText("@alex").closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "Actions for Alex Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Reset password" }));
+    await user.click(dialog.getByRole("button", { name: "Reset password" }));
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "An administrator cannot reset the owner's password.",
+    );
+    expect(dialog.getByRole("heading", { name: "Reset Alex Chen's password?" })).toBeVisible();
+    expect(dialog.queryByLabelText("Temporary password")).toBeNull();
+  });
+
+  it("says a change was not made when the workspace cannot be reached", async () => {
+    const { dialog, user, client } = await people((api) => {
+      vi.spyOn(api, "updateUserAdmin").mockRejectedValue(new TypeError("Failed to fetch"));
+    });
+    const row = dialog.getByText("@alex").closest("li")!;
+    await user.click(within(row).getByRole("button", { name: "Actions for Alex Chen" }));
+    await user.click(screen.getByRole("menuitem", { name: "Deactivate" }));
+    expect(await dialog.findByRole("alert")).toHaveTextContent(
+      "Could not change Alex Chen's account. Check your connection and try again.",
+    );
+    expect(client.state.users.U_ALEX!.deactivated).toBe(false);
+  });
+
   it("says why a change was refused, in words", async () => {
     const { dialog, user } = await people((api) => {
       vi.spyOn(api, "updateUserAdmin").mockRejectedValue(new ApiError(403, "admins_are_equals"));

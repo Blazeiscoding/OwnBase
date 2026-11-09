@@ -13,13 +13,11 @@ const failure = (err: unknown): Failed => ({
   error: err instanceof Error ? err.message : "no answer",
 });
 
-/** Why the server's status could not be read, in words for the report. */
-function statusFailure(err: unknown): Failed {
-  if (err instanceof ApiError && err.status === 404)
-    return { error: "this server's version does not report it" };
-  if (err instanceof ApiError && err.status === 403)
-    return { error: "only the owner and admins can read it" };
-  return failure(err);
+/** The server's answer, or why it could not be read, in words for the report. */
+function orWhy<T>(answer: T | ApiError): T | Failed {
+  if (!(answer instanceof ApiError)) return answer;
+  if (answer.status === 403) return { error: "only the owner and admins can read it" };
+  return failure(answer);
 }
 
 /**
@@ -69,7 +67,7 @@ export function DiagnosticsDialog({
     const take = (
       server: ServerInfo | Failed,
       workspace?: WorkspaceStatus | Failed,
-      calls?: { entries: CallLogEntry[] } | Failed,
+      calls?: CallLogEntry[] | Failed,
     ) => {
       const { status, huddle, pending, users, channels } = client.state;
       const taken = new Date();
@@ -95,7 +93,7 @@ export function DiagnosticsDialog({
                 : Notification.permission,
           workspace,
           callLog: client.callLog(),
-          calls: calls && "entries" in calls ? calls.entries : calls,
+          calls,
           // Handles, which say who is who in a call without a full name.
           names: {
             person: (id) => (users[id] ? `@${users[id].handle}` : id),
@@ -110,8 +108,8 @@ export function DiagnosticsDialog({
     };
     void Promise.all([
       client.serverInfo().catch(failure),
-      admin ? client.admin.workspaceStatus().catch(statusFailure) : undefined,
-      admin ? client.admin.callLog().catch(statusFailure) : undefined,
+      admin ? client.admin.workspaceStatus().then(orWhy) : undefined,
+      admin ? client.admin.callLog().then(orWhy) : undefined,
     ]).then(([server, workspace, calls]) => alive && take(server, workspace, calls));
     return () => {
       alive = false;
