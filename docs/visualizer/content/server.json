@@ -1302,6 +1302,26 @@
         "The client's isMessageRead is the same rule as UNREAD."
       ],
       "concepts": ["unread", "mentions", "shared rules"]
+    },
+    {
+      "path": "packages/server/src/search/feature.ts",
+      "plain": "Lets people search messages and see their mentions and reactions in Activity.",
+      "summary": "Search and Activity routes.",
+      "details": [
+        "Search parses words and filters (from:, in:, dates in the caller's time zone) and refuses a query with nothing to look for.",
+        "Both page by cursor and only ever return messages the caller can read."
+      ],
+      "concepts": ["search", "activity", "feature module"]
+    },
+    {
+      "path": "packages/server/src/search/store.ts",
+      "plain": "Finds messages by words, filters and mentions.",
+      "summary": "SearchStore: full-text search over messages and the Activity list's queries.",
+      "details": [
+        "Few matches are read in full; many are searched within a recent window first (SEARCH_FEW_MATCHES, SEARCH_WINDOW), so a common word stays fast.",
+        "Activity reads mentions from message_mentions by the same rule as the badges (core/sqlRules.ts)."
+      ],
+      "concepts": ["search", "FTS", "queries"]
     }
   ],
   "flows": [

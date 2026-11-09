@@ -91,7 +91,7 @@ function everyPage(reader: string, text: string, size: number, opts: { channelId
   const ids: string[] = [];
   let cursor: string | undefined;
   for (let pages = 0; pages < 1000; pages++) {
-    const page = store.searchMessages(reader, parsed, size, { ...opts, cursor });
+    const page = store.search.search(reader, parsed, size, { ...opts, cursor });
     ids.push(...page.map((m) => m.id));
     if (page.length < size) return ids;
     cursor = page.at(-1)!.id;
@@ -246,7 +246,7 @@ describe("a search, whichever way it goes", () => {
       id: string;
     };
     const parsed = parseSearchQuery("common", { timeZone: "UTC" });
-    const found = store.searchMessages(ana.id, parsed, 1000);
+    const found = store.search.search(ana.id, parsed, 1000);
     expect(found.length).toBeGreaterThan(0);
     expect(found.some((m) => m.channelId === hidden.id)).toBe(false);
   });

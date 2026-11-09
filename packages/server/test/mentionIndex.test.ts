@@ -162,8 +162,8 @@ describe("mentions read from who each message names", () => {
     // Every kind of change happened, several times over.
     for (const [kind, times] of Object.entries(done)) expect(times, kind).toBeGreaterThan(10);
     for (const user of ["U1", "U2", "U3"]) {
-      const listed = store
-        .activityMessages(user, { mode: "mentions", limit: 1000 })
+      const listed = store.search
+        .activity(user, { mode: "mentions", limit: 1000 })
         .map((m) => m.id);
       expect(listed).toEqual(mentionsFromText(db, user));
     }
@@ -183,9 +183,9 @@ describe("mentions read from who each message names", () => {
       store.stampMessageSeq(message.id, "C1", i + 1);
       ids.push(message.id);
     }
-    const first = store.activityMessages("U1", { mode: "mentions", limit: 4 }).map((m) => m.id);
-    const second = store
-      .activityMessages("U1", { mode: "mentions", limit: 4, cursor: first.at(-1)! })
+    const first = store.search.activity("U1", { mode: "mentions", limit: 4 }).map((m) => m.id);
+    const second = store.search
+      .activity("U1", { mode: "mentions", limit: 4, cursor: first.at(-1)! })
       .map((m) => m.id);
     // Newest id first, as Activity pages, whatever order they were created in.
     expect([...first, ...second]).toEqual([...ids].sort().reverse());

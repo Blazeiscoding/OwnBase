@@ -60,7 +60,7 @@ describe("upgrading to replies read through their threads", () => {
       const store = new Store(db);
       // Only the mention after the old cursor counts, as it did before.
       expect(store.unreadMentionCounts("U1")).toEqual({ C1: 1 });
-      expect(store.activityMessages("U1", { mode: "unread", limit: 50 }).map((m) => m.id)).toEqual([
+      expect(store.search.activity("U1", { mode: "unread", limit: 50 }).map((m) => m.id)).toEqual([
         "M60",
       ]);
       // The thread without a cursor of its own is read where the channel was.
