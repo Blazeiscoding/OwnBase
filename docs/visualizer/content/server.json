@@ -1110,6 +1110,17 @@
       "concepts": ["crash containment"]
     },
     {
+      "path": "packages/server/src/core/rows.ts",
+      "plain": "Says once what each database table's rows look like, and checks every row read against it.",
+      "summary": "shape(): a table's columns (text, number, bytes, a fixed set of words, or NULL-able) typed once; get/all read checked rows.",
+      "details": [
+        "Each feature store declares one shape per table and derives narrower or wider ones with pick() and with(), so no query casts its result.",
+        "oneOf()/oneOfOrNull() take an object keyed by every word of a protocol union, so a word added to the union and not to the column fails to compile.",
+        "A column missing from a query, NULL where it may not be, or of another type throws at that read instead of passing a wrong value on."
+      ],
+      "concepts": ["typed rows", "storage"]
+    },
+    {
       "path": "packages/server/src/core/lifecycle.ts",
       "plain": "Knows when the server is stopping, and stops every timer and outgoing call when it does.",
       "summary": "Lifecycle: closing flag, shutdown signal, interval timers, close and drain hooks.",
