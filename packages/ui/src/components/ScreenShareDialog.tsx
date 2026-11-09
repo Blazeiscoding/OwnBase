@@ -1,25 +1,19 @@
 import { useEffect, useId, useRef, useState } from "react";
-import {
-  captureFailure,
-  SCREEN_SHARE_QUALITY,
-  type ScreenShareQuality,
-} from "@ownbase/client-core";
+import { captureFailure, type ScreenShareQuality } from "@ownbase/client-core";
 import { useClient, usePlatform } from "../context.js";
 import type { ShareableSource } from "../platform.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Button } from "./Button.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { Icon } from "./Icon.js";
-import { FRAME_RATES, QUALITY_KEY, qualityOf, RESOLUTIONS } from "../lib/screenShareQuality.js";
+import { FRAME_RATES, RESOLUTIONS } from "../lib/screenShareQuality.js";
+import { useCallPreferences } from "../lib/callPreferences.js";
 
 const TABS = ["windows", "screens"] as const;
 type Tab = (typeof TABS)[number];
 
 /** How long the pictures stay before they are taken again, while the picker is open. */
 export const REFRESH_MS = 3000;
-/** Where Share sound, when turned off, is kept off on this device. */
-export const SOUND_KEY = "screen-share-sound";
-export { QUALITY_KEY };
 
 /**
  * The desktop app's screen picker, in the manner of Discord's: every window
@@ -38,8 +32,8 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
   const [listing, setListing] = useState(0);
   const [tab, setTab] = useState<Tab>("windows");
   const [chosen, setChosen] = useState<Partial<Record<Tab, string>>>({});
-  const [quality, setQuality] = useState(SCREEN_SHARE_QUALITY);
-  const [sound, setSound] = useState(true);
+  const calls = useCallPreferences();
+  const { quality, sound } = calls.screenShare;
   /** Whether the screen's sound goes: offered here, and left on. */
   const withSound = !!screenShare.sound && sound;
   const [starting, setStarting] = useState(false);
@@ -64,25 +58,6 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
       setRefusal(null);
     },
   });
-
-  useEffect(() => {
-    let live = true;
-    void platform.storage
-      .get(QUALITY_KEY)
-      .then((saved) => {
-        if (live) setQuality(qualityOf(saved));
-      })
-      .catch(() => {});
-    void platform.storage
-      .get(SOUND_KEY)
-      .then((saved) => {
-        if (live) setSound(saved !== false);
-      })
-      .catch(() => {});
-    return () => {
-      live = false;
-    };
-  }, [platform]);
 
   // The last list comes at once, where there has been one, then a fresh one,
   // which can take seconds; then again every few seconds while open, so the
@@ -158,16 +133,9 @@ export function ScreenShareDialog({ onClose }: { onClose: () => void }) {
     if (sources && tab === "windows") document.getElementById(tabs.tabProps("screens").id)?.focus();
   };
 
-  const changeQuality = (patch: Partial<ScreenShareQuality>) => {
-    const next = { ...quality, ...patch };
-    setQuality(next);
-    void platform.storage.set(QUALITY_KEY, next).catch(() => {});
-  };
-
-  const changeSound = (on: boolean) => {
-    setSound(on);
-    void platform.storage.set(SOUND_KEY, on).catch(() => {});
-  };
+  const changeQuality = (patch: Partial<ScreenShareQuality>) =>
+    calls.setScreenShare({ quality: { ...quality, ...patch } });
+  const changeSound = (on: boolean) => calls.setScreenShare({ sound: on });
 
   // Share is never off for want of a choice: pressed without one, it says
   // what to choose beside the list and puts focus there.

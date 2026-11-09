@@ -4,9 +4,8 @@ import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
-import { webPlatform } from "../src/platform.js";
+import { webPlatform, type Platform } from "../src/platform.js";
 import { HuddleControls } from "../src/components/HuddleControls.js";
-import { QUALITY_KEY } from "../src/lib/screenShareQuality.js";
 
 /** Where call preferences are kept, as in the app. */
 const platform = webPlatform();
@@ -152,7 +151,19 @@ describe("talking with the microphone off", () => {
 });
 
 describe("the share's quality while sharing, as Discord's stream quality", () => {
-  function sharing(sharingScreen = true) {
+  /** A device whose storage holds `saved`, read by a store of its own. */
+  function device(saved: Record<string, unknown> = {}): Platform {
+    const kept = new Map(Object.entries(saved));
+    return {
+      ...webPlatform(),
+      storage: {
+        get: async <T,>(key: string) => (kept.get(key) ?? null) as T | null,
+        set: async (key, value) => void kept.set(key, value),
+      },
+    };
+  }
+
+  function sharing(sharingScreen = true, platform = device()) {
     const client = new WorkspaceClient("http://127.0.0.1:9", "test-token-not-a-credential");
     client.store.setState({
       self: sam,
@@ -180,12 +191,11 @@ describe("the share's quality while sharing, as Discord's stream quality", () =>
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );
-    return { setQuality, share, user: userEvent.setup() };
+    return { setQuality, share, platform, user: userEvent.setup() };
   }
 
   it("changes the resolution and frame rate without stopping, and keeps them for next time", async () => {
-    await platform.storage.set(QUALITY_KEY, null);
-    const { setQuality, share, user } = sharing();
+    const { setQuality, share, platform, user } = sharing();
     const options = () => screen.getByRole("button", { name: "Screen share options" });
     await user.click(options());
     expect(screen.getByRole("menuitemradio", { name: /^1080p/ })).toBeChecked();
@@ -193,7 +203,9 @@ describe("the share's quality while sharing, as Discord's stream quality", () =>
     await user.click(screen.getByRole("menuitemradio", { name: /^720p/ }));
     expect(setQuality).toHaveBeenLastCalledWith({ height: 720, frameRate: 15 });
     await waitFor(async () =>
-      expect(await platform.storage.get(QUALITY_KEY)).toEqual({ height: 720, frameRate: 15 }),
+      expect(await platform.storage.get("call-preferences")).toMatchObject({
+        screenShare: { quality: { height: 720, frameRate: 15 } },
+      }),
     );
     expect(share).not.toHaveBeenCalled();
 
@@ -212,13 +224,60 @@ describe("the share's quality while sharing, as Discord's stream quality", () =>
   });
 
   it("is not offered before a share, which a browser starts at the quality kept here", async () => {
-    await platform.storage.set(QUALITY_KEY, { height: 720, frameRate: 60 });
-    const { share, user } = sharing(false);
+    const { share, user } = sharing(
+      false,
+      device({
+        "call-preferences": {
+          joinMuted: false,
+          screenShare: { quality: { height: 720, frameRate: 60 }, sound: true },
+        },
+      }),
+    );
     expect(screen.queryByRole("button", { name: "Screen share options" })).toBeNull();
     // Read ahead, so the browser's picker is asked for at the press itself.
     await waitFor(async () => {
       await user.click(screen.getByRole("button", { name: "Share screen" }));
       expect(share).toHaveBeenLastCalledWith({ height: 720, frameRate: 60 });
+    });
+  });
+
+  it("brings a choice kept under the old keys across once, beside the rest", async () => {
+    const platform = device({
+      "call-preferences": { joinMuted: false, cameraId: "cam-2", devicesChecked: true },
+      "screen-share-quality": { height: 720, frameRate: 30 },
+      "screen-share-sound": false,
+    });
+    const { share, user } = sharing(false, platform);
+    await waitFor(async () =>
+      expect(await platform.storage.get("call-preferences")).toEqual({
+        joinMuted: false,
+        cameraId: "cam-2",
+        devicesChecked: true,
+        screenShare: { quality: { height: 720, frameRate: 30 }, sound: false },
+      }),
+    );
+    expect(await platform.storage.get("screen-share-quality")).toBeNull();
+    expect(await platform.storage.get("screen-share-sound")).toBeNull();
+    await user.click(screen.getByRole("button", { name: "Share screen" }));
+    expect(share).toHaveBeenLastCalledWith({ height: 720, frameRate: 30 });
+  });
+
+  it("leaves a share chosen under the one key as it is", async () => {
+    const platform = device({
+      "call-preferences": {
+        joinMuted: true,
+        screenShare: { quality: { height: 1080, frameRate: 60 }, sound: true },
+      },
+      "screen-share-quality": { height: 720, frameRate: 15 },
+    });
+    const { share, user } = sharing(false, platform);
+    await waitFor(async () => {
+      await user.click(screen.getByRole("button", { name: "Share screen" }));
+      expect(share).toHaveBeenLastCalledWith({ height: 1080, frameRate: 60 });
+    });
+    expect(await platform.storage.get("screen-share-quality")).toEqual({
+      height: 720,
+      frameRate: 15,
     });
   });
 });

@@ -6,7 +6,7 @@ import type { User } from "@ownbase/protocol";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform, type Platform, type ShareableSource } from "../src/platform.js";
 import { HuddleControls } from "../src/components/HuddleControls.js";
-import { QUALITY_KEY, REFRESH_MS, SOUND_KEY } from "../src/components/ScreenShareDialog.js";
+import { REFRESH_MS } from "../src/components/ScreenShareDialog.js";
 import { accessibilityProblems } from "./accessibility.js";
 
 /**
@@ -264,13 +264,33 @@ describe("choosing what to share in the desktop app", () => {
     let dialog = await open(user);
     await user.click(within(dialog).getByRole("radio", { name: "60 fps" }));
     await waitFor(async () =>
-      expect(await platform.storage.get(QUALITY_KEY)).toEqual({ height: 1080, frameRate: 60 }),
+      expect(await platform.storage.get("call-preferences")).toMatchObject({
+        screenShare: { quality: { height: 1080, frameRate: 60 } },
+      }),
     );
     await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
     dialog = await open(user);
     await waitFor(() =>
       expect(within(dialog).getByRole("radio", { name: "60 fps" })).toBeChecked(),
     );
+  });
+
+  it("offers the quality last chosen while sharing", async () => {
+    const user = userEvent.setup();
+    const { client } = picker();
+    const huddle = client.store.getState().huddle!;
+    vi.spyOn(client, "setScreenShareQuality").mockResolvedValue(true);
+    act(() =>
+      client.store.setState({
+        huddle: { ...huddle, sharingScreen: true, screenQuality: { height: 1080, frameRate: 15 } },
+      }),
+    );
+    await user.click(screen.getByRole("button", { name: "Screen share options" }));
+    await user.click(screen.getByRole("menuitemradio", { name: /^720p/ }));
+    await waitFor(() => expect(client.setScreenShareQuality).toHaveBeenCalled());
+    act(() => client.store.setState({ huddle }));
+    const dialog = await open(user);
+    expect(within(dialog).getByRole("radio", { name: "720p" })).toBeChecked();
   });
 });
 
@@ -299,7 +319,11 @@ describe("sharing the screen's sound", () => {
     await user.click(within(dialog).getByRole("switch", { name: "Share sound" }));
     expect(within(dialog).getByRole("switch", { name: "Share sound" })).not.toBeChecked();
     expect(dialog).toHaveAccessibleDescription("Everyone in the huddle sees what you share.");
-    await waitFor(async () => expect(await platform.storage.get(SOUND_KEY)).toBe(false));
+    await waitFor(async () =>
+      expect(await platform.storage.get("call-preferences")).toMatchObject({
+        screenShare: { sound: false },
+      }),
+    );
     await user.click(within(dialog).getByRole("tab", { name: "Screens" }));
     await user.click(within(dialog).getByRole("button", { name: "Share screen" }));
     expect(choose).toHaveBeenCalledWith("screen:0:0", { sound: false });
