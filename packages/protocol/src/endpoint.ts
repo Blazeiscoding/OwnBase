@@ -16,7 +16,6 @@ export type HttpMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
 declare const answerType: unique symbol;
 
-/** A JSON answer of type `T`. */
 export interface JsonAnswer<T> {
   readonly kind: "json";
   readonly [answerType]?: T;
@@ -46,7 +45,6 @@ export type SchemaName = {
 
 export type SchemaRef = SchemaName | z.ZodType;
 
-/** The schema a reference names. */
 export type SchemaOf<S> = S extends SchemaName ? (typeof rest)[S] : S extends z.ZodType ? S : never;
 
 /**
@@ -118,7 +116,6 @@ export type BodyIn<E> = E extends { body: infer B extends SchemaRef }
   ? z.input<SchemaOf<B>>
   : undefined;
 
-/** What a JSON route answers with. */
 export type AnswerOf<E extends EndpointSpec> = E["answer"] extends JsonAnswer<infer T> ? T : never;
 
 /**

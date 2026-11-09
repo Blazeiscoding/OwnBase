@@ -13,7 +13,7 @@ export interface Friendship {
 /**
  * A guest joined with only a display name, when the host allows that. A guest
  * reads and takes part in public channels and nothing more, and its session
- * lasts a day. Servers before guest access never report one.
+ * lasts a day.
  */
 export type Role = "owner" | "admin" | "member" | "guest";
 
@@ -25,7 +25,6 @@ export type Role = "owner" | "admin" | "member" | "guest";
  *   account stays open and optional.
  */
 export type AccessPolicy = "invite_only" | "account_required" | "guest_allowed";
-/** What a workspace is called until its owner names it. */
 export const DEFAULT_WORKSPACE_NAME = "My Workspace";
 
 export const ACCESS_POLICIES: readonly AccessPolicy[] = [
@@ -77,7 +76,6 @@ export function isRoom(type: ChannelType | undefined): boolean {
   return type === "public" || type === "private";
 }
 
-/** One-to-one and group direct messages. */
 export function isDirect(type: ChannelType | undefined): boolean {
   return type === "dm" || type === "group_dm";
 }
@@ -98,7 +96,6 @@ export interface Channel {
   managerIds?: ID[];
 }
 
-/** How loudly one channel should notify this user. */
 export type NotifyLevel = "all" | "mentions" | "nothing";
 
 export interface ChannelPrefs {
@@ -225,33 +222,30 @@ export interface Message {
   replyCount: number;
   reactions: ReactionGroup[];
   files: FileMeta[];
-  /** Pinned messages are shown to the whole channel. */
   pinned: boolean;
   /** Buttons an app attached to this message; empty for anything a person sent. */
   actions: MessageAction[];
   /**
    * The message this one answers in place, shown above it as Discord does,
-   * rather than in a thread. Absent when it answers nothing, and from servers
-   * older than inline replies.
+   * rather than in a thread. Absent when it answers nothing.
    */
   replyTo?: ReplyReference | null;
   /**
    * The message this one passes on, shown under its own words as a card.
-   * Absent when it forwards nothing, and from servers older than forwarding.
+   * Absent when it forwards nothing.
    */
   forwardedFrom?: ForwardReference | null;
   /**
    * What the server found at the first few web addresses in its words, in the
    * order they appear (E2). Added a moment after the message is sent, by a
-   * `message.updated` that says `previewsOnly`. Absent from servers before
-   * link previews, and empty while none has been found.
+   * `message.updated` that says `previewsOnly`. Empty while none has been
+   * found.
    */
   previews?: LinkPreview[];
   /**
    * The choices this message asks people to pick from, its words being the
    * question (E6). Votes change it by a `message.updated` that says
-   * `pollOnly`. Absent from a message that is not a poll, and from servers
-   * before polls.
+   * `pollOnly`. Absent from a message that is not a poll.
    */
   poll?: Poll;
   /**
@@ -262,7 +256,6 @@ export interface Message {
   call?: CallNotice;
 }
 
-/** What a call note says happened (E10). */
 export interface CallNotice {
   kind: "missed";
 }
@@ -275,7 +268,6 @@ export interface CallNotice {
  */
 export interface Poll {
   options: PollOption[];
-  /** Whether a voter may choose more than one. */
   multiple: boolean;
   /** Whether who chose what is kept from everyone, its author too. */
   anonymous: boolean;
@@ -332,7 +324,6 @@ export interface LinkPreview {
  */
 export interface ForwardReference {
   id: ID;
-  /** Where it was said, for its link. */
   channelId: ID;
   /** Its author; empty when hidden or deleted. */
   userId: ID;
@@ -403,12 +394,10 @@ export interface Invite {
   expiresAt: number | null;
   maxUses: number | null;
   uses: number;
-  /** Absent from servers before schema v23. */
   revokedAt?: number | null;
   status?: InviteStatus;
 }
 
-/** Why someone reported a message (E12). */
 export type ReportReason = "spam" | "harassment" | "inappropriate" | "other";
 export const REPORT_REASONS: readonly ReportReason[] = [
   "spam",
@@ -416,10 +405,8 @@ export const REPORT_REASONS: readonly ReportReason[] = [
   "inappropriate",
   "other",
 ];
-/** The most a report's note may say. */
 export const REPORT_NOTE_MAX = 500;
 
-/** What an admin did about a reported message (E12). */
 export type ReportResolution = "dismiss" | "remove" | "deactivate";
 
 /** One person's report of a message, as admins see it (E12). */
@@ -444,7 +431,6 @@ export interface ReportedMessage {
   reports: MessageReport[];
 }
 
-/** An administrative action that was recorded. */
 export type AuditAction =
   | "user.role_changed"
   | "user.deactivated"
@@ -514,8 +500,7 @@ export interface WorkspaceStatus {
   /**
    * Stored attachments, against the configured limit (null: none), and the
    * removal of deleted ones (REV-02): due or soon, failed and waiting to be
-   * tried again, and set aside because they can never succeed. Absent from
-   * servers that predate it.
+   * tried again, and set aside because they can never succeed.
    */
   attachments: {
     bytes: number;
@@ -542,7 +527,7 @@ export interface WorkspaceStatus {
   /**
    * Backups the server takes on a timer: off, or how often, how many it
    * keeps, when the last one finished, failures since, and when the next is
-   * due. Absent from servers that predate them.
+   * due.
    */
   backups?:
     | { enabled: false }
@@ -569,7 +554,7 @@ export interface WorkspaceStatus {
   eventLoopDelayMs: { p50: number; p99: number; max: number } | null;
   /**
    * Background queues failing now: since when and how many times in a row.
-   * Empty when all are running; absent from servers that predate it.
+   * Empty when all are running.
    */
   backgroundFailures?: { queue: string; since: number; failures: number }[];
   /**
@@ -579,7 +564,6 @@ export interface WorkspaceStatus {
   extensions?: ExtensionStatus[];
 }
 
-/** Unauthenticated probe of a server — what the Join screen shows. */
 /**
  * Which source a build was made from (IMP-08): the git revision, and whether
  * the tree had changes not in it. Null `dirty` means there was no git to ask.
@@ -589,6 +573,7 @@ export interface BuildRevision {
   dirty: boolean | null;
 }
 
+/** Unauthenticated probe of a server — what the Join screen shows. */
 export interface ServerInfo {
   app: "ownbase";
   protocolVersion: number;
@@ -599,7 +584,6 @@ export interface ServerInfo {
   userCount: number;
   /** True once an owner exists; joining then requires an invite code. */
   requiresInvite: boolean;
-  /** Who may join. */
   accessPolicy: AccessPolicy;
   /**
    * True when this workspace has no owner yet and the caller is not on the
@@ -753,14 +737,12 @@ export interface ThreadFollow {
   /**
    * Set when the thread was marked unread: where the channel's read cursor
    * stood then. Until the channel is read past it, a reply also sent to the
-   * channel is read only through the thread. Absent when there is no hold,
-   * and from servers older than it.
+   * channel is read only through the thread. Absent when there is no hold.
    */
   unreadHold?: number;
   /**
    * Muted: not followed, and kept that way when this account replies, and its
-   * replies notify only when they are addressed to it. Absent when not muted,
-   * and from servers older than it.
+   * replies notify only when they are addressed to it. Absent when not muted.
    */
   muted?: true;
 }
@@ -792,9 +774,7 @@ export interface ChannelRemoval {
   channelId: ID;
   channelName: string;
   channelType: "public" | "private";
-  /** Who removed them. */
   removedBy: ID;
-  /** When, in epoch ms. */
   createdAt: number;
 }
 
@@ -810,7 +790,7 @@ export interface FollowedThread {
   unreadCount: number;
   /**
    * The thread's newest reply, for the list to show where it has got to; null
-   * with none. Absent from servers before it was sent.
+   * with none.
    */
   latestReply?: Message | null;
 }
@@ -836,7 +816,6 @@ export const SEND_RETRY_WINDOW_MS = 30 * 24 * 3600_000;
  */
 export type ScheduledStatus = "queued" | "held" | "failed" | "sent";
 
-/** A message queued to be posted at a future time. */
 export interface ScheduledMessage {
   id: ID;
   channelId: ID;

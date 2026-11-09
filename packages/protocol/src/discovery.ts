@@ -11,13 +11,13 @@ export interface DiscoveryTxt {
   /**
    * The advertising server's instance id, new on every start and also served
    * by /api/health. What tells "this computer's own workspace" apart from
-   * another one on the same port. Absent from servers before it was added.
+   * another one on the same port.
    */
   inst?: string;
   /**
    * The version of the workspace's icon (`ServerInfo.iconVersion`), so a list
    * of found workspaces can ask for it by the public route. Absent when there
-   * is none, and from servers before it was added.
+   * is none.
    */
   icon?: string;
 }

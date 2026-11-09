@@ -7,7 +7,6 @@ describe("building an address from a discovered host and port", () => {
     expect(hostWithPort("rocket.local", 8543)).toBe("rocket.local:8543");
     expect(hostWithPort("2001:db8::1", 8543)).toBe("[2001:db8::1]:8543");
     expect(hostWithPort("::1", 9000)).toBe("[::1]:9000");
-    // Already bracketed is not bracketed twice.
     expect(hostWithPort("[2001:db8::1]", 8543)).toBe("[2001:db8::1]:8543");
   });
 
