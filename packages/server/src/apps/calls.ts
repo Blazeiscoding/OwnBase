@@ -103,12 +103,7 @@ export function createAppCalls(ctx: ServerContext) {
     const probe = JSON.stringify({ type: "url_verification", token: "", challenge });
     let answered: string;
     try {
-      const res = await post(
-        url,
-        probe,
-        "application/json",
-        store.apps.signingSecret(appId) ?? "",
-      );
+      const res = await post(url, probe, "application/json", store.apps.signingSecret(appId) ?? "");
       answered = res.body.trim();
       if (answered.startsWith("{")) {
         answered = String((JSON.parse(answered) as { challenge?: unknown }).challenge ?? "");

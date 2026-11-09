@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { blocksToText, parseView } from "../src/blockKit.js";
+import { blocksToText, parseView } from "../src/apps/blockKit.js";
 
 const plain = (text: string) => ({ type: "plain_text", text });
 const input = (blockId: string, element: Record<string, unknown>) => ({

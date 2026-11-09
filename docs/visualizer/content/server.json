@@ -187,7 +187,7 @@
       "concepts": ["offsite backup", "S3 SigV4", "multipart upload", "Cloudflare R2"]
     },
     {
-      "path": "packages/server/src/blockKit.ts",
+      "path": "packages/server/src/apps/blockKit.ts",
       "plain": "Turns the text, buttons and forms that Slack-style apps send into what OwnBase can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into OwnBase's text, buttons and modal fields.",
       "details": [
@@ -201,7 +201,7 @@
       "concepts": ["Slack compatibility", "bounded payload", "modal parsing"]
     },
     {
-      "path": "packages/server/src/capabilities.ts",
+      "path": "packages/server/src/core/capabilities.ts",
       "plain": "Briefly remembers which open forms and replies an app is still allowed to use, and forgets them when the server restarts.",
       "summary": "Keeps short-lived app permissions in a bounded in-memory map.",
       "details": [
@@ -213,7 +213,7 @@
       "concepts": ["bounded memory", "capability lifetime", "expiration"]
     },
     {
-      "path": "packages/server/src/commands.ts",
+      "path": "packages/server/src/apps/commands.ts",
       "plain": "Gives every workspace the built-in /shrug and /me commands, even before any app is added.",
       "summary": "Provides built-in /shrug and /me commands before any integration is installed.",
       "details": [
@@ -375,7 +375,7 @@
       "concepts": ["package boundary", "embedded server"]
     },
     {
-      "path": "packages/server/src/integrations.ts",
+      "path": "packages/server/src/apps/signing.ts",
       "plain": "Signs what the server sends to outside apps, the way Slack signs its own.",
       "summary": "signatureHeaders: HMAC-SHA256 over v0:timestamp:body, with OwnBase and Slack header names.",
       "details": [
@@ -1555,7 +1555,7 @@
           "files": [
             "packages/server/src/server.ts",
             "packages/server/src/gateway.ts",
-            "packages/server/src/integrations.ts"
+            "packages/server/src/apps/signing.ts"
           ],
           "detail": "Gateway fans out only committed events under current visibility. Targeted follow/mention updates are coalesced, while app deliveries run through the bounded retry pump."
         }
@@ -1571,7 +1571,7 @@
           "title": "Show only buttons OwnBase supports",
           "description": "Apps lay out their messages the way Slack apps do. The server keeps only text, buttons that open a web link and buttons that tell the app they were pressed, all within size limits. The message a button sits on decides which app and conversation the press belongs to.",
           "files": [
-            "packages/server/src/blockKit.ts",
+            "packages/server/src/apps/blockKit.ts",
             "packages/server/src/server.ts",
             "packages/protocol/src/entities.ts"
           ],
@@ -1581,9 +1581,9 @@
           "title": "Give the app short-lived permission",
           "description": "When someone presses a button, the server tells the app and hands it two short-lived permissions, one to open a form and a reply address to update the message. These expire, and only so many can exist at once. Every call to an app is signed, has a time limit and cannot reach private computers on the host's network.",
           "files": [
-            "packages/server/src/capabilities.ts",
+            "packages/server/src/core/capabilities.ts",
             "packages/server/src/limits.ts",
-            "packages/server/src/integrations.ts",
+            "packages/server/src/apps/signing.ts",
             "packages/server/src/outbound.ts"
           ],
           "detail": "The callback receives an app-bound trigger and a response URL. Capability maps cap memory and expire permissions; outbound calls are signed, deadline-bounded and private-host-checked."
@@ -1593,7 +1593,7 @@
           "description": "The app uses its permission once to open a form. The server first checks that the app, its bot, the person and the channel are all still allowed. It then sends the form, with only the kinds of fields OwnBase supports, to that person alone.",
           "files": [
             "packages/server/src/server.ts",
-            "packages/server/src/blockKit.ts",
+            "packages/server/src/apps/blockKit.ts",
             "packages/protocol/src/events.ts"
           ],
           "detail": "views.open and views.push consume one matching trigger after current app, bot, person and channel checks. Supported fields become a view.open ephemeral event, carrying the person's whole stack, for the owner alone. views.update needs no trigger and changes a view still open."
