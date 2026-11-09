@@ -187,6 +187,17 @@
       "concepts": ["offsite backup", "S3 SigV4", "multipart upload", "Cloudflare R2"]
     },
     {
+      "path": "packages/server/src/backups/feature.ts",
+      "plain": "Takes backups on a timer and makes the copy of the workspace the owner downloads.",
+      "summary": "registerBackups: scheduled backups (P3), the owner's workspace copy and its one-use download tickets (P4), and the backup summary in workspace status.",
+      "details": [
+        "scheduledBackupsOf refuses, before the database opens, schedules that cannot work: in memory, a non-positive interval, keeping none, or a backup folder inside the workspace or around it. An isolated copy takes none.",
+        "Making a copy is refused with 507 when the disk would have less than 64 MB left after it.",
+        "Both take an ordinary backup with attachment removals held, and stop before the drain so held removals run once the backup has ended."
+      ],
+      "concepts": ["feature module", "backup"]
+    },
+    {
       "path": "packages/server/src/blockKit.ts",
       "plain": "Turns the text, buttons and forms that Slack-style apps send into what OwnBase can show, leaving out what it cannot.",
       "summary": "Converts supported Slack Block Kit payloads into OwnBase's text, buttons and modal fields.",
@@ -350,6 +361,29 @@
         "checkIcon takes a noun, so the same rules refuse a profile picture in its own words (E9)."
       ],
       "concepts": ["workspace icon", "magic bytes", "content addressing", "UX-60"]
+    },
+    {
+      "path": "packages/server/src/admin/feature.ts",
+      "plain": "The routes the owner and admins use to run the workspace, and the ones that say whether it is up.",
+      "summary": "registerAdmin: health, the icon, workspace status (OPS-10), the audit log, people's roles and resets, reports, ownership, workspace settings and extension settings panels.",
+      "details": [
+        "Health and the icon are open to anyone; the icon is rationed by publicByAddress and cached under ?v= for a year.",
+        "Workspace status reports counts and sizes only: database and log, attachments and their removal queue, free disk, app deliveries, the scheduled queue, retention, backups, sockets, event-loop delay over the last full minute, failing background queues and each extension's status line.",
+        "Password and two-step resets share resettable's rules; a password reset is checked again after hashing, which yields.",
+        "Resolving a report removes the message inside the same mutate and, for deactivate, ends the author's sessions and sockets."
+      ],
+      "concepts": ["feature module", "administration"]
+    },
+    {
+      "path": "packages/server/src/admin/workspace.ts",
+      "plain": "The workspace itself: its name, who may join, its icon and link previews, changed the same way by the host and by its owner and admins.",
+      "summary": "createWorkspace: start-up settings for an unowned workspace, rename, changeAccessPolicy, changeIcon, setLinkPreviews, change listeners and the workspace part of the startup snapshot.",
+      "details": [
+        "Before anyone owns the workspace, the start options decide its name and who may join; once it has an owner a start never puts back an older choice. It also makes the claim code while nobody owns it.",
+        "Each change writes its settings through the registry with its audit record in one transaction, tells everyone signed in, and tells onChange listeners, one of which re-announces the workspace on the network after a rename or a new icon.",
+        "Turning guests off ends every guest session and closes their sockets."
+      ],
+      "concepts": ["feature module", "settings registry", "startup snapshot"]
     },
     {
       "path": "packages/server/src/backups/zip.ts",
@@ -552,8 +586,8 @@
         "GET /api/channels/:id/messages/:messageId gives one message to anyone who can read its conversation, guests included, for the card under a link to it. A message deleted, or under another conversation's id, is a 404, as is one in a conversation the reader cannot see.",
         "A status can end by itself (UX-61): PATCH /api/me takes statusExpiresAt, and a new status without one drops an earlier end. One timer waits for the soonest end, clears every status due then and sends user.updated to everyone, as if its owner had cleared it; on start it clears what ended while the server was stopped.",
         "A slash command whose app answered an error status, could not be reached or was blocked answers ok: false, command_failed, with the reason in message as well as in the private note to the channel, for the test in Apps and integrations (UX-63). Older clients read only ok and error.",
-        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through renameWorkspace and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
-        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon, which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
+        "The workspace's name and who may join belong to the workspace (UX-60). PUT /api/admin/workspace/name and /access-policy, owner or admin only, go through admin/workspace.ts's rename and changeAccessPolicy, the same functions the desktop host's setWorkspaceName, setAccessPolicy and setInviteOnly call, so the two cannot drift. Each writes the audit record in the same transaction (the host as a null actor), tells every socket (workspace.renamed, workspace.accessPolicy), signs guests out with their sockets when they are no longer allowed, and tells onWorkspaceChange listeners. The start options workspaceName, accessPolicy and inviteOnly set up a workspace with no accounts only; once it has one, a start never puts back an older choice.",
+        "The workspace's icon (UX-60): PUT /api/admin/workspace/icon takes the image itself as the body (a scoped parser reads every type as bytes, so workspaceIcon.ts's check answers) and DELETE removes it, both for the owner and admins. One changeIcon (admin/workspace.ts), which the host's setWorkspaceIcon and removeWorkspaceIcon also use, writes the meta rows and a workspace.icon_changed audit entry naming type and size but never the image, broadcasts workspace.icon to everyone signed in and tells onWorkspaceChange. GET /api/workspace/icon serves it to anyone, under the publicByAddress allowance, typed from the checked bytes with nosniff and an ETag; with ?v= of the current version it may be cached for a year, otherwise it is revalidated, and it answers 404 when there is none. /api/server-info carries iconVersion so the join card can show it before sign-in.",
         "A send can carry forwardFrom (E1). The sender must be able to read that message now: a missing, deleted or unreadable one answers 404 message_not_found. A forward with no words or files of its own passes on its original instead, and when the sender cannot read that original or it is gone the send answers 409 forward_unavailable. The forwarded id is part of the send's nonce identity.",
         "Link previews (E2): after a send or an edit commits, queuePreviews puts the message in a queue of at most 200 worked by two fetches at a time, unless the workspace is an isolated copy or previews are off (meta link_previews). findPreviews fetches the links it has no row for, through a cache of 25 addresses for half an hour shared by concurrent sends, then in one change adds what it found and emits message.updated with previewsOnly, unless the message was edited or deleted meanwhile. Shutdown aborts fetches under way.",
         "GET /api/link-previews/:id/image serves a preview's picture to readers of its message as the type its bytes said, with nosniff, no-store and a sandboxing CSP. DELETE /api/link-previews/:id is for the message's sender. PUT /api/admin/workspace/link-previews, for the owner and admins, records workspace.link_previews_changed and tells everyone signed in with workspace.linkPreviews. ServerOptions.fetchLinkPreview replaces the network fetch in tests.",
