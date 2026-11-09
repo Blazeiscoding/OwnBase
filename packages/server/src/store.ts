@@ -52,7 +52,7 @@ import {
   replyExcerpt,
   userMentionsIn,
 } from "@ownbase/protocol";
-import type { AppScope } from "@ownbase/protocol";
+import type { AppEventType, AppScope } from "@ownbase/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
 
 /** Known scopes only, each once, in one order, so two lists compare as text. */
@@ -4222,7 +4222,7 @@ export class Store {
       id: r.id,
       appId: r.app_id,
       url: r.url,
-      eventTypes: JSON.parse(r.event_types) as string[],
+      eventTypes: JSON.parse(r.event_types) as AppEventType[],
       createdAt: r.created_at,
       ...(r.pending_count !== undefined
         ? {
@@ -4239,7 +4239,11 @@ export class Store {
     };
   }
 
-  createSubscription(input: { appId: ID; url: string; eventTypes: string[] }): EventSubscription {
+  createSubscription(input: {
+    appId: ID;
+    url: string;
+    eventTypes: AppEventType[];
+  }): EventSubscription {
     const id = ulid();
     const now = Date.now();
     this.db

@@ -507,6 +507,27 @@ describe("outgoing event subscriptions", () => {
     expect(server.store.listSubscriptions(created.id)).toEqual([]);
   });
 
+  it("refuses a subscription to an event no app is sent, before calling its address", async () => {
+    const created = await newApp("Typing Watcher");
+    let called = false;
+    stub.handler = (req) => {
+      called = true;
+      return {
+        body: JSON.stringify({
+          challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
+        }),
+      };
+    };
+    const result = await api<{ error: string }>(`/api/apps/${created.id}/subscriptions`, {
+      token: aliceToken,
+      body: { url: stub.url("/typing"), eventTypes: ["message.created", "typing"] },
+    });
+    expect(result.status).toBe(400);
+    expect(result.data.error).toBe("invalid_request");
+    expect(called).toBe(false);
+    expect(server.store.listSubscriptions(created.id)).toEqual([]);
+  });
+
   it("requires the url_verification handshake before subscribing", async () => {
     const created = await newApp("Events Bot");
 

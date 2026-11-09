@@ -414,7 +414,8 @@ What is delivered:
 - **never** an event caused by the app's own bot, which is how a bot that answers
   messages ends up answering itself forever;
 - only the event types the subscription names, using the native names in the
-  table below, or every type if it names none;
+  table below, or every type if it names none. A subscription naming any other
+  type is refused;
 - only what the app's scopes let it read, as the table's last column says. A
   message from a private channel needs `groups:history` where one from a public
   channel needs `channels:history`. Apps and integrations names the scopes a

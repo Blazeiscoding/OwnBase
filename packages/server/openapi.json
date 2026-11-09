@@ -6241,7 +6241,21 @@
             "type": "array",
             "items": {
               "type": "string",
-              "maxLength": 40
+              "enum": [
+                "message.created",
+                "message.updated",
+                "message.deleted",
+                "reaction.added",
+                "reaction.removed",
+                "pin.added",
+                "pin.removed",
+                "channel.created",
+                "channel.updated",
+                "member.joined",
+                "member.left",
+                "user.joined",
+                "user.updated"
+              ]
             }
           }
         },

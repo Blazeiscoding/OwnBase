@@ -94,6 +94,7 @@ import {
   type AppScope,
   appScopesBody,
   eventScope,
+  isAppEventType,
   isAdministrator,
   type ScheduledMessage,
   type ServerInfo,
@@ -1085,6 +1086,8 @@ async function startWorkspaceServer(
    * channel, the workspace's id and the callback body every one of them gets.
    */
   const enqueueSubscriberDeliveries = (envelope: EventEnvelope, channelId: ID | null): void => {
+    const type = envelope.event.type;
+    if (!isAppEventType(type)) return;
     const subs = store.listAllSubscriptions();
     if (subs.length === 0) return;
     const payload = toSlackEvent(envelope.event);
@@ -1092,7 +1095,7 @@ async function startWorkspaceServer(
     const actor = eventActorId(envelope.event);
     // What an app must be allowed to read to be sent this (E18c).
     const needed = eventScope(
-      envelope.event.type,
+      type,
       channelId === null ? null : (store.getChannel(channelId)?.type ?? null),
     );
     const inChannel = new Map<ID, boolean>();
@@ -1112,14 +1115,11 @@ async function startWorkspaceServer(
         event: payload,
         // Our own event beside Slack's shape, so a native app need not
         // reverse-engineer the mapping.
-        ownbase: { type: envelope.event.type, seq: envelope.seq },
+        ownbase: { type, seq: envelope.seq },
       }));
 
     for (const { subscription, app: owner } of subs) {
-      if (
-        subscription.eventTypes.length > 0 &&
-        !subscription.eventTypes.includes(envelope.event.type)
-      ) {
+      if (subscription.eventTypes.length > 0 && !subscription.eventTypes.includes(type)) {
         continue;
       }
       // Never hand an app back its own bot's actions — that is how a bot that

@@ -1,3 +1,5 @@
+import type { AppEventType } from "./appEvents.js";
+
 /** All ids are ULID-style sortable strings. */
 export type ID = string;
 
@@ -896,67 +898,6 @@ export type AppScope = (typeof APP_SCOPES)[number];
 /** What a new app may do unless it is given more: post, and be sent nothing. */
 export const DEFAULT_APP_SCOPES: readonly AppScope[] = ["chat:write", "chat:write.public"];
 
-/** The native events an app can be sent, each in its Slack shape. */
-export const APP_EVENT_TYPES = [
-  "message.created",
-  "message.updated",
-  "message.deleted",
-  "reaction.added",
-  "reaction.removed",
-  "pin.added",
-  "pin.removed",
-  "channel.created",
-  "channel.updated",
-  "member.joined",
-  "member.left",
-  "user.joined",
-  "user.updated",
-] as const;
-
-const HISTORY: Record<ChannelType, AppScope> = {
-  public: "channels:history",
-  private: "groups:history",
-  dm: "im:history",
-  group_dm: "mpim:history",
-};
-
-/**
- * The scope an app needs to be sent an event of this type from a conversation
- * of this kind, or from none for a workspace-wide one, as Slack names them.
- * Null for an event no app is sent.
- */
-export function eventScope(type: string, channelType: ChannelType | null): AppScope | null {
-  const kind = channelType ?? "public";
-  switch (type) {
-    case "message.created":
-    case "message.updated":
-    case "message.deleted":
-      return HISTORY[kind];
-    case "reaction.added":
-    case "reaction.removed":
-      return "reactions:read";
-    case "pin.added":
-    case "pin.removed":
-      return "pins:read";
-    case "channel.created":
-    case "channel.updated":
-    case "member.joined":
-    case "member.left":
-      return kind === "public" ? "channels:read" : "groups:read";
-    case "user.joined":
-    case "user.updated":
-      return "users:read";
-    default:
-      return null;
-  }
-}
-
-/** Every scope an event of this type can need, wherever it happens. */
-export function eventScopes(type: string): AppScope[] {
-  const kinds: (ChannelType | null)[] = ["public", "private", "dm", "group_dm", null];
-  return [...new Set(kinds.map((kind) => eventScope(type, kind)).filter((s) => s !== null))];
-}
-
 /**
  * A Block Kit modal, reduced to the parts that can be drawn and filled in.
  * The app sends Slack's view object; this is what survives the trip.
@@ -1089,7 +1030,7 @@ export interface EventSubscription {
   appId: ID;
   url: string;
   /** Native event types delivered; empty means every type the app can see. */
-  eventTypes: string[];
+  eventTypes: AppEventType[];
   createdAt: number;
   /** Delivery health, included in the administrator's app detail response. */
   delivery?: {

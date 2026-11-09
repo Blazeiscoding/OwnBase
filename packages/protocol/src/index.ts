@@ -1,5 +1,6 @@
 export * from "./entities.js";
 export * from "./events.js";
+export * from "./appEvents.js";
 export * from "./rest.js";
 export * from "./discovery.js";
 export * from "./search.js";

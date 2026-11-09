@@ -1,4 +1,4 @@
-import type { AppScope, CreateCommandBody, ID } from "@ownbase/protocol";
+import type { AppScope, CreateCommandBody, CreateSubscriptionBody, ID } from "@ownbase/protocol";
 import type { Api } from "./api.js";
 
 /**
@@ -74,7 +74,7 @@ export class AppActions {
   }
 
   /** The server calls the URL to verify it before this resolves. */
-  subscribe(appId: ID, body: { url: string; eventTypes?: string[] }) {
+  subscribe(appId: ID, body: CreateSubscriptionBody) {
     return this.api.createSubscription(appId, body);
   }
 

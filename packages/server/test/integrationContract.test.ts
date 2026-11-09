@@ -8,6 +8,7 @@ import {
   APP_SCOPES,
   endpoints,
   eventScopes,
+  isAppEventType,
   type EndpointSpec,
   type WorkspaceEvent,
 } from "@ownbase/protocol";
@@ -170,7 +171,8 @@ describe("the event table", () => {
   it("names the scopes an app needs to be sent each one", () => {
     for (const [native, , , scopes] of rows) {
       const named = scopes!.split(/[`,\s]+/).filter(Boolean);
-      expect(named, native).toEqual(eventScopes(native!));
+      expect(isAppEventType(native!), native).toBe(true);
+      expect(named, native).toEqual(eventScopes(native as Parameters<typeof eventScopes>[0]));
     }
   });
 });

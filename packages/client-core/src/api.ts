@@ -7,6 +7,7 @@ import {
   type ChannelPrefsBody,
   type CreateChannelBody,
   type CreateCommandBody,
+  type CreateSubscriptionBody,
   type CreateInviteBody,
   type EditScheduledBody,
   type FileKind,
@@ -710,7 +711,7 @@ export class Api {
   }
 
   /** The server calls the URL to verify it before this resolves. */
-  createSubscription(appId: ID, body: { url: string; eventTypes?: string[] }) {
+  createSubscription(appId: ID, body: CreateSubscriptionBody) {
     return this.http.json(endpoints.createSubscription, { params: { id: appId }, body });
   }
 

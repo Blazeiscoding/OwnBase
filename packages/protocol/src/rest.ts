@@ -12,6 +12,7 @@ import {
 } from "./entities.js";
 import { FILE_KINDS, currentZoneName, isTimeZone } from "./search.js";
 import { idSchema } from "./socket.js";
+import { appEventType } from "./appEvents.js";
 
 export const handleSchema = z
   .string()
@@ -375,7 +376,7 @@ export const createCommandBody = z.object({
 export const createSubscriptionBody = z.object({
   url: integrationUrl,
   /** Native event type names; omit or leave empty for everything. */
-  eventTypes: z.array(z.string().max(40)).max(20).optional(),
+  eventTypes: z.array(appEventType).max(20).optional(),
 });
 
 /** Empty clears it, which leaves the app's buttons inert. */
@@ -557,3 +558,4 @@ export type ChannelPrefsBody = z.infer<typeof channelPrefsBody>;
 export type ScheduleMessageBody = z.infer<typeof scheduleMessageBody>;
 export type EditScheduledBody = z.infer<typeof editScheduledBody>;
 export type CreateCommandBody = z.infer<typeof createCommandBody>;
+export type CreateSubscriptionBody = z.infer<typeof createSubscriptionBody>;
