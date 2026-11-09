@@ -2,7 +2,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type AppDetail } from "@ownbase/client-core";
-import type { EventSubscription, User } from "@ownbase/protocol";
+import {
+  APP_EVENT_TYPES,
+  type AppEventType,
+  type EventSubscription,
+  type User,
+} from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";
 import { AppsDialog } from "../src/components/AppsDialog.js";
 import { ConfirmProvider } from "../src/components/Confirm.js";
@@ -42,7 +47,7 @@ const app = (over: Partial<AppDetail>): AppDetail => ({
   ...over,
 });
 
-const subscription = (eventTypes: string[]): EventSubscription =>
+const subscription = (eventTypes: AppEventType[]): EventSubscription =>
   ({
     id: "S_1",
     appId: "A_DEPLOY",
@@ -138,5 +143,27 @@ describe("what an app may do", () => {
       "mpim:history",
       "reactions:read",
     ]);
+  });
+
+  it("offers every event an app can be sent, and subscribes to the ones picked", async () => {
+    const { client, user } = appsDialog([app({})]);
+    const events = within(await card("Deploy Bot")).getByRole("group", {
+      name: "Event subscriptions",
+    });
+    for (const type of APP_EVENT_TYPES)
+      expect(within(events).getByRole("button", { name: type })).toBeInTheDocument();
+    const subscribe = vi
+      .spyOn(client.apps, "subscribe")
+      .mockResolvedValue({ subscription: subscription(["pin.added"]) });
+    await user.click(within(events).getByRole("button", { name: "pin.added" }));
+    await user.type(
+      within(events).getByRole("textbox", { name: "Request URL" }),
+      "https://bot.example.com/events",
+    );
+    await user.click(within(events).getByRole("button", { name: "Subscribe" }));
+    expect(subscribe).toHaveBeenCalledWith("A_DEPLOY", {
+      url: "https://bot.example.com/events",
+      eventTypes: ["pin.added"],
+    });
   });
 });

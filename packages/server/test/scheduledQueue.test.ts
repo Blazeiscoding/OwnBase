@@ -62,6 +62,7 @@ const schedule = (token: string, text: string, channelId = general()) =>
     sendAt: Date.now() + 3_600_000,
   });
 /** Brings every waiting row forward instead of idling the test until it is due. */
+/** Makes every waiting message due, by moving it as its author would: they hear of it too. */
 const allDue = () => {
   for (const item of server!.store.dueScheduled(Date.now() + 7_200_000, 100_000))
     server!.store.rescheduleMessage(item.id, Date.now() - 1000);
@@ -230,8 +231,9 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
     // Held because its room closed: the author's list should say why.
     await request(`/api/channels/${general()}`, owner.token, { archived: true }, "PATCH");
     allDue();
-    server!.flushScheduled();
     await expect.poll(mine.told).toBe(4);
+    server!.flushScheduled();
+    await expect.poll(mine.told).toBe(5);
     // Held again for the same reason a minute later: nothing new to say.
     const now = Date.now();
     vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
@@ -243,21 +245,21 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
     await request(`/api/channels/${general()}`, owner.token, { archived: false }, "PATCH");
     server!.flushScheduled();
     expect(sent()).toBe(1);
-    await expect.poll(mine.told).toBe(5);
+    await expect.poll(mine.told).toBe(6);
 
     const second = (await schedule(owner.token, "second")).body.scheduled.id as string;
-    await expect.poll(mine.told).toBe(6);
-    await request(`/api/scheduled/${second}`, owner.token, undefined, "DELETE");
     await expect.poll(mine.told).toBe(7);
+    await request(`/api/scheduled/${second}`, owner.token, undefined, "DELETE");
+    await expect.poll(mine.told).toBe(8);
 
     // A request replayed by its nonce changed nothing, so it says nothing.
     const body = { text: "once", nonce: "same-request", sendAt: Date.now() + 3_600_000 };
     const path = `/api/channels/${general()}/scheduled`;
     await request(path, owner.token, body);
-    await expect.poll(mine.told).toBe(8);
+    await expect.poll(mine.told).toBe(9);
     expect((await request(path, owner.token, body)).status).toBe(200);
     await new Promise((resolve) => setTimeout(resolve, 50));
-    expect(mine.told()).toBe(8);
+    expect(mine.told()).toBe(9);
 
     expect(theirs.told()).toBe(0);
   });
@@ -280,8 +282,9 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
     await expect.poll(mine.told).toBe(1);
     await request(`/api/messages/${rootId}`, owner.token, undefined, "DELETE");
     allDue();
+    await expect.poll(mine.told).toBe(2);
     server!.flushScheduled();
     expect(server!.store.getScheduled(id)!.status).toBe("failed");
-    await expect.poll(mine.told).toBe(2);
+    await expect.poll(mine.told).toBe(3);
   });
 });

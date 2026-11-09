@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import WebSocket from "ws";
 import { PROTOCOL_VERSION, type Message, type Poll, type ServerToClient } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { toSlackEvent } from "../src/integrations.js";
+import { toSlackEvent } from "../src/apps/delivery.js";
 
 /** Polls (E6): made, voted on, closed, kept from those who cannot read them, and dropped. */
 let server: WorkspaceServer | undefined;

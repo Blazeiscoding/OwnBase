@@ -3,6 +3,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import {
   PROTOCOL_VERSION,
   SOCKET_CLOSE,
+  clientMessage,
   isAdministrator,
   type SocketRefusal,
   type AccessPolicy,
@@ -18,14 +19,16 @@ import {
   type ServerToClient,
 } from "@ownbase/protocol";
 import type { Store } from "./store.js";
+import { eventChannel, type EventTo } from "./events/registry.js";
+import type { Audiences, OutboxSink } from "./events/outbox.js";
 import { hashToken } from "./auth.js";
 import { PASSWORD_CHANGE_REQUIRED } from "./httpError.js";
-import { socketMessage } from "./socketSchema.js";
 import { CallLog } from "./callLog.js";
 import type { RateLimiter } from "./limits.js";
 import { resolveClientAddress } from "./netTrust.js";
 
 type HuddleJoinResult = Extract<EphemeralEvent, { type: "huddle.join.result" }>;
+type SessionCheck = (client: Client) => boolean;
 
 interface Client {
   ws: WebSocket;
@@ -68,12 +71,12 @@ interface Seat {
 }
 
 /**
- * Holds every live socket, answers "who may see this event", and fans out
- * durable + ephemeral events. Event visibility: global events go to everyone;
- * events on a public channel go to everyone; events on private/dm channels go
- * to current members only.
+ * Holds every live socket and fans events out to each one's audience, as the
+ * event registry declares it (`events/registry.ts`): a conversation's events
+ * to whoever can read it, which for a public channel is everyone signed in
+ * and otherwise its current members; workspace events to everyone.
  */
-export class Gateway {
+export class Gateway implements OutboxSink {
   private clients = new Set<Client>();
   private byUser = new Map<ID, Set<Client>>();
   /**
@@ -317,7 +320,7 @@ export class Gateway {
     if (now === "offline" || this.told.get(userId) === now) return;
     this.told.set(userId, now);
     this.contained("presence", () =>
-      this.broadcastEphemeral({ type: "presence", userId, presence: now }, null),
+      this.tellEveryone({ type: "presence", userId, presence: now }),
     );
   }
 
@@ -336,7 +339,7 @@ export class Gateway {
       if (this.closing || (client && !this.clients.has(client))) return;
       let msg: ClientToServer;
       try {
-        const parsed = socketMessage.safeParse(JSON.parse(String(data)));
+        const parsed = clientMessage.safeParse(JSON.parse(String(data)));
         if (!parsed.success) {
           ws.close(SOCKET_CLOSE.invalidMessage, "invalid message");
           return;
@@ -431,10 +434,11 @@ export class Gateway {
         // channel, so the cost of sending is far below the cost of delivering.
         if (!this.affordEphemeral(client.userId)) return;
         if (this.store.canAccess(msg.channelId, client.userId)) {
-          this.broadcastEphemeral(
-            { type: "typing", channelId: msg.channelId, userId: client.userId },
-            this.audienceForChannel(msg.channelId),
-          );
+          this.tellChannel(msg.channelId, {
+            type: "typing",
+            channelId: msg.channelId,
+            userId: client.userId,
+          });
         }
       } else if (msg.type === "huddle.join") {
         this.joinHuddle(msg.channelId, client, msg.requestId);
@@ -472,14 +476,11 @@ export class Gateway {
               : { kind: msg.signal.kind as "offer" | "answer" }),
           });
         if (!refused && target?.client && this.authorized(target.client)) {
-          this.send(target.client.ws, {
-            type: "ephemeral",
-            event: {
-              type: "huddle.signal",
-              channelId: msg.channelId,
-              from: client.userId,
-              signal: msg.signal,
-            },
+          this.tellDevice(target.client.ws, {
+            type: "huddle.signal",
+            channelId: msg.channelId,
+            from: client.userId,
+            signal: msg.signal,
           });
         }
       } else if (msg.type === "idle") {
@@ -573,10 +574,7 @@ export class Gateway {
     }
     if (!offline) return;
     this.contained("presence", () =>
-      this.broadcastEphemeral(
-        { type: "presence", userId: client.userId, presence: "offline" },
-        null,
-      ),
+      this.tellEveryone({ type: "presence", userId: client.userId, presence: "offline" }),
     );
     this.presenceChanged();
   }
@@ -603,11 +601,9 @@ export class Gateway {
 
   private joinHuddle(channelId: ID, client: Client, requestId: string): void {
     const userId = client.userId;
-    const reply = (event: HuddleJoinResult) => {
-      // One bounded reply only to this socket, like pong. Room fanout stays
-      // admission-rationed; send() applies the existing slow-reader limit.
-      this.send(client.ws, { type: "ephemeral", event });
-    };
+    // One bounded reply only to this socket, like pong. Room fanout stays
+    // admission-rationed; sendRaw applies the slow-reader limit.
+    const reply = (event: HuddleJoinResult) => this.tellDevice(client.ws, event);
     const refuse = (message: string, retryAfterMs?: number) =>
       reply({
         type: "huddle.join.result",
@@ -641,8 +637,7 @@ export class Gateway {
         });
         // The device that had the place ends the call there, rather than
         // talk over this one.
-        if (before)
-          this.send(before.ws, { type: "ephemeral", event: { type: "huddle.moved", channelId } });
+        if (before) this.tellDevice(before.ws, { type: "huddle.moved", channelId });
       }
       reply({ type: "huddle.join.result", channelId, requestId, accepted: true });
       return;
@@ -710,7 +705,6 @@ export class Gateway {
     if (seat.released) clearTimeout(seat.released);
     room.delete(userId);
     this.calls.add({ channelId, userId, kind: "left", reason });
-    // An empty huddle is no huddle at all.
     if (room.size === 0) this.huddles.delete(channelId);
     return true;
   }
@@ -731,7 +725,7 @@ export class Gateway {
         ? this.store.getChannel(channelId)
         : null;
       if (!channel) this.leaveHuddle(channelId, userId, "lost access");
-      this.sendToUser(userId, { type: "channel.access", channelId, channel, membership });
+      this.tellPerson(userId, { type: "channel.access", channelId, channel, membership });
     } catch (err) {
       this.report(err, "channel access");
       this.resynchronizeUser(userId);
@@ -739,14 +733,14 @@ export class Gateway {
   }
 
   /** Tells the channel who is in its huddle now, and brings its ring up to date (E10). */
-  private publishHuddle(channelId: ID, authorized?: (client: Client) => boolean): void {
-    this.broadcastEphemeral(
+  private publishHuddle(channelId: ID, authorized?: SessionCheck): void {
+    this.tellChannel(
+      channelId,
       {
         type: "huddle.participants",
         channelId,
         userIds: [...(this.huddles.get(channelId)?.keys() ?? [])],
       },
-      this.audienceForChannel(channelId),
       authorized,
     );
     this.contained("huddle ring", () => this.settleRing(channelId));
@@ -845,9 +839,9 @@ export class Gateway {
 
   /** Tells the caller and everyone it rang how a ring stands, on all their devices. */
   private tellRing(ring: Ring): void {
-    const event: EphemeralEvent = { type: "huddle.ring", ring: { ...ring.state } };
+    const event: EventTo<"person"> = { type: "huddle.ring", ring: { ...ring.state } };
     for (const userId of [ring.state.callerId, ...ring.rang])
-      this.contained("huddle ring", () => this.sendToUser(userId, event));
+      this.contained("huddle ring", () => this.tellPerson(userId, event));
   }
 
   /** The rings this account is part of, calling or called, for its snapshot. */
@@ -884,11 +878,7 @@ export class Gateway {
       // Back already, on a socket that told everyone so.
       if (this.byUser.has(userId)) continue;
       this.contained("presence", () =>
-        this.broadcastEphemeral(
-          { type: "presence", userId, presence: "offline" },
-          null,
-          authorized,
-        ),
+        this.tellEveryone({ type: "presence", userId, presence: "offline" }, authorized),
       );
     }
   }
@@ -898,40 +888,36 @@ export class Gateway {
     return [...(this.huddles.get(channelId)?.keys() ?? [])];
   }
 
-  /** null audience = all connected users. */
-  private audienceForChannel(channelId: ID): Set<ID> | null {
+  /**
+   * Who can read a conversation, as `canAccess` says, read once per committed
+   * change when `audiences` carries it (F10); null for everyone signed in. A
+   * guest is never a member of a conversation that is not public: every way
+   * in refuses one.
+   */
+  private channelAudience(channelId: ID, audiences?: Audiences): Set<ID> | null {
+    if (audiences?.has(channelId)) return audiences.get(channelId)!;
     const ch = this.store.getChannel(channelId);
-    if (!ch) return new Set();
-    if (ch.type === "public") return null;
-    return new Set(this.store.memberIds(channelId));
+    const audience = !ch
+      ? new Set<ID>()
+      : ch.type === "public"
+        ? null
+        : new Set(this.store.memberIds(channelId));
+    audiences?.set(channelId, audience);
+    return audience;
   }
 
   /**
-   * Fan a durable event out to every connected client allowed to see it.
+   * Fans a durable event out to every connected client allowed to see it.
    * `audiences` carries each channel's audience across the events of one
-   * committed change, read once however many of them there are (F10); the
-   * caller drops it when that change is out, so it never outlives the
-   * committed rows it was read from.
+   * committed change; the caller drops it when that change is out, so it
+   * never outlives the committed rows it was read from.
    */
-  publish(
-    envelope: EventEnvelope,
-    channelId: ID | null,
-    audiences?: Map<ID, Set<ID> | null>,
-  ): void {
+  publish(envelope: EventEnvelope, audiences?: Audiences): void {
     // With nobody signed in there is nobody to read an audience for.
     if (this.clients.size === 0) return;
+    const channelId = eventChannel(envelope.event);
     const audience = channelId === null ? null : this.channelAudience(channelId, audiences);
-    const frame = JSON.stringify({ type: "event", envelope } satisfies ServerToClient);
-    const authorized = this.sessionCheck();
-    for (const c of this.reach(audience)) if (authorized(c)) this.sendRaw(c.ws, frame);
-  }
-
-  /** A channel's audience, from `audiences` when this change has read it already. */
-  channelAudience(channelId: ID, audiences?: Map<ID, Set<ID> | null>): Set<ID> | null {
-    if (audiences?.has(channelId)) return audiences.get(channelId)!;
-    const audience = this.audienceForChannel(channelId);
-    audiences?.set(channelId, audience);
-    return audience;
+    this.fanOut({ type: "event", envelope }, audience);
   }
 
   /**
@@ -1034,20 +1020,43 @@ export class Gateway {
     return this.sessionCheck()(client);
   }
 
-  /** Sends an ephemeral event to every socket of one user (their other devices). */
-  sendToUser(userId: ID, event: EphemeralEvent): void {
-    const frame = JSON.stringify({ type: "ephemeral", event } satisfies ServerToClient);
-    const authorized = this.sessionCheck();
-    for (const c of [...(this.byUser.get(userId) ?? [])])
-      if (authorized(c)) this.sendRaw(c.ws, frame);
+  anyoneOnline(): boolean {
+    return this.byUser.size > 0;
   }
 
-  broadcastEphemeral(
-    event: EphemeralEvent,
+  tellPerson(userId: ID, event: EventTo<"person">): void {
+    this.fanOut({ type: "ephemeral", event }, new Set([userId]));
+  }
+
+  tellChannel(channelId: ID, event: EventTo<"channel">, authorized?: SessionCheck): void {
+    this.fanOut({ type: "ephemeral", event }, this.channelAudience(channelId), authorized);
+  }
+
+  tellEveryone(event: EventTo<"everyone">, authorized?: SessionCheck): void {
+    this.fanOut({ type: "ephemeral", event }, null, authorized);
+  }
+
+  /** The owner and admins whose accounts are active. */
+  tellAdmins(event: EventTo<"admins">): void {
+    const admins = new Set<ID>();
+    for (const userId of this.byUser.keys()) {
+      const user = this.store.getUser(userId);
+      if (user && isAdministrator(user.role) && !user.deactivated) admins.add(userId);
+    }
+    if (admins.size > 0) this.fanOut({ type: "ephemeral", event }, admins);
+  }
+
+  /** The one socket an event answers, never fanned out. */
+  private tellDevice(ws: WebSocket, event: EventTo<"device">): void {
+    this.send(ws, { type: "ephemeral", event });
+  }
+
+  private fanOut(
+    msg: ServerToClient,
     audience: Set<ID> | null,
-    authorized: (client: Client) => boolean = this.sessionCheck(),
+    authorized: SessionCheck = this.sessionCheck(),
   ): void {
-    const frame = JSON.stringify({ type: "ephemeral", event } satisfies ServerToClient);
+    const frame = JSON.stringify(msg);
     for (const c of this.reach(audience)) if (authorized(c)) this.sendRaw(c.ws, frame);
   }
 

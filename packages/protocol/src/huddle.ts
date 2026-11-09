@@ -1,3 +1,4 @@
+import { z } from "zod";
 import type { ID } from "./entities.js";
 
 /**
@@ -7,13 +8,17 @@ import type { ID } from "./entities.js";
  * Deliberately plain objects rather than DOM types: this package is shared
  * with the server, which has no lib.dom.
  */
-export type HuddleSignal =
-  | { kind: "offer"; sdp: string }
-  | { kind: "answer"; sdp: string }
-  | {
-      kind: "ice";
-      candidate: { candidate: string; sdpMid: string | null; sdpMLineIndex: number | null };
-    }
+export const huddleSignal = z.discriminatedUnion("kind", [
+  z.object({ kind: z.literal("offer"), sdp: z.string().max(100_000) }),
+  z.object({ kind: z.literal("answer"), sdp: z.string().max(100_000) }),
+  z.object({
+    kind: z.literal("ice"),
+    candidate: z.object({
+      candidate: z.string().max(4096),
+      sdpMid: z.string().max(128).nullable(),
+      sdpMLineIndex: z.number().int().nonnegative().max(100).nullable(),
+    }),
+  }),
   /**
    * Which of the sender's video slots are actually carrying something.
    *
@@ -23,45 +28,55 @@ export type HuddleSignal =
    * silent slot showed an unmuted track and 0 bytes received. Without this the
    * far side shows a black tile for a camera nobody turned on.
    */
-  | {
-      kind: "media";
-      camera: boolean;
-      screen: boolean;
-      /**
-       * Whether their microphone is muted. Optional because a client from
-       * before this field simply does not say, and a call is not worth
-       * dropping over a missing badge.
-       */
-      muted?: boolean;
-      /**
-       * Whether their share sends its sound, in a fourth slot after the
-       * screen's. Only a client with that slot says, true or false; one from
-       * before it never does, and would take any fourth track for the
-       * person's microphone, so it is sent none.
-       */
-      screenSound?: boolean;
-      /**
-       * How tall whoever says this draws the camera and the share of the one
-       * it is sent to, in device pixels, rounded up to one of a few heights;
-       * 0 while one is not drawn at all: the call hidden behind the chat, the
-       * window out of sight, or the row under a share put away. That one sends
-       * them no bigger a picture, or none (E13b), since every connection in
-       * the mesh is an encoder of its own. A client from before it never says,
-       * and is sent what the call's size allows.
-       */
-      view?: { camera: number; screen: number };
-    };
+  z.object({
+    kind: z.literal("media"),
+    camera: z.boolean(),
+    screen: z.boolean(),
+    /** Whether their microphone is muted. */
+    muted: z.boolean().optional(),
+    /**
+     * Whether their share sends its sound, in a fourth slot after the
+     * screen's. Only a client with that slot says, true or false; one that
+     * never says would take any fourth track for the person's microphone, so
+     * it is sent none.
+     */
+    screenSound: z.boolean().optional(),
+    /**
+     * How tall whoever says this draws the camera and the share of the one
+     * it is sent to, in device pixels, rounded up to one of a few heights;
+     * 0 while one is not drawn at all: the call hidden behind the chat, the
+     * window out of sight, or the row under a share put away. That one sends
+     * them no bigger a picture, or none (E13b), since every connection in
+     * the mesh is an encoder of its own. One that never says is sent what
+     * the call's size allows.
+     */
+    view: z
+      .object({
+        camera: z.number().int().min(0).max(4320),
+        screen: z.number().int().min(0).max(4320),
+      })
+      .optional(),
+  }),
+]);
+export type HuddleSignal = z.infer<typeof huddleSignal>;
 
 /**
  * The kinds of route ICE can find to a device: on its own network (`host`),
  * its public address as a STUN server saw it (`srflx`), one learnt from the
  * other side's checks (`prflx`), and one through a TURN relay (`relay`).
  */
-export type CandidateKind = "host" | "srflx" | "prflx" | "relay";
-export const CANDIDATE_KINDS: readonly CandidateKind[] = ["host", "srflx", "prflx", "relay"];
+export const CANDIDATE_KINDS = ["host", "srflx", "prflx", "relay"] as const;
+export type CandidateKind = (typeof CANDIDATE_KINDS)[number];
 
+const candidateCount = z.number().int().nonnegative().max(1000);
 /** How many routes of each kind one side offered. */
-export type CandidateCounts = Record<CandidateKind, number>;
+const candidateCounts = z.object({
+  host: candidateCount,
+  srflx: candidateCount,
+  prflx: candidateCount,
+  relay: candidateCount,
+});
+export type CandidateCounts = z.infer<typeof candidateCounts>;
 
 /**
  * Why a connection did not come up, as far as one side can tell:
@@ -77,35 +92,49 @@ export type CandidateCounts = Record<CandidateKind, number>;
  *   each other directly: a network between them needs a TURN relay;
  * - `unknown`: none of these.
  */
-export type CallCause =
-  | "signalling"
-  | "no_ice_servers"
-  | "no_public_route_here"
-  | "no_public_route_there"
-  | "needs_relay"
-  | "unknown";
+const callCause = z.enum([
+  "signalling",
+  "no_ice_servers",
+  "no_public_route_here",
+  "no_public_route_there",
+  "needs_relay",
+  "unknown",
+]);
+export type CallCause = z.infer<typeof callCause>;
+
+const connectionState = z.string().max(32);
 
 /**
  * What one side saw of one connection in a huddle, for the host's call log.
  * Counts and states only: no address, no SDP, nothing said or shown.
  */
-export interface CallReport {
+export const callReport = z.object({
   /** `stalled`: still not connected after a while, and trying again. */
-  outcome: "connected" | "stalled" | "failed";
+  outcome: z.enum(["connected", "stalled", "failed"]),
   /** Since this side started connecting to the other. */
-  afterMs: number;
+  afterMs: z.number().int().nonnegative().max(86_400_000),
   /** The servers this side was given to find routes with. */
-  iceServers: { stun: number; turn: number };
-  local: CandidateCounts;
-  remote: CandidateCounts;
-  connectionState: string;
-  iceConnectionState: string;
+  iceServers: z.object({
+    stun: z.number().int().nonnegative().max(100),
+    turn: z.number().int().nonnegative().max(100),
+  }),
+  local: candidateCounts,
+  remote: candidateCounts,
+  connectionState,
+  iceConnectionState: connectionState,
   /** The kinds of route the connection settled on, once connected. */
-  route?: { local: CandidateKind; remote: CandidateKind; protocol: "udp" | "tcp" };
+  route: z
+    .object({
+      local: z.enum(CANDIDATE_KINDS),
+      remote: z.enum(CANDIDATE_KINDS),
+      protocol: z.enum(["udp", "tcp"]),
+    })
+    .optional(),
   /** How many times this side has tried again. */
-  retries: number;
-  cause?: CallCause;
-}
+  retries: z.number().int().nonnegative().max(100),
+  cause: callCause.optional(),
+});
+export type CallReport = z.infer<typeof callReport>;
 
 /** One line of a server's call log, kept in memory for the host. */
 export interface CallLogEntry {

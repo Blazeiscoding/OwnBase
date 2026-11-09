@@ -21,6 +21,7 @@ import {
   DEFAULT_APP_SCOPES,
   eventScopes,
   type App,
+  type AppEventType,
   type AppScope,
   type Channel,
   type EventSubscription,
@@ -1191,17 +1192,6 @@ function CommandList({ app, onChanged }: { app: AppDetail; onChanged: () => void
   );
 }
 
-/** Native event names, so the picker does not need the server to list them. */
-const EVENT_TYPES = [
-  "message.created",
-  "message.updated",
-  "message.deleted",
-  "reaction.added",
-  "reaction.removed",
-  "member.joined",
-  "channel.created",
-];
-
 /** Each scope in the words an administrator decides on. */
 const SCOPE_WORDS: Record<AppScope, string> = {
   "chat:write": "Post where it has been added",
@@ -1374,7 +1364,7 @@ function DeliveryStatus({ delivery }: { delivery: EventSubscription["delivery"] 
 function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () => void }) {
   const client = useClient();
   const [url, setUrl] = useState("");
-  const [types, setTypes] = useState<string[]>([]);
+  const [types, setTypes] = useState<AppEventType[]>([]);
   /** What is wrong with the address, said under it. */
   const [urlProblem, setUrlProblem] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -1512,7 +1502,7 @@ function SubscriptionList({ app, onChanged }: { app: AppDetail; onChanged: () =>
           </button>
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
-          {EVENT_TYPES.map((t) => (
+          {APP_EVENT_TYPES.map((t) => (
             <button
               key={t}
               type="button"

@@ -87,7 +87,7 @@ export function requireMessageText(text: string): void {
 export interface PostingDeps {
   store: Store;
   /** Runs `work` in one transaction and publishes the events it records once committed. */
-  mutate<T>(work: (record: (event: WorkspaceEvent, channelId: ID | null) => EventEnvelope) => T): T;
+  mutate<T>(work: (record: (event: WorkspaceEvent) => EventEnvelope) => T): T;
   /** Spends one unit of a limit, or throws the 429 that says when to come back. */
   ration(name: keyof Limits, key: string): void;
   queuePreviews(message: Message): void;
@@ -232,7 +232,7 @@ export function createPosting({
         throw new HttpError(400, "bad_reply_target");
       if (channel.type === "public" && !store.isMember(channel.id, userId)) {
         store.addMember(channel.id, userId);
-        record({ type: "member.joined", channelId: channel.id, userId }, channel.id);
+        record({ type: "member.joined", channelId: channel.id, userId });
       }
       // A file a scheduled message is waiting to send is already promised.
       if (store.filesHeldBySchedule(input.fileIds, input.scheduledId ?? null))
@@ -297,7 +297,7 @@ export function createPosting({
       if (input.nonce !== null)
         store.recordMessageRequest(userId, input.nonce, created.id, requestHash);
       if (input.scheduledId) store.markScheduledSent(input.scheduledId, created.id);
-      record({ type: "message.created", message: hydrated }, input.channelId);
+      record({ type: "message.created", message: hydrated });
       return hydrated;
     });
     queuePreviews(message);

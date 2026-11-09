@@ -14,7 +14,7 @@ import type {
   ServerNotice,
   SidebarSection,
 } from "./entities.js";
-import type { CallReport, HuddleRing, HuddleSignal } from "./huddle.js";
+import type { HuddleRing, HuddleSignal } from "./huddle.js";
 import type { MemberNotice } from "./plan.js";
 
 /**
@@ -83,27 +83,23 @@ export type EphemeralEvent =
   | { type: "presence"; userId: ID; presence: Presence }
   /**
    * The workspace has a new name, replacing the one the ready snapshot gave.
-   * A client that misses it gets the new name from its next snapshot. Clients
-   * older than this event ignore it.
+   * A client that misses it gets the new name from its next snapshot.
    */
   | { type: "workspace.renamed"; workspaceName: string }
   /**
    * Who may join changed, replacing what the ready snapshot gave. Told to
-   * everyone signed in, since the Join screen tells anyone who asks. Clients
-   * older than this event ignore it.
+   * everyone signed in, since the Join screen tells anyone who asks.
    */
   | { type: "workspace.accessPolicy"; accessPolicy: AccessPolicy }
   /**
    * The workspace's icon changed, replacing the version the ready snapshot
    * gave: a new one, or null when it was removed. Told to everyone signed in,
-   * since the Join screen shows it to anyone who asks. Clients older than this
-   * event ignore it.
+   * since the Join screen shows it to anyone who asks.
    */
   | { type: "workspace.icon"; iconVersion: string | null }
   /**
    * Link previews were turned on or off for the workspace, replacing what the
-   * ready snapshot gave. Told to everyone signed in. Clients older than this
-   * event ignore it.
+   * ready snapshot gave. Told to everyone signed in.
    */
   | { type: "workspace.linkPreviews"; enabled: boolean }
   /** Private to one user's own sockets, so their devices stay in step. */
@@ -122,8 +118,7 @@ export type EphemeralEvent =
   | { type: "reminder.removed"; messageId: ID }
   /**
    * Someone else removed this user from a channel; the note waits in their
-   * Activity until read. Private to their own sockets. Clients older than
-   * this event ignore it.
+   * Activity until read. Private to their own sockets.
    */
   | { type: "channel.removal"; removal: ChannelRemoval }
   /** Notes of removals this user read, gone from every device of theirs. */
@@ -196,7 +191,7 @@ export type EphemeralEvent =
    * have open. Like an ephemeral message it is not stored: closing the app
    * loses it, which is what a modal that has not been submitted should do.
    * `stack` is every form they have open, bottom first, ending with `view`,
-   * the one to show (E18b). A client from before stacks shows `view`.
+   * the one to show (E18b).
    */
   | { type: "view.open"; view: ModalView; stack?: ModalView[] }
   /** Forms this person no longer has open: closed on another device, or by the app. */
@@ -316,25 +311,3 @@ export type ServerToClient =
       protocolVersion?: number;
     }
   | { type: "pong" };
-
-export type ClientToServer =
-  | {
-      type: "hello";
-      token: string;
-      lastSeq: number | null;
-      protocolVersion: number;
-    }
-  | { type: "typing"; channelId: ID }
-  | { type: "huddle.join"; channelId: ID; requestId: string }
-  | { type: "huddle.leave"; channelId: ID }
-  | { type: "huddle.signal"; channelId: ID; to: ID; signal: HuddleSignal }
-  /** How one of this side's connections in a huddle went, for the host's call log. */
-  | { type: "huddle.report"; channelId: ID; peer: ID; report: CallReport }
-  /** Says no to a ring this account is being rung by (E10). */
-  | { type: "huddle.decline"; channelId: ID }
-  /**
-   * Whether this device has gone idle, nobody touching it for a while, or is
-   * in use again (E9). Every device idle makes the account away.
-   */
-  | { type: "idle"; idle: boolean }
-  | { type: "ping" };

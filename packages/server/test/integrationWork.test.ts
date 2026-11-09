@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { AppEventType } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
 
 /**
@@ -39,7 +40,12 @@ afterEach(async () => {
   await server.stop();
 });
 
-function app(name: string, inChannel: boolean, subscriptions: number, eventTypes: string[] = []) {
+function app(
+  name: string,
+  inChannel: boolean,
+  subscriptions: number,
+  eventTypes: AppEventType[] = [],
+) {
   const store = server.store;
   const bot = store.createBotUser(`bot-${name}`, name, "", "");
   if (inChannel) store.addMember(general, bot.id);

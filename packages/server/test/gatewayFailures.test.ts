@@ -191,10 +191,7 @@ describe("socket callbacks that fail (F03)", () => {
       throw new Error("disk");
     });
 
-    server.gateway.broadcastEphemeral(
-      { type: "presence", userId: "U_ANY", presence: "online" },
-      null,
-    );
+    server.gateway.tellEveryone({ type: "presence", userId: "U_ANY", presence: "online" });
     for (const device of devices) await expect.poll(() => device.closed()).toBe(1011);
     // Each session read once, and every read at the same depth.
     expect(check.mock.calls.length).toBe(20);

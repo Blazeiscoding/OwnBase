@@ -52,7 +52,7 @@ import {
   replyExcerpt,
   userMentionsIn,
 } from "@ownbase/protocol";
-import type { AppScope } from "@ownbase/protocol";
+import type { AppEventType, AppScope } from "@ownbase/protocol";
 import { ulid, orderedUlid, inviteCode } from "./ids.js";
 
 /** Known scopes only, each once, in one order, so two lists compare as text. */
@@ -70,6 +70,7 @@ function parseJsonArray(text: string | undefined): unknown[] {
   }
 }
 import { previewLinks, type FetchedPreview } from "./linkPreview.js";
+import { Outbox } from "./events/outbox.js";
 
 interface UserRow {
   id: string;
@@ -227,19 +228,26 @@ function mayInvite(
 export const SESSION_TTL_MS = 30 * 24 * 3600_000;
 
 export class Store {
+  /** What the writes here have to tell people, sent once they are committed. */
+  readonly outbox: Outbox = new Outbox(this);
+
   constructor(private db: DatabaseSync) {}
 
   /** Only synchronous database work belongs here; publish events after this returns. */
   transaction<T>(work: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
+    const mark = this.outbox.begin();
+    let value: T;
     try {
-      const value = work();
+      value = work();
       this.db.exec("COMMIT");
-      return value;
     } catch (error) {
+      this.outbox.rollback(mark);
       this.db.exec("ROLLBACK");
       throw error;
     }
+    this.outbox.commit();
+    return value;
   }
 
   messageRequest(userId: ID, nonce: string): { messageId: ID; requestHash: string | null } | null {
@@ -304,17 +312,27 @@ export class Store {
         `INSERT OR IGNORE INTO friendships (user_low, user_high, requested_by, created_at) VALUES (?, ?, ?, ?)`,
       )
       .run(low!, high!, userId, Date.now());
+    this.tellFriends(userId, otherId);
   }
 
   acceptFriend(userId: ID, otherId: ID): boolean {
     const [low, high] = [userId, otherId].sort();
-    return (
+    const accepted =
       this.db
         .prepare(
           `UPDATE friendships SET accepted = 1 WHERE user_low = ? AND user_high = ? AND requested_by = ?`,
         )
-        .run(low!, high!, otherId).changes > 0
-    );
+        .run(low!, high!, otherId).changes > 0;
+    if (accepted) this.tellFriends(userId, otherId);
+    return accepted;
+  }
+
+  /** Each account's devices hear its friends as they end up; nobody else does. */
+  private tellFriends(...userIds: ID[]): void {
+    for (const id of userIds)
+      this.outbox.person(id, () => ({ type: "friends", friends: this.listFriends(id) }), {
+        key: "friends",
+      });
   }
 
   // ---------- blocks and reports (E12) ----------
@@ -329,9 +347,12 @@ export class Store {
     return rows.map((row) => row.blocked_id);
   }
 
-  /** Blocks or unblocks someone for this account; whether anything changed. */
+  /**
+   * Blocks or unblocks someone for this account; whether anything changed.
+   * Only this account's devices hear of it: whoever is blocked is told nothing.
+   */
   setBlocked(userId: ID, otherId: ID, blocked: boolean): boolean {
-    return (
+    const changed =
       (blocked
         ? this.db
             .prepare(
@@ -341,20 +362,32 @@ export class Store {
         : this.db
             .prepare("DELETE FROM user_blocks WHERE user_id = ? AND blocked_id = ?")
             .run(userId, otherId)
-      ).changes === 1
-    );
+      ).changes === 1;
+    if (!changed) return false;
+    this.outbox.person(userId, () => ({ type: "blocks", blocked: this.blockedIds(userId) }), {
+      key: "blocks",
+    });
+    // A request they sent meanwhile shows now.
+    if (!blocked) this.tellFriends(userId);
+    this.outbox.mentions([userId]);
+    return true;
   }
 
   /** Keeps someone's report of a message; false when they have one open for it already. */
   reportMessage(messageId: ID, reporterId: ID, reason: string, note: string): boolean {
-    return (
+    const kept =
       this.db
         .prepare(
           `INSERT OR IGNORE INTO message_reports (id, message_id, reporter_id, reason, note, created_at)
            VALUES (?, ?, ?, ?, ?, ?)`,
         )
-        .run(ulid(), messageId, reporterId, reason, note, Date.now()).changes === 1
-    );
+        .run(ulid(), messageId, reporterId, reason, note, Date.now()).changes === 1;
+    if (kept) this.tellOpenReports();
+    return kept;
+  }
+
+  private tellOpenReports(): void {
+    this.outbox.admins("reports", () => ({ type: "reports", open: this.openReportCount() }));
   }
 
   /** How many reported messages wait for an admin. */
@@ -416,12 +449,14 @@ export class Store {
 
   /** Closes a message's open reports as an admin resolved them; how many there were. */
   resolveReports(messageId: ID, adminId: ID, resolution: string): number {
-    return this.db
+    const resolved = this.db
       .prepare(
         `UPDATE message_reports SET resolved_at = ?, resolved_by = ?, resolution = ?
          WHERE message_id = ? AND resolved_at IS NULL`,
       )
       .run(Date.now(), adminId, resolution, messageId).changes as number;
+    if (resolved > 0) this.tellOpenReports();
+    return resolved;
   }
 
   removeFriend(userId: ID, otherId: ID): void {
@@ -429,6 +464,7 @@ export class Store {
     this.db
       .prepare(`DELETE FROM friendships WHERE user_low = ? AND user_high = ?`)
       .run(low!, high!);
+    this.tellFriends(userId, otherId);
   }
 
   // ---------- meta ----------
@@ -1137,12 +1173,26 @@ export class Store {
     return res.changes > 0;
   }
 
+  /**
+   * Takes someone out of a conversation. They are told their access ahead of
+   * the change's events: out of a private one they no longer hear its
+   * `member.left`, so that notice is what clears it from their screens.
+   */
   removeMember(channelId: ID, userId: ID): boolean {
     const res = this.db
       .prepare("DELETE FROM channel_members WHERE channel_id = ? AND user_id = ?")
       .run(channelId, userId);
-    if (res.changes > 0) this.retireDmKey(channelId);
-    return res.changes > 0;
+    if (res.changes === 0) return false;
+    this.retireDmKey(channelId);
+    this.outbox.access(channelId, userId);
+    return true;
+  }
+
+  /** Adds someone at another member's asking; they are told their access wherever they are. */
+  inviteMember(channelId: ID, userId: ID): boolean {
+    if (!this.addMember(channelId, userId)) return false;
+    this.outbox.access(channelId, userId);
+    return true;
   }
 
   isMember(channelId: ID, userId: ID): boolean {
@@ -1255,7 +1305,21 @@ export class Store {
         )
         .run(...params, channelId, userId);
     }
-    return this.getChannelPrefs(channelId, userId);
+    const prefs = this.getChannelPrefs(channelId, userId);
+    if (prefs) this.tellPrefs(channelId, userId);
+    return prefs;
+  }
+
+  /** Preferences are personal: only this account's own devices hear of them. */
+  private tellPrefs(channelId: ID, userId: ID): void {
+    this.outbox.person(
+      userId,
+      () => {
+        const prefs = this.getChannelPrefs(channelId, userId);
+        return prefs ? { type: "prefs", channelId, prefs } : null;
+      },
+      { key: `prefs:${channelId}` },
+    );
   }
 
   /** What this account's conversations notify about unless one is set on its own (v53). */
@@ -1267,6 +1331,7 @@ export class Store {
 
   setNotifyDefault(userId: ID, level: NotifyLevel): void {
     this.db.prepare("UPDATE users SET notify_default = ? WHERE id = ?").run(level, userId);
+    this.outbox.person(userId, { type: "notify.default", level });
   }
 
   /**
@@ -1320,16 +1385,26 @@ export class Store {
          SELECT ?, ?, ?, COALESCE(MAX(position), -1) + 1, ? FROM sidebar_sections WHERE user_id = ?`,
       )
       .run(id, userId, name, Date.now(), userId);
+    this.tellSections(userId);
     return { id, name };
+  }
+
+  private tellSections(userId: ID): void {
+    this.outbox.person(
+      userId,
+      () => ({ type: "sidebar.sections", sections: this.sidebarSections(userId) }),
+      { key: "sidebar.sections" },
+    );
   }
 
   /** Renames one of the account's sections; false when it has no such section. */
   renameSidebarSection(userId: ID, sectionId: ID, name: string): boolean {
-    return (
+    const renamed =
       this.db
         .prepare("UPDATE sidebar_sections SET name = ? WHERE id = ? AND user_id = ?")
-        .run(name, sectionId, userId).changes > 0
-    );
+        .run(name, sectionId, userId).changes > 0;
+    if (renamed) this.tellSections(userId);
+    return renamed;
   }
 
   /**
@@ -1347,6 +1422,8 @@ export class Store {
          RETURNING channel_id`,
       )
       .all(userId, sectionId) as { channel_id: string }[];
+    for (const row of freed) this.tellPrefs(row.channel_id, userId);
+    this.tellSections(userId);
     return freed.map((row) => row.channel_id);
   }
 
@@ -1359,6 +1436,7 @@ export class Store {
       "UPDATE sidebar_sections SET position = ? WHERE id = ? AND user_id = ?",
     );
     ids.forEach((id, position) => place.run(position, id, userId));
+    this.tellSections(userId);
     return true;
   }
 
@@ -1370,32 +1448,38 @@ export class Store {
    * the thread comes first. Gives the cursor and the threads whose cursor moved.
    */
   markRead(channelId: ID, userId: ID, seq: number): { seq: number; threads: ID[] } {
-    const before = this.db
-      .prepare("SELECT last_read_seq FROM channel_members WHERE channel_id = ? AND user_id = ?")
-      .get(channelId, userId) as { last_read_seq: number } | undefined;
-    const row = this.db
-      .prepare(
-        "UPDATE channel_members SET last_read_seq = MAX(last_read_seq, ?) WHERE channel_id = ? AND user_id = ? RETURNING last_read_seq",
-      )
-      .get(Math.min(seq, this.currentSeq()), channelId, userId) as
-      { last_read_seq: number } | undefined;
-    const after = row?.last_read_seq ?? 0;
-    if (!before || after <= before.last_read_seq) return { seq: after, threads: [] };
-    // Threads with a copy this read passes, and threads marked unread that it
-    // reads past where the channel stood: their held copies are read now.
-    const roots = this.db
-      .prepare(
-        `SELECT thread_root_id AS id FROM messages
-         WHERE channel_id = ? AND broadcast = 1 AND thread_root_id IS NOT NULL
-           AND deleted_at IS NULL AND seq > ? AND seq <= ?
-         UNION
-         SELECT f.root_id FROM thread_follows f JOIN messages root ON root.id = f.root_id
-         WHERE f.user_id = ? AND root.channel_id = ?
-           AND f.unread_hold IS NOT NULL AND f.unread_hold < ?`,
-      )
-      .all(channelId, before.last_read_seq, after, userId, channelId, after) as { id: string }[];
-    const threads = roots.filter(({ id }) => this.readChannelCopies(userId, id, after));
-    return { seq: after, threads: threads.map(({ id }) => id) };
+    return this.outbox.hold(() => {
+      const before = this.db
+        .prepare("SELECT last_read_seq FROM channel_members WHERE channel_id = ? AND user_id = ?")
+        .get(channelId, userId) as { last_read_seq: number } | undefined;
+      const row = this.db
+        .prepare(
+          "UPDATE channel_members SET last_read_seq = MAX(last_read_seq, ?) WHERE channel_id = ? AND user_id = ? RETURNING last_read_seq",
+        )
+        .get(Math.min(seq, this.currentSeq()), channelId, userId) as
+        { last_read_seq: number } | undefined;
+      const after = row?.last_read_seq ?? 0;
+      this.outbox.person(userId, { type: "channel.read", channelId, seq: after });
+      this.outbox.mentions([userId]);
+      if (!before || after <= before.last_read_seq) return { seq: after, threads: [] };
+      // Threads with a copy this read passes, and threads marked unread that it
+      // reads past where the channel stood: their held copies are read now.
+      const roots = this.db
+        .prepare(
+          `SELECT thread_root_id AS id FROM messages
+           WHERE channel_id = ? AND broadcast = 1 AND thread_root_id IS NOT NULL
+             AND deleted_at IS NULL AND seq > ? AND seq <= ?
+           UNION
+           SELECT f.root_id FROM thread_follows f JOIN messages root ON root.id = f.root_id
+           WHERE f.user_id = ? AND root.channel_id = ?
+             AND f.unread_hold IS NOT NULL AND f.unread_hold < ?`,
+        )
+        .all(channelId, before.last_read_seq, after, userId, channelId, after) as { id: string }[];
+      const threads = roots.filter(({ id }) => this.readChannelCopies(userId, id, after));
+      // Replies also sent to the channel were read there, and so in their threads.
+      for (const { id } of threads) this.tellFollow(userId, id);
+      return { seq: after, threads: threads.map(({ id }) => id) };
+    });
   }
 
   /**
@@ -1453,7 +1537,10 @@ export class Store {
          RETURNING last_read_seq`,
       )
       .get(Math.max(0, seq - 1), channelId, userId) as { last_read_seq: number } | undefined;
-    return row?.last_read_seq ?? 0;
+    const now = row?.last_read_seq ?? 0;
+    this.outbox.person(userId, { type: "channel.unread", channelId, seq: now });
+    this.outbox.mentions([userId]);
+    return now;
   }
 
   lastMessageSeq(channelId: ID): number {
@@ -1670,11 +1757,20 @@ export class Store {
     return this.hydrateMessages([r])[0]!;
   }
 
+  /** Mention counts follow both the people the old words named and those the new ones do. */
   editMessage(id: ID, text: string): Message {
+    const before = this.db
+      .prepare("SELECT channel_id, user_id, text FROM messages WHERE id = ?")
+      .get(id) as { channel_id: string; user_id: string; text: string } | undefined;
     const row = this.db
       .prepare("UPDATE messages SET text = ?, edited_at = ? WHERE id = ? RETURNING channel_id")
       .get(text, Date.now(), id) as { channel_id: string } | undefined;
     if (row) this.indexMentions(id, row.channel_id, text);
+    if (before)
+      this.outbox.mentions([
+        ...this.mentionedMemberIds(before.channel_id, before.text, before.user_id),
+        ...this.mentionedMemberIds(before.channel_id, text, before.user_id),
+      ]);
     // Previews of links the new words no longer have go with the old ones.
     this.prunePreviews(id, previewLinks(text));
     // Every earlier version of the words, wherever the log still holds it. An
@@ -2915,6 +3011,12 @@ export class Store {
     );
     const now = Date.now();
     for (const option of after) insert.run(messageId, userId, option, now);
+    // Ahead of the new count, so a device of theirs never counts its own vote twice.
+    this.outbox.person(
+      userId,
+      { type: "poll.choices", messageId, choices: this.pollChoices(messageId, userId) },
+      { ahead: true },
+    );
     return true;
   }
 
@@ -3034,6 +3136,7 @@ export class Store {
         following ? Math.max(this.threadLastSeq(rootId), current.lastReadSeq) : current.lastReadSeq,
         this.nextFollowRevision(),
       );
+    this.tellFollow(userId, rootId);
     return this.threadFollow(userId, rootId);
   }
 
@@ -3055,6 +3158,7 @@ export class Store {
            revision = MAX(thread_follows.revision + 1, excluded.revision)`,
       )
       .run(userId, rootId, current.lastReadSeq, this.nextFollowRevision(), muted ? 1 : 0);
+    this.tellFollow(userId, rootId);
     return this.threadFollow(userId, rootId);
   }
 
@@ -3081,6 +3185,9 @@ export class Store {
          WHERE thread_follows.last_read_seq < excluded.last_read_seq`,
       )
       .run(userId, rootId, target, this.nextFollowRevision());
+    this.tellFollow(userId, rootId);
+    // Reading a thread, or leaving it unread, moves the mentions in its replies.
+    this.outbox.mentions([userId]);
     return this.threadFollow(userId, rootId);
   }
 
@@ -3117,7 +3224,31 @@ export class Store {
            revision = MAX(thread_follows.revision + 1, excluded.revision)`,
       )
       .run(userId, rootId, Math.max(0, seq - 1), this.nextFollowRevision(), userId, rootId);
+    this.tellFollow(userId, rootId);
+    // Reading a thread, or leaving it unread, moves the mentions in its replies.
+    this.outbox.mentions([userId]);
     return this.threadFollow(userId, rootId);
+  }
+
+  /** This account's devices hear its state for one thread as it ends up. */
+  private tellFollow(userId: ID, rootId: ID): void {
+    this.outbox.person(
+      userId,
+      () => {
+        const state = this.threadFollow(userId, rootId);
+        return state ? { type: "thread.follow", state } : null;
+      },
+      { key: `thread.follow:${rootId}` },
+    );
+  }
+
+  /**
+   * Tells everyone following a thread, and whoever else is named, their state
+   * for it after a reply: each needs its new watermark.
+   */
+  tellThreadFollowers(rootId: ID, also: ID[]): void {
+    for (const userId of new Set([...this.threadFollowers(rootId), ...also]))
+      this.tellFollow(userId, rootId);
   }
 
   /**
@@ -3368,14 +3499,18 @@ export class Store {
         "INSERT OR IGNORE INTO saved_items (user_id, message_id, created_at) VALUES (?, ?, ?)",
       )
       .run(userId, messageId, Date.now());
-    return res.changes > 0;
+    if (res.changes === 0) return false;
+    this.outbox.person(userId, { type: "saved", messageId, saved: true });
+    return true;
   }
 
   removeSaved(userId: ID, messageId: ID): boolean {
     const res = this.db
       .prepare("DELETE FROM saved_items WHERE user_id = ? AND message_id = ?")
       .run(userId, messageId);
-    return res.changes > 0;
+    if (res.changes === 0) return false;
+    this.outbox.person(userId, { type: "saved", messageId, saved: false });
+    return true;
   }
 
   savedMessageIds(userId: ID): ID[] {
@@ -3464,7 +3599,10 @@ export class Store {
         removedBy,
         Date.now(),
       ) as unknown as ChannelRemovalRow;
-    return Store.removalFrom(row);
+    const removal = Store.removalFrom(row);
+    // They hear who removed them, in Activity, wherever they are.
+    this.outbox.person(userId, { type: "channel.removal", removal }, { ahead: true });
+    return removal;
   }
 
   /** One account's unread notes of removals, newest first. */
@@ -3488,6 +3626,7 @@ export class Store {
     );
     const read: ID[] = [];
     for (const id of new Set(ids)) if (remove.get(id, userId)) read.push(id);
+    if (read.length > 0) this.outbox.person(userId, { type: "channel.removals.read", ids: read });
     return read;
   }
 
@@ -3536,14 +3675,19 @@ export class Store {
            due_at = NULL`,
       )
       .run(ulid(), userId, messageId, remindAt, Date.now());
-    return this.getReminder(userId, messageId)!;
+    const reminder = this.getReminder(userId, messageId)!;
+    this.outbox.person(userId, { type: "reminder", reminder });
+    return reminder;
   }
 
+  /** Done, cancelled, or out of reach. */
   deleteReminder(userId: ID, messageId: ID): boolean {
     const res = this.db
       .prepare("DELETE FROM reminders WHERE user_id = ? AND message_id = ?")
       .run(userId, messageId);
-    return res.changes > 0;
+    if (res.changes === 0) return false;
+    this.outbox.person(userId, { type: "reminder.removed", messageId });
+    return true;
   }
 
   /** Drops every reminder about a message, saying whose they were. */
@@ -3551,6 +3695,8 @@ export class Store {
     const rows = this.db
       .prepare("DELETE FROM reminders WHERE message_id = ? RETURNING user_id")
       .all(messageId) as { user_id: string }[];
+    for (const row of rows)
+      this.outbox.person(row.user_id, { type: "reminder.removed", messageId });
     return rows.map((row) => row.user_id);
   }
 
@@ -3633,7 +3779,14 @@ export class Store {
         "UPDATE reminders SET due_at = ? WHERE user_id = ? AND message_id = ? AND due_at IS NULL",
       )
       .run(at, userId, messageId);
-    return this.getReminder(userId, messageId);
+    const reminder = this.getReminder(userId, messageId);
+    // Coming due carries the message, for the notification.
+    if (reminder)
+      this.outbox.person(userId, () => {
+        const message = this.getMessage(messageId);
+        return message ? { type: "reminder", reminder, message } : null;
+      });
+    return reminder;
   }
 
   // ---------- scheduled messages ----------
@@ -3690,7 +3843,17 @@ export class Store {
       "INSERT INTO scheduled_files (file_id, scheduled_id) VALUES (?, ?)",
     );
     for (const fileId of input.fileIds) hold.run(fileId, id);
+    this.tellScheduled(input.userId);
     return this.getScheduled(id)!;
+  }
+
+  /**
+   * Tells the author's devices their queue changed: queued, edited, moved,
+   * cancelled, sent, held for a new reason or given up on. A list open there
+   * reads it again.
+   */
+  private tellScheduled(userId: ID): void {
+    this.outbox.person(userId, { type: "scheduled" }, { key: "scheduled" });
   }
 
   private toScheduled(r: {
@@ -3811,13 +3974,14 @@ export class Store {
    * alone. Its files are the message's now, so the schedule lets go of them.
    */
   markScheduledSent(id: ID, messageId: ID): void {
-    this.db
+    const row = this.db
       .prepare(
         `UPDATE scheduled_messages SET status = 'sent', message_id = ?, failure_reason = NULL,
-           text = '', file_ids = '[]' WHERE id = ?`,
+           text = '', file_ids = '[]' WHERE id = ? RETURNING user_id`,
       )
-      .run(messageId, id);
+      .get(messageId, id) as { user_id: string } | undefined;
     this.db.prepare("DELETE FROM scheduled_files WHERE scheduled_id = ?").run(id);
+    if (row) this.tellScheduled(row.user_id);
   }
 
   /**
@@ -3825,18 +3989,27 @@ export class Store {
    * sooner if `wakeHeldScheduled` hears that the obstacle has gone.
    */
   holdScheduled(id: ID, reason: string, retryAt = 0): void {
+    const before = this.db
+      .prepare("SELECT user_id, status, failure_reason FROM scheduled_messages WHERE id = ?")
+      .get(id) as { user_id: string; status: string; failure_reason: string | null } | undefined;
     this.db
       .prepare(
         "UPDATE scheduled_messages SET status = 'held', failure_reason = ?, next_attempt_at = ? WHERE id = ?",
       )
       .run(reason, retryAt, id);
+    // Held again for the same reason looks no different to its author.
+    if (before && (before.status !== "held" || before.failure_reason !== reason))
+      this.tellScheduled(before.user_id);
   }
 
   /** Terminal. Only an explicit reschedule puts it back in the queue. */
   failScheduled(id: ID, reason: string): void {
-    this.db
-      .prepare("UPDATE scheduled_messages SET status = 'failed', failure_reason = ? WHERE id = ?")
-      .run(reason, id);
+    const row = this.db
+      .prepare(
+        "UPDATE scheduled_messages SET status = 'failed', failure_reason = ? WHERE id = ? RETURNING user_id",
+      )
+      .get(reason, id) as { user_id: string } | undefined;
+    if (row) this.tellScheduled(row.user_id);
   }
 
   /** Counts one delivery attempt and returns the new total, so retries stay bounded. */
@@ -3852,26 +4025,27 @@ export class Store {
 
   /** Puts a held or failed message back in the queue at a new time. */
   rescheduleMessage(id: ID, sendAt: number): void {
-    this.db
+    const row = this.db
       .prepare(
         `UPDATE scheduled_messages
          SET send_at = ?, status = 'queued', failure_reason = NULL, attempts = 0,
            next_attempt_at = 0
-         WHERE id = ? AND status != 'sent'`,
+         WHERE id = ? AND status != 'sent' RETURNING user_id`,
       )
-      .run(sendAt, id);
+      .get(sendAt, id) as { user_id: string } | undefined;
+    if (row) this.tellScheduled(row.user_id);
   }
 
   /** Compare-and-set text without requeuing or changing delivery metadata. */
   editScheduledText(id: ID, text: string, expectedText: string): boolean {
-    return (
-      this.db
-        .prepare(
-          `UPDATE scheduled_messages SET text = ?
-       WHERE id = ? AND status != 'sent' AND (text = ? OR text = ?)`,
-        )
-        .run(text, id, expectedText, text).changes === 1
-    );
+    const row = this.db
+      .prepare(
+        `UPDATE scheduled_messages SET text = ?
+         WHERE id = ? AND status != 'sent' AND (text = ? OR text = ?) RETURNING user_id`,
+      )
+      .get(text, id, expectedText, text) as { user_id: string } | undefined;
+    if (row) this.tellScheduled(row.user_id);
+    return !!row;
   }
 
   /** Delivered rows are kept as proof of completion, then aged out. */
@@ -3891,8 +4065,11 @@ export class Store {
 
   /** Cancels one. Its files go with the row, free for another message. */
   deleteScheduled(id: ID): boolean {
-    const res = this.db.prepare("DELETE FROM scheduled_messages WHERE id = ?").run(id);
-    return res.changes > 0;
+    const row = this.db
+      .prepare("DELETE FROM scheduled_messages WHERE id = ? RETURNING user_id")
+      .get(id) as { user_id: string } | undefined;
+    if (row) this.tellScheduled(row.user_id);
+    return !!row;
   }
 
   // ---------- apps, tokens and webhooks ----------
@@ -4222,7 +4399,7 @@ export class Store {
       id: r.id,
       appId: r.app_id,
       url: r.url,
-      eventTypes: JSON.parse(r.event_types) as string[],
+      eventTypes: JSON.parse(r.event_types) as AppEventType[],
       createdAt: r.created_at,
       ...(r.pending_count !== undefined
         ? {
@@ -4239,7 +4416,11 @@ export class Store {
     };
   }
 
-  createSubscription(input: { appId: ID; url: string; eventTypes: string[] }): EventSubscription {
+  createSubscription(input: {
+    appId: ID;
+    url: string;
+    eventTypes: AppEventType[];
+  }): EventSubscription {
     const id = ulid();
     const now = Date.now();
     this.db

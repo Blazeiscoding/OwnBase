@@ -10,7 +10,7 @@ import {
   type ServerToClient,
 } from "@ownbase/protocol";
 import { createWorkspaceServer, type WorkspaceServer } from "../src/server.js";
-import { toSlackEvent } from "../src/integrations.js";
+import { toSlackEvent } from "../src/apps/delivery.js";
 import type { FetchedPreview } from "../src/linkPreview.js";
 
 /**

@@ -128,7 +128,7 @@ describe("message integrity", () => {
 });
 
 describe("live session access", () => {
-  it.each(["message", "typing", "huddle.signal"])(
+  it.each(["message", "typing", "personal"])(
     "blocks %s delivery to an expired socket and removes its huddle seat",
     async (delivery) => {
       const expired = await connect();
@@ -148,19 +148,14 @@ describe("live session access", () => {
       server.store.createSession(hashToken(token), userId, "expired device", -1);
       expired.frames.length = 0;
       if (delivery === "message") {
-        server.gateway.publish(
-          { seq: 123, event: { type: "user.updated", user: server.store.getUser(userId)! } },
-          null,
-        );
-      } else if (delivery === "typing") {
-        server.gateway.broadcastEphemeral({ type: "typing", channelId, userId }, null);
-      } else {
-        server.gateway.sendToUser(userId, {
-          type: "huddle.signal",
-          channelId,
-          from: userId,
-          signal: { kind: "offer", sdp: "expired" },
+        server.gateway.publish({
+          seq: 123,
+          event: { type: "user.updated", user: server.store.getUser(userId)! },
         });
+      } else if (delivery === "typing") {
+        server.gateway.tellChannel(channelId, { type: "typing", channelId, userId });
+      } else {
+        server.gateway.tellPerson(userId, { type: "saved", messageId: "M_ANY", saved: true });
       }
       await expect.poll(() => expired.ws.readyState).toBe(WebSocket.CLOSED);
       expect(expired.frames).toEqual([
