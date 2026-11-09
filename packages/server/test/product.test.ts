@@ -452,7 +452,7 @@ describe("self-hosted product", () => {
 
     // Queued through the store so it is already due; the API rightly refuses a
     // time in the past, and what is under test is what the sender picks up.
-    const queued = server!.store.scheduleMessage({
+    const queued = server!.store.scheduled.schedule({
       channelId: channel.id,
       userId: leaver.data.user.id,
       text: "posted by a ghost",
@@ -472,7 +472,7 @@ describe("self-hosted product", () => {
     expect(ghosted()).toBe(false);
 
     // It is held with a reason, not thrown away: reactivating lets it go out.
-    const held = server!.store.getScheduled(queued.id)!;
+    const held = server!.store.scheduled.get(queued.id)!;
     expect(held.status).toBe("held");
     expect(held.failureReason).toMatch(/deactivated/);
 
@@ -481,7 +481,7 @@ describe("self-hosted product", () => {
     });
     server!.flushScheduled();
     expect(ghosted()).toBe(true);
-    expect(server!.store.getScheduled(queued.id)!.status).toBe("sent");
+    expect(server!.store.scheduled.get(queued.id)!.status).toBe("sent");
   });
 
   it("keeps the workspace from being taken away from its owner", async () => {

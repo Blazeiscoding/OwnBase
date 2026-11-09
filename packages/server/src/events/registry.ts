@@ -9,6 +9,7 @@ import { peopleDurable, peopleEphemeral } from "../people/events.js";
 import { pollEphemeral } from "../polls/events.js";
 import { reminderEphemeral } from "../reminders/events.js";
 import { savedDurable, savedEphemeral } from "../saved/events.js";
+import { scheduledEphemeral } from "../scheduled/events.js";
 
 /**
  * Every event the server sends, by type: who hears it, and for the durable
@@ -73,6 +74,7 @@ export const EPHEMERAL_AUDIENCE = {
   ...reminderEphemeral,
   ...pollEphemeral,
   ...savedEphemeral,
+  ...scheduledEphemeral,
 } as const satisfies EphemeralRegistry;
 
 type Audiences = typeof EPHEMERAL_AUDIENCE;

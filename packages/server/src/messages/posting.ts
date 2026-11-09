@@ -296,7 +296,7 @@ export function createPosting({
       const hydrated = store.getMessage(created.id)!;
       if (input.nonce !== null)
         store.recordMessageRequest(userId, input.nonce, created.id, requestHash);
-      if (input.scheduledId) store.markScheduledSent(input.scheduledId, created.id);
+      if (input.scheduledId) store.scheduled.markSent(input.scheduledId, created.id);
       record({ type: "message.created", message: hydrated });
       return hydrated;
     });
@@ -320,10 +320,10 @@ export function createPosting({
     return mutate(() => {
       const channel = writableChannel(poster, input.channelId);
       if (input.nonce) {
-        const previous = store.scheduledRequest(input.userId, input.nonce);
+        const previous = store.scheduled.request(input.userId, input.nonce);
         if (previous) {
           if (previous.requestHash !== requestHash) throw new HttpError(409, "nonce_conflict");
-          const scheduled = store.getScheduled(previous.scheduledId);
+          const scheduled = store.scheduled.get(previous.scheduledId);
           if (!scheduled)
             throw new HttpError(
               410,
@@ -353,14 +353,14 @@ export function createPosting({
           "One of these files is already part of another scheduled message.",
         );
       }
-      if (store.outstandingScheduled(input.userId) >= scheduledLimits.perAccount) {
+      if (store.scheduled.outstanding(input.userId) >= scheduledLimits.perAccount) {
         throw new HttpError(
           409,
           "scheduled_limit",
           `You already have ${scheduledLimits.perAccount} messages waiting to be sent. Send or cancel some before scheduling more.`,
         );
       }
-      if (store.outstandingScheduled() >= scheduledLimits.perWorkspace) {
+      if (store.scheduled.outstanding() >= scheduledLimits.perWorkspace) {
         throw new HttpError(
           409,
           "scheduled_limit",
@@ -369,7 +369,7 @@ export function createPosting({
       }
       // Spent here, once: a replay has already returned, and delivery spends nothing.
       spend(poster);
-      const scheduled = store.scheduleMessage({
+      const scheduled = store.scheduled.schedule({
         channelId: channel.id,
         userId: input.userId,
         text: input.text,
@@ -379,7 +379,7 @@ export function createPosting({
         broadcast: input.broadcast,
       });
       if (input.nonce)
-        store.recordScheduledRequest(input.userId, input.nonce, scheduled.id, requestHash);
+        store.scheduled.recordRequest(input.userId, input.nonce, scheduled.id, requestHash);
       return { scheduled, replayed: false };
     });
   };

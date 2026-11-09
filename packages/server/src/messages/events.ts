@@ -121,5 +121,4 @@ export const messageDurable = {
 export const messageEphemeral = {
   "thread.follow": "person",
   mentions: "person",
-  scheduled: "person",
 } as const satisfies Partial<EphemeralRegistry>;

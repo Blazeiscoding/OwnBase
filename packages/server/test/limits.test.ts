@@ -404,7 +404,7 @@ describe("posting and upload limits", () => {
       ).status,
     ).toBe(200);
     server!.flushScheduled();
-    expect(server!.store.getScheduled(id)?.status).toBe("sent");
+    expect(server!.store.scheduled.get(id)?.status).toBe("sent");
     expect(server!.store.listMessages({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
       "queued once",
     ]);

@@ -30,7 +30,6 @@ import type {
   ReplyReference,
   ReportReason,
   Role,
-  ScheduledMessage,
   SessionInfo,
   SharedFile,
   SidebarSection,
@@ -58,6 +57,7 @@ import { previewLinks, type FetchedPreview } from "./linkPreview.js";
 import { PollStore } from "./polls/store.js";
 import { ReminderStore } from "./reminders/store.js";
 import { SavedStore } from "./saved/store.js";
+import { ScheduledStore } from "./scheduled/store.js";
 
 /** Known scopes only, each once, in one order, so two lists compare as text. */
 function scopeList(scopes: readonly unknown[]): AppScope[] {
@@ -225,6 +225,7 @@ export class Store {
   /** The workspace's settings, kept in `meta`; see core/settings.ts. */
   readonly settings: Settings;
   // features: fields
+  readonly scheduled: ScheduledStore;
   readonly saved: SavedStore;
   readonly polls: PollStore;
   readonly reminders: ReminderStore;
@@ -232,6 +233,7 @@ export class Store {
   constructor(readonly db: DatabaseSync) {
     this.settings = new Settings(this);
     // features: made
+    this.scheduled = new ScheduledStore(db, this);
     this.saved = new SavedStore(db, this);
     this.polls = new PollStore(db, this);
     this.reminders = new ReminderStore(db, this);
@@ -633,7 +635,7 @@ export class Store {
         .run(...(params as (string | number | null)[]), id);
     }
     // What this account scheduled while deactivated can go at the next flush.
-    if (patch.deactivated === false) this.wakeHeldScheduled({ userId: id });
+    if (patch.deactivated === false) this.scheduled.wakeHeld({ userId: id });
     return this.getUser(id)!;
   }
 
@@ -1077,7 +1079,7 @@ export class Store {
         .run(...(params as string[]), id);
     }
     // Messages waiting for this channel to reopen can go at the next flush.
-    if (patch.archived === false) this.wakeHeldScheduled({ channelId: id });
+    if (patch.archived === false) this.scheduled.wakeHeld({ channelId: id });
     return this.getChannel(id)!;
   }
 
@@ -1164,7 +1166,7 @@ export class Store {
          VALUES (?, ?, ?, ?, ?, ?)`,
       )
       .run(channelId, userId, Date.now(), notifyLevel, seq, seq);
-    if (res.changes > 0) this.wakeHeldScheduled({ channelId, userId });
+    if (res.changes > 0) this.scheduled.wakeHeld({ channelId, userId });
     return res.changes > 0;
   }
 
@@ -3347,287 +3349,12 @@ export class Store {
     return read;
   }
 
-  // ---------- scheduled messages ----------
-
-  scheduledRequest(userId: ID, nonce: string): { scheduledId: ID; requestHash: string } | null {
-    return (
-      (this.db
-        .prepare(
-          "SELECT scheduled_id AS scheduledId, request_hash AS requestHash FROM scheduled_requests WHERE user_id = ? AND nonce = ?",
-        )
-        .get(userId, nonce) as { scheduledId: ID; requestHash: string } | undefined) ?? null
-    );
-  }
-
-  recordScheduledRequest(userId: ID, nonce: string, scheduledId: ID, requestHash: string): void {
-    this.db
-      .prepare(
-        "INSERT INTO scheduled_requests (user_id, nonce, scheduled_id, request_hash) VALUES (?, ?, ?, ?)",
-      )
-      .run(userId, nonce, scheduledId, requestHash);
-  }
-
-  scheduleMessage(input: {
-    channelId: ID;
-    userId: ID;
-    text: string;
-    threadRootId: ID | null;
-    fileIds: ID[];
-    sendAt: number;
-    broadcast?: boolean;
-  }): ScheduledMessage {
-    const id = ulid();
-    const now = Date.now();
-    this.db
-      .prepare(
-        `INSERT INTO scheduled_messages
-           (id, channel_id, user_id, text, thread_root_id, file_ids, send_at, created_at, broadcast)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      )
-      .run(
-        id,
-        input.channelId,
-        input.userId,
-        input.text,
-        input.threadRootId,
-        JSON.stringify(input.fileIds),
-        input.sendAt,
-        now,
-        input.threadRootId && input.broadcast ? 1 : 0,
-      );
-    // The key refuses a file some other scheduled message already holds, so
-    // the caller's checks and this row cannot disagree.
-    const hold = this.db.prepare(
-      "INSERT INTO scheduled_files (file_id, scheduled_id) VALUES (?, ?)",
-    );
-    for (const fileId of input.fileIds) hold.run(fileId, id);
-    this.tellScheduled(input.userId);
-    return this.getScheduled(id)!;
-  }
-
-  /**
-   * Tells the author's devices their queue changed: queued, edited, moved,
-   * cancelled, sent, held for a new reason or given up on. A list open there
-   * reads it again.
-   */
-  private tellScheduled(userId: ID): void {
-    this.outbox.person(userId, { type: "scheduled" }, { key: "scheduled" });
-  }
-
-  private toScheduled(r: {
-    id: string;
-    channel_id: string;
-    user_id: string;
-    text: string;
-    thread_root_id: string | null;
-    file_ids: string;
-    send_at: number;
-    created_at: number;
-    status: string;
-    failure_reason: string | null;
-    attempts: number;
-    message_id: string | null;
-    broadcast: number;
-  }): ScheduledMessage {
-    let fileIds: ID[] = [];
-    try {
-      fileIds = JSON.parse(r.file_ids) as ID[];
-    } catch {
-      /* a corrupt row should not sink the whole list */
-    }
-    return {
-      id: r.id,
-      channelId: r.channel_id,
-      userId: r.user_id,
-      text: r.text,
-      threadRootId: r.thread_root_id,
-      broadcast: r.broadcast === 1,
-      fileIds,
-      sendAt: r.send_at,
-      createdAt: r.created_at,
-      status: r.status as ScheduledMessage["status"],
-      failureReason: r.failure_reason,
-      attempts: r.attempts,
-      messageId: r.message_id,
-    };
-  }
-
-  getScheduled(id: ID): ScheduledMessage | null {
-    const r = this.db.prepare("SELECT * FROM scheduled_messages WHERE id = ?").get(id) as
-      Parameters<Store["toScheduled"]>[0] | undefined;
-    return r ? this.toScheduled(r) : null;
-  }
-
-  /** One user's outstanding messages, soonest first. Delivered ones are done. */
-  listScheduled(userId: ID): ScheduledMessage[] {
-    const rows = this.db
-      .prepare(
-        "SELECT * FROM scheduled_messages WHERE user_id = ? AND status != 'sent' ORDER BY send_at",
-      )
-      .all(userId) as unknown as Parameters<Store["toScheduled"]>[0][];
-    return rows.map((r) => this.toScheduled(r));
-  }
-
-  /**
-   * Messages now due, across all users. Held ones come back every flush so a
-   * reversible obstacle — an archived channel, lost membership, a deactivated
-   * author — sends the message once it clears. The caller re-checks those
-   * conditions: the queue lives on the server, so without that check a message
-   * could post itself in the name of someone whose access was taken away
-   * yesterday.
-   */
-  dueScheduled(now = Date.now(), limit = 50): ScheduledMessage[] {
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM scheduled_messages
-         WHERE send_at <= ? AND (
-           status = 'queued' OR (status = 'held' AND next_attempt_at <= ?)
-         )
-         ORDER BY send_at, id
-         LIMIT ?`,
-      )
-      .all(now, now, limit) as unknown as Parameters<Store["toScheduled"]>[0][];
-    return rows.map((r) => this.toScheduled(r));
-  }
-
-  /**
-   * Brings held messages forward to the next flush, once what held them may
-   * have cleared: a channel reopened, a membership regained, an account
-   * reactivated. The flush checks again, so waking one too many is harmless.
-   */
-  wakeHeldScheduled(scope: { channelId?: ID; userId?: ID }): void {
-    const where = ["status = 'held'"];
-    const params: string[] = [];
-    if (scope.channelId) {
-      where.push("channel_id = ?");
-      params.push(scope.channelId);
-    }
-    if (scope.userId) {
-      where.push("user_id = ?");
-      params.push(scope.userId);
-    }
-    this.db
-      .prepare(`UPDATE scheduled_messages SET next_attempt_at = 0 WHERE ${where.join(" AND ")}`)
-      .run(...params);
-  }
-
-  /** Scheduled messages not yet delivered, for one account or, without one, everyone. */
-  outstandingScheduled(userId?: ID): number {
-    const row = (
-      userId
-        ? this.db
-            .prepare(
-              "SELECT COUNT(*) AS n FROM scheduled_messages WHERE user_id = ? AND status != 'sent'",
-            )
-            .get(userId)
-        : this.db
-            .prepare("SELECT COUNT(*) AS n FROM scheduled_messages WHERE status != 'sent'")
-            .get()
-    ) as { n: number };
-    return row.n;
-  }
-
-  /**
-   * Delivery, written inside the posting transaction so neither can happen
-   * alone. Its files are the message's now, so the schedule lets go of them.
-   */
-  markScheduledSent(id: ID, messageId: ID): void {
-    const row = this.db
-      .prepare(
-        `UPDATE scheduled_messages SET status = 'sent', message_id = ?, failure_reason = NULL,
-           text = '', file_ids = '[]' WHERE id = ? RETURNING user_id`,
-      )
-      .get(messageId, id) as { user_id: string } | undefined;
-    this.db.prepare("DELETE FROM scheduled_files WHERE scheduled_id = ?").run(id);
-    if (row) this.tellScheduled(row.user_id);
-  }
-
-  /**
-   * A reason that may clear on its own. It is tried again at `retryAt`, or
-   * sooner if `wakeHeldScheduled` hears that the obstacle has gone.
-   */
-  holdScheduled(id: ID, reason: string, retryAt = 0): void {
-    const before = this.db
-      .prepare("SELECT user_id, status, failure_reason FROM scheduled_messages WHERE id = ?")
-      .get(id) as { user_id: string; status: string; failure_reason: string | null } | undefined;
-    this.db
-      .prepare(
-        "UPDATE scheduled_messages SET status = 'held', failure_reason = ?, next_attempt_at = ? WHERE id = ?",
-      )
-      .run(reason, retryAt, id);
-    // Held again for the same reason looks no different to its author.
-    if (before && (before.status !== "held" || before.failure_reason !== reason))
-      this.tellScheduled(before.user_id);
-  }
-
-  /** Terminal. Only an explicit reschedule puts it back in the queue. */
-  failScheduled(id: ID, reason: string): void {
-    const row = this.db
-      .prepare(
-        "UPDATE scheduled_messages SET status = 'failed', failure_reason = ? WHERE id = ? RETURNING user_id",
-      )
-      .get(reason, id) as { user_id: string } | undefined;
-    if (row) this.tellScheduled(row.user_id);
-  }
-
-  /** Counts one delivery attempt and returns the new total, so retries stay bounded. */
-  countScheduledAttempt(id: ID): number {
-    this.db.prepare("UPDATE scheduled_messages SET attempts = attempts + 1 WHERE id = ?").run(id);
-    return (
-      (
-        this.db.prepare("SELECT attempts FROM scheduled_messages WHERE id = ?").get(id) as
-          { attempts: number } | undefined
-      )?.attempts ?? 0
-    );
-  }
-
-  /** Puts a held or failed message back in the queue at a new time. */
-  rescheduleMessage(id: ID, sendAt: number): void {
-    const row = this.db
-      .prepare(
-        `UPDATE scheduled_messages
-         SET send_at = ?, status = 'queued', failure_reason = NULL, attempts = 0,
-           next_attempt_at = 0
-         WHERE id = ? AND status != 'sent' RETURNING user_id`,
-      )
-      .get(sendAt, id) as { user_id: string } | undefined;
-    if (row) this.tellScheduled(row.user_id);
-  }
-
-  /** Compare-and-set text without requeuing or changing delivery metadata. */
-  editScheduledText(id: ID, text: string, expectedText: string): boolean {
-    const row = this.db
-      .prepare(
-        `UPDATE scheduled_messages SET text = ?
-         WHERE id = ? AND status != 'sent' AND (text = ? OR text = ?) RETURNING user_id`,
-      )
-      .get(text, id, expectedText, text) as { user_id: string } | undefined;
-    if (row) this.tellScheduled(row.user_id);
-    return !!row;
-  }
-
-  /** Delivered rows are kept as proof of completion, then aged out. */
-  pruneScheduled(before: number): void {
-    this.db
-      .prepare("DELETE FROM scheduled_messages WHERE status = 'sent' AND send_at < ?")
-      .run(before);
-  }
-
   /** True when every id is one of this user's own unattached uploads in this channel. */
   unattachedFiles(fileIds: ID[], channelId: ID, userId: ID): boolean {
     const stmt = this.db.prepare(
       "SELECT 1 FROM files WHERE id = ? AND user_id = ? AND channel_id = ? AND message_id IS NULL",
     );
     return fileIds.every((id) => stmt.get(id, userId, channelId) !== undefined);
-  }
-
-  /** Cancels one. Its files go with the row, free for another message. */
-  deleteScheduled(id: ID): boolean {
-    const row = this.db
-      .prepare("DELETE FROM scheduled_messages WHERE id = ? RETURNING user_id")
-      .get(id) as { user_id: string } | undefined;
-    if (row) this.tellScheduled(row.user_id);
-    return !!row;
   }
 
   // ---------- apps, tokens and webhooks ----------

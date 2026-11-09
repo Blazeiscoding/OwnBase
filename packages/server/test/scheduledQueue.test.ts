@@ -64,8 +64,8 @@ const schedule = (token: string, text: string, channelId = general()) =>
 /** Brings every waiting row forward instead of idling the test until it is due. */
 /** Makes every waiting message due, by moving it as its author would: they hear of it too. */
 const allDue = () => {
-  for (const item of server!.store.dueScheduled(Date.now() + 7_200_000, 100_000))
-    server!.store.rescheduleMessage(item.id, Date.now() - 1000);
+  for (const item of server!.store.scheduled.due(Date.now() + 7_200_000, 100_000))
+    server!.store.scheduled.reschedule(item.id, Date.now() - 1000);
 };
 const sent = () => server!.store.listMessages({ channelId: general(), limit: 500 }).length;
 
@@ -124,7 +124,7 @@ describe("draining the scheduled queue", () => {
     // Only one batch ran before the loop was handed back.
     expect(sent()).toBe(10);
     await expect.poll(sent).toBe(35);
-    expect(server!.store.dueScheduled(Date.now(), 100)).toEqual([]);
+    expect(server!.store.scheduled.due(Date.now(), 100)).toEqual([]);
   });
 });
 
@@ -136,14 +136,14 @@ describe("a held scheduled message", () => {
     await request(`/api/channels/${general()}`, owner.token, { archived: true }, "PATCH");
     allDue();
     server!.flushScheduled();
-    expect(server!.store.getScheduled(queued.body.scheduled.id)!.status).toBe("held");
+    expect(server!.store.scheduled.get(queued.body.scheduled.id)!.status).toBe("held");
 
-    const hold = vi.spyOn(server!.store, "holdScheduled");
+    const hold = vi.spyOn(server!.store.scheduled, "hold");
     server!.flushScheduled();
     server!.flushScheduled();
     expect(hold).not.toHaveBeenCalled();
     // It comes round again once its pause is over.
-    expect(server!.store.dueScheduled(Date.now() + 61_000).map((s) => s.id)).toEqual([
+    expect(server!.store.scheduled.due(Date.now() + 61_000).map((s) => s.id)).toEqual([
       queued.body.scheduled.id,
     ]);
   });
@@ -176,11 +176,11 @@ describe("a held scheduled message", () => {
     server!.store.removeMember(channelId, member.id);
     allDue();
     server!.flushScheduled();
-    expect(server!.store.listScheduled(member.id)[0]!.status).toBe("held");
+    expect(server!.store.scheduled.list(member.id)[0]!.status).toBe("held");
 
     server!.store.addMember(channelId, member.id);
     server!.flushScheduled();
-    expect(server!.store.listScheduled(member.id)).toEqual([]);
+    expect(server!.store.scheduled.list(member.id)).toEqual([]);
     expect(server!.store.listMessages({ channelId, limit: 10 }).map((m) => m.text)).toEqual([
       "for the leads",
     ]);
@@ -239,7 +239,7 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
     vi.spyOn(Date, "now").mockReturnValue(now + 61_000);
     server!.flushScheduled();
     vi.mocked(Date.now).mockRestore();
-    expect(server!.store.getScheduled(id)!.status).toBe("held");
+    expect(server!.store.scheduled.get(id)!.status).toBe("held");
 
     // Sent once the room reopens: it leaves the list.
     await request(`/api/channels/${general()}`, owner.token, { archived: false }, "PATCH");
@@ -284,7 +284,7 @@ describe("telling the author's devices that their queue changed (UX-08)", () => 
     allDue();
     await expect.poll(mine.told).toBe(2);
     server!.flushScheduled();
-    expect(server!.store.getScheduled(id)!.status).toBe("failed");
+    expect(server!.store.scheduled.get(id)!.status).toBe("failed");
     await expect.poll(mine.told).toBe(3);
   });
 });

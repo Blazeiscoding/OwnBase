@@ -63,9 +63,9 @@ const send = (body: Record<string, unknown>) =>
   request(`/api/channels/${channelId}/messages`, body);
 /** Brings a queued row forward instead of idling the test until it is due. */
 const deliverNow = (id: string) => {
-  server!.store.rescheduleMessage(id, Date.now() - 1000);
+  server!.store.scheduled.reschedule(id, Date.now() - 1000);
   server!.flushScheduled();
-  return server!.store.getScheduled(id)!;
+  return server!.store.scheduled.get(id)!;
 };
 
 beforeEach(async () => {

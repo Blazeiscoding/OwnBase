@@ -194,9 +194,9 @@ describe("complete message content cleanup (N06/N07)", () => {
     const queued = await api("POST", path, body);
     expect(queued.status).toBe(201);
     const id = queued.body.scheduled.id;
-    server.store.rescheduleMessage(id, Date.now() - 1);
+    server.store.scheduled.reschedule(id, Date.now() - 1);
     server.flushScheduled();
-    const completed = server.store.getScheduled(id)!;
+    const completed = server.store.scheduled.get(id)!;
     expect(completed).toMatchObject({
       status: "sent",
       text: "",
@@ -223,8 +223,8 @@ describe("complete message content cleanup (N06/N07)", () => {
       .prepare("UPDATE messages SET created_at = ? WHERE id = ?")
       .run(Date.now() - 2 * 86400_000, completed.messageId);
     expect(server.applyRetention()).toBe(1);
-    server.store.pruneScheduled(Date.now() - 7 * 86400_000);
-    expect(server.store.getScheduled(id)).toMatchObject({
+    server.store.scheduled.prune(Date.now() - 7 * 86400_000);
+    expect(server.store.scheduled.get(id)).toMatchObject({
       status: "sent",
       text: "",
       fileIds: [],
@@ -312,7 +312,7 @@ describe("complete message content cleanup (N06/N07)", () => {
       db.prepare(
         "UPDATE events SET payload = json_set(payload, '$.message.text', '', '$.message.files', json('[]')) WHERE seq < ?",
       ).run(latest.seq);
-      const sent = store.scheduleMessage({
+      const sent = store.scheduled.schedule({
         channelId: room.id,
         userId: user.id,
         text: "Old sent words",
@@ -324,7 +324,7 @@ describe("complete message content cleanup (N06/N07)", () => {
         "UPDATE scheduled_messages SET status = 'sent', file_ids = '[\"old-file\"]' WHERE id = ?",
       ).run(sent.id);
       const outstanding = ["queued", "held", "failed"].map((status) => {
-        const scheduled = store.scheduleMessage({
+        const scheduled = store.scheduled.schedule({
           channelId: room.id,
           userId: user.id,
           text: `${status} words`,
@@ -357,15 +357,15 @@ describe("complete message content cleanup (N06/N07)", () => {
       expect(versions.find((m) => m.id === live.id && m.text === "Current")?.actions).toEqual(
         actions,
       );
-      expect(upgraded.getScheduled(sent.id)).toMatchObject({
+      expect(upgraded.scheduled.get(sent.id)).toMatchObject({
         status: "sent",
         text: "",
         fileIds: [],
       });
-      for (const id of outstanding) expect(upgraded.getScheduled(id)?.text).toMatch(/words$/);
+      for (const id of outstanding) expect(upgraded.scheduled.get(id)?.text).toMatch(/words$/);
       db.close();
       db = openDb(path);
-      expect(new Store(db).getScheduled(sent.id)?.text).toBe("");
+      expect(new Store(db).scheduled.get(sent.id)?.text).toBe("");
     } finally {
       db?.close();
       if (

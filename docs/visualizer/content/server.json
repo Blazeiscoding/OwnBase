@@ -1237,6 +1237,34 @@
       "summary": "pin.added and pin.removed, heard by the channel's readers and sent to apps; saved, heard by the account's own devices.",
       "details": ["Spread into the event registry beside every other feature's events."],
       "concepts": ["events"]
+    },
+    {
+      "path": "packages/server/src/scheduled/feature.ts",
+      "plain": "Lets people schedule a message for later, and posts it when the time comes.",
+      "summary": "Scheduled message routes, the due-message loop and its hourly prune.",
+      "details": [
+        "Scheduling goes through the posting rules (messages/posting.ts), so what sending would refuse later is refused now.",
+        "The loop posts a batch at a time, yielding between full batches; what the author can clear holds a row, what they cannot fails it, each with words for their list.",
+        "An isolated copy posts nothing; sent rows are kept a week as proof, then pruned."
+      ],
+      "concepts": ["scheduled messages", "queue", "feature module"]
+    },
+    {
+      "path": "packages/server/src/scheduled/store.ts",
+      "plain": "Saves the queue of messages waiting to be posted.",
+      "summary": "ScheduledStore: the scheduled_messages queue's queries, with its row mapped once.",
+      "details": [
+        "Rows are queued, held (with a time to look again), sent or failed; held rows wake early when what held them clears.",
+        "Each change tells the author's devices through the outbox."
+      ],
+      "concepts": ["scheduled messages", "queries"]
+    },
+    {
+      "path": "packages/server/src/scheduled/events.ts",
+      "plain": "Says who hears about a person's scheduled messages changing.",
+      "summary": "scheduled, heard by the author's own devices.",
+      "details": ["Spread into the event registry beside every other feature's events."],
+      "concepts": ["events"]
     }
   ],
   "flows": [

@@ -252,7 +252,7 @@ describe("scheduled delivery", () => {
   const queue = (body: Record<string, unknown>) =>
     request(`/api/channels/${channelId}/scheduled`, { sendAt: Date.now() + 3_600_000, ...body });
   /** Brings a queued row forward instead of idling the test until it is due. */
-  const makeDue = (id: string) => server.store.rescheduleMessage(id, Date.now() - 1000);
+  const makeDue = (id: string) => server.store.scheduled.reschedule(id, Date.now() - 1000);
   const listed = async () =>
     (await request("/api/scheduled", undefined, "GET")).body.scheduled as any[];
   const posted = () => server.store.listMessages({ channelId, limit: 50 });
@@ -314,7 +314,7 @@ describe("scheduled delivery", () => {
     makeDue(queued.body.scheduled.id);
     server.store.updateUser(userId, { deactivated: true });
     server.flushScheduled();
-    expect(server.store.getScheduled(queued.body.scheduled.id)!.status).toBe("held");
+    expect(server.store.scheduled.get(queued.body.scheduled.id)!.status).toBe("held");
     expect(posted().some((m) => m.text === "Posted in my name")).toBe(false);
 
     server.store.updateUser(userId, { deactivated: false });
@@ -333,17 +333,17 @@ describe("scheduled delivery", () => {
     server.flushScheduled();
     // Neither half of the delivery survived the rollback.
     expect(posted()).toHaveLength(0);
-    expect(server.store.getScheduled(id)!.status).toBe("held");
-    expect(server.store.getScheduled(id)!.attempts).toBe(1);
+    expect(server.store.scheduled.get(id)!.status).toBe("held");
+    expect(server.store.scheduled.get(id)!.attempts).toBe(1);
 
     // A held row waits for its next attempt rather than the next tick.
     server.flushScheduled();
-    expect(server.store.getScheduled(id)!.attempts).toBe(1);
+    expect(server.store.scheduled.get(id)!.attempts).toBe(1);
     retryHeldNow(id);
     server.flushScheduled();
     retryHeldNow(id);
     server.flushScheduled();
-    const exhausted = server.store.getScheduled(id)!;
+    const exhausted = server.store.scheduled.get(id)!;
     expect(exhausted.status).toBe("failed");
     expect(exhausted.messageId).toBeNull();
 
@@ -354,7 +354,7 @@ describe("scheduled delivery", () => {
 
     await request(`/api/scheduled/${id}`, { sendAt: Date.now() }, "PATCH");
     server.flushScheduled();
-    const sent = server.store.getScheduled(id)!;
+    const sent = server.store.scheduled.get(id)!;
     expect(sent.status).toBe("sent");
     expect(posted().find((m) => m.id === sent.messageId)!.text).toBe("All or nothing");
     expect(await listed()).toHaveLength(0);
@@ -383,7 +383,7 @@ describe("editing a scheduled message's text", () => {
     const stale = await edit(queued.id, "Draft three", "Draft one");
     expect(stale.status).toBe(409);
     expect(stale.body.error).toBe("scheduled_changed");
-    expect(server.store.getScheduled(queued.id)!.text).toBe("Draft two");
+    expect(server.store.scheduled.get(queued.id)!.text).toBe("Draft two");
   });
 
   it("accepts the same edit again, so a retried request does not report a conflict", async () => {
@@ -398,13 +398,13 @@ describe("editing a scheduled message's text", () => {
   it("sends the edited text when it comes due, and refuses edits once sent", async () => {
     const queued = (await queue("Original")).body.scheduled;
     // Due, but not yet delivered: the edit still lands, and does not move it.
-    server.store.rescheduleMessage(queued.id, Date.now() - 1000);
-    const dueAt = server.store.getScheduled(queued.id)!.sendAt;
+    server.store.scheduled.reschedule(queued.id, Date.now() - 1000);
+    const dueAt = server.store.scheduled.get(queued.id)!.sendAt;
     expect((await edit(queued.id, "Edited in time", "Original")).status).toBe(200);
-    expect(server.store.getScheduled(queued.id)!.sendAt).toBe(dueAt);
+    expect(server.store.scheduled.get(queued.id)!.sendAt).toBe(dueAt);
 
     server.flushScheduled();
-    const sent = server.store.getScheduled(queued.id)!;
+    const sent = server.store.scheduled.get(queued.id)!;
     expect(sent.status).toBe("sent");
     expect(posted().find((m) => m.id === sent.messageId)!.text).toBe("Edited in time");
 
@@ -412,19 +412,19 @@ describe("editing a scheduled message's text", () => {
     expect(late.status).toBe(404);
     expect(posted().find((m) => m.id === sent.messageId)!.text).toBe("Edited in time");
     // Completion keeps the message identity, not another copy of its words.
-    expect(server.store.getScheduled(queued.id)!.text).toBe("");
+    expect(server.store.scheduled.get(queued.id)!.text).toBe("");
   });
 
   it("keeps a held message held, with its reason and attempts, when its text changes", async () => {
     const queued = (await queue("Waiting")).body.scheduled;
     await request(`/api/channels/${channelId}`, { archived: true }, "PATCH");
-    server.store.rescheduleMessage(queued.id, Date.now() - 1000);
+    server.store.scheduled.reschedule(queued.id, Date.now() - 1000);
     server.flushScheduled();
-    const held = server.store.getScheduled(queued.id)!;
+    const held = server.store.scheduled.get(queued.id)!;
     expect(held.status).toBe("held");
 
     expect((await edit(queued.id, "Still waiting", "Waiting")).status).toBe(200);
-    expect(server.store.getScheduled(queued.id)).toMatchObject({
+    expect(server.store.scheduled.get(queued.id)).toMatchObject({
       text: "Still waiting",
       status: "held",
       failureReason: held.failureReason,
@@ -446,6 +446,6 @@ describe("editing a scheduled message's text", () => {
     });
     expect((await edit(queued.id, "Theirs", "Mine", other.body.token)).status).toBe(404);
     expect((await edit("missing", "Theirs", "Mine")).status).toBe(404);
-    expect(server.store.getScheduled(queued.id)!.text).toBe("Mine");
+    expect(server.store.scheduled.get(queued.id)!.text).toBe("Mine");
   });
 });

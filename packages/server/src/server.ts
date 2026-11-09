@@ -17,13 +17,11 @@ import {
   type AccessPolicy,
   type App,
   type AppScope,
-  type ErrorCode,
   type ID,
   type MemberNotice,
   type Message,
   type ModalView,
   type ReportedMessage,
-  type ScheduledMessage,
   type ServerInfo,
   type ServerNotice,
   type User,
@@ -92,6 +90,7 @@ import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
 import { createRouter } from "./route.js";
 import { iceServersSchema } from "./rtc.js";
 import { registerSaved } from "./saved/feature.js";
+import { registerScheduled, SCHEDULED_LIMITS } from "./scheduled/feature.js";
 import { StorageBudget } from "./storageBudget.js";
 import { Store } from "./store.js";
 import {
@@ -106,28 +105,6 @@ import { WorkspaceCopies } from "./workspaceCopy.js";
 import { checkIcon, ICON_META_KEYS, storedIconRows, type WorkspaceIcon } from "./workspaceIcon.js";
 
 export { SERVER_VERSION };
-
-/** How many times an unexplained delivery error is retried before giving up. */
-const SCHEDULED_ATTEMPTS = 3;
-
-/**
- * Bounds on the scheduled queue. An account may have this many waiting, and
- * the workspace this many in all; the flush takes due rows a batch at a time,
- * yielding between batches; and a held row is looked at again after a pause,
- * or as soon as what held it clears, rather than on every tick. A batch of ten
- * held the loop for about 13 ms (median) when 2,000 came due at once, where
- * fifty held it for about 64 ms; draining took the same three seconds either
- * way.
- */
-export const SCHEDULED_LIMITS = {
-  perAccount: 200,
-  perWorkspace: 10_000,
-  batch: 10,
-  heldRetryMs: 60_000,
-};
-
-/** Delivered queue rows are kept this long as proof of completion. */
-const SCHEDULED_RETENTION_MS = 7 * 24 * 3600_000;
 
 /** What a missed call's note says, to older clients, search and notifications too (E10). */
 const MISSED_CALL_TEXT = "Missed huddle";
@@ -4399,62 +4376,7 @@ async function startWorkspaceServer(
 
   // ---------- scheduled messages ----------
 
-  route(endpoints.scheduleMessage, async ({ reply, user: me, body, params }) => {
-    const result = posting.schedule({
-      userId: me.id,
-      channelId: params.id,
-      text: body.text,
-      threadRootId: body.threadRootId ?? null,
-      fileIds: body.fileIds ?? [],
-      sendAt: body.sendAt,
-      // Only a reply can also be shown in the channel, as with an ordinary send.
-      broadcast: !!body.threadRootId && body.alsoSendToChannel === true,
-      nonce: body.nonce ?? null,
-    });
-    if (result.replayed) reply.status(200);
-    return { scheduled: result.scheduled };
-  });
-
-  route(endpoints.listScheduled, async ({ user: me }) => {
-    return { scheduled: store.listScheduled(me.id) };
-  });
-
-  route(endpoints.cancelScheduled, async ({ user: me, params }) => {
-    const scheduled = store.getScheduled(params.id);
-    // Only the author may cancel, and a missing one is simply gone.
-    if (!scheduled || scheduled.userId !== me.id) throw new HttpError(404, "not_found");
-    store.deleteScheduled(scheduled.id);
-    return { ok: true };
-  });
-
-  route(endpoints.rescheduleMessage, async ({ user: me, body, params }) => {
-    const scheduled = store.getScheduled(params.id);
-    if (!scheduled || scheduled.userId !== me.id || scheduled.status === "sent") {
-      throw new HttpError(404, "not_found");
-    }
-    requireChannelAccess(scheduled.channelId, me);
-    store.rescheduleMessage(scheduled.id, body.sendAt);
-    return { scheduled: store.getScheduled(scheduled.id)! };
-  });
-
-  route(endpoints.editScheduledMessage, async ({ user: me, body, params }) => {
-    const scheduled = store.getScheduled(params.id);
-    if (!scheduled || scheduled.userId !== me.id || scheduled.status === "sent") {
-      throw new HttpError(404, "not_found");
-    }
-    requireChannelAccess(scheduled.channelId, me);
-    if (!body.text.trim() && scheduled.fileIds.length === 0) {
-      throw new HttpError(400, "empty_message", "A message needs text or attachments.");
-    }
-    if (!store.editScheduledText(scheduled.id, body.text, body.expectedText)) {
-      throw new HttpError(
-        409,
-        "scheduled_changed",
-        "This scheduled message has changed. Refresh before editing again.",
-      );
-    }
-    return { scheduled: store.getScheduled(scheduled.id)! };
-  });
+  const scheduledMessages = registerScheduled(ctx, { posting });
 
   const saved = registerSaved(ctx);
 
@@ -4892,98 +4814,13 @@ async function startWorkspaceServer(
     workspaceChanged({ iconVersion, by });
   };
 
-  /**
-   * Posts anything that has come due. Runs on a timer and once at startup, so
-   * messages scheduled while the server was down still go out.
-   *
-   * Nothing is dropped silently. Delivery marks the queue row sent inside the
-   * message transaction, so a crash between the two replays rather than losing
-   * or duplicating the message. An obstacle that the author can clear holds the
-   * row; one they cannot fails it. Either way the reason is theirs to read.
-   */
-  let scheduledDrain: ReturnType<typeof setImmediate> | null = null;
-  const flushScheduled = () => {
-    if (opts.isolated) return;
-    const due = store.dueScheduled(Date.now(), scheduledLimits.batch);
-    const retryAt = Date.now() + scheduledLimits.heldRetryMs;
-    for (const item of due) {
-      try {
-        sendScheduled(item, retryAt);
-      } catch (err) {
-        // Recording what happened failed too. The row is as it was, so it is
-        // due again next round; the rest of the batch still goes.
-        app.log.error({ err, scheduledId: item.id }, "scheduled message not handled; it stays due");
-      }
-    }
-    // A full batch may mean more are due. They are taken on a later turn, so
-    // the window and every other request get the loop between batches.
-    if (due.length === scheduledLimits.batch && !scheduledDrain && !lifecycle.closing) {
-      scheduledDrain = setImmediate(() => {
-        scheduledDrain = null;
-        inBackground("scheduled messages", flushScheduled);
-      });
-    }
-  };
-  /**
-   * What the author can clear holds a row until they do; what they cannot
-   * fails it. Either way it is said in words for their list.
-   */
-  const heldBecause = (item: ScheduledMessage, code: ErrorCode | null): string | null => {
-    switch (code) {
-      case "channel_not_found":
-        return store.getChannel(item.channelId)
-          ? "You are no longer a member of that channel."
-          : "That channel no longer exists.";
-      case "channel_archived":
-        return "That channel is archived.";
-      case "account_deactivated":
-        return "Your account is deactivated.";
-      default:
-        return null;
-    }
-  };
-  const failedBecause = (code: ErrorCode | null): string | null =>
-    code === "bad_thread_root"
-      ? "The message this replied to was deleted."
-      : code === "invalid_attachments"
-        ? "Its attachments are no longer available."
-        : null;
-
-  /** Posts one due scheduled message, or records why it waits or failed. */
-  const sendScheduled = (item: ScheduledMessage, retryAt: number): void => {
-    const hold = (reason: string) => store.holdScheduled(item.id, reason, retryAt);
-    const fail = (reason: string) => store.failScheduled(item.id, reason);
-    try {
-      posting.post({
-        poster: { kind: "person", userId: item.userId },
-        channelId: item.channelId,
-        text: item.text,
-        threadRootId: item.threadRootId,
-        broadcast: item.broadcast,
-        nonce: null,
-        fileIds: item.fileIds,
-        scheduledId: item.id,
-      });
-    } catch (err) {
-      const code = err instanceof HttpError ? err.code : null;
-      const held = heldBecause(item, code);
-      const failed = failedBecause(code);
-      if (held) hold(held);
-      else if (failed) fail(failed);
-      else if (store.countScheduledAttempt(item.id) >= SCHEDULED_ATTEMPTS)
-        fail("Sending failed repeatedly, so it was not posted.");
-      else hold("Sending failed. It will be tried again shortly.");
-    }
-  };
   // Each queue on its own, so one failing neither stops the server starting
   // nor skips the others.
-  inBackground("scheduled messages", flushScheduled);
   inBackground("event deliveries", flushEventDeliveries);
   inBackground("orphaned attachments", reconcileOrphanedBlobs);
   inBackground("abandoned uploads", expireAbandonedUploads);
   inBackground("attachment cleanup", flushFileDeletions);
   const scheduleTimer = setInterval(() => {
-    inBackground("scheduled messages", flushScheduled);
     inBackground("attachment cleanup", flushFileDeletions);
   }, 15_000);
   const eventDeliveryTimer = setInterval(
@@ -5036,32 +4873,20 @@ async function startWorkspaceServer(
     });
   }
 
-  /**
-   * An exception thrown from a timer is an uncaught exception, which ends the
-   * process. Housekeeping that fails is reported and tried again next round,
-   * and one step failing does not skip the rest.
-   */
-  const maintain = (step: string, work: () => void) => {
-    try {
-      work();
-    } catch (err) {
-      app.log.error({ err, step }, "maintenance step failed; it will be tried again");
-    }
-  };
   const pruneTimer = setInterval(() => {
-    maintain("events", () => store.pruneEvents());
-    maintain("scheduled", () => store.pruneScheduled(Date.now() - SCHEDULED_RETENTION_MS));
-    maintain("sessions", () => store.pruneSessions());
-    maintain("removed messages' send keys", () =>
+    background.maintain("events", () => store.pruneEvents());
+    scheduledMessages.hourly();
+    background.maintain("sessions", () => store.pruneSessions());
+    background.maintain("removed messages' send keys", () =>
       store.pruneMessageRequestsPurged(Date.now() - PURGED_SEND_KEYS_MS),
     );
-    maintain("download tokens", () => store.pruneDownloadTokens());
-    maintain("event deliveries", () =>
+    background.maintain("download tokens", () => store.pruneDownloadTokens());
+    background.maintain("event deliveries", () =>
       store.pruneEventDeliveries(Date.now() - EVENT_DELIVERY_RETENTION_MS),
     );
     // After pruning the queue, so a scheduled message that has just gone stops
     // holding its attachments in the same round rather than an hour later.
-    maintain("abandoned uploads", () => {
+    background.maintain("abandoned uploads", () => {
       if (expireAbandonedUploads() > 0) void flushFileDeletions();
     });
     void sweepRetention();
@@ -5072,7 +4897,7 @@ async function startWorkspaceServer(
   function clearExpiredStatuses() {
     statusExpiry = null;
     if (lifecycle.closing) return;
-    maintain("expired statuses", () => {
+    background.maintain("expired statuses", () => {
       const due = store.expiredStatusUserIds(Date.now());
       if (due.length > 0)
         mutate((emit) => {
@@ -5105,6 +4930,7 @@ async function startWorkspaceServer(
   armStatusExpiry();
 
   reminders.start();
+  scheduledMessages.start();
 
   let stopping: Promise<void> | null = null;
   // The stages of stopping that have finished. A stop that fails part-way
@@ -5128,7 +4954,7 @@ async function startWorkspaceServer(
     /** Set only while the workspace still has no owner. */
     claimCode: claimCode(),
     upgradeBackup,
-    flushScheduled,
+    flushScheduled: scheduledMessages.flush,
     flushFileDeletions,
     expireAbandonedUploads,
     applyRetention,
@@ -5183,7 +5009,6 @@ async function startWorkspaceServer(
       if (!stopped.started) {
         stopped.started = true;
         clearInterval(scheduleTimer);
-        if (scheduledDrain) clearImmediate(scheduledDrain);
         if (fileCleanupNext) clearImmediate(fileCleanupNext);
         clearInterval(eventDeliveryTimer);
         clearInterval(pruneTimer);
