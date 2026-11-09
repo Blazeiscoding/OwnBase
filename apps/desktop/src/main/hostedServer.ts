@@ -88,6 +88,6 @@ export async function startHostedServer(
     setInviteOnly: (value) => server.setInviteOnly(value),
     accessPolicy: () => server.accessPolicy(),
     setAccessPolicy: (policy) => server.setAccessPolicy(policy),
-    accountCount: () => server.store.userCount(),
+    accountCount: () => server.store.people.count(),
   };
 }

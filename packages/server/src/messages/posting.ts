@@ -134,7 +134,7 @@ export function createPosting({
     if (!channel) throw new HttpError(404, "channel_not_found");
     if (poster.kind === "person" && !store.canAccess(channel.id, userId))
       throw new HttpError(404, "channel_not_found");
-    if (store.getUser(userId)?.deactivated) throw new HttpError(403, "account_deactivated");
+    if (store.people.get(userId)?.deactivated) throw new HttpError(403, "account_deactivated");
     if (channel.archived) throw new HttpError(400, "channel_archived");
     // An app's bot posts where it was added. A public channel it was never
     // added to takes Slack's chat:write.public through the Web API; a webhook
@@ -171,7 +171,7 @@ export function createPosting({
     const message = mutate((record) => {
       const channel = writableChannel(poster, input.channelId);
       // As with uploads: a guest takes part, and votes, but does not make polls.
-      if (input.poll && store.getUser(userId)?.role === "guest")
+      if (input.poll && store.people.get(userId)?.role === "guest")
         throw new HttpError(
           403,
           "guest_not_allowed",

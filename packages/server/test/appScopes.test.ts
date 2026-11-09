@@ -19,7 +19,7 @@ describe("an app made before scopes (E18c)", () => {
     // Schema v50, the last before scopes: an app row as that server wrote it.
     const old = openDbAtVersion(path, 50);
     const store = new Store(old);
-    const owner = store.createUser({
+    const owner = store.people.create({
       handle: "owner",
       displayName: "Owner",
       passwordHash: "unused",

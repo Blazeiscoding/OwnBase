@@ -33,7 +33,7 @@ async function stop() {
 
 /** Registers on first start, signs in again after a restart. */
 async function signIn() {
-  const existing = server!.store.getUserAuthByHandle("owner");
+  const existing = server!.store.people.authByHandle("owner");
   const res = await fetch(`${base}/api/auth/${existing ? "login" : "register"}`, {
     method: "POST",
     headers: { "content-type": "application/json" },
@@ -328,7 +328,7 @@ describe("abandoned uploads", () => {
        VALUES ('01BROKENBROKENBROKENBROKEN', ?, ?, 'x', NULL, 'not json', ?, ?)`,
     ).run(
       channelId,
-      server!.store.getUserAuthByHandle("owner")!.id,
+      server!.store.people.authByHandle("owner")!.id,
       Date.now() + 60_000,
       Date.now(),
     );

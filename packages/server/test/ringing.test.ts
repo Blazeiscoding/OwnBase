@@ -351,7 +351,7 @@ describe("a group direct message's huddle", () => {
     const bob = await register("bob");
     const carol = await register("carol");
     const channelId = await dm(alice, bob, carol);
-    server.store.updateUser(carol.user.id, { deactivated: true });
+    server.store.people.update(carol.user.id, { deactivated: true });
     const caller = await connect(alice.token);
     caller.send({ type: "huddle.join", channelId, requestId: "a" });
     await expect.poll(() => last(caller.rings())?.ringing).toEqual([bob.user.id]);

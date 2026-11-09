@@ -366,7 +366,7 @@ describe("settling a report", () => {
     const theirs = await connect(maya.token);
     expect((await resolve(message.id, "deactivate")).status).toBe(200);
     expect(server.store.messages.get(message.id)).toBeNull();
-    expect(server.store.getUser(maya.user.id)!.deactivated).toBe(true);
+    expect(server.store.people.get(maya.user.id)!.deactivated).toBe(true);
     expect((await call("/api/me", maya.token, undefined, "GET")).status).toBe(401);
     await expect.poll(() => theirs.closed()).toBe(true);
     const actions = server.store.listAudit({ limit: 2 }).map((entry) => entry.action);

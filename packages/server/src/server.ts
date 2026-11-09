@@ -47,7 +47,7 @@ import { ConfigError, parsePort } from "./config.js";
 import { BackgroundWork } from "./core/background.js";
 import { createCommits } from "./core/commit.js";
 import {
-  guestRestricted,
+  checkedPicture,
   rationWith,
   requireChannelAccess as requireChannelAccessIn,
   requireVisibleMessage as requireVisibleMessageIn,
@@ -77,6 +77,7 @@ import { registerMessages, type RetentionStatus } from "./messages/feature.js";
 import { requireMessageText, slackRefusal } from "./messages/posting.js";
 import { OutboundError, postToUrl } from "./outbound.js";
 import { holdWorkspace, type WorkspaceHold } from "./ownership.js";
+import { registerPeople } from "./people/feature.js";
 import { registerPolls } from "./polls/feature.js";
 import { serverRelaySchema, type ServerRelay } from "./relay.js";
 import { registerReminders, REMINDER_LIMITS } from "./reminders/feature.js";
@@ -505,7 +506,7 @@ async function startWorkspaceServer(
   // who may join, so what it is started with decides both. Once it has an
   // owner they are its own, changed by its owner and admins, and a start
   // never puts back an older choice over theirs.
-  const unowned = store.userCount() === 0;
+  const unowned = store.people.count() === 0;
   if (opts.workspaceName && (unowned || settings.stored("workspaceName") === null))
     settings.set("workspaceName", opts.workspaceName);
   if (settings.stored("workspaceName") === null)
@@ -554,7 +555,7 @@ async function startWorkspaceServer(
    * link to claim it gives the code instead (P7), and the one it gives last
    * is the one in force.
    */
-  if (store.userCount() === 0) {
+  if (store.people.count() === 0) {
     if (opts.claimCode) settings.set("claimCode", opts.claimCode);
     else if (!settings.get("claimCode")) settings.set("claimCode", secretToken());
   }
@@ -902,7 +903,7 @@ async function startWorkspaceServer(
   };
 
   route(endpoints.serverInfo, async ({ req }) => {
-    const userCount = store.userCount();
+    const userCount = store.people.count();
     const signIn = signInInfo();
     return {
       app: "ownbase",
@@ -957,9 +958,9 @@ async function startWorkspaceServer(
     // Everything after hashing is synchronous: concurrent registrations cannot
     // both become owner or consume the same final invitation use.
     const { token, user } = mutate((emit) => {
-      const isFirstUser = store.userCount() === 0;
+      const isFirstUser = store.people.count() === 0;
 
-      if (store.getUserAuthByHandle(body.handle)) {
+      if (store.people.authByHandle(body.handle)) {
         throw new HttpError(409, "handle_taken");
       }
 
@@ -987,7 +988,7 @@ async function startWorkspaceServer(
         }
       }
       const { hash, salt } = credentials;
-      const user = store.createUser({
+      const user = store.people.create({
         handle: body.handle,
         displayName: body.displayName,
         passwordHash: hash,
@@ -1028,15 +1029,15 @@ async function startWorkspaceServer(
       if (accessPolicy() !== "guest_allowed")
         throw new HttpError(403, "guest_access_off", "This workspace needs an account to join.");
       // The first person here claims it as owner, which a guest never does.
-      if (store.userCount() === 0)
+      if (store.people.count() === 0)
         throw new HttpError(403, "workspace_unclaimed", "This workspace has no owner yet.");
       if (store.liveGuestSessions() >= MAX_GUEST_SESSIONS)
         throw new HttpError(429, "guests_full", "Too many guests are here now. Try again later.");
       let handle = "";
       do handle = `guest-${secretToken().slice(0, 10).toLowerCase()}`;
-      while (store.getUserAuthByHandle(handle));
+      while (store.people.authByHandle(handle));
       // No password can match these: a guest cannot sign in, only resume.
-      const user = store.createUser({
+      const user = store.people.create({
         handle,
         displayName: body.displayName,
         passwordHash: "",
@@ -1071,7 +1072,7 @@ async function startWorkspaceServer(
       if (inviteOnly())
         throw new HttpError(403, "invite_required", "This workspace needs an invite to join.");
       if (singleSignOnRequired()) throw ssoRequired("makes new accounts");
-      if (store.getUserAuthByHandle(body.handle)) throw new HttpError(409, "handle_taken");
+      if (store.people.authByHandle(body.handle)) throw new HttpError(409, "handle_taken");
       const user = store.convertGuest(me.id, body.handle, credentials.hash, credentials.salt);
       const revoked = store.revokeSessions(me.id);
       const { token, tokenHash } = newSessionToken();
@@ -1089,7 +1090,7 @@ async function startWorkspaceServer(
     // protecting from many machines, and an address from many accounts.
     ration("authByAddress", callerAddress(req));
     ration("authByHandle", body.handle.toLowerCase());
-    const auth = store.getUserAuthByHandle(body.handle);
+    const auth = store.people.authByHandle(body.handle);
     beginAuth();
     let valid = false;
     try {
@@ -1101,7 +1102,7 @@ async function startWorkspaceServer(
     } finally {
       authJobs--;
     }
-    const latest = auth ? store.getUserAuthByHandle(auth.handle) : null;
+    const latest = auth ? store.people.authByHandle(auth.handle) : null;
     if (
       !auth ||
       !valid ||
@@ -1175,8 +1176,8 @@ async function startWorkspaceServer(
       twoStepChallenges.delete(key);
       throw expired();
     }
-    const account = store.getUser(held.userId);
-    const auth = account ? store.getUserAuthByHandle(account.handle) : null;
+    const account = store.people.get(held.userId);
+    const auth = account ? store.people.authByHandle(account.handle) : null;
     // Deactivated, or the password changed, since the first step.
     if (!auth || auth.deactivated || auth.passwordHash !== held.passwordHash) {
       twoStepChallenges.delete(key);
@@ -1240,7 +1241,7 @@ async function startWorkspaceServer(
   route(endpoints.changePassword, async ({ req, user: me, body }) => {
     // The current password is guessable here too, by whoever has the session.
     ration("authByHandle", me.handle.toLowerCase());
-    const auth = store.getUserAuthByHandle(me.handle);
+    const auth = store.people.authByHandle(me.handle);
     if (!auth) throw new HttpError(404, "user_not_found");
     beginAuth();
     let valid = false;
@@ -1261,7 +1262,7 @@ async function startWorkspaceServer(
     }
     // Hashing yields: sign-out, deactivation, or another reset may have happened meanwhile.
     requireUser(req);
-    const latest = store.getUserAuthByHandle(me.handle);
+    const latest = store.people.authByHandle(me.handle);
     if (!latest || latest.passwordHash !== auth.passwordHash || latest.salt !== auth.salt) {
       throw new HttpError(
         409,
@@ -1287,7 +1288,7 @@ async function startWorkspaceServer(
    */
   const confirmPassword = async (me: User, password: string): Promise<void> => {
     ration("authByHandle", me.handle.toLowerCase());
-    const auth = store.getUserAuthByHandle(me.handle);
+    const auth = store.people.authByHandle(me.handle);
     if (!auth) throw new HttpError(404, "user_not_found");
     beginAuth();
     let valid = false;
@@ -1389,117 +1390,13 @@ async function startWorkspaceServer(
 
   // ---------- me / users ----------
 
-  route(endpoints.me, async ({ user }) => ({ user }));
-
-  route(endpoints.updateMe, async ({ user: me, body }) => {
-    const statusChanged =
-      body.statusText !== undefined ||
-      body.statusEmoji !== undefined ||
-      body.statusExpiresAt !== undefined;
-    const result = mutate((emit) => {
-      const user = store.updateUser(me.id, {
-        ...body,
-        // A new status without an end keeps no earlier status's end.
-        ...((body.statusText !== undefined || body.statusEmoji !== undefined) &&
-        body.statusExpiresAt === undefined
-          ? { statusExpiresAt: null }
-          : {}),
-      });
-      emit({ type: "user.updated", user });
-      return { user };
-    });
-    if (statusChanged) armStatusExpiry();
-    if (body.away !== undefined) gateway.refreshPresence(me.id);
-    return result;
-  });
-
-  route(endpoints.avatar, async ({ req, reply, params, query }) => {
-    const picture = store.avatar(params.id);
-    // A version that is not the picture's names one that is gone: the
-    // bytes now are another picture's, kept for good under that name.
-    if (!picture || (query.v !== undefined && query.v !== picture.version)) {
-      reply.header("cache-control", "no-store");
-      throw new HttpError(404, "no_avatar", "They have no profile picture.");
-    }
-    const etag = `"${picture.version}"`;
-    reply
-      .header("content-type", picture.type)
-      .header("x-content-type-options", "nosniff")
-      .header("content-security-policy", "default-src 'none'; sandbox")
-      .header("etag", etag)
-      .header(
-        "cache-control",
-        query.v === picture.version ? "private, max-age=31536000, immutable" : "no-cache",
-      );
-    if (req.headers["if-none-match"] === etag) return reply.status(304).send();
-    return reply.header("content-length", String(picture.bytes.length)).send(picture.bytes);
-  });
-
-  route(endpoints.removeAvatar, async ({ user: me }) => {
-    return mutate((emit) => {
-      const user = store.setAvatar(me.id, null);
-      emit({ type: "user.updated", user });
-      return { user };
-    });
-  });
-
-  route(endpoints.listUsers, async () => {
-    return { users: store.listUsers() };
-  });
+  const people = registerPeople(ctx);
 
   // ---------- channels ----------
-
-  route(endpoints.friends, async ({ user }) => ({ friends: store.listFriends(user.id) }));
-  route(endpoints.requestFriend, async ({ user: me, params }) => {
-    const other = store.getUser(params.id);
-    if (!other || other.deactivated || other.isBot || other.id === me.id)
-      throw new HttpError(400, "invalid_friend");
-    if (other.role === "guest") throw guestRestricted();
-    store.requestFriend(me.id, other.id);
-    return { friends: store.listFriends(me.id) };
-  });
-  route(endpoints.acceptFriend, async ({ user: me, params }) => {
-    if (!store.acceptFriend(me.id, params.id)) throw new HttpError(404, "request_not_found");
-    return { friends: store.listFriends(me.id) };
-  });
-  route(endpoints.removeFriend, async ({ user: me, params }) => {
-    store.removeFriend(me.id, params.id);
-    return { friends: store.listFriends(me.id) };
-  });
-
-  route(endpoints.blockUser, async ({ user: me, params }) => {
-    const other = store.getUser(params.id);
-    if (!other) throw new HttpError(404, "user_not_found");
-    if (other.id === me.id) throw new HttpError(400, "cannot_block_self");
-    if (other.isBot)
-      throw new HttpError(
-        400,
-        "cannot_block_app",
-        "Apps cannot be blocked. Ask an admin about one.",
-      );
-    const befriended = store.listFriends(me.id).some((friend) => friend.userId === other.id);
-    store.transaction(() => {
-      if (store.setBlocked(me.id, other.id, true) && befriended)
-        store.removeFriend(me.id, other.id);
-    });
-    return { blocked: store.blockedIds(me.id) };
-  });
-
-  route(endpoints.unblockUser, async ({ user: me, params }) => {
-    store.setBlocked(me.id, params.id, false);
-    return { blocked: store.blockedIds(me.id) };
-  });
 
   // ---------- messages ----------
 
   const threads = registerThreads(ctx);
-
-  route(endpoints.reportMessage, async ({ user: me, body, params }) => {
-    const message = requireVisibleMessage(params.id, me);
-    if (message.userId === me.id) throw new HttpError(400, "cannot_report_own_message");
-    store.reportMessage(message.id, me.id, body.reason, body.note?.trim() ?? "");
-    return { ok: true };
-  });
 
   // ---------- link previews ----------
 
@@ -1745,7 +1642,7 @@ async function startWorkspaceServer(
         .slice(0, 24) || "bot";
     let handle = `${base}-bot`;
     let n = 2;
-    while (store.getUserAuthByHandle(handle)) handle = `${base}-bot-${n++}`;
+    while (store.people.authByHandle(handle)) handle = `${base}-bot-${n++}`;
     return handle;
   };
 
@@ -2046,7 +1943,7 @@ async function startWorkspaceServer(
   };
 
   route(endpoints.authTest, async ({ req, bot: owner }) => {
-    const bot = store.getUser(owner.botUserId)!;
+    const bot = store.people.get(owner.botUserId)!;
     return {
       ok: true,
       url: `${requestOrigin(req)}/`,
@@ -2153,13 +2050,13 @@ async function startWorkspaceServer(
    * again here, where the reply would actually be posted.
    */
   const capabilityHolds = (target: { channelId: ID; botUserId: ID; invokerId: ID }): boolean => {
-    const bot = store.getUser(target.botUserId);
+    const bot = store.people.get(target.botUserId);
     if (!bot || bot.deactivated) return false;
     if (!store.appForBotUser(target.botUserId)) return false;
     const channel = store.channels.get(target.channelId);
     if (!channel || channel.archived) return false;
     if (!store.canAccess(channel.id, bot.id)) return false;
-    const invoker = store.getUser(target.invokerId);
+    const invoker = store.people.get(target.invokerId);
     if (!invoker || invoker.deactivated) return false;
     return store.canAccess(channel.id, invoker.id);
   };
@@ -2459,10 +2356,10 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.listAllUsers, async () => {
-    const lastSeen = store.lastSeenByUser();
+    const lastSeen = store.people.lastSeenByUser();
     const twoStepIds = store.twoStepUserIds();
     return {
-      users: store.listUsers().map((u) => ({
+      users: store.people.list().map((u) => ({
         ...u,
         lastSeenAt: lastSeen[u.id] ?? null,
         // Who has two-step sign-in, for an admin who may reset it (E11).
@@ -2472,7 +2369,7 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.updateUserAdmin, async ({ user: me, body, params }) => {
-    const target = store.getUser(params.id);
+    const target = store.people.get(params.id);
     if (!target) throw new HttpError(404, "user_not_found");
     if (target.id === me.id) throw new HttpError(400, "cannot_change_self");
     if (target.role === "owner") throw new HttpError(403, "owner_is_protected");
@@ -2498,8 +2395,8 @@ async function startWorkspaceServer(
 
     return mutate((emit, afterCommit) => {
       const hadInvitePermission =
-        body.canInvite !== undefined && store.getMemberInvitePermission(target.id);
-      const updated = store.updateUser(target.id, {
+        body.canInvite !== undefined && store.people.invitePermission(target.id);
+      const updated = store.people.update(target.id, {
         role: body.role,
         deactivated: body.deactivated,
         canInvite: body.canInvite,
@@ -2553,7 +2450,7 @@ async function startWorkspaceServer(
    * only as the owner. The admin asking, and whom.
    */
   const resettable = (me: User, targetId: ID): { me: User; target: User } => {
-    const target = store.getUser(targetId);
+    const target = store.people.get(targetId);
     if (!target) throw new HttpError(404, "user_not_found");
     if (target.id === me.id) throw new HttpError(400, "cannot_reset_self");
     if (target.isBot) throw new HttpError(400, "bots_have_no_password");
@@ -2618,7 +2515,7 @@ async function startWorkspaceServer(
 
   route(endpoints.listReports, async () => {
     const reports: ReportedMessage[] = [];
-    for (const open of store.openReports()) {
+    for (const open of store.people.openReports()) {
       const channel = store.channels.get(open.channelId);
       if (!channel) continue;
       reports.push({ ...open, message: store.messages.get(open.messageId), channel });
@@ -2628,9 +2525,9 @@ async function startWorkspaceServer(
 
   route(endpoints.resolveReport, async ({ user: me, body, params }) => {
     const { action } = body;
-    const open = store.openReports().find((held) => held.messageId === params.id);
+    const open = store.people.openReports().find((held) => held.messageId === params.id);
     if (!open) throw new HttpError(404, "report_not_found");
-    const author = store.getUser(open.authorId);
+    const author = store.people.get(open.authorId);
     if (action === "deactivate" && author) {
       if (author.id === me.id) throw new HttpError(400, "cannot_change_self");
       if (author.role === "owner") throw new HttpError(403, "owner_is_protected");
@@ -2642,7 +2539,7 @@ async function startWorkspaceServer(
       const message = store.messages.get(open.messageId);
       if (action !== "dismiss" && message) removeMessageWithin(message, emit);
       if (action === "deactivate" && author && !author.deactivated) {
-        const updated = store.updateUser(author.id, { deactivated: true });
+        const updated = store.people.update(author.id, { deactivated: true });
         store.recordAudit({
           actorId: me.id,
           action: "user.deactivated",
@@ -2653,7 +2550,7 @@ async function startWorkspaceServer(
         afterCommit(() => gateway.disconnectUser(author.id));
         emit({ type: "user.updated", user: updated });
       }
-      const reports = store.resolveReports(open.messageId, me.id, action);
+      const reports = store.people.resolveReports(open.messageId, me.id, action);
       store.recordAudit({
         actorId: me.id,
         action: "report.resolved",
@@ -2667,14 +2564,14 @@ async function startWorkspaceServer(
   });
 
   route(endpoints.transferOwnership, async ({ user: me, params }) => {
-    const target = store.getUser(params.id);
+    const target = store.people.get(params.id);
     if (!target) throw new HttpError(404, "user_not_found");
     if (target.id === me.id) throw new HttpError(400, "already_owner");
     if (target.isBot || target.deactivated || target.role === "guest")
       throw new HttpError(400, "invalid_owner");
     return mutate((emit) => {
-      const newOwner = store.updateUser(target.id, { role: "owner" });
-      const formerOwner = store.updateUser(me.id, { role: "admin" });
+      const newOwner = store.people.update(target.id, { role: "owner" });
+      const formerOwner = store.people.update(me.id, { role: "admin" });
       store.recordAudit({
         actorId: me.id,
         action: "workspace.ownership_transferred",
@@ -2716,24 +2613,6 @@ async function startWorkspaceServer(
       gateway.tellEveryone({ type: "workspace.linkPreviews", enabled });
     }
     return { enabled: linkPreviewsOn() };
-  });
-
-  /** A picture as it arrived, by the rules a workspace icon and a profile picture share. */
-  const checkedPicture = (req: FastifyRequest, bytes: Buffer, noun?: string): WorkspaceIcon => {
-    const type = Buffer.isBuffer(req.body) ? req.headers["content-type"] : undefined;
-    const checked = checkIcon(bytes, type, noun);
-    if ("refused" in checked)
-      throw new HttpError(checked.refused.status, checked.refused.code, checked.refused.message);
-    return checked.icon;
-  };
-
-  route(endpoints.setAvatar, async ({ req, user: me, body }) => {
-    const picture = checkedPicture(req, body, "profile picture");
-    return mutate((emit) => {
-      const user = store.setAvatar(me.id, picture);
-      emit({ type: "user.updated", user });
-      return { user };
-    });
   });
 
   route(endpoints.setWorkspaceIcon, async ({ req, user: me, body }) => {
@@ -3039,7 +2918,7 @@ async function startWorkspaceServer(
     const missing: Record<string, string> = {};
     const answering: AnswerContext = {
       isPerson: (id) => {
-        const person = store.getUser(id);
+        const person = store.people.get(id);
         return !!person && !person.deactivated;
       },
       conversationType: (id) => {
@@ -3483,15 +3362,15 @@ async function startWorkspaceServer(
     ...saved.snapshot(user),
     ...threads.snapshot(user),
     ...channels.snapshot(user),
-    users: store.listUsers(),
+    ...people.snapshot(user),
     accessPolicy: accessPolicy(),
     iconVersion: icon?.version ?? null,
     linkPreviews: linkPreviewsOn(),
     workspaceName: workspaceName(),
     workspaceId: settings.get("workspaceId"),
-    friends: store.listFriends(user.id),
-    blocked: store.blockedIds(user.id),
-    ...(isAdministrator(user.role) ? { openReports: store.openReportCount(), ...notices() } : {}),
+    ...(isAdministrator(user.role)
+      ? { openReports: store.people.openReportCount(), ...notices() }
+      : {}),
   }));
   /** The plan's member notice and the extensions' notices for a snapshot, when there are any. */
   const notices = (): { memberNotice?: MemberNotice; notices?: ServerNotice[] } => {
@@ -3513,10 +3392,10 @@ async function startWorkspaceServer(
     // Nobody knows it: the account signs in the extension's way.
     const credentials = await hashPassword(secretToken());
     return mutate((emit) => {
-      if (store.userCount() === 0)
+      if (store.people.count() === 0)
         throw new HttpError(409, "workspace_unclaimed", "The workspace has no owner yet.");
-      if (store.getUserAuthByHandle(input.handle)) throw new HttpError(409, "handle_taken");
-      const user = store.createUser({
+      if (store.people.authByHandle(input.handle)) throw new HttpError(409, "handle_taken");
+      const user = store.people.create({
         handle: input.handle,
         displayName: input.displayName,
         passwordHash: credentials.hash,
@@ -3533,7 +3412,7 @@ async function startWorkspaceServer(
     const prefix = `extension:${extension.name}:`;
     await extension.register?.({
       route,
-      memberCount: () => planMembers(store.listUsers()),
+      memberCount: () => planMembers(store.people.list()),
       log: app.log.child({ extension: extension.name }),
       storage: {
         get: (key) => store.getMeta(prefix + key),
@@ -3545,9 +3424,9 @@ async function startWorkspaceServer(
             .map(({ key, value }) => ({ key: key.slice(prefix.length), value })),
       },
       users: {
-        get: (id) => store.getUser(id),
+        get: (id) => store.people.get(id),
         byHandle: (handle) => {
-          const auth = store.getUserAuthByHandle(handle.toLowerCase());
+          const auth = store.people.authByHandle(handle.toLowerCase());
           if (!auth) return null;
           const { passwordHash: _p, salt: _s, ...user } = auth;
           return user;
@@ -3555,7 +3434,7 @@ async function startWorkspaceServer(
         create: createMember,
       },
       startSession: (userId, req) => {
-        const user = store.getUser(userId);
+        const user = store.people.get(userId);
         if (!user || user.deactivated) throw new HttpError(401, "invalid_credentials");
         const { token, tokenHash } = newSessionToken();
         store.createSession(tokenHash, user.id, deviceName(req));
@@ -3760,45 +3639,9 @@ async function startWorkspaceServer(
     files.hourly();
     void sweepRetention();
   }, 3600_000);
-  // A status set to clear itself (UX-61) is cleared at its time, for everyone
-  // to see, by one timer set for the soonest.
-  let statusExpiry: ReturnType<typeof setTimeout> | null = null;
-  function clearExpiredStatuses() {
-    statusExpiry = null;
-    if (lifecycle.closing) return;
-    background.maintain("expired statuses", () => {
-      const due = store.expiredStatusUserIds(Date.now());
-      if (due.length > 0)
-        mutate((emit) => {
-          for (const id of due) {
-            const user = store.updateUser(id, {
-              statusText: "",
-              statusEmoji: "",
-              statusExpiresAt: null,
-            });
-            emit({ type: "user.updated", user });
-          }
-        });
-    });
-    armStatusExpiry();
-  }
-  /** Sets the timer for the soonest end. One later than a timer can wait wakes it to wait again. */
-  function armStatusExpiry() {
-    if (statusExpiry) clearTimeout(statusExpiry);
-    statusExpiry = null;
-    if (lifecycle.closing) return;
-    const next = store.nextStatusExpiry();
-    if (next === null) return;
-    statusExpiry = setTimeout(
-      clearExpiredStatuses,
-      Math.min(Math.max(0, next - Date.now()), 2_147_483_647),
-    );
-    statusExpiry.unref();
-  }
-  // Statuses that ended while the server was stopped clear as it starts.
-  armStatusExpiry();
 
   reminders.start();
+  people.start();
   scheduledMessages.start();
 
   let stopping: Promise<void> | null = null;
@@ -3875,7 +3718,6 @@ async function startWorkspaceServer(
         clearInterval(eventDeliveryTimer);
         clearInterval(pruneTimer);
         clearInterval(loopDelayTimer);
-        if (statusExpiry) clearTimeout(statusExpiry);
         loopDelay.disable();
         mdnsHandle?.stop();
         // Before waiting on anything, so whatever is waiting on an app hears

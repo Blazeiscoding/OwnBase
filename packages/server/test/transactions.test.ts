@@ -59,7 +59,7 @@ describe("atomic registration", () => {
       throw new Error("session write failed");
     });
     expect((await register("owner")).status).toBe(500);
-    expect(server.store.userCount()).toBe(0);
+    expect(server.store.people.count()).toBe(0);
     expect(server.store.channels.byName("general")).toBeNull();
     expect(server.store.getMeta("claim_code")).toBe(claim);
     expect(server.store.currentSeq()).toBe(0);
@@ -78,7 +78,7 @@ describe("atomic registration", () => {
     });
     expect((await register("guest", code)).status).toBe(500);
     expect(server.store.getInvite(code)!.uses).toBe(0);
-    expect(server.store.getUserAuthByHandle("guest")).toBeNull();
+    expect(server.store.people.authByHandle("guest")).toBeNull();
     expect(server.store.currentSeq()).toBe(seq);
     expect(publish).not.toHaveBeenCalled();
     expect((await register("guest", code)).status).toBe(201);
@@ -92,7 +92,7 @@ describe("atomic registration", () => {
     const results = await Promise.all([register("one", code), register("two", code)]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 403]);
     expect(server.store.getInvite(code)!.uses).toBe(1);
-    expect(server.store.userCount()).toBe(2);
+    expect(server.store.people.count()).toBe(2);
   });
 });
 
@@ -176,8 +176,8 @@ describe("atomic channel and account changes", () => {
     const publish = vi.spyOn(server.gateway, "publish");
     failEvent(2);
     expect((await request(`/api/admin/users/${guest.id}/owner`)).status).toBe(500);
-    expect(server.store.getUser(me.id)!.role).toBe("owner");
-    expect(server.store.getUser(guest.id)!.role).toBe("member");
+    expect(server.store.people.get(me.id)!.role).toBe("owner");
+    expect(server.store.people.get(guest.id)!.role).toBe("member");
     expect(server.store.currentSeq()).toBe(seq);
     expect(publish).not.toHaveBeenCalled();
   });
@@ -190,7 +190,7 @@ describe("atomic channel and account changes", () => {
     expect(
       (await request(`/api/admin/users/${guest.user.id}`, { deactivated: true }, "PATCH")).status,
     ).toBe(500);
-    expect(server.store.getUser(guest.user.id)!.deactivated).toBe(false);
+    expect(server.store.people.get(guest.user.id)!.deactivated).toBe(false);
     expect((await request("/api/me", undefined, "GET", guest.token)).status).toBe(200);
     expect(disconnect).not.toHaveBeenCalled();
   });
@@ -231,13 +231,13 @@ describe("atomic messages and integrations", () => {
 
   it("does not leave a bot account behind when app-token creation fails", async () => {
     await owner();
-    const count = server.store.listUsers().length;
+    const count = server.store.people.list().length;
     const seq = server.store.currentSeq();
     vi.spyOn(server.store, "addAppToken").mockImplementationOnce(() => {
       throw new Error("token write failed");
     });
     expect((await request("/api/apps", { name: "Test App" })).status).toBe(500);
-    expect(server.store.listUsers()).toHaveLength(count);
+    expect(server.store.people.list()).toHaveLength(count);
     expect(server.store.listApps()).toHaveLength(0);
     expect(server.store.currentSeq()).toBe(seq);
     expect((await request("/api/apps", { name: "Test App" })).status).toBe(201);

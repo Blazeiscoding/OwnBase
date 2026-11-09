@@ -56,8 +56,8 @@ export function listAccounts(dataDir: string): RecoverableAccount[] {
   const { db, close } = openWorkspace(dataDir);
   try {
     const store = new Store(db);
-    return store
-      .listUsers()
+    return store.people
+      .list()
       .filter((user) => !user.isBot)
       .map((user) => ({
         handle: user.handle,
@@ -91,7 +91,7 @@ export async function recoverAccount(opts: {
   const { db, close } = openWorkspace(opts.dataDir);
   try {
     const store = new Store(db);
-    const user = store.getUserAuthByHandle(opts.handle);
+    const user = store.people.authByHandle(opts.handle);
     if (!user) throw new Error(`No account with the handle "${opts.handle}".`);
     if (user.isBot)
       throw new Error(`"${opts.handle}" is an app, which has a token rather than a password.`);
@@ -104,16 +104,16 @@ export async function recoverAccount(opts: {
       // the host on this machine is trusted with both (E11).
       const twoStepCleared = store.disableTwoStep(user.id);
       // Recovery is pointless if the account cannot sign in at all.
-      if (user.deactivated) store.updateUser(user.id, { deactivated: false });
+      if (user.deactivated) store.people.update(user.id, { deactivated: false });
       if (opts.makeOwner) {
         // The existing owner steps down to admin rather than out, matching what
         // an ordinary ownership transfer does.
-        for (const other of store.listUsers()) {
+        for (const other of store.people.list()) {
           if (other.role === "owner" && other.id !== user.id) {
-            store.updateUser(other.id, { role: "admin" });
+            store.people.update(other.id, { role: "admin" });
           }
         }
-        store.updateUser(user.id, { role: "owner" });
+        store.people.update(user.id, { role: "owner" });
       }
       const revoked = store.revokeSessions(user.id).length;
       // No actor: the host did this from the command line, without signing in,
@@ -130,7 +130,7 @@ export async function recoverAccount(opts: {
           twoStepCleared,
         },
       });
-      return { revoked, role: store.getUser(user.id)!.role, twoStepCleared };
+      return { revoked, role: store.people.get(user.id)!.role, twoStepCleared };
     });
     return { temporaryPassword, role, revokedSessions: revoked, twoStepCleared };
   } finally {

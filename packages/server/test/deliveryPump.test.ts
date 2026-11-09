@@ -53,7 +53,7 @@ beforeEach(async () => {
   endpointUrl = `http://127.0.0.1:${(endpoint.address() as { port: number }).port}`;
   dataDir = mkdtempSync(join(tmpdir(), "ownbase-delivery-pump-"));
   server = await start();
-  ownerId = server.store.createUser({
+  ownerId = server.store.people.create({
     handle: "owner",
     displayName: "Owner",
     passwordHash: "",

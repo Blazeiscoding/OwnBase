@@ -150,7 +150,7 @@ describe("live session access", () => {
       if (delivery === "message") {
         server.gateway.publish({
           seq: 123,
-          event: { type: "user.updated", user: server.store.getUser(userId)! },
+          event: { type: "user.updated", user: server.store.people.get(userId)! },
         });
       } else if (delivery === "typing") {
         server.gateway.tellChannel(channelId, { type: "typing", channelId, userId });
@@ -312,12 +312,12 @@ describe("scheduled delivery", () => {
   it("holds a message for a deactivated author and resumes on reactivation", async () => {
     const queued = await queue({ text: "Posted in my name" });
     makeDue(queued.body.scheduled.id);
-    server.store.updateUser(userId, { deactivated: true });
+    server.store.people.update(userId, { deactivated: true });
     server.flushScheduled();
     expect(server.store.scheduled.get(queued.body.scheduled.id)!.status).toBe("held");
     expect(posted().some((m) => m.text === "Posted in my name")).toBe(false);
 
-    server.store.updateUser(userId, { deactivated: false });
+    server.store.people.update(userId, { deactivated: false });
     server.flushScheduled();
     expect(posted().filter((m) => m.text === "Posted in my name")).toHaveLength(1);
   });

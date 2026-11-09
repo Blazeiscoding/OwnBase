@@ -95,7 +95,7 @@ export class FileStore {
   ): { files: SharedFile[]; nextCursor: string | null } {
     const where: string[] = [];
     const params: (string | number)[] = [];
-    if (this.store.isGuest(userId)) where.push("c.type = 'public'");
+    if (this.store.people.isGuest(userId)) where.push("c.type = 'public'");
     else {
       where.push(
         `(c.type = 'public' OR EXISTS (SELECT 1 FROM channel_members cm

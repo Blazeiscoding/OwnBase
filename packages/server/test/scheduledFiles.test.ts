@@ -19,7 +19,7 @@ let channelId: string;
 async function start() {
   server = await createWorkspaceServer({ dataDir, host: "127.0.0.1", port: 0, mdns: false });
   base = `http://127.0.0.1:${server.port}`;
-  const existing = server.store.getUserAuthByHandle("owner");
+  const existing = server.store.people.authByHandle("owner");
   const res = await fetch(`${base}/api/auth/${existing ? "login" : "register"}`, {
     method: "POST",
     headers: { "content-type": "application/json" },

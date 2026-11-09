@@ -242,7 +242,7 @@ describe("complete message content cleanup (N06/N07)", () => {
     try {
       db = openDbAtVersion(path, 36);
       const store = new Store(db);
-      const user = store.createUser({
+      const user = store.people.create({
         handle: "owner",
         displayName: "Owner",
         passwordHash: "unused",

@@ -28,7 +28,7 @@ afterEach(() => {
 });
 
 const person = (handle: string): User =>
-  store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" });
+  store.people.create({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" });
 
 describe("the channels listed at a handshake", () => {
   it("carry the same managers and members as each channel read on its own", () => {

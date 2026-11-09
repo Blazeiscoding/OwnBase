@@ -60,7 +60,7 @@ describe("workspace claim", () => {
       expect((await request("/api/auth/register", undefined, "POST", body, headers)).status).toBe(
         403,
       );
-      expect(server.store.userCount()).toBe(0);
+      expect(server.store.people.count()).toBe(0);
       const claimed = await request(
         "/api/auth/register",
         undefined,
@@ -159,8 +159,8 @@ describe("account controls", () => {
     const admin = (await register("admin")).body;
     const peer = (await register("peer")).body;
     const member = (await register("member")).body;
-    server.store.updateUser(admin.user.id, { role: "admin" });
-    server.store.updateUser(peer.user.id, { role: "admin" });
+    server.store.people.update(admin.user.id, { role: "admin" });
+    server.store.people.update(peer.user.id, { role: "admin" });
     const reset = (target: string, token = admin.token) =>
       request(`/api/admin/users/${target}/password`, token, "POST");
     expect((await reset(owner.user.id)).status).toBe(403);
@@ -177,11 +177,11 @@ describe("account controls", () => {
   it("rechecks administrative permissions after password hashing", async () => {
     const admin = (await register("admin")).body;
     const member = (await register("member")).body;
-    server.store.updateUser(admin.user.id, { role: "admin" });
+    server.store.people.update(admin.user.id, { role: "admin" });
     const hash = auth.hashPassword;
     vi.spyOn(auth, "hashPassword").mockImplementationOnce(async (password) => {
       const credentials = await hash(password);
-      server.store.updateUser(admin.user.id, { role: "member" });
+      server.store.people.update(admin.user.id, { role: "member" });
       return credentials;
     });
     expect(
@@ -196,17 +196,17 @@ describe("account controls", () => {
     const transfer = (token: string, id: string) =>
       request(`/api/admin/users/${id}/owner`, token, "POST");
     expect((await transfer(member.token, member.user.id)).status).toBe(403);
-    server.store.updateUser(member.user.id, { deactivated: true });
+    server.store.people.update(member.user.id, { deactivated: true });
     expect((await transfer(owner.token, member.user.id)).status).toBe(400);
-    server.store.updateUser(member.user.id, { deactivated: false });
+    server.store.people.update(member.user.id, { deactivated: false });
     expect((await transfer(owner.token, member.user.id)).status).toBe(200);
     expect(
-      server.store
-        .listUsers()
+      server.store.people
+        .list()
         .filter((u) => u.role === "owner")
         .map((u) => u.id),
     ).toEqual([member.user.id]);
-    expect(server.store.getUser(owner.user.id)!.role).toBe("admin");
+    expect(server.store.people.get(owner.user.id)!.role).toBe("admin");
     expect((await transfer(owner.token, owner.user.id)).status).toBe(403);
   });
 });

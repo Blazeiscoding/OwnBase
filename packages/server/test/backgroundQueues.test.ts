@@ -120,13 +120,13 @@ describe("background queues (REV-01)", () => {
     const archived = server.store.channels.create({
       type: "public",
       name: "old",
-      creatorId: server.store.getUserAuthByHandle("owner")!.id,
-      memberIds: [server.store.getUserAuthByHandle("owner")!.id],
+      creatorId: server.store.people.authByHandle("owner")!.id,
+      memberIds: [server.store.people.authByHandle("owner")!.id],
     });
     server.store.channels.update(archived.id, { archived: true });
     const held = server.store.scheduled.schedule({
       channelId: archived.id,
-      userId: server.store.getUserAuthByHandle("owner")!.id,
+      userId: server.store.people.authByHandle("owner")!.id,
       text: "to the archive",
       threadRootId: null,
       fileIds: [],

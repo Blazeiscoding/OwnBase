@@ -294,7 +294,7 @@ export class Gateway implements OutboxSink {
   private presenceOf(userId: ID): Presence {
     const sockets = this.byUser.get(userId);
     if (!sockets || sockets.size === 0) return "offline";
-    if (this.store.isAway(userId)) return "away";
+    if (this.store.people.isAway(userId)) return "away";
     return [...sockets].every((client) => client.idle) ? "away" : "online";
   }
 
@@ -712,7 +712,7 @@ export class Gateway implements OutboxSink {
     if (!channel || (channel.type !== "dm" && channel.type !== "group_dm")) return;
     const rang = this.store.channels.memberIds(channelId).filter((id) => {
       if (id === callerId) return false;
-      const user = this.store.getUser(id);
+      const user = this.store.people.get(id);
       return !!user && !user.isBot && !user.deactivated;
     });
     if (rang.length === 0) return;
@@ -993,7 +993,7 @@ export class Gateway implements OutboxSink {
   tellAdmins(event: EventTo<"admins">): void {
     const admins = new Set<ID>();
     for (const userId of this.byUser.keys()) {
-      const user = this.store.getUser(userId);
+      const user = this.store.people.get(userId);
       if (user && isAdministrator(user.role) && !user.deactivated) admins.add(userId);
     }
     if (admins.size > 0) this.fanOut({ type: "ephemeral", event }, admins);

@@ -205,7 +205,7 @@ describe("self-hosted product", () => {
     const base = await start();
     const results = await Promise.all([register(base, "alpha"), register(base, "bravo")]);
     expect(results.filter((r) => r.status === 201)).toHaveLength(1);
-    expect(server!.store.listUsers().filter((u) => u.role === "owner")).toHaveLength(1);
+    expect(server!.store.people.list().filter((u) => u.role === "owner")).toHaveLength(1);
   });
 
   it.each([null, { type: "hello", token: {}, protocolVersion: 2, lastSeq: null }])(

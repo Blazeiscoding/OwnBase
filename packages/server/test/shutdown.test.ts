@@ -145,10 +145,10 @@ describe("stopping while a request is still being worked on", () => {
     // Stop the moment the handler has looked the account up, which is just
     // before it spends a deliberate while hashing the password and then
     // writes a session. The connection is gone long before that write.
-    const store = server!.store as unknown as Record<string, (...a: unknown[]) => unknown>;
-    const lookup = store.getUserAuthByHandle!;
+    const people = server!.store.people as unknown as Record<string, (...a: unknown[]) => unknown>;
+    const lookup = people.authByHandle!;
     let stopped: Promise<void> | undefined;
-    store.getUserAuthByHandle = function (this: unknown, ...args: unknown[]) {
+    people.authByHandle = function (this: unknown, ...args: unknown[]) {
       const found = lookup.apply(this, args);
       stopped ??= server!.stop();
       return found;

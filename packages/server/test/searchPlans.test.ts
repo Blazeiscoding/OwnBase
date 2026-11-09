@@ -101,7 +101,13 @@ function everyPage(reader: string, text: string, size: number, opts: { channelId
 
 function seed() {
   const people = ["ana", "ben", "cai"].map((handle) =>
-    store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" }),
+    store.people.create({
+      handle,
+      displayName: handle,
+      passwordHash: "",
+      salt: "",
+      role: "member",
+    }),
   );
   const ana = people[0]!;
   const ben = people[1]!;
@@ -268,7 +274,13 @@ describe("a search, whichever way it goes", () => {
  */
 function seedMatrix() {
   const [ana, ben, cai] = ["ana", "ben", "cai"].map((handle) =>
-    store.createUser({ handle, displayName: handle, passwordHash: "", salt: "", role: "member" }),
+    store.people.create({
+      handle,
+      displayName: handle,
+      passwordHash: "",
+      salt: "",
+      role: "member",
+    }),
   );
   const room = (type: "public" | "private" | "dm", name: string, members: string[]) =>
     store.channels.create({ type, name, creatorId: members[0]!, memberIds: members }).id;

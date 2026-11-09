@@ -47,7 +47,7 @@ export function registerChannels(ctx: ServerContext) {
         ];
         if (body.type === "private") {
           for (const id of memberIds) {
-            const member = store.getUser(id);
+            const member = store.people.get(id);
             if (!member) throw new HttpError(400, "unknown_user", id);
             if (member.role === "guest") throw guestRestricted();
           }
@@ -72,7 +72,7 @@ export function registerChannels(ctx: ServerContext) {
       // dm / group_dm — idempotent on the member set.
       const memberIds = [...new Set([me.id, ...body.memberIds])].sort();
       for (const id of memberIds) {
-        const member = store.getUser(id);
+        const member = store.people.get(id);
         if (!member) throw new HttpError(400, "unknown_user", id);
         if (member.role === "guest") throw guestRestricted();
       }
@@ -146,7 +146,7 @@ export function registerChannels(ctx: ServerContext) {
 
   route(endpoints.inviteMember, async ({ user: me, params, body }) => {
     const channel = requireChannelAccess(store, params.id, me);
-    const invited = store.getUser(body.userId);
+    const invited = store.people.get(body.userId);
     if (!invited) throw new HttpError(400, "unknown_user");
     if (channel.type === "dm" || channel.type === "group_dm") {
       throw new HttpError(400, "cannot_invite_to_dm");
@@ -165,7 +165,7 @@ export function registerChannels(ctx: ServerContext) {
 
   route(endpoints.removeChannelMember, async ({ user: me, params }) => {
     const channel = requireChannelAccess(store, params.id, me);
-    const target = store.getUser(params.userId);
+    const target = store.people.get(params.userId);
     if (
       !canRemoveChannelMember(
         me,
@@ -189,7 +189,7 @@ export function registerChannels(ctx: ServerContext) {
 
   route(endpoints.setChannelManager, async ({ user: me, body, params }) => {
     const channel = requireChannelAccess(store, params.id, me);
-    const target = store.getUser(params.userId);
+    const target = store.people.get(params.userId);
     const { manager } = body;
     if (
       !canSetChannelManager(

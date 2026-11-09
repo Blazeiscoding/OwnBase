@@ -356,7 +356,7 @@ describe("slash commands", () => {
     });
     const latest = server.store.messages.list({ channelId, limit: 1 })[0]!;
     expect(latest.text).toBe("build 412 is green");
-    expect(server.store.getUser(latest.userId)!.isBot).toBe(true);
+    expect(server.store.people.get(latest.userId)!.isBot).toBe(true);
   });
 
   it("accepts a late reply on the response_url, then stops accepting them", async () => {
@@ -464,9 +464,10 @@ describe("slash commands", () => {
 describe("outgoing event subscriptions", () => {
   it("does not create a subscription after the verifying admin loses that role", async () => {
     const created = await newApp("Demoted Subscription Admin");
-    server.store.updateUser(bob.id, { role: "admin" });
+    server.store.people.update(bob.id, { role: "admin" });
     stub.handler = (req) => {
-      if (req.url === "/demoted-subscription") server.store.updateUser(bob.id, { role: "member" });
+      if (req.url === "/demoted-subscription")
+        server.store.people.update(bob.id, { role: "member" });
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -483,7 +484,7 @@ describe("outgoing event subscriptions", () => {
       expect(result.data.error).toBe("admin_only");
       expect(server.store.listSubscriptions(created.id)).toEqual([]);
     } finally {
-      server.store.updateUser(bob.id, { role: "member" });
+      server.store.people.update(bob.id, { role: "member" });
     }
   });
 
@@ -1147,9 +1148,10 @@ describe("interactive buttons", () => {
     });
     expect(initial.status).toBe(200);
 
-    server.store.updateUser(bob.id, { role: "admin" });
+    server.store.people.update(bob.id, { role: "admin" });
     stub.handler = (req) => {
-      if (req.url === "/demoted-interactivity") server.store.updateUser(bob.id, { role: "member" });
+      if (req.url === "/demoted-interactivity")
+        server.store.people.update(bob.id, { role: "member" });
       return {
         body: JSON.stringify({
           challenge: (JSON.parse(req.body) as { challenge: string }).challenge,
@@ -1167,7 +1169,7 @@ describe("interactive buttons", () => {
       expect(result.data.error).toBe("admin_only");
       expect(server.store.getApp(created.id)?.interactivityUrl).toBe(previousUrl);
     } finally {
-      server.store.updateUser(bob.id, { role: "member" });
+      server.store.people.update(bob.id, { role: "member" });
     }
   });
 
@@ -1603,7 +1605,7 @@ describe("revoking an app while it is being used", () => {
     let silence = true;
     stub.handler = (req) => {
       if (req.url === "/muted") {
-        if (silence) server.store.updateUser(created.botUser.id, { deactivated: true });
+        if (silence) server.store.people.update(created.botUser.id, { deactivated: true });
         return { body: JSON.stringify({ response_type: "in_channel", text: "while muted" }) };
       }
       return { body: "" };
@@ -1614,7 +1616,7 @@ describe("revoking an app while it is being used", () => {
 
     // Turning it back on is all it takes: deactivation silences the app, it
     // does not break the command.
-    server.store.updateUser(created.botUser.id, { deactivated: false });
+    server.store.people.update(created.botUser.id, { deactivated: false });
     silence = false;
     stub.handler = (req) =>
       req.url === "/muted"

@@ -1397,6 +1397,27 @@
         "Mention counts are read from message_mentions, so a badge costs what the account's mentions cost."
       ],
       "concepts": ["channels", "queries"]
+    },
+    {
+      "path": "packages/server/src/people/feature.ts",
+      "plain": "Lets people change their profile and status, set a picture, see who is in the workspace, add friends, block someone and report a message.",
+      "summary": "Profile, status, avatar, member list, friend, block and report routes; the status-expiry timer; the people part of the startup snapshot.",
+      "details": [
+        "A status set to clear itself is cleared at its time by one SoonestTimer, for everyone to see, and on starting for those that ended while stopped.",
+        "Profile pictures meet the same checks as the workspace icon (checkedPicture in core/context.ts).",
+        "Guests cannot be friends; reports go to the owner and admins as an open-report count."
+      ],
+      "concepts": ["profiles", "friends", "blocks", "feature module"]
+    },
+    {
+      "path": "packages/server/src/people/store.ts",
+      "plain": "Saves accounts as others see them, their pictures, friendships, blocks and reports.",
+      "summary": "PeopleStore: users rows mapped once (toUser), profiles, avatars, statuses, friends, blocks and message reports.",
+      "details": [
+        "toUser is the one mapping from a users row to the protocol's User, shared with sessions in the store core.",
+        "mayInvite is the rule for who may invite, also read by invites."
+      ],
+      "concepts": ["people", "queries"]
     }
   ],
   "flows": [
