@@ -84,7 +84,9 @@ export class PollStore {
     messageId: ID,
   ): { options: number; multiple: boolean; anonymous: boolean; closedAt: number | null } | null {
     const row = pollRow.get(
-      this.db.prepare("SELECT options, multiple, anonymous, closed_at FROM polls WHERE message_id = ?"),
+      this.db.prepare(
+        "SELECT options, multiple, anonymous, closed_at FROM polls WHERE message_id = ?",
+      ),
       messageId,
     );
     if (!row) return null;

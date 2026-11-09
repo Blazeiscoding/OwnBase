@@ -1,6 +1,13 @@
 import type { ID, Message } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
-import type { MessageRow, Store } from "../store.js";
+import { shape } from "../core/rows.js";
+import { messageRow } from "../messages/store.js";
+import type { Store } from "../store.js";
+
+const pinnedRow = messageRow.with({ pinned_at: "number" });
+const savedRow = messageRow.with({ saved_at: "number" });
+const totalRow = shape({ total: "number" });
+const savedIdRow = shape({ message_id: "text" });
 
 /** What is kept to come back to: a channel's pins, shared, and each account's saved messages. */
 export class SavedStore {
@@ -36,26 +43,26 @@ export class SavedStore {
          AND (m.thread_root_id IS NULL OR EXISTS (
            SELECT 1 FROM messages root WHERE root.id = m.thread_root_id AND root.deleted_at IS NULL
          ))`;
-    const rows = this.db
-      .prepare(
+    const rows = pinnedRow.all(
+      this.db.prepare(
         `SELECT m.*, p.created_at AS pinned_at FROM pins p JOIN messages m ON m.id = p.message_id
          WHERE ${shown}
          AND (? IS NULL OR p.created_at < ? OR (p.created_at = ? AND p.message_id < ?))
          ORDER BY p.created_at DESC, p.message_id DESC LIMIT ?`,
-      )
-      .all(
-        channelId,
-        timestamp,
-        timestamp,
-        timestamp,
-        beforeId ?? null,
-        limit + 1,
-      ) as unknown as (MessageRow & { pinned_at: number })[];
-    const { total } = this.db
-      .prepare(
+      ),
+      channelId,
+      timestamp,
+      timestamp,
+      timestamp,
+      beforeId ?? null,
+      limit + 1,
+    );
+    const { total } = totalRow.get(
+      this.db.prepare(
         `SELECT COUNT(*) AS total FROM pins p JOIN messages m ON m.id = p.message_id WHERE ${shown}`,
-      )
-      .get(channelId) as { total: number };
+      ),
+      channelId,
+    )!;
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {
@@ -86,12 +93,13 @@ export class SavedStore {
   }
 
   savedIds(userId: ID): ID[] {
-    const rows = this.db
-      .prepare(
+    const rows = savedIdRow.all(
+      this.db.prepare(
         `SELECT s.message_id FROM saved_items s JOIN messages m ON m.id = s.message_id
          WHERE s.user_id = ? AND m.deleted_at IS NULL ORDER BY s.created_at DESC`,
-      )
-      .all(userId) as { message_id: string }[];
+      ),
+      userId,
+    );
     return rows.map((r) => r.message_id);
   }
 
@@ -102,8 +110,8 @@ export class SavedStore {
     cursor?: string,
   ): { messages: Message[]; nextCursor: string | null } {
     const [beforeTime, beforeId] = cursor?.split(":") ?? [];
-    const rows = this.db
-      .prepare(
+    const rows = savedRow.all(
+      this.db.prepare(
         `SELECT m.*, s.created_at AS saved_at FROM saved_items s
          JOIN messages m ON m.id = s.message_id
          JOIN channels c ON c.id = m.channel_id
@@ -116,16 +124,15 @@ export class SavedStore {
          )
          AND (? IS NULL OR s.created_at < ? OR (s.created_at = ? AND s.message_id < ?))
          ORDER BY s.created_at DESC, s.message_id DESC LIMIT ?`,
-      )
-      .all(
-        userId,
-        userId,
-        beforeTime ? Number(beforeTime) : null,
-        beforeTime ? Number(beforeTime) : null,
-        beforeTime ? Number(beforeTime) : null,
-        beforeId ?? null,
-        limit + 1,
-      ) as unknown as (MessageRow & { saved_at: number })[];
+      ),
+      userId,
+      userId,
+      beforeTime ? Number(beforeTime) : null,
+      beforeTime ? Number(beforeTime) : null,
+      beforeTime ? Number(beforeTime) : null,
+      beforeId ?? null,
+      limit + 1,
+    );
     const page = rows.slice(0, limit);
     const last = page.at(-1);
     return {

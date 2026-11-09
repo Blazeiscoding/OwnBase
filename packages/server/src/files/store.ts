@@ -366,7 +366,9 @@ export class FileStore {
   /** Every removal still to do, set-aside ones included, oldest first. */
   pendingDeletions(): ID[] {
     return fileIdRow
-      .all(this.db.prepare("SELECT file_id FROM pending_file_deletions ORDER BY queued_at, file_id"))
+      .all(
+        this.db.prepare("SELECT file_id FROM pending_file_deletions ORDER BY queued_at, file_id"),
+      )
       .map((row) => row.file_id);
   }
 
