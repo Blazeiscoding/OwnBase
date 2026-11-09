@@ -14,7 +14,13 @@ import {
 import { ACCOUNT_SECTIONS, type AccountSection } from "../lib/accountSections.js";
 import { SavedContext, useSaved } from "../lib/savedNote.js";
 import { NOTIFY_LEVELS } from "../lib/notifyLevels.js";
-import { SECTION_LABELS, findSettings, type Setting } from "../lib/settingsSearch.js";
+import {
+  SECTION_LABELS,
+  findSettings,
+  settingMark,
+  settingOnPage,
+  type Setting,
+} from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
 import { inputCls } from "./TextField.js";
@@ -42,35 +48,9 @@ const SECTIONS = ACCOUNT_SECTIONS.map((id) => ({ id, label: SECTION_LABELS[id] }
 /** How long "Saved" stays after a choice is kept. */
 const SAVED_FOR_MS = 2000;
 
-/**
- * Where a setting a search found is shown in its section: the field it names,
- * or the first one in its group, and the part of the page to mark.
- */
-function settingOnPage(panel: HTMLElement, label: string) {
-  const name = label.toLowerCase();
-  const named = [...panel.querySelectorAll<HTMLElement>("h3, h4, legend, label")].find((element) =>
-    (element.textContent ?? "").trim().toLowerCase().startsWith(name),
-  );
-  if (!named) return null;
-  const group =
-    named instanceof HTMLLabelElement
-      ? // A label above its field, as `Select` and `TextField` draw one, is marked with the field.
-        named.control && !named.contains(named.control)
-        ? named.parentElement!
-        : named
-      : named.tagName === "LEGEND"
-        ? named.parentElement!
-        : named.id && named.closest("section")?.getAttribute("aria-labelledby") === named.id
-          ? named.closest("section")!
-          : named.parentElement!;
-  const control =
-    named instanceof HTMLLabelElement
-      ? named.control
-      : group.querySelector<HTMLElement>(
-          "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)",
-        );
-  return { group, control: control instanceof HTMLElement ? control : null, named };
-}
+const CONTROLS =
+  "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)";
+const HEADINGS = "h3, h4, legend, label";
 
 /**
  * Everything about your own account in one place, a section at a time:
@@ -248,27 +228,29 @@ export function AccountDialog({
   useEffect(() => {
     if (!goingTo || !panel.current) return;
     setGoingTo(null);
-    const found = settingOnPage(panel.current, goingTo.label);
-    if (!found) {
+    const group = settingOnPage(panel.current, goingTo.id);
+    if (!group) {
       document.getElementById(`${tabsId}-tab-${goingTo.section}`)?.focus();
       return;
     }
-    found.group.scrollIntoView?.({ block: "center" });
-    if (found.control) found.control.focus({ preventScroll: true });
+    group.scrollIntoView?.({ block: "center" });
+    const control = group.querySelector<HTMLElement>(CONTROLS);
+    if (control) control.focus({ preventScroll: true });
     else {
-      found.named.tabIndex = -1;
-      found.named.focus({ preventScroll: true });
+      const heading = group.matches(HEADINGS)
+        ? group
+        : (group.querySelector<HTMLElement>(HEADINGS) ?? group);
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
     }
     // Marked for a moment, for whoever chose it with a pointer and sees no focus ring.
     for (const marked of panel.current.querySelectorAll(".setting-found"))
       marked.classList.remove("setting-found");
-    void found.group.offsetWidth;
-    found.group.classList.add("setting-found");
-    found.group.addEventListener(
-      "animationend",
-      () => found.group.classList.remove("setting-found"),
-      { once: true },
-    );
+    void group.offsetWidth;
+    group.classList.add("setting-found");
+    group.addEventListener("animationend", () => group.classList.remove("setting-found"), {
+      once: true,
+    });
   }, [goingTo, section, tabsId]);
 
   // Back and Forward can name another section while the dialog stays open.
@@ -371,20 +353,21 @@ export function AccountDialog({
             <h3 id="account-composer-title" className="font-semibold">
               Writing messages
             </h3>
-            <Select
-              label="When I press Enter"
-              className="mt-3"
-              value={composer.enterSends ? "send" : "newline"}
-              disabled={!composer.loaded || composer.saving}
-              onChange={(event) =>
-                void composer
-                  .setEnterSends(event.target.value === "send")
-                  .then((kept) => kept && markSaved())
-              }
-            >
-              <option value="send">Send the message</option>
-              <option value="newline">Start a new line</option>
-            </Select>
+            <div {...settingMark("enter-key")} className="mt-3">
+              <Select
+                label="When I press Enter"
+                value={composer.enterSends ? "send" : "newline"}
+                disabled={!composer.loaded || composer.saving}
+                onChange={(event) =>
+                  void composer
+                    .setEnterSends(event.target.value === "send")
+                    .then((kept) => kept && markSaved())
+                }
+              >
+                <option value="send">Send the message</option>
+                <option value="newline">Start a new line</option>
+              </Select>
+            </div>
             <p className="mt-2 text-sm text-ink-dim">
               Applies to messages and thread replies in every workspace on this device. Ctrl+Enter
               or Cmd+Enter always sends. Shift+Enter always starts a new line.
@@ -411,7 +394,7 @@ export function AccountDialog({
         {section === "calls" && <VoiceVideoSettings titled={false} />}
         {section === "security" && (
           <>
-            <section aria-labelledby="account-password-title">
+            <section {...settingMark("password")} aria-labelledby="account-password-title">
               <h3 id="account-password-title" className="font-semibold">
                 Change password
               </h3>
@@ -480,6 +463,7 @@ export function AccountDialog({
             <LinkedSignIns />
             <BlockedPeople />
             <section
+              {...settingMark("sign-out")}
               aria-labelledby="account-signout-title"
               className="mt-6 border-t border-edge pt-5"
             >
@@ -501,7 +485,7 @@ export function AccountDialog({
           </>
         )}
         {section === "devices" && (
-          <section aria-labelledby="account-devices-title">
+          <section {...settingMark("devices")} aria-labelledby="account-devices-title">
             <div className="flex items-center justify-between gap-3">
               <h3 id="account-devices-title" className="font-semibold">
                 Signed-in devices
@@ -659,7 +643,10 @@ function NotificationSettings() {
 
   return (
     <>
-      <section aria-labelledby="account-device-notifications-title">
+      <section
+        {...settingMark("device-notifications")}
+        aria-labelledby="account-device-notifications-title"
+      >
         <h3 id="account-device-notifications-title" className="font-semibold">
           On this device
         </h3>
@@ -684,7 +671,11 @@ function NotificationSettings() {
           </button>
         )}
       </section>
-      <section aria-labelledby="account-pause-title" className="mt-6 border-t border-edge pt-5">
+      <section
+        {...settingMark("pause-notifications")}
+        aria-labelledby="account-pause-title"
+        className="mt-6 border-t border-edge pt-5"
+      >
         <h3 id="account-pause-title" className="font-semibold">
           Pause notifications
         </h3>
@@ -802,6 +793,7 @@ function PreviewSettings() {
   const chosen = previewFor(previews, account);
   return (
     <fieldset
+      {...settingMark("notification-previews")}
       className="mt-6 border-t border-edge pt-5"
       disabled={!previews.loaded || previews.saving || !account}
     >
@@ -853,7 +845,7 @@ function AppearanceSettings() {
   const saved = useSaved();
   return (
     <>
-      <fieldset disabled={!appearance.loaded}>
+      <fieldset {...settingMark("theme")} disabled={!appearance.loaded}>
         <legend className="font-semibold">Theme</legend>
         <p className="mt-1 text-sm text-ink-dim">Applies to every workspace on this device.</p>
         <div className="mt-3 grid grid-cols-3 gap-3">
@@ -885,7 +877,11 @@ function AppearanceSettings() {
           })}
         </div>
       </fieldset>
-      <fieldset disabled={!appearance.loaded} className="mt-6 border-t border-edge pt-5">
+      <fieldset
+        {...settingMark("density")}
+        disabled={!appearance.loaded}
+        className="mt-6 border-t border-edge pt-5"
+      >
         <legend className="float-left w-full font-semibold">Density</legend>
         <div className="clear-both mt-3 space-y-2 pt-1">
           {DENSITIES.map((density) => (
@@ -948,7 +944,7 @@ function WorkspaceStorage() {
     return () => controller.abort();
   }, [client, attempt]);
   return (
-    <section aria-labelledby="account-storage-title">
+    <section {...settingMark("storage")} aria-labelledby="account-storage-title">
       <h3 id="account-storage-title" className="font-semibold">
         Workspace attachment storage
       </h3>

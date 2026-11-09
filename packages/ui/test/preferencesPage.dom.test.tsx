@@ -210,12 +210,21 @@ describe("searching settings", () => {
       const panel = within(settings).getByRole("tabpanel", {
         name: SECTION_LABELS[setting.section],
       });
-      // Focus lands in the section, at the setting, rather than staying on its tab.
-      await waitFor(() => expect(panel).toContainElement(document.activeElement as HTMLElement));
-      expect(panel.querySelector(".setting-found")).toHaveTextContent(
-        new RegExp(setting.label.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i"),
-      );
+      // Focus lands at the setting, rather than staying on its tab.
+      const marked = panel.querySelector(".setting-found");
+      expect(marked).toHaveAttribute("data-setting", setting.id);
+      await waitFor(() => expect(marked).toContainElement(document.activeElement as HTMLElement));
     }
+  });
+
+  it("goes to a setting whose heading no longer reads as its search entry", async () => {
+    const { settings, search, user } = page({ section: "appearance" });
+    within(settings).getByText("Theme", { selector: "legend" }).textContent = "Colours";
+    await user.type(search, "dark");
+    await user.click(within(settings).getByRole("button", { name: /^Theme/ }));
+    const group = within(settings).getByRole("group", { name: "Colours" });
+    expect(group).toHaveClass("setting-found");
+    expect(group).toContainElement(document.activeElement as HTMLElement);
   });
 });
 
@@ -276,8 +285,10 @@ describe("the settings index", () => {
     expect(findSettings("zebra")).toEqual([]);
   });
 
-  it("names each setting once", () => {
+  it("names and marks each setting once", () => {
     const names = SETTINGS.map((s) => `${s.section}:${s.label}`);
     expect(new Set(names).size).toBe(names.length);
+    const ids = SETTINGS.map((s) => s.id);
+    expect(new Set(ids).size).toBe(ids.length);
   });
 });

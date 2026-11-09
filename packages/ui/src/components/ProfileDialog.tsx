@@ -16,6 +16,7 @@ import { buttonClass } from "./Button.js";
 import { useOptionalConfirm } from "./Confirm.js";
 import { useOptionalToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
+import { settingMark } from "../lib/settingsSearch.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import {
   CLEAR_AFTER,
@@ -386,7 +387,7 @@ export function ProfileForm() {
       <UnsavedGuard dirty={dirty && !busy} what="profile changes" />
       <div className="flex items-center gap-3">
         <Avatar user={self ?? undefined} size={48} />
-        <div className="min-w-0 flex-1">
+        <div {...settingMark("display-name")} className="min-w-0 flex-1">
           <label
             htmlFor={`${id}-display-name`}
             className="mb-1.5 block text-[13px] font-medium text-ink-dim"
@@ -484,7 +485,7 @@ export function ProfileForm() {
         </p>
       </div>
 
-      <fieldset>
+      <fieldset {...settingMark("status")}>
         <legend className="mb-1.5 block text-[13px] font-medium text-ink-dim">Status</legend>
         <div className="flex gap-2">
           {/* One emoji, chosen from the picker rather than typed, so a status never holds several. */}

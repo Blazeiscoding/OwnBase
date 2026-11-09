@@ -4,6 +4,7 @@ import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
+import { settingMark } from "../lib/settingsSearch.js";
 import { inputCls } from "./TextField.js";
 import { QrCode } from "./QrCode.js";
 import { Swap } from "./Motion.js";
@@ -150,7 +151,11 @@ export function TwoStepSettings() {
   const codesText = stage.step === "codes" ? stage.codes.join("\n") : "";
 
   return (
-    <section aria-labelledby={titleId} className="mt-6 border-t border-edge pt-5">
+    <section
+      {...settingMark("two-step")}
+      aria-labelledby={titleId}
+      className="mt-6 border-t border-edge pt-5"
+    >
       <h3 id={titleId} className="font-semibold">
         Two-step sign-in
       </h3>
