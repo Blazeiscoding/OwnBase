@@ -16,7 +16,7 @@ import {
   type PanelKind,
 } from "../lib/navigation.js";
 import { useWorkspaceShell, type WorkspaceShell } from "../lib/workspaceShell.js";
-import { paletteCommands, useActionContext } from "../lib/actions.js";
+import { mayInvite, paletteCommands, useActionContext } from "../lib/actions.js";
 import { useRecentConversations } from "../lib/recentConversations.js";
 
 const ActivityPanel = lazy(() =>
@@ -400,7 +400,7 @@ const DIALOGS: { [K in Exclude<DialogKind, "none">]: DialogView<K> } = {
   },
   invite: {
     loading: "Loading invite",
-    allowed: (self) => self?.role !== "guest" && self?.canInvite === true,
+    allowed: mayInvite,
     render: (dialog, { shell, close }) => {
       const hosting = shell.hosting;
       return (

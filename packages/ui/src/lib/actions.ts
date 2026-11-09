@@ -46,6 +46,11 @@ export interface Action {
   run: (ctx: ActionContext) => void;
 }
 
+/** Owners and admins always may invite; a member when an admin allowed it; a guest never. */
+export function mayInvite(self: WorkspaceState["self"]): boolean {
+  return self?.role !== "guest" && self?.canInvite === true;
+}
+
 const guest = (ctx: ActionContext) => ctx.state.self?.role === "guest";
 const member = (ctx: ActionContext) => !guest(ctx);
 const always = () => true;
@@ -144,8 +149,7 @@ export const ACTIONS = [
     label: "Invite people",
     icon: "userPlus",
     keywords: "link code join add",
-    // Owners and admins always may; a member when an admin allowed it.
-    available: (ctx) => member(ctx) && ctx.state.self?.canInvite === true,
+    available: (ctx) => mayInvite(ctx.state.self),
     run: (ctx) => ctx.nav.navigate({ to: "dialog", dialog: { kind: "invite" } }),
   },
   {
