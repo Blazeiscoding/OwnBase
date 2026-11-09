@@ -136,6 +136,16 @@ describe("a file waiting in a scheduled message", () => {
     expect(deliverNow(queued.body.scheduled.id).status).toBe("sent");
   });
 
+  it("reads as no files when the stored list is damaged", async () => {
+    const { body } = await schedule({ text: "later" });
+    for (const damaged of ["not json", '{"0":"F1"}']) {
+      server!.store.db
+        .prepare("UPDATE scheduled_messages SET file_ids = ? WHERE id = ?")
+        .run(damaged, body.scheduled.id);
+      expect(server!.store.scheduled.get(body.scheduled.id)!.fileIds).toEqual([]);
+    }
+  });
+
   it("is not swept away as an abandoned upload", async () => {
     const file = await upload();
     await schedule({ text: "Later", fileIds: [file] });

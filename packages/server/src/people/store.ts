@@ -36,6 +36,9 @@ export const userRow = shape({
 export type UserRow = RowOf<typeof userRow.columns>;
 
 const idRow = userRow.pick("id");
+const canInviteRow = userRow.pick("can_invite");
+const awayRow = userRow.pick("away");
+const roleRow = userRow.pick("role");
 const friendshipRow = shape({
   user_low: "text",
   user_high: "text",
@@ -242,7 +245,10 @@ export class PeopleStore {
 
   /** The explicit member grant, independent of permission conferred by an admin role. */
   invitePermission(id: ID): boolean {
-    return this.db.prepare("SELECT can_invite FROM users WHERE id = ?").get(id)?.can_invite === 1;
+    return (
+      canInviteRow.get(this.db.prepare("SELECT can_invite FROM users WHERE id = ?"), id)
+        ?.can_invite === 1
+    );
   }
 
   update(
@@ -312,7 +318,7 @@ export class PeopleStore {
 
   /** Whether this account set itself away by hand (E9). */
   isAway(userId: ID): boolean {
-    return this.db.prepare("SELECT away FROM users WHERE id = ?").get(userId)?.away === 1;
+    return awayRow.get(this.db.prepare("SELECT away FROM users WHERE id = ?"), userId)?.away === 1;
   }
 
   /** One account's profile picture, or null for none (E9). */
@@ -353,6 +359,8 @@ export class PeopleStore {
   }
 
   isGuest(userId: ID): boolean {
-    return this.db.prepare("SELECT role FROM users WHERE id = ?").get(userId)?.role === "guest";
+    return (
+      roleRow.get(this.db.prepare("SELECT role FROM users WHERE id = ?"), userId)?.role === "guest"
+    );
   }
 }
