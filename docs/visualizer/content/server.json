@@ -1440,6 +1440,16 @@
         "An invite's status reads its creator's standing now: a deactivated creator or one no longer allowed to invite disables it."
       ],
       "concepts": ["sessions", "invites", "queries"]
+    },
+    {
+      "path": "packages/server/src/sso/feature.ts",
+      "plain": "Plugs in the server's extensions, such as single sign-on, and gives them a way to make members and sign them in.",
+      "summary": "registerExtensions: hands each extension its routes, storage, member count, user lookup, member creation and session start.",
+      "details": [
+        "An extension's storage is its own prefixed rows (Settings.extensionStorage), apart from the workspace's settings.",
+        "Members an extension makes have a password nobody knows and join the public channels as anyone joining does; none can be made while nobody owns the workspace."
+      ],
+      "concepts": ["extensions", "single sign-on", "feature module"]
     }
   ],
   "flows": [
