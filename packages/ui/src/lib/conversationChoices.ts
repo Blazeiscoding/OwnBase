@@ -1,5 +1,6 @@
 import type { ChannelPrefs, ID, SidebarSection } from "@ownbase/protocol";
-import type { WorkspaceClient, WorkspaceState } from "@ownbase/client-core";
+import type { WorkspaceClient } from "@ownbase/client-core";
+import { failureText } from "./failure.js";
 import type { MenuItem } from "../components/Menu.js";
 import type { ToastRequest } from "../components/Toast.js";
 
@@ -9,34 +10,13 @@ export interface Conversation {
   noun: "channel" | "conversation";
 }
 
-type Toast = ((request: ToastRequest) => () => void) | null;
+type Toast = (request: ToastRequest) => () => void;
 
 /**
- * Saves one of this account's choices for a conversation, and settles true
- * once the workspace has it, or false once it refused. The choice shows at
- * once either way; a refusal puts back what the workspace has.
- */
-function saved(client: WorkspaceClient, id: ID, patch: Partial<ChannelPrefs>): Promise<boolean> {
-  client.setChannelPrefs(id, patch);
-  const keys = Object.keys(patch);
-  return new Promise((resolve) => {
-    const settled = (s: WorkspaceState) => {
-      const write = s.prefsWrites[id];
-      if (write?.saving) return false;
-      resolve(!write?.failed || !keys.some((key) => key in write.failed!));
-      return true;
-    };
-    if (settled(client.state)) return;
-    const stop = client.store.subscribe((s) => {
-      if (settled(s)) stop();
-    });
-  });
-}
-
-/**
- * The row or menu that made a choice may be gone by the time a refusal
- * arrives, a starred row having moved, so a notice carries the news and the
- * second attempt, as a refused pin's does.
+ * Saves one of this account's choices for a conversation. The choice shows
+ * at once; a refusal puts back what the workspace has. The row or menu that
+ * made it may be gone by then, a starred row having moved, so a notice
+ * carries the news and the second attempt, as a refused pin's does.
  */
 function choose(
   client: WorkspaceClient,
@@ -45,10 +25,10 @@ function choose(
   patch: Partial<ChannelPrefs>,
   failure: string,
 ) {
-  void saved(client, id, patch).then((ok) => {
-    if (!ok && toast)
+  void client.setChannelPrefs(id, patch).then((error) => {
+    if (error)
       toast({
-        message: failure,
+        message: failureText(failure, error),
         action: { label: "Try again", run: () => choose(client, toast, id, patch, failure) },
       });
   });
@@ -165,7 +145,7 @@ export function closeItem(
     icon: "close",
     onSelect: () => {
       choose(client, toast, id, { hiddenSeq: lastSeq }, "Could not close that conversation.");
-      toast?.({
+      toast({
         message: `Closed your conversation with ${name}. It comes back when someone writes.`,
         kind: "success",
         action: {
@@ -184,25 +164,31 @@ export function closeItem(
   };
 }
 
-/** Mute or Unmute, which every server keeps. */
+/**
+ * Mutes or unmutes a conversation, from its row's menu or its details. A
+ * refusal says so, in the workspace's words, with a way to try again.
+ */
+export function setMuted(
+  client: WorkspaceClient,
+  toast: Toast,
+  conversation: Conversation,
+  muted: boolean,
+): void {
+  const { id, noun } = conversation;
+  choose(client, toast, id, { muted }, `Could not ${muted ? "mute" : "unmute"} that ${noun}.`);
+}
+
+/** Mute or Unmute, named by what choosing it does now. */
 export function muteItem(
   client: WorkspaceClient,
   toast: Toast,
   conversation: Conversation,
   muted: boolean,
 ): MenuItem {
-  const { id, noun } = conversation;
   return {
     id: "mute",
-    label: `${muted ? "Unmute" : "Mute"} ${noun}`,
+    label: `${muted ? "Unmute" : "Mute"} ${conversation.noun}`,
     icon: muted ? "bell" : "bellOff",
-    onSelect: () =>
-      choose(
-        client,
-        toast,
-        id,
-        { muted: !muted },
-        `Could not ${muted ? "unmute" : "mute"} that ${noun}.`,
-      ),
+    onSelect: () => setMuted(client, toast, conversation, !muted),
   };
 }

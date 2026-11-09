@@ -10,6 +10,25 @@ import {
   type UnreadSummary,
 } from "@ownbase/protocol";
 import { ApiError, blockedPartner, isSnoozed, isUnread } from "@ownbase/client-core";
+import { useNavigation, useNavigationState } from "../lib/navigation.js";
+import { useWorkspaceShell } from "../lib/workspaceShell.js";
+import {
+  ACCOUNT_MENU,
+  WORKSPACE_MENU,
+  action,
+  menuItems,
+  runAction,
+  useActionContext,
+  type ActionContext,
+} from "../lib/actions.js";
+import {
+  isDirect,
+  rowShown,
+  sidebarGroups,
+  toggleCollapsed,
+  useCollapsed,
+} from "../lib/sidebarLayout.js";
+import { protocolMismatch } from "../lib/connection.js";
 import { useClient, useWorkspace } from "../context.js";
 import { dueReminderCount, unreadRemovalCount, unreadThreadCount } from "@ownbase/client-core";
 import { channelTitle } from "../lib/format.js";
@@ -27,9 +46,9 @@ import { Menu, type MenuItem } from "./Menu.js";
 import { CountBadge, Swap, useChanges } from "./Motion.js";
 import { KeepAccountOffer } from "./KeepAccountOffer.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
-import { useOptionalConfirm } from "./Confirm.js";
+import { useConfirm } from "./Confirm.js";
 import { CLEAR_AFTER, STATUS_PRESETS, statusEnd, statusUntil } from "../lib/status.js";
 import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
@@ -50,64 +69,6 @@ const SectionNameDialog = lazy(() =>
 
 /** What a dragged conversation row carries. */
 const DRAG_TYPE = "application/x-ownbase-conversation";
-
-interface Props {
-  activeChannelId: ID | null;
-  onSelect: (id: ID) => void;
-  onBrowseChannels: () => void;
-  onNewChannel: () => void;
-  onNewDm: () => void;
-  onFriends: () => void;
-  onSearch: () => void;
-  onSaved: () => void;
-  /** The side panel open beside the conversation, which its row shows. */
-  openPanel?: string;
-  /** Messages queued to send later; offered in the account menu. */
-  onScheduled?: () => void;
-  /** Every draft on this device (E5), from its row under Saved. */
-  onDrafts?: () => void;
-  /**
-   * Every file shared where this person can read (E7), where the server lists
-   * them; its row is there while that panel is open.
-   */
-  onFiles?: () => void;
-  onActivity: () => void;
-  onThreads: () => void;
-  onInvite: () => void;
-  /**
-   * A channel's details, from the gear on its row; with "members", where
-   * people are added to a private one. Opens that channel first.
-   */
-  onChannelDetails?: (channelId: ID, tab?: "members") => void;
-  onSwitchWorkspace: () => void;
-  onEditProfile: () => void;
-  onAccountSettings: () => void;
-  /** Asks, then signs this device out of the workspace. */
-  onSignOut?: () => void;
-  /** Guests only: keeping this identity as an account. */
-  onCreateAccount?: () => void;
-  onShortcuts?: () => void;
-  onDiagnostics?: () => void;
-  /** Shown under the Jump button, such as the owner's first steps. */
-  gettingStarted?: ReactNode;
-  /** Admins only; absent for members. */
-  onManageApps?: () => void;
-  onManagePeople?: () => void;
-  /** Reported messages waiting for an admin (E12); null where there is no queue to show. */
-  reportsWaiting?: number | null;
-  onReviewReports?: () => void;
-  onWorkspaceSettings?: () => void;
-  connectionLabel: string | null;
-  /** This computer's hosting, while it hosts or something is wrong with it. */
-  hosting?: HostingLine;
-  /** Manage hosting, in the desktop app, whether or not anything is hosted yet. */
-  hostingEntry?: HostingEntry;
-  /** This device's other saved sign-ins, in the rail's order (`railOrder`). */
-  otherWorkspaces?: OtherWorkspace[];
-  /** Where this workspace sits among them on the rail; first when absent. */
-  railPlace?: number;
-  onOpenWorkspace?: (url: string) => void;
-}
 
 /**
  * What this computer's hosting is doing, for the line under the workspace's
@@ -194,7 +155,15 @@ function wordList(parts: (string | false)[]): string {
   return joined.charAt(0).toUpperCase() + joined.slice(1);
 }
 
-export function Sidebar(props: Props) {
+export function Sidebar(props: {
+  /** Shown under the Jump button, such as the owner's first steps. */
+  gettingStarted?: ReactNode;
+}) {
+  const nav = useNavigation();
+  const shell = useWorkspaceShell();
+  const actions = useActionContext();
+  const activeChannelId = useNavigationState((s) => s.channelId);
+  const openPanel = useNavigationState((s) => s.panel.kind);
   const unreadThreads = useWorkspace((s) => unreadThreadCount(s.threadFollows));
   const dueReminders = useWorkspace(dueReminderCount);
   const removals = useWorkspace(unreadRemovalCount);
@@ -211,7 +180,7 @@ export function Sidebar(props: Props) {
   const selfId = self?.id;
   // A guest has public channels only: no DMs, rooms of its own, friends or schedules.
   const guest = self?.role === "guest";
-  const canInvite = !guest && self?.canInvite === true;
+  const connectionLabel = useConnectionLabel();
 
   /**
    * Discord's two actions at the end of a channel's row: invite and settings,
@@ -221,29 +190,32 @@ export function Sidebar(props: Props) {
    */
   function channelActions(ch: Channel): RowAction[] {
     const actions: RowAction[] = [];
+    const details = (tab?: "members") => nav.navigate({ to: "details", channelId: ch.id, tab });
     if (ch.type === "private") {
-      if (
-        channelPermissions(self ?? undefined, ch, ch.id in memberships).invite &&
-        props.onChannelDetails
-      )
+      if (channelPermissions(self ?? undefined, ch, ch.id in memberships).invite)
         actions.push({
           label: `Add people to ${ch.name}`,
           menuLabel: "Add people",
           icon: "userPlus",
-          onClick: () => props.onChannelDetails?.(ch.id, "members"),
+          onClick: () => details("members"),
         });
-    } else if (canInvite) {
-      actions.push({ label: "Invite people", icon: "userPlus", onClick: props.onInvite });
-    }
-    if (props.onChannelDetails)
+    } else if (invite.available(actionContext)) {
       actions.push({
-        label: `Channel settings for ${ch.name}`,
-        menuLabel: "Channel settings",
-        icon: "settings",
-        onClick: () => props.onChannelDetails?.(ch.id),
+        label: "Invite people",
+        icon: "userPlus",
+        onClick: () => invite.run(actionContext),
       });
+    }
+    actions.push({
+      label: `Channel settings for ${ch.name}`,
+      menuLabel: "Channel settings",
+      icon: "settings",
+      onClick: () => details(),
+    });
     return actions;
   }
+  const actionContext = actions;
+  const invite = action("invite");
   const drafts = useWorkspace((s) => s.drafts);
   const settled = useWorkspace((s) => s.status === "online");
   const draftCount = useMemo(
@@ -257,54 +229,27 @@ export function Sidebar(props: Props) {
   const blocked = useWorkspace((s) => s.blocked);
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const snoozed = isSnoozed(dndUntil);
-  const others = props.otherWorkspaces ?? [];
+  const others = shell.otherWorkspaces;
   const name = workspaceName || "Connecting…";
 
-  const { starred, sectioned, rooms, dms } = useMemo(() => {
-    const starred: Channel[] = [];
-    const sectioned = new Map<ID, Channel[]>(sections.map((s) => [s.id, []]));
-    const rooms: Channel[] = [];
-    const dms: Channel[] = [];
-    for (const ch of Object.values(channels)) {
-      // An archived channel keeps its star, and comes back to Starred with it.
-      if (ch.archived || !(ch.id in memberships)) continue;
-      // A DM with someone this account blocked leaves the sidebar (E12).
-      if (blockedPartner(ch, selfId, blocked)) continue;
-      // So does one it closed, until someone writes there; the open one stays.
-      if (
-        isDirect(ch) &&
-        ch.id !== props.activeChannelId &&
-        isClosed(prefs[ch.id], channelLastSeq[ch.id])
-      )
-        continue;
-      // Starred moves a conversation out of its usual section, as Slack's does,
-      // and so does a section of this account's (E8); one it no longer has is none.
-      const inSection = sectioned.get(prefs[ch.id]?.sectionId ?? "");
-      if (prefs[ch.id]?.starred) starred.push(ch);
-      else if (inSection) inSection.push(ch);
-      else if (isDirect(ch)) dms.push(ch);
-      else rooms.push(ch);
-    }
-    // By name, channels and people together, so a row stays where it was put
-    // rather than jumping each time a message arrives.
-    const named = (ch: Channel) => (isDirect(ch) ? channelTitle(ch, users, selfId) : ch.name);
-    const byName = (a: Channel, b: Channel) => named(a).localeCompare(named(b));
-    starred.sort(byName);
-    for (const list of sectioned.values()) list.sort(byName);
-    rooms.sort((a, b) => a.name.localeCompare(b.name));
-    dms.sort((a, b) => (channelLastSeq[b.id] ?? 0) - (channelLastSeq[a.id] ?? 0));
-    return { starred, sectioned, rooms, dms };
-  }, [
-    channels,
-    memberships,
-    channelLastSeq,
-    prefs,
-    users,
-    selfId,
-    sections,
-    blocked,
-    props.activeChannelId,
-  ]);
+  const layout = useMemo(
+    () => ({
+      channels,
+      memberships,
+      channelLastSeq,
+      prefs,
+      users,
+      self,
+      sidebarSections: sections,
+      blocked,
+      mentionCounts,
+    }),
+    [channels, memberships, channelLastSeq, prefs, users, self, sections, blocked, mentionCounts],
+  );
+  const { starred, sectioned, rooms, dms } = useMemo(
+    () => sidebarGroups(layout, activeChannelId),
+    [layout, activeChannelId],
+  );
   /** The section of this account's a conversation is in, if it is in one it still has. */
   const sectionOf = (id: ID): ID | null => {
     const sectionId = prefs[id]?.sectionId ?? null;
@@ -322,7 +267,7 @@ export function Sidebar(props: Props) {
     (id) => unread(id) && !blockedPartner(channels[id], selfId, blocked),
   ).length;
 
-  const [collapsed, toggleCollapsed] = useCollapsedSections();
+  const collapsed = useCollapsed();
   // How often each category has been opened again: its rows come in afresh each time.
   const [reopened, setReopened] = useState<Record<string, number>>({});
   const toggleSection = (section: string) => {
@@ -333,15 +278,12 @@ export function Sidebar(props: Props) {
   const rowsIn = (section: string) => (reopened[section] ? "rows-in" : "");
   // A collapsed category still shows where you are and what is waiting, as Discord's do.
   const shown = (section: string, id: ID) =>
-    !collapsed.has(section) ||
-    id === props.activeChannelId ||
-    (unread(id) && !isMuted(id)) ||
-    mentions(id) > 0;
+    rowShown(layout, collapsed, section, id, activeChannelId);
 
   const client = useClient();
-  const toast = useOptionalToast();
-  const confirm = useOptionalConfirm();
-  const nav = useRef<HTMLElement>(null);
+  const toast = useToast();
+  const confirm = useConfirm();
+  const navRef = useRef<HTMLElement>(null);
   /** A section being named: a new one, which the conversation `moveId` goes into, or one renamed. */
   const [naming, setNaming] = useState<
     { mode: "create"; moveId?: ID } | { mode: "rename"; section: SidebarSection } | null
@@ -359,14 +301,14 @@ export function Sidebar(props: Props) {
     const to = moved.current;
     if (!to) return;
     moved.current = null;
-    const row = nav.current?.querySelector<HTMLElement>(`[data-conversation="${to.id}"]`);
+    const row = navRef.current?.querySelector<HTMLElement>(`[data-conversation="${to.id}"]`);
     if (row) {
       // A row's buttons are hidden until it holds focus (theme.css), and a
       // hidden button cannot take it, so the row's own button takes it first.
       row.querySelector<HTMLElement>(".channel-row")?.focus();
       row.querySelector<HTMLElement>('[aria-haspopup="menu"]')?.focus();
     } else {
-      nav.current?.querySelector<HTMLElement>(`[data-section-toggle="${to.section}"]`)?.focus();
+      navRef.current?.querySelector<HTMLElement>(`[data-section-toggle="${to.section}"]`)?.focus();
     }
   });
 
@@ -492,7 +434,7 @@ export function Sidebar(props: Props) {
       ids.splice(to, 0, section.id);
       void client.orderSidebarSections(ids).then((error) => {
         if (error)
-          toast?.({
+          toast({
             message: failureText("Could not move that section. The order did not change.", error),
           });
       });
@@ -527,20 +469,18 @@ export function Sidebar(props: Props) {
       section: true,
       onSelect: async () => {
         const count = sectioned.get(section.id)?.length ?? 0;
-        const sure =
-          !confirm ||
-          (await confirm({
-            title: `Delete ${section.name}?`,
-            body:
-              count === 0
-                ? "This removes the section from your sidebar."
-                : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
-            confirmLabel: "Delete section",
-            destructive: true,
-          }));
+        const sure = await confirm({
+          title: `Delete ${section.name}?`,
+          body:
+            count === 0
+              ? "This removes the section from your sidebar."
+              : `Its ${count === 1 ? "conversation goes" : `${count} conversations go`} back to Channels and Direct messages.`,
+          confirmLabel: "Delete section",
+          destructive: true,
+        });
         if (!sure) return;
         const error = await client.deleteSidebarSection(section.id);
-        if (error) toast?.({ message: failureText("Could not delete that section.", error) });
+        if (error) toast({ message: failureText("Could not delete that section.", error) });
       },
     });
     return { label: section.name, items };
@@ -551,13 +491,13 @@ export function Sidebar(props: Props) {
       <ChannelRow
         key={ch.id}
         id={ch.id}
-        active={ch.id === props.activeChannelId}
+        active={ch.id === activeChannelId}
         unread={unread(ch.id)}
         muted={isMuted(ch.id)}
         draft={hasDraft(ch.id)}
         huddle={huddleWith(ch.id)}
         mentions={mentions(ch.id)}
-        onClick={() => props.onSelect(ch.id)}
+        onClick={() => nav.navigate({ to: "conversation", channelId: ch.id })}
         actions={channelActions(ch)}
         menu={rowMenu(ch, ch.name)}
         {...draggable(ch.id)}
@@ -589,13 +529,13 @@ export function Sidebar(props: Props) {
       <ChannelRow
         key={ch.id}
         id={ch.id}
-        active={ch.id === props.activeChannelId}
+        active={ch.id === activeChannelId}
         unread={unread(ch.id)}
         muted={isMuted(ch.id)}
         draft={hasDraft(ch.id)}
         huddle={huddleWith(ch.id)}
         mentions={mentions(ch.id)}
-        onClick={() => props.onSelect(ch.id)}
+        onClick={() => nav.navigate({ to: "conversation", channelId: ch.id })}
         menu={rowMenu(ch, title)}
         {...draggable(ch.id)}
         icon={
@@ -619,7 +559,7 @@ export function Sidebar(props: Props) {
 
   return (
     <nav
-      ref={nav}
+      ref={navRef}
       aria-label="Workspace navigation"
       // On a phone this is a drawer, closed by the time a panel opened from it
       // closes; focus then goes to the button that opens the drawer.
@@ -631,9 +571,9 @@ export function Sidebar(props: Props) {
           name={name}
           unread={totalMentions}
           others={others}
-          place={props.railPlace ?? 0}
-          onOpen={props.onOpenWorkspace}
-          onAdd={props.onSwitchWorkspace}
+          place={shell.railPlace}
+          onOpen={shell.onOpenWorkspace}
+          onAdd={shell.onLeaveWorkspace}
         />
         <div className="sidebar-column flex min-w-0 flex-col">
           <header className="titlebar-drag flex h-12 shrink-0 items-center px-2 shadow-[0_1px_0_var(--color-edge)]">
@@ -641,40 +581,31 @@ export function Sidebar(props: Props) {
               <WorkspaceMenu
                 name={name}
                 others={others}
-                onOpen={props.onOpenWorkspace}
-                onAdd={props.onSwitchWorkspace}
-                onCreateAccount={guest ? props.onCreateAccount : undefined}
-                onInvite={props.onInvite}
-                onManagePeople={props.onManagePeople}
-                reportsWaiting={props.reportsWaiting ?? null}
-                onReviewReports={props.onReviewReports}
-                onManageApps={props.onManageApps}
-                onWorkspaceSettings={props.onWorkspaceSettings}
-                hostingEntry={props.hostingEntry}
+                onOpen={shell.onOpenWorkspace}
+                onAdd={shell.onLeaveWorkspace}
+                actions={actions}
               />
             </h1>
           </header>
-          {props.connectionLabel && (
+          {connectionLabel && (
             <p
               role="status"
               className="mx-2 mt-2 flex items-center gap-2 rounded-lg bg-copper/10 px-2.5 py-1.5 text-[12px] font-medium text-copper"
             >
               <span className="fc-fill size-1.5 shrink-0 animate-pulse rounded-full bg-copper" />
-              <Swap on={props.connectionLabel} text className="min-w-0">
-                <span className="block truncate first-letter:uppercase">
-                  {props.connectionLabel}
-                </span>
+              <Swap on={connectionLabel} text className="min-w-0">
+                <span className="block truncate first-letter:uppercase">{connectionLabel}</span>
               </Swap>
             </p>
           )}
-          {props.hosting && <HostingStatus hosting={props.hosting} className="mx-2 mt-2" />}
+          {shell.hosting && <HostingStatus hosting={shell.hosting} className="mx-2 mt-2" />}
 
           <div className="px-2 pb-1 pt-2.5">
             {/* Its words and shortcut are on the button already, so it needs no
               hint. A tooltip would also open when the phone drawer puts focus
               here, and take the Escape meant to close the drawer. */}
             <button
-              onClick={props.onSearch}
+              onClick={() => nav.navigate({ to: "dialog", dialog: { kind: "switcher" } })}
               data-drawer-focus
               aria-keyshortcuts="Control+K Meta+K"
               className="flex h-8 w-full items-center gap-2 rounded-lg bg-ink/[0.06] px-2.5 text-[13px] text-ink-faint transition-colors hover:bg-ink/[0.09] hover:text-ink-dim"
@@ -694,8 +625,8 @@ export function Sidebar(props: Props) {
                 <NavRow
                   icon="activity"
                   label="Activity"
-                  onClick={props.onActivity}
-                  open={props.openPanel === "activity"}
+                  onClick={() => runAction(actions, "activity")}
+                  open={openPanel === "activity"}
                 >
                   {totalMentions + dueReminders + removals > 0 ? (
                     <Badge
@@ -715,8 +646,8 @@ export function Sidebar(props: Props) {
                 <NavRow
                   icon="thread"
                   label="Threads"
-                  onClick={props.onThreads}
-                  open={props.openPanel === "threads"}
+                  onClick={() => runAction(actions, "threads")}
+                  open={openPanel === "threads"}
                 >
                   <Badge tone="quiet" label="Threads with unread replies" count={unreadThreads} />
                 </NavRow>
@@ -725,33 +656,33 @@ export function Sidebar(props: Props) {
                 <NavRow
                   icon="bookmark"
                   label="Saved"
-                  onClick={props.onSaved}
-                  open={props.openPanel === "saved"}
+                  onClick={() => runAction(actions, "saved")}
+                  open={openPanel === "saved"}
                 />
               </li>
               {/* Only while its panel is open, as Drafts: a row always there
                 would cost a channel's place beside Getting started (UX-20).
                 The palette, a conversation's menu and the address reach it. */}
-              {props.onFiles && props.openPanel === "files" && (
+              {openPanel === "files" && (
                 <li>
                   <NavRow
                     icon="file"
                     label="Files"
-                    onClick={props.onFiles}
-                    open={props.openPanel === "files"}
+                    onClick={() => runAction(actions, "files")}
+                    open={openPanel === "files"}
                   />
                 </li>
               )}
               {/* Shown while there are drafts, or while its panel is open: an
                 empty row would cost a channel's place beside Getting started
                 (UX-20). The palette and the address reach the panel always. */}
-              {props.onDrafts && (draftCount > 0 || props.openPanel === "drafts") && (
+              {(draftCount > 0 || openPanel === "drafts") && (
                 <li>
                   <NavRow
                     icon="edit"
                     label="Drafts"
-                    onClick={props.onDrafts}
-                    open={props.openPanel === "drafts"}
+                    onClick={() => runAction(actions, "drafts")}
+                    open={openPanel === "drafts"}
                   >
                     <Badge tone="quiet" label="Unsent drafts" count={draftCount} />
                   </NavRow>
@@ -814,14 +745,18 @@ export function Sidebar(props: Props) {
                 collapsed={collapsed.has("channels")}
                 onToggle={() => toggleSection("channels")}
                 actions={[
-                  { label: "Browse channels", icon: "compass", onClick: props.onBrowseChannels },
+                  {
+                    label: "Browse channels",
+                    icon: "compass",
+                    onClick: () => runAction(actions, "browse"),
+                  },
                   ...(guest
                     ? []
                     : [
                         {
                           label: "New channel",
                           icon: "plus" as const,
-                          onClick: props.onNewChannel,
+                          onClick: () => runAction(actions, "new-channel"),
                         },
                       ]),
                 ]}
@@ -842,10 +777,14 @@ export function Sidebar(props: Props) {
                     {
                       label: "Friends",
                       icon: "friends",
-                      onClick: props.onFriends,
+                      onClick: () => nav.navigate({ to: "dialog", dialog: { kind: "friends" } }),
                       badge: friendRequests,
                     },
-                    { label: "New message", icon: "plus", onClick: props.onNewDm },
+                    {
+                      label: "New message",
+                      icon: "plus",
+                      onClick: () => runAction(actions, "new-message"),
+                    },
                   ]}
                 />
               )}
@@ -856,7 +795,7 @@ export function Sidebar(props: Props) {
             {/* For someone with nobody to talk to yet; starred ones still count. */}
             {dms.length === 0 && !starred.some(isDirect) && !guest && (
               <button
-                onClick={props.onNewDm}
+                onClick={() => runAction(actions, "new-message")}
                 className="group mt-1 flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left text-sm text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"
               >
                 <span className="flex size-5 items-center justify-center rounded-full border border-dashed border-ink-faint/60 group-hover:border-ink-dim">
@@ -900,27 +839,17 @@ export function Sidebar(props: Props) {
           />
         </Suspense>
       )}
-      {guest && props.onCreateAccount && <KeepAccountOffer onKeep={props.onCreateAccount} />}
+      {guest && <KeepAccountOffer onKeep={() => runAction(actions, "create-account")} />}
       {/* Discord's floating panel: you, across the foot of the rail and the list. */}
       <footer className="user-panel m-2 mt-0 shrink-0 rounded-xl border border-edge bg-raised p-1.5 shadow-[0_8px_24px_-12px_rgb(0_0_0/0.5)]">
         {snoozed && <SnoozedNotice until={dndUntil!} />}
         <div className="flex items-center gap-0.5">
-          <AccountMenu
-            guest={guest}
-            snoozed={snoozed}
-            onCreateAccount={props.onCreateAccount}
-            onEditProfile={props.onEditProfile}
-            onAccountSettings={props.onAccountSettings}
-            onScheduled={guest ? undefined : props.onScheduled}
-            onShortcuts={props.onShortcuts}
-            onDiagnostics={props.onDiagnostics}
-            onSignOut={props.onSignOut}
-          />
+          <AccountMenu />
           {!snoozed && <SnoozeControl />}
           {!guest && (
             <Tooltip label="Settings">
               <button
-                onClick={props.onAccountSettings}
+                onClick={() => runAction(actions, "account-settings")}
                 aria-label="Settings"
                 className="group/gear flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.07] hover:text-ink"
               >
@@ -938,35 +867,16 @@ export function Sidebar(props: Props) {
   );
 }
 
-/** Where useCollapsedSections keeps them, outside the device store's "ownbase:" names. */
-export const COLLAPSED_SECTIONS_KEY = "ownbase-collapsed-sections";
-
-/**
- * Which sidebar categories are folded away, kept on this device. Storage
- * that is unavailable, as in a private window, only means they reopen.
- */
-function useCollapsedSections(): [Set<string>, (section: string) => void] {
-  const key = COLLAPSED_SECTIONS_KEY;
-  const [collapsed, setCollapsed] = useState<Set<string>>(() => {
-    try {
-      return new Set(JSON.parse(localStorage.getItem(key) ?? "[]") as string[]);
-    } catch {
-      return new Set();
-    }
-  });
-  const toggle = (section: string) =>
-    setCollapsed((was) => {
-      const next = new Set(was);
-      if (next.has(section)) next.delete(section);
-      else next.add(section);
-      try {
-        localStorage.setItem(key, JSON.stringify([...next]));
-      } catch {
-        // Kept for this session only.
-      }
-      return next;
-    });
-  return [collapsed, toggle];
+/** What the connection is doing, while it is not simply online. */
+function useConnectionLabel(): string | null {
+  const status = useWorkspace((s) => s.status);
+  const serverProtocol = useWorkspace((s) => s.serverProtocolVersion);
+  if (status === "online") return null;
+  if (status === "reconnecting" || status === "connecting") return "reconnecting…";
+  if (status === "auth_failed") return "signed out";
+  if (status === "protocol_mismatch") return protocolMismatch(serverProtocol).short;
+  if (status === "password_change_required") return "Choose a new password to carry on";
+  return "offline";
 }
 
 /** One of the sidebar's own places, above the channels. */
@@ -1113,63 +1023,13 @@ function WorkspaceMenu(props: {
   others: OtherWorkspace[];
   onOpen?: (url: string) => void;
   onAdd: () => void;
-  /** Given for a guest, who cannot invite. */
-  onCreateAccount?: () => void;
-  onInvite: () => void;
-  onManagePeople?: () => void;
-  reportsWaiting: number | null;
-  onReviewReports?: () => void;
-  onManageApps?: () => void;
-  onWorkspaceSettings?: () => void;
-  hostingEntry?: HostingEntry;
+  actions: ActionContext;
 }) {
-  const items: MenuItem[] = props.onCreateAccount
-    ? [
-        {
-          id: "create-account",
-          label: "Create an account",
-          icon: "userPlus",
-          onSelect: props.onCreateAccount,
-        },
-      ]
-    : [{ id: "invite", label: "Invite people", icon: "userPlus", onSelect: props.onInvite }];
-  if (props.onManagePeople)
-    items.push({ id: "people", label: "People", icon: "members", onSelect: props.onManagePeople });
-  if (props.onReviewReports)
-    items.push({
-      id: "reports",
-      label: "Reported messages",
-      icon: "flag",
-      hint: props.reportsWaiting ? `${props.reportsWaiting} waiting` : undefined,
-      onSelect: props.onReviewReports,
-    });
-  if (props.onManageApps)
-    items.push({
-      id: "apps",
-      label: "Apps and integrations",
-      icon: "grid",
-      onSelect: props.onManageApps,
-    });
-  if (props.onWorkspaceSettings)
-    items.push({
-      id: "workspace-settings",
-      label: "Workspace settings",
-      icon: "settings",
-      onSelect: props.onWorkspaceSettings,
-    });
-  // This computer's, not the workspace's: it goes with the workspace's own
-  // settings, before the other workspaces.
-  if (props.hostingEntry) {
-    const entry = props.hostingEntry;
-    items.push({
-      id: "hosting",
-      label: entry.running ? "Manage hosting" : "Host a workspace",
-      icon: "screen",
-      onSelect: () => entry.open(),
-    });
-  }
+  const items = menuItems(WORKSPACE_MENU, props.actions);
   // Reports waiting for an admin, which the menu's trigger shows as a dot.
-  const waiting = props.onReviewReports ? (props.reportsWaiting ?? 0) : 0;
+  const waiting = items.some((item) => item.id === "reports")
+    ? (props.actions.state.openReports ?? 0)
+    : 0;
   const names = props.others.map((w) => w.name);
   props.others.forEach((w, i) => {
     const shared = names.filter((n) => n === w.name).length > 1 || w.name === props.name;
@@ -1219,34 +1079,28 @@ function WorkspaceMenu(props: {
  * The phone's bottom bar opens the same menu from a button of its own.
  */
 export function AccountMenu(props: {
-  guest: boolean;
-  snoozed: boolean;
-  onCreateAccount?: () => void;
-  onEditProfile: () => void;
-  onAccountSettings: () => void;
-  onScheduled?: () => void;
-  onShortcuts?: () => void;
-  onDiagnostics?: () => void;
-  onSignOut?: () => void;
   /** Another button to open it, drawn by its owner; on a phone it opens as a sheet. */
   trigger?: { label: string; className: string; content: ReactNode };
 }) {
   const self = useWorkspace((s) => s.self);
   const selfAway = useWorkspace((s) => s.presence[s.self?.id ?? ""] === "away");
+  const guest = self?.role === "guest";
+  const snoozed = isSnoozed(useWorkspace((s) => s.self?.dndUntil));
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
+  const actions = useActionContext();
   const items: MenuItem[] = [];
   /** Sets a status straight from the menu: two clicks for the common ones, each ending when it usually does. */
   const setStatus = (statusEmoji: string, statusText: string, statusExpiresAt: number | null) => {
     void client.updateProfile({ statusEmoji, statusText, statusExpiresAt }).then((error) => {
       if (error)
-        toast?.({
+        toast({
           message: "Could not change your status. Check your connection and try again.",
           kind: "error",
         });
     });
   };
-  if (!props.guest && self) {
+  if (!guest && self) {
     const ends = self.statusExpiresAt;
     const current =
       `${self.statusEmoji} ${self.statusText}`.trim() + (ends ? ` · ${statusUntil(ends)}` : "");
@@ -1278,80 +1132,8 @@ export function AccountMenu(props: {
         });
       });
   }
-  if (self) {
-    const awayByHand = self.away === true;
-    items.push({
-      id: "away",
-      label: awayByHand ? "Set yourself active" : "Set yourself away",
-      icon: awayByHand ? "sun" : "moon",
-      section: true,
-      onSelect: () =>
-        void client.setAway(!awayByHand).then((error) => {
-          if (error)
-            toast?.({
-              message: failureText("Could not change whether you show as away.", error),
-              kind: "error",
-            });
-        }),
-    });
-  }
-  if (props.guest && props.onCreateAccount)
-    items.push({
-      id: "create-account",
-      label: "Create an account",
-      icon: "userPlus",
-      onSelect: props.onCreateAccount,
-    });
-  if (!props.guest) {
-    items.push({
-      id: "profile",
-      label: "Profile and status",
-      icon: "user",
-      section: true,
-      onSelect: props.onEditProfile,
-    });
-    items.push({
-      id: "account",
-      label: "Account settings",
-      icon: "settings",
-      onSelect: props.onAccountSettings,
-    });
-  }
-  if (props.onScheduled)
-    items.push({
-      id: "scheduled",
-      label: "Scheduled messages",
-      icon: "clock",
-      onSelect: props.onScheduled,
-    });
-  // Help: the shortcut sheet opened only with Ctrl+/, and nothing said so.
-  if (props.onShortcuts)
-    items.push({
-      id: "shortcuts",
-      label: "Keyboard shortcuts",
-      icon: "keyboard",
-      keys: [modKey(), "/"],
-      section: true,
-      onSelect: props.onShortcuts,
-    });
-  if (props.onDiagnostics)
-    items.push({
-      id: "diagnostics",
-      label: "Diagnostics",
-      icon: "gauge",
-      section: props.onShortcuts ? undefined : true,
-      onSelect: props.onDiagnostics,
-    });
-  // Where people look for it, rather than at the foot of Settings > Security only.
-  if (props.onSignOut)
-    items.push({
-      id: "sign-out",
-      label: "Sign out",
-      icon: "leave",
-      section: true,
-      onSelect: props.onSignOut,
-    });
-  const heading = <AccountHeading guest={props.guest} snoozed={props.snoozed} away={selfAway} />;
+  items.push(...menuItems(ACCOUNT_MENU, actions));
+  const heading = <AccountHeading guest={guest} snoozed={snoozed} away={selfAway} />;
   if (props.trigger)
     return (
       <Menu
@@ -1365,7 +1147,7 @@ export function AccountMenu(props: {
         triggerContent={props.trigger.content}
       />
     );
-  const status = props.guest
+  const status = guest
     ? "Guest"
     : self?.statusText || self?.statusEmoji
       ? `${self.statusEmoji} ${self.statusText}`.trim()
@@ -1384,8 +1166,8 @@ export function AccountMenu(props: {
           <>
             <AvatarWithPresence
               user={self ?? undefined}
-              online={!props.snoozed && !selfAway}
-              away={!props.snoozed && selfAway}
+              online={!snoozed && !selfAway}
+              away={!snoozed && selfAway}
               size={32}
               ring="var(--color-raised)"
             />
@@ -1431,7 +1213,7 @@ function AccountHeading(props: { guest: boolean; snoozed: boolean; away: boolean
 
 /** While notifications are paused: until when, and a way to resume now. */
 function SnoozedNotice({ until }: { until: number }) {
-  const toast = useOptionalToast();
+  const toast = useToast();
   const client = useClient();
   const resumesAt = resumeTime(until, new Date());
   return (
@@ -1443,7 +1225,7 @@ function SnoozedNotice({ until }: { until: number }) {
       <button
         onClick={() =>
           void client.snoozeNotifications(null).then((error) => {
-            if (error) toast?.({ message: failureText("Could not resume notifications.", error) });
+            if (error) toast({ message: failureText("Could not resume notifications.", error) });
           })
         }
         className="rounded px-1 text-[12px] font-medium text-ink hover:underline"
@@ -1457,7 +1239,7 @@ function SnoozedNotice({ until }: { until: number }) {
 /** Do Not Disturb: pause notifications for a while. */
 function SnoozeControl() {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   return (
     <Menu
       label="Pause notifications"
@@ -1469,7 +1251,7 @@ function SnoozeControl() {
         section: index === 0 ? "Pause notifications" : undefined,
         onSelect: () =>
           void client.snoozeNotificationsUntil(o.until()).then((error) => {
-            if (error) toast?.({ message: failureText("Could not pause notifications.", error) });
+            if (error) toast({ message: failureText("Could not pause notifications.", error) });
           }),
       }))}
       triggerClassName="flex size-8 shrink-0 items-center justify-center rounded-lg text-ink-faint transition-colors hover:bg-ink/[0.05] hover:text-ink"
@@ -1557,11 +1339,6 @@ interface RowAction {
 interface RowMenu {
   label: string;
   items: MenuItem[];
-}
-
-/** A direct message or a group one, rather than a channel. */
-function isDirect(ch: Channel): boolean {
-  return ch.type === "dm" || ch.type === "group_dm";
 }
 
 const ROW_ACTION =

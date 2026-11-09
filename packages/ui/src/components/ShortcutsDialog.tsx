@@ -3,12 +3,12 @@ import { useState } from "react";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { Kbd } from "./Kbd.js";
-import { isApple, modKey } from "../lib/shortcuts.js";
+import { modKey } from "../lib/shortcuts.js";
+import { KEY_BINDINGS, type KeyBinding } from "../lib/actions.js";
+import { messageKeys } from "../lib/messageActions.js";
 
 /** The key held for shortcuts, as this keyboard labels it: ⌘ on a Mac, Ctrl elsewhere. */
 const MOD = modKey();
-/** Option on a Mac, Alt elsewhere. */
-const ALT = isApple() ? "⌥" : "Alt";
 
 /** What Enter does depends on the preference in Account settings, so the list follows it. */
 function writingKeys(enterSends: boolean): [string, string][] {
@@ -24,24 +24,15 @@ function writingKeys(enterSends: boolean): [string, string][] {
       ];
 }
 
+/** The global keys of one group, from the workspace's key registry. */
+function bindings(group: KeyBinding["group"]): [string, string][] {
+  return KEY_BINDINGS.filter((b) => b.group === group).map((b) => [b.keys.join(" "), b.describe]);
+}
+
 const groups = (
   enterSends: boolean,
 ): { title: string; items: [string, string][]; note?: string }[] => [
-  {
-    title: "Getting around",
-    items: [
-      [`${MOD} K`, "Jump to a channel or person"],
-      [`${MOD} F`, "Search this conversation"],
-      [`${ALT} ↑`, "Previous conversation in the sidebar"],
-      [`${ALT} ↓`, "Next conversation in the sidebar"],
-      [`${ALT} Shift ↑`, "Previous unread conversation"],
-      [`${ALT} Shift ↓`, "Next unread conversation"],
-      [`${MOD} 1–9`, "Go to the workspace at that place on the left, in the desktop app"],
-      ["Shift Esc", "Mark everything as read"],
-      ["Esc", "Close the open panel or dialog"],
-      [`${MOD} /`, "Show this list"],
-    ],
-  },
+  { title: "Getting around", items: bindings("Getting around") },
   {
     title: "Writing",
     note: "Choose what Enter does in Account settings.",
@@ -59,10 +50,7 @@ const groups = (
       [`${MOD} V`, "Paste an image straight in"],
     ],
   },
-  {
-    title: "Huddles",
-    items: [[`${MOD} Shift Space`, "Mute or unmute your microphone"]],
-  },
+  { title: "Huddles", items: bindings("Huddles") },
   {
     title: "Messages",
     note: "These keys work once the list of messages is selected. Press Tab to reach it.",
@@ -73,19 +61,10 @@ const groups = (
       ["End", "Last message"],
       ["Enter", "Go to the message's buttons"],
       ["Esc", "Go back to the message, or cancel an edit"],
-      ["E", "Edit your message"],
-      ["T", "Reply in thread"],
-      ["Q", "Reply, quoting it"],
-      ["R", "Add a reaction"],
-      ["A", "Save for later, or stop saving"],
-      ["U", "Mark unread from here"],
-      ["P", "Pin or unpin"],
-      ["F", "Forward"],
-      ["Delete", "Delete the message"],
+      ...messageKeys(),
     ],
   },
 ];
-
 /** A shortcut matches when every word typed is in its keys or what it does. */
 function matches(query: string, keys: string, what: string): boolean {
   const haystack = `${keys} ${what}`.toLowerCase();
