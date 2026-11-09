@@ -61,7 +61,7 @@ async function start(isolated: boolean) {
 
 function people(server: WorkspaceServer, count: number) {
   return Array.from({ length: count }, (_, i) =>
-    server.store.createUser({
+    server.store.people.create({
       handle: `person-${i}`,
       displayName: `Person ${i}`,
       passwordHash: "",
@@ -73,7 +73,7 @@ function people(server: WorkspaceServer, count: number) {
 
 function signIn(server: WorkspaceServer, userId: string) {
   const token = randomUUID();
-  server.store.createSession(hashToken(token), userId);
+  server.store.accounts.createSession(hashToken(token), userId);
   return token;
 }
 
@@ -139,7 +139,7 @@ async function privateDeletion(members: number, online: number) {
   try {
     const everyone = people(server, members);
     const author = signIn(server, everyone[0]!.id);
-    const channel = server.store.createChannel({
+    const channel = server.store.channels.create({
       type: "private",
       name: "measured",
       creatorId: everyone[0]!.id,
@@ -189,14 +189,14 @@ async function appPosting(subscriptions: number) {
   try {
     const [owner] = people(server, 1);
     const token = signIn(server, owner!.id);
-    const general = server.store.createChannel({
+    const general = server.store.channels.create({
       type: "public",
       name: "measured",
       creatorId: owner!.id,
       memberIds: [owner!.id],
     });
     const bot = server.store.apps.createBotUser("bot-measured", "measured", "", "");
-    server.store.addMember(general.id, bot.id);
+    server.store.channels.addMember(general.id, bot.id);
     const app = server.store.apps.create({
       name: "measured",
       botUserId: bot.id,

@@ -94,7 +94,7 @@ describe("reporting on the client", () => {
     const member = await online("sam");
     expect(admin.state.openReports).toBe(0);
     expect(member.state.openReports).toBeNull();
-    const general = server.store.getChannelByName("general")!.id;
+    const general = server.store.channels.byName("general")!.id;
     const maya = new Api(base, accounts.maya!.token);
     const { message } = await maya.sendMessage(general, { text: "rude words" });
 

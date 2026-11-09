@@ -71,7 +71,7 @@ try {
   );
   const token = registered.token as string;
   const ownerId = registered.user.id as string;
-  const channelId = server.store.getChannelByName("general")!.id;
+  const channelId = server.store.channels.byName("general")!.id;
   const call = (method: string, path: string, body?: unknown) =>
     fetch(base + path, {
       method,
@@ -195,7 +195,7 @@ try {
       )
       .get(member, member, `<@${member}>`) as { n: number }
   ).n;
-  const counted = server.store.unreadMentionCounts(member)[channelId] ?? 0;
+  const counted = server.store.channels.unreadMentionCounts(member)[channelId] ?? 0;
   if (counted !== expected) throw new Error(`counted ${counted}, the rule says ${expected}`);
   console.log(`${member} has ${counted} unread mentions, as the rule says.`);
 
@@ -210,7 +210,7 @@ try {
     return out;
   };
   console.log(
-    `One member's mention counts: ${summary(times(() => server.store.unreadMentionCounts(member)))}`,
+    `One member's mention counts: ${summary(times(() => server.store.channels.unreadMentionCounts(member)))}`,
   );
   const expectedMentions = (
     db
@@ -221,17 +221,17 @@ try {
       )
       .get(member, `<@${member}>`) as { n: number }
   ).n;
-  const listed = server.store.activityMessages(member, { mode: "mentions", limit: 100_000 }).length;
+  const listed = server.store.search.activity(member, { mode: "mentions", limit: 100_000 }).length;
   if (listed !== expectedMentions)
     throw new Error(`Activity lists ${listed} mentions, the text has ${expectedMentions}`);
   console.log(
     `Activity, mentions, first page: ${summary(
-      times(() => server.store.activityMessages(member, { mode: "mentions", limit: 50 })),
+      times(() => server.store.search.activity(member, { mode: "mentions", limit: 50 })),
     )}`,
   );
   console.log(
     `Activity, unread, first page: ${summary(
-      times(() => server.store.activityMessages(member, { mode: "unread", limit: 50 })),
+      times(() => server.store.search.activity(member, { mode: "unread", limit: 50 })),
     )}`,
   );
 
@@ -259,7 +259,7 @@ try {
     try {
       server.store.transaction(() => {
         for (let i = 0; i < 10_000; i++) {
-          server.store.createMessage({
+          server.store.messages.create({
             channelId,
             userId: ownerId,
             text: i % 100 === 0 ? `insert ${i} <@${member}>` : `insert ${i}`,

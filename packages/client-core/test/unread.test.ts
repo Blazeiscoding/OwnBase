@@ -341,7 +341,7 @@ describe("reading a thread", () => {
     await expect.poll(() => markThreadRead.mock.calls.length).toBe(2);
     await markThreadRead.mock.results[1]!.value;
     expect(client.state.threadFollows[root.id]?.lastReadSeq).toBe(second.seq);
-    expect(server.store.threadFollow(member.id, root.id)?.lastReadSeq).toBe(second.seq);
+    expect(server.store.threads.follow(member.id, root.id)?.lastReadSeq).toBe(second.seq);
   });
 
   it("counts a reply toward the channel's badge only when it is also sent to the channel", async () => {
@@ -445,7 +445,7 @@ describe("muting a thread", () => {
       client.setThreadMute(root.id, true);
       expect(client.state.threadFollows[root.id]).toMatchObject({ following: false, muted: true });
       await expect.poll(() => other.state.threadFollows[root.id]?.muted).toBe(true);
-      expect(server.store.threadFollow(member.id, root.id)?.muted).toBe(true);
+      expect(server.store.threads.follow(member.id, root.id)?.muted).toBe(true);
 
       client.setThreadMute(root.id, false);
       expect(client.state.threadFollows[root.id]?.muted).toBeUndefined();
@@ -460,7 +460,7 @@ describe("muting a thread", () => {
     const root = await incoming("Muted, then read");
     await client.loadThread(root.id, channelId, "latest");
     client.setThreadMute(root.id, true);
-    await expect.poll(() => server.store.threadFollow(member.id, root.id)?.muted).toBe(true);
+    await expect.poll(() => server.store.threads.follow(member.id, root.id)?.muted).toBe(true);
     await incoming("a reply", root.id);
 
     let answer = () => {};
@@ -501,15 +501,15 @@ describe("muting a thread", () => {
     await expect.poll(() => followed.mock.calls.length).toBe(1);
     await muted.mock.results[0]!.value;
     await followed.mock.results[0]!.value;
-    expect(server.store.threadFollow(member.id, root.id)).toMatchObject({ following: true });
-    expect(server.store.threadFollow(member.id, root.id)?.muted).toBeUndefined();
+    expect(server.store.threads.follow(member.id, root.id)).toMatchObject({ following: true });
+    expect(server.store.threads.follow(member.id, root.id)?.muted).toBeUndefined();
   });
 
   it("puts the thread back as it was when the server refuses", async () => {
     const root = await incoming("Refused");
     await client.loadThread(root.id, channelId, "latest");
     client.setThreadFollow(root.id, true);
-    await expect.poll(() => server.store.threadFollow(member.id, root.id)?.following).toBe(true);
+    await expect.poll(() => server.store.threads.follow(member.id, root.id)?.following).toBe(true);
     vi.spyOn(client.api, "setThreadMute").mockRejectedValue(new Error("offline"));
 
     client.setThreadMute(root.id, true);
