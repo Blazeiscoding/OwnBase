@@ -355,12 +355,12 @@ export class Gateway implements OutboxSink {
           return;
         }
         const tokenHash = hashToken(msg.token);
-        const user = this.store.getSessionUser(tokenHash);
+        const user = this.store.accounts.getSessionUser(tokenHash);
         if (!user) {
           this.refuse(ws, "auth_failed", "invalid token");
           return;
         }
-        if (this.store.mustChangePassword(user.id)) {
+        if (this.store.accounts.mustChangePassword(user.id)) {
           this.refuse(ws, "password_change_required", PASSWORD_CHANGE_REQUIRED);
           return;
         }
@@ -900,7 +900,7 @@ export class Gateway implements OutboxSink {
       if (active === undefined) {
         let read: boolean | "unreadable" = "unreadable";
         this.contained("session check", () => {
-          read = this.store.isSessionActive(client.tokenHash, client.userId);
+          read = this.store.accounts.isSessionActive(client.tokenHash, client.userId);
         });
         active = read;
         known.set(key, active);

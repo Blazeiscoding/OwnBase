@@ -269,8 +269,8 @@ export function registerFiles(ctx: ServerContext) {
       reply.header("cache-control", "no-store").header("referrer-policy", "no-referrer");
       const spent = store.files.consumeDownloadToken(hashToken(ticket));
       if (!spent || spent.fileId !== params.id) throw new HttpError(404, "file_not_found");
-      const viewer = store.getSessionUser(spent.sessionHash);
-      if (!viewer || viewer.id !== spent.userId || store.mustChangePassword(viewer.id)) {
+      const viewer = store.accounts.getSessionUser(spent.sessionHash);
+      if (!viewer || viewer.id !== spent.userId || store.accounts.mustChangePassword(viewer.id)) {
         throw new HttpError(404, "file_not_found");
       }
       viewerId = viewer.id;
@@ -291,11 +291,11 @@ export function registerFiles(ctx: ServerContext) {
       const stored = await handle.stat();
       if (!stored.isFile() || stored.size !== file.size) throw new Error("file unavailable");
       // Disk access yields; sign-out, deletion or private-room departure may have happened.
-      const current = store.getSessionUser(sessionHash);
+      const current = store.accounts.getSessionUser(sessionHash);
       if (
         !current ||
         !store.files.get(file.id) ||
-        store.mustChangePassword(current.id) ||
+        store.accounts.mustChangePassword(current.id) ||
         !store.canAccess(file.channelId, current.id)
       )
         throw new Error("file access changed");

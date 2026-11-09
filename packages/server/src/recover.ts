@@ -64,7 +64,7 @@ export function listAccounts(dataDir: string): RecoverableAccount[] {
         displayName: user.displayName,
         role: user.role,
         deactivated: user.deactivated,
-        mustChangePassword: store.mustChangePassword(user.id),
+        mustChangePassword: store.accounts.mustChangePassword(user.id),
       }));
   } finally {
     close();
@@ -99,10 +99,10 @@ export async function recoverAccount(opts: {
     const temporaryPassword = secretToken().slice(0, 16);
     const credentials = await hashPassword(temporaryPassword);
     const { revoked, role, twoStepCleared } = store.transaction(() => {
-      store.setPassword(user.id, credentials.hash, credentials.salt, true);
+      store.accounts.setPassword(user.id, credentials.hash, credentials.salt, true);
       // Whoever lost their password may have lost their authenticator too, and
       // the host on this machine is trusted with both (E11).
-      const twoStepCleared = store.disableTwoStep(user.id);
+      const twoStepCleared = store.accounts.disableTwoStep(user.id);
       // Recovery is pointless if the account cannot sign in at all.
       if (user.deactivated) store.people.update(user.id, { deactivated: false });
       if (opts.makeOwner) {
@@ -115,7 +115,7 @@ export async function recoverAccount(opts: {
         }
         store.people.update(user.id, { role: "owner" });
       }
-      const revoked = store.revokeSessions(user.id).length;
+      const revoked = store.accounts.revokeSessions(user.id).length;
       // No actor: the host did this from the command line, without signing in,
       // which is exactly the kind of change the record exists to show.
       store.recordAudit({

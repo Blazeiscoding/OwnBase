@@ -1418,6 +1418,28 @@
         "mayInvite is the rule for who may invite, also read by invites."
       ],
       "concepts": ["people", "queries"]
+    },
+    {
+      "path": "packages/server/src/accounts/feature.ts",
+      "plain": "Lets people join, sign in and out, set up two-step sign-in, change their password, manage their sessions, join as a guest and invite others.",
+      "summary": "Register, guest, login, second step, logout, password, two-step, session and invite routes, and the password-hashing slots.",
+      "details": [
+        "Password derivations run two at a time at most (hashing); more is refused with auth_busy rather than queued.",
+        "Wrong guesses are rationed per address and per handle; a right password clears the handle's count.",
+        "The first account needs the claim code unless it comes from this machine; when an extension requires single sign-on, a password signs in the owner alone.",
+        "Guests join for a day, at most 200 at once, into public channels only."
+      ],
+      "concepts": ["accounts", "authentication", "two-step", "feature module"]
+    },
+    {
+      "path": "packages/server/src/accounts/store.ts",
+      "plain": "Saves sign-ins, passwords, two-step keys and invites.",
+      "summary": "AccountStore: sessions, passwords, two-step secrets and recovery codes, guest sessions and invites.",
+      "details": [
+        "Sessions are kept by token hash; a session unused for 30 days ends, a guest's after a day.",
+        "An invite's status reads its creator's standing now: a deactivated creator or one no longer allowed to invite disables it."
+      ],
+      "concepts": ["sessions", "invites", "queries"]
     }
   ],
   "flows": [

@@ -144,8 +144,8 @@ describe("live session access", () => {
           ),
         )
         .toBe(true);
-      server.store.deleteSession(hashToken(token));
-      server.store.createSession(hashToken(token), userId, "expired device", -1);
+      server.store.accounts.deleteSession(hashToken(token));
+      server.store.accounts.createSession(hashToken(token), userId, "expired device", -1);
       expired.frames.length = 0;
       if (delivery === "message") {
         server.gateway.publish({
@@ -168,8 +168,8 @@ describe("live session access", () => {
 
   it("refuses actions from an expired socket before the next heartbeat", async () => {
     const expired = await connect();
-    server.store.deleteSession(hashToken(token));
-    server.store.createSession(hashToken(token), userId, "expired device", -1);
+    server.store.accounts.deleteSession(hashToken(token));
+    server.store.accounts.createSession(hashToken(token), userId, "expired device", -1);
     expired.ws.send(JSON.stringify({ type: "huddle.join", channelId, requestId: "join-12" }));
     await expect.poll(() => expired.ws.readyState).toBe(WebSocket.CLOSED);
     expect(server.gateway.huddleParticipants(channelId)).toEqual([]);

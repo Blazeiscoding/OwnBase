@@ -55,7 +55,7 @@ describe("atomic registration", () => {
   it("restores the claim, owner, default channel and events when session creation fails", async () => {
     const claim = server.store.getMeta("claim_code");
     const publish = vi.spyOn(server.gateway, "publish");
-    vi.spyOn(server.store, "createSession").mockImplementationOnce(() => {
+    vi.spyOn(server.store.accounts, "createSession").mockImplementationOnce(() => {
       throw new Error("session write failed");
     });
     expect((await register("owner")).status).toBe(500);
@@ -73,16 +73,16 @@ describe("atomic registration", () => {
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const seq = server.store.currentSeq();
     const publish = vi.spyOn(server.gateway, "publish");
-    vi.spyOn(server.store, "createSession").mockImplementationOnce(() => {
+    vi.spyOn(server.store.accounts, "createSession").mockImplementationOnce(() => {
       throw new Error("session write failed");
     });
     expect((await register("guest", code)).status).toBe(500);
-    expect(server.store.getInvite(code)!.uses).toBe(0);
+    expect(server.store.accounts.getInvite(code)!.uses).toBe(0);
     expect(server.store.people.authByHandle("guest")).toBeNull();
     expect(server.store.currentSeq()).toBe(seq);
     expect(publish).not.toHaveBeenCalled();
     expect((await register("guest", code)).status).toBe(201);
-    expect(server.store.getInvite(code)!.uses).toBe(1);
+    expect(server.store.accounts.getInvite(code)!.uses).toBe(1);
   });
 
   it("allows exactly one concurrent registration to consume the final invite use", async () => {
@@ -91,7 +91,7 @@ describe("atomic registration", () => {
     const code = (await request("/api/invites", { maxUses: 1 })).body.invite.code;
     const results = await Promise.all([register("one", code), register("two", code)]);
     expect(results.map((result) => result.status).sort()).toEqual([201, 403]);
-    expect(server.store.getInvite(code)!.uses).toBe(1);
+    expect(server.store.accounts.getInvite(code)!.uses).toBe(1);
     expect(server.store.people.count()).toBe(2);
   });
 });

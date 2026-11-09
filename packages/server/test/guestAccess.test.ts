@@ -285,7 +285,7 @@ describe("a guest", () => {
   it("has a day, not a sliding month, however much it is used", async () => {
     await guestWorkspace();
     const guest = await joinAsGuest();
-    const expiry = () => server!.store.listSessions(guest.user.id)[0]!;
+    const expiry = () => server!.store.accounts.listSessions(guest.user.id)[0]!;
     const before = expiry();
     expect(before.expiresAt - before.createdAt).toBe(GUEST_SESSION_TTL_MS);
     await new Promise((r) => setTimeout(r, 5));

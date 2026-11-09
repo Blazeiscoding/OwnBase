@@ -129,7 +129,7 @@ describe("account controls", () => {
     const credentials = await auth.hashPassword("replacement123");
     vi.spyOn(auth, "verifyPassword").mockImplementationOnce(async (...args) => {
       const valid = await verify(...args);
-      server.store.setPassword(owner.user.id, credentials.hash, credentials.salt);
+      server.store.accounts.setPassword(owner.user.id, credentials.hash, credentials.salt);
       return valid;
     });
     expect((await login()).status).toBe(401);
@@ -140,7 +140,7 @@ describe("account controls", () => {
     const hash = auth.hashPassword;
     vi.spyOn(auth, "hashPassword").mockImplementationOnce(async (password) => {
       const credentials = await hash(password);
-      server.store.deleteSession(auth.hashToken(owner.token));
+      server.store.accounts.deleteSession(auth.hashToken(owner.token));
       return credentials;
     });
     expect(

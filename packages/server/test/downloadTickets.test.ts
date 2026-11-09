@@ -169,7 +169,7 @@ describe("download tickets", () => {
     const ticket = (await issue(fileId, member.token)).data.token;
     // A forced change keeps the session only so the password can be changed.
     const auth = server.store.people.authByHandle("member")!;
-    server.store.setPassword(member.id, auth.passwordHash, auth.salt, true);
+    server.store.accounts.setPassword(member.id, auth.passwordHash, auth.salt, true);
     expect((await spend(fileId, ticket)).status).toBe(404);
     expect((await issue(fileId, member.token)).status).toBe(403);
   });

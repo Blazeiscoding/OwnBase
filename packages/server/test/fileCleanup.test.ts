@@ -198,7 +198,7 @@ describe("committed file cleanup", () => {
         '--upload-test\r\nContent-Disposition: form-data; name="file"; filename="test.txt"\r\nContent-Type: text/plain\r\n\r\nfirst bytes',
       );
       await expect.poll(() => readdirSync(join(directory, "files")).length).toBe(1);
-      server.store.deleteSession(hashToken(token));
+      server.store.accounts.deleteSession(hashToken(token));
       req.end("\r\n--upload-test--\r\n");
       expect(await result).toBe(401);
       expect(readdirSync(join(directory, "files"))).toEqual([]);

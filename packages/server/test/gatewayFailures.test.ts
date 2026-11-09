@@ -101,7 +101,9 @@ describe("socket callbacks that fail (F03)", () => {
     const [person] = people as [Person];
     const device = await connect(person.token);
     const before = device.frames.length;
-    const check = vi.spyOn(server.store, "isSessionActive").mockImplementation(failing("disk"));
+    const check = vi
+      .spyOn(server.store.accounts, "isSessionActive")
+      .mockImplementation(failing("disk"));
 
     device.ws.send(JSON.stringify({ type: "ping" }));
     await expect.poll(() => device.closed()).toBe(1011);
@@ -147,7 +149,7 @@ describe("socket callbacks that fail (F03)", () => {
     const [author, reader] = people as [Person, Person];
     const device = await connect(reader.token);
     const check = vi
-      .spyOn(server.store, "isSessionActive")
+      .spyOn(server.store.accounts, "isSessionActive")
       .mockImplementation((tokenHash, userId) => {
         if (userId === reader.user.id) throw new Error("disk");
         return true;
@@ -186,7 +188,7 @@ describe("socket callbacks that fail (F03)", () => {
     const limit = Error.stackTraceLimit;
     Error.stackTraceLimit = Infinity;
     onTestFinished(() => void (Error.stackTraceLimit = limit));
-    const check = vi.spyOn(server.store, "isSessionActive").mockImplementation(() => {
+    const check = vi.spyOn(server.store.accounts, "isSessionActive").mockImplementation(() => {
       depths.push(new Error().stack!.split("\n").length);
       throw new Error("disk");
     });
@@ -222,7 +224,9 @@ describe("the heartbeat when a session read fails (F03)", () => {
     const [person, other] = people as [Person, Person];
     const device = await connect(person.token);
     const elsewhere = await connect(other.token);
-    const check = vi.spyOn(server.store, "isSessionActive").mockImplementation(failing("disk"));
+    const check = vi
+      .spyOn(server.store.accounts, "isSessionActive")
+      .mockImplementation(failing("disk"));
 
     vi.advanceTimersByTime(30_000);
     await expect.poll(() => device.closed()).toBe(1011);
@@ -241,7 +245,7 @@ describe("the heartbeat when a session read fails (F03)", () => {
     await start();
     const [person] = people as [Person];
     const device = await connect(person.token);
-    vi.spyOn(server.store, "isSessionActive").mockReturnValue(false);
+    vi.spyOn(server.store.accounts, "isSessionActive").mockReturnValue(false);
 
     vi.advanceTimersByTime(30_000);
     await expect.poll(() => device.closed()).toBe(4003);

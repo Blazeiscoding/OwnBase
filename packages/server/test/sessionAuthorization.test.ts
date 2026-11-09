@@ -65,7 +65,7 @@ async function connect(token: string) {
 
 /** Each session check from here on, by the person it was for. */
 function checks() {
-  return vi.spyOn(server.store, "isSessionActive");
+  return vi.spyOn(server.store.accounts, "isSessionActive");
 }
 const asked = (spy: ReturnType<typeof checks>) => spy.mock.calls.map(([, userId]) => userId);
 
@@ -135,9 +135,9 @@ describe("session checks in a fan-out (REV-06)", () => {
     for (let i = 0; i < 5; i++) devices.push(await connect(ended.token));
     const elsewhere = await connect(other.token);
     // The session ends (it expires, say) without the gateway being told.
-    const active = server.store.isSessionActive.bind(server.store);
+    const active = server.store.accounts.isSessionActive.bind(server.store.accounts);
     const spy = vi
-      .spyOn(server.store, "isSessionActive")
+      .spyOn(server.store.accounts, "isSessionActive")
       .mockImplementation((tokenHash, userId) =>
         userId === ended.user.id ? false : active(tokenHash, userId),
       );

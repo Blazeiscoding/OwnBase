@@ -42,7 +42,7 @@ export function registerChannels(ctx: ServerContext) {
         const memberIds = [
           ...new Set([
             me.id,
-            ...(body.type === "private" ? (body.memberIds ?? []) : store.listPeopleIds()),
+            ...(body.type === "private" ? (body.memberIds ?? []) : store.accounts.listPeopleIds()),
           ]),
         ];
         if (body.type === "private") {
@@ -310,3 +310,5 @@ export function registerChannels(ctx: ServerContext) {
     }),
   };
 }
+
+export type Channels = ReturnType<typeof registerChannels>;
