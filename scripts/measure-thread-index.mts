@@ -64,7 +64,7 @@ try {
   );
   const token = registered.token as string;
   const userId = registered.user.id as string;
-  const channelId = server.store.getChannelByName("general")!.id;
+  const channelId = server.store.channels.byName("general")!.id;
   const get = (path: string) =>
     fetch(base + path, { headers: { authorization: `Bearer ${token}` } }).then(ok);
 

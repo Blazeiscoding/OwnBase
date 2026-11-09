@@ -181,7 +181,7 @@ describe("cached attachments (F07)", () => {
     expect(client.files.peek(recentFile.id)).toBe(recentUrl);
     await expect(client.api.fetchFile(rootFile.id)).rejects.toMatchObject({ status: 404 });
     await expect(client.api.fetchFile(replyFile.id)).rejects.toMatchObject({ status: 404 });
-    expect(server.store.getMessage(reply.id)).toBeNull();
+    expect(server.store.messages.get(reply.id)).toBeNull();
   });
 
   it("cannot reinstall a held reply transfer after its thread is retained away", async () => {

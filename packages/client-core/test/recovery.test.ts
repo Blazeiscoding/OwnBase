@@ -215,8 +215,8 @@ describe("connection recovery", () => {
     await expect.poll(() => elsewhere.state.status).toBe("online");
 
     // The removal commits; the read behind the notice that tells the member fails.
-    const memberships = server.store.memberships.bind(server.store);
-    const failed = vi.spyOn(server.store, "memberships").mockImplementation((userId) => {
+    const memberships = server.store.channels.memberships.bind(server.store.channels);
+    const failed = vi.spyOn(server.store.channels, "memberships").mockImplementation((userId) => {
       if (userId === memberId) throw new Error("disk");
       return memberships(userId);
     });
@@ -369,8 +369,8 @@ describe("outbox durability", () => {
       text: "removed with age",
       nonce: "aged-1",
     });
-    server.store.transaction(() => server.store.purgeMessagesBefore(Date.now() + 1));
-    expect(server.store.getMessage(posted.message.id)).toBeNull();
+    server.store.transaction(() => server.store.messages.purgeBefore(Date.now() + 1));
+    expect(server.store.messages.get(posted.message.id)).toBeNull();
 
     client.restoreOutbox([
       {
@@ -563,10 +563,10 @@ describe("a refusal that will not stop on its own", () => {
   it("gives up and says why when the account must replace its password", async () => {
     const self = client.state.self!;
     await disconnect();
-    server.store.setPassword(
+    server.store.accounts.setPassword(
       self.id,
-      server.store.getUserAuthByHandle(self.handle)!.passwordHash,
-      server.store.getUserAuthByHandle(self.handle)!.salt,
+      server.store.people.authByHandle(self.handle)!.passwordHash,
+      server.store.people.authByHandle(self.handle)!.salt,
       true,
     );
 
