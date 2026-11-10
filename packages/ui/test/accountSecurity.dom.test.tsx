@@ -119,7 +119,7 @@ describe("changing a password", () => {
   it("says why in the server's words when it refuses for a reason of its own", async () => {
     const { api, dialog, user } = account("security");
     api.password.mockRejectedValueOnce(
-      new ApiError(400, "password_rejected", "that password is on the list of leaked ones"),
+      new ApiError(400, "bad_request", "that password is on the list of leaked ones"),
     );
     await fill(dialog, user, "old-password", "new-password-1", "new-password-1");
     expect(await dialog.findByRole("alert")).toHaveTextContent(

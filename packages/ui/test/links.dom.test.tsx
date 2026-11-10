@@ -354,7 +354,11 @@ describe("inviting someone", () => {
       );
     };
     revokeInvite.mockRejectedValueOnce(
-      new ApiError(403, "forbidden", "only its maker or an admin can revoke an invite"),
+      new ApiError(
+        403,
+        "invite_permission_required",
+        "only its maker or an admin can revoke an invite",
+      ),
     );
     await revoke();
     expect(await dialog.findByRole("alert")).toHaveTextContent(
