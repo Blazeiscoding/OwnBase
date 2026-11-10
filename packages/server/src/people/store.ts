@@ -321,7 +321,6 @@ export class PeopleStore {
     return awayRow.get(this.db.prepare("SELECT away FROM users WHERE id = ?"), userId)?.away === 1;
   }
 
-  /** One account's profile picture, or null for none (E9). */
   avatar(userId: ID): { type: string; bytes: Buffer; version: string } | null {
     const row = avatarRow.get(
       this.db.prepare(
