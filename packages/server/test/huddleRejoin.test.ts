@@ -250,7 +250,14 @@ describe("what one side of a huddle says it is sending", () => {
       type: "huddle.signal",
       channelId: general(),
       to: bob.user.id,
-      signal: { kind: "media", camera: false, screen: true, muted: true, screenSound: true },
+      signal: {
+        kind: "media",
+        camera: false,
+        screen: true,
+        muted: true,
+        screenSound: true,
+        view: { camera: 360, screen: 0 },
+      },
     });
     await expect.poll(() => b.events("huddle.signal")).toHaveLength(1);
     expect(b.events("huddle.signal")[0]).toMatchObject({
@@ -265,13 +272,27 @@ describe("what one side of a huddle says it is sending", () => {
       type: "huddle.signal",
       channelId: general(),
       to: bob.user.id,
-      signal: { kind: "media", camera: true, screen: false, view: { camera: 180, screen: 720 } },
+      signal: {
+        kind: "media",
+        camera: true,
+        screen: false,
+        muted: false,
+        screenSound: false,
+        view: { camera: 180, screen: 720 },
+      },
     });
     b.send({
       type: "huddle.signal",
       channelId: general(),
       to: alice.user.id,
-      signal: { kind: "media", camera: true, screen: false, view: { camera: 0, screen: 0 } },
+      signal: {
+        kind: "media",
+        camera: true,
+        screen: false,
+        muted: false,
+        screenSound: false,
+        view: { camera: 0, screen: 0 },
+      },
     });
     await expect.poll(() => b.events("huddle.signal")).toHaveLength(1);
     await expect.poll(() => a.events("huddle.signal")).toHaveLength(1);

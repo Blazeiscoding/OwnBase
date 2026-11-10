@@ -32,29 +32,21 @@ export const huddleSignal = z.discriminatedUnion("kind", [
     kind: z.literal("media"),
     camera: z.boolean(),
     screen: z.boolean(),
-    muted: z.boolean().optional(),
-    /**
-     * Whether their share sends its sound, in a fourth slot after the
-     * screen's. Only a client with that slot says, true or false; one that
-     * never says would take any fourth track for the person's microphone, so
-     * it is sent none.
-     */
-    screenSound: z.boolean().optional(),
+    muted: z.boolean(),
+    /** Whether their share sends its sound, in a fourth slot after the screen's. */
+    screenSound: z.boolean(),
     /**
      * How tall whoever says this draws the camera and the share of the one
      * it is sent to, in device pixels, rounded up to one of a few heights;
      * 0 while one is not drawn at all: the call hidden behind the chat, the
      * window out of sight, or the row under a share put away. That one sends
      * them no bigger a picture, or none (E13b), since every connection in
-     * the mesh is an encoder of its own. One that never says is sent what
-     * the call's size allows.
+     * the mesh is an encoder of its own.
      */
-    view: z
-      .object({
-        camera: z.number().int().min(0).max(4320),
-        screen: z.number().int().min(0).max(4320),
-      })
-      .optional(),
+    view: z.object({
+      camera: z.number().int().min(0).max(4320),
+      screen: z.number().int().min(0).max(4320),
+    }),
   }),
 ]);
 export type HuddleSignal = z.infer<typeof huddleSignal>;
