@@ -283,6 +283,7 @@ export const endpoints = {
     timeoutMs: 20000,
   }),
 
+  /** Turns two-step sign-in off (E11). */
   disableTwoStep: endpoint({
     method: "POST",
     path: "/api/me/two-step/disable",
@@ -292,6 +293,7 @@ export const endpoints = {
     timeoutMs: 20000,
   }),
 
+  /** Everywhere this account is signed in, so its owner can see and end them. */
   listSessions: endpoint({
     method: "GET",
     path: "/api/auth/sessions",
@@ -394,6 +396,7 @@ export const endpoints = {
     answer: json<{ blocked: ID[] }>(),
   }),
 
+  /** Unblocks someone for this account (E12). */
   unblockUser: endpoint({
     method: "DELETE",
     path: "/api/me/blocks/:id",
@@ -904,6 +907,7 @@ export const endpoints = {
     answer: json<{ commands: CommandHint[] }>(),
   }),
 
+  /** Runs `/whatever …` typed in a channel. */
   runCommand: endpoint({
     method: "POST",
     path: "/api/channels/:id/commands",
