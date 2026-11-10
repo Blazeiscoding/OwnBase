@@ -13,6 +13,7 @@ import {
   type RestoredOver,
   type RestoredWorkspace,
   type RestoreInventory,
+  type StartedWorkspace,
 } from "@ownbase/protocol/desktop";
 import { DesktopError } from "../shared/desktopError.js";
 import { TunnelCleanupError, type Tunnel } from "./tunnel.js";
@@ -111,8 +112,6 @@ export interface HostedServer {
   setPublicUrl?(url: string | null): void;
   setTrustLoopbackProxy?(enabled: boolean): void;
   setIceServers?(servers: { urls: string }[]): void;
-  inviteOnly?(): boolean;
-  setInviteOnly?(inviteOnly: boolean): void;
   accessPolicy?(): AccessPolicy;
   setAccessPolicy?(policy: AccessPolicy): void;
   /**
@@ -438,7 +437,7 @@ export function createHostingController(options: HostingOptions) {
       ...(workspace ?? {}),
       ...(server ? { port: server.port, lanUrls: options.lanUrls(server.port) } : {}),
       ...(server?.instanceId ? { instanceId: server.instanceId } : {}),
-      ...(server?.accessPolicy || server?.inviteOnly ? { accessPolicy: policyOf(server) } : {}),
+      ...(server?.accessPolicy ? { accessPolicy: server.accessPolicy() } : {}),
       ...(opening
         ? { openToAll: { phase: "opening" as const } }
         : tunnel
@@ -509,7 +508,7 @@ export function createHostingController(options: HostingOptions) {
     const current = tunnel ?? cleanupTunnel;
     if (!current) return;
     const openPolicy =
-      tunnel === current && !externalCarrier && server ? policyOf(server) : undefined;
+      tunnel === current && !externalCarrier && server ? server.accessPolicy?.() : undefined;
     const previousPolicy =
       openPolicy === "guest_allowed" && policyBeforeOpen && policyBeforeOpen !== "guest_allowed"
         ? policyBeforeOpen
@@ -526,7 +525,7 @@ export function createHostingController(options: HostingOptions) {
       closeReach(server);
       // Stopping our use of an external route cannot stop that route. Keep it
       // from becoming an open-registration endpoint if it is still running.
-      if (externalCarrier || cleanupTunnel) server.setInviteOnly?.(true);
+      if (externalCarrier || cleanupTunnel) server.setAccessPolicy?.("invite_only");
     }
     await finishCleanup(current.close(), "The public link did not finish closing in time.");
     if (tunnel === current) {
@@ -538,7 +537,7 @@ export function createHostingController(options: HostingOptions) {
     }
     // Chosen inside the workspace while the link closed, the rule stays theirs.
     if (previousPolicy !== undefined && server && policyChanges === workspacePolicyChanges)
-      applyPolicy(server, previousPolicy);
+      server.setAccessPolicy?.(previousPolicy);
   }
 
   async function finishCleanup(work: Promise<void>, message: string): Promise<void> {
@@ -671,7 +670,20 @@ export function createHostingController(options: HostingOptions) {
     changed();
   }
 
-  function start(value: unknown): Promise<HostingSnapshot> {
+  /** The running workspace, as a start that got it running answers. */
+  function running(): StartedWorkspace {
+    return {
+      folder: workspace!.folder,
+      workspaceName: workspace!.workspaceName,
+      port: server!.port,
+    };
+  }
+
+  /**
+   * Starts a workspace, or answers for the one already running when it is
+   * the same. Everything else about it is in `status`.
+   */
+  function start(value: unknown): Promise<StartedWorkspace> {
     if (closing) return Promise.reject(new Error("The app is quitting. Hosting cannot start."));
     let requested: ReturnType<typeof startOptions>;
     try {
@@ -700,7 +712,7 @@ export function createHostingController(options: HostingOptions) {
             "This workspace is already running on another port. Stop it before changing ports.",
           );
         if (metadataDirty) await saveMetadata();
-        return status();
+        return running();
       }
 
       let list: HostedWorkspace[];
@@ -896,7 +908,7 @@ export function createHostingController(options: HostingOptions) {
       changed();
       // Binding succeeded. A settings failure is a warning, never a failed start.
       await saveMetadata();
-      return status();
+      return running();
     });
   }
 
@@ -1663,7 +1675,7 @@ export function createHostingController(options: HostingOptions) {
    * is kept in the status to be shown, rather than lost while no window is
    * open to say it. A choice whose workspace has left the list is dropped.
    */
-  async function startForLaunch(): Promise<HostingSnapshot | null> {
+  async function startForLaunch(): Promise<void> {
     let folder: string | null;
     try {
       folder = await readLaunchFolder();
@@ -1675,9 +1687,9 @@ export function createHostingController(options: HostingOptions) {
           "OwnBase did not start hosting when it opened, because it could not read which workspace to start. Check that its settings file can be read, then choose the workspace again under When this computer starts.",
       };
       changed();
-      return null;
+      return;
     }
-    if (!folder) return null;
+    if (!folder) return;
     let entry: HostedWorkspace | undefined;
     try {
       entry = (await loadRegistry()).find((e) => e.folder === folder);
@@ -1691,12 +1703,12 @@ export function createHostingController(options: HostingOptions) {
             : "OwnBase did not start hosting when it opened, because it could not read its list of hosted workspaces.",
       };
       changed();
-      return null;
+      return;
     }
     if (!entry) {
       launchFolder = null;
       await options.settings.set(START_ON_LAUNCH_KEY, null).catch(() => {});
-      return null;
+      return;
     }
     if (entry.restoredHold !== undefined) {
       launchError = {
@@ -1705,11 +1717,10 @@ export function createHostingController(options: HostingOptions) {
         message: `OwnBase did not start hosting ${entry.name} when it opened, because it was restored from a backup and has not been put back in use.`,
       };
       changed();
-      return null;
+      return;
     }
-    let started: HostingSnapshot;
     try {
-      started = await start({ folder });
+      await start({ folder });
     } catch (error) {
       launchError = {
         part: "hosting",
@@ -1719,10 +1730,10 @@ export function createHostingController(options: HostingOptions) {
         }`.trim(),
       };
       changed();
-      return null;
+      return;
     }
     // Read before any request queued behind the start can take its turn.
-    return reopenPublicAfterLaunch(entry.name, folder, runs, started);
+    await reopenPublicAfterLaunch(entry.name, folder, runs);
   }
 
   async function readReopenPublic(): Promise<{ folder: string; address: string } | null> {
@@ -1749,16 +1760,10 @@ export function createHostingController(options: HostingOptions) {
    * meanwhile, or replaced by another workspace or another start of this
    * one, is left alone.
    */
-  async function reopenPublicAfterLaunch(
-    name: string,
-    folder: string,
-    run: number,
-    started: HostingSnapshot,
-  ): Promise<HostingSnapshot> {
+  async function reopenPublicAfterLaunch(name: string, folder: string, run: number): Promise<void> {
     const launched = () => server !== null && workspace?.folder === folder && runs === run;
     const wanted = await readReopenPublic();
-    if (!launched()) return status();
-    if (!wanted || wanted.folder !== folder || isolatedRun) return started;
+    if (!launched() || !wanted || wanted.folder !== folder || isolatedRun) return;
     const current = publicAddress();
     if (current.url !== wanted.address) {
       launchError = {
@@ -1767,13 +1772,13 @@ export function createHostingController(options: HostingOptions) {
         message: `${name} started, but the public link at ${wanted.address} was not reopened. The address OwnBase uses has changed${current.url ? ` to ${current.url}` : ""}. Press Get a public link, then turn on reopening it again.`,
       };
       changed();
-      return started;
+      return;
     }
     try {
       // Asked for now, before anything else can start; its turn checks the run again.
-      return await openToAll({});
+      await openToAll({});
     } catch (error) {
-      if (!launched()) return status();
+      if (!launched()) return;
       launchError = {
         part: "public-address",
         folder,
@@ -1782,7 +1787,6 @@ export function createHostingController(options: HostingOptions) {
         }`.trim(),
       };
       changed();
-      return status();
     }
   }
 
@@ -1829,10 +1833,9 @@ export function createHostingController(options: HostingOptions) {
    * The host has read what did not happen when OwnBase opened and does not
    * need it said again. Whatever is running carries on as it is.
    */
-  function dismissLaunchError(): HostingSnapshot {
+  function dismissLaunchError(): void {
     launchError = undefined;
     changed();
-    return status();
   }
 
   /** The running workspace is public now, which a failed reopen of it was waiting for. */
@@ -2069,7 +2072,7 @@ export function createHostingController(options: HostingOptions) {
    * route across networks. Who may join becomes `accessPolicy`, invited
    * accounts only unless it says otherwise.
    */
-  function openToAll(value: unknown = {}): Promise<HostingSnapshot> {
+  function openToAll(value: unknown = {}): Promise<void> {
     if (closing) return Promise.reject(new Error("The app is quitting."));
     const { accessPolicy } =
       value && typeof value === "object" && !Array.isArray(value)
@@ -2106,10 +2109,11 @@ export function createHostingController(options: HostingOptions) {
       if (
         !target.setPublicUrl ||
         !target.setIceServers ||
-        !target.inviteOnly ||
-        !target.setInviteOnly
+        !target.accessPolicy ||
+        !target.setAccessPolicy
       )
         throw new Error("This hosted workspace cannot have a public link.");
+      const setPolicy = target.setAccessPolicy;
       // Through a tunnel nothing counts as this computer's own, so the owner
       // would need the claim code to create their account. Theirs comes first.
       if (target.accountCount && target.accountCount() === 0)
@@ -2117,7 +2121,7 @@ export function createHostingController(options: HostingOptions) {
           "owner-account-missing",
           "Create your own account in the workspace first, then get a public link.",
         );
-      const previousPolicy = policyOf(target);
+      const previousPolicy = target.accessPolicy();
       const closedPolicy: AccessPolicy = carriedElsewhere ? "invite_only" : previousPolicy;
       if (!tunnel) policyBeforeOpen = previousPolicy;
       const policyChanges = workspacePolicyChanges;
@@ -2127,15 +2131,14 @@ export function createHostingController(options: HostingOptions) {
        * the address, when joining closes whatever was chosen.
        */
       const putBackPolicy = () => {
-        if (carriedElsewhere || policyChanges === workspacePolicyChanges)
-          applyPolicy(target, closedPolicy);
+        if (carriedElsewhere || policyChanges === workspacePolicyChanges) setPolicy(closedPolicy);
       };
       openError = undefined;
-      applyPolicy(target, accessPolicy ?? "invite_only");
+      setPolicy(accessPolicy ?? "invite_only");
       if (tunnel) {
         publicReopened();
         changed();
-        return status();
+        return;
       }
       const attempt = new AbortController();
       opening = attempt;
@@ -2147,7 +2150,7 @@ export function createHostingController(options: HostingOptions) {
       } catch (error) {
         if (error instanceof TunnelCleanupError) {
           cleanupTunnel = error.tunnel;
-          target.setInviteOnly(true);
+          setPolicy("invite_only");
           closeReach(target);
           openError =
             "The public link could not finish closing. Stop hosting to try closing it again, then get a new one.";
@@ -2170,7 +2173,7 @@ export function createHostingController(options: HostingOptions) {
       cleanupTunnel = opened;
       if (opening === attempt) opening = null;
       if (attempt.signal.aborted || request !== publicRequest || closing) {
-        target.setInviteOnly(true);
+        setPolicy("invite_only");
         try {
           await endTunnel();
         } catch (error) {
@@ -2191,7 +2194,7 @@ export function createHostingController(options: HostingOptions) {
         target.setIceServers(OPEN_TO_ALL_ICE_SERVERS);
       } catch (error) {
         closeReach(target);
-        target.setInviteOnly(true);
+        setPolicy("invite_only");
         try {
           await endTunnel();
         } catch (cleanupError) {
@@ -2216,19 +2219,18 @@ export function createHostingController(options: HostingOptions) {
         const wasExternal = externalCarrier;
         externalCarrier = false;
         closeReach(target);
-        if (wasExternal) target.setInviteOnly?.(true);
+        if (wasExternal) setPolicy("invite_only");
         openError = configured.url
           ? `The public link stopped working (${reason}). Fix its connection, then press Get a public link to open it at the same address.`
           : `The public link stopped working (${reason}). Press Get a public link for a new one.`;
         changed();
       });
       changed();
-      return status();
     });
   }
 
   /** Back to this network only. Links go back to its addresses. */
-  function endOpenToAll(): Promise<HostingSnapshot> {
+  function endOpenToAll(): Promise<void> {
     cancelPublicOpen();
     return serialized(async () => {
       openError = undefined;
@@ -2240,25 +2242,23 @@ export function createHostingController(options: HostingOptions) {
         throw error;
       }
       changed();
-      return status();
     });
   }
 
   /**
    * Changes who may join the running workspace. Turning guests off signs every
-   * guest out; the status returned is what the server now holds.
+   * guest out.
    */
-  function setAccessPolicy(value: unknown): Promise<HostingSnapshot> {
+  function setAccessPolicy(value: unknown): Promise<void> {
     if (!isAccessPolicy(value))
       return Promise.reject(new Error(`Say who may join with one of ${ACCESS_POLICIES}.`));
     return serialized(async () => {
-      if (!server || (!server.setAccessPolicy && !server.setInviteOnly) || phase !== "running")
+      if (!server?.setAccessPolicy || phase !== "running")
         throw new Error("Start hosting the workspace before changing who can join.");
       if (stopFailed || cleanupTunnel)
         throw new Error("Finish stopping the workspace before changing who can join.");
-      applyPolicy(server, value);
+      server.setAccessPolicy(value);
       changed();
-      return status();
     });
   }
 
@@ -2267,18 +2267,17 @@ export function createHostingController(options: HostingOptions) {
    * external carrier may already be live, so registration is secured before
    * persistence and remains secured if saving fails.
    */
-  function setPublicAddress(value: string | null): Promise<HostingSnapshot> {
+  function setPublicAddress(value: string | null): Promise<void> {
     if (!options.savePublicAddress)
       return Promise.reject(new Error("Saving a public address is not available in this app."));
     return serialized(async () => {
       if (closing) throw new Error("The app is quitting.");
       if (tunnel || opening || cleanupTunnel)
         throw new Error("Stop using the current public address before changing it.");
-      if (server && phase === "running") server.setInviteOnly?.(true);
+      if (server && phase === "running") server.setAccessPolicy?.("invite_only");
       await options.savePublicAddress!(value);
       openError = undefined;
       changed();
-      return status();
     });
   }
 
@@ -2329,13 +2328,3 @@ export function createHostingController(options: HostingOptions) {
 
 const isAccessPolicy = (value: unknown): value is AccessPolicy =>
   ACCESS_POLICIES.includes(value as AccessPolicy);
-
-/** Who may join, as a value to put back later. An older server says it by invites alone. */
-function policyOf(target: HostedServer): AccessPolicy {
-  return target.accessPolicy?.() ?? (target.inviteOnly?.() ? "invite_only" : "account_required");
-}
-
-function applyPolicy(target: HostedServer, policy: AccessPolicy): void {
-  if (target.setAccessPolicy) target.setAccessPolicy(policy);
-  else target.setInviteOnly?.(policy === "invite_only");
-}

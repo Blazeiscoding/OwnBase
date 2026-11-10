@@ -49,7 +49,7 @@ export async function startHostedServer(
     // open while any stable public address is configured. This is the one
     // start that changes who may join over what the workspace holds: it only
     // ever closes joining, and the record names the host as having done it.
-    if (host.publicAddressConfigured()) server.setInviteOnly(true);
+    if (host.publicAddressConfigured()) server.setAccessPolicy("invite_only");
   } catch (error) {
     host.relayServers.delete(server);
     try {
@@ -84,8 +84,6 @@ export async function startHostedServer(
     // visitor address only while the controller owns a live connector.
     setTrustLoopbackProxy: (enabled) => server.setTrustLoopbackProxy(enabled),
     setIceServers: (servers) => server.setIceServers(servers),
-    inviteOnly: () => server.inviteOnly(),
-    setInviteOnly: (value) => server.setInviteOnly(value),
     accessPolicy: () => server.accessPolicy(),
     setAccessPolicy: (policy) => server.setAccessPolicy(policy),
     accountCount: () => server.store.userCount(),

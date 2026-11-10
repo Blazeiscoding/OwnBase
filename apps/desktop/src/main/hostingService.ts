@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { join } from "node:path";
 import { DEFAULT_PORT } from "@ownbase/protocol";
-import type { HostingStatus, StartedWorkspace } from "@ownbase/protocol/desktop";
+import type { HostingStatus } from "@ownbase/protocol/desktop";
 import {
   cloudflareIceServers,
   createWorkspaceServer,
@@ -315,28 +315,19 @@ export function createHostingService(options: HostingServiceOptions) {
       lookAgain();
       return status();
     },
-    "hosting:start": async (_event, request): Promise<StartedWorkspace> => {
+    "hosting:start": (_event, request) => {
       if (trayStopping) throw new Error("Wait for hosting to stop before starting a workspace.");
-      const started = await controller.start(request);
-      if (!started.folder || started.workspaceName === undefined || started.port === undefined)
-        throw new DesktopError("internal", "The workspace started without saying where.");
-      return { folder: started.folder, workspaceName: started.workspaceName, port: started.port };
+      return controller.start(request);
     },
     "hosting:stop": () => controller.stop(),
-    "hosting:openToAll": async (_event, accessPolicy) => {
-      await controller.openToAll({ accessPolicy });
-    },
-    "hosting:endOpenToAll": async () => {
-      await controller.endOpenToAll();
-    },
-    "hosting:setAccessPolicy": async (_event, accessPolicy) => {
-      await controller.setAccessPolicy(accessPolicy);
-    },
-    "hosting:setPublicAddress": async (_event, value) => {
+    "hosting:openToAll": (_event, accessPolicy) => controller.openToAll({ accessPolicy }),
+    "hosting:endOpenToAll": () => controller.endOpenToAll(),
+    "hosting:setAccessPolicy": (_event, accessPolicy) => controller.setAccessPolicy(accessPolicy),
+    "hosting:setPublicAddress": (_event, value) => {
       if (typeof value !== "string") throw new Error("Enter the address as text.");
       const address = value.trim();
       // Refused here rather than saved, for Open to all to reject later out of sight.
-      await controller.setPublicAddress(address ? validatePublicAddress(address) : null);
+      return controller.setPublicAddress(address ? validatePublicAddress(address) : null);
     },
     "hosting:installCloudflared": async () => {
       await installer.install();
@@ -360,9 +351,7 @@ export function createHostingService(options: HostingServiceOptions) {
     "hosting:setReopenPublicOnLaunch": async (_event, reopen) => {
       await controller.setReopenPublicOnLaunch(reopen);
     },
-    "hosting:dismissLaunchError": () => {
-      controller.dismissLaunchError();
-    },
+    "hosting:dismissLaunchError": () => controller.dismissLaunchError(),
     "hosting:setPort": async (_event, folder, port) => {
       await controller.setPort({ folder, port });
     },
