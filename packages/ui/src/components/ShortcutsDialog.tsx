@@ -7,7 +7,6 @@ import { modKey } from "../lib/shortcuts.js";
 import { KEY_BINDINGS, type KeyBinding } from "../lib/actions.js";
 import { messageKeys } from "../lib/messageActions.js";
 
-/** The key held for shortcuts, as this keyboard labels it: ⌘ on a Mac, Ctrl elsewhere. */
 const MOD = modKey();
 
 /** What Enter does depends on the preference in Account settings, so the list follows it. */
@@ -24,7 +23,6 @@ function writingKeys(enterSends: boolean): [string, string][] {
       ];
 }
 
-/** The global keys of one group, from the workspace's key registry. */
 function bindings(group: KeyBinding["group"]): [string, string][] {
   return KEY_BINDINGS.filter((b) => b.group === group).map((b) => [b.keys.join(" "), b.describe]);
 }
@@ -65,7 +63,6 @@ const groups = (
     ],
   },
 ];
-/** A shortcut matches when every word typed is in its keys or what it does. */
 function matches(query: string, keys: string, what: string): boolean {
   const haystack = `${keys} ${what}`.toLowerCase();
   return query

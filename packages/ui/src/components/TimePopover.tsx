@@ -21,7 +21,6 @@ export function TimePopover(props: {
   submitLabel: (at: Date | null) => string;
 }) {
   const [customTime, setCustomTime] = useState("");
-  /** What is wrong with the chosen time, said under it once Schedule is pressed. */
   const [error, setError] = useState<string | null>(null);
   const field = useRef<HTMLInputElement>(null);
   const errorId = useId();

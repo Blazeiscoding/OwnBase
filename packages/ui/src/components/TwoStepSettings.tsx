@@ -72,7 +72,6 @@ export function TwoStepSettings() {
       alive.current = false;
     };
   }, [load, owned]);
-  // Each step's field takes the cursor as the step shows, and the codes their panel.
   useEffect(() => (field.current ?? codesPanel.current)?.focus(), [stage]);
 
   function go(next: Stage) {

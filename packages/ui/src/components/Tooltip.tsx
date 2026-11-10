@@ -27,7 +27,6 @@ interface TriggerProps {
 interface Props {
   /** What the control does, in the same words as its accessible name. */
   label: string;
-  /** The keyboard shortcut that does the same thing, if there is one. */
   keys?: string;
   /** Where it prefers to open; it flips to the other side when that does not fit. */
   side?: "top" | "bottom" | "right";
