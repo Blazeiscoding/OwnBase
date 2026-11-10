@@ -7,7 +7,7 @@ import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
 import type { CloudflaredInstall } from "@ownbase/protocol/desktop";
 import { lookup } from "./lookup.js";
-import { pinnedCloudflared } from "./tunnel.js";
+import { HOMEBREW_FOLDERS, onPath, pinnedCloudflared } from "./tunnel.js";
 
 /**
  * Installs Cloudflare's cloudflared for Open to all with what this computer
@@ -70,18 +70,11 @@ export function findPackageManager(
 ): { route: "winget" | "homebrew"; command: string } | null {
   const windows = platform === "win32";
   const file = windows ? "winget.exe" : "brew";
-  const candidates = (env.PATH ?? env.Path ?? "")
-    .split(windows ? ";" : ":")
-    .filter(Boolean)
-    .map((dir) => join(dir, file));
+  const candidates = onPath(env, file, platform);
   if (windows) {
     if (env.LOCALAPPDATA) candidates.push(join(env.LOCALAPPDATA, "Microsoft", "WindowsApps", file));
   } else {
-    candidates.push(
-      "/opt/homebrew/bin/brew",
-      "/usr/local/bin/brew",
-      "/home/linuxbrew/.linuxbrew/bin/brew",
-    );
+    candidates.push(...HOMEBREW_FOLDERS.map((dir) => `${dir}/${file}`));
   }
   const command = candidates.find((candidate) => exists(candidate));
   return command ? { route: windows ? "winget" : "homebrew", command } : null;
@@ -395,7 +388,10 @@ function runPackageManager(
 export interface InstallerOptions {
   /** OwnBase's own folder for a downloaded cloudflared. */
   dir: string;
-  /** Finds cloudflared wherever it is now, the downloaded copy included. */
+  /**
+   * Finds cloudflared wherever it is now, the downloaded copy included, and
+   * keeps what it found for whoever shows it; asked again when an install ends.
+   */
   find: () => string | null;
   /** Called whenever what `state()` says changes. */
   onChange: () => void;
@@ -500,6 +496,7 @@ export function createCloudflaredInstaller(options: InstallerOptions) {
         installing = null;
         progress = null;
         route.forget();
+        options.find();
         options.onChange();
       });
       return installing;

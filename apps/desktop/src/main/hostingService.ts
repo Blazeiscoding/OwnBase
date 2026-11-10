@@ -25,6 +25,7 @@ import { REGISTRY_KEY } from "./registry.js";
 import type { SettingsStorage } from "./settings.js";
 import {
   findCloudflared,
+  healthUrl,
   openConfiguredAddress,
   openNamedTunnel,
   openQuickTunnel,
@@ -243,7 +244,7 @@ export function createHostingService(options: HostingServiceOptions) {
       // Only a reply from something that is not this run proves the port leads
       // elsewhere. A probe that cannot connect at all proves nothing.
       (await probeHealth(
-        `http://127.0.0.1:${port}/api/health`,
+        healthUrl(`http://127.0.0.1:${port}`),
         AbortSignal.timeout(3_000),
         instanceId,
       )) !== "something-else",
@@ -328,8 +329,6 @@ export function createHostingService(options: HostingServiceOptions) {
     },
     "hosting:installCloudflared": async () => {
       await installer.install();
-      lookAgain();
-      options.onChange();
     },
     // Unreadable settings mean no remembered workspace, not a failed call.
     "hosting:lastHosted": () => controller.lastHosted(),

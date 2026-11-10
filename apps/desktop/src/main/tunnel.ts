@@ -4,9 +4,29 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { isIP } from "node:net";
 import { tmpdir } from "node:os";
 import { isAbsolute, join } from "node:path";
+import { endpoints, type AnswerOf } from "@ownbase/protocol";
+import { isPort } from "@ownbase/protocol/desktop";
 
 /** winget's folder for the portable cloudflared it installs for one account. */
 const WINGET_PACKAGE = "Cloudflare.cloudflared_Microsoft.Winget.Source_8wekyb3d8bbwe";
+
+/**
+ * Where Homebrew installs programs on a Mac with Apple silicon, an Intel Mac
+ * and Linux: an app opened from the Dock has a short PATH that leaves them out.
+ */
+export const HOMEBREW_FOLDERS = [
+  "/opt/homebrew/bin",
+  "/usr/local/bin",
+  "/home/linuxbrew/.linuxbrew/bin",
+] as const;
+
+/** `file` in each folder on PATH, in order. */
+export function onPath(env: NodeJS.ProcessEnv, file: string, platform: NodeJS.Platform): string[] {
+  return (env.PATH ?? env.Path ?? "")
+    .split(platform === "win32" ? ";" : ":")
+    .filter(Boolean)
+    .map((dir) => join(dir, file));
+}
 
 /** The cloudflared this app was pointed at with OWNBASE_CLOUDFLARED, the only one it then uses. */
 export function pinnedCloudflared(env: NodeJS.ProcessEnv = process.env): string | null {
@@ -29,10 +49,7 @@ export function findCloudflared(
   if (pinned) return exists(pinned) ? pinned : null;
   const windows = platform === "win32";
   const file = windows ? "cloudflared.exe" : "cloudflared";
-  const candidates = (env.PATH ?? env.Path ?? "")
-    .split(windows ? ";" : ":")
-    .filter(Boolean)
-    .map((dir) => join(dir, file));
+  const candidates = onPath(env, file, platform);
   if (windows) {
     for (const root of [env["ProgramFiles(x86)"], env.ProgramFiles]) {
       if (root) candidates.push(join(root, "cloudflared", file));
@@ -45,12 +62,7 @@ export function findCloudflared(
       candidates.push(join(winget, "Packages", WINGET_PACKAGE, file));
     }
   } else {
-    candidates.push(
-      "/opt/homebrew/bin/cloudflared",
-      "/usr/local/bin/cloudflared",
-      "/usr/bin/cloudflared",
-      "/home/linuxbrew/.linuxbrew/bin/cloudflared",
-    );
+    candidates.push(...[...HOMEBREW_FOLDERS, "/usr/bin"].map((dir) => `${dir}/${file}`));
   }
   if (downloaded) candidates.push(downloaded);
   return candidates.find((candidate) => exists(candidate)) ?? null;
@@ -182,7 +194,7 @@ export async function probeHealth(
     if (!response.ok) return "something-else";
     const text = await readHealthResponse(response);
     if (text === null) return "something-else";
-    const body = JSON.parse(text) as { status?: unknown; instanceId?: unknown } | null;
+    const body = JSON.parse(text) as Partial<AnswerOf<typeof endpoints.health>> | null;
     return body?.status === "ok" && (instanceId === undefined || body.instanceId === instanceId)
       ? "this-workspace"
       : "something-else";
@@ -190,6 +202,9 @@ export async function probeHealth(
     return "something-else";
   }
 }
+
+/** Where a workspace at this address says it is up, and which run it is. */
+export const healthUrl = (address: string) => `${address}${endpoints.health.path}`;
 
 export async function ownBaseIsReachable(
   url: string,
@@ -364,8 +379,7 @@ export async function openNamedTunnel(
 
 /** Checks the workspace's own port, so a stale address cannot look reachable. */
 function validateHostedPort(port: unknown): void {
-  if (!Number.isInteger(port) || (port as number) < 1 || (port as number) > 65535)
-    throw new Error("The hosted workspace must have a valid listening port.");
+  if (!isPort(port)) throw new Error("The hosted workspace must have a valid listening port.");
 }
 
 function validateInstanceId(instanceId: unknown): void {
@@ -405,7 +419,7 @@ export async function openConfiguredAddress(options: {
   if (options.signal?.aborted) throw new Error("Getting a public link was cancelled.");
 
   const probe = options.healthProbe ?? ownBaseIsReachable;
-  const health = `${address}/api/health`;
+  const health = healthUrl(address);
   // A blip on the way to Cloudflare or Tailscale must not invalidate everyone's
   // links, so an open address is given up only after several checks in a row.
   const pollMs = options.pollMs ?? 30_000;
@@ -671,13 +685,11 @@ function openTunnel(
           // Cloudflare documents a brief DNS warm-up for new Quick Tunnel
           // hostnames. Looking it up immediately can leave an NXDOMAIN in the
           // operating system cache after the record itself is ready.
-          const warmupMs = options.dnsWarmupMs ?? (named || options.healthProbe ? 0 : 10_000);
+          const warmupMs = options.dnsWarmupMs ?? (named ? 0 : 10_000);
           if (warmupMs > 0) await wait(warmupMs, lifecycle.signal);
           while (!completed && !failing && !lifecycle.signal.aborted) {
             try {
-              if (
-                await healthProbe(`${address}/api/health`, lifecycle.signal, options.instanceId)
-              ) {
+              if (await healthProbe(healthUrl(address), lifecycle.signal, options.instanceId)) {
                 if (completed || failing || lifecycle.signal.aborted) return;
                 completed = true;
                 cleanupOpening();
