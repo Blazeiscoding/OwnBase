@@ -1,6 +1,8 @@
 import {
   ACCESS_POLICIES,
+  isAccessPolicy,
   isAdministrator,
+  WORKSPACE_NAME_MAX,
   workspaceNameSchema,
   type AccessPolicy,
   type ID,
@@ -22,13 +24,20 @@ export interface WorkspaceChange {
   by: ID | null;
 }
 
-export const isAccessPolicy = (value: unknown): value is AccessPolicy =>
-  ACCESS_POLICIES.includes(value as AccessPolicy);
+const WORKSPACE_NAME_RULE = `A workspace name has 1 to ${WORKSPACE_NAME_MAX} characters and no control characters.`;
+
+/** The name as kept, trimmed, or a refusal that says the rule. */
+function checkedWorkspaceName(value: unknown): string {
+  const parsed = workspaceNameSchema.safeParse(value);
+  if (!parsed.success) throw new TypeError(WORKSPACE_NAME_RULE);
+  return parsed.data;
+}
 
 /** Refuses a start whose workspace options cannot work, before the database opens. */
 export function checkWorkspaceOptions(opts: ServerContext["opts"]): void {
   if (opts.accessPolicy !== undefined && !isAccessPolicy(opts.accessPolicy))
     throw new TypeError(`accessPolicy must be one of ${ACCESS_POLICIES}`);
+  if (opts.workspaceName !== undefined) checkedWorkspaceName(opts.workspaceName);
 }
 
 /**
@@ -45,7 +54,7 @@ export function createWorkspace(ctx: ServerContext) {
   // never puts back an older choice over theirs.
   const unowned = store.people.count() === 0;
   if (opts.workspaceName && (unowned || settings.stored("workspaceName") === null))
-    settings.set("workspaceName", opts.workspaceName);
+    settings.set("workspaceName", checkedWorkspaceName(opts.workspaceName));
   if (settings.stored("workspaceName") === null)
     settings.set("workspaceName", settings.get("workspaceName"));
   settings.get("workspaceId");
@@ -109,11 +118,8 @@ export function createWorkspace(ctx: ServerContext) {
 
   /** Renames the workspace. Everyone signed in is told at once, and the record says who did it. */
   const rename = (value: unknown, by: ID | null): string => {
-    const parsed = workspaceNameSchema.safeParse(value);
-    if (!parsed.success)
-      throw new TypeError("A workspace name has 1 to 80 characters and no control characters.");
+    const name = checkedWorkspaceName(value);
     if (lifecycle.closing) throw new Error("The workspace is stopping.");
-    const name = parsed.data;
     const previous = settings.get("workspaceName");
     if (name === previous) return name;
     store.transaction(() => {

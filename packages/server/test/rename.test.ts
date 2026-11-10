@@ -149,6 +149,15 @@ describe("renaming a workspace while it runs", () => {
     server = undefined;
   });
 
+  it("starts only with a name it would take by renaming, trimmed", async () => {
+    for (const bad of ["x".repeat(81), "Blue\nTeam"]) {
+      await expect(start(bad)).rejects.toThrow(/1 to 80 characters/);
+      server = undefined;
+    }
+    await start("  Rocket Team  ");
+    expect(await serverInfoName()).toBe("Rocket Team");
+  });
+
   it("announces itself again on request, and does nothing once stopping or when announcing is off", async () => {
     await start("Rocket Team");
     // Announcing is off in these tests, so this must be a quiet no-op.

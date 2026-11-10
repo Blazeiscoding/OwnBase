@@ -1,6 +1,7 @@
 import {
   ACCESS_POLICIES,
   DEFAULT_PORT,
+  isAccessPolicy,
   type AccessPolicy,
   type ID,
   type MemberNotice,
@@ -10,12 +11,7 @@ import { join } from "node:path";
 import { registerAccounts } from "./accounts/feature.js";
 import { registerApps } from "./apps/feature.js";
 import { registerAdmin } from "./admin/feature.js";
-import {
-  checkWorkspaceOptions,
-  createWorkspace,
-  isAccessPolicy,
-  type WorkspaceChange,
-} from "./admin/workspace.js";
+import { checkWorkspaceOptions, createWorkspace, type WorkspaceChange } from "./admin/workspace.js";
 import { registerBackups, scheduledBackupsOf } from "./backups/feature.js";
 import type { BackupManifest } from "./backups/backup.js";
 import { type BackupScheduleStatus, type ScheduledBackups } from "./backups/backupSchedule.js";

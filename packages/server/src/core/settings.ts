@@ -1,6 +1,6 @@
 import {
-  ACCESS_POLICIES,
   DEFAULT_WORKSPACE_NAME,
+  isAccessPolicy,
   type AccessPolicy,
   type ID,
 } from "@ownbase/protocol";
@@ -34,9 +34,6 @@ interface Setting<T> {
   /** Made and kept on first read, rather than read as the fallback each time. */
   kept?: true;
 }
-
-const isAccessPolicy = (value: unknown): value is AccessPolicy =>
-  ACCESS_POLICIES.includes(value as AccessPolicy);
 
 /** Every workspace setting, each declared once. */
 export const SETTINGS = {
