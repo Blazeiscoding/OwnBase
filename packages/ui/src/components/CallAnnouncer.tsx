@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ID, User } from "@ownbase/protocol";
 import { namesList } from "../lib/catchUp.js";
+import { useKeyed } from "../lib/useKeyed.js";
 
 /**
  * How long someone may be gone before leaving is news. A connection made
@@ -38,12 +39,14 @@ export function CallAnnouncer({
   const nameOf = useRef((id: ID) => users[id]?.displayName ?? "Someone");
   nameOf.current = (id: ID) => users[id]?.displayName ?? "Someone";
 
-  const say = (text: string) =>
-    setSaid((prev) => [...prev.slice(-2), { id: nextId.current++, text }]);
+  const say = useCallback(
+    (text: string) => setSaid((prev) => [...prev.slice(-2), { id: nextId.current++, text }]),
+    [],
+  );
 
-  const key = [...peerIds].sort().join(" ");
+  const here = useKeyed([...peerIds].sort().join(" "), () => peerIds);
   useEffect(() => {
-    const now = new Set(peerIds);
+    const now = new Set(here);
     const before = known.current;
     known.current = now;
     // Who was already here when you joined is on the screen, not news.
@@ -68,8 +71,7 @@ export function CallAnnouncer({
       );
     }
     if (joined.length) say(describeArrivals(joined, []));
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` is the ids
-  }, [key]);
+  }, [here, say]);
 
   useEffect(() => {
     const timers = leaving.current;

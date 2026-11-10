@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import type { WorkspaceState } from "@ownbase/client-core";
 import type { ID } from "@ownbase/protocol";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
@@ -94,9 +94,9 @@ export function KeepAccountOffer(props: {
     writeWorkspaceStorage(platform, key, next).catch(() => {});
   };
 
+  const notePosted = useEffectEvent((seen: Saved) => save({ ...seen, posted: true }));
   useEffect(() => {
-    if (postedNow && known && !known.posted) save({ ...known, posted: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (postedNow && known && !known.posted) notePosted(known);
   }, [postedNow, known]);
 
   if (!open || !key || !known || !(known.posted || postedNow)) return null;

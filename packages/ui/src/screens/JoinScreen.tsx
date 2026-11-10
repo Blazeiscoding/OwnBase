@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { hostWithPort, type ServerInfo, type SignInMethod } from "@ownbase/protocol";
 import { Api, ApiError, normalizeServerUrl } from "@ownbase/client-core";
 import type {
@@ -152,26 +152,27 @@ export function JoinScreen({
   }, [selfServed, savedServers.length, autoProbe, signedOut]);
 
   // Signed out by the workspace: back to its form, where a password carries on.
-  useEffect(() => {
+  const backToForm = useEffectEvent(() => {
     if (signedOut) void probe(signedOut.url);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  useEffect(() => backToForm(), []);
 
   useEffect(() => {
     if (!platform.discoverLan) return;
     return platform.discoverLan(setLanServers);
   }, [platform]);
 
-  useEffect(() => {
-    if (!autoProbe) return;
-    // Somewhere already signed in to reconnects with those credentials, and asks
-    // again only if they no longer work — reopening your own hosted workspace
-    // should not mean typing the password each time.
-    const saved = savedServers.find((s) => s.url === normalizeSafe(autoProbe));
+  // Somewhere already signed in to reconnects with those credentials, and asks
+  // again only if they no longer work — reopening your own hosted workspace
+  // should not mean typing the password each time.
+  const reconnect = useEffectEvent((address: string) => {
+    const saved = savedServers.find((s) => s.url === normalizeSafe(address));
     // A sign-in just made with single sign-on is used, not the one saved before.
     if (saved && !ssoCode) void openSaved(saved);
-    else void probe(autoProbe);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    else void probe(address);
+  });
+  useEffect(() => {
+    if (autoProbe) reconnect(autoProbe);
   }, [autoProbe]);
 
   /** Saved servers reconnect with their stored token; fall back to the auth card if it expired. */
@@ -898,14 +899,23 @@ function AuthCard(props: {
   const [ssoAway, setSsoAway] = useState(false);
 
   // A remembered username leaves only the password to type.
-  useEffect(() => {
+  const focusFirst = useEffectEvent(() => {
     const password = mode === "login" && handle ? document.getElementById(`${id}-password`) : null;
     (password ?? firstField.current)?.focus();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  useEffect(() => focusFirst(), []);
 
   // Back from single sign-on with a code: it signs in with the secret this
   // device began with, so a code someone else passed on signs nobody in.
+  const signedInWith = useEffectEvent((url: string, token: string, handle: string) =>
+    props.onConnected({
+      url,
+      token,
+      workspaceName: props.info.workspaceName,
+      handle,
+      lastUsedAt: Date.now(),
+    }),
+  );
   useEffect(() => {
     const code = props.presetSsoCode;
     if (!code) return;
@@ -913,14 +923,7 @@ function AuthCard(props: {
     setBusy(true);
     redeemSingleSignOn(props.url, code).then(
       (result) => {
-        if (gone) return;
-        props.onConnected({
-          url: props.url,
-          token: result.token,
-          workspaceName: props.info.workspaceName,
-          handle: result.user.handle,
-          lastUsedAt: Date.now(),
-        });
+        if (!gone) signedInWith(props.url, result.token, result.user.handle);
       },
       (err: unknown) => {
         if (gone) return;
@@ -936,8 +939,6 @@ function AuthCard(props: {
     return () => {
       gone = true;
     };
-    // The code arrives once, with the card; nothing else here changes what it does.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [props.presetSsoCode, props.url]);
 
   async function signInWith(method: SignInMethod) {

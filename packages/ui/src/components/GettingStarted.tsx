@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import { DEFAULT_WORKSPACE_NAME } from "@ownbase/protocol";
 import { useToast } from "./Toast.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
@@ -137,9 +137,9 @@ export function GettingStarted(props: {
     writeWorkspaceStorage(platform, key, next).catch(() => {});
   };
 
+  const noteHuddleTried = useEffectEvent((seen: Saved) => save({ ...seen, huddleTried: true }));
   useEffect(() => {
-    if (inHuddle && loaded && !loaded.huddleTried) save({ ...loaded, huddleTried: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (inHuddle && loaded && !loaded.huddleTried) noteHuddleTried(loaded);
   }, [inHuddle, loaded]);
 
   useEffect(() => {

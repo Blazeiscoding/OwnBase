@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import {
   cameraConstraints,
   canChooseSpeaker,
@@ -390,6 +390,7 @@ export function CameraPreview({
   const [failure, setFailure] = useState<string | null>(null);
   const descriptionId = useId();
 
+  const told = useEffectEvent(() => onOpened());
   useEffect(() => {
     if (!on) return;
     let alive = true;
@@ -406,7 +407,7 @@ export function CameraPreview({
         stream = opened;
         if (video.current) video.current.srcObject = opened;
         setState("showing");
-        onOpened();
+        told();
       })
       .catch((err: unknown) => {
         if (!alive) return;
@@ -419,8 +420,6 @@ export function CameraPreview({
       stream?.getTracks().forEach((track) => track.stop());
       if (video.current) video.current.srcObject = null;
     };
-    // A fresh `onOpened` is no reason to open the camera again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, cameraId]);
 
   return (

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useLayoutEffect, useRef, useState } from "react";
 import { Modal } from "./Modal.js";
 import { Sheet, sheetCard, wantsSheet } from "./Sheet.js";
 import { Icon, type IconName } from "./Icon.js";
@@ -248,14 +248,14 @@ function MenuPanel({
   }, []);
 
   // Focus the active item once the modal layer has registered, so its focus
-  // recovery keeps it rather than pulling focus back to the panel.
-  useLayoutEffect(() => {
+  // recovery keeps it rather than pulling focus back to the panel. Only on
+  // opening; arrows move from here.
+  const focusActive = useEffectEvent(() =>
     list.current
       ?.querySelector<HTMLElement>(`[data-menu-index="${active}"]`)
-      ?.focus({ preventScroll: true });
-    // Only on mount; arrows move from here.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+      ?.focus({ preventScroll: true }),
+  );
+  useLayoutEffect(() => focusActive(), []);
 
   function move(next: number) {
     const enabled = items

@@ -10,6 +10,7 @@ import {
 import { ClientContext, useClient, useWorkspace } from "../context.js";
 import type { Platform } from "../platform.js";
 import { isLoopbackUrl, shareableServer, type ShareableServer } from "../lib/deeplink.js";
+import { useKeyed } from "../lib/useKeyed.js";
 import { normalizeServerUrlSafe } from "../lib/deeplinkHelpers.js";
 import { useHostingStatus } from "../lib/hosting.js";
 import { trustedWorkspaceAddresses } from "@ownbase/client-core";
@@ -78,8 +79,7 @@ export function ShareableServerProvider(props: { platform: Platform; children: R
   // link carries. Keep the same value while it says the same thing, so every
   // message row reading it renders only when a link would change (REV-03).
   const sameLinks = [computed.serverUrl, computed.localOnly, ...computed.alternatives].join("\n");
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const value = useMemo(() => computed, [sameLinks]);
+  const value = useKeyed(sameLinks, () => computed);
 
   // Addresses this device has linked to the workspace, read once it is known.
   const workspaceId = useWorkspace((s) => s.workspaceId);

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
 import type { Invite, InviteStatus } from "@ownbase/protocol";
 import { useCopy } from "../lib/useCopy.js";
@@ -141,14 +141,13 @@ export function InviteDialog(props: {
   }
 
   // Once the list has answered, or failed to: show a link without being asked.
+  const makeFirst = useEffectEvent(() => void make(DEFAULT_INVITE.hours, DEFAULT_INVITE.maxUses));
   useEffect(() => {
     if (!canInvite || opened.current || invites === undefined) return;
     opened.current = true;
     const kept = invites ? reusableInvite(invites, selfId) : null;
     if (kept) setInvite(kept);
-    else void make(DEFAULT_INVITE.hours, DEFAULT_INVITE.maxUses);
-    // `make` is this render's; it only needs the client, which does not change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    else makeFirst();
   }, [canInvite, invites, selfId]);
 
   async function copyLink(link: string) {
