@@ -114,7 +114,6 @@ export class WorkspaceCopies {
     return this.opts.now?.() ?? Date.now();
   }
 
-  /** Where copies are made. */
   get root(): string {
     return this.opts.root;
   }

@@ -16,7 +16,6 @@ import type { OffsiteUploader } from "./offsite.js";
 export interface ScheduledBackups {
   /** Where the dated backups go. Must be outside the workspace folder. */
   dir: string;
-  /** Time between one backup starting and the next. */
   everyMs: number;
   /** How many to keep; older ones go once a newer one is verified. */
   keep: number;
