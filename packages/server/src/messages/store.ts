@@ -109,7 +109,7 @@ export class MessageStore {
     );
   }
 
-  /** Whether this key sent a message retention has since removed; see `purgeMessagesBefore`. */
+  /** Whether this key sent a message retention has since removed; see `purgeBefore`. */
   requestPurged(userId: ID, nonce: string): boolean {
     return !!this.db
       .prepare("SELECT 1 FROM purged_message_requests WHERE user_id = ? AND nonce = ?")
