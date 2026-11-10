@@ -18,8 +18,8 @@ export interface UnreadSource {
  * keeps a connection, so the others are asked now and then: every
  * `OTHER_UNREAD_EVERY_MS` while the window is seen, at once when it is seen
  * or focused again or comes back online, and when the list changes, as it
- * does on moving to another workspace. One that cannot answer (an older
- * server, a sign-in that ended, no connection) shows nothing.
+ * does on moving to another workspace. One that cannot answer (a sign-in
+ * that ended, no connection) shows nothing.
  */
 export function useOtherWorkspacesUnread(
   sources: UnreadSource[],

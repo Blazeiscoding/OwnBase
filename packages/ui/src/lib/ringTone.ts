@@ -4,7 +4,6 @@
  * phone rings, quiet enough to sit under whatever else is playing.
  */
 
-/** How often the pattern starts again. */
 const RING_EVERY_MS = 3000;
 
 /** Each note: when it starts in the pattern, in seconds, and its pitch. */

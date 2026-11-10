@@ -146,7 +146,6 @@ export const JOURNAL_PREFIX = "ownbase-journal:";
 export const OWNER_KEY = "ownbase-device-owner";
 /** Invalidation only, without putting stored content in another transport. */
 export const CHANGE_KEY = "ownbase-device-changed";
-/** The IndexedDB database holding what this device saved. */
 const DATABASE = "ownbase-device";
 const VALUES = "values";
 /** For each key, the last change each tab made to it: `{ [tab]: [seq, at] }`. */
@@ -183,7 +182,6 @@ interface Origin {
 
 interface Backend {
   kind: "indexeddb" | "localstorage";
-  /** The stored text, or null when nothing is stored. */
   read(key: string): Promise<string | null>;
   /**
    * Makes one change in one step, unless `origin` says it was made already,
@@ -472,7 +470,6 @@ interface JournalEntry {
   op: StoreOp;
   at: number;
   seq: number;
-  /** The tab that asked for it. */
   tab: string;
 }
 

@@ -73,7 +73,6 @@ export interface NavigationState {
   cover: { panel: boolean; call: boolean };
 }
 
-/** Where someone asks to go. */
 export type Intent =
   | { to: "conversation"; channelId: ID }
   | { to: "message"; channelId: ID; messageId: ID }
@@ -94,7 +93,6 @@ export type Intent =
 /** The opposite of the query in theme.css that turns the sidebar into a drawer. */
 export const WIDE = "(min-width: 761px) and (min-height: 481px)";
 
-/** Whether the sidebar is a drawer now. */
 export function drawerLayout(): boolean {
   return typeof window.matchMedia === "function" && !window.matchMedia(WIDE).matches;
 }

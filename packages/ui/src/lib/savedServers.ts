@@ -82,7 +82,6 @@ export function isSignInChange(value: unknown): value is SignInChange {
   }
 }
 
-/** What `change` makes of the sign-ins stored now. */
 export function changeSavedServers(stored: SavedServer[], change: SignInChange): SavedServer[] {
   switch (change.kind) {
     case "use": {
