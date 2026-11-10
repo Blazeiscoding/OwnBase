@@ -9,9 +9,10 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon, type IconName } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
+import { useFocusWhenGone } from "../lib/keys.js";
 import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
 import { When } from "./When.js";
@@ -64,17 +65,18 @@ export function MessageListPanel(props: Props) {
   const { panel, heading } = usePanelFocus({ takeFocus: true });
   const shown = (messages ?? []).filter((m) => channels[m.channelId] && (props.keep?.(m) ?? true));
 
+  const focusWhenGone = useFocusWhenGone();
   /** Takes the row out and keeps keyboard focus nearby rather than on the page. */
   function remove(message: Message, from: HTMLElement) {
     const rows = [...(scroller.current?.querySelectorAll<HTMLElement>("[data-list-row]") ?? [])];
     const at = rows.indexOf(from.closest<HTMLElement>("[data-list-row]")!);
     const next = rows[at + 1] ?? rows[at - 1] ?? null;
+    focusWhenGone(
+      () =>
+        (next?.isConnected ? next.querySelector<HTMLElement>("[data-list-open]") : null) ??
+        heading.current,
+    );
     props.remove!.run(message);
-    setTimeout(() => {
-      if (document.activeElement && document.activeElement !== document.body) return;
-      const open = next?.isConnected ? next.querySelector<HTMLElement>("[data-list-open]") : null;
-      (open ?? heading.current)?.focus();
-    });
   }
 
   return (
@@ -223,7 +225,7 @@ export function PinsPanel(props: {
   onJump: (channelId: ID, messageId: ID) => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   // Pinning changes the channel for everyone, which a guest may not.
   const guest = useWorkspace((s) => s.self?.role === "guest");
   /** Unpinned from here, so gone at once rather than when the list is next read. */
@@ -241,7 +243,7 @@ export function PinsPanel(props: {
     mark(!pin);
     const hideUndo = pin
       ? undefined
-      : toast?.({
+      : toast({
           message: "Unpinned.",
           kind: "success",
           action: { label: "Undo", run: () => setPinned(message, true) },
@@ -250,7 +252,7 @@ export function PinsPanel(props: {
       if (!error) return;
       hideUndo?.();
       mark(pin);
-      toast?.({
+      toast({
         message: failureText(
           pin ? "Could not pin that message again." : "Could not unpin that message.",
           error,
@@ -288,7 +290,7 @@ export function SavedPanel(props: {
   onScheduled?: () => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const saved = useWorkspace((s) => s.saved);
   const [list, state] = useOpenList(() => client.lists.saved(), "saved");
 
@@ -299,7 +301,7 @@ export function SavedPanel(props: {
   function setSaved(message: Message, save: boolean) {
     const hideUndo = save
       ? undefined
-      : toast?.({
+      : toast({
           message: "Removed from Saved.",
           kind: "success",
           action: { label: "Undo", run: () => setSaved(message, true) },
@@ -307,7 +309,7 @@ export function SavedPanel(props: {
     void client.toggleSaved(message.id, save).then((error) => {
       if (!error) return;
       hideUndo?.();
-      toast?.({
+      toast({
         message: failureText(
           save ? "Could not put that back in Saved." : "Could not remove that from Saved.",
           error,

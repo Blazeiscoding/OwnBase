@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "re
 import type { AuditEntry, ID, User } from "@ownbase/protocol";
 import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
-import { formatDay, formatTime } from "../lib/format.js";
+import { formatDay, formatTime, possessive } from "../lib/format.js";
 import { ListStatus } from "./ListStatus.js";
 
 /**
@@ -130,11 +130,6 @@ const WHO_CAN_JOIN: Record<string, string> = {
 
 function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
-}
-
-function possessive(text: string): string {
-  if (text === "you") return "your";
-  return text.endsWith("s") ? `${text}'` : `${text}'s`;
 }
 
 /**

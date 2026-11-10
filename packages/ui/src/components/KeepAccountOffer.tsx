@@ -1,7 +1,7 @@
-import { useContext, useEffect, useId, useMemo, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useMemo, useRef, useState } from "react";
 import type { WorkspaceState } from "@ownbase/client-core";
 import type { ID } from "@ownbase/protocol";
-import { PlatformContext, useClient, useWorkspace } from "../context.js";
+import { useClient, usePlatform, useWorkspace } from "../context.js";
 import {
   readWorkspaceStorage,
   workspaceStorageKey,
@@ -43,7 +43,7 @@ export function KeepAccountOffer(props: {
   /** Opens the same form as Create an account in the menus. */
   onKeep: () => void;
 }) {
-  const platform = useContext(PlatformContext);
+  const platform = usePlatform();
   const client = useClient();
   const self = useWorkspace((s) => s.self);
   const workspaceId = useWorkspace((s) => s.workspaceId);
@@ -64,13 +64,12 @@ export function KeepAccountOffer(props: {
     if (!key) return;
     let alive = true;
     const read = async (): Promise<Saved | "unreadable"> => {
-      // Whether it was put away already cannot be told, so it is not offered:
-      // the menus still have Create an account.
-      if (!platform) return "unreadable";
       try {
         const value = await readWorkspaceStorage<Saved>(platform, key);
         return value && typeof value === "object" ? value : {};
       } catch {
+        // Whether it was put away already cannot be told, so it is not offered:
+        // the menus still have Create an account.
         return "unreadable";
       }
     };
@@ -92,12 +91,12 @@ export function KeepAccountOffer(props: {
     if (!key) return;
     setSaved({ key: key.key, value: next });
     // Losing this costs a reload the offer, or the record of a post; nothing to report.
-    if (platform) writeWorkspaceStorage(platform, key, next).catch(() => {});
+    writeWorkspaceStorage(platform, key, next).catch(() => {});
   };
 
+  const notePosted = useEffectEvent((seen: Saved) => save({ ...seen, posted: true }));
   useEffect(() => {
-    if (postedNow && known && !known.posted) save({ ...known, posted: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    if (postedNow && known && !known.posted) notePosted(known);
   }, [postedNow, known]);
 
   if (!open || !key || !known || !(known.posted || postedNow)) return null;

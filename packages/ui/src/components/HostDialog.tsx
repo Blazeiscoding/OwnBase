@@ -28,7 +28,7 @@ import { JoinPolicyChoice } from "./JoinPolicyChoice.js";
 import { CallRelaySettings } from "./CallRelaySettings.js";
 import { QrCode } from "./QrCode.js";
 import { WorkspaceIcon } from "./WorkspaceIcon.js";
-import { useOptionalConfirm } from "./Confirm.js";
+import { useConfirm } from "./Confirm.js";
 import { BreakableAddress } from "./BreakableAddress.js";
 
 type Hosting = NonNullable<Platform["hosting"]>;
@@ -812,7 +812,7 @@ export function HostDialog(props: {
   initialSection?: Section;
 }) {
   const { status, loading, error: statusError, refresh } = props.state;
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   const [name, setName] = useState("");
   const nameInput = useRef<HTMLInputElement>(null);
   /** The port for a new workspace, as typed. Empty for the usual one. */
@@ -1157,7 +1157,7 @@ export function HostDialog(props: {
     if (operationPending.current) return;
     // Signing guests out cannot be taken back, so it is asked first, as
     // Workspace settings asks for the same change.
-    if (livePolicy === "guest_allowed" && next !== "guest_allowed" && confirm) {
+    if (livePolicy === "guest_allowed" && next !== "guest_allowed") {
       const sure = await confirm({
         title: "Sign every guest out?",
         body: "Whoever is signed in as a guest is signed out now, and nobody new can join as one. What guests wrote stays.",

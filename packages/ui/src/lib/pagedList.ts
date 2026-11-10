@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useSyncExternalStore } from "react";
+import { useKeyed } from "./useKeyed.js";
 import { PagedList, type Page } from "@ownbase/client-core";
 
 /** A list a component opens while it shows it, and hears from as it changes. */
@@ -13,8 +14,7 @@ interface Openable {
  * A change of `key` is a different list, made by `make` and read from the top.
  */
 export function useOpenList<L extends Openable>(make: () => L, key: string): [L, L["current"]] {
-  // eslint-disable-next-line react-hooks/exhaustive-deps -- a list is made again only for another key
-  const list = useMemo(make, [key]);
+  const list = useKeyed(key, make);
   const state = useSyncExternalStore(list.subscribe, () => list.current);
   useEffect(() => list.open(), [list]);
   return [list, state];
@@ -41,7 +41,6 @@ export function usePagedList<T extends { id: string }>(
   useEffect(() => {
     list.start({ keep });
     return () => list.stop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- a list keeps rows or not for good
-  }, [list, key]);
+  }, [list, key, keep]);
   return { ...state, list };
 }

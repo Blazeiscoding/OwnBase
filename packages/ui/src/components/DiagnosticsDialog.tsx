@@ -4,6 +4,7 @@ import { ApiError, selfIsAdministrator } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { CALL_LOG_HEADING, diagnosticsFileName, diagnosticsReport } from "../lib/diagnostics.js";
 import { useCopy } from "../lib/useCopy.js";
+import { saveText } from "../lib/download.js";
 import { Dialog } from "./Dialog.js";
 import { Swap } from "./Motion.js";
 import { buttonClass } from "./Button.js";
@@ -18,20 +19,6 @@ function orWhy<T>(answer: T | ApiError): T | Failed {
   if (!(answer instanceof ApiError)) return answer;
   if (answer.status === 403) return { error: "only the owner and admins can read it" };
   return failure(answer);
-}
-
-/**
- * Hands the report to the browser or desktop app as a text file. Nothing is
- * sent anywhere; where it goes from the downloads folder is up to the person.
- */
-function saveReport(text: string, name: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
-  // Long enough for the download to have read it, in every browser.
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /**
@@ -159,7 +146,7 @@ export function DiagnosticsDialog({
           onClick={() => {
             if (!report) return;
             const name = diagnosticsFileName(report.taken);
-            saveReport(report.text, name);
+            saveText(report.text, name);
             setSaved(name);
           }}
         >

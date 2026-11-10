@@ -38,7 +38,7 @@ import { useConfirm } from "./Confirm.js";
 import { ListStatus } from "./ListStatus.js";
 import { buttonClass } from "./Button.js";
 import { Icon } from "./Icon.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 
 /** What an integration can rely on from this server, and where it differs from Slack. */
 const INTEGRATION_CONTRACT_URL =
@@ -105,7 +105,7 @@ function SectionLabel({ children }: { children: React.ReactNode }) {
 /** Admin view for integrations: bot tokens, webhooks, commands and events. */
 export function AppsDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const confirm = useConfirm();
   const channels = useWorkspace((s) => s.channels);
   const [apps, setApps] = useState<AppDetail[] | null>(null);
@@ -428,7 +428,7 @@ export function AppsDialog({ onClose }: { onClose: () => void }) {
                           await client.apps.removeWebhook(w.id);
                           load();
                         } catch {
-                          toast?.({
+                          toast({
                             message: `Could not remove the webhook for #${room}. Check your connection and try again.`,
                             kind: "error",
                           });
@@ -953,13 +953,13 @@ function CommandTemplate({
  * as SecretRow does, and copied whole either way.
  */
 function Example({ label, code, secret }: { label: string; code: string; secret?: string }) {
-  const toast = useOptionalToast();
+  const toast = useToast();
   const { copy, label: copyLabel, copied } = useCopy();
   const [revealed, setRevealed] = useState(false);
   const shown = secret && !revealed ? code.replaceAll(secret, "•".repeat(24)) : code;
 
   async function copyCode() {
-    if (await copy(code)) toast?.({ message: `${label} copied.`, kind: "success" });
+    if (await copy(code)) toast({ message: `${label} copied.`, kind: "success" });
   }
 
   return (

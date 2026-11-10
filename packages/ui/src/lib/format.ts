@@ -115,3 +115,9 @@ export function initials(name: string): string {
   const parts = name.trim().split(/\s+/);
   return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 }
+
+/** "Sam's", "James'", and "your" for "you". */
+export function possessive(name: string): string {
+  if (name === "you") return "your";
+  return name.endsWith("s") ? `${name}'` : `${name}'s`;
+}

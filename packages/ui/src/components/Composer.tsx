@@ -29,7 +29,7 @@ import { useMentionField } from "../lib/useMentionField.js";
 import { useListbox } from "../lib/useListbox.js";
 import { SuggestionList, useSuggestions } from "./Suggestions.js";
 import { appCommand, runAppCommand, withAppCommands } from "../lib/appCommands.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import {
   readWorkspaceStorage,
   workspaceStorageKey,
@@ -141,7 +141,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
   /** The conversation this box writes to now, for a send that settles later. */
   const currentDraftKey = useRef(draftKey);
   currentDraftKey.current = draftKey;
-  const toast = useOptionalToast();
+  const toast = useToast();
   /** A command the app runs, still running: Enter again waits for it. */
   const runningCommand = useRef(false);
   /** The saved draft as this composer last wrote or took it; typing since is unsaved. */
@@ -478,7 +478,7 @@ export function Composer({ channelId, threadRootId, placeholder, autoFocus, onLe
             setSendRefusal(outcome.said);
             return;
           }
-          toast?.({ message: outcome.said, kind: "success" });
+          toast({ message: outcome.said, kind: "success" });
           if (key === currentDraftKey.current) {
             suggestions.close();
             clearSent(key);

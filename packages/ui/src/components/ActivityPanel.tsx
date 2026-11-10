@@ -13,11 +13,12 @@ import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
+import { useFocusWhenGone } from "../lib/keys.js";
 import { useTabs } from "../lib/useTabs.js";
 import { useOpenList } from "../lib/pagedList.js";
 import { dropRepeatClick } from "../lib/repeatClick.js";
@@ -116,7 +117,7 @@ export function ActivityPanel({
   onOpenChannel: (channelId: ID) => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const removals = useWorkspace((s) => s.channelRemovals);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
@@ -180,7 +181,7 @@ export function ActivityPanel({
   function readRemovals(ids: ID[]) {
     void client.readChannelRemovals(ids).then((error) => {
       if (error)
-        toast?.({
+        toast({
           message: failureText("Could not mark that read.", error),
           kind: "error",
         });
@@ -198,7 +199,7 @@ export function ActivityPanel({
       onOpenChannel(removal.channelId);
       return;
     }
-    toast?.({
+    toast({
       message:
         removal.channelType === "private"
           ? `#${removal.channelName} is private. Only someone in it can add you back.`
@@ -238,17 +239,18 @@ export function ActivityPanel({
    * where it stays (Mentions), else the next row, the one before, or the tab
    * when none is left.
    */
+  const focusWhenGone = useFocusWhenGone();
   function keepFocusFrom(row: HTMLElement | null) {
     const rows = [
       ...(scroller.current?.querySelectorAll<HTMLElement>("[data-activity-row]") ?? []),
     ];
     const at = row ? rows.indexOf(row) : -1;
     const next = rows[at + 1] ?? rows[at - 1] ?? null;
-    setTimeout(() => {
-      if (document.activeElement && document.activeElement !== document.body) return;
-      const target = row?.isConnected ? row : next?.isConnected ? next : null;
-      (target ?? document.getElementById(tabs.tabProps(mode).id))?.focus();
-    });
+    focusWhenGone(
+      () =>
+        (row?.isConnected ? row : next?.isConnected ? next : null) ??
+        document.getElementById(tabs.tabProps(mode).id),
+    );
   }
 
   return (

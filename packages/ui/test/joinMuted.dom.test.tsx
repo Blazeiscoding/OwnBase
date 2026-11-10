@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
@@ -56,7 +57,7 @@ describe("joining huddles with the microphone off", () => {
     const user = userEvent.setup();
     const { client, set, wrap } = setup();
     vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
-    render(wrap(<AccountDialog onClose={() => {}} onSignedOut={() => {}} section="calls" />));
+    render(wrap(<AccountDialog onClose={() => {}} section="calls" />));
     const panel = screen.getByRole("tabpanel", { name: "Voice & video" });
     const box = within(panel).getByRole("checkbox", {
       name: "Join huddles with my microphone off",

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { QuickSwitcherLoading, type EarlyTyping } from "../src/components/QuickSwitcherLoading.js";
 import { accessibilityProblems } from "./accessibility.js";

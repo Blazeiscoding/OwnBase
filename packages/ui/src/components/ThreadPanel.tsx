@@ -22,7 +22,7 @@ import type { ReadingPosition } from "../lib/route.js";
 import { rememberThreadPosition, rememberedThreadPosition } from "../lib/threadPosition.js";
 import { channelTitle } from "../lib/format.js";
 import { writeClipboard } from "../lib/useCopy.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 
 interface Props {
@@ -45,7 +45,7 @@ export function ThreadPanel({
   onOpenProfile,
 }: Props) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   // The reply box takes focus itself; the panel only hands it back on closing.
   const { panel } = usePanelFocus({ takeFocus: false });
   const page = useWorkspace((s) => s.threadPages[rootId]);
@@ -228,7 +228,7 @@ export function ThreadPanel({
               onClick={() =>
                 void client.setThreadFollow(rootId, !follows).then((error) => {
                   if (error)
-                    toast?.({
+                    toast({
                       message: failureText(
                         follows ? "Could not stop following." : "Could not follow this thread.",
                         error,
@@ -261,7 +261,7 @@ export function ThreadPanel({
               onClick={() =>
                 void client.setThreadMute(rootId, !muted).then((error) => {
                   if (error)
-                    toast?.({
+                    toast({
                       message: failureText(
                         muted ? "Could not unmute this thread." : "Could not mute this thread.",
                         error,
@@ -418,7 +418,7 @@ export function ThreadPanel({
  * delete; it stays in Drafts until then.
  */
 function UnsentReply(props: { text: string; onDelete: () => void }) {
-  const toast = useOptionalToast();
+  const toast = useToast();
   return (
     <div role="group" aria-label="Your unsent reply" className="border-t border-edge px-5 py-3">
       <p className="text-[13px] text-ink-faint">Your reply was not sent.</p>
@@ -430,7 +430,7 @@ function UnsentReply(props: { text: string; onDelete: () => void }) {
           type="button"
           onClick={() =>
             void writeClipboard(props.text).then((ok) =>
-              toast?.(
+              toast(
                 ok
                   ? { message: "Reply copied.", kind: "success" }
                   : { message: "Could not copy the reply.", kind: "error" },

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { PlatformContext } from "../src/context.js";
 import type { Platform } from "../src/platform.js";

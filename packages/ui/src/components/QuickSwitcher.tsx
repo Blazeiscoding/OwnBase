@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useEffectEvent, useMemo, useRef, useState } from "react";
 import type { ID } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
 import { channelTitle } from "../lib/format.js";
@@ -253,15 +253,15 @@ export function QuickSwitcher(props: {
     }
   }
 
+  // Once, as the palette arrives: the Enter was for what had been typed then.
   const openedAtOnce = useRef(false);
-  useEffect(() => {
+  const openAtOnce = useEffectEvent(() => {
     if (!props.openAtOnce || openedAtOnce.current) return;
     openedAtOnce.current = true;
     const chosen = results[list.active];
     if (chosen) void open(chosen);
-    // Once, as the palette arrives: the Enter was for what had been typed then.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
+  useEffect(() => openAtOnce(), []);
 
   const query = q.trim();
 

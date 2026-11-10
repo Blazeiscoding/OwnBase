@@ -1,4 +1,4 @@
-import { useContext, useEffect, useRef, useState } from "react";
+import { useContext, useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   captureFailure,
   testMicrophone,
@@ -57,17 +57,18 @@ export function MicrophoneCheck({
   const echo = useRef<HTMLAudioElement>(null);
   useSpeaker(echo, speakerId);
 
+  const startIfAsked = useEffectEvent(() => {
+    if (autoStart) void start();
+  });
   useEffect(() => {
     alive.current = true;
-    if (autoStart) void start();
+    startIfAsked();
     return () => {
       alive.current = false;
       attempt.current++;
       test.current?.stop();
       test.current = null;
     };
-    // Only on opening.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function start() {
@@ -121,12 +122,13 @@ export function MicrophoneCheck({
   // open that one in place of the one being heard.
   const chosen = JSON.stringify(settings);
   const heard = useRef(chosen);
+  const restart = useEffectEvent(() => {
+    if (test.current) void start();
+  });
   useEffect(() => {
     if (heard.current === chosen) return;
     heard.current = chosen;
-    if (test.current) void start();
-    // Only a change of choice restarts it.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    restart();
   }, [chosen]);
 
   useEffect(() => {

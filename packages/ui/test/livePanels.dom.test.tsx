@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, ThreadFollow, User } from "@ownbase/protocol";
 import { ClientContext } from "../src/context.js";

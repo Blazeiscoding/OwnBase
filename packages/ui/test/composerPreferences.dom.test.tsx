@@ -1,4 +1,5 @@
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, User } from "@ownbase/protocol";
@@ -139,7 +140,7 @@ describe("the Composing settings", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={workspace()}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="composing" />
+          <AccountDialog onClose={() => {}} section="composing" />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

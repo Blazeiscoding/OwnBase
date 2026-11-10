@@ -1,9 +1,15 @@
 import { useStore } from "zustand";
 import { createStore, type StoreApi } from "zustand/vanilla";
-import type { MicrophoneSettings, WorkspaceClient } from "@ownbase/client-core";
+import {
+  SCREEN_SHARE_QUALITY,
+  type MicrophoneSettings,
+  type ScreenShareQuality,
+  type WorkspaceClient,
+} from "@ownbase/client-core";
 import { usePlatform } from "../context.js";
 import type { Platform } from "../platform.js";
 import { noiseFilter } from "./noiseFilter.js";
+import { qualityOf } from "./screenShareQuality.js";
 import { systemMicrophoneOpener } from "./systemMicrophone.js";
 
 /**
@@ -21,7 +27,17 @@ export interface CallDevices {
   autoGainControl?: boolean;
 }
 
-interface Preferences {
+/** How a screen is shared from this device: what was last chosen, for the next share. */
+export interface ScreenShareChoice {
+  quality: ScreenShareQuality;
+  /** Whether the desktop app sends the screen's sound with it. */
+  sound: boolean;
+}
+
+const SHARE_AS_SENT: ScreenShareChoice = { quality: SCREEN_SHARE_QUALITY, sound: true };
+
+/** What is kept on this device, all under one key. */
+interface Kept {
   /** Join huddles with the microphone off (CALL-01). */
   joinMuted: boolean;
   devices: CallDevices;
@@ -30,6 +46,12 @@ interface Preferences {
    * or chose one in settings, so a join no longer asks.
    */
   devicesChecked: boolean;
+  /** Absent until a share is set up here: the defaults. */
+  screenShare?: ScreenShareChoice;
+}
+
+interface Preferences extends Omit<Kept, "screenShare"> {
+  screenShare: ScreenShareChoice;
   /** A join is waiting for that answer; the workspace shows the question. */
   checkingDevices: boolean;
   loaded: boolean;
@@ -58,9 +80,17 @@ interface Preferences {
    * call, or null to join nothing and ask again next time.
    */
   finishDeviceCheck: (choice: Pick<CallDevices, "microphoneId" | "cameraId"> | null) => void;
+  /**
+   * Keeps how the next share goes. It applies at once, for this session even
+   * if it could not be kept.
+   */
+  setScreenShare: (patch: Partial<ScreenShareChoice>) => void;
 }
 
 const KEY = "call-preferences";
+/** Where the screen-share choice was kept before it joined the rest; moved on first read. */
+const OLD_QUALITY_KEY = "screen-share-quality";
+const OLD_SOUND_KEY = "screen-share-sound";
 const stores = new WeakMap<Platform, ReturnType<typeof createPreferences>>();
 
 /**
@@ -81,6 +111,19 @@ function devicesOf(saved: Record<string, unknown>): CallDevices {
   return devices as CallDevices;
 }
 
+function shareOf(saved: unknown): ScreenShareChoice | undefined {
+  if (!saved || typeof saved !== "object") return undefined;
+  const { quality, sound } = saved as Record<string, unknown>;
+  return { quality: qualityOf(quality), sound: sound !== false };
+}
+
+const recordOf = ({ joinMuted, devices, devicesChecked, screenShare }: Kept) => ({
+  joinMuted,
+  ...devices,
+  ...(devicesChecked ? { devicesChecked } : {}),
+  ...(screenShare ? { screenShare } : {}),
+});
+
 /** The microphone a huddle opens, as the session takes it. */
 export function microphoneOf({
   microphoneId,
@@ -96,28 +139,30 @@ function createPreferences(platform: Platform) {
   let loadVersion = 0;
   /** Gives a join waiting on the device question its answer. */
   let answer: ((choice: CallDevices | null) => void) | null = null;
-  const write = (
-    joinMuted: boolean,
-    devices: CallDevices,
-    devicesChecked: boolean,
-  ): Promise<boolean> => {
+  /** What storage holds, as far as this window knows: each write is it with one change. */
+  let kept: Kept = { joinMuted: true, devices: {}, devicesChecked: false };
+  let writes: Promise<unknown> = Promise.resolve();
+  let shareChosen = false;
+  /** Writes one change over what is kept, one write at a time, so none undoes another. */
+  const keep = (patch: Partial<Kept>): Promise<void> => {
+    const writing = writes.then(async () => {
+      const next = { ...kept, ...patch };
+      await platform.storage.set(KEY, recordOf(next));
+      kept = next;
+    });
+    writes = writing.catch(() => {});
+    return writing;
+  };
+  const write = (patch: Omit<Kept, "screenShare">): Promise<boolean> => {
     // Another choice is being kept, so this one is not.
     if (store.getState().saving) return initialization.then(() => false);
     // An explicit acknowledged choice supersedes every older preference read.
     const version = ++loadVersion;
     const known = store.getState().loaded;
     store.setState({ saving: true, error: null });
-    const writing = Promise.resolve()
-      .then(() =>
-        platform.storage.set(KEY, {
-          joinMuted,
-          ...devices,
-          ...(devicesChecked ? { devicesChecked } : {}),
-        }),
-      )
+    const writing = keep(patch)
       .then(() => {
-        if (version === loadVersion)
-          store.setState({ joinMuted, devices, devicesChecked, loaded: true, unreadable: false });
+        if (version === loadVersion) store.setState({ ...patch, loaded: true, unreadable: false });
         return true;
       })
       .catch(() => {
@@ -159,6 +204,7 @@ function createPreferences(platform: Platform) {
     joinMuted: true,
     devices: {},
     devicesChecked: false,
+    screenShare: SHARE_AS_SENT,
     checkingDevices: false,
     loaded: false,
     saving: false,
@@ -166,13 +212,17 @@ function createPreferences(platform: Platform) {
     unreadable: false,
     setJoinMuted: (joinMuted) => {
       const { devices, devicesChecked } = store.getState();
-      return write(joinMuted, devices, devicesChecked);
+      return write({ joinMuted, devices, devicesChecked });
     },
     setDevices: (patch) => {
       const { joinMuted, devices, devicesChecked } = store.getState();
       // Choosing a microphone or camera in settings answers the question too.
       const chose = "microphoneId" in patch || "cameraId" in patch;
-      return write(joinMuted, devicesOf({ ...devices, ...patch }), devicesChecked || chose);
+      return write({
+        joinMuted,
+        devices: devicesOf({ ...devices, ...patch }),
+        devicesChecked: devicesChecked || chose,
+      });
     },
     retryLoad: () => (store.getState().saving ? initialization : (initialization = load())),
     joinHuddle: async (client, channelId, stillWanted = () => true) => {
@@ -212,9 +262,22 @@ function createPreferences(platform: Platform) {
       store.setState({ checkingDevices: false });
       if (choice) {
         const { joinMuted, devices } = store.getState();
-        void write(joinMuted, devicesOf({ ...devices, ...choice }), true);
+        void write({
+          joinMuted,
+          devices: devicesOf({ ...devices, ...choice }),
+          devicesChecked: true,
+        });
       }
       waiting?.(choice);
+    },
+    setScreenShare: (patch) => {
+      shareChosen = true;
+      const screenShare = { ...store.getState().screenShare, ...patch };
+      store.setState({ screenShare });
+      // Not over what could not be read: that would also lose the device choices.
+      void initialization
+        .then(() => (store.getState().unreadable ? undefined : keep({ screenShare })))
+        .catch(() => {});
     },
   }));
   function load(): Promise<void> {
@@ -228,7 +291,7 @@ function createPreferences(platform: Platform) {
     });
     return Promise.resolve()
       .then(() => platform.storage.get<unknown>(KEY, { strict: true }))
-      .then((saved) => {
+      .then(async (saved) => {
         if (version !== loadVersion) return;
         if (
           saved !== null &&
@@ -237,13 +300,20 @@ function createPreferences(platform: Platform) {
             typeof (saved as { joinMuted?: unknown }).joinMuted !== "boolean")
         )
           throw new Error("Unreadable call preferences");
+        const record = (saved ?? {}) as Record<string, unknown>;
+        kept = {
+          joinMuted: record.joinMuted === true,
+          devices: devicesOf(record),
+          devicesChecked: record.devicesChecked === true,
+          screenShare: shareOf(record.screenShare),
+        };
         store.setState({
-          joinMuted: saved !== null && (saved as { joinMuted: boolean }).joinMuted,
-          devices: saved === null ? {} : devicesOf(saved as Record<string, unknown>),
-          devicesChecked: (saved as { devicesChecked?: unknown } | null)?.devicesChecked === true,
+          ...kept,
+          screenShare: kept.screenShare ?? store.getState().screenShare,
           loaded: true,
           unreadable: false,
         });
+        if (!kept.screenShare) await moveScreenShare().catch(() => {});
       })
       .catch(() => {
         if (version !== loadVersion) return;
@@ -256,6 +326,24 @@ function createPreferences(platform: Platform) {
             "Could not load your call preferences. Until they load, huddles start with your microphone off.",
         });
       });
+  }
+  /** Brings a share choice kept under its old keys across, once. */
+  async function moveScreenShare() {
+    const [quality, sound] = await Promise.all([
+      platform.storage.get<unknown>(OLD_QUALITY_KEY).catch(() => null),
+      platform.storage.get<unknown>(OLD_SOUND_KEY).catch(() => null),
+    ]);
+    if (quality === null && sound === null) return;
+    // A share set up meanwhile is newer.
+    if (!shareChosen) {
+      const screenShare = shareOf({ quality, sound })!;
+      store.setState({ screenShare });
+      await keep({ screenShare });
+    }
+    await Promise.all([
+      platform.storage.set(OLD_QUALITY_KEY, null),
+      platform.storage.set(OLD_SOUND_KEY, null),
+    ]);
   }
   initialization = load();
   return store;

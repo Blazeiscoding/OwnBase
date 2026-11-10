@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useId, useRef, useState } from "react";
 import {
   cameraConstraints,
   canChooseSpeaker,
@@ -10,6 +10,7 @@ import { useClient } from "../context.js";
 import { microphoneOf, useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices, useSpeaker } from "../lib/mediaDevices.js";
 import { useSaved } from "../lib/savedNote.js";
+import { settingMark } from "../lib/settingsSearch.js";
 import { inputCls } from "./TextField.js";
 import { MicrophoneCheck } from "./MicrophoneCheck.js";
 import { buttonClass } from "./Button.js";
@@ -119,7 +120,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
         </div>
       )}
 
-      <div className="space-y-1">
+      <div {...settingMark("microphone")} className="space-y-1">
         <h4 className="text-sm font-semibold">Microphone</h4>
         <DeviceSelect
           label="Microphone"
@@ -138,7 +139,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
       </div>
 
       {speakers && (
-        <div className="space-y-1">
+        <div {...settingMark("speaker")} className="space-y-1">
           <h4 className="text-sm font-semibold">Speaker</h4>
           <DeviceSelect
             label="Speaker"
@@ -154,7 +155,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
         </div>
       )}
 
-      <fieldset className="space-y-3">
+      <fieldset {...settingMark("noise-suppression")} className="space-y-3">
         <legend className="text-sm font-semibold">Noise suppression</legend>
         {NOISE.map(({ level, label, hint, patch }) => (
           <label key={level} className="flex items-start gap-2 text-sm">
@@ -174,7 +175,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
         ))}
       </fieldset>
 
-      <fieldset className="space-y-3">
+      <fieldset {...settingMark("voice-processing")} className="space-y-3">
         <legend className="text-sm font-semibold">Voice processing</legend>
         {PROCESSING.map(({ key, label, hint }) => (
           <label key={key} className="flex items-start gap-2 text-sm">
@@ -193,7 +194,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
         ))}
       </fieldset>
 
-      <div className="space-y-1">
+      <div {...settingMark("camera")} className="space-y-1">
         <h4 className="text-sm font-semibold">Camera</h4>
         <DeviceSelect
           label="Camera"
@@ -208,7 +209,7 @@ export function VoiceVideoSettings({ titled = true }: { titled?: boolean } = {})
 
       <div>
         <h4 className="text-sm font-semibold">Joining</h4>
-        <label className="mt-2 flex items-center gap-2 text-sm">
+        <label {...settingMark("join-muted")} className="mt-2 flex items-center gap-2 text-sm">
           <input
             type="checkbox"
             checked={calls.joinMuted}
@@ -389,6 +390,7 @@ export function CameraPreview({
   const [failure, setFailure] = useState<string | null>(null);
   const descriptionId = useId();
 
+  const told = useEffectEvent(() => onOpened());
   useEffect(() => {
     if (!on) return;
     let alive = true;
@@ -405,7 +407,7 @@ export function CameraPreview({
         stream = opened;
         if (video.current) video.current.srcObject = opened;
         setState("showing");
-        onOpened();
+        told();
       })
       .catch((err: unknown) => {
         if (!alive) return;
@@ -418,8 +420,6 @@ export function CameraPreview({
       stream?.getTracks().forEach((track) => track.stop());
       if (video.current) video.current.srcObject = null;
     };
-    // A fresh `onOpened` is no reason to open the camera again.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [on, cameraId]);
 
   return (

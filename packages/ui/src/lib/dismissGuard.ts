@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useRef } from "react";
-import { useOptionalConfirm } from "../components/Confirm.js";
+import { useConfirm } from "../components/Confirm.js";
 
 /**
  * What closing a dialog would lose, asked about before it goes: changes not
@@ -27,7 +27,7 @@ export const GuardContext = createContext<GuardRegistry | null>(null);
 
 /** A dialog's guards, made once; `Modal` makes its own unless given one. */
 export function useGuardRegistry(): GuardRegistry {
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   const confirmRef = useRef(confirm);
   confirmRef.current = confirm;
   const registry = useRef<GuardRegistry | null>(null);
@@ -41,7 +41,7 @@ export function useGuardRegistry(): GuardRegistry {
           .map((entry) => (typeof entry.current === "function" ? entry.current() : entry.current))
           .find(Boolean);
         const ask = confirmRef.current;
-        if (!guard || !ask) return go();
+        if (!guard) return go();
         // A second Escape while the question is up is the question's.
         if (asking) return;
         asking = true;

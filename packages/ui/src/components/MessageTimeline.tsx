@@ -198,29 +198,9 @@ export const MessageTimeline = memo(function MessageTimeline({
     } catch {
       if (historyRequest.current === ticket) setHistoryError(kind);
     } finally {
-      requestAnimationFrame(() => {
-        if (historyRequest.current === ticket) setLoadingHistory(null);
-      });
+      if (historyRequest.current === ticket) setLoadingHistory(null);
     }
   }
-  // Bring the jumped-to message into view once it has rendered.
-  useEffect(() => {
-    if (!highlightMessageId) return;
-    pinnedToBottom.current = false;
-    settlingJump.current = true;
-    const frame = requestAnimationFrame(() => {
-      highlightRef.current?.scrollIntoView({ block: "center" });
-    });
-    // scrollIntoView fires scroll events of its own; ignore them.
-    const settle = setTimeout(() => {
-      settlingJump.current = false;
-      lastScrollTop.current = scroller.current?.scrollTop ?? 0;
-    }, 500);
-    return () => {
-      cancelAnimationFrame(frame);
-      clearTimeout(settle);
-    };
-  }, [highlightMessageId, items.length]);
   const typers = Object.keys(typing ?? {})
     .filter((id) => id !== selfId)
     .map((id) => users[id]?.displayName ?? "someone");
@@ -406,6 +386,22 @@ export const MessageTimeline = memo(function MessageTimeline({
       historyRequest.current = null;
     }
   });
+
+  // Bring the jumped-to message into view once it has rendered. After the
+  // effects above, which move the scroller for rows trimmed or loaded.
+  useLayoutEffect(() => {
+    if (!highlightMessageId) return;
+    pinnedToBottom.current = false;
+    settlingJump.current = true;
+    highlightRef.current?.scrollIntoView({ block: "center" });
+    // The browser sends the scroll events this causes a frame or more later,
+    // and none says they are over; until then they are not the reader's.
+    const settle = setTimeout(() => {
+      settlingJump.current = false;
+      lastScrollTop.current = scroller.current?.scrollTop ?? 0;
+    }, 500);
+    return () => clearTimeout(settle);
+  }, [highlightMessageId, items.length]);
 
   // The scroller is reused across channels, so its position carries over.
   useEffect(() => {

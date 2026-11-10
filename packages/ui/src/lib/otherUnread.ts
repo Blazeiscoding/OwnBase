@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
+import { useKeyed } from "./useKeyed.js";
 import { Api } from "@ownbase/client-core";
 import type { UnreadSummary } from "@ownbase/protocol";
 
@@ -27,12 +28,14 @@ export function useOtherWorkspacesUnread(
 ): Record<string, UnreadSummary> {
   // One identity per set of sign-ins, so a re-render with the same ones asks nothing.
   const key = sources.map((s) => `${s.url}\n${s.token}`).join("\n\n");
-  const stable = useMemo(() => sources, [key]); // eslint-disable-line react-hooks/exhaustive-deps
+  const stable = useKeyed(key, () => sources);
+  // A way to ask, not something asked about.
+  const apiFor = useEffectEvent((url: string, token: string) => makeApi(url, token));
   const [waiting, setWaiting] = useState<Record<string, UnreadSummary>>({});
 
   useEffect(() => {
     let alive = true;
-    const apis = stable.map((s) => ({ url: s.url, api: makeApi(s.url, s.token) }));
+    const apis = stable.map((s) => ({ url: s.url, api: apiFor(s.url, s.token) }));
     // Whatever was known of a workspace no longer listed goes with it.
     setWaiting((was) =>
       Object.fromEntries(Object.entries(was).filter(([url]) => apis.some((a) => a.url === url))),
@@ -79,8 +82,6 @@ export function useOtherWorkspacesUnread(
       window.removeEventListener("online", again);
       document.removeEventListener("visibilitychange", seen);
     };
-    // makeApi is a way to ask, not something asked about.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stable]);
 
   return waiting;

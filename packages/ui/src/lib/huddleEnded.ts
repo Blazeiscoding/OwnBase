@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { useWorkspace } from "../context.js";
-import { useOptionalToast } from "../components/Toast.js";
+import { useToast } from "../components/Toast.js";
 
 /**
  * Says once why a call ended without the person leaving it: joined on
@@ -10,8 +10,8 @@ import { useOptionalToast } from "../components/Toast.js";
  */
 export function useHuddleEndedNotice(): void {
   const ended = useWorkspace((s) => s.huddleEnded);
-  const toast = useOptionalToast();
+  const toast = useToast();
   useEffect(() => {
-    if (ended && toast) toast({ message: ended.message, kind: ended.error ? "error" : "success" });
+    if (ended) toast({ message: ended.message, kind: ended.error ? "error" : "success" });
   }, [ended, toast]);
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { render, screen, waitFor, within } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { User } from "@ownbase/protocol";
@@ -43,7 +44,7 @@ describe("what notifications show", () => {
     render(
       <PlatformContext.Provider value={platform}>
         <ClientContext.Provider value={client}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="notifications" />
+          <AccountDialog onClose={() => {}} section="notifications" />
         </ClientContext.Provider>
       </PlatformContext.Provider>,
     );

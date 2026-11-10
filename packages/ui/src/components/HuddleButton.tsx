@@ -9,7 +9,7 @@ import { huddleNames } from "../lib/huddleView.js";
 import { namesList } from "../lib/catchUp.js";
 import { channelTitle } from "../lib/format.js";
 import { useTryNotice } from "./Toast.js";
-import { useOptionalConfirm } from "./Confirm.js";
+import { useConfirm } from "./Confirm.js";
 import type { WorkspaceClient } from "@ownbase/client-core";
 
 /**
@@ -19,11 +19,11 @@ import type { WorkspaceClient } from "@ownbase/client-core";
  */
 export async function confirmHuddleSwitch(
   client: WorkspaceClient,
-  confirm: ReturnType<typeof useOptionalConfirm>,
+  confirm: ReturnType<typeof useConfirm>,
   channelId: ID,
 ): Promise<boolean> {
   const current = client.state.huddle;
-  if (!current || current.channelId === channelId || !confirm) return true;
+  if (!current || current.channelId === channelId) return true;
   const state = client.state;
   const channel = state.channels[current.channelId];
   const where = !channel
@@ -50,10 +50,9 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   const inThis = useWorkspace((s) => s.huddle?.channelId === channelId);
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
-  const [error, setError] = useState<string | null>(null);
   const [joining, setJoining] = useState(false);
   const calls = useCallPreferences();
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   const notice = useTryNotice();
   const currentRoom = useRef({ client, channelId });
   currentRoom.current = { client, channelId };
@@ -68,7 +67,6 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
   const count = inside.length;
 
   async function join() {
-    setError(null);
     // The last try's failure is old news, whether this one works or not.
     notice.clear();
     if (!(await confirmHuddleSwitch(client, confirm, channelId))) return;
@@ -84,13 +82,7 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
       );
     } catch (err) {
       const message = err instanceof Error ? err.message : "Could not join this huddle.";
-      // A notice stays until read; the button had room for a few words for four seconds.
-      if (!notice.show({ message, kind: "error" }) && mounted.current) {
-        setError(message);
-        setTimeout(() => {
-          if (mounted.current) setError(null);
-        }, 4000);
-      }
+      notice.show({ message, kind: "error" });
     } finally {
       if (mounted.current) setJoining(false);
     }
@@ -119,16 +111,12 @@ export function HuddleButton({ channelId }: { channelId: ID }) {
         disabled={joining}
         aria-label={label}
         className={`mr-1 flex h-8 items-center gap-1.5 rounded-full border px-3 text-[13px] font-medium transition-colors ${
-          error
-            ? "border-alert/40 text-alert"
-            : count > 0
-              ? "border-online/30 bg-online/12 text-online hover:bg-online/20"
-              : "border-edge text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
+          count > 0
+            ? "border-online/30 bg-online/12 text-online hover:bg-online/20"
+            : "border-edge text-ink-dim hover:bg-ink/[0.05] hover:text-ink"
         }`}
       >
-        {error ? (
-          <span role="alert">{error}</span>
-        ) : joining ? (
+        {joining ? (
           "Joining…"
         ) : (
           <>

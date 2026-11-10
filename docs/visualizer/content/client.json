@@ -518,10 +518,11 @@
     },
     {
       "path": "packages/ui/src/lib/keys.ts",
-      "plain": "The shared rules for keys and focus: whether a key is the page's to act on, window key listeners, and focus after a render.",
-      "summary": "pageKey, useWindowKeys and useFocusAfterRender.",
+      "plain": "The shared rules for keys and focus: whether a key is the page's to act on, window key listeners, focus after a render, and focus kept near a control that goes.",
+      "summary": "pageKey, useWindowKeys, useFocusAfterRender and useFocusWhenGone.",
       "details": [
-        "pageKey turns down a key already used, one an input method is assembling a word with, and one under an open dialog, which owns its keys."
+        "pageKey turns down a key already used, one an input method is assembling a word with, and one under an open dialog, which owns its keys.",
+        "useFocusWhenGone is for a row's Mark read or Remove: once a render has taken away what held focus, focus moves to the next row or the heading. It waits as many renders as the removal takes, which may be the server's answer, and gives up once focus has gone anywhere else."
       ],
       "concepts": ["keyboard", "focus"]
     },
@@ -826,10 +827,29 @@
       "plain": "Lets a setting that saves itself tell the settings around it that it was kept, so they can say \"Saved\" quietly.",
       "summary": "A React context through which self-saving settings report a kept choice.",
       "details": [
-        "Account settings and Workspace settings provide the function, and SettingsWindow shows \"Saved\" for two seconds. Outside them the default does nothing, so the same controls in a huddle's menu need no change.",
+        "Account settings and Workspace settings get the flag and the function from useSavedNote and provide the function, and SettingsWindow shows \"Saved\" for two seconds. Outside them the default does nothing, so the same controls in a huddle's menu need no change.",
         "Callers report only after the save succeeds: the preference stores' setters resolve true once a choice is kept and false when it could not be, or when another save was still running."
       ],
       "concepts": ["save feedback", "react context"]
+    },
+    {
+      "path": "packages/ui/src/lib/download.ts",
+      "plain": "Hands a file or a piece of text to the browser or desktop app as a download, without sending it anywhere.",
+      "summary": "saveUrl and saveText: downloads through a temporary link.",
+      "details": [
+        "saveUrl clicks a link with a download name; attachments and the lightbox use it for files they have already fetched.",
+        "saveText wraps text in a blob URL for the diagnostics report and the recovery codes, and frees it 30 seconds later, long enough for every browser to have read it."
+      ],
+      "concepts": ["downloads"]
+    },
+    {
+      "path": "packages/ui/src/lib/useKeyed.ts",
+      "plain": "Keeps a list or value the same while what it says stays the same, so work that depends on it runs only for a real change.",
+      "summary": "useKeyed(key, make): the value made when the key last changed.",
+      "details": [
+        "A new array of the same ids keeps the old one's identity, so effects and memos list it as a dependency honestly. The client's side lists (useOpenList), the other workspaces' unread checks, the call announcer, live search and the shareable address use it."
+      ],
+      "concepts": ["react hooks"]
     },
     {
       "path": "packages/ui/src/lib/repeatClick.ts",

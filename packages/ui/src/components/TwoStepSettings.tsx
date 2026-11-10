@@ -4,6 +4,8 @@ import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
+import { saveText } from "../lib/download.js";
+import { settingMark } from "../lib/settingsSearch.js";
 import { inputCls } from "./TextField.js";
 import { QrCode } from "./QrCode.js";
 import { Swap } from "./Motion.js";
@@ -146,7 +148,11 @@ export function TwoStepSettings() {
   const codesText = stage.step === "codes" ? stage.codes.join("\n") : "";
 
   return (
-    <section aria-labelledby={titleId} className="mt-6 border-t border-edge pt-5">
+    <section
+      {...settingMark("two-step")}
+      aria-labelledby={titleId}
+      className="mt-6 border-t border-edge pt-5"
+    >
       <h3 id={titleId} className="font-semibold">
         Two-step sign-in
       </h3>
@@ -370,8 +376,9 @@ export function TwoStepSettings() {
               type="button"
               className={buttonClass("secondary")}
               onClick={() =>
-                saveCodes(
+                saveText(
                   `Recovery codes for @${self.handle} in ${workspaceName} on OwnBase.\nEach one signs you in once, in place of a code from your authenticator app.\n\n${codesText}\n`,
+                  "ownbase-recovery-codes.txt",
                 )
               }
             >
@@ -389,17 +396,6 @@ export function TwoStepSettings() {
       )}
     </section>
   );
-}
-
-/** Hands the codes to the browser or desktop app as a text file; nothing is sent anywhere. */
-function saveCodes(text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "ownbase-recovery-codes.txt";
-  a.click();
-  // Long enough for the download to have read it, in every browser.
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /** Recovery codes are shown once: closing before Done asks first. */

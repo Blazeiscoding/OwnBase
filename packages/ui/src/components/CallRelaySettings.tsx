@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import type { CallRelayDraft, CallRelaySetting, Platform } from "../platform.js";
 import { probeRelay } from "../lib/relayProbe.js";
 import { inputClass, TextField } from "./TextField.js";
@@ -66,7 +66,7 @@ export function CallRelaySettings(props: { relay: RelayApi; disabled?: boolean }
   const fields = useRef<Partial<Record<Field, HTMLInputElement | HTMLTextAreaElement | null>>>({});
   const urlsId = useId();
 
-  const show = (setting: CallRelaySetting) => {
+  const show = useCallback((setting: CallRelaySetting) => {
     setSaved(setting);
     setKind(setting.kind);
     setKeyId(setting.kind === "cloudflare" ? setting.keyId : "");
@@ -75,7 +75,7 @@ export function CallRelaySettings(props: { relay: RelayApi; disabled?: boolean }
     setApiToken("");
     setCredential("");
     setProblems({});
-  };
+  }, []);
 
   useEffect(() => {
     let live = true;
@@ -87,9 +87,7 @@ export function CallRelaySettings(props: { relay: RelayApi; disabled?: boolean }
     return () => {
       live = false;
     };
-    // The relay API is the platform's, fixed for the window's life.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [props.relay, show]);
 
   const addresses = () => urls.split(/\s+/).filter(Boolean);
   const draft = (): CallRelayDraft =>

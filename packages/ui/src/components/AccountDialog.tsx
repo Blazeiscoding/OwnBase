@@ -12,9 +12,15 @@ import {
   useNotificationPreviews,
 } from "../lib/notificationPreview.js";
 import { ACCOUNT_SECTIONS, type AccountSection } from "../lib/accountSections.js";
-import { SavedContext, useSaved } from "../lib/savedNote.js";
+import { SavedContext, useSaved, useSavedNote } from "../lib/savedNote.js";
 import { NOTIFY_LEVELS } from "../lib/notifyLevels.js";
-import { SECTION_LABELS, findSettings, type Setting } from "../lib/settingsSearch.js";
+import {
+  SECTION_LABELS,
+  findSettings,
+  settingMark,
+  settingOnPage,
+  type Setting,
+} from "../lib/settingsSearch.js";
 import { resumeTime, snoozeOptions } from "../lib/snooze.js";
 import { DENSITIES, THEMES, useAppearance, type Theme } from "../lib/appearance.js";
 import { inputCls } from "./TextField.js";
@@ -27,50 +33,21 @@ import { TwoStepSettings } from "./TwoStepSettings.js";
 import { LinkedSignIns } from "./LinkedSignIns.js";
 import { BlockedPeople } from "./Blocking.js";
 import { buttonClass } from "./Button.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { isImeKey } from "../lib/textInput.js";
 import { When } from "./When.js";
+import { runAction, useActionContext } from "../lib/actions.js";
 
-type Confirmation =
-  { kind: "device"; session: SessionInfo } | { kind: "others" } | { kind: "signout" };
+type Confirmation = { kind: "device"; session: SessionInfo } | { kind: "others" };
 
 export type { AccountSection };
 
 const SECTIONS = ACCOUNT_SECTIONS.map((id) => ({ id, label: SECTION_LABELS[id] }));
 
-/** How long "Saved" stays after a choice is kept. */
-const SAVED_FOR_MS = 2000;
-
-/**
- * Where a setting a search found is shown in its section: the field it names,
- * or the first one in its group, and the part of the page to mark.
- */
-function settingOnPage(panel: HTMLElement, label: string) {
-  const name = label.toLowerCase();
-  const named = [...panel.querySelectorAll<HTMLElement>("h3, h4, legend, label")].find((element) =>
-    (element.textContent ?? "").trim().toLowerCase().startsWith(name),
-  );
-  if (!named) return null;
-  const group =
-    named instanceof HTMLLabelElement
-      ? // A label above its field, as `Select` and `TextField` draw one, is marked with the field.
-        named.control && !named.contains(named.control)
-        ? named.parentElement!
-        : named
-      : named.tagName === "LEGEND"
-        ? named.parentElement!
-        : named.id && named.closest("section")?.getAttribute("aria-labelledby") === named.id
-          ? named.closest("section")!
-          : named.parentElement!;
-  const control =
-    named instanceof HTMLLabelElement
-      ? named.control
-      : group.querySelector<HTMLElement>(
-          "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)",
-        );
-  return { group, control: control instanceof HTMLElement ? control : null, named };
-}
+const CONTROLS =
+  "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)";
+const HEADINGS = "h3, h4, legend, label";
 
 /**
  * Everything about your own account in one place, a section at a time:
@@ -81,12 +58,10 @@ function settingOnPage(panel: HTMLElement, label: string) {
  */
 export function AccountDialog({
   onClose,
-  onSignedOut,
   section: initialSection = "profile",
   onSectionChange,
 }: {
   onClose: () => void;
-  onSignedOut: () => void;
   /** The section to open on, and to move to when it changes, as Back and Forward do. */
   section?: AccountSection;
   /** Told when someone chooses another section, so the address can follow. */
@@ -98,14 +73,7 @@ export function AccountDialog({
   const [query, setQuery] = useState("");
   /** A setting a search went to, to bring into view once its section shows. */
   const [goingTo, setGoingTo] = useState<Setting | null>(null);
-  const [saved, setSaved] = useState(false);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const markSaved = useCallback(() => {
-    setSaved(true);
-    clearTimeout(savedTimer.current);
-    savedTimer.current = setTimeout(() => setSaved(false), SAVED_FOR_MS);
-  }, []);
-  useEffect(() => () => clearTimeout(savedTimer.current), []);
+  const [saved, markSaved, clearSaved] = useSavedNote();
   const self = useWorkspace((s) => s.self);
   const composer = useComposerPreferences();
   const alive = useRef(true);
@@ -193,11 +161,6 @@ export function AccountDialog({
     setError(null);
     setNotice(null);
     try {
-      if (confirmation.kind === "signout") {
-        await client.signOut();
-        onSignedOut();
-        return;
-      }
       const failed =
         confirmation.kind === "device"
           ? await client.account.signOutDevice(confirmation.session.id)
@@ -234,7 +197,7 @@ export function AccountDialog({
     setError(null);
     setNotice(null);
     setConfirmation(null);
-    setSaved(false);
+    clearSaved();
   }
 
   /** Opens the section a setting is in and brings the setting into view. */
@@ -247,27 +210,29 @@ export function AccountDialog({
   useEffect(() => {
     if (!goingTo || !panel.current) return;
     setGoingTo(null);
-    const found = settingOnPage(panel.current, goingTo.label);
-    if (!found) {
+    const group = settingOnPage(panel.current, goingTo.id);
+    if (!group) {
       document.getElementById(`${tabsId}-tab-${goingTo.section}`)?.focus();
       return;
     }
-    found.group.scrollIntoView?.({ block: "center" });
-    if (found.control) found.control.focus({ preventScroll: true });
+    group.scrollIntoView?.({ block: "center" });
+    const control = group.querySelector<HTMLElement>(CONTROLS);
+    if (control) control.focus({ preventScroll: true });
     else {
-      found.named.tabIndex = -1;
-      found.named.focus({ preventScroll: true });
+      const heading = group.matches(HEADINGS)
+        ? group
+        : (group.querySelector<HTMLElement>(HEADINGS) ?? group);
+      heading.tabIndex = -1;
+      heading.focus({ preventScroll: true });
     }
     // Marked for a moment, for whoever chose it with a pointer and sees no focus ring.
     for (const marked of panel.current.querySelectorAll(".setting-found"))
       marked.classList.remove("setting-found");
-    void found.group.offsetWidth;
-    found.group.classList.add("setting-found");
-    found.group.addEventListener(
-      "animationend",
-      () => found.group.classList.remove("setting-found"),
-      { once: true },
-    );
+    void group.offsetWidth;
+    group.classList.add("setting-found");
+    group.addEventListener("animationend", () => group.classList.remove("setting-found"), {
+      once: true,
+    });
   }, [goingTo, section, tabsId]);
 
   // Back and Forward can name another section while the dialog stays open.
@@ -370,20 +335,21 @@ export function AccountDialog({
             <h3 id="account-composer-title" className="font-semibold">
               Writing messages
             </h3>
-            <Select
-              label="When I press Enter"
-              className="mt-3"
-              value={composer.enterSends ? "send" : "newline"}
-              disabled={!composer.loaded || composer.saving}
-              onChange={(event) =>
-                void composer
-                  .setEnterSends(event.target.value === "send")
-                  .then((kept) => kept && markSaved())
-              }
-            >
-              <option value="send">Send the message</option>
-              <option value="newline">Start a new line</option>
-            </Select>
+            <div {...settingMark("enter-key")} className="mt-3">
+              <Select
+                label="When I press Enter"
+                value={composer.enterSends ? "send" : "newline"}
+                disabled={!composer.loaded || composer.saving}
+                onChange={(event) =>
+                  void composer
+                    .setEnterSends(event.target.value === "send")
+                    .then((kept) => kept && markSaved())
+                }
+              >
+                <option value="send">Send the message</option>
+                <option value="newline">Start a new line</option>
+              </Select>
+            </div>
             <p className="mt-2 text-sm text-ink-dim">
               Applies to messages and thread replies in every workspace on this device. Ctrl+Enter
               or Cmd+Enter always sends. Shift+Enter always starts a new line.
@@ -410,7 +376,7 @@ export function AccountDialog({
         {section === "calls" && <VoiceVideoSettings titled={false} />}
         {section === "security" && (
           <>
-            <section aria-labelledby="account-password-title">
+            <section {...settingMark("password")} aria-labelledby="account-password-title">
               <h3 id="account-password-title" className="font-semibold">
                 Change password
               </h3>
@@ -479,6 +445,7 @@ export function AccountDialog({
             <LinkedSignIns />
             <BlockedPeople />
             <section
+              {...settingMark("sign-out")}
               aria-labelledby="account-signout-title"
               className="mt-6 border-t border-edge pt-5"
             >
@@ -489,18 +456,12 @@ export function AccountDialog({
                 Switching workspaces keeps you signed in. Signing out removes this device's saved
                 sign-in.
               </p>
-              <button
-                className={buttonClass("secondary")}
-                disabled={busy || confirmation !== null}
-                onClick={() => askToConfirm({ kind: "signout" })}
-              >
-                Sign out of this workspace
-              </button>
+              <SignOutButton disabled={busy || confirmation !== null} />
             </section>
           </>
         )}
         {section === "devices" && (
-          <section aria-labelledby="account-devices-title">
+          <section {...settingMark("devices")} aria-labelledby="account-devices-title">
             <div className="flex items-center justify-between gap-3">
               <h3 id="account-devices-title" className="font-semibold">
                 Signed-in devices
@@ -592,18 +553,14 @@ export function AccountDialog({
             className="mt-4 rounded-xl border border-alert/40 bg-ground p-4"
           >
             <h3 className="font-semibold">
-              {confirmation.kind === "signout"
-                ? "Sign out of this workspace?"
-                : confirmation.kind === "others"
-                  ? "Sign out your other devices?"
-                  : `Sign out ${deviceLabel(confirmation.session.userAgent)}?`}
+              {confirmation.kind === "others"
+                ? "Sign out your other devices?"
+                : `Sign out ${deviceLabel(confirmation.session.userAgent)}?`}
             </h3>
             <p className="mt-2 text-sm text-ink-dim">
-              {confirmation.kind === "signout"
-                ? "You will need your password to sign in again. Your account's saved drafts stay on this device."
-                : confirmation.kind === "others"
-                  ? "They will need to sign in again. This device stays signed in."
-                  : "It will need to sign in again. This device stays signed in."}
+              {confirmation.kind === "others"
+                ? "They will need to sign in again. This device stays signed in."
+                : "It will need to sign in again. This device stays signed in."}
             </p>
             <div className="mt-4 flex flex-wrap justify-end gap-2">
               <button
@@ -628,11 +585,25 @@ export function AccountDialog({
   );
 }
 
+/** The account menu's Sign out, which asks first, here in Security. */
+function SignOutButton({ disabled }: { disabled: boolean }) {
+  const actions = useActionContext();
+  return (
+    <button
+      className={buttonClass("secondary")}
+      disabled={disabled}
+      onClick={() => runAction(actions, "sign-out")}
+    >
+      Sign out of this workspace
+    </button>
+  );
+}
+
 /** What this device does with notifications, and a pause that follows the account. */
 function NotificationSettings() {
   const platform = usePlatform();
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const [permission, setPermission] = useState(browserPermission);
   const [asking, setAsking] = useState(false);
@@ -658,7 +629,10 @@ function NotificationSettings() {
 
   return (
     <>
-      <section aria-labelledby="account-device-notifications-title">
+      <section
+        {...settingMark("device-notifications")}
+        aria-labelledby="account-device-notifications-title"
+      >
         <h3 id="account-device-notifications-title" className="font-semibold">
           On this device
         </h3>
@@ -683,7 +657,11 @@ function NotificationSettings() {
           </button>
         )}
       </section>
-      <section aria-labelledby="account-pause-title" className="mt-6 border-t border-edge pt-5">
+      <section
+        {...settingMark("pause-notifications")}
+        aria-labelledby="account-pause-title"
+        className="mt-6 border-t border-edge pt-5"
+      >
         <h3 id="account-pause-title" className="font-semibold">
           Pause notifications
         </h3>
@@ -699,7 +677,7 @@ function NotificationSettings() {
               onClick={() =>
                 void client.snoozeNotificationsUntil(null).then((error) => {
                   if (error)
-                    toast?.({ message: failureText("Could not resume notifications.", error) });
+                    toast({ message: failureText("Could not resume notifications.", error) });
                 })
               }
             >
@@ -718,7 +696,7 @@ function NotificationSettings() {
                 onClick={() => {
                   void client.snoozeNotificationsUntil(option.until()).then((error) => {
                     if (error)
-                      toast?.({ message: failureText("Could not pause notifications.", error) });
+                      toast({ message: failureText("Could not pause notifications.", error) });
                   });
                   setNow(new Date());
                 }}
@@ -801,6 +779,7 @@ function PreviewSettings() {
   const chosen = previewFor(previews, account);
   return (
     <fieldset
+      {...settingMark("notification-previews")}
       className="mt-6 border-t border-edge pt-5"
       disabled={!previews.loaded || previews.saving || !account}
     >
@@ -852,7 +831,7 @@ function AppearanceSettings() {
   const saved = useSaved();
   return (
     <>
-      <fieldset disabled={!appearance.loaded}>
+      <fieldset {...settingMark("theme")} disabled={!appearance.loaded}>
         <legend className="font-semibold">Theme</legend>
         <p className="mt-1 text-sm text-ink-dim">Applies to every workspace on this device.</p>
         <div className="mt-3 grid grid-cols-3 gap-3">
@@ -884,7 +863,11 @@ function AppearanceSettings() {
           })}
         </div>
       </fieldset>
-      <fieldset disabled={!appearance.loaded} className="mt-6 border-t border-edge pt-5">
+      <fieldset
+        {...settingMark("density")}
+        disabled={!appearance.loaded}
+        className="mt-6 border-t border-edge pt-5"
+      >
         <legend className="float-left w-full font-semibold">Density</legend>
         <div className="clear-both mt-3 space-y-2 pt-1">
           {DENSITIES.map((density) => (
@@ -943,7 +926,7 @@ function WorkspaceStorage() {
     return () => controller.abort();
   }, [client, attempt]);
   return (
-    <section aria-labelledby="account-storage-title">
+    <section {...settingMark("storage")} aria-labelledby="account-storage-title">
       <h3 id="account-storage-title" className="font-semibold">
         Workspace attachment storage
       </h3>

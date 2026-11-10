@@ -38,9 +38,7 @@ export function usePanelFocus({ takeFocus }: { takeFocus: boolean }) {
       const lost = !now || now === document.body || (element?.contains(now) ?? false);
       if (lost && opener?.isConnected) handBack(opener);
     };
-    // Once per opening: the panel's content changing is not a new opening.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [opener, takeFocus]);
 
   return { panel, heading };
 }

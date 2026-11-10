@@ -9,7 +9,7 @@ import { HuddleControls } from "./HuddleControls.js";
 import { HuddleAudio } from "./HuddleAudio.js";
 import { Tooltip } from "./Tooltip.js";
 import { aloneLine, bigCallLine, ringingLine, type HuddleView } from "../lib/huddleView.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import type { HuddleState } from "@ownbase/client-core";
 import { namesList } from "../lib/catchUp.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
@@ -178,12 +178,12 @@ function HuddlePeople({ people }: { people: Person[] }) {
  * because the bar stays mounted for the whole huddle, behind the call as well.
  */
 function BigCallNotice({ huddle }: { huddle: HuddleState }) {
-  const toast = useOptionalToast();
+  const toast = useToast();
   const cameras = huddle.peers.filter((p) => p.cameraStream).length + (huddle.cameraOn ? 1 : 0);
   // You and everyone else.
   const big = bigCallLine(huddle.peers.length + 1, cameras);
   useEffect(() => {
-    if (big) toast?.({ message: big, kind: "info" });
+    if (big) toast({ message: big, kind: "info" });
   }, [big, toast]);
   return null;
 }

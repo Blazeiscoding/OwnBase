@@ -3,6 +3,7 @@ import type { FileMeta, ID } from "@ownbase/protocol";
 import { ApiError, type LocalAttachment } from "@ownbase/client-core";
 import { useClient, usePlatform } from "../context.js";
 import { formatBytes } from "../lib/format.js";
+import { saveUrl } from "../lib/download.js";
 import { Icon, type IconName } from "./Icon.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
 import { Modal } from "./Modal.js";
@@ -239,13 +240,6 @@ export function iconFor(mime: string, name: string): IconName {
   if (/\.(ts|tsx|js|jsx|py|rs|go|java|c|cpp|json|yml|yaml|sh)$/i.test(name)) return "fileCode";
   if (mime.startsWith("text/")) return "fileText";
   return "file";
-}
-
-export function saveUrl(url: string, name: string) {
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = name;
-  a.click();
 }
 
 const UNAVAILABLE = "This file is gone, or you no longer have access to it.";

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
+import { render } from "./render.js";
 import { Api } from "@ownbase/client-core";
 import type { ServerInfo } from "@ownbase/protocol";
 import { JoinScreen } from "../src/screens/JoinScreen.js";

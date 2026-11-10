@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import type { FileMeta } from "@ownbase/protocol";
 import { formatBytes } from "../lib/format.js";
-import { saveUrl, useFileResource } from "./Attachments.js";
+import { saveUrl } from "../lib/download.js";
+import { useFileResource } from "./Attachments.js";
 import { Icon } from "./Icon.js";
 import { Modal } from "./Modal.js";
 

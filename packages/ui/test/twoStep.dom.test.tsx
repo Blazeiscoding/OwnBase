@@ -1,5 +1,6 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerInfo, ServerToClient, User } from "@ownbase/protocol";
@@ -9,6 +10,7 @@ import { JoinScreen } from "../src/screens/JoinScreen.js";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import type { HostingStatus, Platform, SavedServer } from "../src/platform.js";
 import { accessibilityProblems } from "./accessibility.js";
+import { workspaceParts } from "./workspaceParts.js";
 
 /**
  * Two-step sign-in in the app (E11): set up in Account settings under
@@ -83,11 +85,9 @@ function security(enabled = false, recoveryCodesLeft = 0) {
     disable: vi.spyOn(client.api, "disableTwoStep").mockResolvedValue({ ok: true }),
   };
   render(
-    <PlatformContext.Provider value={platform}>
-      <ClientContext.Provider value={client}>
-        <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="security" />
-      </ClientContext.Provider>
-    </PlatformContext.Provider>,
+    workspaceParts(client, { shell: { platform } }).wrap(
+      <AccountDialog onClose={() => {}} section="security" />,
+    ),
   );
   const root = screen.getByRole("dialog", { name: "Account settings" });
   const section = () => within(within(root).getByRole("region", { name: "Two-step sign-in" }));
@@ -176,6 +176,34 @@ describe("two-step sign-in once on", () => {
     expect(section().getByLabelText("Current password")).toHaveValue("");
   });
 
+  it("saves the new codes as a text file", async () => {
+    const { section, user } = security(true, 2);
+    const { createObjectURL, revokeObjectURL } = URL;
+    onTestFinished(() => {
+      Object.assign(URL, { createObjectURL, revokeObjectURL });
+    });
+    let saved: Blob | undefined;
+    URL.createObjectURL = vi.fn((blob: Blob) => {
+      saved = blob;
+      return "blob:codes";
+    });
+    URL.revokeObjectURL = vi.fn();
+    const clicks: { href: string; download: string }[] = [];
+    vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(function (
+      this: HTMLAnchorElement,
+    ) {
+      clicks.push({ href: this.href, download: this.download });
+    });
+    await user.click(await section().findByRole("button", { name: "New recovery codes" }));
+    await user.type(section().getByLabelText("Current password"), "password123");
+    await user.click(section().getByRole("button", { name: "Make new codes" }));
+    await user.click(await section().findByRole("button", { name: "Save as a file" }));
+    expect(clicks).toEqual([{ href: "blob:codes", download: "ownbase-recovery-codes.txt" }]);
+    const text = await saved!.text();
+    expect(text).toContain("Recovery codes for @sam in Rocket Team on OwnBase.");
+    for (const code of CODES) expect(text).toContain(code);
+  });
+
   it("says so when no recovery codes are left", async () => {
     const { section } = security(true, 0);
     expect(
@@ -212,11 +240,9 @@ describe("two-step sign-in once on", () => {
     vi.spyOn(client.api, "listSessions").mockResolvedValue({ sessions: [] });
     const status = vi.spyOn(client.api, "twoStep");
     render(
-      <PlatformContext.Provider value={platform}>
-        <ClientContext.Provider value={client}>
-          <AccountDialog onClose={() => {}} onSignedOut={() => {}} section="security" />
-        </ClientContext.Provider>
-      </PlatformContext.Provider>,
+      workspaceParts(client, { shell: { platform } }).wrap(
+        <AccountDialog onClose={() => {}} section="security" />,
+      ),
     );
     expect(await screen.findByRole("heading", { name: "Change password" })).toBeVisible();
     expect(screen.queryByRole("region", { name: "Two-step sign-in" })).toBeNull();

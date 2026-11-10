@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, screen } from "@testing-library/react";
+import { render } from "./render.js";
 import { useState } from "react";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";

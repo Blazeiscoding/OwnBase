@@ -5467,7 +5467,10 @@ test("an admin uploads the workspace's icon, everyone signed in sees it, and so 
     const account = page.getByRole("dialog", { name: "Account settings", exact: true });
     await account.getByRole("tab", { name: "Security", exact: true }).click();
     await account.getByRole("button", { name: "Sign out of this workspace", exact: true }).click();
-    await account.getByRole("button", { name: "Confirm sign out", exact: true }).click();
+    await page
+      .getByRole("dialog", { name: "Sign out of this workspace?", exact: true })
+      .getByRole("button", { name: "Sign out", exact: true })
+      .click();
     const card = page.locator(".sign-in-card");
     await expect(card.getByRole("heading", { name: "Product Test", exact: true })).toBeVisible();
     await expect(card.locator("img")).toBeVisible();

@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { ID } from "@ownbase/protocol";
 import { selfIsAdministrator } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
+import { settingMark } from "../lib/settingsSearch.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { buttonClass } from "./Button.js";
@@ -112,7 +113,11 @@ function BlockedRow({ userId }: { userId: ID }) {
 export function BlockedPeople() {
   const blocked = useWorkspace((s) => s.blocked);
   return (
-    <section aria-labelledby="account-blocked-title" className="mt-6 border-t border-edge pt-5">
+    <section
+      {...settingMark("blocked-people")}
+      aria-labelledby="account-blocked-title"
+      className="mt-6 border-t border-edge pt-5"
+    >
       <h3 id="account-blocked-title" className="font-semibold">
         Blocked people
       </h3>

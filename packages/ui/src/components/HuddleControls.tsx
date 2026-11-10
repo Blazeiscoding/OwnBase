@@ -10,7 +10,7 @@ import {
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { useCallPreferences, type CallDevices } from "../lib/callPreferences.js";
 import { chooseDevices, useMediaDevices } from "../lib/mediaDevices.js";
-import { FRAME_RATES, RESOLUTIONS, useScreenShareQuality } from "../lib/screenShareQuality.js";
+import { FRAME_RATES, RESOLUTIONS } from "../lib/screenShareQuality.js";
 import { Icon } from "./Icon.js";
 import { Menu, type MenuItem } from "./Menu.js";
 import { Swap } from "./Motion.js";
@@ -124,7 +124,7 @@ export function HuddleControls({
   const [busy, setBusy] = useState<"screen" | "camera" | "microphone" | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const choosingScreen = useStore(picker, (s) => s.open);
-  const [savedQuality, keepQuality] = useScreenShareQuality();
+  const savedQuality = calls.screenShare.quality;
   // The picker goes with the huddle, and does not open again with the next
   // one. Moving between the bar and the call keeps it open.
   useEffect(
@@ -255,7 +255,7 @@ export function HuddleControls({
   const changeQuality = (patch: Partial<ScreenShareQuality>) => {
     const next = { ...shown, ...patch };
     void guarded("screen", async () => {
-      if (await client.setScreenShareQuality(next)) keepQuality(next);
+      if (await client.setScreenShareQuality(next)) calls.setScreenShare({ quality: next });
       else if (client.store.getState().huddle?.sharingScreen)
         setFailure("Could not change the share's quality. Your screen is still shared as before.");
     });

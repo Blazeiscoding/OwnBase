@@ -4,7 +4,7 @@ import type { ReportedMessage, ReportResolution, User } from "@ownbase/protocol"
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { REPORT_REASON_LABELS } from "../lib/blocking.js";
-import { channelTitle, formatFull } from "../lib/format.js";
+import { channelTitle, formatFull, possessive } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Dialog } from "./Dialog.js";
 import { ListStatus } from "./ListStatus.js";
@@ -247,8 +247,4 @@ function Reported({
       </div>
     </li>
   );
-}
-
-function possessive(name: string): string {
-  return name.endsWith("s") ? `${name}'` : `${name}'s`;
 }

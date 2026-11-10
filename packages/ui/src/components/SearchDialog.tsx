@@ -1,5 +1,6 @@
 import {
   useEffect,
+  useEffectEvent,
   useId,
   useLayoutEffect,
   useMemo,
@@ -24,6 +25,7 @@ import {
   withFilter,
 } from "../lib/searchFilters.js";
 import { useTabs } from "../lib/useTabs.js";
+import { useKeyed } from "../lib/useKeyed.js";
 import { Dialog, DialogScroll } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { Mrkdwn } from "./Mrkdwn.js";
@@ -300,8 +302,9 @@ export function SearchDialog(props: {
   /** How far changes had got in the results' conversations when they were asked for. */
   const heard = useRef(0);
 
-  const criteria = criteriaOf(text, filters, scope, tab);
-  const key = keyOf(criteria);
+  const typed = criteriaOf(text, filters, scope, tab);
+  const key = keyOf(typed);
+  const criteria = useKeyed(key, () => typed);
   const askedKey = keyOf(asked);
   const query = criteria?.query ?? "";
   const parsed = useMemo(() => parseSearchQuery(query), [query]);
@@ -384,19 +387,20 @@ export function SearchDialog(props: {
 
   // Results follow what is typed and chosen, once typing pauses. A date still
   // being written is left alone: the hints already say it is not one yet.
+  // What was asked last is read, not followed: asking is this effect's doing.
+  const askedAlready = useEffectEvent((question: string) => question === askedKey);
   useEffect(() => {
     if (!criteria) {
       setAsked(null);
       return;
     }
-    if (query.length > 200 || unreadable || key === askedKey) return;
+    if (query.length > 200 || unreadable || askedAlready(key)) return;
     const timer = setTimeout(
       () => setAsked((before) => (keyOf(before) === key ? before : criteria)),
       LIVE_DELAY,
     );
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- `key` stands for the criteria
-  }, [key, unreadable]);
+  }, [criteria, key, query, unreadable]);
 
   function addFilter(token: string) {
     setFilters((before) => withFilter(before, token));
