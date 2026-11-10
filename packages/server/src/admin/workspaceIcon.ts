@@ -140,7 +140,6 @@ export function readStoredIcon(meta: (key: string) => string | null): WorkspaceI
   return { type: type as WorkspaceIconType, bytes, version };
 }
 
-/** The `meta` rows that hold `icon`. */
 export function storedIconRows(icon: WorkspaceIcon): [key: string, value: string][] {
   return [
     [ICON_META_KEYS.type, icon.type],

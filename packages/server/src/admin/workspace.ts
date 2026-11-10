@@ -14,9 +14,7 @@ import type { WorkspaceIcon } from "./workspaceIcon.js";
 
 /** A change to the workspace itself, as `WorkspaceServer.onWorkspaceChange` reports it. */
 export interface WorkspaceChange {
-  /** The new name, when it was renamed. */
   workspaceName?: string;
-  /** Who may join now, when that changed. */
   accessPolicy?: AccessPolicy;
   /** The icon's new version when it changed, or null when it was removed. */
   iconVersion?: string | null;

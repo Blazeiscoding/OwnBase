@@ -6,7 +6,6 @@ import type { Store } from "../store.js";
 
 const queueCountsRow = shape({ queued: "number", held: "number", failed: "number" });
 
-/** A `scheduled_messages` row. */
 const scheduledRow = shape({
   id: "text",
   channel_id: "text",
@@ -227,7 +226,7 @@ export class ScheduledStore {
 
   /**
    * A reason that may clear on its own. It is tried again at `retryAt`, or
-   * sooner if `wakeHeldScheduled` hears that the obstacle has gone.
+   * sooner if `wakeHeld` hears that the obstacle has gone.
    */
   hold(id: ID, reason: string, retryAt = 0): void {
     const before = heldRow.get(

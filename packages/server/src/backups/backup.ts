@@ -32,7 +32,6 @@ export interface BackupManifest {
   format: 1;
   createdAt: number;
   serverVersion: string;
-  /** The migration level of the captured database. */
   schemaVersion: number;
   workspaceName: string;
   counts: Record<string, number>;

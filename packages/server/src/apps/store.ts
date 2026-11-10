@@ -147,7 +147,6 @@ export class AppStore {
     private readonly store: Store,
   ) {}
 
-  /** Creates the bot user that an app posts as. */
   createBotUser(handle: string, displayName: string, passwordHash: string, salt: string): User {
     const id = ulid();
     this.db
@@ -194,7 +193,6 @@ export class AppStore {
     };
   }
 
-  /** Replaces what an app may do (E18c). */
   setScopes(id: ID, scopes: readonly AppScope[]): boolean {
     return (
       this.db
@@ -311,7 +309,6 @@ export class AppStore {
     return this.getWebhook(id);
   }
 
-  /** Resolves an incoming webhook secret to its app and target channel. */
   webhookForToken(tokenHash: string): { webhook: Webhook; app: App } | null {
     const r = this.db.prepare("SELECT * FROM webhooks WHERE token_hash = ?").get(tokenHash) as
       WebhookRow | undefined;

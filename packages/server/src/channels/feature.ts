@@ -25,7 +25,6 @@ export function registerChannels(ctx: ServerContext) {
   };
 
   route(endpoints.listChannels, async ({ user: me }) => {
-    // How many active people each channel holds, for the channel browser.
     return {
       channels: store.channels.visibleTo(me.id),
       memberCounts: store.channels.roomMemberCounts(me.id),

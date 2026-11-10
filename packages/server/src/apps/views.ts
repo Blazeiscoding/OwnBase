@@ -118,7 +118,6 @@ export function registerViews(ctx: ServerContext, { calls }: { calls: AppCalls }
     openViews.set(open.view.id, { ...open, expiresAt: now + VIEW_LIFE }, now);
   };
 
-  /** One of this app's open views by the name it gave it. */
   const viewByExternalId = (appId: ID, externalId: string): OpenView | undefined => {
     for (const userId of [...viewStacks.keys()]) {
       for (const id of stackOf(userId)) {

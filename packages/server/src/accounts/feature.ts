@@ -21,11 +21,9 @@ import {
 } from "../twoStep.js";
 import { SERVER_BUILD, SERVER_VERSION } from "../version.js";
 
-/** How long the second step of signing in waits for its code (E11). */
 const TWO_STEP_CHALLENGE_MS = 5 * 60_000;
 /** Wrong codes one sign-in may try before its password must be given again (E11). */
 const TWO_STEP_TRIES = 5;
-/** How long a key being set up waits for its first code (E11). */
 const TWO_STEP_SETUP_MS = 10 * 60_000;
 
 /** A guest's session lasts a day from joining, however much it is used. */
@@ -116,7 +114,6 @@ export function registerAccounts(
         }
       }
 
-      // A workspace that makes accounts through its single sign-on (P9).
       if (!isFirstUser && singleSignOnRequired()) throw ssoRequired("makes new accounts");
 
       if (!isFirstUser && settings.get("accessPolicy") === "invite_only") {
@@ -140,7 +137,6 @@ export function registerAccounts(
       if (isFirstUser) {
         // Single use: the workspace now has an owner and cannot be claimed again.
         settings.set("claimCode", null);
-        // Bootstrap the workspace with #general.
         const general = store.channels.create({
           type: "public",
           name: "general",
@@ -329,7 +325,6 @@ export function registerAccounts(
     }
     const account = store.people.get(held.userId);
     const auth = account ? store.people.authByHandle(account.handle) : null;
-    // Deactivated, or the password changed, since the first step.
     if (!auth || auth.deactivated || auth.passwordHash !== held.passwordHash) {
       twoStepChallenges.delete(key);
       throw expired();

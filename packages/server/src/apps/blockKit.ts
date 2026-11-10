@@ -487,7 +487,6 @@ function optionState(option: ModalOption) {
   };
 }
 
-/** Whether an id is one this picker offers. */
 function offers(field: ModalField, id: string, context: AnswerContext): boolean {
   switch (field.type) {
     case "user":
@@ -518,8 +517,7 @@ function refusal(kind: ModalFieldType): string {
  *
  * Nothing the form itself forbids reaches the app: it may trust that a choice
  * is one of its own options, and that a person or channel it is handed exists
- * and could have been chosen. A hand-written request, or an older client that
- * drew a picker as a text box, is checked the same way.
+ * and could have been chosen. A hand-written request is checked the same way.
  */
 export function readAnswer(
   field: ModalField,
