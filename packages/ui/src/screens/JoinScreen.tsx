@@ -20,7 +20,7 @@ import { inputClass } from "../components/TextField.js";
 import { useTabs } from "../lib/useTabs.js";
 import { Swap, useChanges } from "../components/Motion.js";
 import { beginSingleSignOn, redeemSingleSignOn } from "../lib/singleSignOn.js";
-import { useOptionalConfirm } from "../components/Confirm.js";
+import { useConfirm } from "../components/Confirm.js";
 import type { SignedOutFrom } from "../lib/signOut.js";
 
 /** How long the network is looked through before the join screen suggests other ways in. */
@@ -424,7 +424,7 @@ function BrowseCard(props: {
   onForget: (url: string) => void;
   onHostClick?: () => void;
 }) {
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   // Looking goes on, but after a while it says what else to do rather than
   // pulsing forever over an empty list.
   const [scanGaveUp, setScanGaveUp] = useState(false);
@@ -514,14 +514,12 @@ function BrowseCard(props: {
                 onClick={() => props.onOpenSaved(s)}
                 onForget={async () => {
                   // Forgetting drops the saved sign-in: coming back needs the password.
-                  const sure = confirm
-                    ? await confirm({
-                        title: `Forget ${s.workspaceName}?`,
-                        body: `This device stops keeping you signed in as @${s.handle}. To come back you need its address and your password. Nothing in the workspace changes.`,
-                        confirmLabel: "Forget",
-                        destructive: true,
-                      })
-                    : true;
+                  const sure = await confirm({
+                    title: `Forget ${s.workspaceName}?`,
+                    body: `This device stops keeping you signed in as @${s.handle}. To come back you need its address and your password. Nothing in the workspace changes.`,
+                    confirmLabel: "Forget",
+                    destructive: true,
+                  });
                   if (sure) props.onForget(s.url);
                 }}
               />

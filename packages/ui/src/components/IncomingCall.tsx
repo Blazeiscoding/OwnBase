@@ -6,14 +6,14 @@ import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { buttonClass } from "./Button.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { useCallPreferences } from "../lib/callPreferences.js";
 import { channelTitle } from "../lib/format.js";
 import { ringContent, type NotificationPreview } from "../lib/notificationPreview.js";
 import { startRingTone } from "../lib/ringTone.js";
 import { focusedElsewhere, inOneWindow } from "../lib/focusedView.js";
 import { confirmHuddleSwitch } from "./HuddleButton.js";
-import { useOptionalConfirm } from "./Confirm.js";
+import { useConfirm } from "./Confirm.js";
 
 /**
  * A direct message's huddle ringing this account (E10): who is calling, with
@@ -99,7 +99,7 @@ export function IncomingCall(props: {
 function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) => void }) {
   const client = useClient();
   const calls = useCallPreferences();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const caller = useWorkspace((s) => s.users[ring.callerId]);
   const group = useWorkspace((s) => {
     const channel = s.channels[ring.channelId];
@@ -113,7 +113,7 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
       mounted.current = false;
     };
   }, []);
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   const titleId = useId();
   const name = caller?.displayName ?? "Someone";
 
@@ -126,7 +126,7 @@ function RingCard({ ring, onOpen }: { ring: HuddleRing; onOpen: (channelId: ID) 
       // Answered on purpose: a ring that runs out meanwhile does not take it back.
       await calls.joinHuddle(client, ring.channelId, () => true);
     } catch (err) {
-      toast?.({
+      toast({
         message:
           err instanceof Error
             ? `Could not join the huddle: ${err.message}`

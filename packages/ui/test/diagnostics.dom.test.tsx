@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { render, screen, within } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { CallLogEntry, Message, ServerInfo, User, WorkspaceStatus } from "@ownbase/protocol";

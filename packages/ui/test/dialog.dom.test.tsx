@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { useState } from "react";
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, screen } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { Dialog, DialogScroll } from "../src/components/Dialog.js";
 import { accessibilityProblems } from "./accessibility.js";

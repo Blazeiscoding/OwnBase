@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { cleanup, act, render, screen, within } from "@testing-library/react";
+import { cleanup, act, screen, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient, type HuddleState } from "@ownbase/client-core";
 import type { Channel, Message, User } from "@ownbase/protocol";

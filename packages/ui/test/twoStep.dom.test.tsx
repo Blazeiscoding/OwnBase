@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vitest";
-import { act, cleanup, fireEvent, render, screen, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { Api, ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerInfo, ServerToClient, User } from "@ownbase/protocol";

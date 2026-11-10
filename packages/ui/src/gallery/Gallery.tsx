@@ -21,6 +21,7 @@ import { Select } from "../components/Select.js";
 import { Sheet, sheetCard } from "../components/Sheet.js";
 import { TextField } from "../components/TextField.js";
 import { ToastProvider, useToast } from "../components/Toast.js";
+import { ConfirmProvider } from "../components/Confirm.js";
 import { Tooltip } from "../components/Tooltip.js";
 import { modKey } from "../lib/shortcuts.js";
 
@@ -148,39 +149,41 @@ function ThemeSheet({ theme }: { theme: Theme }) {
 
   return (
     <ToastProvider>
-      <div className="h-full overflow-y-auto bg-ground">
-        <div ref={content} data-gallery-sheet={theme}>
-          <main className="mx-auto max-w-3xl space-y-10 px-4 pb-24 pt-6 sm:px-6">
-            {!framed && (
-              <header>
-                <h1 className="text-2xl font-semibold tracking-tight">
-                  OwnBase primitives gallery: {THEME_NAMES[theme]}
-                </h1>
-                <p className="mt-1 text-sm text-ink-dim">
-                  Development only. Point at a control or Tab to it to see its hover and focus.{" "}
-                  <a className="font-medium text-ink underline" href="#/gallery">
-                    Both themes
-                  </a>
-                </p>
-              </header>
-            )}
-            <Buttons />
-            <IconButtons />
-            <TextFields />
-            <Selects />
-            <CheckedForm />
-            <Keys />
-            <Badges />
-            <Tooltips />
-            <Menus />
-            <Sheets />
-            <Popovers />
-            <Toasts />
-            <EmptyStates />
-            <ListStatuses />
-          </main>
+      <ConfirmProvider>
+        <div className="h-full overflow-y-auto bg-ground">
+          <div ref={content} data-gallery-sheet={theme}>
+            <main className="mx-auto max-w-3xl space-y-10 px-4 pb-24 pt-6 sm:px-6">
+              {!framed && (
+                <header>
+                  <h1 className="text-2xl font-semibold tracking-tight">
+                    OwnBase primitives gallery: {THEME_NAMES[theme]}
+                  </h1>
+                  <p className="mt-1 text-sm text-ink-dim">
+                    Development only. Point at a control or Tab to it to see its hover and focus.{" "}
+                    <a className="font-medium text-ink underline" href="#/gallery">
+                      Both themes
+                    </a>
+                  </p>
+                </header>
+              )}
+              <Buttons />
+              <IconButtons />
+              <TextFields />
+              <Selects />
+              <CheckedForm />
+              <Keys />
+              <Badges />
+              <Tooltips />
+              <Menus />
+              <Sheets />
+              <Popovers />
+              <Toasts />
+              <EmptyStates />
+              <ListStatuses />
+            </main>
+          </div>
         </div>
-      </div>
+      </ConfirmProvider>
     </ToastProvider>
   );
 }

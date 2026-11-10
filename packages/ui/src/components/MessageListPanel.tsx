@@ -9,7 +9,7 @@ import { Mrkdwn } from "./Mrkdwn.js";
 import { Icon, type IconName } from "./Icon.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { Tooltip } from "./Tooltip.js";
 import { usePanelFocus } from "../lib/usePanelFocus.js";
 import { useOpenList } from "../lib/pagedList.js";
@@ -223,7 +223,7 @@ export function PinsPanel(props: {
   onJump: (channelId: ID, messageId: ID) => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   // Pinning changes the channel for everyone, which a guest may not.
   const guest = useWorkspace((s) => s.self?.role === "guest");
   /** Unpinned from here, so gone at once rather than when the list is next read. */
@@ -241,7 +241,7 @@ export function PinsPanel(props: {
     mark(!pin);
     const hideUndo = pin
       ? undefined
-      : toast?.({
+      : toast({
           message: "Unpinned.",
           kind: "success",
           action: { label: "Undo", run: () => setPinned(message, true) },
@@ -250,7 +250,7 @@ export function PinsPanel(props: {
       if (!error) return;
       hideUndo?.();
       mark(pin);
-      toast?.({
+      toast({
         message: failureText(
           pin ? "Could not pin that message again." : "Could not unpin that message.",
           error,
@@ -288,7 +288,7 @@ export function SavedPanel(props: {
   onScheduled?: () => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const saved = useWorkspace((s) => s.saved);
   const [list, state] = useOpenList(() => client.lists.saved(), "saved");
 
@@ -299,7 +299,7 @@ export function SavedPanel(props: {
   function setSaved(message: Message, save: boolean) {
     const hideUndo = save
       ? undefined
-      : toast?.({
+      : toast({
           message: "Removed from Saved.",
           kind: "success",
           action: { label: "Undo", run: () => setSaved(message, true) },
@@ -307,7 +307,7 @@ export function SavedPanel(props: {
     void client.toggleSaved(message.id, save).then((error) => {
       if (!error) return;
       hideUndo?.();
-      toast?.({
+      toast({
         message: failureText(
           save ? "Could not put that back in Saved." : "Could not remove that from Saved.",
           error,

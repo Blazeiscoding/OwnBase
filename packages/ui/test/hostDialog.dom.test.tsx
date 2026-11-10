@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, type Mock } from "vitest";
-import { act, render, screen, waitFor, within } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { HostDialog } from "../src/components/HostDialog.js";
 import { useHostingStatus } from "../src/lib/hosting.js";
@@ -754,8 +755,11 @@ describe("hosting a workspace from the host dialog", () => {
     expect(within(dialog).getByText(/join as a guest for a day/)).toBeVisible();
     expect(await accessibilityProblems(dialog)).toEqual([]);
 
-    // Once open, a choice is the workspace's at once.
+    // Once open, a choice is the workspace's at once; signing guests out is asked first.
     await user.click(rule(/People with an invite/));
+    const ask = await screen.findByRole("dialog", { name: "Sign every guest out?" });
+    expect(hosting.setAccessPolicy).not.toHaveBeenCalled();
+    await user.click(within(ask).getByRole("button", { name: "Sign guests out" }));
     expect(hosting.setAccessPolicy).toHaveBeenCalledWith("invite_only");
     await waitFor(() => expect(rule(/People with an invite/)).toBeChecked());
     await user.click(rule(/Anyone who creates an account/));

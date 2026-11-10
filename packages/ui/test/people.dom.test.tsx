@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { act, render, screen, within } from "@testing-library/react";
+import { act, screen, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { ApiError, WorkspaceClient } from "@ownbase/client-core";
 import type { ServerToClient, User } from "@ownbase/protocol";
@@ -122,6 +123,9 @@ describe("people actions", () => {
     const memberRow = dialog.getByText("@alex").closest("li")!;
     await user.click(within(memberRow).getByRole("button", { name: "Actions for Alex Chen" }));
     await user.click(screen.getByRole("menuitem", { name: "Deactivate" }));
+    const ask = await screen.findByRole("dialog", { name: "Deactivate Alex Chen?" });
+    expect(update).not.toHaveBeenCalled();
+    await user.click(within(ask).getByRole("button", { name: "Deactivate" }));
     expect(update).toHaveBeenCalledWith("U_ALEX", { deactivated: true });
     // The answer itself moves Alex under deactivated.
     await vi.waitFor(() => expect(dialog.queryByText("@alex")).toBeNull());
@@ -240,6 +244,8 @@ describe("people's load, confirmations and refusals", () => {
     const row = dialog.getByText("@alex").closest("li")!;
     await user.click(within(row).getByRole("button", { name: "Actions for Alex Chen" }));
     await user.click(screen.getByRole("menuitem", { name: "Deactivate" }));
+    const ask = await screen.findByRole("dialog", { name: "Deactivate Alex Chen?" });
+    await user.click(within(ask).getByRole("button", { name: "Deactivate" }));
     expect(await dialog.findByRole("alert")).toHaveTextContent(
       "Only the owner can change another admin.",
     );

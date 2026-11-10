@@ -1,6 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { DEFAULT_WORKSPACE_NAME } from "@ownbase/protocol";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import {
   readWorkspaceStorage,
@@ -86,7 +86,7 @@ export function GettingStarted(props: {
 }) {
   const platform = usePlatform();
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const self = useWorkspace((s) => s.self);
   const workspaceId = useWorkspace((s) => s.workspaceId);
   const channels = useWorkspace((s) => s.channels);
@@ -220,7 +220,7 @@ export function GettingStarted(props: {
             const before = current;
             save({ ...current, dismissed: true });
             // Nothing else brings the list back, so a hide by mistake can be undone.
-            toast?.({
+            toast({
               message: "Getting started is hidden.",
               kind: "info",
               action: { label: "Undo", run: () => save({ ...before, dismissed: false }) },

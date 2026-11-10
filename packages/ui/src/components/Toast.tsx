@@ -46,19 +46,13 @@ export function useToast(): Show {
   return show;
 }
 
-/** The same, where a screen may be drawn without notices, as in a test. */
-export function useOptionalToast(): Show | null {
-  return useContext(ToastContext);
-}
-
 /**
  * Notices about one control's tries, such as joining a huddle: each new try
  * takes the last one's notice back first, so a failure ("access is blocked")
- * does not stay up beside a try that has since worked. Without notices, as in
- * a test, `show` says so by returning false.
+ * does not stay up beside a try that has since worked.
  */
-export function useTryNotice(): { show: (request: ToastRequest) => boolean; clear: () => void } {
-  const toast = useOptionalToast();
+export function useTryNotice(): { show: (request: ToastRequest) => void; clear: () => void } {
+  const toast = useToast();
   const last = useRef<(() => void) | null>(null);
   return useMemo(() => {
     const clear = () => {
@@ -69,8 +63,7 @@ export function useTryNotice(): { show: (request: ToastRequest) => boolean; clea
       clear,
       show: (request) => {
         clear();
-        last.current = toast?.(request) ?? null;
-        return !!toast;
+        last.current = toast(request);
       },
     };
   }, [toast]);

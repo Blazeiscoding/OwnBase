@@ -1,4 +1,4 @@
-import { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ApiError } from "@ownbase/client-core";
 import type { Invite, InviteStatus } from "@ownbase/protocol";
 import { useCopy } from "../lib/useCopy.js";
@@ -12,7 +12,7 @@ import {
   onlyOnItsNetwork,
   reusableInvite,
 } from "../lib/invites.js";
-import { PlatformContext, useClient, useWorkspace } from "../context.js";
+import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { Swap } from "./Motion.js";
 import { BreakableAddress } from "./BreakableAddress.js";
 import { Dialog } from "./Dialog.js";
@@ -21,7 +21,7 @@ import { useShareableServer } from "./ShareableServer.js";
 import { buttonClass } from "./Button.js";
 import { QrCode } from "./QrCode.js";
 import { Select } from "./Select.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 
 /** What an invite's status means to the person looking at the list. */
 const INVITE_STATUS: Record<InviteStatus, string> = {
@@ -54,10 +54,9 @@ export function InviteDialog(props: {
   onShareOnline?: () => void;
 }) {
   const client = useClient();
-  // Optional: a test may draw the dialog without the app around it.
-  const hostsHere = !!useContext(PlatformContext)?.hosting;
+  const hostsHere = !!usePlatform().hosting;
   const confirm = useConfirm();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const users = useWorkspace((s) => s.users);
   const selfId = useWorkspace((s) => s.self?.id);
   const selfRole = useWorkspace((s) => s.self?.role);
@@ -153,7 +152,7 @@ export function InviteDialog(props: {
   }, [canInvite, invites, selfId]);
 
   async function copyLink(link: string) {
-    if (await copy(link, "browser")) toast?.({ message: "Invite link copied.", kind: "success" });
+    if (await copy(link, "browser")) toast({ message: "Invite link copied.", kind: "success" });
   }
 
   async function revoke(code: string) {

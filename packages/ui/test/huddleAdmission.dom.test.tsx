@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { render } from "./render.js";
 import { WorkspaceClient } from "@ownbase/client-core";
 import { ClientContext, PlatformContext } from "../src/context.js";
 import { webPlatform } from "../src/platform.js";
@@ -25,10 +26,11 @@ describe("huddle admission feedback", () => {
     );
     const button = screen.getByRole("button", { name: "Start a huddle" });
     fireEvent.click(button);
-    expect(await screen.findByRole("alert")).toHaveTextContent("Wait 2 seconds, then try again.");
+    const refused = "Huddle joins are temporarily limited. Wait 2 seconds, then try again.";
+    expect(await screen.findByText(refused)).toBeVisible();
     expect(button).toBeEnabled();
     fireEvent.click(button);
-    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    await waitFor(() => expect(screen.queryByText(refused)).toBeNull());
     expect(join).toHaveBeenCalledTimes(2);
     client.destroy();
   });

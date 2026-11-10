@@ -13,8 +13,8 @@ import { Dialog } from "./Dialog.js";
 import { inputCls } from "./TextField.js";
 import { FriendActions } from "./FriendsDialog.js";
 import { buttonClass } from "./Button.js";
-import { useOptionalConfirm } from "./Confirm.js";
-import { useOptionalToast } from "./Toast.js";
+import { useConfirm } from "./Confirm.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { settingMark } from "../lib/settingsSearch.js";
 import { ErrorBoundary } from "./ErrorBoundary.js";
@@ -63,8 +63,7 @@ export function ProfileDialog(props: {
         c.memberIds.includes(s.self?.id ?? ""),
     ),
   );
-  // Asked over the workspace; a card drawn alone, as in a test, has nothing to ask with.
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   // The press on Message this card is waiting on. Once the card is closed, or
   // shows someone else, an earlier press has nothing left to finish: opening
   // its conversation then would pull the reader out of wherever they went (Q11).
@@ -99,7 +98,7 @@ export function ProfileDialog(props: {
 
   /** Blocks them, after saying what that does, or unblocks them (E12). */
   async function toggleBlock(userId: ID, name: string) {
-    if (!blockedThem && confirm) {
+    if (!blockedThem) {
       const go = await confirm({
         title: `Block ${name}?`,
         body: `You get no notifications from ${name}. Their messages stay hidden until you press Show, and your direct messages with them close. They are not told. You can unblock them here or in Account settings.`,
@@ -285,7 +284,7 @@ export function ProfileForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Saves are told in a notice, so the form never shifts to make room for one.
-  const toast = useOptionalToast();
+  const toast = useToast();
   const id = useId();
   const picker = useRef<HTMLInputElement>(null);
   const [picture, setPicture] = useState<{ busy: boolean; problem: string | null }>({
@@ -340,7 +339,7 @@ export function ProfileForm() {
   async function chooseZone(zone: string) {
     setZoneNote(null);
     const error = await client.setTimeZone(zone);
-    if (!error) toast?.({ message: "Time zone saved.", kind: "success" });
+    if (!error) toast({ message: "Time zone saved.", kind: "success" });
     else setZoneNote(failureText("Your time zone was not saved.", error, "Try again."));
   }
 
@@ -374,7 +373,7 @@ export function ProfileForm() {
     }
     // Saved again, it keeps this end rather than starting the time over.
     setClearAfter(statusExpiresAt ? "kept" : "never");
-    toast?.({ message: "Profile saved.", kind: "success" });
+    toast({ message: "Profile saved.", kind: "success" });
   }
 
   const dirty =

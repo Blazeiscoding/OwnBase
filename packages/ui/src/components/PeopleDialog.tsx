@@ -13,7 +13,7 @@ import { AuditHistory } from "./AuditHistory.js";
 import { buttonClass } from "./Button.js";
 import { ListStatus } from "./ListStatus.js";
 import { isImeKey } from "../lib/textInput.js";
-import { useOptionalConfirm } from "./Confirm.js";
+import { useConfirm } from "./Confirm.js";
 import { When } from "./When.js";
 
 /** What an account change did, in a sentence that names the person. */
@@ -41,7 +41,7 @@ type Action = "reset" | "twoStep" | "transfer";
  */
 export function PeopleDialog({ onClose }: { onClose: () => void }) {
   const client = useClient();
-  const confirm = useOptionalConfirm();
+  const confirm = useConfirm();
   const self = useWorkspace((s) => s.self);
   // Every account, kept current by the socket: an admin's snapshot holds them
   // all, and joins and changes arrive as they happen, so there is no Refresh.
@@ -112,7 +112,7 @@ export function PeopleDialog({ onClose }: { onClose: () => void }) {
   ) {
     if (busy) return;
     // Deactivating signs someone out everywhere: asked first, as a reset is.
-    if (patch.deactivated === true && confirm) {
+    if (patch.deactivated === true) {
       const go = await confirm({
         title: `Deactivate ${person.displayName}?`,
         body: `@${person.handle} is signed out on every device and cannot sign back in until an admin reactivates them. Their messages stay.`,

@@ -1,4 +1,5 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
+import { render } from "./render.js";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceClient } from "@ownbase/client-core";
 import { ClientContext, PlatformContext } from "../src/context.js";

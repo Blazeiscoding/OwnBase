@@ -1,12 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { render } from "./render.js";
 import userEvent from "@testing-library/user-event";
 import { WorkspaceClient } from "@ownbase/client-core";
 import type { Channel, Invite, ServerInfo, User } from "@ownbase/protocol";
-import { ClientContext, OpenMessageContext } from "../src/context.js";
+import { ClientContext, OpenMessageContext, PlatformContext } from "../src/context.js";
 import { InviteDialog } from "../src/components/InviteDialog.js";
-import { ConfirmProvider } from "../src/components/Confirm.js";
-import { ToastProvider } from "../src/components/Toast.js";
 import { Mrkdwn } from "../src/components/Mrkdwn.js";
 import { ShareableServerProvider } from "../src/components/ShareableServer.js";
 import { webPlatform, type HostingStatus, type Platform } from "../src/platform.js";
@@ -105,15 +104,13 @@ async function inviteWith(options: {
   };
   const user = userEvent.setup();
   render(
-    <ToastProvider>
-      <ConfirmProvider>
-        <ClientContext.Provider value={client}>
-          <ShareableServerProvider platform={platform}>
-            <InviteDialog onClose={() => {}} />
-          </ShareableServerProvider>
-        </ClientContext.Provider>
-      </ConfirmProvider>
-    </ToastProvider>,
+    <PlatformContext.Provider value={platform}>
+      <ClientContext.Provider value={client}>
+        <ShareableServerProvider platform={platform}>
+          <InviteDialog onClose={() => {}} />
+        </ShareableServerProvider>
+      </ClientContext.Provider>
+    </PlatformContext.Provider>,
   );
   const dialog = screen.getByRole("dialog", { name: "Invite people" });
   if (!options.createInvite) await within(dialog).findByText("ABCD1234");
@@ -351,11 +348,11 @@ describe("inviting someone", () => {
     client.store.setState({ self: member, users: { U_ALEX: member }, status: "online" });
     vi.spyOn(client.api, "listInvites").mockResolvedValue({ invites: [] });
     render(
-      <ConfirmProvider>
+      <PlatformContext.Provider value={webPlatform()}>
         <ClientContext.Provider value={client}>
           <InviteDialog onClose={() => {}} />
         </ClientContext.Provider>
-      </ConfirmProvider>,
+      </PlatformContext.Provider>,
     );
     const dialog = screen.getByRole("dialog", { name: "Invite people" });
     expect(dialog).toHaveTextContent(

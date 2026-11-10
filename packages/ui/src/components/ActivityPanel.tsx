@@ -13,7 +13,7 @@ import { channelTitle, formatFull } from "../lib/format.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { Tooltip } from "./Tooltip.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { ListStatus } from "./ListStatus.js";
 import { LoadMore } from "./LoadMore.js";
@@ -116,7 +116,7 @@ export function ActivityPanel({
   onOpenChannel: (channelId: ID) => void;
 }) {
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const removals = useWorkspace((s) => s.channelRemovals);
   const channels = useWorkspace((s) => s.channels);
   const users = useWorkspace((s) => s.users);
@@ -180,7 +180,7 @@ export function ActivityPanel({
   function readRemovals(ids: ID[]) {
     void client.readChannelRemovals(ids).then((error) => {
       if (error)
-        toast?.({
+        toast({
           message: failureText("Could not mark that read.", error),
           kind: "error",
         });
@@ -198,7 +198,7 @@ export function ActivityPanel({
       onOpenChannel(removal.channelId);
       return;
     }
-    toast?.({
+    toast({
       message:
         removal.channelType === "private"
           ? `#${removal.channelName} is private. Only someone in it can add you back.`

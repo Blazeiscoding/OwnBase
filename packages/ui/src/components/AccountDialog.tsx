@@ -33,7 +33,7 @@ import { TwoStepSettings } from "./TwoStepSettings.js";
 import { LinkedSignIns } from "./LinkedSignIns.js";
 import { BlockedPeople } from "./Blocking.js";
 import { buttonClass } from "./Button.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 import { failureText } from "../lib/failure.js";
 import { isImeKey } from "../lib/textInput.js";
 import { When } from "./When.js";
@@ -604,7 +604,7 @@ function SignOutButton({ disabled }: { disabled: boolean }) {
 function NotificationSettings() {
   const platform = usePlatform();
   const client = useClient();
-  const toast = useOptionalToast();
+  const toast = useToast();
   const dndUntil = useWorkspace((s) => s.self?.dndUntil ?? null);
   const [permission, setPermission] = useState(browserPermission);
   const [asking, setAsking] = useState(false);
@@ -678,7 +678,7 @@ function NotificationSettings() {
               onClick={() =>
                 void client.snoozeNotificationsUntil(null).then((error) => {
                   if (error)
-                    toast?.({ message: failureText("Could not resume notifications.", error) });
+                    toast({ message: failureText("Could not resume notifications.", error) });
                 })
               }
             >
@@ -697,7 +697,7 @@ function NotificationSettings() {
                 onClick={() => {
                   void client.snoozeNotificationsUntil(option.until()).then((error) => {
                     if (error)
-                      toast?.({ message: failureText("Could not pause notifications.", error) });
+                      toast({ message: failureText("Could not pause notifications.", error) });
                   });
                   setNow(new Date());
                 }}

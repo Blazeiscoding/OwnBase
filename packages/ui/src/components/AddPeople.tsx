@@ -7,7 +7,7 @@ import { matchTier } from "../lib/switcherRank.js";
 import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { inputClass } from "./TextField.js";
-import { useOptionalToast } from "./Toast.js";
+import { useToast } from "./Toast.js";
 
 /** How many matches show at once; the rest are found by typing more. */
 export const SHOWN = 6;
@@ -37,7 +37,7 @@ export function AddPeople({
 }) {
   const presence = useWorkspace((s) => s.presence);
   const [q, setQ] = useState("");
-  const toast = useOptionalToast();
+  const toast = useToast();
   const inputId = useId();
   const hintId = useId();
 
@@ -62,7 +62,7 @@ export function AddPeople({
     if (await onAdd(user.id)) {
       setQ("");
       list.choose(0);
-      toast?.({ message: `Added ${user.displayName} to ${where}.`, kind: "success" });
+      toast({ message: `Added ${user.displayName} to ${where}.`, kind: "success" });
     }
   }
 
