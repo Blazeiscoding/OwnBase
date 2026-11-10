@@ -321,7 +321,7 @@ describe("settling a report", () => {
     await expect.poll(() => admin.heard("reports").at(-1)?.open).toBe(0);
     const history = await call(`/api/channels/${general}/messages`, sam.token, undefined, "GET");
     expect(history.data.messages.map((m: { id: string }) => m.id)).toContain(message.id);
-    expect(server.store.listAudit({ limit: 1 })[0]).toEqual(
+    expect(server.store.audit.list({ limit: 1 })[0]).toEqual(
       expect.objectContaining({
         action: "report.resolved",
         actorId: owner.user.id,
@@ -354,7 +354,7 @@ describe("settling a report", () => {
       .toBe(true);
     expect(server.store.messages.get(message.id)).toBeNull();
     expect(await queue()).toEqual([]);
-    expect(server.store.listAudit({ limit: 1 })[0]!.details).toEqual({
+    expect(server.store.audit.list({ limit: 1 })[0]!.details).toEqual({
       resolution: "remove",
       reports: 1,
     });
@@ -369,7 +369,7 @@ describe("settling a report", () => {
     expect(server.store.people.get(maya.user.id)!.deactivated).toBe(true);
     expect((await call("/api/me", maya.token, undefined, "GET")).status).toBe(401);
     await expect.poll(() => theirs.closed()).toBe(true);
-    const actions = server.store.listAudit({ limit: 2 }).map((entry) => entry.action);
+    const actions = server.store.audit.list({ limit: 2 }).map((entry) => entry.action);
     expect(actions).toEqual(expect.arrayContaining(["user.deactivated", "report.resolved"]));
     // Reactivated, they sign in again: what they held before is gone for good.
     await call(`/api/admin/users/${maya.user.id}`, owner.token, { deactivated: false }, "PATCH");

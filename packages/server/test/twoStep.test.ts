@@ -366,7 +366,7 @@ describe("resetting someone's two-step sign-in", () => {
       200,
     );
     expect(await listed()).toBe(false);
-    expect(server!.store.listAudit({ limit: 5 })[0]).toMatchObject({
+    expect(server!.store.audit.list({ limit: 5 })[0]).toMatchObject({
       action: "user.two_step_reset",
       actorId: owner.id,
       targetId: member.id,
@@ -400,7 +400,7 @@ describe("resetting someone's two-step sign-in", () => {
       password: recovered.temporaryPassword,
     });
     expect(signed.data).toMatchObject({ token: expect.any(String), mustChangePassword: true });
-    expect(server!.store.listAudit({ limit: 5 })[0]).toMatchObject({
+    expect(server!.store.audit.list({ limit: 5 })[0]).toMatchObject({
       action: "account.recovered",
       details: { twoStepCleared: true },
     });

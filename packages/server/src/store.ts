@@ -1,14 +1,8 @@
-import type {
-  AuditAction,
-  AuditEntry,
-  AuditTargetType,
-  EventEnvelope,
-  ID,
-  ReplyReference,
-  WorkspaceEvent,
-} from "@ownbase/protocol";
+import type { EventEnvelope, ID, ReplyReference, WorkspaceEvent } from "@ownbase/protocol";
 import type { DatabaseSync } from "node:sqlite";
 import { AccountStore } from "./accounts/store.js";
+import { AuditLog } from "./admin/auditLog.js";
+import { ReportStore } from "./admin/reportStore.js";
 import { DeliveryStore } from "./apps/deliveryStore.js";
 import { AppStore } from "./apps/store.js";
 import { ChannelStore } from "./channels/store.js";
@@ -50,6 +44,8 @@ export class Store {
   readonly reminders: ReminderStore;
   readonly apps: AppStore;
   readonly deliveries: DeliveryStore;
+  readonly audit: AuditLog;
+  readonly reports: ReportStore;
 
   constructor(readonly db: DatabaseSync) {
     this.settings = new Settings(this);
@@ -67,6 +63,8 @@ export class Store {
     this.reminders = new ReminderStore(db, this);
     this.apps = new AppStore(db, this);
     this.deliveries = new DeliveryStore(db);
+    this.audit = new AuditLog(db);
+    this.reports = new ReportStore(db, this);
   }
 
   /** Only synchronous database work belongs here; publish events after this returns. */
@@ -123,68 +121,6 @@ export class Store {
     if (!r) return false;
     if (r.type === "public") return true;
     return this.channels.isMember(channelId, userId) && !this.people.isGuest(userId);
-  }
-
-  // ---------- audit log ----------
-
-  /** Call inside the transaction that makes the change, so neither exists without the other. */
-  recordAudit(
-    entry: {
-      actorId: ID | null;
-      action: AuditAction;
-      targetType: AuditTargetType;
-      targetId: string | null;
-      details?: AuditEntry["details"];
-    },
-    now = Date.now(),
-  ): void {
-    this.db
-      .prepare(
-        "INSERT INTO audit_log (id, at, actor_id, action, target_type, target_id, details) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      )
-      .run(
-        ulid(now),
-        now,
-        entry.actorId,
-        entry.action,
-        entry.targetType,
-        entry.targetId,
-        JSON.stringify(entry.details ?? {}),
-      );
-  }
-
-  /**
-   * Newest first. `before` is the id of the last entry already seen.
-   *
-   * Ordered by insertion rather than by id: ids made in the same millisecond
-   * are not ordered among themselves, and two changes a moment apart must not
-   * be listed the wrong way round.
-   */
-  listAudit(opts: { before?: ID; limit: number }): AuditEntry[] {
-    const rows = this.db
-      .prepare(
-        `SELECT * FROM audit_log
-         ${opts.before ? "WHERE rowid < (SELECT rowid FROM audit_log WHERE id = ?)" : ""}
-         ORDER BY rowid DESC LIMIT ?`,
-      )
-      .all(...(opts.before ? [opts.before] : []), opts.limit) as {
-      id: string;
-      at: number;
-      actor_id: string | null;
-      action: AuditAction;
-      target_type: AuditTargetType;
-      target_id: string | null;
-      details: string;
-    }[];
-    return rows.map((r) => ({
-      id: r.id,
-      at: r.at,
-      actorId: r.actor_id,
-      action: r.action,
-      targetType: r.target_type,
-      targetId: r.target_id,
-      details: JSON.parse(r.details) as AuditEntry["details"],
-    }));
   }
 
   // ---------- event log ----------

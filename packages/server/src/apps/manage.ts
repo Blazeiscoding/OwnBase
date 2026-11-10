@@ -67,7 +67,7 @@ export function registerAppManagement(
 
       const token = secretToken("xoxb-");
       store.apps.addToken(created.id, hashToken(token));
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.created",
         targetType: "app",
@@ -102,7 +102,7 @@ export function registerAppManagement(
       const added = (after.scopes ?? []).filter((scope) => !before.includes(scope));
       const removed = before.filter((scope) => !(after.scopes ?? []).includes(scope));
       if (added.length > 0 || removed.length > 0) {
-        store.recordAudit({
+        store.audit.record({
           actorId: me.id,
           action: "app.scopes_changed",
           targetType: "app",
@@ -120,7 +120,7 @@ export function registerAppManagement(
     const token = secretToken("xoxb-");
     store.transaction(() => {
       store.apps.replaceTokens(target.id, hashToken(token));
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.token_replaced",
         targetType: "app",
@@ -138,7 +138,7 @@ export function registerAppManagement(
     const signingSecret = secretToken();
     store.transaction(() => {
       store.apps.setSigningSecret(target.id, signingSecret);
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.signing_secret_replaced",
         targetType: "app",
@@ -155,7 +155,7 @@ export function registerAppManagement(
     if (!target) throw new HttpError(404, "not_found");
     store.transaction(() => {
       store.apps.delete(target.id);
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "app.deleted",
         targetType: "app",
@@ -180,7 +180,7 @@ export function registerAppManagement(
         channelId: channel.id,
         tokenHash: hashToken(token),
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "webhook.created",
         targetType: "webhook",
@@ -201,7 +201,7 @@ export function registerAppManagement(
     const webhook = store.transaction(() => {
       const replaced = store.apps.replaceWebhookToken(params.id, hashToken(token));
       if (replaced) {
-        store.recordAudit({
+        store.audit.record({
           actorId: me.id,
           action: "webhook.url_replaced",
           targetType: "webhook",
@@ -227,7 +227,7 @@ export function registerAppManagement(
     const deleted = store.transaction(() => {
       const webhook = store.apps.getWebhook(params.id);
       if (!webhook || !store.apps.deleteWebhook(webhook.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "webhook.deleted",
         targetType: "webhook",
@@ -258,7 +258,7 @@ export function registerAppManagement(
         const current = store.apps.get(owner.id);
         if (!current) throw new HttpError(404, "not_found");
         store.apps.setInteractivityUrl(current.id, url);
-        store.recordAudit({
+        store.audit.record({
           actorId: me.id,
           action: "app.interactivity_url_changed",
           targetType: "app",
@@ -293,7 +293,7 @@ export function registerAppManagement(
         url: body.url,
         eventTypes: body.eventTypes ?? [],
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "subscription.created",
         targetType: "subscription",
@@ -309,7 +309,7 @@ export function registerAppManagement(
     const deleted = store.transaction(() => {
       const subscription = store.apps.getSubscription(params.id);
       if (!subscription || !store.apps.deleteSubscription(subscription.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "subscription.deleted",
         targetType: "subscription",
@@ -331,7 +331,7 @@ export function registerAppManagement(
     if (!subscription) throw new HttpError(404, "not_found");
     const { retried, waiting } = store.transaction(() => {
       const result = store.deliveries.retryFailed(subscription.id);
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "subscription.retried",
         targetType: "subscription",

@@ -118,7 +118,7 @@ export async function recoverAccount(opts: {
       const revoked = store.accounts.revokeSessions(user.id).length;
       // No actor: the host did this from the command line, without signing in,
       // which is exactly the kind of change the record exists to show.
-      store.recordAudit({
+      store.audit.record({
         actorId: null,
         action: "account.recovered",
         targetType: "user",

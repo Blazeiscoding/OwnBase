@@ -105,7 +105,7 @@ export function registerCommands(
         description: body.description ?? "",
         usageHint: body.usageHint ?? "",
       });
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "command.created",
         targetType: "command",
@@ -126,7 +126,7 @@ export function registerCommands(
     const deleted = store.transaction(() => {
       const command = store.apps.getCommand(params.id);
       if (!command || !store.apps.deleteCommand(command.id)) return false;
-      store.recordAudit({
+      store.audit.record({
         actorId: me.id,
         action: "command.deleted",
         targetType: "command",
