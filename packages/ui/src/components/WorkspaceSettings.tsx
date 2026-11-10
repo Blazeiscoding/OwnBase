@@ -5,7 +5,7 @@ import { ApiError } from "@ownbase/client-core";
 import { useClient, usePlatform, useWorkspace } from "../context.js";
 import { formatBytes, formatTime } from "../lib/format.js";
 import { memberNoticeText, UpgradeLink, usePlanMembers } from "./MemberNotice.js";
-import { SavedContext, useSaved } from "../lib/savedNote.js";
+import { SavedContext, useSaved, useSavedNote } from "../lib/savedNote.js";
 import { IconProblem, prepareIcon } from "../lib/iconImage.js";
 import { useCurrentWorkspaceIcon } from "../lib/workspaceIcon.js";
 import { buttonClass } from "./Button.js";
@@ -62,19 +62,12 @@ export function WorkspaceSettings({
   const extensions = useExtensionPanels(owner);
   const sections = extensions.panels.length ? SECTIONS : SECTIONS.filter((s) => s.id !== "signin");
   const panel = useRef<HTMLDivElement>(null);
-  const [saved, setSaved] = useState(false);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const markSaved = useCallback(() => {
-    setSaved(true);
-    clearTimeout(savedTimer.current);
-    savedTimer.current = setTimeout(() => setSaved(false), SAVED_FOR_MS);
-  }, []);
-  useEffect(() => () => clearTimeout(savedTimer.current), []);
+  const [saved, markSaved, clearSaved] = useSavedNote();
 
   function choose(next: Section) {
     if (next === section) return;
     setSection(next);
-    setSaved(false);
+    clearSaved();
   }
 
   return (

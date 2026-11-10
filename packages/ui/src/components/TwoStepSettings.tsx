@@ -4,6 +4,7 @@ import { ApiError } from "@ownbase/client-core";
 import { useClient, useWorkspace } from "../context.js";
 import { accountError } from "../lib/account.js";
 import { useCopy } from "../lib/useCopy.js";
+import { saveText } from "../lib/download.js";
 import { settingMark } from "../lib/settingsSearch.js";
 import { inputCls } from "./TextField.js";
 import { QrCode } from "./QrCode.js";
@@ -398,17 +399,6 @@ export function TwoStepSettings() {
       )}
     </section>
   );
-}
-
-/** Hands the codes to the browser or desktop app as a text file; nothing is sent anywhere. */
-function saveCodes(text: string) {
-  const url = URL.createObjectURL(new Blob([text], { type: "text/plain;charset=utf-8" }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "ownbase-recovery-codes.txt";
-  a.click();
-  // Long enough for the download to have read it, in every browser.
-  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /** Recovery codes are shown once: closing before Done asks first. */

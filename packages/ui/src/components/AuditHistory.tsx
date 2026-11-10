@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { AuditEntry, ID, User } from "@ownbase/protocol";
 import { useClient, useWorkspace } from "../context.js";
-import { formatDay, formatTime } from "../lib/format.js";
+import { formatDay, formatTime, possessive } from "../lib/format.js";
 import { ListStatus } from "./ListStatus.js";
 
 /**
@@ -131,10 +131,6 @@ function capitalise(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
 }
 
-function possessive(text: string): string {
-  if (text === "you") return "your";
-  return text.endsWith("s") ? `${text}'` : `${text}'s`;
-}
 
 /**
  * What administrators have changed, for a workspace that has to be able to say

@@ -12,7 +12,7 @@ import {
   useNotificationPreviews,
 } from "../lib/notificationPreview.js";
 import { ACCOUNT_SECTIONS, type AccountSection } from "../lib/accountSections.js";
-import { SavedContext, useSaved } from "../lib/savedNote.js";
+import { SavedContext, useSaved, useSavedNote } from "../lib/savedNote.js";
 import { NOTIFY_LEVELS } from "../lib/notifyLevels.js";
 import {
   SECTION_LABELS,
@@ -45,9 +45,6 @@ export type { AccountSection };
 
 const SECTIONS = ACCOUNT_SECTIONS.map((id) => ({ id, label: SECTION_LABELS[id] }));
 
-/** How long "Saved" stays after a choice is kept. */
-const SAVED_FOR_MS = 2000;
-
 const CONTROLS =
   "input:not(:disabled), select:not(:disabled), textarea:not(:disabled), button:not(:disabled)";
 const HEADINGS = "h3, h4, legend, label";
@@ -78,14 +75,7 @@ export function AccountDialog({
   const [query, setQuery] = useState("");
   /** A setting a search went to, to bring into view once its section shows. */
   const [goingTo, setGoingTo] = useState<Setting | null>(null);
-  const [saved, setSaved] = useState(false);
-  const savedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const markSaved = useCallback(() => {
-    setSaved(true);
-    clearTimeout(savedTimer.current);
-    savedTimer.current = setTimeout(() => setSaved(false), SAVED_FOR_MS);
-  }, []);
-  useEffect(() => () => clearTimeout(savedTimer.current), []);
+  const [saved, markSaved, clearSaved] = useSavedNote();
   const self = useWorkspace((s) => s.self);
   const composer = useComposerPreferences();
   const alive = useRef(true);
@@ -215,7 +205,7 @@ export function AccountDialog({
     setError(null);
     setNotice(null);
     setConfirmation(null);
-    setSaved(false);
+    clearSaved();
   }
 
   /** Opens the section a setting is in and brings the setting into view. */
