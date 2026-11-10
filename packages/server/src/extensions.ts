@@ -49,7 +49,6 @@ export interface ExtensionStorage {
   get(key: string): string | null;
   set(key: string, value: string): void;
   delete(key: string): void;
-  /** Every key starting with `prefix`, with its value. */
   list(prefix: string): { key: string; value: string }[];
 }
 

@@ -87,6 +87,7 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
     return { scheduled: store.scheduled.get(scheduled.id)! };
   });
 
+  let scheduledDrain: ReturnType<typeof setImmediate> | null = null;
   /**
    * Posts anything that has come due. Runs on a timer and once at startup, so
    * messages scheduled while the server was down still go out.
@@ -96,7 +97,6 @@ export function registerScheduled(ctx: ServerContext, { posting }: { posting: Po
    * or duplicating the message. An obstacle that the author can clear holds the
    * row; one they cannot fails it. Either way the reason is theirs to read.
    */
-  let scheduledDrain: ReturnType<typeof setImmediate> | null = null;
   const flushScheduled = () => {
     if (opts.isolated) return;
     const due = store.scheduled.due(Date.now(), scheduledLimits.batch);

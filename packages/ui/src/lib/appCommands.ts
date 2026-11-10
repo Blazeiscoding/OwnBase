@@ -68,7 +68,6 @@ const firstGrapheme = (text: string) => {
   return first?.segment ?? "";
 };
 
-/** Runs one of `APP_COMMANDS`. */
 export async function runAppCommand(
   name: string,
   args: string,

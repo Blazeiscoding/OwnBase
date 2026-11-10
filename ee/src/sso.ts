@@ -189,7 +189,6 @@ export function parseDomains(text: string): string[] | null {
 }
 
 export function singleSignOn(opts: {
-  /** Whether the license has single sign-on now. */
   licensed: () => boolean;
   now?: () => number;
   fetch?: typeof fetch;
@@ -243,7 +242,6 @@ export function singleSignOn(opts: {
     return keys;
   };
 
-  /** Drops what has expired, and the oldest while there are too many. */
   const prune = <T extends { expiresAt: number }>(map: Map<string, T>) => {
     const at = now();
     for (const [key, value] of map) if (value.expiresAt <= at) map.delete(key);
@@ -299,7 +297,6 @@ export function singleSignOn(opts: {
       }).length;
   };
 
-  /** Whether someone new may have an account: null when they may, or why not. */
   const newAccountRefusal = (s: SsoSettings, claims: IdClaims): string | null => {
     const who = claims.email ?? claims.preferred_username ?? "you";
     if (!opts.licensed() || !s.newAccounts)

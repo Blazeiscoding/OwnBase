@@ -22,7 +22,6 @@ import { threadEphemeral } from "../threads/events.js";
 export type DurableType = WorkspaceEvent["type"];
 export type DurableOf<T extends DurableType> = Extract<WorkspaceEvent, { type: T }>;
 
-/** How an app subscribed to an event is sent it. */
 export interface AppDelivery<E extends WorkspaceEvent> {
   /** Who caused it: an app is never sent what its own bot did. */
   actor(event: E): ID | null;
@@ -87,7 +86,6 @@ export type EventTo<A extends Audience> = Extract<
   { type: { [T in keyof Audiences]: Audiences[T] extends A ? T : never }[keyof Audiences] }
 >;
 
-/** The conversation whose readers hear a durable event, or null for everyone. */
 export function eventChannel(event: WorkspaceEvent): ID | null {
   return (DURABLE_EVENTS[event.type] as DurableSpec<WorkspaceEvent>).channel(event);
 }

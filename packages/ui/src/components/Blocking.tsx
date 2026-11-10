@@ -7,7 +7,6 @@ import { Avatar } from "./Avatar.js";
 import { Icon } from "./Icon.js";
 import { buttonClass } from "./Button.js";
 
-/** Unblocks someone, saying when it did not work (E12). */
 function useUnblock(userId: ID) {
   const client = useClient();
   const [busy, setBusy] = useState(false);
@@ -76,7 +75,6 @@ export function DeactivatedComposer({ userId }: { userId: ID }) {
   );
 }
 
-/** One blocked person in Account settings, with Unblock. */
 function BlockedRow({ userId }: { userId: ID }) {
   const user = useWorkspace((s) => s.users[userId]);
   const { busy, failed, unblock } = useUnblock(userId);

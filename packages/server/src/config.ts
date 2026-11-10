@@ -13,7 +13,6 @@ import type { AccessPolicy, MemberNotice } from "@ownbase/protocol";
 /** A setting that cannot be used, with a message meant for the person who set it. */
 export class ConfigError extends Error {}
 
-/** Reads a setting from the environment, as OWNBASE_<name>. */
 export function envSetting(name: string): string | undefined {
   return process.env[`OWNBASE_${name}`];
 }

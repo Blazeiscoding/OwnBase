@@ -153,7 +153,6 @@ export function readPage(html: string, pageUrl: string): PageSummary | null {
   return { title, description, siteName, imageUrl: image ? absolute(image, pageUrl) : null };
 }
 
-/** A tag's attributes, names lower-cased and values decoded. */
 function attributes(tag: string): Map<string, string> {
   const out = new Map<string, string>();
   for (const m of tag.matchAll(

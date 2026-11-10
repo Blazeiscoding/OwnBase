@@ -88,7 +88,6 @@ export function createAppCalls(ctx: ServerContext) {
           headers: { ...signatureHeaders(secret, body), ...headers },
         });
 
-  /** Posts a form to one of an app's URLs, signed with the app's own secret. */
   const postForm = (appId: ID, url: string, form: string): Promise<OutboundResponse> =>
     post(url, form, "application/x-www-form-urlencoded", store.apps.signingSecret(appId) ?? "");
 

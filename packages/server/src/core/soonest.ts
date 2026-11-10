@@ -13,7 +13,6 @@ export class SoonestTimer {
       lifecycle: Lifecycle;
       /** When the soonest comes due, or null when nothing waits. */
       next(): number | null;
-      /** Brings due what is due now. */
       due(): void;
       /** Never armed, such as in an isolated copy. */
       off?: boolean;

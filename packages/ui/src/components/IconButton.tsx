@@ -33,7 +33,6 @@ export type IconButtonProps = Omit<
     size?: IconButtonSize;
     /** A circle, for one on a pill such as a chosen person's chip. Otherwise a rounded square. */
     round?: boolean;
-    /** Where the tooltip would rather open. */
     tooltipSide?: "top" | "bottom" | "right";
     ref?: Ref<HTMLButtonElement>;
   };

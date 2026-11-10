@@ -21,7 +21,6 @@ const RETENTION_MS = 7 * 24 * 3600_000;
 export function createEventDeliveries(ctx: ServerContext, calls: AppCalls) {
   const { opts, store, log, background, lifecycle } = ctx;
 
-  /** Sends one event to its endpoint and records how that went. */
   const deliver = async (delivery: DueDelivery): Promise<void> => {
     try {
       const retryHeaders: Record<string, string> =

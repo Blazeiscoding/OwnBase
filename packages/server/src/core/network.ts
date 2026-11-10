@@ -109,7 +109,6 @@ export class Network {
   }
 }
 
-/** The session token a request carries, if any. */
 export function bearerToken(req: FastifyRequest): string | null {
   const h = req.headers.authorization;
   if (h?.startsWith("Bearer ")) return h.slice(7);

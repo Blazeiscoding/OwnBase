@@ -11,7 +11,6 @@ export const ASSETS_DIR = "assets";
 export const HASHED_ASSET_CACHE = "public, max-age=31536000, immutable";
 export const REVALIDATED_CACHE = "no-cache";
 
-/** The Cache-Control for a file sent from the client's build at `root`. */
 export function webCacheControl(root: string, file: string): string {
   const [top, ...rest] = relative(resolve(root), resolve(file)).split(sep);
   return top === ASSETS_DIR && rest.length > 0 ? HASHED_ASSET_CACHE : REVALIDATED_CACHE;

@@ -1,7 +1,6 @@
 import type { HostingStatus } from "../platform.js";
 import { DEEP_LINK_PROTOCOL, normalizeServerUrlSafe } from "./deeplinkHelpers.js";
 
-/** What a link asks the app to do. */
 export type DeepLink =
   | { kind: "join"; serverUrl: string; code: string | null }
   /** A workspace nobody owns yet, and the code that claims it (P7). */
@@ -110,7 +109,7 @@ export function browserLink(serverUrl: string, target: LinkTarget): string {
     : `${serverUrl}/#/c/${e(target.channelId)}/m/${e(target.messageId)}`;
 }
 
-/** A link that opens the desktop app. Written in the OwnBase form. */
+/** A link that opens the desktop app. */
 export function desktopLink(serverUrl: string, target: LinkTarget): string {
   const e = encodeURIComponent;
   // ":" and "/" are allowed in a query, and leaving them makes the link readable.

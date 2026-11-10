@@ -25,7 +25,7 @@ const bridge: OwnBaseBridge = {
 };
 
 // A port cannot cross the context bridge, so this passes each microphone's
-// on to the page as a message to its own window, which nothing else hears.
+// port on to the page as a message to its own window, which nothing else hears.
 ipcRenderer.on("microphone:port", (event, data: { session?: unknown } | undefined) => {
   const port = event.ports[0];
   if (!port || typeof data?.session !== "number") return;

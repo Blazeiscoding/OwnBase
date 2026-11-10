@@ -9,9 +9,7 @@ import { createHmac, randomBytes, randomInt, timingSafeEqual } from "node:crypto
 
 /** How long one code lasts, in seconds. */
 export const TWO_STEP_PERIOD = 30;
-/** How many digits a code has. */
 export const TWO_STEP_DIGITS = 6;
-/** How many recovery codes a set holds. */
 export const RECOVERY_CODES = 10;
 
 const BASE32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
@@ -57,7 +55,6 @@ export function newTwoStepSecret(): string {
   return base32(randomBytes(20));
 }
 
-/** The time step a moment falls in. */
 export function stepAt(now: number): number {
   return Math.floor(now / 1000 / TWO_STEP_PERIOD);
 }

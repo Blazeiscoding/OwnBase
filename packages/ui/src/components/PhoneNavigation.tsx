@@ -61,7 +61,6 @@ export function PhoneNavigation() {
   );
 }
 
-/** One of the bar's buttons: as tall as the bar, and a quarter of its width. */
 const ITEM =
   "group/item flex h-full w-full min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] font-medium leading-4";
 

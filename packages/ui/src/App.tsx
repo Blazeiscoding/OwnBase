@@ -443,7 +443,6 @@ export function App({ platform }: { platform: Platform }) {
         ];
   const viewingHosted =
     viewedUrl !== null && hostedUrls.some((url) => normalizeServerUrlSafe(url) === viewedUrl);
-  /** Opens Manage hosting, on one tab when something asked for it. */
   const openHosting = (section?: "internet") => {
     setHostSection(section);
     setHostDialogOpen(true);

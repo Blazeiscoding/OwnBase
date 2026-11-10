@@ -98,7 +98,6 @@ export interface HostedServer {
   workspaceName?(): string;
   /** Renames the workspace while it runs, telling everyone connected. */
   setWorkspaceName?(name: string): void;
-  /** The workspace's icon now, or null when it has none. */
   workspaceIcon?(): { type: string; bytes: Uint8Array; version: string } | null;
   /** Announces the workspace on the local network again, after a network change. */
   reannounce?(): void;
@@ -184,7 +183,6 @@ interface HostingOptions {
   onChange?(): void;
   /** Opens a tunnel to a port on this computer. Absent where there is none to open. */
   openTunnel?(port: number, signal: AbortSignal, instanceId?: string): Promise<Tunnel>;
-  /** Whether a tunnel could be opened now. */
   tunnelAvailable?(): boolean;
   /**
    * The stable public address configured for this computer: what the setting
@@ -402,7 +400,6 @@ export function createHostingController(options: HostingOptions) {
   let launchFolder: string | null | undefined;
   let launchError:
     { message: string; part: "hosting" | "public-address"; folder: string | null } | undefined;
-  /** Stops listening for who connects to the running server. */
   let stopWatchingConnections: (() => void) | null = null;
   /** Stops following the running workspace's name and who may join. */
   let stopFollowingWorkspace: (() => void) | null = null;
@@ -474,7 +471,6 @@ export function createHostingController(options: HostingOptions) {
     };
   }
 
-  /** The folder chosen to start when the app opens. An unreadable setting is no choice. */
   /**
    * The workspace chosen to start with the app, or null when none was. A
    * choice that cannot be read is not "none": it throws, and nothing is kept,
@@ -796,7 +792,6 @@ export function createHostingController(options: HostingOptions) {
           : (entry.portChosen ?? entry.port !== options.defaultPort);
       const serverOptions = {
         dataDir: workspace.dataDir,
-        // An existing workspace keeps the name it has; only a new one is given one.
         ...(created ? { workspaceName: entry.name } : {}),
         ...(isolated ? { isolated: true } : {}),
       };
@@ -936,7 +931,6 @@ export function createHostingController(options: HostingOptions) {
     });
   }
 
-  /** Every workspace hosted here, most recent first, and the folders that could not be read. */
   async function list(): Promise<{ workspaces: HostedWorkspaceView[]; unreadable: string[] }> {
     const entries = await loadRegistry();
     // The list is still worth showing when only this choice cannot be read.
@@ -1365,7 +1359,6 @@ export function createHostingController(options: HostingOptions) {
         registry = list;
         throw error;
       }
-      // Nothing is left to start when the app opens.
       if ((await readLaunchFolder().catch(() => null)) === entry.folder) {
         launchFolder = null;
         await options.settings.set(START_ON_LAUNCH_KEY, null).catch(() => {});

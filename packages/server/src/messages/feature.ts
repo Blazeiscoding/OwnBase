@@ -27,7 +27,6 @@ const RETENTION_SWEEP_MS = 30_000;
 export interface RetentionStatus {
   /** When a sweep last finished without an error; null before the first. */
   lastSuccessAt: number | null;
-  /** Why the last sweep failed, or null when it did not. */
   lastError: string | null;
   /** Sweeps that have failed in a row. */
   failures: number;
@@ -224,7 +223,8 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
   };
 
   /**
-   * Deletes a message, and when it started a thread, every reply in it.
+   * Deletes a message within `mutate`, and when it started a thread, every
+   * reply in it.
    *
    * A reply has nothing to hang from once its thread's first message is gone:
    * the thread cannot be opened, and keeping the replies stored where nobody can
@@ -233,7 +233,6 @@ export function registerMessages(ctx: ServerContext, { files }: { files: Files }
    * redacted — and each is announced, replies before the message they answered,
    * so an open thread empties before it closes.
    */
-  /** Deletes a message, its thread's replies with it, and their files, within `mutate`. */
   const removeMessageWithin = (existing: Message, emit: typeof recordEvent): void => {
     const replies = existing.threadRootId === null ? store.threads.replyIds(existing.id) : [];
     const doomed = [

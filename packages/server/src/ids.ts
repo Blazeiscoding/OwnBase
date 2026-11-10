@@ -13,7 +13,6 @@ function timePart(now: number): string {
   return ts;
 }
 
-/** Sixteen random base32 digits, as numbers. */
 function randomDigits(): number[] {
   return Array.from(randomBytes(16), (byte) => byte % 32);
 }
