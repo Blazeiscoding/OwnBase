@@ -31,7 +31,6 @@ const IPC_PREFIX = /^Error invoking remote method '[^']*':\s*(?:[A-Za-z]*Error:\
 
 export type Call = <C extends Channel>(channel: C, ...args: Args<C>) => Promise<Result<C>>;
 
-/** Makes a call through the bridge, resolving to its value or rejecting with its code. */
 export function invoker(bridge: Pick<OwnBaseBridge, "invoke">): Call {
   return async (channel, ...args) => {
     let reply;
@@ -50,7 +49,6 @@ type Callers<M extends Record<string, Channel>> = {
   [K in keyof M]: (...args: Args<M[K]>) => Promise<Result<M[K]>>;
 };
 
-/** One function per named channel, each taking and resolving to what the contract says. */
 function callers<M extends Record<string, Channel>>(call: Call, channels: M): Callers<M> {
   return Object.fromEntries(
     Object.entries(channels).map(([name, channel]) => [
